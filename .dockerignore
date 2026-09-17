@@ -1,0 +1,16 @@
+# Allow only controller sources, never downloaded or compiled trees.
+**
+!Dockerfile
+!buildsys/
+buildsys/**
+!buildsys/*.py
+!build/
+build/**
+!build/deps.py
+!build/fetch.py
+!build/smoke-lto.sh
+!tests/
+tests/**
+!tests/test_inputs.py
+!tests/test_recipes.py
+!sources.lock.json

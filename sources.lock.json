@@ -1,0 +1,231 @@
+{
+  "comment": "Project source lock. Hashes verified against downloaded bytes before use.",
+  "inputs": [
+    {
+      "name": "cpython",
+      "version": "3.14.6",
+      "url": "https://www.python.org/ftp/python/3.14.6/Python-3.14.6.tar.xz",
+      "sha256": "143b1dddefaec3bd2e21e3b839b34a2b7fb9842272883c576420d605e9f30c63",
+      "size": 23921184,
+      "role": "source",
+      "license": "Python-2.0",
+      "purpose": "The distributed interpreter"
+    },
+    {
+      "name": "openssl",
+      "version": "3.5.7",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz",
+      "sha256": "a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8",
+      "role": "source",
+      "license": "Apache-2.0",
+      "purpose": "ssl, hashlib"
+    },
+    {
+      "name": "sqlite",
+      "version": "3.53.1",
+      "url": "https://www.sqlite.org/2026/sqlite-autoconf-3530100.tar.gz",
+      "sha256": "83e6b2020a034e9a7ad4a72feea59e1ad52f162e09cbd26735a3ffb98359fc4f",
+      "role": "source",
+      "license": "public-domain",
+      "purpose": "sqlite3"
+    },
+    {
+      "name": "expat",
+      "version": "2.8.1",
+      "url": "https://github.com/libexpat/libexpat/releases/download/R_2_8_1/expat-2.8.1.tar.xz",
+      "sha256": "10b195ee78160a908388180a8fe3603d4e9a12f4755fbf5f3816b23a9d750da0",
+      "role": "source",
+      "license": "MIT",
+      "purpose": "XML"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.1",
+      "url": "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "role": "source",
+      "license": "Zlib",
+      "purpose": "zlib module"
+    },
+    {
+      "name": "bzip2",
+      "version": "1.0.8",
+      "url": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+      "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+      "role": "source",
+      "license": "bzip2-1.0.6",
+      "purpose": "bz2 module"
+    },
+    {
+      "name": "xz",
+      "version": "5.8.1",
+      "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.gz",
+      "sha256": "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
+      "role": "source",
+      "license": "0BSD",
+      "purpose": "lzma module"
+    },
+    {
+      "name": "zstd",
+      "version": "1.5.7",
+      "url": "https://github.com/python/cpython-source-deps/archive/refs/tags/zstd-1.5.7.tar.gz",
+      "sha256": "f24b52470d12f466e9fa4fcc94e6c530625ada51d7b36de7fdc6ed7e6f499c8e",
+      "role": "source",
+      "license": "BSD-3-Clause OR GPL-2.0-only",
+      "purpose": "compression.zstd"
+    },
+    {
+      "name": "mpdecimal",
+      "version": "4.0.0",
+      "url": "https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-4.0.0.tar.gz",
+      "sha256": "942445c3245b22730fd41a67a7c5c231d11cb1b9936b9c0f76334fb7d0b4468c",
+      "role": "source",
+      "license": "BSD-2-Clause",
+      "purpose": "decimal"
+    },
+    {
+      "name": "libffi",
+      "version": "3.4.6",
+      "url": "https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz",
+      "sha256": "b0dea9df23c863a7a50e825440f3ebffabd65df1497108e5d437747843895a4e",
+      "role": "source",
+      "license": "MIT",
+      "purpose": "ctypes; plan allows newer than musl-reference 3.3 with recorded difference"
+    },
+    {
+      "name": "libedit",
+      "version": "20240808-3.1",
+      "url": "https://thrysoee.dk/editline/libedit-20240808-3.1.tar.gz",
+      "sha256": "5f0573349d77c4a48967191cdd6634dd7aa5f6398c6a57fe037cc02696d6099f",
+      "role": "source",
+      "license": "BSD-3-Clause",
+      "purpose": "readline module backend"
+    },
+    {
+      "name": "ncurses",
+      "version": "6.5",
+      "url": "https://ftp.gnu.org/pub/gnu/ncurses/ncurses-6.5.tar.gz",
+      "sha256": "136d91bc269a9a5785e5f9e980bc76ab57428f604ce3e5a5a90cebc767971cc6",
+      "role": "source",
+      "license": "MIT",
+      "purpose": "curses module and terminfo"
+    },
+    {
+      "name": "libuuid",
+      "version": "1.0.3",
+      "url": "https://sourceforge.net/projects/libuuid/files/libuuid-1.0.3.tar.gz",
+      "sha256": "46af3275291091009ad7f1b899de3d0cea0252737550e7919d17237997db5644",
+      "role": "source",
+      "license": "BSD-3-Clause",
+      "purpose": "uuid module"
+    },
+    {
+      "name": "bdb",
+      "version": "6.0.19",
+      "url": "https://ftp.osuosl.org/pub/blfs/conglomeration/db/db-6.0.19.tar.gz",
+      "sha256": "2917c28f60903908c2ca4587ded1363b812c4e830a5326aaa77c9879d13ae18e",
+      "role": "source",
+      "license": "AGPL-3.0-only",
+      "purpose": "dbm backend"
+    },
+    {
+      "name": "tcl",
+      "version": "9.0.3",
+      "url": "https://prdownloads.sourceforge.net/tcl/tcl9.0.3-src.tar.gz",
+      "sha256": "2537ba0c86112c8c953f7c09d33f134dd45c0fb3a71f2d7f7691fd301d2c33a6",
+      "role": "source",
+      "license": "TCL",
+      "purpose": "tkinter interpreter"
+    },
+    {
+      "name": "tk",
+      "version": "9.0.3",
+      "url": "https://prdownloads.sourceforge.net/tcl/tk9.0.3-src.tar.gz",
+      "sha256": "bf344efadb618babb7933f69275620f72454d1c8220130da93e3f7feb0efbf9b",
+      "role": "source",
+      "license": "TCL",
+      "purpose": "tkinter toolkit"
+    },
+    {
+      "name": "libx11",
+      "version": "1.6.12",
+      "url": "https://www.x.org/archive/individual/lib/libX11-1.6.12.tar.gz",
+      "sha256": "0fce5fc0a24a3dc728174eccd0cb8d6a1b37a2ec1654bd5628c84e5bc200d594",
+      "role": "source",
+      "license": "MIT-x11",
+      "purpose": "tkinter X11 client"
+    },
+    {
+      "name": "libxau",
+      "version": "1.0.11",
+      "url": "https://www.x.org/releases/individual/lib/libXau-1.0.11.tar.gz",
+      "sha256": "3a321aaceb803577a4776a5efe78836eb095a9e44bbc7a465d29463e1a14f189",
+      "role": "source",
+      "license": "MIT-x11",
+      "purpose": "X11 auth"
+    },
+    {
+      "name": "libxcb",
+      "version": "1.17.0",
+      "url": "https://xcb.freedesktop.org/dist/libxcb-1.17.0.tar.gz",
+      "sha256": "2c69287424c9e2128cb47ffe92171e10417041ec2963bceafb65cb3fcf8f0b85",
+      "role": "source",
+      "license": "MIT",
+      "purpose": "X11 transport"
+    },
+    {
+      "name": "xcb-proto",
+      "version": "1.17.0",
+      "url": "https://xcb.freedesktop.org/dist/xcb-proto-1.17.0.tar.xz",
+      "sha256": "2c1bacd2110f4799f74de6ebb714b94cf6f80fb112316b1219480fd22562148c",
+      "role": "build-source",
+      "license": "MIT",
+      "purpose": "libxcb code generation"
+    },
+    {
+      "name": "xorgproto",
+      "version": "2024.1",
+      "url": "https://www.x.org/archive/individual/proto/xorgproto-2024.1.tar.gz",
+      "sha256": "4f6b9b4faf91e5df8265b71843a91fc73dc895be6210c84117a996545df296ce",
+      "role": "build-source",
+      "license": "MIT-x11",
+      "purpose": "X11 headers"
+    },
+    {
+      "name": "xtrans",
+      "version": "1.6.0",
+      "url": "https://www.x.org/archive/individual/lib/xtrans-1.6.0.tar.gz",
+      "sha256": "936b74c60b19c317c3f3cb1b114575032528dbdaf428740483200ea874c2ca0a",
+      "role": "build-source",
+      "license": "MIT-x11",
+      "purpose": "X11 transport headers"
+    },
+    {
+      "name": "util-macros",
+      "version": "1.20.2",
+      "url": "https://www.x.org/archive/individual/util/util-macros-1.20.2.tar.gz",
+      "sha256": "f642f8964d81acdf06653fdf9dbc210c43ce4bd308bd644a8d573148d0ced76b",
+      "role": "build-source",
+      "license": "MIT-x11",
+      "purpose": "X11 build macros"
+    },
+    {
+      "name": "pip",
+      "version": "26.1.2",
+      "url": "https://files.pythonhosted.org/packages/5d/95/6b5cb3461ea5673ba0995989746db58eb18b91b54dbf331e72f569540946/pip-26.1.2-py3-none-any.whl",
+      "sha256": "382ff9f685ee3bc25864f820aa50505825f10f5458ffff07e30a6d96e5715cab",
+      "role": "source",
+      "license": "MIT",
+      "purpose": "installer installed offline into distribution"
+    },
+    {
+      "name": "reference-pbs",
+      "version": "20260610",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+      "sha256": "54eca143d09ed3c596ecad5e3bfcb7724387818f8f984f44f3d8c0e9f36681d3",
+      "role": "reference",
+      "license": "Python-2.0",
+      "purpose": "comparison-only; never a product build input"
+    }
+  ]
+}
