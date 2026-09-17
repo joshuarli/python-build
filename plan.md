@@ -1,8 +1,14 @@
-Implement a small, independent build system that compiles **CPython 3.14.6** and its native dependencies from source on **Alpine Linux x86_64**, producing a relocatable, dynamically musl-linked Python installation. Deliver a locally built installation archive, its checksums and input manifests, and evidence that it works outside the build environment.
+Implement a small, independent build system that compiles **CPython 3.14.6** and its in-scope native dependencies from source inside the project's **Dockerfile-defined Alpine Linux x86_64 environment**, producing a relocatable, dynamically musl-linked Python installation. Deliver a locally built installation archive, its checksums and input manifests, and evidence that it works outside the build environment.
 
 The implementation must emphasize useful compatibility with Astral's **python-build-standalone (PBS)** distributions while keeping its own build architecture simple. PBS is a technical reference and comparison target, not the implementation base. Its recipes, workarounds, source pins, and artifact fingerprints are documented in the appendices.
 
 Read the repository's instructions, inspect existing code, preserve unrelated work, and implement the project through the completed local x86_64 milestone. Do not stop at scaffolding or a design document. Record concrete environmental limitations without claiming that unexecuted work passed.
+
+## Current scope decision (2026-09-17)
+
+All acquisition, compilation, controller tests, runtime validation, and packaging run in stages or containers defined by `Dockerfile`, not directly on the host. Host operations are limited to editing project files, invoking Docker, and managing local inputs/outputs. Docker is now the required execution backend; earlier no-Docker/native-host requirements are superseded.
+
+Tcl, Tk, `_tkinter`, `tkinter`, and their solely GUI-related X11 dependency closure are excluded from the product and build inputs. Do not acquire or build Tcl/Tk, X11 libraries/protocol tools, or Xvfb. Their absence is an intentional scope difference from PBS, not an unresolved M1 gap. Preserve unrelated core capabilities and report the GUI exclusion prominently. Appendix references to Tcl/Tk/X11 describe the reference distribution only, not required project inputs.
 
 ## 1. Scope
 
@@ -10,11 +16,11 @@ Read the repository's instructions, inspect existing code, preserve unrelated wo
 
 | Property | Required value |
 | --- | --- |
-| Development host | Native Alpine Linux on x86_64/amd64 |
+| Build userspace | Dockerfile-defined Alpine Linux on native x86_64/amd64; host distro is not a build input |
 | Target | `x86_64-unknown-linux-musl` |
 | Interpreter | Exactly CPython 3.14.6, ordinary GIL-enabled release ABI |
 | Optimization | LTO enabled; no PGO, BOLT, experimental JIT, or tail-call interpreter |
-| Execution | Native development builds and an isolated same-architecture Alpine build root for hermetic qualification |
+| Execution | Dockerfile-defined development and offline qualification stages/containers on the same architecture; no direct host builds/tests |
 | Distribution | One relocatable installation tree, packaged as a local archive |
 | Build architecture | Project-owned recipes and typed Python orchestration; standard native component build systems |
 | Completion boundary | Local build, runtime validation, reference comparison, clean rebuild, and packaging |
@@ -31,7 +37,7 @@ LTO is required and PGO/BOLT are excluded on every planned platform, including m
 
 No other Python versions, free-threaded or debug distributions, fully static-musl interpreter, x86-64-v2/v3/v4 variants, glibc target, Windows, Intel macOS, universal2, iOS, or embedded target is in scope. A declared bootstrap Python may have a different version because it is a build tool, not a distributed product.
 
-No Docker daemon, Docker execution backend, emulator, cross-compiler, ARM host, or macOS host is needed for M1. Do not bootstrap LLVM or an operating system from source. Do not build a generalized package manager, recipe language, scheduler, or container runtime.
+A Docker daemon/BuildKit execution backend is required for M1. No emulator, cross-compiler, ARM host, or macOS host is needed. Do not bootstrap LLVM or an operating system from source. Do not build a generalized package manager, recipe language, scheduler, or container runtime.
 
 All deliverables are local files. Do not add workflow configuration, hosted-runner integration, upload commands, remote release APIs, publication credentials, or automatic tag creation. Network access is limited to explicit input acquisition and research; build, validation, and packaging must have an offline path.
 
@@ -97,7 +103,7 @@ docs/parity.md             # current evidence and intentional differences
 
 One dependency ordering model, one source acquisition implementation, one command runner, one target description, one package layout. Straightforward Python functions and a small dependency list are preferable to a generalized scheduler or a YAML recipe language. Retain native build systems for CPython and its libraries: invoke configure/make or the component's supported equivalent instead of translating their internals.
 
-M1 should have one real native executor plus its minimal sealed-root wrapper. Unsupported future targets should fail with a clear “not implemented” message, not create empty artifacts, silently build amd64 under an ARM label, or dispatch into PBS. Do not create a hierarchy of unused abstract platform backends.
+M1 should have one Dockerfile-defined Alpine executor with separate acquisition, offline build, and minimal-runtime stages. Unsupported future targets should fail with a clear “not implemented” message, not create empty artifacts, silently build amd64 under an ARM label, or dispatch into PBS. Do not create a hierarchy of unused abstract platform backends.
 
 Suggested commands; preserve these semantics even if names change:
 
@@ -146,7 +152,7 @@ Build dependencies into a private staged prefix, separate from the final install
 
 Use CPython's normal shared extension modules as the default. Supply complete transitive static-link flags in the correct order. Check symbol visibility and dependency duplication; statically linking the same native library into multiple modules can have symbol-interposition/state implications. A small, properly relocated private DSO is preferable to brittle tricks added only to remove one dynamic library.
 
-Get OpenSSL, SQLite, Expat, zlib, bzip2, liblzma, zstd, libffi, and mpdecimal working first; then libedit/ncurses, uuid/dbm, Tcl/Tk, and its actual Linux closure. This ordering is an iteration strategy, **not permission to call the reduced first pass complete**. Do not silently replace libedit with readline, BDB with gdbm, Tcl/Tk 9 with an older incompatible version, or zstd support with an import skip.
+Get OpenSSL, SQLite, Expat, zlib, bzip2, liblzma, zstd, libffi, and mpdecimal working first; then libedit/ncurses and uuid/dbm. Tcl/Tk and its X11 closure are excluded. This ordering is an iteration strategy, **not permission to call the reduced first pass complete**. Do not silently replace libedit with readline, BDB with gdbm, Tcl/Tk 9 with an older incompatible version, or zstd support with an import skip.
 
 Investigate native-build differences for libffi 3.3 and old BDB/X11 inputs rather than preserving them at unlimited cost. An updated source pin is acceptable after a concrete reason, behavioral/ABI tests, license review of the shipped notices, and a recorded reference difference. Avoid an independent outdated-dependency preservation project.
 
@@ -196,7 +202,7 @@ Install pip offline from a pinned wheel or use a deliberately chosen, tested ens
 
 Do not preinstall setuptools into the base Python 3.14 distribution just for build tests. A separate locked wheelhouse may contain test/build backends. Do not apply Alpine's system `EXTERNALLY-MANAGED` policy to this standalone installation.
 
-Define certificate and timezone behavior explicitly. OS trust roots, timezone data, `/etc/resolv.conf`, `/etc/hosts`, `/etc/passwd`, and terminal/display services are runtime inputs, not magical things a tarball makes disappear. Use documented system data and/or deliberately bundled data as appropriate. Test TLS verification with local fixtures, both success and failure; never disable verification to hide trust-store problems. Test Tcl script lookup, Tk resources, OpenSSL provider/configuration lookup, and ncurses terminfo after relocation.
+Define certificate and timezone behavior explicitly. OS trust roots, timezone data, `/etc/resolv.conf`, `/etc/hosts`, `/etc/passwd`, and terminal/display services are runtime inputs, not magical things a tarball makes disappear. Use documented system data and/or deliberately bundled data as appropriate. Test TLS verification with local fixtures, both success and failure; never disable verification to hide trust-store problems. Test OpenSSL provider/configuration lookup and ncurses terminfo after relocation. Tcl/Tk and display-service validation are excluded.
 
 Declare the measured musl compatibility floor and CPU baseline in the manifest and local compatibility report. Run on the clean selected Alpine runtime and additional reasonably chosen musl runtimes. Do not overclaim old-musl compatibility based on absence of glibc symbols, nor infer a minimum Linux kernel without evidence.
 
@@ -204,7 +210,7 @@ Declare the measured musl compatibility floor and CPU baseline in the manifest a
 
 A qualified artifact must come from an offline build with declared filesystem and tool inputs. Native development convenience and enforced isolation are separate execution modes over the same build recipes.
 
-Provide a convenient native `--dev` mode with an explicit non-hermetic label for rapid iteration. For artifact qualification, run the same recipes in a reconstructed, locked Alpine rootfs with isolated filesystem and network access. Use a small established isolation primitive such as bubblewrap/user namespaces when available, or an explicitly provisioned privileged namespace/chroot launcher that drops privileges before executing build code. Do not write a general container runtime, install a setuid helper, or modify host kernel policy silently.
+Provide a convenient Docker development stage with an explicit non-hermetic label for rapid iteration. For artifact qualification, run the same recipes in Dockerfile-defined, locked Alpine stages/containers with isolated filesystem and network access. Compile and test as the unprivileged builder, never with a Docker socket or host toolchain mounted inside. Use BuildKit `RUN --network=none` or `docker run --network none` for offline execution. Do not implement an additional native-host, bubblewrap, or chroot backend.
 
 A sealed run should expose only the declared rootfs/toolchain, verified input cache, project recipe/patch snapshot, and writable work/output directories. Avoid broad binds of host `/usr`, home, repository-parent paths, sockets, or credentials. Close inherited file descriptors and do not leak a host container socket or network socket through the boundary. Use a controlled HOME, environment allowlist, locale/timezone, umask, stable working paths, and bounded explicit parallelism. Scrub `PYTHONPATH`, `PYTHONHOME`, compiler include/library overrides, user site-packages, pip config, and other undeclared influences.
 
@@ -214,7 +220,7 @@ Record the kernel, CPU features, tool versions, job count, and rootfs identity a
 
 Prove isolation with negative tests: corrupt an input; remove a required cached package; introduce a hostile HOME or fake host header/library; attempt an external network connection; make an undeclared host path inaccessible; and verify clear failure or lack of influence. Do not infer isolation from one successful build that happened not to touch the network.
 
-When namespaces/privileges are unavailable, `doctor` should report the exact constraint. Continue native development work, but do not label that run sealed or its artifact hermetic. Do not use PBS or install glibc as a fallback.
+When Docker or its required isolation features are unavailable, `doctor` should report the exact constraint. Do not fall back to host execution. A development container is not evidence of hermetic qualification. Do not use PBS or install glibc as a fallback.
 
 ## 8. Validation and reference comparison
 
@@ -237,7 +243,7 @@ Compare reference and project module inventories, distinguishing platform-unavai
 - `zlib`, `bz2`, `lzma`, and **`compression.zstd`**, with real round trips rather than imports only.
 - `ctypes`, callbacks/closures, threading/thread-stack behavior, concurrent workers, subprocess, and multiprocessing with the start methods the platform supports.
 - `readline`/libedit, curses/panel, locale behavior, terminals, `zoneinfo`, filesystem and socket operations.
-- Tcl interpreter creation and resource discovery without a display, then a real Tk window test using a declared test-only X server such as Xvfb; distinguish GUI validation from headless imports.
+- Confirm the intentional exclusion of `_tkinter`, `tkinter`, Tcl/Tk resources, and GUI-only X11 libraries from the packaged payload; record the reference difference without acquiring GUI test inputs.
 - pip/ensurepip/venv, installation of a locked pure-Python wheel and a locally built native wheel offline, and consumer extension development after relocation.
 
 Run an appropriate broad CPython regression suite from the verified source/build. Investigate failures against stock 3.14.6 and/or the reference in the same runtime. Record narrow exclusions with observed causes. Do not carry over Alpine or PBS skip lists wholesale. Tests that need a network/display/kernel feature must report an actual skip reason, not silently pass.
@@ -290,7 +296,7 @@ Establish the verified CPython source, bootstrap/tool lock, private dependency p
 
 ### M1b — standalone behavior and useful parity
 
-Complete the dependency, module, and resource inventory. Implement and test relocation, pip/venv, external native extensions, embedding, callbacks, TLS, databases, compression, terminal support, and Tcl/Tk. Evaluate individual portability fixes against actual failures. Measure the CPU/musl compatibility envelope and compare the installation with the pinned reference. Resolve material gaps before adding platforms.
+Complete the in-scope dependency, module, and resource inventory. Implement and test relocation, pip/venv, external native extensions, embedding, callbacks, TLS, databases, compression, and terminal support. Verify that the Tcl/Tk and GUI-only closure exclusion is enforced. Evaluate individual portability fixes against actual failures. Measure the CPU/musl compatibility envelope and compare the installation with the pinned reference. Resolve material gaps before adding platforms.
 
 ### M1c — isolated build and local distribution
 
@@ -311,11 +317,11 @@ The final implementation report must identify what actually ran, the host/toolch
 M1 is complete when all of the following are established by local evidence:
 
 1. The packaged interpreter is exactly CPython 3.14.6, GIL-enabled, x86_64, dynamically musl-linked, LTO-enabled, and built without PGO, BOLT, JIT, or tail-call execution.
-2. The project owns its build recipes and packaging. No PBS engine or finished-Python payload, glibc compatibility layer, Docker daemon, ARM host, or Mac is required.
+2. The project owns its build recipes and packaging, executed only through the project Dockerfile on amd64. No PBS engine or finished-Python payload, glibc compatibility layer, ARM host, or Mac is required.
 3. Bundled non-platform native dependencies come from locked sources. Every runtime library is either in the artifact or explicitly admitted by a narrow tested platform contract; builder-library leakage fails validation.
 4. The useful standard-library inventory, pip/venv, extension loading/development, embedding, resources, and relocation tests pass. Material reference differences are explained and justified. Unexplained missing core behavior blocks completion.
 5. The CPU baseline, tested musl/runtime envelope, data prerequisites, and wheel-compatibility claims are conservative and supported by actual runs. Minimal-runtime tests cannot borrow build-root dependencies.
-6. An isolated offline build has been executed with verified inputs and negative isolation tests. A convenient native development build is not substituted for that evidence.
+6. An isolated offline Docker build has been executed with verified inputs and negative isolation tests. A development-container build is not substituted for that evidence.
 7. A two-clean-build comparison and practical reference parity/performance report exist. Remaining byte differences are reported; matching upstream bytes is not required.
 8. A usable amd64 archive, checksums, manifests, and validation reports exist locally and correspond to the tested packaged bytes.
 

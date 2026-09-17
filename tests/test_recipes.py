@@ -10,6 +10,15 @@ from buildsys.recipes import Recipe, build_recipe
 
 
 class RecipeTests(unittest.TestCase):
+    def test_gui_recipes_are_not_selectable(self):
+        import runpy
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        for name in ("tk", "tcl", "libx11", "libxcb", "libxau", "xcb-proto",
+                     "xorgproto", "xtrans", "util-macros"):
+            self.assertNotIn(name, driver["EXTRACT_DIRS"])
+            with self.assertRaises(driver["BuildError"]):
+                driver["configure_args"](name, Path("/private"))
+
     def test_openssl_uses_perl_configure_and_install_sw(self):
         with tempfile.TemporaryDirectory(dir="/tmp/opencode") as temporary:
             root = Path(temporary)

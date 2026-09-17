@@ -31,15 +31,6 @@ EXTRACT_DIRS = {
     "bdb": "db-6.0.19",
     "sqlite": "sqlite-autoconf-3530100",
     "openssl": "openssl-3.5.7",
-    "util-macros": "util-macros-1.20.2",
-    "xorgproto": "xorgproto-2024.1",
-    "xtrans": "xtrans-1.6.0",
-    "libxau": "libXau-1.0.11",
-    "xcb-proto": "xcb-proto-1.17.0",
-    "libxcb": "libxcb-1.17.0",
-    "libx11": "libX11-1.6.12",
-    "tcl": "tcl9.0.3",
-    "tk": "tk9.0.3",
 }
 
 # Packages whose build Makefile lives below the tarball root.
@@ -47,8 +38,6 @@ SOURCE_SUBDIRS = {
     "zstd": "cpython-source-deps-zstd-1.5.7/lib",
     "bdb": "db-6.0.19/dist",  # BDB keeps configure in dist/
     "openssl": "openssl-3.5.7",
-    "tcl": "tcl9.0.3/unix",  # Tcl/Tk configure under unix/
-    "tk": "tk9.0.3/unix",
 }
 
 # Packages that need the private dependency prefix on their include/link path.
@@ -57,6 +46,8 @@ PREFIX_LDFLAGS = "-L{prefix}/lib"
 
 
 def configure_args(name: str, prefix: Path | None = None) -> tuple[str, ...]:
+    if name not in EXTRACT_DIRS:
+        raise BuildError(f"unsupported dependency: {name}")
     # Resolve the private prefix from the driver's own location, not the
     # process cwd: builds run from /work inside the container.
     resolved = (prefix if prefix is not None else REPO / "build" / "prefix").resolve()
@@ -64,18 +55,8 @@ def configure_args(name: str, prefix: Path | None = None) -> tuple[str, ...]:
         return ()
     if name == "zlib":
         return ("--static",)
-    if name in {"tcl", "tk"}:
-        # Tcl/Tk 9 build against zlib/x11 from the private prefix; their
-        # configure scripts do not search it otherwise.
-        return (
-            "--disable-shared",
-            f"CPPFLAGS=-I{resolved}/include",
-            f"LDFLAGS=-L{resolved}/lib",
-        )
     if name in {"xz", "ncurses", "libffi", "sqlite"}:
         return ("--disable-shared", "--enable-static")
-    if name == "libx11":
-        return ("--disable-shared", "--enable-static", "--without-xcb")
     if name == "libedit":
         # libedit's configure probes -lncurses/-lcurses/-ltermcap/-ltinfo in
         # turn and needs ncurses headers on the include path. The private
@@ -175,8 +156,6 @@ def main() -> int:
             print(f"SKIP {name}: no extract_dir mapping")
             continue
         dest = work / name
-        if dest.exists():
-            shutil.rmtree(dest)
         recipe = Recipe(
             name=name,
             extract_dir=extract_dir,

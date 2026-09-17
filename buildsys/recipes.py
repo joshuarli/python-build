@@ -137,16 +137,22 @@ def build_recipe(recipe: Recipe, blob: Path, work: Path, prefix: Path) -> None:
         )
     )
     if recipe.install == "make":
-        # Plain make packages: no configure step at all.
-        env = toolchain.env(
-            {
-                "CFLAGS": f"{recipe.cflags} -O3 -fPIC -D_FILE_OFFSET_BITS=64",
-                "LDFLAGS": recipe.ldflags,
-            }
-        )
+        # Plain make packages: no configure step at all. CFLAGS/LDFLAGS are
+        # passed as make command-line overrides because some Makefiles
+        # (bzip2) assign these variables internally and ignore the
+        # environment. Make's command line wins over any in-makefile
+        # assignment.
+        env = toolchain.env()
         makefile = _find_makefile(source)
         run(
-            ["make", "-j", str(toolchain.jobs), *recipe.make_targets],
+            [
+                "make",
+                "-j",
+                str(toolchain.jobs),
+                f"CFLAGS={recipe.cflags} -O3 -fPIC -D_FILE_OFFSET_BITS=64",
+                f"LDFLAGS={recipe.ldflags}",
+                *recipe.make_targets,
+            ],
             cwd=makefile.parent,
             env=env,
             log=recipe.log_path / "make.log",

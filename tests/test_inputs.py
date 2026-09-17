@@ -6,6 +6,8 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from buildsys.inputs import (
     Cache,
@@ -34,6 +36,13 @@ class LockTests(unittest.TestCase):
         path = root / "lock.json"
         path.write_text(json.dumps(document))
         return path
+
+    def test_invalid_field_types_and_digest_rejected(self):
+        for fields in ({"sha256": "g" * 64}, {"sha256": None},
+                       {"name": []}, {"size": True}, {"size": -1},
+                       {"version": None}, {"target": 42}):
+            with self.subTest(fields=fields), self.assertRaises(InputError):
+                make_input(**fields)
 
     def test_valid_lock_round_trips(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -138,6 +147,28 @@ class IdentityTests(unittest.TestCase):
 
 
 class CacheTests(unittest.TestCase):
+    def test_interrupted_publication_leaves_no_object_or_partial(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            incoming = root / "incoming"
+            incoming.write_bytes(b"payload")
+            cache = Cache(root / "cache")
+            with patch("buildsys.inputs.os.replace", side_effect=OSError("interrupted")):
+                with self.assertRaises(OSError):
+                    cache.store(incoming, make_input())
+            self.assertEqual(list((cache.root / "objects").iterdir()), [])
+
+    def test_concurrent_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            incoming = root / "incoming"
+            incoming.write_bytes(b"payload")
+            cache = Cache(root / "cache")
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                paths = list(pool.map(lambda _: cache.store(incoming, make_input()), range(32)))
+            self.assertTrue(all(path.read_bytes() == b"payload" for path in paths))
+            self.assertEqual(len(list((cache.root / "objects").iterdir())), 1)
+
     def test_require_missing_object_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             cache = Cache(Path(temporary))

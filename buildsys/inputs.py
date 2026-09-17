@@ -38,9 +38,19 @@ class Input:
     purpose: str | None = None
 
     def __post_init__(self) -> None:
+        for field in ("name", "version", "url", "sha256", "role", "target"):
+            value = getattr(self, field)
+            if not isinstance(value, str) or not value:
+                raise InputError(f"{field}: expected nonempty string")
+        if self.size is not None and (type(self.size) is not int or self.size < 0):
+            raise InputError(f"{self.name}: size must be a nonnegative integer")
+        for field in ("license", "purpose"):
+            value = getattr(self, field)
+            if value is not None and (not isinstance(value, str) or not value):
+                raise InputError(f"{self.name}: {field} must be a nonempty string")
         if self.role not in ROLES:
             raise InputError(f"{self.name}: unknown role {self.role!r}")
-        if len(self.sha256) != 64 or self.sha256.lower() != self.sha256:
+        if len(self.sha256) != 64 or any(c not in "0123456789abcdef" for c in self.sha256):
             raise InputError(f"{self.name}: sha256 must be lowercase hex digest")
 
     def identity(self) -> str:
@@ -82,7 +92,7 @@ def load_lock(path: Path) -> list[Input]:
         try:
             item = Input(
                 name=entry["name"],
-                version=str(entry["version"]),
+                version=entry["version"],
                 url=entry["url"],
                 sha256=entry["sha256"],
                 role=entry["role"],
@@ -145,9 +155,16 @@ class Cache:
         target = self._object(input_)
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists():
-            temporary = target.with_suffix(".part")
-            shutil.copyfile(path, temporary)
-            os.replace(temporary, target)
+            with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".part", delete=False) as handle:
+                temporary = Path(handle.name)
+            try:
+                shutil.copyfile(path, temporary)
+                # Verify the staged bytes too: the caller's file may have changed.
+                if _digest(temporary) != (found, size):
+                    raise InputError(f"{input_.name}: input changed during publication")
+                os.replace(temporary, target)
+            finally:
+                temporary.unlink(missing_ok=True)
         return self.require(input_)
 
     def fetch(self, input_: Input, timeout: float = 120.0) -> Path:

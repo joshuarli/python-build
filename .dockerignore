@@ -1,16 +1,24 @@
 # Allow only controller sources, never downloaded or compiled trees.
 **
 !Dockerfile
+!build.py
 !buildsys/
 buildsys/**
 !buildsys/*.py
 !build/
 build/**
 !build/deps.py
+!build/cpython.py
 !build/fetch.py
 !build/smoke-lto.sh
 !tests/
 tests/**
 !tests/test_inputs.py
 !tests/test_recipes.py
+!tests/test_scope.py
+!tests/test_cli.py
+!tests/test_cpython.py
+!tests/test_cpython.py
+!tests/test_cpython.py
+!build/cpython.py
 !sources.lock.json

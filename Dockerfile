@@ -50,6 +50,7 @@ RUN printf '%s\n' 'int answer(void) { return 42; }' > /tmp/lto-library.c \
     && rm /tmp/lto-library.c /tmp/lto-main.c /tmp/lto-library.o /tmp/liblto.a /tmp/lto-smoke
 
 FROM toolchain AS development
+COPY --chown=builder:builder build.py /work/build.py
 COPY --chown=builder:builder buildsys/ /work/buildsys/
 COPY --chown=builder:builder build/ /work/build/
 COPY --chown=builder:builder tests/ /work/tests/

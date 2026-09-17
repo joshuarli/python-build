@@ -10,8 +10,6 @@ from .recipes import BuildError, Recipe, Toolchain, build_recipe, run
 # Ordering constraints:
 #   pkg-config must exist before any pkg-config consumer configures.
 #   zlib/zstd feed openssl's optional compression and sqlite's.
-#   libxcb needs xcb-proto (host tools) and xorgproto headers; libx11 needs xcb.
-#   tk needs tcl; both need nothing else unusual.
 #   ncurses feeds libedit (curses/termcap fallback) and curses modules.
 DEPENDENCY_ORDER: tuple[str, ...] = (
     "pkgconf",  # host tool, not shipped; see host_tool()
@@ -28,15 +26,7 @@ DEPENDENCY_ORDER: tuple[str, ...] = (
     "bdb",
     "sqlite",
     "openssl",
-    "util-macros",
-    "xorgproto",
-    "xtrans",
-    "libxau",
-    "xcb-proto",
-    "libxcb",
-    "libx11",
-    "tcl",
-    "tk",
+    # Tcl/Tk and their X11 closure are deliberately outside the product scope.
 )
 
 
