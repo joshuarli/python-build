@@ -13,24 +13,8 @@ from pathlib import Path
 
 def configuration(prefix: Path) -> tuple[list[str], dict[str, str]]:
     prefix = Path(prefix)
-    static = {
-        "openssl": ["-lssl", "-lcrypto"],
-        "sqlite3": ["-lsqlite3", "-ldl", "-lpthread"],
-        "zlib": ["-lz"],
-        "bzip2": ["-lbz2"],
-        "liblzma": ["-llzma", "-lpthread"],
-        "zstd": ["-lzstd", "-lpthread"],
-        "ffi": ["-lffi"],
-        "mpdec": ["-lmpdec", "-lm"],
-        "uuid": ["-luuid"],
-        "edit": ["-ledit", "-lncursesw"],
-        "curses": ["-lncursesw"],
-        "db": ["-ldb"],
-        "expat": ["-lexpat"],
-    }
     env = {
         "PKG_CONFIG_LIBDIR": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
-        "py_cv_module__tkinter": "disabled",
         "BZIP2_CFLAGS": f"-I{prefix}/include",
         "BZIP2_LIBS": f"-L{prefix}/lib {prefix}/lib/libbz2.a",
         "LIBLZMA_CFLAGS": f"-I{prefix}/include",
@@ -57,11 +41,15 @@ def configuration(prefix: Path) -> tuple[list[str], dict[str, str]]:
         "ZLIB_CFLAGS": f"-I{prefix}/include",
         "ZLIB_LIBS": f"{prefix}/lib/libz.a",
         "OPENSSL_INCLUDES": f"-I{prefix}/include",
+        # No -rpath here: a $ORIGIN token written through configure's
+        # Makefile substitution is expanded twice (once by make, once by
+        # the recipe's /bin/sh), which cannot produce a literal single-$
+        # token in both the build's own link commands and the installed
+        # sysconfigdata LDFLAGS that pip reads directly (no shell involved)
+        # at the same time. Relative RPATHs are set as a structured
+        # post-install ELF edit instead (build/relocate.py, plan 6).
         "LDFLAGS": (
-            # $$ survives make's variable expansion so the linker sees
-            # $ORIGIN (module rpaths must be relative to the installed tree).
-            f"-L{prefix}/lib -Wl,-rpath,$$ORIGIN/../lib "
-            "-Wl,-z,noexecstack -Wl,--build-id=sha1"
+            f"-L{prefix}/lib -Wl,-z,noexecstack -Wl,--build-id=sha1"
         ),
         "CFLAGS": (
             "-O3 -march=x86-64 -fno-omit-frame-pointer -fPIC -fstack-protector-strong "
@@ -78,6 +66,10 @@ def configuration(prefix: Path) -> tuple[list[str], dict[str, str]]:
         "--with-openssl=" + str(prefix),
         "--with-openssl-rpath=no",
         "--with-dbmliborder=bdb:ndbm:gdbm",
+        # Plan 5.2 forbids silently replacing libedit with readline; the
+        # readline module must link against the private libedit build, not
+        # probe for a system GNU readline that isn't part of this product.
+        "--with-readline=editline",
         "--with-tail-call-interp=no",
         "--without-static-libpython",
         "--with-ensurepip=no",

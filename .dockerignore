@@ -10,7 +10,12 @@ build/**
 !build/deps.py
 !build/cpython.py
 !build/fetch.py
+!build/package.py
 !build/smoke-lto.sh
+!patches/
+!.cache/
+!.cache/objects/
+!.cache/objects/*.blob
 !tests/
 tests/**
 !tests/test_inputs.py
@@ -18,7 +23,7 @@ tests/**
 !tests/test_scope.py
 !tests/test_cli.py
 !tests/test_cpython.py
-!tests/test_cpython.py
-!tests/test_cpython.py
-!build/cpython.py
+!tests/test_relocate.py
+!tests/test_patches.py
+!tests/test_reproduce.py
 !sources.lock.json

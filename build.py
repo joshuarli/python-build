@@ -109,6 +109,26 @@ def main(argv: list[str] | None = None) -> int:
         return result.returncode
     if args.command == "build":
         return build(args)
+    if args.command == "test":
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
+            cwd=Path(__file__).parent,
+        )
+        return result.returncode
+    if args.command == "compare-reference":
+        result = subprocess.run(
+            [sys.executable, "build/package.py", "--compare-only"], cwd=Path(__file__).parent
+        )
+        return result.returncode
+    if args.command == "package":
+        result = subprocess.run([sys.executable, "build/package.py"], cwd=Path(__file__).parent)
+        return result.returncode
+    if args.command == "reproduce":
+        if not _qualification_available():
+            _fail("reproduce needs two independent sealed Docker builds; "
+                  "docker/BuildKit is unavailable")
+        result = subprocess.run([sys.executable, "build/reproduce.py"], cwd=Path(__file__).parent)
+        return result.returncode
     _fail(f"command not implemented: {args.command}")
     return 2
 

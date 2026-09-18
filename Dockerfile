@@ -16,6 +16,7 @@ RUN apk add --no-cache \
         automake=1.18.1-r1 \
         libtool=2.6.0-r1 \
         patch=2.8-r0 \
+        patchelf=0.18.0-r3 \
     && mkdir -p /opt/bootstrap \
     && apk info -v | sort > /opt/bootstrap/packages.txt \
     && cp /etc/apk/repositories /opt/bootstrap/repositories \
@@ -49,10 +50,41 @@ RUN printf '%s\n' 'int answer(void) { return 42; }' > /tmp/lto-library.c \
     && python3 --version \
     && rm /tmp/lto-library.c /tmp/lto-main.c /tmp/lto-library.o /tmp/liblto.a /tmp/lto-smoke
 
+# NON-HERMETIC: convenience stage for rapid iteration (plan 7). It has no
+# network restriction of its own; a `docker run --network none` container
+# from this image is a dev-loop shortcut, not qualification evidence. Only
+# the `sealed` stage below (built entirely inside RUN --network=none) is.
 FROM toolchain AS development
 COPY --chown=builder:builder build.py /work/build.py
 COPY --chown=builder:builder buildsys/ /work/buildsys/
 COPY --chown=builder:builder build/ /work/build/
+COPY --chown=builder:builder patches/ /work/patches/
 COPY --chown=builder:builder tests/ /work/tests/
 COPY --chown=builder:builder sources.lock.json /work/sources.lock.json
 CMD ["python3", "-m", "unittest", "discover", "-s", "tests"]
+
+# SEALED qualification (plan 7, M1c): the dependency and interpreter build
+# runs entirely inside one BuildKit RUN with no network access at all,
+# using only inputs already verified against sources.lock.json by a prior
+# `python3 build.py fetch` (acquisition is a separate, online process over
+# the same recipes, not a separate toolchain). If BuildKit's --network=none
+# were not actually enforced, any live network dependency introduced here
+# would surface as a build failure, not a silent pass.
+FROM development AS sealed
+COPY --chown=builder:builder .cache/objects/ /work/.cache/objects/
+RUN --network=none python3 -m unittest discover -s tests \
+ && python3 build/deps.py \
+ && python3 build/cpython.py
+
+# Minimal runtime (plan 8.2): only the relocated install tree, no compiler
+# or dev packages, so accidental reliance on build-root tooling cannot pass
+# here. The smoke import below runs during the image build itself, so a
+# regression fails `docker build`, not just a separately-remembered test.
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS runtime
+COPY --from=sealed /work/build/stage/cpython-staged/install /opt/python
+RUN /opt/python/bin/python3.14 -c "\
+import sys, sysconfig; \
+assert sys.version_info[:3] == (3, 14, 6), sys.version_info; \
+import ssl, sqlite3, decimal, uuid, bz2, lzma, zlib, ctypes, readline, dbm, curses; \
+import compression.zstd; \
+assert 'build/prefix' not in sysconfig.get_config_var('LDFLAGS')"

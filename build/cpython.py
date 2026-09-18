@@ -17,7 +17,9 @@ sys.path.insert(0, str(REPO))
 
 from buildsys.cpython import configuration  # noqa: E402
 from buildsys.inputs import Cache, InputError, load_lock, safe_extract  # noqa: E402
+from buildsys.patches import PatchError, apply_patch_set  # noqa: E402
 from buildsys.recipes import BuildError, Toolchain, run  # noqa: E402
+from buildsys.relocate import relocate  # noqa: E402
 
 JOBS = str(max(1, (os.cpu_count() or 4) - 1))
 
@@ -28,6 +30,7 @@ def build(work: Path, prefix: Path, stage: Path, logs: Path, cache: Cache) -> Pa
     )
     blob = cache.require(pin)
     source = safe_extract(blob, work / "cpython") / "Python-3.14.6"
+    apply_patch_set(source, REPO / "patches" / "cpython")
     build_directory = work / "cpython-build"
     if build_directory.exists():
         shutil.rmtree(build_directory)
@@ -64,6 +67,7 @@ def build(work: Path, prefix: Path, stage: Path, logs: Path, cache: Cache) -> Pa
         env=env,
         log=logs / "cpython-install.log",
     )
+    relocate(staged / "install", prefix)
     return staged
 
 
@@ -79,7 +83,7 @@ def main() -> int:
     print("BUILD cpython 3.14.6", flush=True)
     try:
         staged = build(work, prefix, stage, logs, cache)
-    except (BuildError, InputError) as error:
+    except (BuildError, InputError, PatchError) as error:
         print(f"FAIL cpython: {error}")
         return 1
     print(f"OK    cpython -> {staged}", flush=True)

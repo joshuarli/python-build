@@ -57,6 +57,11 @@ def configure_args(name: str, prefix: Path | None = None) -> tuple[str, ...]:
         return ("--static",)
     if name in {"xz", "ncurses", "libffi", "sqlite"}:
         return ("--disable-shared", "--enable-static")
+    if name == "bdb":
+        # CPython's _dbm module (with --with-dbmliborder=bdb:...) links
+        # dbm_open(), which db.h redefines to __db_ndbm_open() only when
+        # BDB is built with its historic ndbm-compatibility interface.
+        return ("--disable-shared", "--enable-static", "--enable-dbm")
     if name == "libedit":
         # libedit's configure probes -lncurses/-lcurses/-ltermcap/-ltinfo in
         # turn and needs ncurses headers on the include path. The private
