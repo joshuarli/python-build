@@ -24,8 +24,10 @@ sys.path.insert(0, str(REPO))
 
 from buildsys.inputs import Cache, InputError, canonical_json, load_lock, safe_extract  # noqa: E402
 from buildsys.relocate import find_elfs  # noqa: E402
+from buildsys.targets import native_target  # noqa: E402
 
-TARGET = "x86_64-unknown-linux-musl"
+TARGET_DESCRIPTION = native_target()
+TARGET = TARGET_DESCRIPTION.triple
 REVISION = "r1"
 ARCHIVE_NAME = f"cpython-3.14.6-{TARGET}-{REVISION}.tar.gz"
 SOURCE_DATE_EPOCH = 1704067200
@@ -217,8 +219,10 @@ def compute_validation(install: Path) -> dict:
         capture_output=True, text=True,
     )
     return {
+        "target": TARGET,
         "sys_version_check": {"ok": ok, "output": output},
         "musl_loader": interp_line.strip(),
+        "musl_loader_matches_target": TARGET_DESCRIPTION.musl_loader in interp_line,
         "elf_leak_free": bad == [],
         "elf_forbidden_needed": bad,
         "sysconfig_private_prefix_leak": sysconfig_check.stdout.strip() != "CLEAN",
@@ -226,6 +230,20 @@ def compute_validation(install: Path) -> dict:
         "elf_report": elf_report,
         "expected_missing_modules": list(EXPECTED_MISSING_MODULES),
     }
+
+
+def reference_binary(reference_root: Path | None) -> Path | None:
+    """The reference python3.14, only when runnable on this target.
+
+    The pinned PBS reference archive (sources.lock.json `reference-pbs`) is
+    x86_64-only. Executing it under another target would require setting up
+    cross-arch emulation this project does not otherwise need; skip rather
+    than silently attempt it.
+    """
+    if reference_root is None or TARGET_DESCRIPTION.machine != "x86_64":
+        return None
+    candidate = reference_root / "python" / "bin" / "python3.14"
+    return candidate if candidate.is_file() else None
 
 
 def compute_parity(install: Path, reference_root: Path | None) -> dict:
@@ -254,8 +272,8 @@ def compute_parity(install: Path, reference_root: Path | None) -> dict:
         "this as a documented difference).",
     )
 
-    if reference_root is not None and (reference_root / "python" / "bin" / "python3.14").is_file():
-        ref_python = reference_root / "python" / "bin" / "python3.14"
+    ref_python = reference_binary(reference_root)
+    if ref_python is not None:
         for name, code in (
             ("openssl_version", "import ssl; print(ssl.OPENSSL_VERSION)"),
             ("sqlite_version", "import sqlite3; print(sqlite3.sqlite_version)"),
@@ -265,8 +283,15 @@ def compute_parity(install: Path, reference_root: Path | None) -> dict:
             theirs = subprocess.run([str(ref_python), "-c", code], capture_output=True, text=True).stdout.strip()
             row(name, "match" if ours == theirs else "intentional_difference",
                 f"ours={ours!r} reference={theirs!r}")
-    else:
+    elif reference_root is None:
         row("reference_binary_comparison", "untested", "reference archive not extracted in this run")
+    else:
+        row(
+            "reference_binary_comparison", "untested",
+            f"the pinned PBS reference archive is x86_64-only; running it under "
+            f"{TARGET} would need cross-arch emulation this project does not "
+            f"set up, so the running-binary comparison is skipped on this target",
+        )
 
     return {"target": TARGET, "reference": "python-build-standalone 20260610", "rows": rows}
 
@@ -318,11 +343,10 @@ def compute_benchmarks(python: Path, reference_root: Path | None) -> dict:
     ), "ours": {}, "reference": {}}
     for name, code in workloads.items():
         report["ours"][name] = _time_runs(python, code)
-    if reference_root is not None:
-        ref_python = reference_root / "python" / "bin" / "python3.14"
-        if ref_python.is_file():
-            for name, code in workloads.items():
-                report["reference"][name] = _time_runs(ref_python, code)
+    ref_python = reference_binary(reference_root)
+    if ref_python is not None:
+        for name, code in workloads.items():
+            report["reference"][name] = _time_runs(ref_python, code)
     return report
 
 
@@ -354,7 +378,11 @@ def main(argv: list[str] | None = None) -> int:
     if not stage.is_dir():
         print("FAIL package: no staged install at build/stage/cpython-staged/install; run `build` first")
         return 1
-    dist = REPO / "dist"
+    # Namespaced by target triple: a host accumulating dist/ output from
+    # both `docker build --platform linux/amd64` and `--platform linux/arm64`
+    # sealed runs must not have one target's package.py silently overwrite
+    # the other's reports (only the tarball name itself is already unique).
+    dist = REPO / "dist" / TARGET
     dist.mkdir(parents=True, exist_ok=True)
     work = REPO / "build" / "package-work" / "install"
     if work.parent.exists():
@@ -379,6 +407,11 @@ def main(argv: list[str] | None = None) -> int:
         validation = compute_validation(work)
         if not validation["sys_version_check"]["ok"]:
             raise PackagingError(f"post-strip smoke import failed: {validation['sys_version_check']['output']}")
+        if not validation["musl_loader_matches_target"]:
+            raise PackagingError(
+                f"PT_INTERP {validation['musl_loader']!r} does not match "
+                f"expected {TARGET_DESCRIPTION.musl_loader!r} for target {TARGET}"
+            )
         archive = build_archive(work, dist)
         write_sha256sums(dist, archive)
         (dist / "inputs.json").write_text(canonical_json(compute_inputs(REPO / "sources.lock.json")) + "\n")

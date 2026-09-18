@@ -20,7 +20,7 @@ class RecipeTests(unittest.TestCase):
                 driver["configure_args"](name, Path("/private"))
 
     def test_openssl_uses_perl_configure_and_install_sw(self):
-        with tempfile.TemporaryDirectory(dir="/tmp/opencode") as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             archive = root / "source.tar"
             with tarfile.open(archive, "w") as output:
@@ -37,7 +37,7 @@ class RecipeTests(unittest.TestCase):
             self.assertEqual(calls[-1].args[0], ["make", "install_sw"])
 
     def test_separate_build_directory_uses_absolute_configure(self):
-        with tempfile.TemporaryDirectory(dir="/tmp/opencode") as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             archive = root / "source.tar"
             with tarfile.open(archive, "w") as output:

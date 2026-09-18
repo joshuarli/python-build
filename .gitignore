@@ -7,20 +7,3 @@
 !/build/*.sh
 __pycache__/
 *.py[cod]
-
-# Accidental in-tree OpenSSL configure outputs (not project inputs).
-/Makefile
-/Makefile.in
-/configdata.pm
-/include/
-/apps/
-/crypto/
-/doc/
-/engines/
-/exporters/
-/fuzz/
-/providers/
-/ssl/
-/test/
-/tools/
-/util/

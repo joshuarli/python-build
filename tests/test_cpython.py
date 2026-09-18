@@ -3,11 +3,12 @@ from pathlib import Path
 import unittest
 
 from buildsys.cpython import configuration
+from buildsys.targets import TARGETS
 
 
 class CPythonTests(unittest.TestCase):
     def test_release_policy_and_private_dependencies(self):
-        args, env = configuration(Path('/private'))
+        args, env = configuration(Path('/private'), TARGETS['x86_64-unknown-linux-musl'])
         self.assertIn('--with-lto=thin', args)
         self.assertIn('--enable-shared', args)
         self.assertIn('--without-ensurepip', args)
@@ -27,3 +28,9 @@ class CPythonTests(unittest.TestCase):
         self.assertEqual(env['CPPFLAGS'], '-I/private/include')
         self.assertEqual(env['ZLIB_LIBS'], '/private/lib/libz.a')
         self.assertIn('-I/private/include/uuid', env['LIBUUID_CFLAGS'])
+        self.assertIn('-march=x86-64', env['CFLAGS'])
+
+    def test_cpu_baseline_follows_the_requested_target(self):
+        _, env = configuration(Path('/private'), TARGETS['aarch64-unknown-linux-musl'])
+        self.assertIn('-march=armv8-a', env['CFLAGS'])
+        self.assertNotIn('x86-64', env['CFLAGS'])

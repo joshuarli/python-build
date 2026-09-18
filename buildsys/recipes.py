@@ -14,6 +14,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from .targets import native_target
+
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -187,9 +189,10 @@ def build_recipe(recipe: Recipe, blob: Path, work: Path, prefix: Path) -> None:
             log=recipe.log_path / "install.log",
         )
     elif recipe.install == "openssl":
-        env = toolchain.env({"CFLAGS": "-O3 -fPIC -march=x86-64 -fno-omit-frame-pointer",
+        target = native_target()
+        env = toolchain.env({"CFLAGS": f"-O3 -fPIC {target.cpu_baseline_cflag} -fno-omit-frame-pointer",
                              "LDFLAGS": "-fuse-ld=lld -Wl,-z,noexecstack"})
-        run(["perl", str(source / "Configure"), "linux-x86_64",
+        run(["perl", str(source / "Configure"), target.openssl_configure_target,
              f"--prefix={prefix}", "--libdir=lib", "--openssldir=/etc/ssl",
              "no-shared", "no-module", *recipe.configure_args],
             cwd=source, env=env, log=recipe.log_path / "configure.log")

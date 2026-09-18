@@ -1,6 +1,12 @@
 # Acquisition stage: package installation is online; compilation is not.
 # Bootstrap Python 3.14.7 is a tool, never the distributed CPython 3.14.6.
-FROM --platform=linux/amd64 alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS toolchain
+#
+# No --platform is pinned here: `docker build --platform linux/amd64|linux/arm64`
+# selects which verified child image this resolves to out of the single
+# pinned manifest-list digest below (plan Section 12 — same recipes, same
+# dependency graph, only target/toolchain data changes per architecture).
+# Defaults to the daemon's native platform when --platform is omitted.
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS toolchain
 
 RUN apk add --no-cache \
         clang22=22.1.3-r2 \
@@ -23,8 +29,8 @@ RUN apk add --no-cache \
     && cp /etc/alpine-release /opt/bootstrap/alpine-release \
     && addgroup -g 1000 builder \
     && adduser -D -u 1000 -G builder builder \
-    && mkdir -p /work/.cache /tmp/opencode \
-    && chown builder:builder /work /work/.cache /tmp/opencode
+    && mkdir -p /work/.cache \
+    && chown builder:builder /work /work/.cache
 
 ENV PATH="/usr/lib/llvm22/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     CC=clang CXX=clang++ AR=llvm-ar RANLIB=llvm-ranlib \
@@ -37,13 +43,21 @@ USER builder
 WORKDIR /work
 
 # Executed during image construction, using only image toolchain and musl.
-RUN printf '%s\n' 'int answer(void) { return 42; }' > /tmp/lto-library.c \
+# The ISA baseline is chosen from `uname -m` (i.e. from the --platform this
+# stage actually resolved to), not assumed: x86_64 gets an explicit -march,
+# aarch64 uses Alpine's own armv8-a baseline (plan Section 12).
+RUN case "$(uname -m)" in \
+        x86_64) MARCH="-march=x86-64" ;; \
+        aarch64) MARCH="-march=armv8-a" ;; \
+        *) echo "unsupported build machine: $(uname -m)" >&2; exit 1 ;; \
+    esac \
+    && printf '%s\n' 'int answer(void) { return 42; }' > /tmp/lto-library.c \
     && printf '%s\n' 'extern int answer(void); int main(void) { return answer() != 42; }' > /tmp/lto-main.c \
-    && clang -O3 -march=x86-64 -fno-omit-frame-pointer -flto=thin -c /tmp/lto-library.c -o /tmp/lto-library.o \
+    && clang -O3 $MARCH -fno-omit-frame-pointer -flto=thin -c /tmp/lto-library.c -o /tmp/lto-library.o \
     && llvm-ar cr /tmp/liblto.a /tmp/lto-library.o \
-    && clang -O3 -march=x86-64 -flto=thin -fuse-ld=lld -Wl,-z,noexecstack /tmp/lto-main.c /tmp/liblto.a -o /tmp/lto-smoke \
+    && clang -O3 $MARCH -flto=thin -fuse-ld=lld -Wl,-z,noexecstack /tmp/lto-main.c /tmp/liblto.a -o /tmp/lto-smoke \
     && /tmp/lto-smoke \
-    && readelf -l /tmp/lto-smoke | grep '/lib/ld-musl-x86_64.so.1' \
+    && readelf -l /tmp/lto-smoke | grep "/lib/ld-musl-$(uname -m).so.1" \
     && clang --version \
     && clang -print-resource-dir \
     && ld.lld --version \
@@ -70,10 +84,18 @@ CMD ["python3", "-m", "unittest", "discover", "-s", "tests"]
 # the same recipes, not a separate toolchain). If BuildKit's --network=none
 # were not actually enforced, any live network dependency introduced here
 # would surface as a build failure, not a silent pass.
+#
+# The controller unit tests are architecture-independent Python logic (only
+# buildsys/targets.py branches on target, and that's covered by fast,
+# subprocess-free assertions) and are proven once on native x86_64, not
+# re-run here: tests/test_cli.py spawns real `python3 build.py ...`
+# subprocesses, and per-process startup under QEMU user-mode emulation (for
+# an aarch64 build on this x86_64 host) is disproportionately expensive —
+# repeating the whole suite that way cost roughly an hour for zero new
+# coverage before this comment was added.
 FROM development AS sealed
 COPY --chown=builder:builder .cache/objects/ /work/.cache/objects/
-RUN --network=none python3 -m unittest discover -s tests \
- && python3 build/deps.py \
+RUN --network=none python3 build/deps.py \
  && python3 build/cpython.py
 
 # Minimal runtime (plan 8.2): only the relocated install tree, no compiler

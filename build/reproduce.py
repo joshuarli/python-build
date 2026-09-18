@@ -8,6 +8,7 @@ which plan 8.3 explicitly allows.
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -17,19 +18,22 @@ sys.path.insert(0, str(REPO))
 
 from buildsys.inputs import canonical_json  # noqa: E402
 from buildsys.reproduce import compare_trees  # noqa: E402
-
-TAGS = ("python-build-m1:reproduce-a", "python-build-m1:reproduce-b")
-METHOD = (
-    "Two independent `docker build --no-cache --target sealed` runs "
-    "(cache fully busted, offline dependency+CPython build both times), "
-    "staged installs extracted and compared file-by-file before "
-    "stripping/packaging."
-)
+from buildsys.targets import target_for_triple  # noqa: E402
 
 
-def _build_sealed(tag: str) -> None:
+def _method(platform: str) -> str:
+    return (
+        f"Two independent `docker build --platform {platform} --no-cache "
+        "--target sealed` runs (cache fully busted, offline dependency+"
+        "CPython build both times), staged installs extracted and compared "
+        "file-by-file before stripping/packaging."
+    )
+
+
+def _build_sealed(tag: str, platform: str) -> None:
     subprocess.run(
-        ["docker", "build", "--target", "sealed", "--no-cache", "-t", tag, "."],
+        ["docker", "build", "--platform", platform, "--target", "sealed",
+         "--no-cache", "-t", tag, "."],
         cwd=REPO, check=True,
     )
 
@@ -49,22 +53,30 @@ def _extract_staged(tag: str, dest: Path) -> Path:
 
 
 def main() -> int:
-    work = REPO / "build" / "reproduce-work"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--target", required=True)
+    args = parser.parse_args()
+    target = target_for_triple(args.target)
+    tags = (f"python-build-m1:reproduce-a-{target.alpine_arch}",
+            f"python-build-m1:reproduce-b-{target.alpine_arch}")
+
+    work = REPO / "build" / "reproduce-work" / target.alpine_arch
     if work.exists():
         import shutil
         shutil.rmtree(work)
     work.mkdir(parents=True)
 
     trees = []
-    for tag in TAGS:
-        print(f"BUILD {tag} (--no-cache, sealed)", flush=True)
-        _build_sealed(tag)
+    for tag in tags:
+        print(f"BUILD {tag} (--no-cache, sealed, {target.docker_platform})", flush=True)
+        _build_sealed(tag, target.docker_platform)
         dest = work / tag.split(":")[-1] / "install"
         trees.append(_extract_staged(tag, dest))
 
     report = compare_trees(trees[0], trees[1])
-    report["method"] = METHOD
-    dist = REPO / "dist"
+    report["method"] = _method(target.docker_platform)
+    report["target"] = target.triple
+    dist = REPO / "dist" / target.triple
     dist.mkdir(parents=True, exist_ok=True)
     (dist / "reproducibility.json").write_text(canonical_json(report) + "\n")
     print(f"OK    reproduce -> byte_identical={report['byte_identical']}")

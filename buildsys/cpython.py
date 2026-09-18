@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .targets import Target, native_target
 
-def configuration(prefix: Path) -> tuple[list[str], dict[str, str]]:
+
+def configuration(prefix: Path, target: Target | None = None) -> tuple[list[str], dict[str, str]]:
     prefix = Path(prefix)
+    target = target or native_target()
     env = {
         "PKG_CONFIG_LIBDIR": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
         "BZIP2_CFLAGS": f"-I{prefix}/include",
@@ -52,7 +55,7 @@ def configuration(prefix: Path) -> tuple[list[str], dict[str, str]]:
             f"-L{prefix}/lib -Wl,-z,noexecstack -Wl,--build-id=sha1"
         ),
         "CFLAGS": (
-            "-O3 -march=x86-64 -fno-omit-frame-pointer -fPIC -fstack-protector-strong "
+            f"-O3 {target.cpu_baseline_cflag} -fno-omit-frame-pointer -fPIC -fstack-protector-strong "
             "-D_FORTIFY_SOURCE=2"
         ),
     }

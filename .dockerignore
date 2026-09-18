@@ -26,4 +26,5 @@ tests/**
 !tests/test_relocate.py
 !tests/test_patches.py
 !tests/test_reproduce.py
+!tests/test_targets.py
 !sources.lock.json

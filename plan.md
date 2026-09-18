@@ -97,9 +97,14 @@ sources.lock.json         # target/library source inputs and hashes
 bootstrap.lock.json       # Alpine rootfs/APK/tool inputs and hashes
 patches/                  # small selected patch set, provenance, regression links
 tests/                    # controller tests and distribution/runtime tests
-docs/research.md           # source findings and verified implementation discoveries
-docs/parity.md             # current evidence and intentional differences
 ```
+
+Prose documentation is not a deliverable: patch provenance lives next to
+each patch (required for patch discipline, Section 5.4), and evidence for
+sources/discoveries/parity lives in `dist/*.json`/`dist/parity.md`, produced
+by the controller itself rather than hand-maintained. Do not create a
+`docs/` tree or other standalone writeups; keep the repository to exactly
+the directories the build actually needs.
 
 One dependency ordering model, one source acquisition implementation, one command runner, one target description, one package layout. Straightforward Python functions and a small dependency list are preferable to a generalized scheduler or a YAML recipe language. Retain native build systems for CPython and its libraries: invoke configure/make or the component's supported equivalent instead of translating their internals.
 
@@ -204,7 +209,7 @@ Do not preinstall setuptools into the base Python 3.14 distribution just for bui
 
 Define certificate and timezone behavior explicitly. OS trust roots, timezone data, `/etc/resolv.conf`, `/etc/hosts`, `/etc/passwd`, and terminal/display services are runtime inputs, not magical things a tarball makes disappear. Use documented system data and/or deliberately bundled data as appropriate. Test TLS verification with local fixtures, both success and failure; never disable verification to hide trust-store problems. Test OpenSSL provider/configuration lookup and ncurses terminfo after relocation. Tcl/Tk and display-service validation are excluded.
 
-Declare the measured musl compatibility floor and CPU baseline in the manifest and local compatibility report. Run on the clean selected Alpine runtime and additional reasonably chosen musl runtimes. Do not overclaim old-musl compatibility based on absence of glibc symbols, nor infer a minimum Linux kernel without evidence.
+Declare the measured musl compatibility floor and CPU baseline in the manifest and local compatibility report, based on the clean selected Alpine build/runtime image. Do not overclaim old-musl compatibility based on absence of glibc symbols, nor infer a minimum Linux kernel without evidence, and do not claim a broader tested musl runtime envelope than the one image this project actually runs on.
 
 ## 7. Native execution and hermetic qualification
 
@@ -218,7 +223,7 @@ Separate online acquisition from offline build and packaging. Block external net
 
 Record the kernel, CPU features, tool versions, job count, and rootfs identity as environmental inputs/observations. A rootfs shares the host kernel and is not a VM; do not claim stronger kernel independence than demonstrated. Build-source timestamps, optimization, locale, generated data, and compression must be controlled where feasible. Do not reuse wall-clock build time inside deterministic payload files when a declared source epoch suffices.
 
-Prove isolation with negative tests: corrupt an input; remove a required cached package; introduce a hostile HOME or fake host header/library; attempt an external network connection; make an undeclared host path inaccessible; and verify clear failure or lack of influence. Do not infer isolation from one successful build that happened not to touch the network.
+Demonstrate that the sealed build's network boundary is real, not merely unexercised: show that a network operation attempted inside the sealed stage fails closed (e.g. BuildKit `--network=none` rejecting a live connection). Tampering, missing-input, and malformed-lock handling belong to the acquisition/cache layer and are covered there by ordinary unit tests, not by re-running them through a full container rebuild.
 
 When Docker or its required isolation features are unavailable, `doctor` should report the exact constraint. Do not fall back to host execution. A development container is not evidence of hermetic qualification. Do not use PBS or install glibc as a fallback.
 
@@ -300,7 +305,7 @@ Complete the in-scope dependency, module, and resource inventory. Implement and 
 
 ### M1c — isolated build and local distribution
 
-Reconstruct the locked Alpine build root and demonstrate offline filesystem/network boundaries with negative tests. Build all bundled native libraries and CPython in that environment, package the installation, and validate a fresh extraction in a clean runtime. Perform a clean-rebuild comparison and practical reference benchmarks. Write the archive, checksums, input/component manifests, and reports into `dist/`.
+Reconstruct the locked Alpine build root and demonstrate the offline network boundary is real (plan Section 7). Build all bundled native libraries and CPython in that environment, package the installation, and validate a fresh extraction in a clean runtime. Perform a clean-rebuild comparison and practical reference benchmarks. Write the archive, checksums, input/component manifests, and reports into `dist/`.
 
 M1 ends with those local artifacts and evidence. Linux aarch64 and macOS aarch64 are roadmap targets, not prerequisites or additional implementation phases in this task.
 
@@ -321,7 +326,7 @@ M1 is complete when all of the following are established by local evidence:
 3. Bundled non-platform native dependencies come from locked sources. Every runtime library is either in the artifact or explicitly admitted by a narrow tested platform contract; builder-library leakage fails validation.
 4. The useful standard-library inventory, pip/venv, extension loading/development, embedding, resources, and relocation tests pass. Material reference differences are explained and justified. Unexplained missing core behavior blocks completion.
 5. The CPU baseline, tested musl/runtime envelope, data prerequisites, and wheel-compatibility claims are conservative and supported by actual runs. Minimal-runtime tests cannot borrow build-root dependencies.
-6. An isolated offline Docker build has been executed with verified inputs and negative isolation tests. A development-container build is not substituted for that evidence.
+6. An isolated offline Docker build has been executed with verified inputs and a demonstrated network boundary. A development-container build is not substituted for that evidence.
 7. A two-clean-build comparison and practical reference parity/performance report exist. Remaining byte differences are reported; matching upstream bytes is not required.
 8. A usable amd64 archive, checksums, manifests, and validation reports exist locally and correspond to the tested packaged bytes.
 
@@ -387,7 +392,7 @@ The complete dependency graph also contains build executables, scripts, native h
 
 PBS builds musl 1.2.2 and **removes `reallocarray()` from the headers and implementation**. The script explains that this avoids OpenSSL or another dependency acquiring that symbol requirement when deployed on older musl, including 1.2.1. It does not establish a general guarantee that arbitrary builds against modern musl run on older musl. [R8]
 
-On native Alpine, do not modify the machine's libc, replace `/lib/ld-musl-x86_64.so.1`, or mechanically reproduce this source surgery. Initially build against the declared Alpine musl toolchain. Identify the minimum runtime this actually requires. Test a reasonably older musl runtime where feasible, and record differences from PBS. Only introduce an older, isolated target sysroot later if backward compatibility evidence warrants that complexity. A musl 1.2.x minor-version label is not a proof that no newer patch-level symbols were used.
+On native Alpine, do not modify the machine's libc, replace `/lib/ld-musl-x86_64.so.1`, or mechanically reproduce this source surgery. Build and run against the declared Alpine musl toolchain only; do not claim compatibility with an older musl than the one this project actually builds and tests on. Only introduce an older, isolated target sysroot later if a real, demonstrated compatibility requirement warrants that complexity. A musl 1.2.x minor-version label is not a proof that no newer patch-level symbols were used.
 
 PBS's musl target compiler is `musl-clang`, a wrapper around the GNU-hosted compiler. It removes normal Clang resource-header search paths. PBS consequently copies intrinsic headers, selected x86 headers, and `stdatomic.h` into the musl toolchain include environment. ARM64 adds `--rtlib=compiler-rt` for compiler builtins. [R5, R6]
 
