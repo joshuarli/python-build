@@ -1,53 +1,73 @@
-Implement a small, independent build system that compiles **CPython 3.14.6** and its in-scope native dependencies from source inside the project's **Dockerfile-defined Alpine Linux x86_64 environment**, producing a relocatable, dynamically musl-linked Python installation. Deliver a locally built installation archive, its checksums and input manifests, and evidence that it works outside the build environment.
+Implement a small, independent build system that compiles **CPython 3.14.6** and its in-scope native dependencies from source on **native Apple Silicon macOS 26.0 or newer**, using the Xcode SDK and a **Homebrew LLVM 23.1.0+** toolchain, producing a relocatable, dynamically linked Python installation. Deliver a locally built installation archive, its checksums and input manifests, and evidence that it works outside the build environment.
 
 The implementation must emphasize useful compatibility with Astral's **python-build-standalone (PBS)** distributions while keeping its own build architecture simple. PBS is a technical reference and comparison target, not the implementation base. Its recipes, workarounds, source pins, and artifact fingerprints are documented in the appendices.
 
-Read the repository's instructions, inspect existing code, preserve unrelated work, and implement the project through the completed local x86_64 milestone. Do not stop at scaffolding or a design document. Record concrete environmental limitations without claiming that unexecuted work passed.
+Read the repository's instructions, inspect existing code, preserve unrelated work, and implement the project through the completed macOS aarch64 milestone. Do not stop at scaffolding or a design document. Record concrete environmental limitations without claiming that unexecuted work passed.
 
-## Current scope decision (2026-09-17)
+## Scope decisions
 
-All acquisition, compilation, controller tests, runtime validation, and packaging run in stages or containers defined by `Dockerfile`, not directly on the host. Host operations are limited to editing project files, invoking Docker, and managing local inputs/outputs. Docker is now the required execution backend; earlier no-Docker/native-host requirements are superseded.
+### 2026-09-18 — macOS aarch64 becomes the active M1; Linux musl M1 frozen
 
-Tcl, Tk, `_tkinter`, `tkinter`, and their solely GUI-related X11 dependency closure are excluded from the product and build inputs. Do not acquire or build Tcl/Tk, X11 libraries/protocol tools, or Xvfb. Their absence is an intentional scope difference from PBS, not an unresolved M1 gap. Preserve unrelated core capabilities and report the GUI exclusion prominently. Appendix references to Tcl/Tk/X11 describe the reference distribution only, not required project inputs.
+- **M1 now means `aarch64-apple-darwin` built natively on Apple Silicon.** The required floor applies to both sides: the build host must be running **macOS 26.0 or newer**, and the produced interpreter is compiled with an explicit `-mmacosx-version-min=26.0` so it requires macOS 26.0+ at runtime. No older-macOS compatibility, no Intel macOS, and no `universal2` is claimed or tested.
+- **Toolchain is Homebrew LLVM 23.1.0+ (exercised at 23.1.1) plus the Xcode 26.x SDK.** Homebrew and Xcode are declared acquisition/bootstrap trust roots (Section 4), not runtime dependencies: no Homebrew- or Xcode-shipped dylib may appear in the artifact's load commands. `lld` is installed from Homebrew only if the LTO smoke test shows Apple's `ld` cannot consume LLVM 23 ThinLTO bitcode (Section 5.1).
+- **Offline qualification uses `sandbox-exec` with a `(deny network*)` profile**, not Docker/BuildKit. A Linux container cannot produce or execute Mach-O binaries, so the Section 7 boundary is demonstrated as a macOS process sandbox instead (Section 7). Docker remains the backend for the frozen Linux targets only.
+- **The completed Linux musl milestones are frozen.** `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` were completed at commit `6750ae2`, including their Dockerfile stages, Alpine bootstrap lock, recipes, relocation and packaging code, and ELF validation. That code, those stages, and the records they produced stay in the repository and keep working; this milestone does not re-validate them, does not extend them, and does not require their inputs to be re-downloaded.
+- **Tcl/Tk, `_tkinter`, `tkinter`, and their solely GUI-related X11 dependency closure remain excluded** from the product and build inputs, unchanged from the 2026-09-17 decision below. Their absence is an intentional scope difference from PBS, not an unresolved M1 gap. Do not acquire or build Tcl/Tk, X11 libraries/protocol tools, or Xvfb.
+
+### 2026-09-17 — Docker/Alpine execution (now scoped to the frozen Linux targets)
+
+For the **frozen Linux targets**, all acquisition, compilation, controller tests, runtime validation, and packaging run in stages or containers defined by `Dockerfile`, not directly on the host. Host operations there are limited to editing project files, invoking Docker, and managing local inputs/outputs. Docker is the required execution backend for those targets; earlier no-Docker/native-host requirements are superseded for them. This decision does **not** govern macOS, which cannot be built or tested inside a Linux container.
+
+Tcl, Tk, `_tkinter`, `tkinter`, and their solely GUI-related X11 dependency closure are excluded from the product and build inputs. Appendix references to Tcl/Tk/X11 describe the reference distribution only, not required project inputs.
 
 ## 1. Scope
 
-### 1.1 Immediate milestone: M1
+### 1.1 Immediate milestone: M1 (macOS aarch64)
 
 | Property | Required value |
 | --- | --- |
-| Build userspace | Dockerfile-defined Alpine Linux on native x86_64/amd64; host distro is not a build input |
-| Target | `x86_64-unknown-linux-musl` |
+| Build userspace | Native macOS 26.0+ on Apple Silicon; the host OS **is** a build input. Xcode 26.x SDK plus Homebrew LLVM 23.1.0+ |
+| Target | `aarch64-apple-darwin`, arm64 only, deployment floor **macOS 26.0** (`-mmacosx-version-min=26.0`) |
 | Interpreter | Exactly CPython 3.14.6, ordinary GIL-enabled release ABI |
 | Optimization | LTO enabled; no PGO, BOLT, experimental JIT, or tail-call interpreter |
-| Execution | Dockerfile-defined development and offline qualification stages/containers on the same architecture; no direct host builds/tests |
+| Execution | Native macOS build and qualification processes; sealed runs execute under a `sandbox-exec` `(deny network*)` profile as an unprivileged user |
 | Distribution | One relocatable installation tree, packaged as a local archive |
 | Build architecture | Project-owned recipes and typed Python orchestration; standard native component build systems |
 | Completion boundary | Local build, runtime validation, reference comparison, clean rebuild, and packaging |
 
-A build that omits major standard-library capabilities, requires the builder's private libraries, or breaks pip, virtual environments, native extensions, or relocation is not a successful streamlined distribution.
+A build that omits major standard-library capabilities, requires the builder's private Homebrew/Xcode libraries at runtime, or breaks pip, virtual environments, native extensions, embedding, or relocation is not a successful streamlined distribution.
 
-### 1.2 Planned platforms
+Observed host at the time this decision was recorded: macOS 26.5.2 (Darwin 25.5.0), `arm64`, Apple M1 Pro; Xcode SDK 26.5; Apple clang 21.0.0; Homebrew 7.0.4 with `llvm` 22.1.8 installed (stable 23.1.1 available, formula aliased `llvm@23`) and `lld` 23.1.1 available; Homebrew Python 3.14.7 usable as the controller runtime; `/usr/bin/sandbox-exec` present. The Homebrew LLVM upgrade to 23.1.1 is part of M1 setup, not an optional convenience.
 
-The eventual target set also includes `aarch64-unknown-linux-musl` built natively on aarch64 Alpine and `aarch64-apple-darwin` built natively on Apple Silicon macOS. Use common dependency recipes, source acquisition, packaging, and validation where they genuinely apply. Do not implement unused platform frameworks or delay M1 for either platform.
+### 1.2 Completed milestone: Linux musl (frozen)
 
-LTO is required and PGO/BOLT are excluded on every planned platform, including macOS. Future tail-call-interpreter or JIT choices must be explicit platform decisions rather than consequences of a profiling flag. Future-platform source findings and reference artifacts are included as research, not mandatory M1 downloads or builds.
+`x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` were completed against Alpine Linux in Dockerfile-defined stages, with their own acceptance evidence, at commit `6750ae2`. They remain described in this document because their code, locks, and stages are still in the repository, and because the lessons they recorded — dependency ordering, module coverage, relocation outcome, patch discipline — are the ones the macOS target reuses.
 
-### 1.3 Exclusions
+They are **frozen**: this milestone adds no Linux work, acquires no Linux inputs, re-runs no Linux qualification, and re-validates no Linux artifact. Their completion status is a fact about that commit, not a continuing claim about the current tree. Treat their Dockerfile stages and `bootstrap.lock.json` as live code that must keep working (their unit tests still run), but do not extend them.
 
-No other Python versions, free-threaded or debug distributions, fully static-musl interpreter, x86-64-v2/v3/v4 variants, glibc target, Windows, Intel macOS, universal2, iOS, or embedded target is in scope. A declared bootstrap Python may have a different version because it is a build tool, not a distributed product.
+### 1.3 Planned future platforms
 
-A Docker daemon/BuildKit execution backend is required for M1. No emulator, cross-compiler, ARM host, or macOS host is needed. Do not bootstrap LLVM or an operating system from source. Do not build a generalized package manager, recipe language, scheduler, or container runtime.
+No additional platform is planned or promised. `aarch64-unknown-linux-musl` already exists as a completed target rather than a roadmap item. The eventual possible additions are Intel macOS, macOS deployment floors below 26.0, `universal2`, and glibc/Linux targets; none is designed, stubbed, or acquired for here.
+
+Use common dependency recipes, source acquisition, packaging, and validation across the Linux and macOS targets where they genuinely apply. Do not implement unused platform frameworks. LTO is required and PGO/BOLT are excluded on every platform. Future tail-call-interpreter or JIT choices must be explicit platform decisions rather than consequences of a profiling flag. Future-platform source findings and reference artifacts are included as research, not mandatory M1 downloads or builds.
+
+### 1.4 Exclusions
+
+No other Python versions, free-threaded or debug distributions, Intel macOS, `universal2`, iOS, Mac Catalyst, glibc target, Windows, or embedded target is in scope. A declared bootstrap Python may have a different version because it is a build tool, not a distributed product.
+
+No Docker daemon, BuildKit, virtual machine, emulator, or cross-compiler is required for the macOS M1. Do not cross-compile: the interpreter and its dependencies are built by processes executing natively on the same Apple Silicon machine that runs them. Do not bootstrap LLVM, Xcode, or an operating system from source. Do not build a generalized package manager, recipe language, scheduler, or container runtime.
 
 All deliverables are local files. Do not add workflow configuration, hosted-runner integration, upload commands, remote release APIs, publication credentials, or automatic tag creation. Network access is limited to explicit input acquisition and research; build, validation, and packaging must have an offline path.
 
-### 1.4 Independence and libc boundary
+### 1.5 Independence and platform boundary
 
 Do not fork, vendor, submodule, wrap, import, or execute PBS's build engine. Do not depend on its Python modules, generated module configuration, Rust packaging program, or multiversion dependency graph. Do not repack a PBS binary or copy its interpreter, standard library, headers, libraries, object files, or installed pip into this product.
 
 Selective adaptation of an individual source patch is permitted when it fixes a demonstrated problem and has provenance, attribution, a narrow applicability check, and a regression test. Independence does not mean ignoring useful upstream fixes, and it does not erase their licenses.
 
-The native build tools, build userspace, target binaries, and runtime-validation root must use musl, not glibc. Do not install `gcompat`, `libc6-compat`, a foreign glibc, or a GNU-hosted compiler binary requiring glibc. GCC, GNU make, GNU binutils, libgcc, and a musl-built libstdc++ are not glibc merely because they are GNU projects. Inspect actual runtime linkage.
+On macOS the C library is **Apple's `libSystem`**, supplied by the operating system and not redistributable and not statically linkable. It is the platform itself, not a bundled component: every Mach-O in the payload will legitimately have `libSystem.B.dylib` and the other `/usr/lib` or `/System/Library` system dylibs in its load commands. Declare that allowlist narrowly and validate it recursively (Section 8.1). Everything outside it — OpenSSL, SQLite, libffi, compression libraries, mpdecimal, ncurses — must come from this project's own locked source builds, and nothing from Homebrew, the Xcode toolchain, or the interpreter's build prefix may leak into the payload.
+
+The build toolchain and the target binaries must both be genuine Apple-Silicon arm64. Reject Rosetta-translated or Intel builds, and inspect actual Mach-O headers rather than trusting a compiler banner.
 
 ## 2. Product and parity contract
 
@@ -64,168 +84,198 @@ sha256: 143b1dddefaec3bd2e21e3b839b34a2b7fb9842272883c576420d605e9f30c63
 
 Verify the downloaded bytes before extracting them. The source pin is documented in the PBS download manifest and CPython source references. [R2, R16]
 
-Compare the product against **PBS release `20260610`**, build commit **`f1d7b92301235781d4de2493578773aaa413c0a5`**, specifically its ordinary-GIL x86_64 dynamic-musl **LTO** distribution. This is a fixed comparison baseline, not a moving latest release and not python.org's installer. Reference artifact fingerprints are in Appendix B. Use a clean verified extraction, not an installation modified by another environment manager. [R1, R2]
+Compare the product against **PBS release `20260610`**, build commit **`f1d7b92301235781d4de2493578773aaa413c0a5`**, specifically its **`aarch64-apple-darwin` PGO+LTO** distribution. This is a fixed comparison baseline, not a moving latest release and not python.org's installer. Reference artifact fingerprints are in Appendix B. Use a clean verified extraction, not an installation modified by another environment manager. [R1, R2]
 
 The goal is **close functional, ABI, portability, module-coverage, and practical-performance parity**. Matching an upstream archive hash is not required. Reference hashes authenticate comparison inputs; they are not expected output hashes.
 
+**The reference is PGO+LTO and this project is LTO-only.** Every macOS comparison, especially Section 8.3's performance rows, must state that difference prominently rather than presenting the two as equivalently optimized. This project does not generate or recover profiling workloads; an LTO-only build is the declared policy, not a temporary gap on the way to matching the reference's flags.
+
 ### 2.2 Required behavior
 
-The finished installation must provide the exact interpreter version and architecture, normal extension loading, correct ABI and packaging tags, a useful standard-library inventory, private non-platform native dependencies, relocation, pip, virtual environments, TLS verification, compression, databases, FFI, and usable extension-development metadata. Shared libpython and a tested embedding contract are required; the interpreter's own static-versus-shared libpython linkage is a documented implementation choice.
+The finished installation must provide the exact interpreter version and architecture, normal extension loading, correct ABI and packaging tags, a useful standard-library inventory, private non-platform native dependencies, relocation, pip, virtual environments, TLS verification, compression, databases, FFI, and usable extension-development metadata. Shared libpython and a tested embedding contract are required; the interpreter's own static-versus-shared libpython linkage is a documented implementation choice. On macOS the shared library is a `.dylib` with an install name, and the interpreter's load commands determine whether relocation works; record both.
 
-Declare the supported CPU baseline, tested musl runtime envelope, external platform/data prerequisites, dependency versions, and relevant configuration differences. Do not claim older-musl, glibc-wheel, operating-system, or performance compatibility without evidence.
+Declare the supported CPU baseline, the tested macOS deployment floor and its SDK, external platform/data prerequisites, dependency versions, and relevant configuration differences. Do not claim older-macOS, Intel-macOS, Linux-wheel, or performance compatibility without evidence.
 
 ### 2.3 Permitted differences and reporting
 
-Use a musl-native Alpine compiler and libc/sysroot. A newer tested musl floor than the reference, ordinary shared-libpython linkage, configure-driven shared extension modules rather than the reference's built-in/shared split, justified dependency updates, and a different deterministic archive layout are acceptable when their effects are recorded. These permissions do not excuse missing core capabilities or undeclared runtime dependencies.
+A macOS deployment floor of 26.0 where the reference targets 11.0, the use of the system's own zlib/libedit/Expat/ndbm instead of bundled copies of the same libraries, ordinary shared-libpython linkage, configure-driven shared extension modules rather than the reference's built-in/shared split, justified dependency updates, and a different deterministic archive layout are acceptable when their effects are recorded. These permissions do not excuse missing core capabilities or undeclared runtime dependencies.
 
 Produce both a machine-readable and a readable parity report. Each comparison row must be `match`, `intentional_difference`, `gap`, or `untested`, with evidence and consequences. Treat critical missing behavior as a gap, not as an intentional difference justified solely by convenience. Do not hide missing capabilities behind an aggregate percentage.
 
-Prioritize correctness and ABI, then standalone functionality and module coverage, then compatibility envelope, then measured performance/size, and finally cosmetic layout similarity. Upstream timestamps, object-file archives, compressor bytes, compiler branding, and exact built-in/shared placement are not acceptance requirements.
+Prioritize correctness and ABI, then standalone functionality and module coverage, then compatibility envelope, then measured performance/size, and finally cosmetic layout similarity. Upstream timestamps, object-file archives, compressor bytes, compiler branding, code-signature identity, and exact built-in/shared placement are not acceptance requirements.
 
 Compare two clean builds of this project's own output, investigate inexpensive reproducibility improvements, and report remaining differences. Neither upstream byte equality nor perfect internal byte equality is an M1 gate. Input integrity, offline execution, tested functionality, and truthful reports are gates.
 
 ## 3. Implementation architecture
 
-Use a small typed Python controller with standard-library dependencies wherever practical. A directly executable `python3 build.py ...` front door is sufficient; do not require uv, a downloaded managed interpreter, Cargo, a framework, a plugin system, or a custom package manager to launch it. Use TOML or JSON for checked-in locks/configuration and JSON for machine-readable reports. A tiny conventional `pyproject.toml` is fine, but the controller must run without a network-backed installation step.
+Use a small typed Python controller with standard-library dependencies wherever practical. A directly executable `python3 build.py ...` front door is sufficient; do not require uv, a downloaded managed interpreter, Cargo, a framework, a plugin system, or a custom package manager to launch it. Use TOML or JSON for checked-in locks/configuration and JSON for machine-readable reports. A tiny conventional `pyproject.toml` is fine, but the controller must run without a network-backed installation step. The host's Homebrew Python 3.14.7 satisfies this directly.
 
 Suggested structure, adapting to repository conventions rather than creating empty scaffolding:
 
 ```text
 build.py                  # CLI only
 buildsys/                 # small controller, dependency recipes, packaging, checks
+buildsys/targets.py       # per-architecture data; the only file that branches on target
+buildsys/macho.py         # Mach-O inspection and load-command edits (macOS)
+buildsys/sandbox.py       # sandbox-exec profile generation and sealed-run wrapper (macOS)
+buildsys/relocate.py      # relocation fixups (ELF path frozen; Mach-O path new)
+build/deps.py             # dependency driver
+build/cpython.py          # CPython configure/make driver
+build/package.py          # packaging, reports, validation
 sources.lock.json         # target/library source inputs and hashes
-bootstrap.lock.json       # Alpine rootfs/APK/tool inputs and hashes
+bootstrap.lock.json       # toolchain/trust-root inputs and hashes
+Dockerfile                # frozen Linux stages; not used by the macOS target
 patches/                  # small selected patch set, provenance, regression links
 tests/                    # controller tests and distribution/runtime tests
 ```
 
-Prose documentation is not a deliverable: patch provenance lives next to
-each patch (required for patch discipline, Section 5.4), and evidence for
-sources/discoveries/parity lives in `dist/*.json`/`dist/parity.md`, produced
-by the controller itself rather than hand-maintained. Do not create a
-`docs/` tree or other standalone writeups; keep the repository to exactly
-the directories the build actually needs.
+The existing ELF-oriented modules (`buildsys/relocate.py`'s patchelf path, the Dockerfile stages, the Alpine bootstrap lock) belong to the frozen Linux targets and must keep working. Do not delete them, and do not try to force one relocation module to serve both object formats through runtime branching; the Mach-O path is different enough to earn its own module with its own tests.
+
+Prose documentation is not a deliverable: patch provenance lives next to each patch (required for patch discipline, Section 5.4), and evidence for sources/discoveries/parity lives in `dist/*.json`/`dist/parity.md`, produced by the controller itself rather than hand-maintained. Do not create a `docs/` tree or other standalone writeups; keep the repository to exactly the directories the build actually needs.
 
 One dependency ordering model, one source acquisition implementation, one command runner, one target description, one package layout. Straightforward Python functions and a small dependency list are preferable to a generalized scheduler or a YAML recipe language. Retain native build systems for CPython and its libraries: invoke configure/make or the component's supported equivalent instead of translating their internals.
 
-M1 should have one Dockerfile-defined Alpine executor with separate acquisition, offline build, and minimal-runtime stages. Unsupported future targets should fail with a clear “not implemented” message, not create empty artifacts, silently build amd64 under an ARM label, or dispatch into PBS. Do not create a hierarchy of unused abstract platform backends.
+M1 should have one native macOS executor with separate acquisition, sealed offline build, and minimal-runtime stages. The minimal runtime does not need a container: a fresh prefix on the same machine, with the build prefix and Homebrew removed from every search path (and `DYLD_*` scrubbed), is the required isolation, and the sealed run's network denial is what makes it qualification evidence rather than a convenience build. Unsupported future targets should fail with a clear "not implemented" message, not create empty artifacts, silently build arm64 under an x86_64 label, or dispatch into PBS. Do not create a hierarchy of unused abstract platform backends.
 
 Suggested commands; preserve these semantics even if names change:
 
 ```text
 python3 build.py doctor
-python3 build.py fetch --target x86_64-unknown-linux-musl
-python3 build.py build --target x86_64-unknown-linux-musl --dev
-python3 build.py build --target x86_64-unknown-linux-musl --offline --sealed
-python3 build.py test --target x86_64-unknown-linux-musl
-python3 build.py compare-reference --target x86_64-unknown-linux-musl
-python3 build.py package --target x86_64-unknown-linux-musl
-python3 build.py reproduce --target x86_64-unknown-linux-musl
+python3 build.py fetch --target aarch64-apple-darwin
+python3 build.py build --target aarch64-apple-darwin --dev
+python3 build.py build --target aarch64-apple-darwin --offline --sealed
+python3 build.py test --target aarch64-apple-darwin
+python3 build.py compare-reference --target aarch64-apple-darwin
+python3 build.py package --target aarch64-apple-darwin
+python3 build.py reproduce --target aarch64-apple-darwin
 ```
 
-Add offline input export/import only as simple archive operations over the existing lock/cache; do not build a repository service. Keep packaging separate from compilation so a validated installation can be packaged without rebuilding it. `doctor` must show actual host/target, musl, compiler/linker, bootstrap Python, missing tools, and whether sealed execution is available. It must not silently install system packages or change host configuration.
+Add offline input export/import only as simple archive operations over the existing lock/cache; do not build a repository service. Keep packaging separate from compilation so a validated installation can be packaged without rebuilding it. `doctor` must show the actual host (macOS product version and build), architecture, SDK path and version, the resolved clang/LLVM version and resource directory, which linker will be used, controller Python, bootstrap Python, `codesign` and `sandbox-exec` availability, whether sealed execution is actually usable, and any missing tools. It must not silently install system packages, run `brew upgrade`, or change host configuration.
 
 Keep a content-derived identity for each dependency build using its source, patches, configuration, toolchain, and relevant dependency identities. Reuse completed local work only when those identities match. A clean-rebuild command must bypass compiled-output caches while allowing immutable downloaded inputs to be shared. Avoid a cache framework larger than the build logic it serves.
 
 ## 4. Inputs, provenance, and dependencies
 
-Separate these roles explicitly: acquisition tooling; bootstrap/rootfs/toolchain; target sources and patches; generated intermediates; test-only inputs; reference-only artifacts; final payload. Record source URL, exact version or commit, SHA-256, size when known, purpose, license/source provenance, and target applicability.
+Separate these roles explicitly: acquisition tooling; bootstrap/toolchain; target sources and patches; generated intermediates; test-only inputs; reference-only artifacts; final payload. Record source URL, exact version or commit, SHA-256, size when known, purpose, license/source provenance, and target applicability.
 
 The acquisition phase may use the network. Verify digests before extraction; protect against path traversal, escaping symlinks/hardlinks, absolute paths, devices, and other unsafe archive entries. Never execute unverified downloaded helpers. Persist artifacts in a content-addressed cache with atomic publication. A filename alone is not an identity. Tests should cover tampering, missing inputs, malformed locks, interrupted writes, and unsafe archives.
 
-Source-build CPython and the non-platform libraries the distribution bundles. Alpine APK packages may bootstrap tools and the declared native libc/sysroot; do not create the deliverable by extracting Alpine's system Python package, copying PBS files, or copying undeclared runtime libraries out of `/usr/lib`. A temporary development-only dynamic link to a system dependency is acceptable for diagnosis but cannot pass standalone artifact validation.
+Source-build CPython and the non-platform libraries the distribution bundles. The macOS toolchain comes from Xcode and Homebrew; do not create the deliverable by extracting Homebrew's or Python.org's Python package, copying PBS files, or copying undeclared runtime libraries out of `/usr/lib`, `/System/Library`, or Homebrew's prefix. A temporary development-only dynamic link to a system or Homebrew library is acceptable for diagnosis but cannot pass standalone artifact validation.
 
-Pin the exact Alpine branch, architecture, bootstrap rootfs or package set, APK indexes/keys, individual APK bytes, and transitive tool dependencies needed for a sealed build. A branch URL and package names are not a lock. Reconstruct the rootfs from cached verified inputs without `apk update` or remote resolution during compilation. Do not use `--allow-untrusted` as a substitute for package/input verification. Never mix edge and stable opportunistically to make a dependency appear.
+Pin the exact toolchain and trust roots: Homebrew formula versions **and bottle digests**, the `brew` version that resolved them, the Xcode version and SDK build, and the exact resolved clang and linker binaries. A formula name and a version string are not a lock. Homebrew bottles publish content digests, so this lock can and should be byte-precise — stronger than the Alpine APK lock it replaces, which could only pin name-version-revision. Do not use `brew upgrade` opportunistically during a sealed run; toolchain changes are explicit lock changes.
 
 Use verified origin sources where available. PBS's download file uses Astral mirrors for availability in several places; the original source URLs are often in its comments. This project must not require live Astral hosting once its inputs are acquired. Prefer publisher origin URLs or project-controlled mirrors. The CPython `cpython-source-deps` exports for zstd are source, not a forbidden PBS binary, but an alternate export's digest must match its own bytes rather than the hash of a different tarball.
 
-Acquire only the sources, tools, test fixtures, and reference artifacts needed for the selected M1 steps; do not fetch or build components for other Python versions or future targets. Do not lock Cargo/Python third-party packaging dependencies solely because PBS used them. Compiler/Alpine/Apple SDK bootstraps are declared trust roots; recursively rebuilding all of them from source is explicitly outside M1.
+Acquire only the sources, tools, test fixtures, and reference artifacts needed for the selected M1 steps; do not fetch or build components for other Python versions or future targets. Do not lock Cargo/Python third-party packaging dependencies solely because PBS used them. Compiler, SDK, and OS bootstraps are declared trust roots; recursively rebuilding all of them from source is explicitly outside M1.
 
-## 5. Native x86_64 build pipeline
+## 5. Native macOS aarch64 build pipeline
 
 ### 5.1 Toolchain and bootstrap
 
-Start with a native Alpine Clang/LLVM/LLD toolchain near the reference LLVM generation when available on a supported locked branch. Verify the actual executable paths, resource directory, target triple, compiler runtime, libc/CRT selection, assembler, archive tools, and linker. Use an explicit LTO smoke test before launching the dependency build. Native GCC with LTO is a fallback to evaluate only if Clang imposes disproportionate complexity; such a change must be reported, not silent.
+Use Homebrew LLVM 23.1.0+ — exercised at 23.1.1, the current stable — with the Xcode 26.x SDK. Verify the actual executable paths, resource directory, target triple, compiler runtime, libc/CRT selection, assembler, archive tools, and the linker; a version banner is not verification. Apple clang 21.0.0 is present on the host but is not the selected compiler; do not silently fall back to it if the Homebrew toolchain has a problem, and record which compiler actually produced the artifact.
 
-Set a baseline x86_64 ISA and record it. Keep frame pointers and a non-executable stack where supported. Use `-O3` or the explicitly documented selected optimization level for the distribution; **do not enable PGO**. Prefer Clang ThinLTO as the first explicit LTO mode if supported, then verify the effective generated flags and compare with the reference's effective mode. Avoid universal flags that contaminate third-party extension builds.
+Set the deployment floor explicitly. **Do not let it default**: clang derives the default minimum from the SDK, which on this host would silently produce a 26.5 floor instead of the declared 26.0. Pass `-mmacosx-version-min=26.0` (and the `MACOSX_DEPLOYMENT_TARGET=26.0` environment where a component's configure consults it), then confirm the resulting `LC_BUILD_VERSION` `minos` is exactly `26.0` on the interpreter and a sample of extension modules.
 
-Use the stock native CPython build pipeline. Avoid forced cross mode, custom host-freezing infrastructure, or compiling against the reference's handcrafted musl unless a later compatibility requirement actually justifies it.
+Set a baseline CPU and record it. Apple Silicon binaries are arm64; do not enable `-mcpu=native`, `-march=armv9*`, or any feature set above the declared baseline, so the artifact does not run only on newer chips than declared. Keep a non-executable stack; frame pointers are recorded policy, not a downstream default. Use `-O3` or the explicitly documented selected optimization level; **do not enable PGO**.
+
+Use **ThinLTO** as the first explicit LTO mode. This is the highest-risk toolchain interaction on macOS and must be settled before the dependency build: Apple's `ld` ships a `libLTO` whose LLVM generation may not match the Homebrew compiler, and mismatched bitcode is rejected at link time rather than degraded gracefully. Run an explicit smoke test — compile two objects with the selected clang at `-flto=thin`, archive with `llvm-ar`, link with the selected linker at `-mmacosx-version-min=26.0`, run the result, and inspect its `LC_BUILD_VERSION` and load commands. If Apple's `ld` cannot consume LLVM 23 bitcode, install Homebrew's `lld` formula (same 23.1.1 generation) and use `ld64.lld`, recording the change and its consequences rather than silently dropping LTO. Verify the effective generated flags and compare with the reference's effective mode. Avoid universal flags that contaminate third-party extension builds.
+
+Use the stock native CPython build pipeline. Avoid forced cross mode, custom host-freezing infrastructure, or `--with-build-python` unless a demonstrated native-build need appears.
 
 ### 5.2 Native dependency prefix
 
-Build dependencies into a private staged prefix, separate from the final installation. Use PIC static libraries where this keeps linkage simple. Set pkg-config search roots so dependency detection cannot find unrelated host development packages. Use supported per-library configure variables and inspect `config.log`, generated module state, and link commands. Do not guess the variable names; derive them from the exact 3.14.6 configure script.
+Build dependencies into a private staged prefix, separate from the final installation. Use PIC static libraries where this keeps linkage simple. Set pkg-config search roots so dependency detection cannot find unrelated Homebrew or Xcode development packages; on macOS this matters more than it did on Alpine, because a Homebrew prefix full of libraries is one `PKG_CONFIG_PATH` away from being silently detected. Use supported per-library configure variables and inspect `config.log`, generated module state, and link commands. Do not guess the variable names; derive them from the exact 3.14.6 configure script.
 
-Use CPython's normal shared extension modules as the default. Supply complete transitive static-link flags in the correct order. Check symbol visibility and dependency duplication; statically linking the same native library into multiple modules can have symbol-interposition/state implications. A small, properly relocated private DSO is preferable to brittle tricks added only to remove one dynamic library.
+Following the pinned reference's macOS split, the starting policy is:
 
-Get OpenSSL, SQLite, Expat, zlib, bzip2, liblzma, zstd, libffi, and mpdecimal working first; then libedit/ncurses and uuid/dbm. Tcl/Tk and its X11 closure are excluded. This ordering is an iteration strategy, **not permission to call the reduced first pass complete**. Do not silently replace libedit with readline, BDB with gdbm, Tcl/Tk 9 with an older incompatible version, or zstd support with an import skip.
+| Built from locked source | Taken from the platform |
+| --- | --- |
+| OpenSSL 3.5.7, SQLite 3.53.1, libffi 3.4.6, bzip2 1.0.8, xz/liblzma 5.8.1, zstd 1.5.7, mpdecimal 4.0.0, ncurses 6.5 | `libSystem` (libc/math/pthread/dl), system zlib, system libedit (readline backend), system Expat, system ndbm (dbm backend) |
 
-Investigate native-build differences for libffi 3.3 and old BDB/X11 inputs rather than preserving them at unlimited cost. An updated source pin is acceptable after a concrete reason, behavioral/ABI tests, license review of the shipped notices, and a recorded reference difference. Avoid an independent outdated-dependency preservation project.
+Two consequences are deliberate and must be recorded rather than discovered late: the macOS payload carries no bundled `libuuid` and no Berkeley DB, because `_uuid` and `dbm.ndbm` use platform facilities, which also removes an AGPL-licensed component from the distribution. **Confirm this split against the pinned reference archive's own load commands and module inventory before locking it** — the table is a starting policy from the reference's documented behavior, not a substitute for inspecting the artifact. Do not silently replace libedit with GNU readline, drop a backend, or swap zstd support for an import skip.
+
+Use CPython's normal shared extension modules as the default. Supply complete transitive static-link flags in the correct order. Check symbol visibility and dependency duplication; statically linking the same native library into multiple modules can have symbol-interposition/state implications. A small, properly relocated private DSO is preferable to brittle tricks added only to remove one dynamic library. Tcl/Tk and its X11 closure are excluded. The first-pass ordering — OpenSSL, SQLite, Expat, zlib, bzip2, liblzma, zstd, libffi, mpdecimal, then ncurses and the remaining backends — is an iteration strategy, **not permission to call the reduced first pass complete**.
+
+Investigate native-build differences for old inputs rather than preserving them at unlimited cost. An updated source pin is acceptable after a concrete reason, behavioral/ABI tests, license review of the shipped notices, and a recorded reference difference. Avoid an independent outdated-dependency preservation project.
 
 ### 5.3 CPython configuration
 
 Read `./configure --help` from the verified source. The intended policy is ordinary release/GIL-enabled CPython, LTO enabled, PGO/JIT/BOLT/tail-call disabled on M1, mimalloc supported, PIC and dynamic extension loading, explicit private native dependencies, and a staged non-system installation.
 
-Use a neutral configured prefix and DESTDIR/staging consciously; test final relocation rather than compiling in the checkout path and hoping. Start with standard shared libpython if needed to obtain a trustworthy baseline. Evaluate the narrow static-interpreter backport as described in Appendix A.7. Keep `checksharedmods` and ordinary configure-module checks enabled. Missing expected modules are failures, not warnings to bury in logs.
+The macOS configuration differs from the frozen Linux one in ways that must be derived, not carried over:
 
-Do not set `--with-build-python` or add cross-compilation cache overrides without a demonstrated native-build need. Use `CFLAGS_NODIST` / `LDFLAGS_NODIST` for private compiler/optimization flags where appropriate, while retaining flags needed by consumer extensions. Explicitly test the musl thread-stack policy.
+- The musl thread-stack policy (`THREAD_STACK_SIZE`, `-z stack-size`) does not apply. Verify the actual macOS default thread stack behavior and test C-level recursion and callbacks against it; do not copy a musl-motivated constant onto a platform with different defaults.
+- The dbm preference is `ndbm`, not Berkeley DB (Section 5.2).
+- Linker hardening flags used on Linux (`-z noexecstack`, `--build-id`) have no macOS equivalent and must not be passed. Do not substitute flags that merely look analogous.
+- `-D_FORTIFY_SOURCE` and similar glibc-oriented hardening is not a macOS policy; record what is actually used instead of translating the Linux flags.
+- The private dependency prefix must be reachable without `DYLD_LIBRARY_PATH`, which is unreliable and stripped in many contexts — prefer link-time paths.
+
+Use a neutral configured prefix and DESTDIR/staging consciously; test final relocation rather than compiling in the checkout path and hoping. Start with standard shared libpython as the baseline. Evaluate the narrow static-interpreter backport as described in Appendix A.7. Keep `checksharedmods` and ordinary configure-module checks enabled. Missing expected modules are failures, not warnings to bury in logs.
+
+Do not set `--with-build-python` or add cross-compilation cache overrides without a demonstrated native-build need. Use `CFLAGS_NODIST` / `LDFLAGS_NODIST` for private compiler/optimization flags where appropriate, while retaining flags needed by consumer extensions.
 
 ### 5.4 Patch discipline
 
 Every patch needs: exact upstream source/version; origin URL and license/attribution when adapted; explanation; scope; an applicability check; and a reproducer or regression test. Apply against a freshly verified source tree and fail on rejects or unexpected preimages. Record whether the fix is already upstreamed in a later CPython version.
 
-Initial candidate categories, not a mandatory patch bundle:
+The patch set is target-independent: the existing `patches/cpython/` entry and its provenance record stay as they are, and the macOS build applies the same set through the same `buildsys/patches.py`. Initial candidate categories for *new* macOS patches, not a mandatory bundle:
 
 | Candidate | Default disposition |
 | --- | --- |
 | Static-libpython-for-interpreter backport | Evaluate as one isolated parity improvement |
-| Relative build-details / demonstrated getpath/symlink gap | Adopt only when the stock relocated build fails the corresponding test |
-| Tcl/Tk relative resource lookup | Likely useful; verify actual staged resource paths |
-| Musl ctypes discovery / callback behavior | Audit PBS and Alpine fixes; implement/test the needed semantics |
-| Thread-stack policy | Evaluate Alpine's narrow compile/link settings on 3.14.6 |
+| Mach-O install-name / `@rpath` relocation gap | Adopt only when the stock relocated build fails the corresponding test |
+| macOS extension-module load-command fixes | Adopt only against a demonstrated failure after relocation |
+| ctypes library discovery / callback behavior | Audit the frozen Linux work and upstream fixes; implement/test the needed macOS semantics |
 | HACL generic-ISA issue | Inspect and test before selectively patching |
-| Forced host Python / cross-configure / musl wrapper headers | Not needed for native M1 unless a real failure proves otherwise |
+| Forced host Python / cross-configure | Not needed for native M1 unless a real failure proves otherwise |
 | Disable stdlib-module configure/checksharedmods | Do not import |
 | PGO/BOLT/JIT build patches | Do not import for M1 |
-| Older CPython version, other architecture, glibc compatibility patches | Do not import |
+| Tcl/Tk resource-lookup patches and the X11 closure | Not applicable; those components are out of scope |
+| Older CPython version, other architecture, older-macOS compatibility patches | Do not import |
 | PBS tar/Rust packaging tooling | Do not import; implement a small project-owned packaging step |
 
-Do not call the project “clean room” while copying patches. Independence of build architecture does not erase source-code licenses or provenance obligations.
+Do not call the project "clean room" while copying patches. Independence of build architecture does not erase source-code licenses or provenance obligations.
 
 ## 6. Standalone runtime and relocation
 
-Use one normal install tree, preferably a top-level `python/` containing `bin/`, `lib/`, `include/`, and the resource/share directories actually needed. The interpreter is `bin/python3.14`, with conventional local aliases such as `python3` and `python` if included. Never replace the host's system Python or modify its `/usr`, `/lib`, or interactive shell configuration.
+Use one normal install tree, preferably a top-level `python/` containing `bin/`, `lib/`, `include/`, and the resource/share directories actually needed. The interpreter is `bin/python3.14`, with conventional local aliases such as `python3` and `python` if included. Never replace the host's system Python or modify its `/usr`, `/System`, or interactive shell configuration, and never modify the Homebrew prefix.
 
-The Linux executable should have the normal musl loader identity for x86_64. RPATH/RUNPATH applies to shared-library discovery, **not to locating the ELF `PT_INTERP` loader**. The loader is an explicit platform prerequisite. Do not claim the tarball runs on a glibc-only machine with no musl loader, and do not add a wrapper that silently downloads or installs one. If a future design bundles its own loader, treat that as a separate compatibility decision rather than a hidden part of M1.
+Relocation on macOS is a Mach-O problem, not an ELF one:
 
-No unbundled OpenSSL, SQLite, Tcl/Tk, libffi, compression library, or other private runtime dependency may leak from the builder. Define a narrow external platform allowlist and validate it recursively across all ELF files. If a compiler-runtime DSO is genuinely required, either bundle it compatibly with notices or explicitly justify it as a supported platform dependency. Prefer not to make the final interpreter depend on a C++ runtime merely because the compiler itself used one.
+- Dependencies are recorded as install names in `LC_LOAD_DYLIB`, not as a search-path-independent soname. The bundled `libpython3.14.dylib` must carry an `LC_ID_DYLIB` that resolves relative to its consumer, and every Mach-O that links it must reference it by a relocatable form (`@rpath/...` or `@loader_path/...`) with a matching `LC_RPATH`.
+- Prefer correct paths at link time over post-hoc rewriting. Where rewriting is necessary, `install_name_tool` can only edit load commands in place, so link with sufficient header padding for the names actually used; do not discover the padding limit after the fact.
+- **On Apple Silicon every Mach-O must carry a valid code signature, and any load-command edit invalidates it.** Re-apply an ad-hoc signature (or a deliberate, recorded signing policy) to every binary touched by relocation, packaging, or stripping, and verify it afterwards. A correctly relocated but invalidly signed binary fails to launch, which is a hard failure, not a warning.
+- Python's own `sysconfig` and the installed `Makefile` must not name the build-only dependency prefix, the original checkout, or an absolute toolchain path that only existed inside the builder. Remove private instrumentation/LTO flags from extension defaults where inappropriate, without breaking ABI settings. Prefer structured edits and explicit generated fields to global textual surgery.
 
-For relocation, test the extracted tree under multiple prefixes, including paths containing spaces, and after removing access to the original installation/build paths. Test direct execution, executable symlinks, interpreter aliases, sys.prefix/base_prefix, sysconfig, python-config/pkg-config where shipped, pip, and newly created venvs. Standard existing venvs are not promised to be arbitrarily movable: distinguish creating a venv from a relocated base interpreter from relocating an already-created venv.
+For relocation, test the extracted tree under multiple prefixes, including paths containing spaces, and after removing access to the original installation/build paths. Test direct execution, executable symlinks, interpreter aliases, `sys.prefix`/`base_prefix`, sysconfig, python-config/pkg-config where shipped, pip, and newly created venvs. Standard existing venvs are not promised to be arbitrarily movable: distinguish creating a venv from a relocated base interpreter from relocating an already-created venv.
 
-Consumer compiler settings must not refer to the private dependency prefix, temporary rootfs, original checkout, or absolute compiler path that only existed inside the builder. Remove private instrumentation/LTO flags from extension defaults when inappropriate, without breaking ABI settings. Prefer structured edits and explicit generated fields to global textual surgery.
+System dylibs on modern macOS live in the dyld shared cache and frequently have **no on-disk file** at the path their load command names. Validation must therefore resolve and classify load commands by name and by `otool`/`dyld_info` output, not by testing for a file at that path. Do not treat a missing `/usr/lib/libz.dylib` file as a missing dependency.
 
-Install pip offline from a pinned wheel or use a deliberately chosen, tested ensurepip policy. Ensure `python -m pip` works. Any shipped pip launcher must select this installation's interpreter after relocation, not whatever `python3` happens to be first in PATH. Test venv's ensurepip behavior independently from the base pip version; a base pip update does not automatically change CPython's bundled ensurepip wheel.
+Install pip offline from a pinned wheel or use a deliberately chosen, tested ensurepip policy. Ensure `python -m pip` works. Any shipped pip launcher must select this installation's interpreter after relocation, not whatever `python3` happens to be first in `PATH` — on a developer Mac that is very likely Homebrew's Python. Test venv's ensurepip behavior independently from the base pip version.
 
-Do not preinstall setuptools into the base Python 3.14 distribution just for build tests. A separate locked wheelhouse may contain test/build backends. Do not apply Alpine's system `EXTERNALLY-MANAGED` policy to this standalone installation.
+Do not preinstall setuptools into the base Python 3.14 distribution just for build tests. A separate locked wheelhouse may contain test/build backends. Do not apply Homebrew's or any distribution's `EXTERNALLY-MANAGED` policy to this standalone installation; this tree is not a system Python.
 
-Define certificate and timezone behavior explicitly. OS trust roots, timezone data, `/etc/resolv.conf`, `/etc/hosts`, `/etc/passwd`, and terminal/display services are runtime inputs, not magical things a tarball makes disappear. Use documented system data and/or deliberately bundled data as appropriate. Test TLS verification with local fixtures, both success and failure; never disable verification to hide trust-store problems. Test OpenSSL provider/configuration lookup and ncurses terminfo after relocation. Tcl/Tk and display-service validation are excluded.
+Define certificate and timezone behavior explicitly. OS trust roots, timezone data, `/etc/resolv.conf`, `/etc/hosts`, `/etc/passwd`, and terminal/display services are runtime inputs. On macOS the trust store is the system keychain rather than a PEM bundle, which is a real difference from the Linux build and must be documented and tested rather than assumed equivalent. Test TLS verification with local fixtures, both success and failure; never disable verification to hide trust-store problems. Test OpenSSL provider/configuration lookup and ncurses terminfo after relocation. Tcl/Tk and display-service validation are excluded.
 
-Declare the measured musl compatibility floor and CPU baseline in the manifest and local compatibility report, based on the clean selected Alpine build/runtime image. Do not overclaim old-musl compatibility based on absence of glibc symbols, nor infer a minimum Linux kernel without evidence, and do not claim a broader tested musl runtime envelope than the one image this project actually runs on.
+Declare the measured macOS deployment floor and CPU baseline in the manifest and local compatibility report, based on the clean selected SDK build/runtime. Do not claim compatibility with an older macOS than the artifact's `LC_BUILD_VERSION` allows, do not infer broad compatibility from the absence of newer API symbols, and do not claim a wider tested envelope than the one machine/SDK this project actually runs on.
 
 ## 7. Native execution and hermetic qualification
 
-A qualified artifact must come from an offline build with declared filesystem and tool inputs. Native development convenience and enforced isolation are separate execution modes over the same build recipes.
+A qualified artifact must come from an offline build with declared filesystem and tool inputs. Development convenience and enforced isolation are separate execution modes over the same build recipes.
 
-Provide a convenient Docker development stage with an explicit non-hermetic label for rapid iteration. For artifact qualification, run the same recipes in Dockerfile-defined, locked Alpine stages/containers with isolated filesystem and network access. Compile and test as the unprivileged builder, never with a Docker socket or host toolchain mounted inside. Use BuildKit `RUN --network=none` or `docker run --network none` for offline execution. Do not implement an additional native-host, bubblewrap, or chroot backend.
+Provide a convenient non-hermetic development mode for rapid iteration. For artifact qualification, run the same recipes with the toolchain, the verified input cache, the project recipe/patch snapshot, and writable work/output directories as the only declared inputs, and enforce network denial at the process level. Compile and test as the unprivileged user, never with elevated privileges. Do not implement a VM, container, or chroot backend for macOS.
 
-A sealed run should expose only the declared rootfs/toolchain, verified input cache, project recipe/patch snapshot, and writable work/output directories. Avoid broad binds of host `/usr`, home, repository-parent paths, sockets, or credentials. Close inherited file descriptors and do not leak a host container socket or network socket through the boundary. Use a controlled HOME, environment allowlist, locale/timezone, umask, stable working paths, and bounded explicit parallelism. Scrub `PYTHONPATH`, `PYTHONHOME`, compiler include/library overrides, user site-packages, pip config, and other undeclared influences.
+**The macOS network boundary is a `sandbox-exec` profile with `(deny network*)`.** Confirm at implementation time that this actually denies outbound connections on the current host — the tool is deprecated and its enforcement is the thing being claimed, so it must be demonstrated, not assumed. Record which mechanism was exercised. The sealed run must show that a network operation attempted inside the sandbox fails closed; a live connection succeeding there is a qualification failure.
 
-Separate online acquisition from offline build and packaging. Block external networking at the process namespace boundary; a `--offline` boolean that merely avoids the downloader is insufficient. Tests may use loopback within the isolated namespace for local TLS/socket fixtures without allowing external network access. Keep this distinction explicit.
+A sealed run should expose only the declared toolchain, verified input cache, project recipe/patch snapshot, and writable work/output directories. Avoid broad access to the home directory, repository-parent paths, sockets, or credentials. Use a controlled `HOME`, an environment allowlist, locale/timezone, umask, stable working paths, and bounded explicit parallelism. Scrub `PYTHONPATH`, `PYTHONHOME`, `DYLD_LIBRARY_PATH`, `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `SDKROOT`, `MACOSX_DEPLOYMENT_TARGET`, compiler include/library overrides, user site-packages, pip config, and other undeclared influences. `DYLD_*` variables in particular can silently substitute a different library at runtime and must never be relied on by the product.
 
-Record the kernel, CPU features, tool versions, job count, and rootfs identity as environmental inputs/observations. A rootfs shares the host kernel and is not a VM; do not claim stronger kernel independence than demonstrated. Build-source timestamps, optimization, locale, generated data, and compression must be controlled where feasible. Do not reuse wall-clock build time inside deterministic payload files when a declared source epoch suffices.
+Separate online acquisition from offline build and packaging. A `--offline` boolean that merely avoids the downloader is insufficient; the process boundary must deny the network. Tests may use loopback for local TLS/socket fixtures without allowing external network access. Keep this distinction explicit.
 
-Demonstrate that the sealed build's network boundary is real, not merely unexercised: show that a network operation attempted inside the sealed stage fails closed (e.g. BuildKit `--network=none` rejecting a live connection). Tampering, missing-input, and malformed-lock handling belong to the acquisition/cache layer and are covered there by ordinary unit tests, not by re-running them through a full container rebuild.
+Record the macOS version and build, hardware model, CPU features, tool versions, job count, and SDK identity as environmental inputs/observations. Do not claim stronger isolation than demonstrated: a sandboxed process shares the host kernel and the host filesystem namespace, and is weaker containment than a container or VM. Build-source timestamps, optimization, locale, generated data, and compression must be controlled where feasible. Do not reuse wall-clock build time inside deterministic payload files when a declared source epoch suffices.
 
-When Docker or its required isolation features are unavailable, `doctor` should report the exact constraint. Do not fall back to host execution. A development container is not evidence of hermetic qualification. Do not use PBS or install glibc as a fallback.
+Tampering, missing-input, and malformed-lock handling belong to the acquisition/cache layer and are covered there by ordinary unit tests, not by re-running them through a full sealed rebuild.
+
+When the sandbox mechanism or a required tool is unavailable, `doctor` should report the exact constraint. Do not fall back to unsealed host execution and call it qualification. A development-mode build is not evidence of hermetic qualification. Do not use PBS or install a Linux compatibility layer as a fallback.
 
 ## 8. Validation and reference comparison
 
@@ -233,56 +283,58 @@ Write tests for the controller and, more importantly, for the actual extracted d
 
 ### 8.1 Binary/ABI checks
 
-Inspect every shipped ELF: executable, libpython, extension module, and private DSO. Check ELF class/machine, musl PT_INTERP where applicable, DT_NEEDED, RPATH/RUNPATH, exported symbols, unresolved dependencies, and relevant version requirements. Use actual ELF tools and controlled runtime loading, not only string searches. Reject glibc loaders, libc.so.6, GLIBC_* symbol requirements, compatibility shims, unexpected dependency paths, and x86 ISA assumptions above the declared baseline. GNU property/version sections are not automatically glibc; inspect their meaning.
+Inspect every shipped Mach-O: executable, `libpython3.14.dylib`, extension module, and private dylib. Check the Mach-O magic and `cputype`/`cpusubtype` (arm64, not x86_64 and not a fat/`universal` image), `LC_BUILD_VERSION` platform and `minos`, `LC_ID_DYLIB`, `LC_LOAD_DYLIB` entries, `LC_RPATH`, and the code signature. Use actual Mach-O tools — `otool`, `vtool`, `dyld_info`, `codesign`, `llvm-objdump` — and controlled runtime loading, not only string searches.
 
-Verify `sys.version_info` is exactly 3.14.6, the GIL/debug/free-threaded settings are correct, SOABI/EXT_SUFFIX and platform tags are consistent, and effective configure/build features match the manifest. Compilation with musl does not by itself prove dynamic-extension compatibility.
+Classify every load command against a narrow, declared platform allowlist. Reject payload dependencies on Homebrew paths (`/opt/homebrew/...`), on the build prefix, on the original checkout, on `@rpath` entries that do not resolve inside the shipped tree, and on anything else outside the allowlist. Reject Rosetta/Intel builds and any architecture above the declared baseline. Verify that the private bundled libraries are actually loaded from the payload, by running with `DYLD_PRINT_LIBRARIES` and checking resolved paths, rather than inferring linkage from `otool -L` alone.
 
-Build and import a small external C extension using the relocated interpreter's advertised development configuration. Exercise a limited-API/ABI3 fixture where supported and a simple C embedding executable using the provided shared libpython and python-config/pkg-config contract. Test ctypes calls in both directions, callbacks, `CDLL(None)`, library discovery, a private helper DSO, and library loading without build-only utilities installed.
+Verify `sys.version_info` is exactly 3.14.6, the GIL/debug/free-threaded settings are correct, `SOABI`/`EXT_SUFFIX` and platform tags are consistent, and effective configure/build features match the manifest. Report the concrete macOS platform tags the build produces and state plainly which macOS versions they imply, including the fact that wheel-tag compatibility rules will compute tags for older macOS releases that this artifact's deployment floor does not actually support.
+
+Build and import a small external C extension using the relocated interpreter's advertised development configuration. Exercise a limited-API/ABI3 fixture where supported and a simple C embedding executable using the provided shared libpython and python-config/pkg-config contract. Test ctypes calls in both directions, callbacks, `CDLL(None)`, library discovery, a private helper dylib, and library loading without build-only utilities installed.
 
 ### 8.2 Runtime/module coverage
 
 Compare reference and project module inventories, distinguishing platform-unavailable, built-in, shared, test-only, and truly missing modules. At minimum exercise:
 
-- `ssl`, `hashlib`, certificate verification, and relevant OpenSSL configuration/providers.
-- `sqlite3` including important reference compile options and extension-loading policy; `dbm` backends and persistence; `decimal`; `uuid`; Expat/XML.
+- `ssl`, `hashlib`, certificate verification against the system trust store, and relevant OpenSSL configuration/providers.
+- `sqlite3` including important reference compile options and extension-loading policy; `dbm` backends and persistence, including the deliberate platform-`ndbm` difference; `decimal`; `uuid` via platform facilities; Expat/XML.
 - `zlib`, `bz2`, `lzma`, and **`compression.zstd`**, with real round trips rather than imports only.
-- `ctypes`, callbacks/closures, threading/thread-stack behavior, concurrent workers, subprocess, and multiprocessing with the start methods the platform supports.
+- `ctypes`, callbacks/closures, threading/thread-stack behavior, concurrent workers, subprocess, and multiprocessing with the start methods macOS supports.
 - `readline`/libedit, curses/panel, locale behavior, terminals, `zoneinfo`, filesystem and socket operations.
 - Confirm the intentional exclusion of `_tkinter`, `tkinter`, Tcl/Tk resources, and GUI-only X11 libraries from the packaged payload; record the reference difference without acquiring GUI test inputs.
 - pip/ensurepip/venv, installation of a locked pure-Python wheel and a locally built native wheel offline, and consumer extension development after relocation.
 
-Run an appropriate broad CPython regression suite from the verified source/build. Investigate failures against stock 3.14.6 and/or the reference in the same runtime. Record narrow exclusions with observed causes. Do not carry over Alpine or PBS skip lists wholesale. Tests that need a network/display/kernel feature must report an actual skip reason, not silently pass.
+Run an appropriate broad CPython regression suite from the verified source/build. Investigate failures against stock 3.14.6 and/or the reference in the same runtime. Record narrow exclusions with observed causes. Tests that need a network/display/kernel feature must report an actual skip reason, not silently pass.
 
-The runtime-validation rootfs must not contain the compiler or arbitrary development packages that hide missing libraries or make ctypes discovery work accidentally. Maintain a separate test/development root for compiling fixtures, then run those fixtures in the minimal runtime. Reference binaries are executable third-party inputs: verify hashes, run them unprivileged in a dedicated comparison root with no secrets and no external network, and never execute arbitrary scripts merely while unpacking metadata.
+The runtime-validation environment must not contain the compiler or arbitrary development packages that hide missing libraries or make ctypes discovery work accidentally. Run validation with the build prefix and Homebrew removed from every search path and with `DYLD_*` scrubbed. Maintain a separate test/development root for compiling fixtures, then run those fixtures against the minimal runtime. Reference binaries are executable third-party inputs: verify hashes, run them in a dedicated comparison root with no secrets and no external network, and never execute arbitrary scripts merely while unpacking metadata.
 
 ### 8.3 Performance and reproducibility
 
-Benchmark the reference x86_64 musl LTO interpreter and this project's build on the same host/runtime conditions. Measure representative startup/import, interpreter execution, JSON/serialization, selected compression/hash/decimal/SQLite workloads, archive size, and installed size. A locked pyperf installation may be test-only if useful; the build controller need not depend on it.
+Benchmark the reference `aarch64-apple-darwin` PGO+LTO interpreter and this project's LTO-only build on the same host/runtime conditions. Measure representative startup/import, interpreter execution, JSON/serialization, selected compression/hash/decimal/SQLite workloads, archive size, and installed size. A locked pyperf installation may be test-only if useful; the build controller need not depend on it.
 
-Report methodology, warm/cold distinctions, repetitions, and uncertainty. Investigate material regressions before blaming independence or changing optimizations. Do not enforce an arbitrary universal percentage or select one favorable microbenchmark. Later macOS comparison against PBS's PGO build must prominently disclose the no-PGO policy; it is not an apples-to-apples claim of equivalent optimization.
+Report methodology, warm/cold distinctions, repetitions, and uncertainty. Investigate material regressions before blaming independence or changing optimizations. Do not enforce an arbitrary universal percentage or select one favorable microbenchmark. **The comparison must prominently disclose the no-PGO policy**: the reference is PGO+LTO and this project is LTO-only, so a performance deficit is expected and is not evidence of a build defect, nor is it an apples-to-apples claim of equivalent optimization.
 
 Build twice in clean work directories, rebuilding native dependencies as well as CPython. Sharing immutable input downloads is fine; sharing prior objects does not demonstrate a clean rebuild. Compare project output hashes and file-level differences, fix straightforward nondeterminism, and keep a report. Upstream byte differences are informational. Any remaining internal nondeterminism must be described honestly rather than normalized away and labeled byte-identical.
 
 ## 9. Local artifacts
 
-Produce one useful installable amd64 archive under `dist/`, preferably `.tar.gz`, containing a conventional top-level `python/` tree. A debug/development companion is optional when its size and purpose justify it. A full object-file archive and the reference's nine archive variants are not required. Do not create a full-archive-to-install-only conversion framework or a Rust packaging tool for cosmetic similarity.
+Produce one useful installable arm64 macOS archive under `dist/`, preferably `.tar.gz`, containing a conventional top-level `python/` tree. A debug/development companion is optional when its size and purpose justify it. A full object-file archive and the reference's archive variants are not required. Do not create a full-archive-to-install-only conversion framework or a Rust packaging tool for cosmetic similarity.
 
-Use a project-owned build revision and an unambiguous name, for example `cpython-3.14.6-x86_64-unknown-linux-musl-r1.tar.gz`. Do not claim the archive was issued by Astral or use its release identity as this project's identity. A build revision is local metadata; creating a Git tag or a remote release is not part of this task.
+Use a project-owned build revision and an unambiguous name, for example `cpython-3.14.6-aarch64-apple-darwin-r1.tar.gz`. Do not claim the archive was issued by Astral or use its release identity as this project's identity. A build revision is local metadata; creating a Git tag or a remote release is not part of this task.
 
-Keep the installed headers and configuration required for ordinary native-extension builds. Supply shared libpython for embedders. Decide whether a static archive and debug information belong in the main archive or an optional companion based on measured size and usefulness. Stripping must preserve required exported symbols and extension-loading behavior; run validation against the actual extracted packaged result.
+Keep the installed headers and configuration required for ordinary native-extension builds. Supply shared libpython for embedders. Decide whether a static archive and debug information belong in the main archive or an optional companion based on measured size and usefulness. Stripping must preserve required exported symbols, extension-loading behavior, **and a valid code signature**; run validation against the actual extracted packaged result, not an intermediate tree.
 
-Use deterministic entry order, ownership, modes, timestamps, and compressor settings. Preserve symlinks and executable permissions without marking every file executable. Select a documented source epoch and bytecode policy. Include required licenses and notices. A structured component manifest should describe what is actually shipped rather than listing every build-root tool.
+Use deterministic entry order, ownership, modes, timestamps, and compressor settings. Preserve symlinks and executable permissions without marking every file executable. Select a documented source epoch and bytecode policy. Include required licenses and notices. A structured component manifest should describe what is actually shipped rather than listing every build-root tool. Note explicitly which components are platform-provided rather than bundled, since macOS's split (Section 5.2) means several modules draw on system libraries.
 
 The local output directory must contain:
 
 ```text
 dist/
-  cpython-3.14.6-x86_64-unknown-linux-musl-r1.tar.gz
+  cpython-3.14.6-aarch64-apple-darwin-r1.tar.gz
   SHA256SUMS
   inputs.json              # exact source, patch, toolchain and bootstrap identities
-  components.json          # shipped components and source/license provenance
+  components.json          # shipped components, platform-provided components, source/license provenance
   provenance.json          # build environment, commands/configuration and run identity
-  validation.json          # module, ELF/ABI, runtime and relocation results
+  validation.json          # module, Mach-O/ABI, runtime and relocation results
   parity.json
   parity.md
   reproducibility.json
@@ -297,52 +349,57 @@ Write completed outputs atomically. A packaging command must not silently overwr
 
 ### M1a — native interpreter and dependency build
 
-Establish the verified CPython source, bootstrap/tool lock, private dependency prefix, and LTO smoke test. Build CPython using its conventional native configure/make path. Obtain a real musl interpreter and baseline tests. Demonstrate that the process invokes no PBS build code and copies no finished interpreter distribution into its output. The locked native Alpine bootstrap interpreter is permitted only as a build tool. Intermediate missing modules remain recorded as unfinished.
+Establish the verified CPython source, the toolchain lock (Homebrew LLVM 23.1.1 plus SDK, bottle-digest pinned), the private dependency prefix, and the ThinLTO smoke test with the selected linker. Resolve 5.1's deployment-floor and linker-identity questions before building anything large. Build CPython using its conventional native configure/make path. Obtain a real arm64 interpreter with a correct `minos` and baseline tests. Demonstrate that the process invokes no PBS build code and copies no finished interpreter distribution into its output. The controller's own Python is permitted only as a build tool. Intermediate missing modules remain recorded as unfinished.
 
 ### M1b — standalone behavior and useful parity
 
-Complete the in-scope dependency, module, and resource inventory. Implement and test relocation, pip/venv, external native extensions, embedding, callbacks, TLS, databases, compression, and terminal support. Verify that the Tcl/Tk and GUI-only closure exclusion is enforced. Evaluate individual portability fixes against actual failures. Measure the CPU/musl compatibility envelope and compare the installation with the pinned reference. Resolve material gaps before adding platforms.
+Complete the in-scope dependency, module, and resource inventory, including the platform-versus-bundled split of 5.2 confirmed against the reference. Implement and test Mach-O relocation, re-signing, pip/venv, external native extensions, embedding, callbacks, TLS against the system trust store, databases, compression, and terminal support. Verify that the Tcl/Tk and GUI-only closure exclusion is enforced. Evaluate individual portability fixes against actual failures. Measure the deployment-floor and CPU compatibility envelope and compare the installation with the pinned reference, disclosing the no-PGO policy. Resolve material gaps before declaring the platform complete.
 
 ### M1c — isolated build and local distribution
 
-Reconstruct the locked Alpine build root and demonstrate the offline network boundary is real (plan Section 7). Build all bundled native libraries and CPython in that environment, package the installation, and validate a fresh extraction in a clean runtime. Perform a clean-rebuild comparison and practical reference benchmarks. Write the archive, checksums, input/component manifests, and reports into `dist/`.
+Reconstruct the locked toolchain/SDK environment, build all bundled native libraries and CPython under the sealed `sandbox-exec` profile, and demonstrate that the network boundary is real (Section 7). Package the installation and validate a fresh extraction in a clean runtime with the build prefix and Homebrew absent from every search path. Perform a clean-rebuild comparison and practical reference benchmarks. Write the archive, checksums, input/component manifests, and reports into `dist/`.
 
-M1 ends with those local artifacts and evidence. Linux aarch64 and macOS aarch64 are roadmap targets, not prerequisites or additional implementation phases in this task.
+M1 ends with those local artifacts and evidence.
 
 ### Working method
 
-Implement incrementally in the repository rather than returning only a plan. Add tests before relying on lock parsing, cache identity, extraction safety, comparison classification, or qualification logic. Run targeted tests during development and the complete mandatory artifact checks before declaring M1 complete. Preserve the repository's working conventions instead of replacing them solely to match an illustrative directory tree.
+Implement incrementally in the repository rather than returning only a plan. Add tests before relying on lock parsing, cache identity, extraction safety, comparison classification, or qualification logic. Run targeted tests during development and the complete mandatory artifact checks before declaring M1 complete. Preserve the repository's working conventions instead of replacing them solely to match an illustrative directory tree, and keep the frozen Linux tests green while adding macOS code paths.
 
-Keep dependency work independent when parallel execution helps, and give shared install prefixes and generated artifacts a single clear owner. Record concrete commands, source decisions, patches, runtime findings, deviations, and unresolved issues. Do not silently expand the supported version matrix, recursively bootstrap the compiler/OS, or substitute a prebuilt distribution to bypass a difficult test.
+Keep dependency work independent when parallel execution helps, and give shared install prefixes and generated artifacts a single clear owner. Record concrete commands, source decisions, patches, runtime findings, deviations, and unresolved issues. Do not silently expand the supported version matrix, recursively bootstrap the compiler/SDK/OS, or substitute a prebuilt distribution to bypass a difficult test.
 
-The final implementation report must identify what actually ran, the host/toolchain/rootfs identities, validation outcomes, archive path and SHA-256, supported runtime envelope, material reference differences, and internal reproducibility findings. Distinguish implemented from executed, development-only from isolated, and assumptions from measured results. An environmental constraint is a specific limitation to report, not evidence of success.
+The final implementation report must identify what actually ran, the host/macOS/SDK/toolchain identities, validation outcomes, archive path and SHA-256, supported deployment floor and CPU envelope, material reference differences, and internal reproducibility findings. Distinguish implemented from executed, development-only from isolated, and assumptions from measured results. An environmental constraint is a specific limitation to report, not evidence of success.
 
 ## 11. M1 acceptance checklist
 
 M1 is complete when all of the following are established by local evidence:
 
-1. The packaged interpreter is exactly CPython 3.14.6, GIL-enabled, x86_64, dynamically musl-linked, LTO-enabled, and built without PGO, BOLT, JIT, or tail-call execution.
-2. The project owns its build recipes and packaging, executed only through the project Dockerfile on amd64. No PBS engine or finished-Python payload, glibc compatibility layer, ARM host, or Mac is required.
-3. Bundled non-platform native dependencies come from locked sources. Every runtime library is either in the artifact or explicitly admitted by a narrow tested platform contract; builder-library leakage fails validation.
-4. The useful standard-library inventory, pip/venv, extension loading/development, embedding, resources, and relocation tests pass. Material reference differences are explained and justified. Unexplained missing core behavior blocks completion.
-5. The CPU baseline, tested musl/runtime envelope, data prerequisites, and wheel-compatibility claims are conservative and supported by actual runs. Minimal-runtime tests cannot borrow build-root dependencies.
-6. An isolated offline Docker build has been executed with verified inputs and a demonstrated network boundary. A development-container build is not substituted for that evidence.
-7. A two-clean-build comparison and practical reference parity/performance report exist. Remaining byte differences are reported; matching upstream bytes is not required.
-8. A usable amd64 archive, checksums, manifests, and validation reports exist locally and correspond to the tested packaged bytes.
+1. The packaged interpreter is exactly CPython 3.14.6, GIL-enabled, arm64, built against the Xcode 26.x SDK with the declared deployment floor `minos` of 26.0, LTO-enabled with ThinLTO verified, and built without PGO, BOLT, JIT, or tail-call execution.
+2. The project owns its build recipes and packaging, executed natively on Apple Silicon with the Homebrew LLVM 23.1.0+ toolchain. No PBS engine or finished-Python payload, Linux container, emulator, or cross-compiler is required, and no Homebrew or Xcode library appears in the artifact's load commands outside the declared allowlist.
+3. Bundled non-platform native dependencies come from locked sources. Every runtime library is either in the artifact, a declared and tested platform dependency, or absent by design; builder-library leakage fails validation.
+4. The useful standard-library inventory, pip/venv, extension loading/development, embedding, resources, relocation, and code-signature validity tests pass. Material reference differences are explained and justified, including the no-PGO optimization difference. Unexplained missing core behavior blocks completion.
+5. The CPU baseline, tested macOS deployment floor, data prerequisites, and wheel-compatibility claims are conservative and supported by actual runs. Minimal-runtime tests cannot borrow build-prefix or Homebrew dependencies.
+6. A sealed offline run with verified inputs has been executed and its network boundary demonstrated to fail closed. A development-mode build is not substituted for that evidence.
+7. A two-clean-build comparison and practical reference parity/performance report exist, with the PGO+LTO versus LTO-only difference disclosed. Remaining byte differences are reported; matching upstream bytes is not required.
+8. A usable arm64 macOS archive, checksums, manifests, and validation reports exist locally and correspond to the tested packaged bytes.
+9. The frozen Linux targets' code and unit tests still pass; this milestone neither broke them nor silently changed their claims.
 
-## 12. Future-platform design boundary
+## 12. Cross-platform design boundary
 
-Keep actual common acquisition, dependency ordering, locking, recipe helpers, package layout, and validation reusable. Linux aarch64 should prefer native execution and change target/toolchain data plus genuinely architecture-specific handling, rather than introducing premature cross compilation.
+Keep actual common acquisition, dependency ordering, locking, recipe helpers, package layout, and validation reusable. The two implemented platforms are deliberately different shapes, and the point of this section is to name the interface they actually share rather than to plan a third platform.
 
-The macOS aarch64 implementation must run natively on Apple hardware with a declared OS/SDK/tool manifest, a deliberately chosen deployment floor, relative Mach-O loader paths, and any required signatures after binary edits. Its optimization policy is LTO without PGO/BOLT. Tail-call and JIT choices must be recorded independently; JIT defaults to disabled unless a later explicit decision changes that policy. Apple SDK/OS assets are platform prerequisites, not files to redistribute by default.
+What is genuinely shared: the CPython source pin and patch set, `sources.lock.json`, the content-addressed cache and its safety properties, `build.py`'s command semantics, the dependency-ordering model, the package layout (`python/` with `bin/`, `lib/`, `include/`), the parity/report schema, and the reproducibility comparison. What genuinely differs, and belongs in the target description plus a small per-format helper module rather than in conditionals scattered through shared code: the toolchain and its lock, the dependency set and its platform-versus-bundled split, binary format inspection, relocation mechanics, signature requirements, and the sandbox mechanism.
 
-Document the small target-specific interfaces that M1 actually reveals. Do not create placeholder platform implementations, promise untested compatibility, acquire future-platform inputs, or make future-platform decisions block a working amd64 artifact.
+`buildsys/targets.py` currently carries musl/Alpine fields because it was written for the Linux targets. Extend the target description rather than duplicating it: a macOS entry adds SDK and deployment-floor data, and per-format behavior is reached through the named helper modules from Section 3. Do not weaken the frozen Linux data to make room, and do not introduce an abstract executor hierarchy for two platforms.
+
+Document the small target-specific interfaces that the macOS work actually reveals, as it reveals them. Do not create placeholder platform implementations, promise untested compatibility, acquire future-platform inputs, or make hypothetical-future decisions block a working macOS artifact.
 
 ## Appendix A. Build and portability research
 
 PBS observations in this appendix refer to commit `f1d7b92301235781d4de2493578773aaa413c0a5` and release `20260610`. CPython target behavior must be checked against the verified 3.14.6 source. The Alpine comparison recipe has its own commit and version, identified below. Source URLs and reference fingerprints are embedded in the remaining appendices.
 
 These are source-level findings and implementation leads, not evidence that this project has already built Python or passed a benchmark. Source-manifest and release-metadata hashes require verification against downloaded bytes before use. Requirements are defined in Sections 1–12; a mechanism observed in PBS is not automatically a required mechanism here.
+
+Appendix A.3 records musl findings that motivated the frozen Linux targets. They are retained as that target's rationale; they are **not** inputs to the macOS build and must not be re-applied to it.
 
 ### A.1 Build orchestration and trust roots
 
@@ -352,53 +409,55 @@ Linux builds use isolated container workspaces; macOS uses a different temporary
 
 At the selected pin, compilation LLVM is **22.1.3+20260410**, supplied by `indygreg/toolchain-tools`. The Linux archives are **GNU-hosted**, not musl-hosted. Upstream's musl outputs were built with those tools in Debian/glibc environments. The x86_64 builder starts from a pinned Debian Jessie image; ARM64 selects the Debian Stretch configuration, with historical package snapshots. Those builder choices explain the reference artifacts; they are not requirements for the native Alpine implementation. [R2, R6, R7]
 
-Native Alpine Clang/LLVM packages are the appropriate initial toolchain trust roots. The cited Alpine package records are discovery leads for LLVM/Clang 22, not a locked toolchain. Resolve and verify the actual x86_64 package closure for the selected Alpine branch; do not extrapolate a package revision from another architecture. A matching compiler version string is not a matching compiler build, and exact compiler identity is not a product requirement. Avoid building LLVM from source in M1. [R18]
+For the macOS target, the appropriate trust roots are the Xcode SDK and Homebrew's LLVM, not that bootstrap archive. The `aarch64-apple-darwin` LLVM entry in Appendix C is the compiler identity behind the *reference* artifact and is recorded for interpreting it, not as an input to this project. A matching compiler version string is not a matching compiler build, and exact compiler identity is not a product requirement. Avoid building LLVM from source in M1. [R18, R23]
 
 ### A.2 Reference dependency inventory
 
-These are **reference versions**, not an instruction to import PBS's download module or preserve every old tool. Use this information to choose and record this project's source pins. Preserve reference native-library versions initially where practical to reduce variables; a justified update or simpler ABI-equivalent implementation is allowed if recorded. Do not confuse “pinned for comparison” with “currently free of security issues.” Keep Python itself exactly 3.14.6. [R2, R6]
+These are **reference versions**, not an instruction to import PBS's download module or preserve every old tool. Use this information to choose and record this project's source pins. Preserve reference native-library versions initially where practical to reduce variables; a justified update or simpler ABI-equivalent implementation is allowed if recorded. Do not confuse "pinned for comparison" with "currently free of security issues." Keep Python itself exactly 3.14.6. [R2, R6]
 
 | Component | PBS reference version | Role / important distinction |
 | --- | --- | --- |
 | CPython | 3.14.6 | Only distributed interpreter version in this project |
-| LLVM | 22.1.3+20260410 | PBS compiler bootstrap; Linux GNU-hosted archive is not an input here |
-| musl | 1.2.2, modified | Used by reference dynamic-musl builds; this project's initial libc comes from the locked native Alpine userspace |
+| LLVM | 22.1.3+20260410 | PBS compiler bootstrap; this project uses Homebrew LLVM 23.1.0+ instead |
+| musl | 1.2.2, modified | Frozen Linux targets only; not a macOS input |
 | musl-static entry | 1.2.5 | Separate PBS variant; not the selected dynamic-musl product |
 | libffi | 3.3 for musl; 3.4.6 for macOS | Need real calls/closures/callback tests; matching version alone proves little |
 | OpenSSL | 3.5.7 | `_ssl`, `_hashlib`, providers/configuration and certificate policy |
 | SQLite | source number 3530100; SQLite 3.53.1 | Compile options and extensions are as important as version |
-| Expat | 2.8.1 | XML modules |
+| Expat | 2.8.1 | XML modules; the macOS reference uses the system Expat |
 | bzip2 | 1.0.8 | `_bz2` |
 | xz/liblzma | 5.8.1 | `_lzma` |
-| zlib | 1.3.1 | Linux zlib; macOS reference uses system zlib |
+| zlib | 1.3.1 | Linux zlib; the macOS reference uses system zlib |
 | zstd | 1.5.7, from CPython source-deps export | Python 3.14 `compression.zstd` support |
 | mpdecimal | 4.0.0 | `_decimal` |
-| libedit | 20240808-3.1 | Linux `readline` backend; macOS reference uses system libedit |
+| libedit | 20240808-3.1 | Linux `readline` backend; the macOS reference uses system libedit |
 | ncurses | 6.5 | Curses/panel and terminal handling |
-| Berkeley DB | 6.0.19 | Reference Linux `_dbm` backend; license and file-format implications |
-| libuuid | 1.0.3 | PBS uses this standalone libuuid source, not an assumed util-linux version |
-| Tcl / Tk | 9.0.3 / 9.0.3 | Include resource/script trees and Linux graphics closure |
-| libX11 / libXau / libxcb | 1.6.12 / 1.0.11 / 1.17.0 | Linux Tk/X11 dependency family |
-| xorgproto / xcb-proto | 2024.1 / 1.17.0 | Protocol/header/build inputs |
-| xtrans / X11 util-macros | 1.6.0 / 1.20.2 | Additional X11 build inputs |
-| libpthread-stubs | 0.5 | Determine whether actually needed for this native dependency configuration |
+| Berkeley DB | 6.0.19 | Linux `_dbm` backend; not used on macOS, which uses ndbm |
+| libuuid | 1.0.3 | PBS uses this standalone libuuid source; not used on macOS |
+| Tcl / Tk | 9.0.3 / 9.0.3 | Excluded from this project entirely (both platforms) |
+| libX11 / libXau / libxcb | 1.6.12 / 1.0.11 / 1.17.0 | Excluded with Tcl/Tk |
+| xorgproto / xcb-proto | 2024.1 / 1.17.0 | Excluded with Tcl/Tk |
+| xtrans / X11 util-macros | 1.6.0 / 1.20.2 | Excluded with Tcl/Tk |
+| libpthread-stubs | 0.5 | Excluded with Tcl/Tk |
 | pip | 26.1.2 | Installed from pinned wheel |
 | autoconf / m4 | 2.72 / 1.4.19 | Regeneration tools when patches require regeneration |
-| binutils / patchelf | 2.43 / 0.13.1 | PBS build/postprocessing tools, not required version choices here |
+| binutils / patchelf | 2.43 / 0.13.1 | PBS build/postprocessing tools; patchelf is ELF-only and is not a macOS tool |
 
-The complete dependency graph also contains build executables, scripts, native headers, generators, test-only inputs, and transitive APK packages. The table is not a hermetic lock. Derive the actual closure from the implementation. Do not blindly retain an input that only serves an unused PBS workaround, another Python version, another target, or a packaging step we are not using.
+The complete dependency graph also contains build executables, scripts, native headers, generators, test-only inputs, and transitive packages. The table is not a hermetic lock. Derive the actual closure from the implementation. Do not blindly retain an input that only serves an unused PBS workaround, another Python version, another target, or a packaging step we are not using.
 
-### A.3 Musl-specific behavior
+### A.3 Musl-specific behavior (frozen Linux targets)
 
 PBS builds musl 1.2.2 and **removes `reallocarray()` from the headers and implementation**. The script explains that this avoids OpenSSL or another dependency acquiring that symbol requirement when deployed on older musl, including 1.2.1. It does not establish a general guarantee that arbitrary builds against modern musl run on older musl. [R8]
 
-On native Alpine, do not modify the machine's libc, replace `/lib/ld-musl-x86_64.so.1`, or mechanically reproduce this source surgery. Build and run against the declared Alpine musl toolchain only; do not claim compatibility with an older musl than the one this project actually builds and tests on. Only introduce an older, isolated target sysroot later if a real, demonstrated compatibility requirement warrants that complexity. A musl 1.2.x minor-version label is not a proof that no newer patch-level symbols were used.
+On native Alpine, do not modify the machine's libc, replace `/lib/ld-musl-x86_64.so.1`, or mechanically reproduce this source surgery. Build and run against the declared Alpine musl toolchain only; do not claim compatibility with an older musl than the one this project actually builds and tests on. A musl 1.2.x minor-version label is not a proof that no newer patch-level symbols were used.
 
 PBS's musl target compiler is `musl-clang`, a wrapper around the GNU-hosted compiler. It removes normal Clang resource-header search paths. PBS consequently copies intrinsic headers, selected x86 headers, and `stdatomic.h` into the musl toolchain include environment. ARM64 adds `--rtlib=compiler-rt` for compiler builtins. [R5, R6]
 
 A native musl-built Clang normally has its own correct resource headers and native CRT discovery. Test include paths, linker inputs, and a small LTO executable first. **Do not copy compiler headers into system directories just because PBS did.** Likewise, don't add ARM64 compiler-runtime flags unconditionally to amd64 or insist on compiler-rt instead of a valid musl-built libgcc without evidence.
 
 PBS enables frame pointers for the selected Linux musl targets and requests a non-executable stack. The CPython recipe uses PIC, removes a dependency-level hidden-visibility flag before compiling CPython itself, and hides symbols from static dependency archives at link time. Preserve the intended properties with measured, appropriate flags; do not blanket-hide CPython's exported API. [R5, R6]
+
+**macOS transfer:** none of this applies. macOS's CRT and dyld semantics differ, its default stack and symbol-visibility behavior differ, and the compiler is the platform's own Clang rather than a musl wrapper. Re-derive each of these properties from the macOS toolchain instead of carrying a Linux flag across.
 
 ### A.4 CPython configuration and optimization quirks
 
@@ -408,13 +467,13 @@ The feature-selection details matter:
 
 - The macOS ARM64 reference uses **PGO + LTO**, enables the tail-call interpreter, and builds the experimental JIT in `yes-off` mode.
 - The two selected musl references use **LTO without PGO**. They do **not** enable tail-call execution or the JIT.
-- Tail-call activation in the PBS shell recipe is guarded by a literal `CC == clang` check; the musl compiler is named `musl-clang` and does not enter it.
+- Tail-call activation in the PBS shell recipe is guarded by a literal `CC == clang` check; the musl compiler is named `musl-clang` and does not enter it. On macOS the compiler *is* named `clang`, so this guard would not protect a naive transplant — the exclusion must be a deliberate `--with-tail-call-interp=no`, not a side effect of a compiler name.
 - JIT configuration is nested inside the PGO branch. That is PBS implementation policy, not a reason this project's feature selection should have the same coupling.
-- `--enable-optimizations` in CPython means PGO; it is not a generic spelling for `-O3`. `--with-lto` is independent. Clang LTO needs compatible archive/linker tools. Choose an explicit supported LTO mode and record it, rather than inferring “full LTO” from an artifact whose name just says `lto`. [R5, R17]
+- `--enable-optimizations` in CPython means PGO; it is not a generic spelling for `-O3`. `--with-lto` is independent. Clang LTO needs compatible archive/linker tools. Choose an explicit supported LTO mode and record it, rather than inferring "full LTO" from an artifact whose name just says `lto`. [R5, R17]
 
-PBS explicitly enables mimalloc on relevant Python versions so missing support fails rather than silently changing allocator behavior. It disables CPython's HACL SIMD-helper configure probes, with comments concerning x86 ISA requirements and ARM64 performance. It also forces `ac_cv_func_explicit_bzero=no` for 3.14+, motivated by its old-glibc compatibility policy. [R5]
+PBS explicitly enables mimalloc on relevant Python versions so missing support fails rather than silently changing allocator behavior. It disables CPython's HACL SIMD-helper configure probes, with comments concerning x86 ISA requirements and ARM64 performance. It also forces `ac_cv_func_explicit_bzero=no` for 3.14+, motivated by its old-glibc compatibility policy.
 
-For the independent musl build, preserve default interpreter semantics and allocator support, select a generic x86_64 CPU baseline, and evaluate HACL behavior. Do not copy an old-glibc probe override blindly. Do not enable `-march=native`, globally require AVX/SSE levels above the product baseline, or disable useful optional runtime-dispatched code without checking why. Where a narrow compatibility patch is necessary, give it a regression test.
+For the independent macOS build, preserve default interpreter semantics and allocator support, match the declared arm64 baseline, and evaluate HACL behavior on arm64 rather than inheriting an x86-motivated override. Do not copy an old-glibc probe override blindly — its motivation does not exist here. Do not enable `-mcpu=native` or globally require newer Microarchitectural feature levels than the product baseline, or disable useful optional runtime-dispatched code without checking why. Where a narrow compatibility patch is necessary, give it a regression test.
 
 No PGO/BOLT/JIT machinery is required for M1. Do not add LLVM profiling tools, JIT stencil-generation dependencies, BOLT tools, instrumentation statistics, pooled profile handling, or profile-file caches merely because they appear upstream.
 
@@ -422,9 +481,9 @@ No PGO/BOLT/JIT machinery is required for M1. Do not add LLVM profiling tools, J
 
 PBS builds a dedicated host CPython and passes it using `--with-build-python`, even in some cases that are effectively native. A patch forces its use for freezing, and another exports `PYTHON_FOR_BUILD` through a helper target. Musl output built from a GNU-hosted environment is handled as cross-compilation. Additional configure-cache answers work around probes that cannot execute target binaries. [R5, R9]
 
-On native amd64 Alpine, use CPython's normal native bootstrap/frozen-module process first. Do not force `cross_compiling=yes`, falsify `--host`/`--build`, supply obsolete cache answers, or build a second full host Python because PBS chose to. A native build may of course create the bootstrap executables CPython itself requires.
+On a native macOS arm64 build, use CPython's normal native bootstrap/frozen-module process first. Do not force `cross_compiling=yes`, falsify `--host`/`--build`, supply obsolete cache answers, or build a second full host Python because PBS chose to. A native build may of course create the bootstrap executables CPython itself requires.
 
-The orchestration Python is separate: use a locked native Alpine Python, with standard-library-only controller code where practical. Do not let uv, pyenv, or an invisible fallback download a PBS interpreter. For future genuine cross-compilation, introduce a build Python only when required, with its exact source/version role recorded.
+The orchestration Python is separate: use a locked native Python — the host's Homebrew Python 3.14.7 — with standard-library-only controller code where practical. Do not let uv, pyenv, or an invisible fallback download a PBS interpreter. For future genuine cross-compilation, introduce a build Python only when required, with its exact source/version role recorded.
 
 ### A.6 Extension-module takeover and its cost
 
@@ -436,7 +495,7 @@ Derive the reference module inventory and compare observable capabilities. Diffe
 
 ### A.7 Static libpython is not static libc
 
-PBS backports `--enable-static-libpython-for-interpreter` to 3.14. The option was upstreamed for Python 3.15 in CPython PR 133313. It builds shared libpython for embedders but links the executable to static libpython. This does **not** make the interpreter fully static or remove its musl loader requirement. The selected PBS products support dynamic extension loading. [R5, R10]
+PBS backports `--enable-static-libpython-for-interpreter` to 3.14. The option was upstreamed for Python 3.15 in CPython PR 133313. It builds shared libpython for embedders but links the executable to static libpython. This does **not** make the interpreter fully static or remove its platform loader dependency. The selected PBS products support dynamic extension loading. [R5, R10]
 
 A narrow backport of that option is worth evaluating for parity, without importing PBS's module-generation machinery. Start from a working conventional `--enable-shared` build if that accelerates diagnosis. Retain the backport only if it is straightforward, isolated, and passes runtime/embedding tests; otherwise record shared-libpython linkage as a deliberate difference with measurements. Never pretend the 3.15 configure option exists unpatched in stock 3.14.6.
 
@@ -448,17 +507,17 @@ PBS contains changes for interpreter path discovery, symlinks/venvs, ctypes, Tcl
 
 Its Linux interpreter gets an `$ORIGIN/../lib` RPATH via patchelf. Its ABI3 libpython handling distinguishes musl: the source states musl does not expand `$ORIGIN` in `DT_NEEDED`, so it uses RPATH/RUNPATH there instead. **Do not adopt a glibc-only `$ORIGIN`-inside-`DT_NEEDED` trick.** For this project's actual layout, calculate origin-relative search paths for every shipped DSO that needs private dependencies; one interpreter RPATH is not a universal substitute for inspecting the complete dependency graph. Prefer correct link-time paths over postprocessing when feasible. [R10]
 
-On macOS, PBS uses `install_name_tool`, `@rpath`, executable-/loader-relative paths, and header padding for load-command edits and signatures. It normalizes system-zlib references. Targeting macOS 11.0 is its deployment-floor policy, **not** the identity of the SDK used to compile it. That SDK and Apple toolchain are future declared inputs, not Linux build prerequisites. [R6, R10]
+**On macOS this is the primary implementation path rather than a footnote.** PBS uses `install_name_tool`, `@rpath`, executable-/loader-relative paths, and header padding for load-command edits and signatures. It normalizes system-zlib references. Targeting macOS 11.0 is its deployment-floor policy, **not** the identity of the SDK used to compile it; this project deliberately departs from that floor by declaring 26.0, and the difference must be stated in every compatibility claim. The load-command-edit plus re-signing sequence is mandatory on Apple Silicon: an edited but unsigned binary will not launch. [R6, R10, R24, R26]
 
 Use a normal CPython layout, first test how far unpatched CPython already relocates, then fix observed gaps. Avoid global byte/string replacement across binaries or blanket deletion of configuration fields. Internal build flags/absolute paths should not leak into consumer extension builds, but ABI-required flags must survive.
 
 ### A.9 Dependency linkage, data, and pip
 
-PBS mostly statically links third-party dependencies by deleting their shared-library outputs from its private dependency prefix; Tcl/Tk are exceptions. That is a mechanism, not the requirement. Build PIC static libraries directly where supported. Where dynamic libraries materially simplify the result, bundle and relocate those private libraries rather than assuming the target machine has Alpine's matching APK installed. Do not remove anything from the host's `/usr/lib`. [R5, R10]
+PBS mostly statically links third-party dependencies by deleting their shared-library outputs from its private dependency prefix; Tcl/Tk are exceptions. That is a mechanism, not the requirement. Build PIC static libraries directly where supported. Where dynamic libraries materially simplify the result, bundle and relocate those private libraries rather than assuming the target machine has a matching library installed. Do not remove anything from the host's `/usr/lib`. [R5, R10]
 
-Linux reference readline uses libedit, not GNU readline. Its `_dbm` preference is Berkeley DB; macOS uses ndbm. A different dbm backend can change persistent file compatibility, not just a version string. Tcl/Tk includes script/resource trees and X11 dependencies on Linux; a successful `_tkinter` import is not proof that Tcl scripts or a Tk window work after relocation. OpenSSL has providers, configuration, and trust-store considerations beyond `import ssl`. Ncurses can require terminfo data. [R5, R6, R10]
+Linux reference readline uses libedit, not GNU readline. Its `_dbm` preference is Berkeley DB; **macOS uses ndbm**. A different dbm backend can change persistent file compatibility, not just a version string. OpenSSL has providers, configuration, and trust-store considerations beyond `import ssl`; on macOS the trust store is the system keychain rather than a PEM bundle, which is a runtime input this project must document rather than bundle. Ncurses can require terminfo data. [R5, R6, R10]
 
-PBS disables install-time ensurepip, installs a pinned pip wheel offline, includes no setuptools for Python 3.14, and removes `__pycache__` from the installation payload. Preserve usable pip/venv and a deliberate bytecode policy. There is no need to copy its host-Python trick for installing pip on a native build. Do not add an `EXTERNALLY-MANAGED` marker simply because Alpine's system Python package has one; this is a separately managed standalone installation, not `/usr/bin/python3`. [R10, R11, R19]
+PBS disables install-time ensurepip, installs a pinned pip wheel offline, includes no setuptools for Python 3.14, and removes `__pycache__` from the installation payload. Preserve usable pip/venv and a deliberate bytecode policy. There is no need to copy its host-Python trick for installing pip on a native build. Do not add an `EXTERNALLY-MANAGED` marker simply because some distribution's system Python has one; this is a separately managed standalone installation, not the system `python3`. [R10, R11, R19]
 
 ### A.10 Packaging, reproducibility, and isolation observations
 
@@ -466,42 +525,44 @@ PBS's full tar archives sort members, place `PYTHON.json` first, normalize owner
 
 Its Rust packaging code converts full distributions to install-only and stripped install-only archives. It selects entries, filters content, rewrites paths, uses its own tar/gzip implementation including flate2, and invokes LLVM stripping with `--strip-debug`. An equivalent useful installation does not require the same archive library, compressor, object-file payload, or conversion program. Use the small local packaging stage specified in Section 9. [R13]
 
-CPython 3.14.6's `getbuildinfo.c` embeds `DATE` and `TIME`, defaulting to compiler date/time macros. Normalizing archive timestamps does not normalize those compiled values. OpenSSL-generated metadata, absolute paths, debug/bitcode material, build IDs, Mach-O UUIDs/signatures, and compressor versions are additional byte-difference investigation points. Record the project's effective inputs and investigate actual differences rather than treating a normalized tar as proof of reproducibility. [R14]
+CPython 3.14.6's `getbuildinfo.c` embeds `DATE` and `TIME`, defaulting to compiler date/time macros. Normalizing archive timestamps does not normalize those compiled values. OpenSSL-generated metadata, absolute paths, debug material, build IDs, **Mach-O UUIDs and code signatures**, and compressor versions are additional byte-difference investigation points. Record the project's effective inputs and investigate actual differences rather than treating a normalized tar as proof of reproducibility. [R14]
 
-The macOS reference's PGO workload uses instrumented execution based on `-m test --pgo -j NUM_CPUS`, with pooled profile handling. This is relevant when interpreting performance comparisons with the LTO-only macOS roadmap target. Recovering or generating profiling inputs is outside this project's optimization policy. [R5]
+A code signature is itself a payload byte sequence that changes when the binary changes, and on Apple Silicon a valid one is mandatory. Reproducibility work on macOS must therefore distinguish "the compiled content matches" from "the signature bytes match", and report which of the two a comparison is actually measuring.
+
+The macOS reference's PGO workload uses instrumented execution based on `-m test --pgo -j NUM_CPUS`, with pooled profile handling. This is relevant when interpreting performance comparisons with this project's LTO-only macOS target. Recovering or generating profiling inputs is outside this project's optimization policy. [R5]
 
 PBS's execution layer has isolation limitations: macOS uses a nonisolated random temporary directory; environment setup can read `~/.python-build-standalone-env`; parallelism derives from the machine; and container operations do not by themselves enforce an offline boundary. A `--serial` setting at one level does not control every nested `nproc`-based operation. These observations motivate declared environments, explicit parallelism, and negative isolation tests in Section 7. [R7, R12, R15]
 
-### A.11 Additional Alpine evidence
+### A.11 Additional Alpine evidence (frozen Linux targets)
 
 Alpine's `main/python3/APKBUILD` at commit `d17c5866a2f2c56b63c19dac9070091d6519b167` is a useful native-musl comparison. It packages **3.14.7**, so it is **not** this project's source pin and should not replace 3.14.6. It demonstrates a conventional configure/make build, shared libpython, system dependency selection, explicit per-module development dependencies, and a much smaller patch footprint than PBS. Its PGO invocation and `/usr` packaging policy are not to be copied. [R19]
 
-Two concrete details need explicit investigation:
+Two concrete details were investigated for the Linux targets and recorded there:
 
-**Thread stack sizing.** That recipe uses a 2 MiB `THREAD_STACK_SIZE` compile definition and an ELF `-z stack-size` setting, and includes a thread-recursion smoke test. It places private build flags in `CFLAGS_NODIST` / `LDFLAGS_NODIST` rather than leaking them into consumer builds. Check CPython 3.14.6's behavior and use a narrow, tested stack policy appropriate to musl. Run thread recursion, real C-FFI recursion/callback, thread-pool, and relevant upstream tests; Python-only recursion by itself may not adequately stress the native C stack. The ELF stack-size hint and the per-thread compile-time setting are related but not interchangeable. [R19]
+**Thread stack sizing.** That recipe uses a 2 MiB `THREAD_STACK_SIZE` compile definition and an ELF `-z stack-size` setting, and includes a thread-recursion smoke test. It places private build flags in `CFLAGS_NODIST` / `LDFLAGS_NODIST` rather than leaking them into consumer builds. This is a musl-motivated policy; macOS has different default thread-stack behavior and must be evaluated on its own terms (Section 5.3). [R19]
 
-**`ctypes.util.find_library`.** Alpine carries `musl-find_library.patch`, an old-origin patch which searches library paths, handles musl's combined libc/libm/libpthread naming, checks ELF magic, and avoids depending on glibc `ldconfig` behavior. Its historical path names and broad branch are not automatically the right relocation behavior for the product's private library directory. Test `find_library`, `CDLL(None)`, absolute-path loading, SONAME loading, and callbacks in the final minimal runtime without compiler/binutils helpers. Adopt or replace only the relevant behavior, with provenance and tests. Do not claim that finding a filename proves its ABI is compatible. [R20]
+**`ctypes.util.find_library`.** Alpine carries `musl-find_library.patch`, an old-origin patch which searches library paths, handles musl's combined libc/libm/libpthread naming, checks ELF magic, and avoids depending on glibc `ldconfig` behavior. On macOS the equivalent question is different — there is no `ldconfig`, system libraries may exist only in the dyld shared cache, and the interpreter must find its own private bundled dylibs after relocation. Test `find_library`, `CDLL(None)`, absolute-path loading, install-name loading, and callbacks in the final minimal runtime without compiler or Homebrew helpers. Adopt or replace only the relevant behavior, with provenance and tests. Do not claim that finding a filename proves its ABI is compatible. [R20]
 
-Alpine's listed test exclusions are leads to investigate, not a ready-made skip list. They include locale, libc, kernel, timing, and architecture-specific issues. Run this project's tests and justify each exclusion from actual evidence; do not import wholesale skips that hide regressions. [R19]
+Alpine's listed test exclusions are leads to investigate, not a ready-made skip list, and they belong to the Linux targets. Run this project's tests and justify each exclusion from actual evidence; do not import wholesale skips that hide regressions. [R19]
 
-### A.12 Isolation and musllinux compatibility
+### A.12 Isolation and compatibility tagging
 
-An Alpine userspace can run in a same-architecture chroot on another Linux distribution without Docker. The host kernel is still shared. A plain chroot does not isolate networking and is not by itself secure containment of a privileged hostile process. Add enforced process/filesystem/network boundaries and keep the build unprivileged. [R21]
+An Alpine userspace can run in a same-architecture chroot on another Linux distribution without Docker. The host kernel is still shared. A plain chroot does not isolate networking and is not by itself secure containment of a privileged hostile process. Add enforced process/filesystem/network boundaries and keep the build unprivileged. [R21] The macOS equivalent boundary is weaker than a container and must be described as such (Section 7).
 
-PEP 656 concerns Python interpreters dynamically linked against musl. Fully static interpreters and mixed-libc builds are out of its scope. Verify actual packaging tags using the built interpreter's pip/packaging behavior; don't relabel incompatible binaries `musllinux` or claim manylinux/glibc-wheel compatibility. Runtime musl detection and wheel tags are not a substitute for testing the compatibility floor of this standalone interpreter and its bundled libraries. [R22]
+PEP 656 concerns Python interpreters dynamically linked against musl; it is the Linux targets' compatibility contract. For macOS the equivalent obligations are the `LC_BUILD_VERSION` deployment floor, the arm64-only architecture, and the macOS platform tags the build produces — including the fact that tag-compatibility rules will compute tags for older macOS releases than the artifact actually supports. Declare the floor honestly rather than letting a computed tag imply compatibility that the binary's `minos` denies. [R22]
 
 ## Appendix B. Reference artifact identities
 
 The following release-metadata fingerprints identify comparison-only inputs. Verify downloaded bytes before inspecting or executing them. These are recorded source/release-metadata values, not a claim that every listed archive has been downloaded and independently rehashed during preparation of this specification. [R1]
 
-For M1, acquire only the x86_64 musl references that a comparison needs. The stripped install-only archive is a consumer comparison; the full archive can supply build metadata and module information. ARM/macOS entries support the roadmap research and are not initial downloads.
+For the macOS M1, acquire the **`aarch64-apple-darwin` install-only archive** as the consumer comparison, and the **`pgo+lto-full` archive** when build metadata or module inventory is needed. The remaining entries document the frozen Linux targets and possible future work; they are not initial downloads for this milestone.
 
-No interpreter, native library, object, generated header, standard-library file, or installed pip from these archives may become a product build input. Run reference binaries only in the isolated comparison environment described in Section 8.
+No interpreter, native library, object, generated header, standard-library file, or installed pip from these archives may become a product build input. Run reference binaries only in the isolated comparison environment described in Section 8, and note that the macOS reference is an arm64 Mach-O whose deployment floor differs from this project's.
 
 ```json
 {
   "status": "comparison inputs only; not target build inputs or required output hashes",
-  "research_date": "2026-09-17",
+  "research_date": "2026-09-18",
   "upstream": {
     "repository": "https://github.com/astral-sh/python-build-standalone",
     "release": "20260610",
@@ -510,60 +571,12 @@ No interpreter, native library, object, generated header, standard-library file,
   },
   "artifacts": [
     {
-      "target": "x86_64-unknown-linux-musl",
-      "variant": "lto-full.tar.zst",
-      "name": "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-lto-full.tar.zst",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-lto-full.tar.zst",
-      "sha256": "0fbf6847b5e80fc27027a2979182ebf1d4d35fddc9fc8be23f4d1653c0a1a9a7",
-      "role": "comparison-only; never a compiled distribution input"
-    },
-    {
-      "target": "x86_64-unknown-linux-musl",
-      "variant": "install_only.tar.gz",
-      "name": "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only.tar.gz",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only.tar.gz",
-      "sha256": "c55940c8ef8cfa73a8a5bc2c1cf3ea37cc87c92f7bd208adbbd283f4a1df652b",
-      "role": "comparison-only; never a compiled distribution input"
-    },
-    {
-      "target": "x86_64-unknown-linux-musl",
-      "variant": "install_only_stripped.tar.gz",
-      "name": "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
-      "sha256": "54eca143d09ed3c596ecad5e3bfcb7724387818f8f984f44f3d8c0e9f36681d3",
-      "role": "comparison-only; never a compiled distribution input"
-    },
-    {
-      "target": "aarch64-unknown-linux-musl",
-      "variant": "lto-full.tar.zst",
-      "name": "cpython-3.14.6+20260610-aarch64-unknown-linux-musl-lto-full.tar.zst",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-musl-lto-full.tar.zst",
-      "sha256": "3b72e88f0a0c6653563287c6ef912b712e0165c7bcee04ac88aee8f27725d73d",
-      "role": "comparison-only; never a compiled distribution input"
-    },
-    {
-      "target": "aarch64-unknown-linux-musl",
-      "variant": "install_only.tar.gz",
-      "name": "cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only.tar.gz",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only.tar.gz",
-      "sha256": "f51342846ea9a043c1b933cff6c8b7be6fd6c644a922d9330e8f48a725e9e1f3",
-      "role": "comparison-only; never a compiled distribution input"
-    },
-    {
-      "target": "aarch64-unknown-linux-musl",
-      "variant": "install_only_stripped.tar.gz",
-      "name": "cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only_stripped.tar.gz",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only_stripped.tar.gz",
-      "sha256": "5c75bea22f425ebc94912c618518a5aa4753eedeea6b5da5939f027d3a9c0fec",
-      "role": "comparison-only; never a compiled distribution input"
-    },
-    {
       "target": "aarch64-apple-darwin",
-      "variant": "pgo+lto-full.tar.zst",
-      "name": "cpython-3.14.6+20260610-aarch64-apple-darwin-pgo+lto-full.tar.zst",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-pgo+lto-full.tar.zst",
-      "sha256": "104d0ebde43207192b84b3907f5d63e665325282703dec8c0d416918ff66cf3f",
-      "role": "comparison-only; never a compiled distribution input"
+      "variant": "install_only_stripped.tar.gz",
+      "name": "cpython-3.14.6+20260610-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "sha256": "875516e13be36296f8f7dd0972b22ba3bed069ed08d27d5f0069caf227522921",
+      "role": "primary M1 comparison; comparison-only; never a compiled distribution input"
     },
     {
       "target": "aarch64-apple-darwin",
@@ -571,15 +584,63 @@ No interpreter, native library, object, generated header, standard-library file,
       "name": "cpython-3.14.6+20260610-aarch64-apple-darwin-install_only.tar.gz",
       "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-install_only.tar.gz",
       "sha256": "953db72ff2dea68b5112231b1ba77163ec9114f87c7ece530b3ea742a3b492c5",
-      "role": "comparison-only; never a compiled distribution input"
+      "role": "primary M1 comparison; comparison-only; never a compiled distribution input"
     },
     {
       "target": "aarch64-apple-darwin",
+      "variant": "pgo+lto-full.tar.zst",
+      "name": "cpython-3.14.6+20260610-aarch64-apple-darwin-pgo+lto-full.tar.zst",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-pgo+lto-full.tar.zst",
+      "sha256": "104d0ebde43207192b84b3907f5d63e665325282703dec8c0d416918ff66cf3f",
+      "role": "module-inventory and build-metadata reference; note the PGO+LTO variant name versus this project's LTO-only policy"
+    },
+    {
+      "target": "x86_64-unknown-linux-musl",
+      "variant": "lto-full.tar.zst",
+      "name": "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-lto-full.tar.zst",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-lto-full.tar.zst",
+      "sha256": "0fbf6847b5e80fc27027a2979182ebf1d4d35fddc9fc8be23f4d1653c0a1a9a7",
+      "role": "frozen Linux target comparison; not an M1 macOS download"
+    },
+    {
+      "target": "x86_64-unknown-linux-musl",
+      "variant": "install_only.tar.gz",
+      "name": "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only.tar.gz",
+      "sha256": "c55940c8ef8cfa73a8a5bc2c1cf3ea37cc87c92f7bd208adbbd283f4a1df652b",
+      "role": "frozen Linux target comparison; currently pinned as `reference-pbs` in sources.lock.json"
+    },
+    {
+      "target": "x86_64-unknown-linux-musl",
       "variant": "install_only_stripped.tar.gz",
-      "name": "cpython-3.14.6+20260610-aarch64-apple-darwin-install_only_stripped.tar.gz",
-      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-install_only_stripped.tar.gz",
-      "sha256": "875516e13be36296f8f7dd0972b22ba3bed069ed08d27d5f0069caf227522921",
-      "role": "comparison-only; never a compiled distribution input"
+      "name": "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+      "sha256": "54eca143d09ed3c596ecad5e3bfcb7724387818f8f984f44f3d8c0e9f36681d3",
+      "role": "frozen Linux target comparison; not an M1 macOS download"
+    },
+    {
+      "target": "aarch64-unknown-linux-musl",
+      "variant": "lto-full.tar.zst",
+      "name": "cpython-3.14.6+20260610-aarch64-unknown-linux-musl-lto-full.tar.zst",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-musl-lto-full.tar.zst",
+      "sha256": "3b72e88f0a0c6653563287c6ef912b712e0165c7bcee04ac88aee8f27725d73d",
+      "role": "frozen Linux target comparison; not an M1 macOS download"
+    },
+    {
+      "target": "aarch64-unknown-linux-musl",
+      "variant": "install_only.tar.gz",
+      "name": "cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only.tar.gz",
+      "sha256": "f51342846ea9a043c1b933cff6c8b7be6fd6c644a922d9330e8f48a725e9e1f3",
+      "role": "frozen Linux target comparison; not an M1 macOS download"
+    },
+    {
+      "target": "aarch64-unknown-linux-musl",
+      "variant": "install_only_stripped.tar.gz",
+      "name": "cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-unknown-linux-musl-install_only_stripped.tar.gz",
+      "sha256": "5c75bea22f425ebc94912c618518a5aa4753eedeea6b5da5939f027d3a9c0fec",
+      "role": "frozen Linux target comparison; not an M1 macOS download"
     }
   ]
 }
@@ -587,7 +648,7 @@ No interpreter, native library, object, generated header, standard-library file,
 
 ## Appendix C. PBS compiler and base-image identities
 
-These inputs document how the reference distributions were built. The Linux LLVM archives require a GNU/glibc build userspace and are not permitted native Alpine compiler inputs. The Debian images are research context, not environments to reconstruct for M1. Use the project's own locked native Alpine toolchain and source-built bundled target libraries. The macOS compiler identity is an observation, not a decision to depend on that archive for the future macOS build. [R2, R6, R7]
+These inputs document how the reference distributions were built. The Linux LLVM archives require a GNU/glibc build userspace and are not permitted native Alpine compiler inputs. The Debian images are research context, not environments to reconstruct for M1. For the macOS target, the corresponding entries are the compiler identity behind the *reference* artifact; this project's own compiler is the Xcode SDK plus Homebrew LLVM (Section 5.1), and the macOS LLVM archive below is **not** a project input. [R2, R6, R7]
 
 ```json
 {
@@ -612,13 +673,14 @@ These inputs document how the reference distributions were built. The Linux LLVM
       "version": "22.1.3+20260410",
       "url": "https://github.com/indygreg/toolchain-tools/releases/download/toolchain-bootstrap%2F20260410/llvm-22.1.3+20260410-aarch64-apple-darwin.tar.zst",
       "size": 159775425,
-      "sha256": "98171836c31c04edec074e5f3fee67fcace4bf3859b68a770dd9ff2039ea127d"
+      "sha256": "98171836c31c04edec074e5f3fee67fcace4bf3859b68a770dd9ff2039ea127d",
+      "note": "referenced as the compiler behind the PBS macOS artifact; not an input to this project, which uses Homebrew LLVM 23.1.0+"
     }
   ],
   "base_images": {
     "x86_64": "debian@sha256:32ad5050caffb2c7e969dac873bce2c370015c2256ff984b70c1c08b3a2816a0",
     "aarch64": "debian@sha256:c5c5200ff1e9c73ffbf188b4a67eb1c91531b644856b4aefe86a58d2f0cb05be",
-    "note": "These are PBS base-image references, not identities for complete derived builder environments."
+    "note": "These are PBS base-image references for the Linux artifacts. The macOS artifact has no base image; its equivalent is the host OS, SDK, and Xcode toolchain."
   }
 }
 ```
@@ -628,6 +690,8 @@ A compiler version string or base-image digest alone does not identify all build
 ## Appendix D. Dependency source fingerprints
 
 These entries are candidate source identities recorded from the pinned PBS download manifest. They are reference data for selecting independent source inputs, not an instruction to import that manifest as executable code. [R2] They are not proof that an origin will remain online, nor a complete lock. Before using an entry, verify its downloaded bytes and record the source, tool packages, transitive dependencies, license, and selected configuration in the project's own lock. Origin substitutions require verifying the bytes; two archives of the same version can have different hashes.
+
+The macOS M1 set is: bzip2, Expat (reference identity only — this project uses the system Expat), libffi, OpenSSL, SQLite, mpdecimal, ncurses, xz/liblzma, zlib (reference identity only — this project uses the system zlib), zstd, pip, and CPython. libedit is the reference's Linux backend and macOS uses the system libedit; libuuid, Berkeley DB, and the entire Tcl/Tk/X11 closure belong to the frozen Linux target or are excluded entirely and are not macOS inputs.
 
 ```json
 [
@@ -786,7 +850,7 @@ These entries are candidate source identities recorded from the pinned PBS downl
 
 ## Appendix E. Primary sources
 
-Reference research date: 2026-09-17. PBS implementation URLs identify the fixed reference commit. CPython and Alpine source URLs identify their separate versions or commits. Documentation and package-index links are explanatory/discovery sources, not immutable build inputs; the verified source tarball and project locks govern exact implementation behavior.
+Reference research date: 2026-09-18. PBS implementation URLs identify the fixed reference commit. CPython and Alpine source URLs identify their separate versions or commits. Documentation and package-index links are explanatory/discovery sources, not immutable build inputs; the verified source tarball and project locks govern exact implementation behavior.
 
 ### R1. PBS comparison release and published asset list
 
@@ -867,6 +931,7 @@ Reference research date: 2026-09-17. PBS implementation URLs identify the fixed 
 
 - <https://docs.python.org/3.14/using/configure.html>
 - <https://github.com/python/cpython/blob/v3.14.6/Doc/using/configure.rst>
+- <https://docs.python.org/3.14/using/mac.html>
 
 ### R18. Alpine compiler-package evidence; verify exact target architecture/branch before locking
 
@@ -890,3 +955,27 @@ Reference research date: 2026-09-17. PBS implementation URLs identify the fixed 
 ### R22. PEP 656: dynamic-musl interpreter scope and wheel compatibility tagging
 
 - <https://peps.python.org/pep-0656/>
+
+### R23. Homebrew toolchain: LLVM and LLD formula identities, bottle digests
+
+- <https://formulae.brew.sh/formula/llvm>
+- <https://formulae.brew.sh/formula/lld>
+- <https://docs.brew.sh/Bottles>
+
+### R24. Apple deployment targets, SDK selection, and Mach-O version load commands
+
+- <https://developer.apple.com/documentation/xcode/build-settings-reference>
+- <https://keith.github.io/xcode-man-pages/ld.1.html>
+- <https://keith.github.io/xcode-man-pages/vtool.1.html>
+
+### R25. sandbox-exec profiles and network denial
+
+- <https://keith.github.io/xcode-man-pages/sandbox-exec.1.html>
+- <https://keith.github.io/xcode-man-pages/sandbox.7.html>
+
+### R26. Mach-O relocation and signing after binary edits
+
+- <https://keith.github.io/xcode-man-pages/install_name_tool.1.html>
+- <https://keith.github.io/xcode-man-pages/dyld.1.html>
+- <https://keith.github.io/xcode-man-pages/codesign.1.html>
+- <https://developer.apple.com/documentation/macos-release-notes> (Apple Silicon code-signing requirement)
