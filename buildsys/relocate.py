@@ -135,3 +135,71 @@ def relocate(staged_install: Path, private_prefix: Path, *, patchelf: str = "pat
         touched.append(elf)
     clean_sysconfig(staged_install, private_prefix)
     return touched
+
+
+# --------------------------------------------------------------------------
+# macOS relocation (plan Section 6).
+#
+# The problem is the same — the interpreter must find its sibling libpython
+# after the tree moves — but Mach-O records it differently. There is no
+# search-path-independent soname: each consumer stores the *install name* it
+# was linked against, so the fix is to give libpython a relocatable id and
+# rewrite every reference to match, then give each consumer an LC_RPATH that
+# resolves it. `configure_prefix` is whatever `--prefix` CPython was built
+# with; nothing may be left referring to it after this runs.
+#
+# Every edit here invalidates a code signature, and an unsigned Mach-O does
+# not launch on Apple Silicon, so the primitives in `buildsys.macho` re-sign
+# as part of each edit rather than leaving it to the caller.
+# --------------------------------------------------------------------------
+
+
+def macho_relocate(
+    staged_install: Path,
+    private_prefix: Path,
+    *,
+    configure_prefix: str = "/install",
+) -> list[Path]:
+    """Make a staged `make install` tree relocatable; return the images edited.
+
+    `private_prefix` is the builder-only dependency prefix, which must not
+    survive in consumer-facing configuration (same rule as the ELF path).
+    `configure_prefix` is CPython's own `--prefix`, baked into every load
+    command that names libpython.
+    """
+    from . import macho
+
+    install = Path(staged_install)
+    lib_dir = install / "lib"
+    libraries = sorted(lib_dir.glob("libpython3*.dylib"))
+    if not libraries:
+        raise RelocationError(f"no libpython dylib found under {lib_dir}")
+    touched: list[Path] = []
+    for library in libraries:
+        portable = f"@rpath/{library.name}"
+        stale = f"{configure_prefix.rstrip('/')}/lib/{library.name}"
+        macho.set_install_name(library, portable)
+        touched.append(library)
+        for image in macho.find_machos(install):
+            if image == library:
+                continue
+            changed = False
+            for dependency in macho.dependencies(image):
+                if dependency == stale or Path(dependency).name == library.name:
+                    macho.change_dependency(image, dependency, portable, resign=False)
+                    changed = True
+            if changed:
+                touched.append(image)
+
+    # Any image that now loads something via @rpath needs a search path that
+    # resolves from its own location, which survives moving the whole tree.
+    for image in macho.find_machos(install):
+        if not any(d.startswith("@rpath/") for d in macho.dependencies(image)):
+            continue
+        relative = os.path.relpath(lib_dir, image.parent)
+        macho.add_rpath(image, f"@loader_path/{relative}")
+        if image not in touched:
+            touched.append(image)
+
+    clean_sysconfig(install, private_prefix)
+    return touched

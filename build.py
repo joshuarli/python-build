@@ -52,14 +52,30 @@ def _require_native_target(target: str) -> None:
         _fail(f"this machine ({platform.machine()}) has no target description; "
               f"run inside a container built for one of {sorted(SUPPORTED)}")
     if target != _NATIVE.triple:
+        if _NATIVE.is_macos:
+            _fail(f"--target {target} does not match the running machine "
+                  f"({_NATIVE.triple}); the macOS target builds and runs "
+                  f"natively on Apple Silicon, it does not cross-compile")
         _fail(f"--target {target} does not match the running machine "
               f"({_NATIVE.triple}); this project builds natively per-arch "
               f"via `docker build --platform {TARGETS[target].docker_platform}`, "
               f"it does not cross-compile")
 
 
-def _qualification_available() -> bool:
-    """Sealed runs execute in Dockerfile-defined stages, not on the host."""
+SANDBOX_EXEC = "/usr/bin/sandbox-exec"
+
+
+def _qualification_available(target=None) -> bool:
+    """Sealed runs execute under a platform-appropriate isolation mechanism.
+
+    Linux targets use Dockerfile-defined BuildKit stages; macOS cannot build
+    or run Mach-O binaries in a Linux container, so it uses a `sandbox-exec`
+    profile with `(deny network*)` instead (plan Section 7). Neither is
+    assumed to work — each is probed.
+    """
+    target = target or _NATIVE
+    if target is not None and target.is_macos:
+        return Path(SANDBOX_EXEC).is_file()
     if not shutil.which("docker"):
         return False
     probe = subprocess.run(
@@ -68,20 +84,70 @@ def _qualification_available() -> bool:
     return probe.returncode == 0
 
 
+def _macos_report(report: dict) -> None:
+    """Host, SDK, and toolchain facts the macOS build depends on (plan 3, 5.1)."""
+    import plistlib
+
+    from buildsys.bootstrap import (
+        BootstrapError,
+        linker_identity,
+        load_macos_toolchain,
+        problems,
+        sdk_version,
+    )
+
+    report["macos"] = {"product_version": platform.mac_ver()[0]}
+    sdk = subprocess.run(
+        ["xcrun", "--show-sdk-path"], capture_output=True, text=True
+    ).stdout.strip()
+    report["macos"]["sdk_path"] = sdk or None
+    report["macos"]["sdk_version"] = sdk_version(Path(sdk)) if sdk else None
+    report["macos"]["linker"] = linker_identity()
+    report["macos"]["sandbox_exec"] = SANDBOX_EXEC if Path(SANDBOX_EXEC).is_file() else None
+    report["macos"]["codesign"] = shutil.which("codesign")
+    lock = Path(__file__).resolve().parent / "bootstrap.lock.json"
+    try:
+        locked = load_macos_toolchain(lock)
+    except BootstrapError as error:
+        report["macos"]["toolchain_lock"] = {"ok": False, "error": str(error)}
+        return
+    found = problems(locked, host_floor=locked.deployment_target)
+    report["macos"]["toolchain_lock"] = {
+        "ok": not found,
+        "llvm_version": locked.llvm_version,
+        "deployment_target": locked.deployment_target,
+        "cpu_baseline": locked.cpu_baseline,
+        "problems": found,
+    }
+    clang = locked.llvm_prefix / "bin" / "clang"
+    report["macos"]["clang"] = str(clang) if clang.is_file() else None
+    report["macos"]["clang_reported"] = (
+        subprocess.run([str(clang), "--version"], capture_output=True, text=True)
+        .stdout.splitlines()[0] if clang.is_file() else None
+    )
+
+
 def doctor() -> int:
     container = Path("/.dockerenv").is_file()
     report = {
         "host": platform.machine(),
+        "platform": platform.system(),
         "python": sys.version.split()[0],
         "native_target": _NATIVE.triple if _NATIVE else None,
+        "native_family": _NATIVE.family if _NATIVE else None,
         "supported_targets": sorted(SUPPORTED),
         "qualification": (
-            "docker-buildkit" if _qualification_available() else "unavailable"
+            "unavailable"
+            if not _qualification_available()
+            else ("sandbox-exec" if _NATIVE and _NATIVE.is_macos else "docker-buildkit")
         ),
         "in_container": container,
     }
-    for tool in ("clang", "ld.lld", "llvm-ar", "patchelf", "pkg-config"):
-        report[tool] = shutil.which(tool)
+    if _NATIVE is not None and _NATIVE.is_macos:
+        _macos_report(report)
+    else:
+        for tool in ("clang", "ld.lld", "llvm-ar", "patchelf", "pkg-config"):
+            report[tool] = shutil.which(tool)
     print(json.dumps(report, indent=2))
     return 0
 
@@ -95,11 +161,19 @@ def build(args: argparse.Namespace) -> int:
               "use --sealed for hermetic runs")
     if args.sealed:
         if not _qualification_available():
-            _fail("sealed qualification requires the Dockerfile build stages; "
-                  "docker/BuildKit is unavailable")
-        _fail("sealed qualification is not implemented as a build.py subcommand; "
-              "use `docker build --platform <platform> --target sealed .` "
-              "(M1c owns the offline rootfs build; see Dockerfile)")
+            _fail(
+                "sealed qualification requires "
+                + ("the sandbox-exec profile runner"
+                   if _NATIVE and _NATIVE.is_macos
+                   else "the Dockerfile build stages")
+                + "; the isolation mechanism is unavailable"
+            )
+        _fail(
+            "sealed qualification is not implemented as a build.py subcommand; "
+            + ("use the sandbox-exec sealed runner " if _NATIVE and _NATIVE.is_macos
+               else "use `docker build --platform <platform> --target sealed .` ")
+            + "(M1c owns the offline build; see plan Section 7)"
+        )
     result = subprocess.run(
         [sys.executable, "build/deps.py"], cwd=Path(__file__).parent
     )

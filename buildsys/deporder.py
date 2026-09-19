@@ -1,12 +1,26 @@
-"""Order the dependency build, honoring inter-library configure needs."""
+"""Order the dependency build, honoring inter-library configure needs.
+
+The two families build genuinely different sets, because macOS supplies
+several of these libraries as part of the platform (plan Section 5.2) rather
+than bundling them:
+
+  linux-musl  builds all thirteen; the Alpine container has no equivalent
+              system library to borrow.
+  macos       builds eight. zlib, Expat, and libedit come from the platform,
+              and libuuid and Berkeley DB are not inputs at all: `_uuid` and
+              `dbm.ndbm` use platform facilities on Darwin, which also keeps
+              an AGPL-licensed component out of the macOS payload.
+"""
 
 from __future__ import annotations
+
+from .targets import MACOS, Target
 
 # Ordering constraints:
 #   pkg-config must exist before any pkg-config consumer configures.
 #   zlib/zstd feed openssl's optional compression and sqlite's.
 #   ncurses feeds libedit (curses/termcap fallback) and curses modules.
-DEPENDENCY_ORDER: tuple[str, ...] = (
+LINUX_DEPENDENCY_ORDER: tuple[str, ...] = (
     "pkgconf",  # host tool, not shipped; see host_tool()
     "zlib",
     "bzip2",
@@ -23,3 +37,30 @@ DEPENDENCY_ORDER: tuple[str, ...] = (
     "openssl",
     # Tcl/Tk and their X11 closure are deliberately outside the product scope.
 )
+
+# macOS ordering constraints are weaker: none of these eight consumes
+# another's build artifacts, so the order is chosen for fast failure (cheap
+# libraries first) with the two slowest — ncurses and OpenSSL — last.
+MACOS_DEPENDENCY_ORDER: tuple[str, ...] = (
+    "bzip2",
+    "xz",
+    "zstd",
+    "mpdecimal",
+    "libffi",
+    "sqlite",
+    "ncurses",
+    "openssl",
+)
+
+ORDERS = {"linux-musl": LINUX_DEPENDENCY_ORDER, MACOS: MACOS_DEPENDENCY_ORDER}
+
+# Retained for the frozen Linux importers and tests; prefer dependency_order().
+DEPENDENCY_ORDER = LINUX_DEPENDENCY_ORDER
+
+
+def dependency_order(target: Target) -> tuple[str, ...]:
+    """The dependency build order for one target's family."""
+    try:
+        return ORDERS[target.family]
+    except KeyError:
+        raise KeyError(f"no dependency order for family {target.family!r}") from None

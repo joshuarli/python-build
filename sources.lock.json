@@ -85,12 +85,13 @@
     },
     {
       "name": "libffi",
-      "version": "3.4.6",
-      "url": "https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz",
-      "sha256": "b0dea9df23c863a7a50e825440f3ebffabd65df1497108e5d437747843895a4e",
+      "version": "3.8.0",
+      "url": "https://github.com/libffi/libffi/releases/download/v3.8.0/libffi-3.8.0.tar.gz",
+      "sha256": "7da3e2d9a171eb0a038f592ecad3ff2bb2550f3496d87b3b29ad0cf4430c0db4",
       "role": "source",
       "license": "MIT",
-      "purpose": "ctypes; plan allows newer than musl-reference 3.3 with recorded difference"
+      "purpose": "ctypes. Updated from the reference's 3.4.6 (macOS) / 3.3 (musl): 3.4.6's src/aarch64/sysv.S emits cfi_startproc before the function label, which LLVM's Darwin assembler rejects with 'invalid CFI advance_loc expression' (reproduced with both Apple clang 21.0.0 and Homebrew LLVM 23.1.1, so it is not a compiler-version regression). Upstream reordered it in 3.8.0. Recorded reference difference; behavioral coverage is the ctypes call/closure/callback tests, not a version string.",
+      "size": 1581626
     },
     {
       "name": "libedit",

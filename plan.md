@@ -37,7 +37,9 @@ Tcl, Tk, `_tkinter`, `tkinter`, and their solely GUI-related X11 dependency clos
 
 A build that omits major standard-library capabilities, requires the builder's private Homebrew/Xcode libraries at runtime, or breaks pip, virtual environments, native extensions, embedding, or relocation is not a successful streamlined distribution.
 
-Observed host at the time this decision was recorded: macOS 26.5.2 (Darwin 25.5.0), `arm64`, Apple M1 Pro; Xcode SDK 26.5; Apple clang 21.0.0; Homebrew 7.0.4 with `llvm` 22.1.8 installed (stable 23.1.1 available, formula aliased `llvm@23`) and `lld` 23.1.1 available; Homebrew Python 3.14.7 usable as the controller runtime; `/usr/bin/sandbox-exec` present. The Homebrew LLVM upgrade to 23.1.1 is part of M1 setup, not an optional convenience.
+Observed host: macOS 26.5.2 (Darwin 25.5.0), `arm64`, Apple M1 Pro; Xcode 26.6 with SDK 26.5; Apple clang 21.0.0 present but not the selected compiler; Homebrew 7.0.4 with `llvm` 23.1.1 (bottle `6542e457…`) supplying clang, `llvm-ar`, `llvm-nm` and `llvm-strip`; GNU make 4.4.1 needed because the system `/usr/bin/make` is 3.81; Homebrew Python 3.14.7 usable as the controller runtime; `/usr/bin/sandbox-exec` present.
+
+The Homebrew LLVM upgrade to 23.1.1 is part of M1 setup, not an optional convenience. **Homebrew `lld` is not required**: the ThinLTO smoke test passed with Apple's `ld` (ld-1267), because clang's driver passes the `libLTO.dylib` from its own resource tree, which is what keeps the compiler and linker bitcode generations matched. The exact identities are locked in `bootstrap.lock.json`.
 
 ### 1.2 Completed milestone: Linux musl (frozen)
 

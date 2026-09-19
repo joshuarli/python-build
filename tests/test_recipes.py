@@ -9,6 +9,17 @@ from unittest.mock import patch
 from buildsys.recipes import Recipe, build_recipe
 
 
+def _resolved(path: Path) -> Path:
+    """Canonicalise a temp path for comparison against recipe output.
+
+    build_recipe resolves the paths it is given, and on macOS `TemporaryDirectory`
+    hands back `/var/...` while `resolve()` yields `/private/var/...`, so an
+    unresolved expectation compares unequal for reasons that have nothing to do
+    with the recipe under test.
+    """
+    return Path(path).resolve()
+
+
 class RecipeTests(unittest.TestCase):
     def test_gui_recipes_are_not_selectable(self):
         import runpy
@@ -32,7 +43,8 @@ class RecipeTests(unittest.TestCase):
             with patch("buildsys.recipes.run") as runner:
                 build_recipe(recipe, archive, root / "work", root / "prefix")
             calls = runner.call_args_list
-            self.assertEqual(calls[0].args[0][:2], ["perl", str(root / "work/openssl/openssl/Configure")])
+            self.assertEqual(calls[0].args[0][:2],
+                             ["perl", str(_resolved(root / "work/openssl/openssl/Configure"))])
             self.assertIn("no-shared", calls[0].args[0])
             self.assertEqual(calls[-1].args[0], ["make", "install_sw"])
 
@@ -50,7 +62,7 @@ class RecipeTests(unittest.TestCase):
             with patch("buildsys.recipes.run") as runner:
                 build_recipe(recipe, archive, root / "work", root / "prefix")
             self.assertEqual(len(runner.call_args_list), 3)
-            expected = root / "work/db/db/build_unix"
+            expected = _resolved(root / "work/db/db/build_unix")
             for call in runner.call_args_list:
                 self.assertEqual(call.kwargs["cwd"], expected)
                 self.assertTrue(expected.is_dir())
