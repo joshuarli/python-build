@@ -27,6 +27,39 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def macho_difference(first: Path, second: Path) -> dict:
+    """Split a binary difference into signing metadata and everything else.
+
+    "These two builds differ" and "these two builds differ only in their code
+    signatures" are different claims, and a raw hash comparison cannot tell
+    them apart. On Apple Silicon every Mach-O carries an ad-hoc signature that
+    covers the whole image, so any difference at all — including the
+    per-link LC_UUID — propagates into the signature bytes and makes a naive
+    comparison look far worse than the underlying change.
+    """
+    from . import macho
+
+    a, b = Path(first).read_bytes(), Path(second).read_bytes()
+    if len(a) != len(b):
+        return {"size_delta": len(a) - len(b), "comparable": False}
+    metadata = set()
+    for path in (first, second):
+        for offset, size in macho.signature_metadata_ranges(path):
+            metadata.update(range(offset, min(offset + size, len(a))))
+    differing = [i for i in range(len(a)) if a[i] != b[i]]
+    in_metadata = [i for i in differing if i in metadata]
+    residual = [i for i in differing if i not in metadata]
+    return {
+        "comparable": True,
+        "differing_bytes": len(differing),
+        "signature_metadata_bytes": len(in_metadata),
+        # Bytes outside the UUID and the signature: the compiled content.
+        "compiled_content_bytes": len(residual),
+        "compiled_content_identical": not residual,
+        "first_residual_offsets": residual[:8],
+    }
+
+
 def compare_trees(first: Path, second: Path) -> dict:
     """Report path-set and content-hash differences between two install trees."""
     a, b = _relative_files(first), _relative_files(second)

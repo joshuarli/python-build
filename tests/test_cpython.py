@@ -86,4 +86,18 @@ class MacOSCPythonTests(unittest.TestCase):
         self.assertIn('/private/lib/libbz2.a', self.env['BZIP2_LIBS'])
         self.assertIn('/private/lib/libsqlite3.a', self.env['LIBSQLITE3_LIBS'])
         self.assertIn('/private/lib/libmpdec.a', self.env['LIBMPDEC_LIBS'])
-        self.assertIn('/private/lib/libncursesw.a', self.env['CURSES_LIBS'])
+
+    def test_curses_is_not_pointed_at_the_private_prefix(self):
+        # ncurses/panel come from the platform on macOS, matching the
+        # reference's /usr/lib/libncurses.5.4.dylib load command. Leaving
+        # these set makes configure link whatever static library is sitting
+        # in the prefix, which is how a stale libncursesw.a got in unnoticed.
+        self.assertNotIn('CURSES_LIBS', self.env)
+        self.assertNotIn('PANEL_LIBS', self.env)
+        self.assertNotIn('CURSES_CFLAGS', self.env)
+
+    def test_private_prefix_leads_the_search_path_for_static_linking(self):
+        # Expat is linked from source (the reference carries no libexpat load
+        # command), and configure finds it because the prefix comes first.
+        self.assertTrue(self.env['CPPFLAGS'].startswith('-I/private/include'))
+        self.assertTrue(self.env['LDFLAGS'].startswith('-L/private/lib'))

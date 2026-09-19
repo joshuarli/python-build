@@ -126,6 +126,60 @@ def clean_sysconfig(staged_install: Path, private_prefix: Path) -> list[Path]:
     return changed
 
 
+# A shebang cannot be relative, so a script whose first line names the
+# configure-time prefix (`#!/install/bin/python3.14`) is dead the moment the
+# tree is staged, and stays dead after relocation. CPython writes exactly
+# that for pydoc3, idle3 and python3.14-config (`@EXENAME@` in
+# Makefile.pre.in), and ensurepip writes it again for the pip launchers.
+#
+# The replacement is the standard sh/Python polyglot: sh reads the second
+# line as `exec <interpreter> "$0" "$@"`, while Python sees a triple-quoted
+# string literal and skips it. `readlink -f` is available on macOS 12.3+ and
+# on any glibc/musl userspace this project targets, and resolves the case
+# where the launcher itself was reached through a symlink — which is exactly
+# how `pip3` is usually invoked.
+POLYGLOT_PREFIX = (
+    "#!/bin/sh\n"
+    "'''exec' \"$(dirname \"$(readlink -f -- \"$0\")\")/{interpreter}\" \"$0\" \"$@\"\n"
+    "' '''\n"
+)
+
+
+def _is_interpreter_shebang(line: str, interpreter: str) -> bool:
+    if not line.startswith("#!"):
+        return False
+    target = line[2:].strip()
+    return Path(target).name.startswith(interpreter.rsplit(".", 1)[0])
+
+
+def fix_script_shebangs(install: Path, interpreter: str = "python3.14") -> list[Path]:
+    """Make installed launcher scripts relocatable; return the ones rewritten.
+
+    Only files that actually name an interpreter are touched, and an already
+    rewritten script is left alone, so this is idempotent.
+    """
+    changed: list[Path] = []
+    binary = Path(install) / "bin"
+    if not binary.is_dir():
+        return changed
+    for script in sorted(binary.iterdir()):
+        if script.is_symlink() or not script.is_file():
+            continue
+        try:
+            original = script.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue  # binaries and non-UTF-8 payloads are not scripts
+        first, _, rest = original.partition("\n")
+        if not _is_interpreter_shebang(first, interpreter):
+            continue
+        if rest.startswith("'''exec'"):
+            continue  # already rewritten by an earlier run
+        script.write_text(POLYGLOT_PREFIX.format(interpreter=interpreter) + rest)
+        script.chmod(script.stat().st_mode | 0o111)
+        changed.append(script)
+    return changed
+
+
 def relocate(staged_install: Path, private_prefix: Path, *, patchelf: str = "patchelf") -> list[Path]:
     """Apply both fixups to a staged `make install` tree; return changed ELFs."""
     lib_dir = staged_install / "lib"
@@ -134,6 +188,7 @@ def relocate(staged_install: Path, private_prefix: Path, *, patchelf: str = "pat
         set_relative_rpath(elf, lib_dir, patchelf=patchelf)
         touched.append(elf)
     clean_sysconfig(staged_install, private_prefix)
+    fix_script_shebangs(staged_install)
     return touched
 
 
@@ -202,4 +257,5 @@ def macho_relocate(
             touched.append(image)
 
     clean_sysconfig(install, private_prefix)
+    fix_script_shebangs(install)
     return touched

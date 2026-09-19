@@ -28,6 +28,9 @@ from buildsys.inputs import Cache, InputError, load_lock, safe_extract  # noqa: 
 from buildsys.patches import PatchError, apply_patch_set  # noqa: E402
 from buildsys.recipes import BuildError, run  # noqa: E402
 from buildsys.relocate import RelocationError, macho_relocate, relocate  # noqa: E402
+from buildsys.scope import (
+    ScopeError, enforce_exclusions, probe_in_process, verify_exclusions,
+)  # noqa: E402
 from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
 
 CONFIGURE_PREFIX = "/install"
@@ -67,6 +70,10 @@ def build(work: Path, prefix: Path, stage: Path, logs: Path, cache: Cache) -> Pa
         entry for entry in load_lock(REPO / "sources.lock.json") if entry.name == "cpython"
     )
     blob = cache.require(pin)
+    # safe_extract refuses an existing destination, so clear our own scratch
+    # rather than making the caller do it before every rebuild.
+    if (work / "cpython").exists():
+        shutil.rmtree(work / "cpython")
     source = safe_extract(blob, work / "cpython") / "Python-3.14.6"
     apply_patch_set(source, REPO / "patches" / "cpython")
     build_directory = work / "cpython-build"
@@ -118,6 +125,19 @@ def build(work: Path, prefix: Path, stage: Path, logs: Path, cache: Cache) -> Pa
             )
     else:
         relocate(install, prefix)
+    # Scope enforcement runs after relocation so the shebang rewrite cannot
+    # resurrect a launcher that was meant to be removed, and before anything
+    # downstream treats the tree as shippable.
+    report = enforce_exclusions(install)
+    (logs / "scope.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    remaining = verify_exclusions(install)
+    if remaining:
+        raise ScopeError("excluded components still present: " + ", ".join(remaining))
+    importable = probe_in_process(install / "bin" / "python3.14")
+    leaked = sorted(name for name, present in importable.items() if present)
+    if leaked:
+        raise ScopeError(f"excluded modules are still importable: {', '.join(leaked)}")
+    print(f"      removed {len(report['removed'])} excluded path(s)", flush=True)
     return staged
 
 
@@ -134,7 +154,7 @@ def main() -> int:
     try:
         staged = build(work, prefix, stage, logs, cache)
     except (BuildError, InputError, PatchError, BootstrapError,
-            UnsupportedTargetError, RelocationError) as error:
+            UnsupportedTargetError, RelocationError, ScopeError) as error:
         print(f"FAIL cpython: {error}")
         return 1
     print(f"OK    cpython -> {staged}", flush=True)

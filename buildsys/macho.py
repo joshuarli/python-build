@@ -56,6 +56,8 @@ LC_LOAD_DYLIB = 0x0C
 LC_LOAD_WEAK_DYLIB = 0x80000018
 LC_REEXPORT_DYLIB = 0x8000001F
 LC_RPATH = 0x8000001C
+LC_UUID = 0x1B
+LC_CODE_SIGNATURE = 0x1D
 LC_VERSION_MIN_MACOSX = 0x24
 LC_BUILD_VERSION = 0x32
 LC_LOAD_UPWARD_DYLIB = 0x80000023
@@ -179,6 +181,7 @@ def read_header(path: Path) -> MachOHeader:
 class LoadCommand:
     cmd: int
     payload: bytes  # command body, excluding cmd/cmdsize
+    offset: int = 0  # absolute file offset of the command, including cmd/cmdsize
 
 
 def load_commands(path: Path) -> list[LoadCommand]:
@@ -200,7 +203,10 @@ def load_commands(path: Path) -> list[LoadCommand]:
         cmd, cmdsize = struct.unpack_from(f"{endian}II", blob, offset)
         if cmdsize < 8 or offset + cmdsize > len(blob):
             raise MachOError(f"{path}: malformed load command size {cmdsize}")
-        commands.append(LoadCommand(cmd=cmd, payload=blob[offset + 8:offset + cmdsize]))
+        commands.append(
+            LoadCommand(cmd=cmd, payload=blob[offset + 8:offset + cmdsize],
+                        offset=header_size + offset)
+        )
         offset += cmdsize
     return commands
 
@@ -345,6 +351,36 @@ def signature_status(path: Path) -> tuple[bool, str]:
     )
     detail = (result.stderr or result.stdout).strip()
     return result.returncode == 0, detail
+
+
+def signature_metadata_ranges(path: Path) -> list[tuple[int, int]]:
+    """Byte ranges that are signing metadata rather than compiled content.
+
+    An ad-hoc signature covers the whole image and therefore changes whenever
+    anything does; the LC_UUID is regenerated per link. Two builds of the same
+    source can differ in exactly these bytes and nothing else, which is a very
+    different statement from "the builds differ" — this is what lets the
+    reproducibility report tell them apart.
+    """
+    ranges: list[tuple[int, int]] = []
+    for command in load_commands(path):
+        if command.cmd == LC_UUID:
+            ranges.append((command.offset + 8, 16))
+        elif command.cmd == LC_CODE_SIGNATURE:
+            data_offset, data_size = struct.unpack_from("<II", command.payload, 0)
+            if data_size:
+                ranges.append((data_offset, data_size))
+    return ranges
+
+
+def normalized_bytes(path: Path) -> bytes:
+    """The image with its UUID and signature ranges zeroed."""
+    raw = bytearray(Path(path).read_bytes())
+    for offset, size in signature_metadata_ranges(path):
+        if 0 <= offset < len(raw):
+            end = min(offset + size, len(raw))
+            raw[offset:end] = b"\x00" * (end - offset)
+    return bytes(raw)
 
 
 def find_machos(root: Path) -> list[Path]:

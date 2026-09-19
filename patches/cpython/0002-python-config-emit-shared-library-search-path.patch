@@ -1,0 +1,29 @@
+--- a/Misc/python-config.in
++++ b/Misc/python-config.in
+@@ -4,6 +4,7 @@
+ # Keep this script in sync with python-config.sh.in
+ 
+ import getopt
++import os
+ import sys
+ import sysconfig
+ 
+@@ -57,10 +58,15 @@
+                 libs.append(libpython)
+         libs.extend(getvar('LIBS').split() + getvar('SYSLIBS').split())
+ 
+-        # add the prefix/lib/pythonX.Y/config dir, but only if there is no
+-        # shared library in prefix/lib/.
++        # A shared libpython lives in the installation's own lib directory,
++        # which is on no linker default search path once the tree has been
++        # relocated. Derive that directory from the runtime standard-library
++        # path: LIBDIR is baked to the configure-time prefix, so a relocated
++        # installation would point the linker back at the build tree.
+         if opt == '--ldflags':
+-            if not getvar('Py_ENABLE_SHARED'):
++            if getvar('Py_ENABLE_SHARED'):
++                libs.insert(0, '-L' + os.path.dirname(sysconfig.get_path('stdlib')))
++            else:
+                 libs.insert(0, '-L' + getvar('LIBPL'))
+         print(' '.join(libs))
+ 

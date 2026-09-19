@@ -38,17 +38,25 @@ LINUX_DEPENDENCY_ORDER: tuple[str, ...] = (
     # Tcl/Tk and their X11 closure are deliberately outside the product scope.
 )
 
-# macOS ordering constraints are weaker: none of these eight consumes
-# another's build artifacts, so the order is chosen for fast failure (cheap
-# libraries first) with the two slowest — ncurses and OpenSSL — last.
+# macOS ordering constraints are weaker: none of these consumes another's
+# build artifacts, so the order is chosen for fast failure (cheap libraries
+# first) with the slowest — OpenSSL — last.
+#
+# The set is not the Linux one minus exclusions; it was derived from the
+# pinned reference's own Mach-O load commands (plan 5.2 requires confirming
+# the split against the artifact rather than trusting the summary table). The
+# reference links `/usr/lib/libncurses.5.4.dylib`, `/usr/lib/libpanel.5.4.dylib`,
+# `/usr/lib/libz.1.dylib` and `/usr/lib/libedit.3.dylib`, and shows no
+# libexpat load command — so ncurses and zlib and libedit are the platform's,
+# while Expat is statically linked from source like the rest.
 MACOS_DEPENDENCY_ORDER: tuple[str, ...] = (
     "bzip2",
     "xz",
     "zstd",
     "mpdecimal",
     "libffi",
+    "expat",
     "sqlite",
-    "ncurses",
     "openssl",
 )
 

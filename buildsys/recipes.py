@@ -257,21 +257,21 @@ def build_recipe(
             f"CFLAGS={make_cflags}",
             f"LDFLAGS={make_ldflags}",
         ]
-        if toolchain.is_macos:
-            # bzip2's Makefile assigns `CC=gcc` and zstd's defaults to `cc`;
-            # a makefile assignment beats the environment, so setting CC in
-            # `env` is not enough and the dependency would be compiled by
-            # Apple clang rather than the LLVM the lock names. Command-line
-            # variable assignments are the only form that wins. This is
-            # macOS-only on purpose: the frozen Linux targets' evidence was
-            # produced without it, and changing their compiler now would
-            # invalidate that evidence without re-validating it.
-            command += [
-                f"CC={toolchain.cc}",
-                f"CXX={toolchain.cxx}",
-                f"AR={toolchain.ar}",
-                f"RANLIB={toolchain.ranlib}",
-            ]
+        # bzip2's Makefile assigns `CC=gcc` and zstd's defaults to `cc`. A
+        # makefile assignment beats the environment, so exporting CC in `env`
+        # is not enough — the dependency would be compiled by whatever the
+        # makefile names rather than by the toolchain the target declares.
+        # Command-line variable assignments are the only form that wins.
+        # This applies on every family: a recipe that silently uses an
+        # unlisted compiler produces an artifact nobody can attribute, and on
+        # macOS it also breaks LTO, since Apple clang's bitcode generation
+        # does not match the LLVM the lock pins.
+        command += [
+            f"CC={toolchain.cc}",
+            f"CXX={toolchain.cxx}",
+            f"AR={toolchain.ar}",
+            f"RANLIB={toolchain.ranlib}",
+        ]
         command += list(recipe.make_targets)
         run(command, cwd=makefile.parent, env=env, log=recipe.log_path / "make.log")
     elif recipe.install == "autotools":

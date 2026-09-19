@@ -160,8 +160,22 @@ def main() -> int:
     work = REPO / "build" / "work"
     prefix = (REPO / "build" / "prefix").resolve()
     logs = REPO / "build" / "logs"
-    work.mkdir(parents=True, exist_ok=True)
-    prefix.mkdir(parents=True, exist_ok=True)
+    # A full build owns the prefix and the scratch area; `--only` is the
+    # incremental path and keeps both. Reusing a prefix across runs let a
+    # stale libncursesw.a from an earlier configuration be linked into the
+    # interpreter even after ncurses was dropped from the dependency set —
+    # an undeclared input that only showed up by inspecting load commands.
+    # Clearing here also makes a rebuild repeatable without a human having to
+    # remember that build_recipe refuses to reuse a scratch tree.
+    if args.only:
+        work.mkdir(parents=True, exist_ok=True)
+        prefix.mkdir(parents=True, exist_ok=True)
+    else:
+        for directory in (work, prefix):
+            if directory.exists():
+                print(f"CLEAN {directory}", flush=True)
+                shutil.rmtree(directory)
+            directory.mkdir(parents=True)
     cache = Cache(REPO / ".cache")
     lock = {e.name: e for e in load_lock(REPO / "sources.lock.json")}
     try:

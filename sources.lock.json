@@ -130,15 +130,6 @@
       "purpose": "dbm backend"
     },
     {
-      "name": "pip",
-      "version": "26.1.2",
-      "url": "https://files.pythonhosted.org/packages/5d/95/6b5cb3461ea5673ba0995989746db58eb18b91b54dbf331e72f569540946/pip-26.1.2-py3-none-any.whl",
-      "sha256": "382ff9f685ee3bc25864f820aa50505825f10f5458ffff07e30a6d96e5715cab",
-      "role": "source",
-      "license": "MIT",
-      "purpose": "installer installed offline into distribution"
-    },
-    {
       "name": "reference-pbs",
       "version": "20260610",
       "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
@@ -146,6 +137,16 @@
       "role": "reference",
       "license": "Python-2.0",
       "purpose": "comparison-only; never a product build input"
+    },
+    {
+      "name": "reference-pbs-aarch64-apple-darwin",
+      "version": "20260610",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-aarch64-apple-darwin-install_only.tar.gz",
+      "sha256": "953db72ff2dea68b5112231b1ba77163ec9114f87c7ece530b3ea742a3b492c5",
+      "role": "reference",
+      "target": "aarch64-apple-darwin",
+      "license": "Python-2.0",
+      "purpose": "comparison-only; never a product build input. The pinned macOS reference is PGO+LTO while this project is LTO-only, so every performance comparison must disclose the optimization difference."
     }
   ]
 }

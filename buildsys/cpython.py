@@ -11,10 +11,13 @@ consequences of the platform rather than preferences:
   linux-musl  Every dependency is bundled, dbm is Berkeley DB, readline is a
               private libedit, and musl's small default thread stack needs an
               explicit raise.
-  macos       zlib, Expat, and libedit are the platform's own; dbm is ndbm
-              and `_uuid` uses platform facilities, so neither libuuid nor
-              Berkeley DB is an input. No ELF loader-hardening or build-id
-              flags exist, and the musl thread-stack policy does not apply.
+  macos       zlib, libedit, and ncurses/panel are the platform's own, while
+              Expat is linked from source like the rest — a split measured
+              from the pinned reference's load commands, not assumed. dbm is
+              ndbm and `_uuid` uses platform facilities, so neither libuuid
+              nor Berkeley DB is an input. No ELF loader-hardening or
+              build-id flags exist, and the musl thread-stack policy does not
+              apply.
 """
 
 from __future__ import annotations
@@ -52,10 +55,6 @@ def _base_env(prefix: Path) -> dict[str, str]:
         "LIBMPDEC_CFLAGS": f"-I{prefix}/include",
         "LIBMPDEC_LIBS": f"-L{prefix}/lib {prefix}/lib/libmpdec.a -lm",
         "LIBSQLITE3_CFLAGS": f"-I{prefix}/include",
-        "CURSES_CFLAGS": f"-I{prefix}/include -I{prefix}/include/ncursesw",
-        "CURSES_LIBS": f"-L{prefix}/lib {prefix}/lib/libncursesw.a",
-        "PANEL_CFLAGS": f"-I{prefix}/include/ncursesw",
-        "PANEL_LIBS": f"-L{prefix}/lib {prefix}/lib/libpanelw.a {prefix}/lib/libncursesw.a",
         "CPPFLAGS": f"-I{prefix}/include",
         "OPENSSL_INCLUDES": f"-I{prefix}/include",
     }
@@ -83,6 +82,14 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         "PKG_CONFIG_LIBDIR": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
         "LIBUUID_CFLAGS": f"-I{prefix}/include/uuid",
         "LIBUUID_LIBS": f"-L{prefix}/lib {prefix}/lib/libuuid.a",
+        # Linux bundles ncurses/panel; macOS links the platform's 5.4 instead
+        # (measured from the reference's load commands), so these must not be
+        # set on that family — doing so silently links whatever static library
+        # happens to be sitting in the prefix.
+        "CURSES_CFLAGS": f"-I{prefix}/include -I{prefix}/include/ncursesw",
+        "CURSES_LIBS": f"-L{prefix}/lib {prefix}/lib/libncursesw.a",
+        "PANEL_CFLAGS": f"-I{prefix}/include/ncursesw",
+        "PANEL_LIBS": f"-L{prefix}/lib {prefix}/lib/libpanelw.a {prefix}/lib {prefix}/lib/libncursesw.a",
         "LIBSQLITE3_LIBS": f"-L{prefix}/lib {prefix}/lib/libsqlite3.a -ldl -lpthread",
         "LIBEDIT_CFLAGS": f"-I{prefix}/include -I{prefix}/include/editline",
         "LIBEDIT_LIBS": f"-L{prefix}/lib {prefix}/lib/libedit.a {prefix}/lib/libncursesw.a",
@@ -130,11 +137,24 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
 def _macos_configuration(prefix: Path, target: Target) -> tuple[list[str], dict[str, str]]:
     env = {
         **_base_env(prefix),
-        # The system libedit is the readline backend, matching the pinned
-        # reference's macOS split (plan Section 5.2). No private copy
-        # shadows it, so -ledit resolves to the platform library.
+        # Lock dependency detection to the private prefix. Without this,
+        # pkg-config's default search path includes Homebrew's, which carries
+        # .pc files for openssl/sqlite/libffi at different versions and would
+        # let configure satisfy a probe from the builder's prefix. The Linux
+        # branch keeps its original PKG_CONFIG_PATH because its container has
+        # no competing prefix.
+        "PKG_CONFIG_LIBDIR": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
+        "PKG_CONFIG_PATH": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
+        # Platform libraries, matching the reference's load commands: it links
+        # /usr/lib/libedit.3.dylib, /usr/lib/libz.1.dylib,
+        # /usr/lib/libncurses.5.4.dylib and /usr/lib/libpanel.5.4.dylib. No
+        # private copy shadows any of them, so the probe finds the SDK's.
         "LIBEDIT_CFLAGS": "",
         "LIBEDIT_LIBS": "-ledit",
+        # Expat is the exception: the reference carries no libexpat load
+        # command, so it statically links its own. CPPFLAGS/LDFLAGS put the
+        # private prefix first, which makes configure's -lexpat probe resolve
+        # to the bundled libexpat.a rather than the SDK's dylib.
         "LIBSQLITE3_LIBS": f"-L{prefix}/lib {prefix}/lib/libsqlite3.a",
         "LDFLAGS": (
             f"-L{prefix}/lib -mmacosx-version-min={target.deployment_target} "
@@ -150,6 +170,8 @@ def _macos_configuration(prefix: Path, target: Target) -> tuple[list[str], dict[
     }
     args = [
         *COMMON_POLICY_ARGS,
+        # `--with-system-expat` means "use an external Expat rather than a
+        # vendored one"; the search path above decides *which* external one.
         "--with-system-expat",
         "--with-system-libmpdec",
         "--with-openssl=" + str(prefix),
