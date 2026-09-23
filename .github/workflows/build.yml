@@ -105,8 +105,23 @@ jobs:
           name: dist-aarch64-apple-darwin
           path: dist/aarch64-apple-darwin
 
-  build-linux-amd64:
-    runs-on: ubuntu-latest
+  build-linux:
+    strategy:
+      matrix:
+        include:
+          - runs-on: ubuntu-latest
+            platform: linux/amd64
+            triple: x86_64-unknown-linux-musl
+            image: pysealed:amd64
+            container: pkg-amd64
+            cache-scope: sealed-linux-amd64
+          - runs-on: ubuntu-24.04-arm
+            platform: linux/arm64
+            triple: aarch64-unknown-linux-musl
+            image: pysealed:arm64
+            container: pkg-arm64
+            cache-scope: sealed-linux-arm64
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v4
 
@@ -130,76 +145,30 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           target: sealed
-          tags: pysealed:amd64
+          tags: ${{ matrix.image }}
           load: true
-          cache-from: type=gha,scope=sealed-linux-amd64
-          cache-to: type=gha,mode=max,scope=sealed-linux-amd64
+          cache-from: type=gha,scope=${{ matrix.cache-scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
 
       - name: Package and validate inside the sealed image
         run: |
-          docker run --platform linux/amd64 --network none --name pkg-amd64 pysealed:amd64 \
+          docker run --platform ${{ matrix.platform }} --network none --name ${{ matrix.container }} ${{ matrix.image }} \
             python3 build/package.py
           mkdir -p dist
-          docker cp pkg-amd64:/work/dist/. ./dist/
-          docker rm pkg-amd64
-          ls dist/x86_64-unknown-linux-musl
+          docker cp ${{ matrix.container }}:/work/dist/. ./dist/
+          docker rm ${{ matrix.container }}
+          ls dist/${{ matrix.triple }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dist-x86_64-unknown-linux-musl
-          path: dist/x86_64-unknown-linux-musl
-
-  build-linux-arm64:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Cache verified source blobs
-        uses: actions/cache@v4
-        with:
-          path: .cache/objects
-          key: sources-${{ hashFiles('sources.lock.json') }}
-          restore-keys: sources-
-
-      - name: Fetch (populates .cache for the sealed image context)
-        run: python3 build/fetch.py
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Sealed build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64
-          target: sealed
-          tags: pysealed:arm64
-          load: true
-          cache-from: type=gha,scope=sealed-linux-arm64
-          cache-to: type=gha,mode=max,scope=sealed-linux-arm64
-
-      - name: Package and validate inside the sealed image
-        run: |
-          docker run --platform linux/arm64 --network none --name pkg-arm64 pysealed:arm64 \
-            python3 build/package.py
-          mkdir -p dist
-          docker cp pkg-arm64:/work/dist/. ./dist/
-          docker rm pkg-arm64
-          ls dist/aarch64-unknown-linux-musl
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-aarch64-unknown-linux-musl
-          path: dist/aarch64-unknown-linux-musl
+          name: dist-${{ matrix.triple }}
+          path: dist/${{ matrix.triple }}
 
   assemble:
     runs-on: ubuntu-latest
-    needs: [build-macos, build-linux-amd64, build-linux-arm64]
+    needs: [build-macos, build-linux]
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
@@ -265,8 +234,17 @@ jobs:
           PY="$(uv python find "cpython-${{ env.PYTHON_VERSION }}-darwin-aarch64-none")"
           "$PY" .github/scripts/toy.py
 
-  smoke-linux-amd64:
-    runs-on: ubuntu-latest
+  smoke-linux:
+    strategy:
+      matrix:
+        include:
+          - runs-on: ubuntu-latest
+            platform: linux/amd64
+            uvsuffix: linux-x86_64-musl
+          - runs-on: ubuntu-24.04-arm
+            platform: linux/arm64
+            uvsuffix: linux-aarch64-musl
+    runs-on: ${{ matrix.runs-on }}
     needs: [assemble]
     steps:
       - uses: actions/checkout@v4
@@ -281,7 +259,7 @@ jobs:
           TAG="${{ needs.assemble.outputs.tag }}"
           mkdir -p "mirror/$TAG"
           cp release/*.tar.gz "mirror/$TAG/"
-          docker run --platform linux/amd64 \
+          docker run --platform ${{ matrix.platform }} \
             -v "${PWD}/mirror:/mirror:ro" \
             -v "${PWD}/release:/release:ro" \
             -v "${PWD}/.github/scripts:/scripts:ro" \
@@ -291,45 +269,14 @@ jobs:
               curl -LsSf https://astral.sh/uv/install.sh | sh
               export PATH="$HOME/.local/bin:$PATH"
               export UV_PYTHON_INSTALL_MIRROR=file:///mirror
-              KEY="cpython-${{ env.PYTHON_VERSION }}-linux-x86_64-musl"
-              uv python install "$KEY" --python-downloads-json-url /release/smoke-metadata.json
-              "$(uv python find "$KEY")" /scripts/toy.py
-            '
-
-  smoke-linux-arm64:
-    runs-on: ubuntu-24.04-arm
-    needs: [assemble]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: release-assets
-          path: release
-
-      - name: uv smoke inside musl userspace
-        run: |
-          TAG="${{ needs.assemble.outputs.tag }}"
-          mkdir -p "mirror/$TAG"
-          cp release/*.tar.gz "mirror/$TAG/"
-          docker run --platform linux/arm64 \
-            -v "${PWD}/mirror:/mirror:ro" \
-            -v "${PWD}/release:/release:ro" \
-            -v "${PWD}/.github/scripts:/scripts:ro" \
-            alpine:3.24 sh -c '
-              set -eu
-              apk add --no-cache curl ca-certificates tar
-              curl -LsSf https://astral.sh/uv/install.sh | sh
-              export PATH="$HOME/.local/bin:$PATH"
-              export UV_PYTHON_INSTALL_MIRROR=file:///mirror
-              KEY="cpython-${{ env.PYTHON_VERSION }}-linux-aarch64-musl"
+              KEY="cpython-${{ env.PYTHON_VERSION }}-${{ matrix.uvsuffix }}"
               uv python install "$KEY" --python-downloads-json-url /release/smoke-metadata.json
               "$(uv python find "$KEY")" /scripts/toy.py
             '
 
   release:
     runs-on: ubuntu-latest
-    needs: [assemble, smoke-macos, smoke-linux-amd64, smoke-linux-arm64]
+    needs: [assemble, smoke-macos, smoke-linux]
     permissions:
       contents: write
     steps:

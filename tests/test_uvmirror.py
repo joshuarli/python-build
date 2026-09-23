@@ -10,6 +10,7 @@ from pathlib import Path
 
 from buildsys.uvmirror import (
     VERSION,
+    UvMirrorError,
     assemble,
     asset_name,
     find_local_archive,
@@ -114,14 +115,19 @@ class AssembleTests(unittest.TestCase):
     def test_assemble_refuses_missing_or_ambiguous_archives(self) -> None:
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
-            (root / "dist" / "aarch64-apple-darwin").mkdir(parents=True)
-            with self.assertRaises(SystemExit):
-                find_local_archive(root / "dist" / "aarch64-apple-darwin", "aarch64-apple-darwin")
+            triple_dir = root / "dist" / "aarch64-apple-darwin"
+            triple_dir.mkdir(parents=True)
+            with self.assertRaises(UvMirrorError):
+                find_local_archive(triple_dir, "aarch64-apple-darwin")
+            (triple_dir / f"cpython-{VERSION}-aarch64-apple-darwin-r1.tar.gz").write_bytes(b"a")
+            (triple_dir / f"cpython-{VERSION}-aarch64-apple-darwin-r2.tar.gz").write_bytes(b"b")
+            with self.assertRaises(UvMirrorError):
+                find_local_archive(triple_dir, "aarch64-apple-darwin")
 
     def test_assemble_refuses_unsafe_tag(self) -> None:
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
-            with self.assertRaises(SystemExit):
+            with self.assertRaises(UvMirrorError):
                 assemble("../evil", "owner/name", root / "dist", root / "release")
 
 

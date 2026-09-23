@@ -13,6 +13,7 @@ import hashlib
 import lzma
 import os
 import sqlite3
+import ssl
 import sys
 import tempfile
 import uuid
@@ -46,8 +47,6 @@ def main() -> int:
         connection.execute("insert into t values (?)", (42,))
         assert connection.execute("select a from t").fetchone() == (42,)
         connection.close()
-
-    import ssl
 
     print(f"toy ok: {sys.version.split()[0]} ({ssl.OPENSSL_VERSION})")
     return 0

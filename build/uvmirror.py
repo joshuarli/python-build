@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from buildsys.uvmirror import assemble  # noqa: E402
+from buildsys.uvmirror import UvMirrorError, assemble  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -19,7 +19,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dist", default="dist", help="per-triple dist/ root")
     parser.add_argument("--out", default="release", help="output directory")
     args = parser.parse_args(argv)
-    report = assemble(args.tag, args.repo, Path(args.dist), Path(args.out))
+    try:
+        report = assemble(args.tag, args.repo, Path(args.dist), Path(args.out))
+    except UvMirrorError as error:
+        print(f"FAIL uvmirror: {error}", file=sys.stderr)
+        return 1
     print(json.dumps(report, indent=2))
     return 0
 

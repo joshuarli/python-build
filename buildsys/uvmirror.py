@@ -35,9 +35,14 @@ from urllib.parse import quote
 
 VERSION = "3.14.6"
 
+
+class UvMirrorError(Exception):
+    """Release assets could not be assembled from dist/."""
+
+
 # Every triple this project ships, and the uv metadata key parts for each.
 # Keys follow uv's `{impl}-{version}-{os}-{arch}-{libc}` scheme.
-TRIPLES: dict[str, dict[str, str | None]] = {
+TRIPLES: dict[str, dict[str, str]] = {
     "aarch64-apple-darwin": {
         "key_arch": "aarch64",
         "os": "darwin",
@@ -55,9 +60,7 @@ TRIPLES: dict[str, dict[str, str | None]] = {
     },
 }
 
-CANONICAL_PREFIX = (
-    "https://github.com/astral-sh/python-build-standalone/releases/download"
-)
+CANONICAL_PREFIX = "https://github.com/astral-sh/python-build-standalone/releases/download"
 
 
 def asset_name(tag: str, triple: str) -> str:
@@ -95,7 +98,7 @@ def find_local_archive(dist: Path, triple: str) -> Path:
     """The single packaged archive `build/package.py` produced for a triple."""
     matches = sorted(dist.glob(f"cpython-{VERSION}-{triple}-*.tar.gz"))
     if len(matches) != 1:
-        raise SystemExit(
+        raise UvMirrorError(
             f"expected exactly one packaged archive for {triple} in {dist}, "
             f"found {len(matches)}: run `build/package.py` first"
         )
@@ -110,37 +113,38 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _metadata(tag: str, url_base: str, hashes: dict[str, str]) -> dict:
+    return {
+        metadata_key(triple): metadata_entry(
+            triple, tag, url_base, hashes[asset_name(tag, triple)]
+        )
+        for triple in TRIPLES
+    }
+
+
 def assemble(tag: str, repo: str, dist: Path, out: Path) -> dict:
     """Copy renamed assets and write checksums plus both metadata files."""
     if not tag or "/" in tag or tag in (".", ".."):
-        raise SystemExit(f"refusing unsafe release tag {tag!r}")
+        raise UvMirrorError(f"refusing unsafe release tag {tag!r}")
     out.mkdir(parents=True, exist_ok=True)
     hashes: dict[str, str] = {}
     for triple in TRIPLES:
         source = find_local_archive(dist / triple, triple)
         target = out / asset_name(tag, triple)
         if target.exists():
-            raise SystemExit(f"refusing to overwrite existing {target}")
+            raise UvMirrorError(f"refusing to overwrite existing {target}")
         shutil.copyfile(source, target)
         hashes[target.name] = sha256_of(target)
     (out / "SHA256SUMS").write_text(
         "".join(f"{digest}  {name}\n" for name, digest in sorted(hashes.items()))
     )
     release_base = f"https://github.com/{repo}/releases/download"
-    release_metadata = {
-        metadata_key(triple): metadata_entry(
-            triple, tag, release_base, hashes[asset_name(tag, triple)]
-        )
-        for triple in TRIPLES
-    }
-    smoke_metadata = {
-        metadata_key(triple): metadata_entry(
-            triple, tag, CANONICAL_PREFIX, hashes[asset_name(tag, triple)]
-        )
-        for triple in TRIPLES
-    }
-    (out / "download-metadata.json").write_text(json.dumps(release_metadata, indent=2) + "\n")
-    (out / "smoke-metadata.json").write_text(json.dumps(smoke_metadata, indent=2) + "\n")
+    (out / "download-metadata.json").write_text(
+        json.dumps(_metadata(tag, release_base, hashes), indent=2) + "\n"
+    )
+    (out / "smoke-metadata.json").write_text(
+        json.dumps(_metadata(tag, CANONICAL_PREFIX, hashes), indent=2) + "\n"
+    )
     return {
         "tag": tag,
         "assets": sorted(hashes),
