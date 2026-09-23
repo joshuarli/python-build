@@ -1,0 +1,350 @@
+# CI release pipeline: build all three distributions, smoke-test them through
+# upstream `uv`, then publish a GitHub prerelease in python-build-standalone
+# layout.
+#
+# Dispatch only: `gh workflow run build.yml -f release_tag=20260923`.
+# Re-running with the same tag fails at `gh release create`; use a new tag.
+#
+# Design notes, kept here because they are load-bearing:
+#
+# - macOS builds natively on `macos-26` (Apple Silicon, macOS 26+), because
+#   the artifact declares minos 26.0 and Mach-O cannot be built in Linux
+#   containers. The runner's Homebrew LLVM/make/pkgconf must satisfy
+#   `bootstrap.lock.json`; a toolchain upgrade fails closed in
+#   `build/deps.py` with the exact mismatch, and the fix is to refresh the
+#   lock from a matching local machine, not to loosen the check.
+# - Linux builds go through `Dockerfile` (`--target sealed`), one native
+#   runner per architecture, no QEMU: `ubuntu-latest` (x86_64) and
+#   `ubuntu-24.04-arm` (aarch64). Packaging runs inside the sealed image
+#   with `--network none`; it only reads the image and the verified cache.
+# - Caching is source blobs (`.cache/objects`, keyed on sources.lock.json)
+#   plus BuildKit layer caching (`type=gha`, one scope per arch). Compiled
+#   outputs are never cached: a full build owns its prefix and scratch area,
+#   and reusing them across runs is how stale objects leak into artifacts.
+# - CI builds are development-mode (`--dev`), not sealed qualification:
+#   `provenance.json` records `build_mode: development`. Sealed runs stay a
+#   local-machine activity (`build/sealed.py`, Dockerfile `--network=none`).
+# - Release assets use Astral's naming
+#   (`cpython-3.14.6+<tag>-<triple>-install_only_stripped.tar.gz`) so the
+#   prerelease doubles as a `uv` python-install mirror, via the shipped
+#   `download-metadata.json`. Only the `install_only_stripped` flavor is
+#   published: it is the one `uv` downloads, and the packaged archive is
+#   already stripped.
+# - The uv smoke test runs BEFORE the release, against a `file://` mirror of
+#   the exact bytes about to be published. `smoke-metadata.json` keeps the
+#   canonical `astral-sh/.../releases/download` URL prefix because `uv`
+#   only applies `UV_PYTHON_INSTALL_MIRROR` to that prefix; the mirror
+#   supplies our bytes under it. Linux smoke runs inside `alpine:3.24`
+#   (musl userspace), where the musl-linked artifact and its loader exist;
+#   it cannot run on the Ubuntu host's glibc.
+# - Toy programs are stdlib-only (`.github/scripts/toy.py`): the
+#   distribution ships no pip/venv/tkinter by design.
+
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release/build tag, e.g. 20260923. Empty defaults to today's UTC date."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+run-name: "build ${{ inputs.release_tag || 'dated' }}"
+
+env:
+  PYTHON_VERSION: "3.14.6"
+
+jobs:
+  build-macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache verified source blobs
+        uses: actions/cache@v4
+        with:
+          path: .cache/objects
+          key: sources-${{ hashFiles('sources.lock.json') }}
+          restore-keys: sources-
+
+      - name: Install toolchain (must satisfy bootstrap.lock.json)
+        run: brew install llvm make pkgconf
+
+      - name: Doctor
+        run: python3 build.py doctor
+
+      - name: Fetch
+        run: python3 build.py fetch --target aarch64-apple-darwin
+
+      - name: Build
+        run: python3 build.py build --target aarch64-apple-darwin --dev
+
+      - name: Package and validate
+        run: python3 build.py package --target aarch64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-aarch64-apple-darwin
+          path: dist/aarch64-apple-darwin
+
+  build-linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache verified source blobs
+        uses: actions/cache@v4
+        with:
+          path: .cache/objects
+          key: sources-${{ hashFiles('sources.lock.json') }}
+          restore-keys: sources-
+
+      - name: Fetch (populates .cache for the sealed image context)
+        run: python3 build/fetch.py
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sealed build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          target: sealed
+          tags: pysealed:amd64
+          load: true
+          cache-from: type=gha,scope=sealed-linux-amd64
+          cache-to: type=gha,mode=max,scope=sealed-linux-amd64
+
+      - name: Package and validate inside the sealed image
+        run: |
+          docker run --platform linux/amd64 --network none --name pkg-amd64 pysealed:amd64 \
+            python3 build/package.py
+          mkdir -p dist
+          docker cp pkg-amd64:/work/dist/. ./dist/
+          docker rm pkg-amd64
+          ls dist/x86_64-unknown-linux-musl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-x86_64-unknown-linux-musl
+          path: dist/x86_64-unknown-linux-musl
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache verified source blobs
+        uses: actions/cache@v4
+        with:
+          path: .cache/objects
+          key: sources-${{ hashFiles('sources.lock.json') }}
+          restore-keys: sources-
+
+      - name: Fetch (populates .cache for the sealed image context)
+        run: python3 build/fetch.py
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sealed build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          target: sealed
+          tags: pysealed:arm64
+          load: true
+          cache-from: type=gha,scope=sealed-linux-arm64
+          cache-to: type=gha,mode=max,scope=sealed-linux-arm64
+
+      - name: Package and validate inside the sealed image
+        run: |
+          docker run --platform linux/arm64 --network none --name pkg-arm64 pysealed:arm64 \
+            python3 build/package.py
+          mkdir -p dist
+          docker cp pkg-arm64:/work/dist/. ./dist/
+          docker rm pkg-arm64
+          ls dist/aarch64-unknown-linux-musl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-aarch64-unknown-linux-musl
+          path: dist/aarch64-unknown-linux-musl
+
+  assemble:
+    runs-on: ubuntu-latest
+    needs: [build-macos, build-linux-amd64, build-linux-arm64]
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-aarch64-apple-darwin
+          path: dist/aarch64-apple-darwin
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-x86_64-unknown-linux-musl
+          path: dist/x86_64-unknown-linux-musl
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-aarch64-unknown-linux-musl
+          path: dist/aarch64-unknown-linux-musl
+
+      - id: resolve
+        run: |
+          TAG="${{ inputs.release_tag }}"
+          if [ -z "$TAG" ]; then TAG=$(date -u +%Y%m%d); fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble Astral-format release assets
+        run: python3 build/uvmirror.py --tag "${{ steps.resolve.outputs.tag }}" --repo "${{ github.repository }}" --dist dist --out release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: release
+
+  smoke-macos:
+    runs-on: macos-26
+    needs: [assemble]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install our build through uv from a local mirror
+        env:
+          UV_PYTHON_INSTALL_MIRROR: "file://${{ github.workspace }}/mirror"
+        run: |
+          TAG="${{ needs.assemble.outputs.tag }}"
+          mkdir -p "mirror/$TAG"
+          cp release/*.tar.gz "mirror/$TAG/"
+          uv python install "cpython-${{ env.PYTHON_VERSION }}-darwin-aarch64-none" \
+            --python-downloads-json-url "${{ github.workspace }}/release/smoke-metadata.json"
+
+      - name: Toy programs on the uv-installed interpreter
+        run: |
+          PY="$(uv python find "cpython-${{ env.PYTHON_VERSION }}-darwin-aarch64-none")"
+          "$PY" .github/scripts/toy.py
+
+  smoke-linux-amd64:
+    runs-on: ubuntu-latest
+    needs: [assemble]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release
+
+      - name: uv smoke inside musl userspace
+        run: |
+          TAG="${{ needs.assemble.outputs.tag }}"
+          mkdir -p "mirror/$TAG"
+          cp release/*.tar.gz "mirror/$TAG/"
+          docker run --platform linux/amd64 \
+            -v "${PWD}/mirror:/mirror:ro" \
+            -v "${PWD}/release:/release:ro" \
+            -v "${PWD}/.github/scripts:/scripts:ro" \
+            alpine:3.24 sh -c '
+              set -eu
+              apk add --no-cache curl ca-certificates tar
+              curl -LsSf https://astral.sh/uv/install.sh | sh
+              export PATH="$HOME/.local/bin:$PATH"
+              export UV_PYTHON_INSTALL_MIRROR=file:///mirror
+              KEY="cpython-${{ env.PYTHON_VERSION }}-linux-x86_64-musl"
+              uv python install "$KEY" --python-downloads-json-url /release/smoke-metadata.json
+              "$(uv python find "$KEY")" /scripts/toy.py
+            '
+
+  smoke-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: [assemble]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release
+
+      - name: uv smoke inside musl userspace
+        run: |
+          TAG="${{ needs.assemble.outputs.tag }}"
+          mkdir -p "mirror/$TAG"
+          cp release/*.tar.gz "mirror/$TAG/"
+          docker run --platform linux/arm64 \
+            -v "${PWD}/mirror:/mirror:ro" \
+            -v "${PWD}/release:/release:ro" \
+            -v "${PWD}/.github/scripts:/scripts:ro" \
+            alpine:3.24 sh -c '
+              set -eu
+              apk add --no-cache curl ca-certificates tar
+              curl -LsSf https://astral.sh/uv/install.sh | sh
+              export PATH="$HOME/.local/bin:$PATH"
+              export UV_PYTHON_INSTALL_MIRROR=file:///mirror
+              KEY="cpython-${{ env.PYTHON_VERSION }}-linux-aarch64-musl"
+              uv python install "$KEY" --python-downloads-json-url /release/smoke-metadata.json
+              "$(uv python find "$KEY")" /scripts/toy.py
+            '
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [assemble, smoke-macos, smoke-linux-amd64, smoke-linux-arm64]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release
+
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ needs.assemble.outputs.tag }}"
+          cat > NOTES.md <<EOF
+          CPython ${{ env.PYTHON_VERSION }} standalone distributions (\`+${TAG}\` build).
+
+          Assets are \`install_only_stripped\` archives in python-build-standalone
+          layout and work as a \`uv\` python-install mirror via
+          \`download-metadata.json\` (see \`uv python install
+          --python-downloads-json-url ...\`).
+
+          Scope, same as the local build: GIL-enabled, ThinLTO without PGO,
+          no pip/ensurepip/venv, no Tcl/Tk. macOS arm64 requires macOS 26.0+;
+          Linux archives are dynamically linked against musl.
+          EOF
+          gh release create "$TAG" --prerelease \
+            --title "cpython-${{ env.PYTHON_VERSION }}+$TAG" \
+            --notes-file NOTES.md release/*

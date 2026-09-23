@@ -1,6 +1,6 @@
 #!/bin/sh
 # LTO smoke test: verify clang+lld produce and link ThinLTO objects on native musl.
-# plan.md 5.1 requires this before launching dependency builds.
+# AGENTS.md requires this gate before launching dependency builds.
 set -eu
 cd "$(dirname "$0")/.."
 work=$(mktemp -d /tmp/lto-smoke.XXXXXX)
