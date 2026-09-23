@@ -77,11 +77,16 @@ jobs:
 
       - name: Install toolchain (must satisfy bootstrap.lock.json)
         # `brew update` first: runner images lag Homebrew (seen: image pins
-        # LLVM 23.1.0 while the lock pins 23.1.1), and a bare `install` is a
-        # no-op when the formula is already present. `upgrade` covers the
-        # preinstalled case, `install` the missing case. A newer-than-lock
-        # toolchain still fails closed in build/deps.py by design.
-        run: brew update && brew upgrade llvm make pkgconf || brew install llvm make pkgconf
+        # LLVM 23.1.0 while the lock pins 23.1.1). Install-if-missing, then
+        # upgrade to latest; a bare `install` is a no-op when the formula is
+        # already present. A newer-than-lock toolchain still fails closed in
+        # build/deps.py by design.
+        run: |
+          brew update
+          for formula in llvm make pkgconf; do
+            brew list "$formula" >/dev/null 2>&1 || brew install "$formula"
+          done
+          brew upgrade llvm make pkgconf
 
       - name: Doctor
         run: python3 build.py doctor
@@ -328,6 +333,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: release-assets
