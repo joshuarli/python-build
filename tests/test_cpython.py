@@ -11,6 +11,7 @@ class CPythonTests(unittest.TestCase):
         args, env = configuration(Path('/private'), TARGETS['x86_64-unknown-linux-musl'])
         self.assertIn('--with-lto=thin', args)
         self.assertIn('--enable-shared', args)
+        self.assertIn('--enable-loadable-sqlite-extensions', args)
         self.assertIn('--without-ensurepip', args)
         self.assertNotIn('--enable-optimizations', args)
         self.assertIn('--enable-experimental-jit=no', args)
@@ -21,6 +22,8 @@ class CPythonTests(unittest.TestCase):
         self.assertIn('--with-readline=editline', args)
         self.assertEqual(env['PKG_CONFIG_LIBDIR'], '/private/lib/pkgconfig:/private/share/pkgconfig')
         self.assertIn('/private/lib/libbz2.a', env['BZIP2_LIBS'])
+        self.assertIn('/private/lib/libzstd.a', env['LIBZSTD_LIBS'])
+        self.assertIn('-pthread', env['LIBZSTD_LIBS'])
         self.assertNotIn('-flto', env.get('CFLAGS', ''))
         # $ORIGIN rpaths are applied by a post-install ELF edit, not baked
         # into configure-time LDFLAGS (see buildsys/cpython.py for why).
@@ -67,6 +70,7 @@ class MacOSCPythonTests(unittest.TestCase):
     def test_product_policy_is_identical_to_linux(self):
         self.assertIn('--with-lto=thin', self.args)
         self.assertIn('--enable-shared', self.args)
+        self.assertIn('--enable-loadable-sqlite-extensions', self.args)
         self.assertIn('--without-ensurepip', self.args)
         self.assertIn('--enable-experimental-jit=no', self.args)
         self.assertIn('--with-tail-call-interp=no', self.args)
@@ -104,6 +108,8 @@ class MacOSCPythonTests(unittest.TestCase):
 
     def test_bundled_dependencies_still_point_at_the_private_prefix(self):
         self.assertIn('/private/lib/libbz2.a', self.env['BZIP2_LIBS'])
+        self.assertIn('/private/lib/libzstd.a', self.env['LIBZSTD_LIBS'])
+        self.assertNotIn('-pthread', self.env['LIBZSTD_LIBS'])
         self.assertIn('/private/lib/libsqlite3.a', self.env['LIBSQLITE3_LIBS'])
         self.assertIn('/private/lib/libmpdec.a', self.env['LIBMPDEC_LIBS'])
 

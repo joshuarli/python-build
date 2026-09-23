@@ -110,6 +110,24 @@ def install_style(name: str) -> str:
 def cflags_for(name: str, target: Target | None = None) -> str:
     """Per-package CFLAGS additions."""
     target = target or native_target()
+    if name == "sqlite":
+        # Match the supported SQLite extension profile exercised by the
+        # python-build-standalone distribution tests. Keep these as compile
+        # definitions on SQLite itself; the CPython configure switch below
+        # controls the separate sqlite3 extension-loading wrapper.
+        return " ".join((
+            "-DSQLITE_ENABLE_FTS3",
+            "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
+            "-DSQLITE_ENABLE_FTS4",
+            "-DSQLITE_ENABLE_FTS5",
+            "-DSQLITE_ENABLE_GEOPOLY",
+            "-DSQLITE_ENABLE_RTREE",
+            "-DSQLITE_ENABLE_DBSTAT_VTAB",
+        ))
+    if name == "zstd" and not target.is_macos:
+        # The static Makefile target is compiled with ZSTD_MULTITHREAD; POSIX
+        # threading must also be enabled on the compile line.
+        return "-pthread"
     if name == "libedit" and not target.is_macos:
         # musl's stdc-predef.h declares __STDC_ISO_10646__, but clang does
         # not auto-include it; libedit's chartype.h #errors without it.
@@ -122,7 +140,9 @@ def make_targets(name: str) -> tuple[str, ...]:
     if name == "bzip2":
         return ("libbz2.a",)
     if name == "zstd":
-        return ("libzstd.a",)
+        # The plain static target is single-threaded even when zstd's
+        # Makefile builds a multi-threaded shared library by default.
+        return ("libzstd.a-mt",)
     if name == "openssl":
         return ()
     return ()

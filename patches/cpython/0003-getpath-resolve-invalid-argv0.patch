@@ -1,0 +1,33 @@
+--- a/Modules/getpath.c
++++ b/Modules/getpath.c
+@@ -798,2 +798,8 @@
+         break;
++    }
++#elif defined(__linux__) && defined(HAVE_READLINK)
++    wchar_t path[MAXPATHLEN + 1];
++    int pathLen = _Py_wreadlink(L"/proc/self/exe", path, Py_ARRAY_LENGTH(path));
++    if (pathLen > 0) {
++        return wchar_to_dict(dict, key, path);
+     }
+--- a/Modules/getpath.py
++++ b/Modules/getpath.py
+@@ -58,3 +58,4 @@
+ # real_executable   -- [in, optional] resolved path to main process
+-#   On Windows and macOS, read directly from the running process
++#   On Windows and macOS, read directly from the running process. On Linux,
++#   read from procfs when it is mounted.
+ #   Otherwise, leave None and it will be calculated from executable
+@@ -272,3 +273,3 @@
+     # All platforms default to real_executable if known at this
+-    # stage. POSIX does not set this value.
++    # stage. POSIX may set this value when the running executable is known.
+     executable = real_executable
+@@ -280,3 +281,8 @@
+     # executable path was provided in the config.
+-    real_executable = executable
++    if isxfile(executable):
++        real_executable = executable
++    else:
++        executable = real_executable or executable
++elif os_name == 'posix' and real_executable and not isxfile(executable):
++    executable = real_executable

@@ -21,6 +21,35 @@ def _resolved(path: Path) -> Path:
 
 
 class RecipeTests(unittest.TestCase):
+    def test_sqlite_build_enables_the_standalone_feature_profile(self):
+        import runpy
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        flags = driver["cflags_for"]("sqlite")
+        for feature in (
+            "SQLITE_ENABLE_FTS3",
+            "SQLITE_ENABLE_FTS3_PARENTHESIS",
+            "SQLITE_ENABLE_FTS4",
+            "SQLITE_ENABLE_FTS5",
+            "SQLITE_ENABLE_GEOPOLY",
+            "SQLITE_ENABLE_RTREE",
+            "SQLITE_ENABLE_DBSTAT_VTAB",
+        ):
+            with self.subTest(feature=feature):
+                self.assertIn(f"-D{feature}", flags)
+
+    def test_zstd_static_library_keeps_multithreading_enabled(self):
+        import runpy
+
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        self.assertEqual(driver["make_targets"]("zstd"), ("libzstd.a-mt",))
+        self.assertIn(
+            "-pthread",
+            driver["cflags_for"]("zstd", TARGETS["x86_64-unknown-linux-musl"]),
+        )
+
     def test_gui_recipes_are_not_selectable(self):
         import runpy
         driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
