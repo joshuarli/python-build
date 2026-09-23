@@ -9,7 +9,8 @@ from buildsys.deporder import (
 from buildsys.inputs import load_lock
 from buildsys.scope import (
     EXCLUDED_SCRIPT_PREFIXES, EXCLUDED_STDLIB_DIRS, ScopeError,
-    enforce_exclusions, probe_in_process, verify_exclusions,
+    enforce_exclusions, probe_in_process, prune_distribution_payload,
+    verify_distribution_payload, verify_exclusions,
 )
 
 # Tcl/Tk and everything that exists solely to serve its GUI are outside the
@@ -129,6 +130,47 @@ class ExclusionEnforcementTests(unittest.TestCase):
         import sys
         present = probe_in_process(Path(sys.executable))
         self.assertIn("venv", present)
+
+    def _probe_interpreter(self, install: Path, *, test_importable: bool) -> None:
+        interpreter = install / "bin" / "python3.14"
+        interpreter.parent.mkdir(parents=True, exist_ok=True)
+        output = '{"test": true}' if test_importable else '{"test": false}'
+        interpreter.write_text(f"#!/bin/sh\nprintf '%s\\n' '{output}'\n")
+        interpreter.chmod(0o755)
+
+    def test_distribution_pruning_removes_test_and_bytecode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            install = Path(temporary) / "install"
+            library = install / "lib/python3.14"
+            test_package = library / "test"
+            test_cache = test_package / "__pycache__"
+            stdlib_cache = library / "json" / "__pycache__"
+            test_cache.mkdir(parents=True)
+            stdlib_cache.mkdir(parents=True)
+            (test_package / "__init__.py").write_text("")
+            (test_cache / "__init__.cpython-314.pyc").write_bytes(b"test")
+            (stdlib_cache / "json.cpython-314.pyc").write_bytes(b"stdlib")
+            (library / "stray.pyc").write_bytes(b"stray")
+            self._probe_interpreter(install, test_importable=False)
+
+            report = prune_distribution_payload(install)
+
+            self.assertFalse(test_package.exists())
+            self.assertFalse(verify_distribution_payload(install))
+            self.assertEqual(report["removed_stdlib_dirs"], ["lib/python3.14/test"])
+            self.assertEqual(report["removed_bytecode_files"], 3)
+            self.assertEqual(report["removed_bytecode_cache_dirs"], 2)
+            self.assertFalse(report["test_importable"])
+            self.assertTrue(report["ok"])
+
+    def test_distribution_pruning_fails_if_test_remains_importable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            install = Path(temporary) / "install"
+            (install / "lib/python3.14/test").mkdir(parents=True)
+            self._probe_interpreter(install, test_importable=True)
+
+            with self.assertRaisesRegex(ScopeError, "remains importable"):
+                prune_distribution_payload(install)
 
 
 if __name__ == "__main__":

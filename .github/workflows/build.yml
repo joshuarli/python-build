@@ -189,6 +189,15 @@ jobs:
           name: dist-aarch64-unknown-linux-musl
           path: dist/aarch64-unknown-linux-musl
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Check payload pruning and release size budgets
+        run: |
+          python3 -m unittest discover -s tests -p 'test_scope.py'
+          python3 -m unittest discover -s tests -p 'test_uvmirror.py'
+
       - id: resolve
         run: |
           TAG="${{ inputs.release_tag }}"

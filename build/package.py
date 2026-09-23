@@ -34,7 +34,12 @@ from buildsys import macho  # noqa: E402
 from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
 from buildsys.inputs import Cache, InputError, canonical_json, load_lock, safe_extract  # noqa: E402
 from buildsys.relocate import find_elfs  # noqa: E402
-from buildsys.scope import EXCLUDED_STDLIB_DIRS  # noqa: E402
+from buildsys.scope import (  # noqa: E402
+    DISTRIBUTION_EXCLUDED_STDLIB_DIRS,
+    EXCLUDED_STDLIB_DIRS,
+    ScopeError,
+    prune_distribution_payload,
+)
 from buildsys.targets import native_target  # noqa: E402
 from buildsys.testsuite import (  # noqa: E402
     classify, report_payload, run_suite, verify_excluded_failures,
@@ -82,15 +87,19 @@ REQUIRED_MODULES = (
     "ctypes", "readline", "curses", "zoneinfo", "socket", "threading",
     "concurrent.futures", "subprocess", "multiprocessing",
 )
-EXPECTED_MISSING_MODULES = ("_tkinter", "tkinter", "_gdbm")
+EXPECTED_MISSING_MODULES = ("_tkinter", "tkinter", "_gdbm", "test")
 # Absent by decision, not by accident: the GUI closure (2026-09-17) and the
 # packaging components (2026-09-18). `_gdbm` is absent because the dbm
-# backend is the platform's ndbm and no gdbm is built.
+# backend is the platform's ndbm and no gdbm is built. `test` remains until
+# the CPython regression suite completes, then is removed before archiving.
 EXPECTED_EXCLUDED_MODULES = (
     "_tkinter", "tkinter", "idlelib", "turtle", "_gdbm",
-    "pip", "ensurepip", "venv",
+    "pip", "ensurepip", "venv", "test",
 )
-DELIBERATE_EXCLUDED_STDLIB_DIRS = EXCLUDED_STDLIB_DIRS
+DELIBERATE_EXCLUDED_STDLIB_DIRS = (
+    *EXCLUDED_STDLIB_DIRS,
+    *DISTRIBUTION_EXCLUDED_STDLIB_DIRS,
+)
 
 
 class PackagingError(Exception):
@@ -670,17 +679,12 @@ def main(argv: list[str] | None = None) -> int:
         if macos:
             strip_tree_macos(work)
             validation = run_validation(work, REPO / "build" / "validate-work", TARGET_DESCRIPTION)
-            validation["scope"] = {
-                "excluded_by_scope": list(EXPECTED_EXCLUDED_MODULES),
-                "excluded_stdlib_dirs": list(DELIBERATE_EXCLUDED_STDLIB_DIRS),
-            }
             # The regression suite runs against a *disposable copy* of the
-            # packaged tree. Several tests write into the tree they exercise
-            # (test_compileall compiles the standard library), and running
-            # them against the tree being packaged would both mutate the
-            # artifact and make a second run differ from the first for reasons
-            # that have nothing to do with the product — which is exactly what
-            # plan Section 8 warns about.
+            # install tree before final distribution pruning. Several tests
+            # write into the tree they exercise (test_compileall compiles the
+            # standard library), so running them against the tree being
+            # packaged would mutate the artifact and make a second run differ
+            # for reasons that have nothing to do with the product.
             suite_tree = REPO / "build" / "package-work" / "regression-copy"
             if suite_tree.exists():
                 shutil.rmtree(suite_tree)
@@ -704,8 +708,8 @@ def main(argv: list[str] | None = None) -> int:
                 name: finding["failures"] for name, finding in solo.items()
             }
             validation["regression_suite"]["ran_against"] = (
-                "a disposable copy of the packaged tree, so bytecode written by "
-                "the tests cannot alter the artifact or skew a re-run"
+                "a disposable copy of the install tree before final distribution "
+                "pruning, so test-written bytecode cannot enter the artifact"
             )
             shutil.rmtree(suite_tree, ignore_errors=True)
             failed_checks = list(validation["failed"])
@@ -727,6 +731,12 @@ def main(argv: list[str] | None = None) -> int:
                     f"PT_INTERP {validation['musl_loader']!r} does not match "
                     f"expected {TARGET_DESCRIPTION.musl_loader!r} for target {TARGET}"
                 )
+        distribution_scope = prune_distribution_payload(work)
+        validation["scope"] = {
+            "excluded_by_scope": list(EXPECTED_EXCLUDED_MODULES),
+            "excluded_stdlib_dirs": list(DELIBERATE_EXCLUDED_STDLIB_DIRS),
+            "distribution_payload": distribution_scope,
+        }
         archive = build_archive(work, dist)
         write_sha256sums(dist, archive)
         (dist / "inputs.json").write_text(canonical_json(compute_inputs(REPO / "sources.lock.json")) + "\n")
@@ -744,7 +754,7 @@ def main(argv: list[str] | None = None) -> int:
         (dist / "parity.json").write_text(canonical_json(parity) + "\n")
         write_parity_md(parity, dist / "parity.md")
         (dist / "benchmarks.json").write_text(canonical_json(benchmarks) + "\n")
-    except (PackagingError, InputError) as error:
+    except (PackagingError, InputError, ScopeError) as error:
         print(f"FAIL package: {error}")
         return 1
 

@@ -62,6 +62,25 @@ TRIPLES: dict[str, dict[str, str]] = {
 
 CANONICAL_PREFIX = "https://github.com/astral-sh/python-build-standalone/releases/download"
 
+# Byte sizes of Astral's corresponding CPython 3.14.6 `install_only_stripped`
+# archives from the pinned 20260610 release. Keep our release assets within
+# 1.2x of these references; this is checked before the files are assembled.
+REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES = {
+    "aarch64-apple-darwin": 25_998_180,
+    "x86_64-unknown-linux-musl": 28_899_299,
+    "aarch64-unknown-linux-musl": 29_147_568,
+}
+
+
+def _require_size_budget(size_bytes: int, triple: str) -> None:
+    reference_size = REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES[triple]
+    if size_bytes * 5 > reference_size * 6:
+        maximum_size = reference_size * 6 // 5
+        raise UvMirrorError(
+            f"{triple} archive is {size_bytes} bytes, above the 1.2x limit "
+            f"of {maximum_size} bytes for the pinned Astral 20260610 asset"
+        )
+
 
 def asset_name(tag: str, triple: str) -> str:
     """The Astral-format asset name for one triple."""
@@ -130,6 +149,7 @@ def assemble(tag: str, repo: str, dist: Path, out: Path) -> dict:
     hashes: dict[str, str] = {}
     for triple in TRIPLES:
         source = find_local_archive(dist / triple, triple)
+        _require_size_budget(source.stat().st_size, triple)
         target = out / asset_name(tag, triple)
         if target.exists():
             raise UvMirrorError(f"refusing to overwrite existing {target}")

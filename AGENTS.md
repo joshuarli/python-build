@@ -31,12 +31,13 @@ load a native extension with no installer present.
 
 Deliberately absent (tested absences, not omissions): `pip`, `ensurepip`
 (with its bundled wheel), `venv`; `_tkinter`, `tkinter`, `idlelib`,
-`turtle`, and the Tcl/Tk+X11 closure; `_gdbm` (dbm backend is `ndbm` on
-macOS, Berkeley DB on Linux). macOS additionally takes zlib, libedit,
-ncurses/panel from the platform (`/usr/lib`) and bundles OpenSSL, SQLite,
-Expat, libffi, bzip2, xz, zstd, mpdecimal from source; it builds no libuuid
-or Berkeley DB (`_uuid`/dbm use platform facilities). Linux bundles all
-thirteen.
+`turtle`, `lib/python3.14/test` (retained through regression validation only),
+generated `.pyc`/`__pycache__`, and the Tcl/Tk+X11 closure; `_gdbm` (dbm
+backend is `ndbm` on macOS, Berkeley DB on Linux). macOS additionally takes
+zlib, libedit, ncurses/panel from the platform (`/usr/lib`) and bundles
+OpenSSL, SQLite, Expat, libffi, bzip2, xz, zstd, mpdecimal from source; it
+builds no libuuid or Berkeley DB (`_uuid`/dbm use platform facilities). Linux
+bundles all thirteen.
 
 ## Commands
 
@@ -133,8 +134,10 @@ round-trips (TLS both directions, sqlite, ndbm, compression incl.
 callbacks + private dylib; extension build/load and ABI3 fixture with no
 installer present; C embedding via shipped shared libpython (both placement
 recipes); relocation under a path with spaces; launcher scripts; broad
-CPython regression suite on a disposable copy with narrow, justified
-exclusions only. Parity rows are `match`/`intentional_difference`/`gap`/
+CPython regression suite on a disposable pre-prune install copy with narrow,
+justified exclusions only; final validation asserts the regression package,
+`.pyc`, and `__pycache__` caches are absent from the release tree. Parity rows
+are `match`/`intentional_difference`/`gap`/
 `untested`; benchmarks must disclose LTO-only vs the reference's PGO+LTO.
 
 ## Reference baseline (comparison only)
@@ -151,7 +154,9 @@ root, never on the bare host, and never let their bytes become inputs.
 `ubuntu-24.04-arm` through `Dockerfile --target sealed`, then package
 inside the image with `--network none`. Caches: `.cache/objects` (keyed on
 `sources.lock.json`) and BuildKit `type=gha` layers per arch; never cache
-compiled outputs. `assemble` renames to
+compiled outputs. `assemble` runs the scope and mirror regression tests, and
+`buildsys/uvmirror.py` rejects any asset over 1.2x the corresponding pinned
+Astral `20260610` `install_only_stripped` archive size. It then renames to
 `cpython-3.14.6+<tag>-<triple>-install_only_stripped.tar.gz` and emits
 `SHA256SUMS`, `download-metadata.json` (own release URLs), and
 `smoke-metadata.json` (canonical prefix for the mirror rewrite).
