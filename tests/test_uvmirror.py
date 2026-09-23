@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from buildsys.uvmirror import (
+    REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES,
     VERSION,
     UvMirrorError,
     assemble,
@@ -111,6 +112,31 @@ class AssembleTests(unittest.TestCase):
                 release["cpython-3.14.6-linux-x86_64-musl"]["sha256"],
                 smoke["cpython-3.14.6-linux-x86_64-musl"]["sha256"],
             )
+
+    def test_assemble_rejects_archives_over_astral_size_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            for triple in (
+                "aarch64-apple-darwin",
+                "x86_64-unknown-linux-musl",
+                "aarch64-unknown-linux-musl",
+            ):
+                triple_dir = root / "dist" / triple
+                triple_dir.mkdir(parents=True)
+                (triple_dir / f"cpython-{VERSION}-{triple}-r1.tar.gz").touch()
+            mac_archive = (
+                root / "dist" / "aarch64-apple-darwin"
+                / f"cpython-{VERSION}-aarch64-apple-darwin-r1.tar.gz"
+            )
+            maximum_size = (
+                REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES["aarch64-apple-darwin"]
+                * 6 // 5
+            )
+            with mac_archive.open("wb") as handle:
+                handle.truncate(maximum_size + 1)
+
+            with self.assertRaisesRegex(UvMirrorError, "1.2x limit"):
+                assemble("20260923-budget", "owner/name", root / "dist", root / "release")
 
     def test_assemble_refuses_missing_or_ambiguous_archives(self) -> None:
         with tempfile.TemporaryDirectory() as work:
