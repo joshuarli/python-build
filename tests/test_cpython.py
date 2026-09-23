@@ -35,6 +35,26 @@ class CPythonTests(unittest.TestCase):
         self.assertIn('-march=armv8-a', env['CFLAGS'])
         self.assertNotIn('x86-64', env['CFLAGS'])
 
+    def test_curses_panel_link_line_has_no_bare_directory(self):
+        # A bare directory on a link line is fed to the linker as an input
+        # file. CPython appends CURSES_LIBS+PANEL_LIBS to LIBS for its
+        # initscr probe, so one stray token disables _curses *and*
+        # _curses_panel with no build error (seen in CI: post-strip smoke
+        # import failed with "No module named '_curses'").
+        _, env = configuration(Path('/private'), TARGETS['x86_64-unknown-linux-musl'])
+        self.assertEqual(
+            env['PANEL_LIBS'],
+            '-L/private/lib /private/lib/libpanelw.a /private/lib/libncursesw.a',
+        )
+        for key, value in env.items():
+            if not key.endswith('_LIBS'):
+                continue
+            for token in value.split():
+                self.assertTrue(
+                    token.startswith('-') or '.' in Path(token).name,
+                    f"{key}: bare directory token {token!r}",
+                )
+
 
 class MacOSCPythonTests(unittest.TestCase):
     """macOS policy (plan 5.3): same product policy, different platform facts."""

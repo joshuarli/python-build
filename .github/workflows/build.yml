@@ -76,7 +76,12 @@ jobs:
           restore-keys: sources-
 
       - name: Install toolchain (must satisfy bootstrap.lock.json)
-        run: brew install llvm make pkgconf
+        # `brew update` first: runner images lag Homebrew (seen: image pins
+        # LLVM 23.1.0 while the lock pins 23.1.1), and a bare `install` is a
+        # no-op when the formula is already present. `upgrade` covers the
+        # preinstalled case, `install` the missing case. A newer-than-lock
+        # toolchain still fails closed in build/deps.py by design.
+        run: brew update && brew upgrade llvm make pkgconf || brew install llvm make pkgconf
 
       - name: Doctor
         run: python3 build.py doctor
