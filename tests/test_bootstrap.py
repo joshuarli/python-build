@@ -7,8 +7,10 @@ reported rather than silently used.
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from buildsys.bootstrap import (
@@ -101,6 +103,7 @@ class ToolchainConstructionTests(unittest.TestCase):
 
 
 class LockAgainstMachineTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "darwin", "locked Homebrew/Xcode tools are macOS-only")
     def test_repository_lock_matches_this_machine(self) -> None:
         locked = load_macos_toolchain(LOCK)
         found = problems(locked, host_floor=locked.deployment_target)
@@ -109,8 +112,26 @@ class LockAgainstMachineTests(unittest.TestCase):
     def test_wrong_compiler_version_is_reported(self) -> None:
         import dataclasses
         locked = load_macos_toolchain(LOCK)
-        stale = dataclasses.replace(locked, llvm_version="0.0.1-nonexistent")
-        self.assertTrue(any("0.0.1-nonexistent" in problem for problem in problems(stale)))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            llvm_prefix = root / "llvm"
+            clang = llvm_prefix / "bin" / "clang"
+            clang.parent.mkdir(parents=True)
+            clang.touch()
+            make = root / "gmake"
+            make.touch()
+            sdkroot = root / "MacOSX.sdk"
+            sdkroot.mkdir()
+            stale = dataclasses.replace(
+                locked, llvm_prefix=llvm_prefix, make=make, sdkroot=sdkroot,
+                llvm_version="0.0.1-nonexistent",
+            )
+            with patch("buildsys.bootstrap._tool_output", side_effect=[
+                f"clang version {locked.llvm_version}",
+                f"GNU Make {locked.make_version}",
+            ]), patch("buildsys.bootstrap.sdk_version", return_value=locked.deployment_target):
+                found = problems(stale)
+        self.assertTrue(any("0.0.1-nonexistent" in problem for problem in found))
 
     def test_missing_sdk_is_reported(self) -> None:
         import dataclasses
@@ -120,7 +141,8 @@ class LockAgainstMachineTests(unittest.TestCase):
 
     def test_host_below_floor_is_reported(self) -> None:
         locked = load_macos_toolchain(LOCK)
-        found = problems(locked, host_floor="999.0")
+        with patch("buildsys.bootstrap.platform.mac_ver", return_value=("26.0", "", "")):
+            found = problems(locked, host_floor="999.0")
         self.assertTrue(any("floor" in problem for problem in found))
 
 
@@ -148,7 +170,8 @@ class ToolchainSelectionTests(unittest.TestCase):
         self.assertEqual(toolchain.env()["LD"], "ld.lld")
 
     def test_macos_target_resolves_from_the_lock(self) -> None:
-        toolchain = toolchain_for(target_for_triple("aarch64-apple-darwin"), LOCK)
+        with patch("buildsys.bootstrap.problems", return_value=[]):
+            toolchain = toolchain_for(target_for_triple("aarch64-apple-darwin"), LOCK)
         self.assertTrue(toolchain.is_macos)
         self.assertTrue(Path(toolchain.cc).is_absolute())
 

@@ -40,6 +40,7 @@ from buildsys.scope import (  # noqa: E402
     ScopeError,
     prune_distribution_payload,
 )
+from buildsys.standalone_compat import run_standalone_compatibility  # noqa: E402
 from buildsys.targets import native_target  # noqa: E402
 from buildsys.testsuite import (  # noqa: E402
     classify, report_payload, run_suite, verify_excluded_failures,
@@ -737,6 +738,19 @@ def main(argv: list[str] | None = None) -> int:
             "excluded_stdlib_dirs": list(DELIBERATE_EXCLUDED_STDLIB_DIRS),
             "distribution_payload": distribution_scope,
         }
+        compatibility = run_standalone_compatibility(
+            work / "bin" / "python3.14", work, TARGET_DESCRIPTION
+        )
+        validation["pbs_distribution_compatibility"] = compatibility
+        if not compatibility["ok"]:
+            failures = [
+                name for name, result in compatibility["checks"].items()
+                if result.get("status") == "failed"
+            ]
+            (dist / "validation.json").write_text(canonical_json(validation) + "\n")
+            raise PackagingError(
+                "PBS distribution compatibility checks failed: " + ", ".join(failures)
+            )
         archive = build_archive(work, dist)
         write_sha256sums(dist, archive)
         (dist / "inputs.json").write_text(canonical_json(compute_inputs(REPO / "sources.lock.json")) + "\n")

@@ -39,6 +39,11 @@ OpenSSL, SQLite, Expat, libffi, bzip2, xz, zstd, mpdecimal from source; it
 builds no libuuid or Berkeley DB (`_uuid`/dbm use platform facilities). Linux
 bundles all thirteen.
 
+SQLite enables FTS3/4/5 (including the enhanced FTS3 query syntax), geopoly,
+rtree, dbstat, and CPython's loadable-extension API; applications must still
+explicitly enable extension loading on each connection. `compression.zstd`
+uses the zstd multithread-capable static library on all targets.
+
 ## Commands
 
 ```text
@@ -135,9 +140,14 @@ callbacks + private dylib; extension build/load and ABI3 fixture with no
 installer present; C embedding via shipped shared libpython (both placement
 recipes); relocation under a path with spaces; launcher scripts; broad
 CPython regression suite on a disposable pre-prune install copy with narrow,
-justified exclusions only; final validation asserts the regression package,
-`.pyc`, and `__pycache__` caches are absent from the release tree. Parity rows
-are `match`/`intentional_difference`/`gap`/
+justified exclusions only; PBS-adapted distribution checks run on the final
+post-prune bytes for SQLite's feature/security profile, locked OpenSSL/SQLite
+versions, zstd multithreading, libc ABI tags, interpreter startup through
+symlinks and unusual `argv[0]`, and Linux sysconfig/MDWE behavior. The
+Windows-only SSL key-log check, GUI, `venv` path-resolution path, and glibc
+Linux syscall checks are reported as out of scope. Final validation asserts
+the regression package, `.pyc`, and `__pycache__` caches are absent from the
+release tree. Parity rows are `match`/`intentional_difference`/`gap`/
 `untested`; benchmarks must disclose LTO-only vs the reference's PGO+LTO.
 
 ## Reference baseline (comparison only)

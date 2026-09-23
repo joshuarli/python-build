@@ -193,10 +193,8 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Check payload pruning and release size budgets
-        run: |
-          python3 -m unittest discover -s tests -p 'test_scope.py'
-          python3 -m unittest discover -s tests -p 'test_uvmirror.py'
+      - name: Run project unit tests
+        run: python3 -m unittest discover -s tests
 
       - id: resolve
         run: |

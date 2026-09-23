@@ -68,6 +68,7 @@ def _base_env(prefix: Path) -> dict[str, str]:
 COMMON_POLICY_ARGS = (
     "--with-lto=thin",
     "--enable-shared",
+    "--enable-loadable-sqlite-extensions",
     "--enable-experimental-jit=no",
     "--with-tail-call-interp=no",
     "--without-static-libpython",
@@ -82,6 +83,7 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         "PKG_CONFIG_LIBDIR": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
         "LIBUUID_CFLAGS": f"-I{prefix}/include/uuid",
         "LIBUUID_LIBS": f"-L{prefix}/lib {prefix}/lib/libuuid.a",
+        "LIBZSTD_LIBS": f"-L{prefix}/lib {prefix}/lib/libzstd.a -pthread",
         # Linux bundles ncurses/panel; macOS links the platform's 5.4 instead
         # (measured from the reference's load commands), so these must not be
         # set on that family — doing so silently links whatever static library
@@ -113,6 +115,7 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
     args = [
         "--with-lto=thin",
         "--enable-shared",
+        "--enable-loadable-sqlite-extensions",
         "--without-ensurepip",
         "--enable-experimental-jit=no",
         "--with-system-expat",
