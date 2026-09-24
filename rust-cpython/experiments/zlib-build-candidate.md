@@ -125,9 +125,48 @@ retains the SHA-256, size, Rust runtime identity, static symbols, and sole
 `libSystem` dynamic dependency reported above. A fresh isolated import
 confirmed both modules load and agree on CRC32 for the fixed payload.
 
-The incremental stage now totals 1,767,256 bytes across those two unstripped
-extensions, 1,591,440 bytes above the platform control. The new recipe's
-full PGO build has **not** run. That clean build must confirm the generated
-Makefile rewrite persists through profile and install phases, and must record
-the final installed hashes before any broader correctness or performance
-claim.
+The incremental stage totaled 1,767,256 bytes across those two unstripped
+extensions, 1,591,440 bytes above the platform control. At the time of this
+probe, the new recipe's full PGO build had not run. The next section records
+that clean qualification.
+
+## Revised clean whole build
+
+One fresh `python3.14 rust-cpython/build.py build --zlib-rs` completed in the
+same isolated worktree after the binascii link correction. The builder removed
+the previous build and stage trees, extracted the verified CPython and zlib-rs
+sources again, and rebuilt and installed with the pinned recipe above. The
+generated Makefile SHA-256 was
+`62e66455ef30b9d604f4438549952cb24fd72d965458549d26dcf4db9fbdbd6f`
+before the one-line binascii link rewrite and
+`481c71c5bc4666dc2756db65ff72d74573bfc3f5f1ec16ee9d4a5dcc99dddb0c`
+afterward. The final Makefile retained that latter hash through PGO and
+install, with `MODULE_ZLIB_LDFLAGS` set to the exact Rust archive and
+`MODULE_BINASCII_LDFLAGS=-lz`.
+
+`/usr/bin/time -l` recorded 736.23 user plus 120.87 system CPU seconds,
+327.35 seconds elapsed, 1,739,423,744 bytes maximum reported RSS, and zero
+swaps for the complete command. Host swap allocation stayed at 356.38 MiB.
+The reported RSS is the largest waited process RSS, not a simultaneous sum
+of the compiler process tree. CPU use and peak reported RSS were below the
+scheduled 1,200 CPU-second and 3 GiB limits.
+
+The installed `zlib` is 1,674,056 bytes, SHA-256
+`ae105fee7dddc3fa9001f3bfc0ad24af5be5061ebde4e85bb62ab2d9fc8b3a3e`.
+It reports header version `1.2.12`, runtime version
+`1.3.0-zlib-rs-0.6.7`, defines `zlibVersion`, `deflateInit2_`, and
+`inflateInit2_`, and depends dynamically only on
+`/usr/lib/libSystem.B.dylib`. Installed `binascii` is 93,200 bytes,
+SHA-256 `7c55f71473b6a4d75b3d157e6abf19f66156bf340b1428f04c3e854698e0f755`.
+It loads `/usr/lib/libz.1.dylib` and `/usr/lib/libSystem.B.dylib` and
+defines no static zlib backend symbols. The builder imported both from the
+stage tree, round-tripped a fixed payload, and checked CRC32 agreement.
+The two unstripped extensions total 1,767,256 bytes, 1,591,440 bytes above
+the existing platform control. Their hashes differ from the incremental
+probe while their sizes and backend identities agree; independent PGO
+profiles can produce different compiled bytes.
+
+The generated `rust-cpython/results/build.json` records the source, toolchain,
+Cargo, Makefile, and installed module evidence. No separate CPython or Cargo
+test suite or timing benchmark ran after the revised build. Those remain
+the next qualification gates.
