@@ -1,5 +1,21 @@
 # Rust-for-CPython experiment lanes
 
+## Fourteenth cycle (base `ddb5cf7`)
+
+The URL source-patch implementation uses
+`/private/tmp/python-build-exp-url-source-patch-20260924n`, branch
+`exp/rust-cpython-url-source-patch-20260924n`. It owns only a new authored
+patch under `rust-cpython/patches/`, that lane's manifest entry, and a new
+`experiments/url-quote-source-patch-20260924.md`. Its question is whether the
+cache-matched lean overlay can be rebuilt from the pinned Rust fork source
+without a new dependency or `Cargo.lock` change. It will prepare the patch,
+verify digest/schema/context against fresh pinned source, inspect generated
+configure/build rules, and run focused checks. No PGO/full interpreter build
+or paired benchmark while the host has unrelated heavy work; the coordinator
+will review before scheduling that serial qualification. Budget: 120 actual
+command CPU seconds, 2 GiB maximum reported RSS, generated trees inside its
+own worktree. The no-Rust control and production 3.14.6 build stay intact.
+
 ## Thirteenth cycle (base `6d8a8c0`)
 
 The URL memory-attribution diagnostic uses
