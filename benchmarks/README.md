@@ -293,8 +293,8 @@ physical-footprint totals, and process counts. The footprint values are
 sequential per-PID reads, so their sampled tree peak is approximate. Before
 reaping the workload root, the sampler also
 reads that PID's lifetime physical-footprint peak via `proc_pid_rusage` and
-uses kernel `wait4` peak RSS for the root and children it reaped. The reported
-peak RSS is the larger of the sampled tree peak and the kernel root-family
+uses kernel `wait4` peak RSS for the root alone. The reported
+peak RSS is the larger of the sampled tree peak and the kernel root
 peak, with both sources retained separately. The kernel counters catch a
 short-lived root, but cannot reconstruct a simultaneous peak for children
 that exited between samples. Apple's physical footprint is a charged-memory
@@ -313,9 +313,16 @@ briefly in the separate memory pass.
 
 Timing result files retain the workload's internal wall-latency sample and
 external elapsed time separately. They also record kernel `wait4` user and
-system CPU seconds, raw and per logical operation. The root's kernel usage
-includes children it reaped. A child still running or orphaned when the root
-exits is outside that accounting; timeout rounds mark CPU unavailable. The
+system CPU seconds, raw and per logical operation. `wait4` measures the
+workload root alone, even when that process reaped children. The cold ZIP
+import workload additionally reports `RUSAGE_CHILDREN` user and system time
+for its direct reaped interpreter children; the harness retains the separate
+root and child components and adds them once. Other workloads remain root-only
+unless they provide an explicit child ledger. Grandchildren, detached children,
+and children left alive at the boundary remain outside that accounting;
+timeout rounds mark CPU unavailable. A CPU comparison's `compared` status
+means numeric paired values were available, not full process-tree coverage;
+inspect each round's `coverage` field. The
 memory pass also records CPU seconds for diagnosis, but its sampled execution
 does not replace the uninstrumented timing pass.
 

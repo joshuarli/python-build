@@ -145,6 +145,11 @@ The sampled footprint is a kernel ledger of charged dirty memory across the
 observed process tree; it is neither USS/PSS nor an exact tree peak. The
 [`mac-footprint-20260924.md`](rust-cpython/experiments/mac-footprint-20260924.md)
 report records its coverage and sampler cost.
+The generic `wait4` CPU counter covers the workload root only. The cold ZIP
+import workload now adds a separate kernel ledger for its directly reaped
+interpreter children. Other subprocess workloads need explicit child coverage
+before their CPU values can be called process-tree totals; each result records
+its coverage.
 The Linux wheel lock targets CPython 3.14 musl and must not be silently reused
 for 3.16.
 
@@ -191,6 +196,9 @@ explicitly.
   A paired follow-up found the 3.13 MB ZIP peak-RSS increase below local
   repeatability noise; the footprint signal remains sample-sensitive. See
   [`zlib-memory-followup-20260924.md`](rust-cpython/experiments/zlib-memory-followup-20260924.md).
+- Cold ZIP import now records directly reaped child CPU separately from the
+  root's `wait4` usage. Earlier cold-import CPU data remain root-only; see
+  [`child-cpu-accounting-20260924.md`](rust-cpython/experiments/child-cpu-accounting-20260924.md).
 - The vanilla upstream 3.16.0a0 merge-base control built with the locked LLVM,
   ThinLTO, and the fork's nine-worker PGO task. Its recipe and limits are in
   [`upstream-baseline.md`](rust-cpython/experiments/upstream-baseline.md).
@@ -211,8 +219,8 @@ explicitly.
 
 - **The optional zlib-rs build is an experiment, not a production migration.**
   The ordinary lane build still links `Modules/zlibmodule.c` to platform zlib.
-  Repeat ZIP and memory measurements on a quieter host, account for nested
-  child CPU in cold import, and decide whether the compressed-byte differences
+  Repeat ZIP and memory measurements on a quieter host, including cold import
+  with the corrected direct-child CPU ledger, and decide whether the compressed-byte differences
   and installed-size cost fit the desired contract before promotion.
 - No public stdlib API in the experiment has yet been shown to improve
   broadly in Rust. The ranked entries in `rust-cpython/README.md` remain

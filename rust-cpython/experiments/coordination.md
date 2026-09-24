@@ -8,7 +8,7 @@ with OrbStack Helper near one CPU and 7.5 GB RSS. Its allocated swap remained
 
 | Lane | Worktree and branch | Owned paths | Question | Budget and status |
 | --- | --- | --- | --- | --- |
-| Child CPU accounting | `/private/tmp/python-build-exp-child-cpu-20260924d`, `exp/rust-cpython-child-cpu-20260924d` | `benchmarks/harness/process.py`, `benchmarks/harness/runner.py`, `benchmarks/workloads/zlib.py`, relevant focused tests, new `experiments/child-cpu-accounting-20260924.md` | Can the cold ZIP import report direct reaped child CPU without implying arbitrary descendant coverage? | 150 CPU seconds, 1 GiB RSS; active, no long benchmark/build |
+| Child CPU accounting | `/private/tmp/python-build-exp-child-cpu-20260924d`, `exp/rust-cpython-child-cpu-20260924d` | `benchmarks/harness/process.py`, `benchmarks/harness/runner.py`, `benchmarks/workloads/zlib.py`, relevant focused tests, new `experiments/child-cpu-accounting-20260924.md` | Can the cold ZIP import report direct reaped child CPU without implying arbitrary descendant coverage? | Integrated; no long benchmark/build |
 | ZIP memory diagnosis | `/private/tmp/python-build-exp-zlib-memory-20260924d`, `exp/rust-cpython-zlib-memory-20260924d` | New `experiments/zlib-memory-followup-20260924.md` only | What does the raw paired ZIP read RSS/footprint evidence support, and which quiet-host measurement should follow? | Integrated; no benchmark/build |
 
 The coordinator owns this ledger and the integration order. The agents have
@@ -24,6 +24,18 @@ MB. `zlib-memory-followup-20260924.md` records the raw-data interpretation
 and a quiet-host ZIP self-comparison plan. Four small analysis commands each
 used about 0.03 CPU seconds and below 19 MB reported RSS. This is an
 inconclusive memory signal, not a parity pass or established regression.
+
+The child CPU lane corrected `wait4` labels to root-only and added the
+`zipimport_cold` workload's separate `RUSAGE_CHILDREN` delta for directly
+reaped interpreter children. The runner validates and combines the ledgers
+while retaining both raw components. A two-operation smoke observed 0.077071
+user plus 0.039596 system seconds in the root and 0.03858 user plus 0.019014
+system seconds in its children. Its 47 focused tests passed with 10
+platform-specific skips; that command used 0.51 user plus 0.28 system CPU
+seconds and 48,398,336 bytes maximum reported RSS. The direct smoke command
+used 0.12 user plus 0.08 system CPU seconds and 23,986,176 bytes maximum RSS.
+`child-cpu-accounting-20260924.md` records scope and limits. The earlier cold
+ZIP CPU figure is still root-only and must be remeasured under this contract.
 
 ## Third cycle (base `87b0eec`)
 
