@@ -26,6 +26,18 @@ checks. Five measured controllers used 45.06 user-plus-system CPU seconds,
 rejections are withdrawn pending a cache-matched standard comparison; see
 `url-quote-memory-attribution-20260924.md`.
 
+The fair lean URL comparison uses
+`/private/tmp/python-build-exp-url-fair-compare-20260924m`, branch
+`exp/rust-cpython-url-fair-compare-20260924m` (base `30efa06`). It owns a
+new `experiments/url-quote-fair-comparison-20260924.md` and uniquely named
+compact data only. It clones the last accepted Rust fork stage into control
+and candidate, installs the hash-verified lean overlay only in the
+candidate, and explicitly regenerates and verifies valid checked-hash parser
+bytecode in both clones outside measurement. Then it runs serial control and
+candidate self-calibration and a complete standard paired catalog comparison
+if timing noise permits. No concurrent build or benchmark lane. Budget:
+120 actual command CPU seconds and 1 GiB maximum reported RSS.
+
 ## Twelfth cycle (base `5c393f5`)
 
 The macOS 3.16 application-input audit uses
