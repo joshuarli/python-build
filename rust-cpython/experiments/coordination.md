@@ -2,6 +2,16 @@
 
 ## Twelfth cycle (base `5c393f5`)
 
+The macOS 3.16 application-input audit uses
+`/private/tmp/python-build-exp-mac-input-audit-20260924j`, branch
+`exp/rust-cpython-mac-input-audit-20260924j` (base `3ff3b10`), and owns only
+`experiments/mac-input-audit-20260924.md`. It traces existing benchmark
+fixtures, wheel locks, and the cold Django request gap, then proposes exact
+code/manifest changes needed for compatible byte-pinned inputs. It does not
+fetch packages, add dependencies, edit benchmarks, or run substantial
+compilation/timing while the lean URL proof is active. Budget: 20 command CPU
+seconds, 512 MiB maximum RSS. The coordinator owns any decision or edits.
+
 The lean URL quotation proof uses
 `/private/tmp/python-build-exp-url-lean-20260924j`, branch
 `exp/rust-cpython-url-lean-20260924j`, and owns only a new
