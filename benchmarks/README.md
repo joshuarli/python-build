@@ -31,12 +31,13 @@ timing score alone cannot show.
 From the repository root, `make bench` is the end-to-end product comparison.
 It checks the native target, fetches locked product and benchmark inputs,
 prepares the offline benchmark image, builds and packages the product when its
-archive is absent, then runs the full repository workload suite against the
-pinned PBS baseline and the complete pyperformance suite. The default profile
-is `standard` (timing plus process-tree memory); override it with
-`BENCH_PROFILE=rigorous` to add allocation tracing. Set
-`BENCH_PYPERFORMANCE_SELECTION` to a pyperformance group or benchmark name to
-run a smaller selection; it defaults to `all` for every profile.
+archive is absent, then runs all repository-owned workloads against the pinned
+PBS baseline. The default profile is `standard` (timing plus process-tree
+memory); override it with `BENCH_PROFILE=rigorous` to add allocation tracing.
+
+`make bench-full` adds the complete pinned pyperformance suite, which can take
+substantially longer. Set `BENCH_PYPERFORMANCE_SELECTION` to a pyperformance
+group or benchmark name to run a smaller selection; it defaults to `all`.
 
 The supported one-command comparison currently requires native Linux amd64.
 Product input fetching and benchmark preparation may use the network; the
