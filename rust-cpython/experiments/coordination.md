@@ -84,7 +84,7 @@ other benchmark. The URL quote comparison lane uses
 `/private/tmp/python-build-exp-url-compare-20260924i`, branch
 `exp/rust-cpython-url-compare-20260924i`. It owns only a new
 `url-quote-comparison-20260924.md` and compact raw evidence. It clones the
-existing no-Rust stage using copy-on-write files inside its worktree, installs
+existing Rust fork stage using copy-on-write files inside its worktree, installs
 the proof overlay only into that clone, verifies imports and hashes, then
 runs control self-comparison followed by serial standard paired catalog
 workloads if self-noise permits. Budget: 120 command CPU seconds, 1 GiB
@@ -101,7 +101,9 @@ the clone/source hashes stayed intact. Four controller commands used 56.10
 actual CPU seconds total, at most 47,005,696 bytes reported RSS, and zero
 swaps. The 1.47 MB Rust extension and memory increase reject this overlay
 under the current resource rule. See `url-quote-comparison-20260924.md` and
-its compact raw data. A smaller-resident proof is a distinct experiment.
+its compact raw data. The executable hash resolves to the Rust fork stage,
+not the no-Rust stage originally named in the lane brief; both paired sides
+still used identical bytes. A smaller-resident proof is a distinct experiment.
 
 ## Ninth cycle (base `b24b689`)
 

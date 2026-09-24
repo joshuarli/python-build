@@ -5,9 +5,9 @@
 Can a std Rust byte scanner preserve pinned CPython 3.16 `urllib.parse.quote`
 behavior inside the registered catalog URL task? This proof is an isolated
 overlay, not a product patch. Run `url-quote-proof/build.py` with the pinned
-no-Rust interpreter, then put its ignored `.work/overlay` before the checkout
+Rust fork interpreter, then put its ignored `.work/overlay` before the checkout
 on `PYTHONPATH`. The builder checks the installed `urllib/parse.py` SHA-256
-before copying the package and inserting a guarded call. The input control is
+before copying the package and inserting a guarded call. The input interpreter is
 `/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16`, SHA-256
 `6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd`;
 its installed parse source is SHA-256

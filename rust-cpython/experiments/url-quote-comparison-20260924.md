@@ -15,7 +15,7 @@ smaller resident footprint would need a new isolated comparison.
 
 ## Matched inputs and execution
 
-I APFS-cloned the same pinned no-Rust CPython 3.16 stage twice with `cp -cR`
+I APFS-cloned the same pinned Rust fork CPython 3.16 stage twice with `cp -cR`
 into this worktree's ignored `rust-cpython/work/url-quote-comparison-20260924/`.
 The control clone is unmodified. In the candidate clone I replaced only
 `lib/python3.16/urllib/parse.py` and added
@@ -29,6 +29,10 @@ the candidate and proof parse files have SHA-256
 The candidate and proof extension files have SHA-256
 `be56ff7706b06a4bb2b9eee73a47d33a4785ee0a86e071d9158ba99ccd66b371`.
 I rechecked both original stage hashes after the run; they were unchanged.
+The executable hash identifies `rust-cpython/stage/bin/python3.16`, which
+includes the existing `_base64` integration proof. An earlier version of this
+report called it the no-Rust stage. Both comparison sides used the same
+executable, so the URL overlay delta remains internally matched.
 
 Each cloned executable resolved its own `sys.prefix` and `urllib.parse.__file__`.
 The candidate imported `_rust_url_quote` from its own `lib-dynload` and

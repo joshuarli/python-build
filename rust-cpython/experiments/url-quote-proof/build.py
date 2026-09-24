@@ -1,6 +1,6 @@
 """Build an isolated extension and a guarded urllib.parse overlay.
 
-The source interpreter is the pinned no-Rust CPython 3.16 control. All build
+The recorded proof used the pinned Rust fork CPython 3.16 stage. All build
 products and copied Python files stay under this experiment's ignored .work/.
 """
 
