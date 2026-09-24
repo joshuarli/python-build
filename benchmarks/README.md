@@ -29,9 +29,26 @@ timing score alone cannot show.
 
 ## Prepare and run
 
-Start by checking the host and fetching the locked benchmark inputs. Fetching is
-the network-enabled preparation step; measurements use the prepared inputs
-offline.
+From the repository root, `make bench` is the end-to-end product comparison.
+It checks the native target, fetches locked product and benchmark inputs,
+prepares the offline benchmark image, builds and packages the product when its
+archive is absent, then runs all repository-owned workloads against the pinned
+PBS baseline. The default profile is `standard` (timing plus process-tree
+memory); override it with `BENCH_PROFILE=rigorous` to add allocation tracing.
+
+`make bench-full` adds the complete pinned pyperformance suite, which can take
+substantially longer. Set `BENCH_PYPERFORMANCE_SELECTION` to a pyperformance
+group or benchmark name to run a smaller selection; it defaults to `all`.
+
+The supported one-command comparison currently requires native Linux amd64.
+Product input fetching and benchmark preparation may use the network; the
+measurement container runs with networking disabled. The benchmark result and
+runner-specific baseline snapshot are written under `benchmarks/results/` and
+`benchmarks/baselines/` respectively.
+
+To prepare or run the components separately, first check the host and fetch
+the locked benchmark inputs. Fetching is the network-enabled preparation step;
+measurements use the prepared inputs offline.
 
 ```sh
 python3 benchmarks/bench.py doctor
@@ -142,6 +159,33 @@ regenerate a report from an existing result directory, run:
 ```sh
 python3 benchmarks/bench.py compare benchmarks/results/<run>/run
 ```
+
+Every completed `run` or `self-compare` updates a compact baseline JSON file
+under `benchmarks/baselines/`. Its stable path is keyed by runner hardware,
+baseline interpreter kind/version, suite/profile, and selected workload names;
+repeating the same comparison updates that file in place. `--record-baseline
+PATH` selects a specific file under `benchmarks/baselines/` instead:
+
+```sh
+python3 benchmarks/bench.py self-compare --python image-python \
+  --suite realworld --profile standard \
+  --record-baseline benchmarks/baselines/linux-amd64-self-control.json
+```
+
+An existing result can refresh its automatically selected baseline without
+repeating measurements:
+
+```sh
+python3 benchmarks/bench.py record-baseline benchmarks/results/<run>/run
+```
+
+The snapshot records per-workload timing, process-tree memory, allocation
+rounds when collected, interpreter identity, input-lock and image identity,
+and runner CPU, memory, kernel, affinity, and load details. It leaves raw
+sampler data and Memray captures in the ignored run directory. Baseline files
+are atomically refreshed after successful measurements. A self-comparison is
+labeled `self_control_calibration`; it characterizes the runner and harness,
+but it does not substitute for a product-versus-upstream baseline.
 
 The benchmark dependency prefix is separate from the tested interpreter. The
 controller prepares it from verified wheelhouse inputs, so the tested

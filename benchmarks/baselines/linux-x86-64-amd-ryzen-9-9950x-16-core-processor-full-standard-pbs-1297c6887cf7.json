@@ -1,0 +1,1646 @@
+{
+  "comparison_role": "interpreter_baseline",
+  "pyperformance": {
+    "benchmarks": [
+      {
+        "groups": [
+          "apps",
+          "async/network"
+        ],
+        "memory_bytes": {
+          "command_max_rss": null,
+          "max": 53936128,
+          "median": 51308544.0,
+          "mem_max_rss": 67710976,
+          "min": 49414144,
+          "sample_count": 40,
+          "stdev": 1260237.9018214957
+        },
+        "name": "fastapi_http",
+        "timing_seconds": {
+          "max": 0.4637166380416602,
+          "median": 0.3862535204971209,
+          "min": 0.29750205599702895,
+          "sample_count": 120,
+          "stdev": 0.031999514270788655
+        }
+      }
+    ],
+    "groups": {
+      "apps": {
+        "command_max_rss_change_count": 0,
+        "median_command_max_rss_change_pct": null,
+        "median_mem_max_rss_change_pct": 5.891960558949849,
+        "median_time_change_pct": 6.167843087671754,
+        "mem_max_rss_change_count": 1,
+        "memory_coverage": {
+          "compared": 1,
+          "selected": 1
+        },
+        "recorded_count": 1,
+        "recorded_members": [
+          "fastapi_http"
+        ],
+        "selected_count": 1,
+        "selected_members": [
+          "fastapi"
+        ],
+        "time_change_count": 1,
+        "timing_coverage": {
+          "compared": 1,
+          "selected": 1
+        }
+      },
+      "async/network": {
+        "command_max_rss_change_count": 0,
+        "median_command_max_rss_change_pct": null,
+        "median_mem_max_rss_change_pct": 5.891960558949849,
+        "median_time_change_pct": 6.167843087671754,
+        "mem_max_rss_change_count": 1,
+        "memory_coverage": {
+          "compared": 1,
+          "selected": 1
+        },
+        "recorded_count": 1,
+        "recorded_members": [
+          "fastapi_http"
+        ],
+        "selected_count": 1,
+        "selected_members": [
+          "fastapi"
+        ],
+        "time_change_count": 1,
+        "timing_coverage": {
+          "compared": 1,
+          "selected": 1
+        }
+      }
+    },
+    "pyperf_version": "2.10.0",
+    "suite_version": "1.14.0"
+  },
+  "recorded_at_utc": "2026-09-24T17:39:01.150923+00:00",
+  "reference_interpreter": {
+    "abi": "cpython-314-x86_64-linux-musl",
+    "compiler": "Clang 22.1.3 ",
+    "config_args": "'--build=x86_64-unknown-linux-gnu' '--host=x86_64-unknown-linux-musl' '--prefix=/install' '--with-openssl=/tools/deps' '--with-system-expat' '--with-system-libmpdec' '--without-ensurepip' '--with-readline=editline' '--enable-static-libpython-for-interpreter' '--enable-shared' '--with-mimalloc' '--with-lto' '--with-build-python=/tools/host/bin/python3.14' 'ac_cv_func_explicit_bzero=no' '--with-dbmliborder=bdb' 'cross_compiling=yes' 'ac_cv_buggy_getaddrinfo=no' 'ac_cv_file__dev_ptc=no' 'ac_cv_file__dev_ptmx=no' 'ac_cv_working_tzset=yes' 'ac_cv_pthread=yes' 'ac_cv_aligned_required=no' 'ac_cv_broken_sem_getvalue=no' 'build_alias=x86_64-unknown-linux-gnu' 'host_alias=x86_64-unknown-linux-musl' 'PKG_CONFIG=pkg-config --static' 'PKG_CONFIG_PATH=/tools/deps/share/pkgconfig:/tools/deps/lib/pkgconfig' 'CC=musl-clang' 'CFLAGS=-O3  -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fPIC  ' 'LDFLAGS=-Wl,-z,noexecstack  -Wl,--exclude-libs,ALL ' 'CPPFLAGS=-O3  -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fPIC  ' 'PROFILE_TASK=-m test --pgo -j 4 --ignore test_strftime_y2k --ignore test.test_bytes.BytesTest.test_from_format'",
+    "executable": "/tmp/bench-interpreters-rfmlruil/baseline/python/bin/python3.14",
+    "executable_sha256": "b297ecb480023455efb579f13141f30a634e6f64287a04ba12dc5d6dbe44d526",
+    "implementation": "CPython",
+    "input_descriptor": "/home/josh/d/python-build-benchmarking-enhancement/benchmarks/.cache/references/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+    "kind": "pbs",
+    "label": "Astral PBS 20260610",
+    "platform": "linux-x86_64",
+    "source": "artifact baseline.tar.gz sha256:54eca143d09ed3c596ecad5e3bfcb7724387818f8f984f44f3d8c0e9f36681d3",
+    "version": [
+      3,
+      14,
+      6
+    ]
+  },
+  "runner": {
+    "cpu_affinity": {
+      "allowed_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "selected_cpus": [
+        0
+      ]
+    },
+    "cpu_boost_state": {
+      "amd_pstate_status": "active",
+      "generic_boost": "1",
+      "intel_no_turbo": null
+    },
+    "cpu_governors": [
+      "powersave"
+    ],
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "cpu_topology": {
+      "allowed_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "cores": [
+        {
+          "allowed_cpus": [
+            0,
+            16
+          ],
+          "core_id": 0,
+          "logical_cpus": [
+            0,
+            16
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            1,
+            17
+          ],
+          "core_id": 1,
+          "logical_cpus": [
+            1,
+            17
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            2,
+            18
+          ],
+          "core_id": 2,
+          "logical_cpus": [
+            2,
+            18
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            3,
+            19
+          ],
+          "core_id": 3,
+          "logical_cpus": [
+            3,
+            19
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            4,
+            20
+          ],
+          "core_id": 4,
+          "logical_cpus": [
+            4,
+            20
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            5,
+            21
+          ],
+          "core_id": 5,
+          "logical_cpus": [
+            5,
+            21
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            6,
+            22
+          ],
+          "core_id": 6,
+          "logical_cpus": [
+            6,
+            22
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            7,
+            23
+          ],
+          "core_id": 7,
+          "logical_cpus": [
+            7,
+            23
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            8,
+            24
+          ],
+          "core_id": 8,
+          "logical_cpus": [
+            8,
+            24
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            9,
+            25
+          ],
+          "core_id": 9,
+          "logical_cpus": [
+            9,
+            25
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            10,
+            26
+          ],
+          "core_id": 10,
+          "logical_cpus": [
+            10,
+            26
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            11,
+            27
+          ],
+          "core_id": 11,
+          "logical_cpus": [
+            11,
+            27
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            12,
+            28
+          ],
+          "core_id": 12,
+          "logical_cpus": [
+            12,
+            28
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            13,
+            29
+          ],
+          "core_id": 13,
+          "logical_cpus": [
+            13,
+            29
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            14,
+            30
+          ],
+          "core_id": 14,
+          "logical_cpus": [
+            14,
+            30
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            15,
+            31
+          ],
+          "core_id": 15,
+          "logical_cpus": [
+            15,
+            31
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        }
+      ],
+      "numa_nodes": [
+        0
+      ],
+      "online_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    "kernel_release": "6.18.33-0-lts",
+    "load_average": [
+      72.9794921875,
+      57.2958984375,
+      54.310546875
+    ],
+    "logical_cpu_count": 32,
+    "machine": "x86_64",
+    "memory_available_bytes": 50359762944,
+    "memory_total_bytes": 64900644864,
+    "numa_topology": {
+      "core_counts": {
+        "0": 16
+      },
+      "nodes": [
+        0
+      ]
+    },
+    "physical_core_count": 16,
+    "swap_total_bytes": 34359730176,
+    "system": "Linux"
+  },
+  "schema_version": 1,
+  "source": {
+    "benchmark_image_id": "sha256:91a1024793e1518d791f64a0f59ce327516f1f41ef797e201f4626be3058b7b6",
+    "benchmark_lock_sha256": "b17cceb3b642ffe36c5c183fd6ac1a2d9f4f83034b21623d74ce5efef973fde1",
+    "benchmark_tool_versions": {
+      "memray": "1.20.0",
+      "pyperf": "2.10.0",
+      "pyperformance": "1.14.0"
+    },
+    "container_runtime_version": "29.5.2/29.5.2",
+    "git_commit": "aca86bc7bc839abf9b13fd6725d245525407bf5b",
+    "memory_sampling_interval_seconds": 0.01,
+    "offline_boundary": "docker --network none",
+    "profile": "standard",
+    "suite": "full",
+    "timestamp_utc": "2026-09-24T17:39:01.150923+00:00"
+  },
+  "workloads": [
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "web",
+      "digest": "b609c04885f4c3ca00a0535939258e2f5595ee991874540da00d20f0d29806cf",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 68972544,
+          "median": 68907008,
+          "min": 68829184,
+          "sample_count": 3,
+          "stdev": 71767.7177566627
+        },
+        "peak_pss": {
+          "max": 68978688,
+          "median": 68914176,
+          "min": 68837376,
+          "sample_count": 3,
+          "stdev": 70744.98744080742
+        },
+        "peak_rss": {
+          "max": 69570560,
+          "median": 69517312,
+          "min": 69427200,
+          "sample_count": 3,
+          "stdev": 72465.63742906012
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 68829184,
+            "peak_pss": 68837376,
+            "peak_rss": 69427200,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68907008,
+            "peak_pss": 68914176,
+            "peak_rss": 69517312,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68972544,
+            "peak_pss": 68978688,
+            "peak_rss": 69570560,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "django_wsgi_request",
+      "operation": "request",
+      "operation_count": 30,
+      "timing_seconds": {
+        "max": 0.08954695309512317,
+        "median": 0.06851995713077486,
+        "min": 0.06686405488289893,
+        "sample_count": 5,
+        "stdev": 0.00965414385665996
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "web",
+      "digest": "b609c04885f4c3ca00a0535939258e2f5595ee991874540da00d20f0d29806cf",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 68902912,
+          "median": 68734976,
+          "min": 68501504,
+          "sample_count": 5,
+          "stdev": 156588.31752081634
+        },
+        "peak_pss": {
+          "max": 68910080,
+          "median": 68745216,
+          "min": 68513792,
+          "sample_count": 5,
+          "stdev": 155449.81066312047
+        },
+        "peak_rss": {
+          "max": 69484544,
+          "median": 69357568,
+          "min": 69111808,
+          "sample_count": 5,
+          "stdev": 147074.35054692577
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 5,
+        "rounds": [
+          {
+            "peak_private": 68902912,
+            "peak_pss": 68910080,
+            "peak_rss": 69484544,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68734976,
+            "peak_pss": 68743168,
+            "peak_rss": 69328896,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68734976,
+            "peak_pss": 68745216,
+            "peak_rss": 69357568,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68861952,
+            "peak_pss": 68874240,
+            "peak_rss": 69455872,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68501504,
+            "peak_pss": 68513792,
+            "peak_rss": 69111808,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "django_asgi_request",
+      "operation": "request",
+      "operation_count": 30,
+      "timing_seconds": {
+        "max": 0.18922441895119846,
+        "median": 0.16764149582013488,
+        "min": 0.11855472880415618,
+        "sample_count": 5,
+        "stdev": 0.02631682648874437
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "database",
+      "digest": "bc172d970c00ee6b286cbc2d916c195221eb2c9cfc648027e5970370d40cb501",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 68952064,
+          "median": 68661248,
+          "min": 68530176,
+          "sample_count": 3,
+          "stdev": 215925.64290514454
+        },
+        "peak_pss": {
+          "max": 68960256,
+          "median": 68670464,
+          "min": 68538368,
+          "sample_count": 3,
+          "stdev": 215800.1548593822
+        },
+        "peak_rss": {
+          "max": 69517312,
+          "median": 69263360,
+          "min": 69095424,
+          "sample_count": 3,
+          "stdev": 212400.409189813
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 68661248,
+            "peak_pss": 68670464,
+            "peak_rss": 69263360,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68530176,
+            "peak_pss": 68538368,
+            "peak_rss": 69095424,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68952064,
+            "peak_pss": 68960256,
+            "peak_rss": 69517312,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "django_orm_10k",
+      "operation": "row",
+      "operation_count": 10000,
+      "timing_seconds": {
+        "max": 0.07316228398121893,
+        "median": 0.06857702601701021,
+        "min": 0.06369126588106155,
+        "sample_count": 5,
+        "stdev": 0.003641729205781325
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "web",
+      "digest": "ca75ad95cf42c3a331f3dfc4b5f9a2811ab6c56a998a2be9d1cb1c543d95c599",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 68804608,
+          "median": 68628480,
+          "min": 68354048,
+          "sample_count": 3,
+          "stdev": 227060.3108603527
+        },
+        "peak_pss": {
+          "max": 68814848,
+          "median": 68637696,
+          "min": 68366336,
+          "sample_count": 3,
+          "stdev": 225898.9799475273
+        },
+        "peak_rss": {
+          "max": 69365760,
+          "median": 69210112,
+          "min": 68968448,
+          "sample_count": 3,
+          "stdev": 200201.82073098136
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 68628480,
+            "peak_pss": 68637696,
+            "peak_rss": 69210112,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68354048,
+            "peak_pss": 68366336,
+            "peak_rss": 68968448,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 68804608,
+            "peak_pss": 68814848,
+            "peak_rss": 69365760,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "django_template_realistic",
+      "operation": "render",
+      "operation_count": 30,
+      "timing_seconds": {
+        "max": 0.0744037670083344,
+        "median": 0.06970681715756655,
+        "min": 0.06055662897415459,
+        "sample_count": 5,
+        "stdev": 0.005027783536054953
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "tooling",
+      "digest": "8be2abf8780770028f35c994fb0f246f97a3968144113862fc230737d3a55f1c",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 122519552,
+          "median": 122499072,
+          "min": 122146816,
+          "sample_count": 3,
+          "stdev": 209537.5247348312
+        },
+        "peak_pss": {
+          "max": 132012032,
+          "median": 131867648,
+          "min": 131644416,
+          "sample_count": 3,
+          "stdev": 185211.94559027054
+        },
+        "peak_rss": {
+          "max": 142577664,
+          "median": 142393344,
+          "min": 142282752,
+          "sample_count": 3,
+          "stdev": 148984.08226384455
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 122499072,
+            "peak_pss": 131867648,
+            "peak_rss": 142393344,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 122519552,
+            "peak_pss": 132012032,
+            "peak_rss": 142577664,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 122146816,
+            "peak_pss": 131644416,
+            "peak_rss": 142282752,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "pylint_source",
+      "operation": "lint pass",
+      "operation_count": 23,
+      "timing_seconds": {
+        "max": 6.0235648970119655,
+        "median": 5.594778063008562,
+        "min": 5.114857124863192,
+        "sample_count": 5,
+        "stdev": 0.34418022610187815
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "parsing",
+      "digest": "f3681726b864f9ee8cee2e73c154d34019c9e770483c65f1046d66ae1b274b1b",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 61181952,
+          "median": 61177856,
+          "min": 61136896,
+          "sample_count": 3,
+          "stdev": 24914.995324101506
+        },
+        "peak_pss": {
+          "max": 61194240,
+          "median": 61188096,
+          "min": 61148160,
+          "sample_count": 3,
+          "stdev": 25019.98944843902
+        },
+        "peak_rss": {
+          "max": 61788160,
+          "median": 61739008,
+          "min": 61698048,
+          "sample_count": 3,
+          "stdev": 45118.01792336775
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 61177856,
+            "peak_pss": 61188096,
+            "peak_rss": 61739008,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 61136896,
+            "peak_pss": 61148160,
+            "peak_rss": 61698048,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 61181952,
+            "peak_pss": 61194240,
+            "peak_rss": 61788160,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "pycparser_source",
+      "operation": "parse pass",
+      "operation_count": 98220,
+      "timing_seconds": {
+        "max": 1.355813381029293,
+        "median": 1.288485653931275,
+        "min": 1.2139007900841534,
+        "sample_count": 5,
+        "stdev": 0.05129970979497019
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "tooling",
+      "digest": "8bd6fbf99f249a42e761cc357f878d8c1fb9f144806a27dfbe6b8bc9525e8458",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 29446144,
+          "median": 29171712,
+          "min": 29118464,
+          "sample_count": 3,
+          "stdev": 175842.00035258927
+        },
+        "peak_pss": {
+          "max": 29458432,
+          "median": 29184000,
+          "min": 29130752,
+          "sample_count": 3,
+          "stdev": 175842.00035258927
+        },
+        "peak_rss": {
+          "max": 30035968,
+          "median": 29773824,
+          "min": 29732864,
+          "sample_count": 3,
+          "stdev": 164453.25229985573
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 29446144,
+            "peak_pss": 29458432,
+            "peak_rss": 30035968,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29171712,
+            "peak_pss": 29184000,
+            "peak_rss": 29773824,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29118464,
+            "peak_pss": 29130752,
+            "peak_rss": 29732864,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "compileall_source",
+      "operation": "compiled source tree",
+      "operation_count": 23,
+      "timing_seconds": {
+        "max": 0.03111749212257564,
+        "median": 0.02966270293109119,
+        "min": 0.028462289134040475,
+        "sample_count": 5,
+        "stdev": 0.0010576579210339677
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "startup",
+      "digest": "empty-interpreter",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 12374016,
+          "median": 12283904,
+          "min": 12226560,
+          "sample_count": 3,
+          "stdev": 74332.3379783882
+        },
+        "peak_pss": {
+          "max": 12385280,
+          "median": 12296192,
+          "min": 12237824,
+          "sample_count": 3,
+          "stdev": 74259.4181501579
+        },
+        "peak_rss": {
+          "max": 12943360,
+          "median": 12894208,
+          "min": 12824576,
+          "sample_count": 3,
+          "stdev": 59685.527536692956
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 12283904,
+            "peak_pss": 12296192,
+            "peak_rss": 12894208,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 12226560,
+            "peak_pss": 12237824,
+            "peak_rss": 12824576,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 12374016,
+            "peak_pss": 12385280,
+            "peak_rss": 12943360,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "python_startup",
+      "operation": "process",
+      "operation_count": 1,
+      "timing_seconds": {
+        "max": 0.03366267681121826,
+        "median": 0.03330727992579341,
+        "min": 0.0332066488917917,
+        "sample_count": 5,
+        "stdev": 0.00018660728207618517
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "startup",
+      "digest": "c15a015e0b85ef01369eba73a0704215ed46a82d77939460dbdd4c5d9bb7ddbe",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 49553408,
+          "median": 49135616,
+          "min": 48488448,
+          "sample_count": 3,
+          "stdev": 536581.2111706235
+        },
+        "peak_pss": {
+          "max": 60598272,
+          "median": 60249088,
+          "min": 60099584,
+          "sample_count": 3,
+          "stdev": 255920.11553607896
+        },
+        "peak_rss": {
+          "max": 72847360,
+          "median": 72798208,
+          "min": 72531968,
+          "sample_count": 3,
+          "stdev": 169691.7648600937
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 48488448,
+            "peak_pss": 60099584,
+            "peak_rss": 72847360,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 49135616,
+            "peak_pss": 60249088,
+            "peak_rss": 72531968,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 49553408,
+            "peak_pss": 60598272,
+            "peak_rss": 72798208,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "import_django",
+      "operation": "import process",
+      "operation_count": 1,
+      "timing_seconds": {
+        "max": 1.1609874500427395,
+        "median": 1.1460647350177169,
+        "min": 1.122748512076214,
+        "sample_count": 5,
+        "stdev": 0.015142312892774717
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "startup",
+      "digest": "d63c74a87f35fbd347c09c7cacf37e204f8827d0a21f5c5d82d6fe6575c28f27",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 82759680,
+          "median": 82685952,
+          "min": 82518016,
+          "sample_count": 3,
+          "stdev": 123854.62377050496
+        },
+        "peak_pss": {
+          "max": 93873152,
+          "median": 93839360,
+          "min": 93807616,
+          "sample_count": 3,
+          "stdev": 32773.33289937618
+        },
+        "peak_rss": {
+          "max": 106246144,
+          "median": 106237952,
+          "min": 106078208,
+          "sample_count": 3,
+          "stdev": 94681.70757508196
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 82518016,
+            "peak_pss": 93807616,
+            "peak_rss": 106246144,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 82759680,
+            "peak_pss": 93839360,
+            "peak_rss": 106078208,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 82685952,
+            "peak_pss": 93873152,
+            "peak_rss": 106237952,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "import_app_stack",
+      "operation": "import process",
+      "operation_count": 1,
+      "timing_seconds": {
+        "max": 1.8292595269158483,
+        "median": 1.7702878641430289,
+        "min": 1.7236678441986442,
+        "sample_count": 5,
+        "stdev": 0.037706927271688
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "packaging",
+      "digest": "c4dc155a67fb38ddca2728e9fecd3d2f28ce66a2e29fbf11f3df2a2321353e5e",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 79028224,
+          "median": 74022912,
+          "min": 72806400,
+          "sample_count": 5,
+          "stdev": 2450126.064646307
+        },
+        "peak_pss": {
+          "max": 90504192,
+          "median": 85704704,
+          "min": 84177920,
+          "sample_count": 5,
+          "stdev": 2465908.4517352222
+        },
+        "peak_rss": {
+          "max": 103059456,
+          "median": 98197504,
+          "min": 96702464,
+          "sample_count": 5,
+          "stdev": 2473704.249083952
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 5,
+        "rounds": [
+          {
+            "peak_private": 72806400,
+            "peak_pss": 84177920,
+            "peak_rss": 96702464,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 74743808,
+            "peak_pss": 85932032,
+            "peak_rss": 98197504,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 73551872,
+            "peak_pss": 85011456,
+            "peak_rss": 97591296,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 74022912,
+            "peak_pss": 85704704,
+            "peak_rss": 98467840,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 79028224,
+            "peak_pss": 90504192,
+            "peak_rss": 103059456,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 2,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "pip_install_wheelhouse",
+      "operation": "installation",
+      "operation_count": 1,
+      "timing_seconds": {
+        "max": 7.84204296185635,
+        "median": 7.735320370877162,
+        "min": 7.514752318849787,
+        "sample_count": 5,
+        "stdev": 0.1531336373305514
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "serialization",
+      "digest": "b0280b9d0f878e0561e130aa67093196f0b555ecb45031789da97ad2d0236987",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 29274112,
+          "median": 29204480,
+          "min": 28876800,
+          "sample_count": 3,
+          "stdev": 212163.31098472234
+        },
+        "peak_pss": {
+          "max": 29305856,
+          "median": 29221888,
+          "min": 28901376,
+          "sample_count": 3,
+          "stdev": 213456.7237825972
+        },
+        "peak_rss": {
+          "max": 29896704,
+          "median": 29773824,
+          "min": 29491200,
+          "sample_count": 3,
+          "stdev": 207930.00176020776
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": 29274112,
+            "peak_pss": 29305856,
+            "peak_rss": 29896704,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 28876800,
+            "peak_pss": 28901376,
+            "peak_rss": 29491200,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29204480,
+            "peak_pss": 29221888,
+            "peak_rss": 29773824,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "serialization_roundtrip",
+      "operation": "roundtrip",
+      "operation_count": 100,
+      "timing_seconds": {
+        "max": 0.38625218300148845,
+        "median": 0.3687801640480757,
+        "min": 0.29082584800198674,
+        "sample_count": 5,
+        "stdev": 0.042006765351242835
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "multiprocess",
+      "digest": "d3e25bab2875a20e271505e6d0c2953256a4102b254ece19c691b0a181fefee8",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 29229056,
+          "median": 29085696,
+          "min": 29028352,
+          "sample_count": 5,
+          "stdev": 81643.05185868545
+        },
+        "peak_pss": {
+          "max": 30404608,
+          "median": 30279680,
+          "min": 30230528,
+          "sample_count": 5,
+          "stdev": 76318.57642278189
+        },
+        "peak_rss": {
+          "max": 66834432,
+          "median": 66027520,
+          "min": 65368064,
+          "sample_count": 5,
+          "stdev": 528753.7806851125
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 5,
+        "rounds": [
+          {
+            "peak_private": 29040640,
+            "peak_pss": 30404608,
+            "peak_rss": 65368064,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29229056,
+            "peak_pss": 30374912,
+            "peak_rss": 65847296,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29134848,
+            "peak_pss": 30256128,
+            "peak_rss": 66031616,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29085696,
+            "peak_pss": 30230528,
+            "peak_rss": 66027520,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 29028352,
+            "peak_pss": 30279680,
+            "peak_rss": 66834432,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "multiprocess_pool",
+      "operation": "pool task",
+      "operation_count": 20,
+      "timing_seconds": {
+        "max": 0.8763248790055513,
+        "median": 0.8000058350153267,
+        "min": 0.6730529791675508,
+        "sample_count": 5,
+        "stdev": 0.08011091153157399
+      }
+    }
+  ]
+}
