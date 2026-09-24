@@ -1,5 +1,21 @@
 # Rust-for-CPython experiment lanes
 
+## Fifteenth cycle (base `53364e2`)
+
+The full URL source-patch qualification uses
+`/private/tmp/python-build-exp-url-full-build-20260924o`, branch
+`exp/rust-cpython-url-full-build-20260924o`. It owns only new
+`experiments/url-quote-full-build-20260924.md` and uniquely named compact
+evidence. It gives the candidate its own verified input cache, source/build,
+Cargo, stage, logs, and results under this worktree. It must execute the
+authored patch in a fresh pinned Rust fork extraction, configure and complete
+the usual macOS PGO/ThinLTO build with nine PGO workers, inspect the installed
+module and patch identity, then run focused unchanged URL tests, differential
+public cases, a complete catalog digest, and a subinterpreter import/call.
+No other lane may compile or benchmark concurrently. Budget: 3,000 actual
+command CPU seconds, 16 GiB maximum reported RSS. The coordinator will
+review before any timed full-build comparison or promotion.
+
 ## Fourteenth cycle (base `ddb5cf7`)
 
 The URL source-patch implementation uses
