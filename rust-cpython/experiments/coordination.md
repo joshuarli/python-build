@@ -10,6 +10,14 @@ report, and uniquely named compact data only. It tests the installed SDK's
 adding a benchmark field or claiming exact USS/PSS. Budget: 30 command CPU
 seconds, 512 MiB observer RSS. Its timed diagnostic has priority over any
 compiler or benchmark on this host.
+It rejected a mapped-private benchmark field from this interface. Touching
+32 MiB of anonymous pages raised RSS and raw private-page counts by 32 MiB,
+but each address walk encountered 18 submaps and ended with zero/EINVAL;
+the public `proc_pidinfo` address argument did not permit a sound recursive
+traversal. Raw totals were unqualified, so COW/alias trials stopped. The
+final command used 0.06 user plus 0.04 system CPU seconds, 20,004,864 bytes
+observer peak RSS, 52,953,088 bytes command/child maximum RSS, and zero
+swaps. See `mac-region-probe-20260924.md`. USS/PSS remain unavailable.
 
 The URL quote proof uses `/private/tmp/python-build-exp-url-proof-20260924h`,
 branch `exp/rust-cpython-url-proof-20260924h`, and owns only the new

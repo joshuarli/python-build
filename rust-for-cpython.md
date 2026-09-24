@@ -165,6 +165,10 @@ possible sampled diagnostic, but current evidence does not establish exact
 USS or PSS. A bounded probe must check traversal, aliases, COW behavior,
 permissions, and overhead before adding a field. See
 [`mac-unique-memory-feasibility-20260924.md`](rust-cpython/experiments/mac-unique-memory-feasibility-20260924.md).
+That bounded `PROC_PIDREGIONINFO` probe failed the traversal gate: submaps
+made its raw page sums incomplete or overlapping. No mapped-private benchmark
+field was added; see
+[`mac-region-probe-20260924.md`](rust-cpython/experiments/mac-region-probe-20260924.md).
 
 ## Current evidence
 
@@ -252,8 +256,9 @@ permissions, and overhead before adding a field. See
 - Establish the missing macOS unique/proportional memory and allocation
   measurements and matched upstream control comparison. Qualify the
   digest-checked source patch path with a full build that actually applies a
-  patch. Start with the bounded region-accounting feasibility probe; keep
-  USS/PSS unavailable unless their semantics are proved. Continue zlib's
+  patch. The simple libproc region probe failed; any further USS/PSS work
+  needs a different interface with proven page identity and coverage.
+  Continue zlib's
   quiet-host and memory qualification.
   `difflib.SequenceMatcher` remains an independent hypothesis from
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
