@@ -24,6 +24,7 @@ tests/**
 !tests/test_scope.py
 !tests/test_cli.py
 !tests/test_cpython.py
+!tests/test_filc_package.py
 !tests/test_relocate.py
 !tests/test_patches.py
 !tests/test_reproduce.py

@@ -385,6 +385,95 @@ def compute_validation(install: Path) -> dict:
     }
 
 
+def filc_symbol_evidence(install: Path) -> dict:
+    """Require Fil-C-renamed entry points in the shipped interpreter closure.
+
+    Fil-C runtime dependencies alone do not prove that CPython and its native
+    modules were compiled by Fil-C: an ordinary ELF can name those libraries.
+    These exported/undefined symbols survive the product's strip policy.
+    """
+    suffix = ".cpython-314-x86_64-filc-linux-musl.so"
+    required = {
+        "bin/python3.14.real": ("filc_start_program", "pizlonated_Py_BytesMain"),
+        "lib/libpython3.14.so.1.0": (
+            "pizlonated_Py_BytesMain", "pizlonated_PyLong_FromLong",
+        ),
+        **{
+            f"lib/python3.14/lib-dynload/{name}{suffix}":
+                (f"pizlonated_PyInit_{name}",)
+            for name in ("_ctypes", "_ssl", "_sqlite3")
+        },
+    }
+    evidence = {}
+    for relative, expected in required.items():
+        path = install / relative
+        if not path.is_file():
+            evidence[relative] = {"ok": False, "missing_file": True}
+            continue
+        output = _run(["readelf", "-Ws", str(path)]).stdout
+        names = {
+            line.split()[-1].split("@", 1)[0]
+            for line in output.splitlines() if line.split()
+        }
+        missing = sorted(set(expected) - names)
+        instrumented = any(name.startswith("filc_") for name in names)
+        evidence[relative] = {
+            "ok": not missing and instrumented,
+            "missing_symbols": missing,
+            "filc_instrumentation": instrumented,
+        }
+    return {"ok": all(item["ok"] for item in evidence.values()), "files": evidence}
+
+
+def filc_elf_evidence(install: Path) -> dict:
+    """Require the native closure and all runtime search paths to stay inside the install."""
+    needed_allowed = {"libc.so", "libpizlo.so", "libyoloc.so", "libpython3.14.so.1.0"}
+    elf_report = []
+    bad_needed = []
+    bad_rpaths = []
+    install_root = install.resolve()
+    for elf in find_elfs(install):
+        dynamic = _run(["readelf", "-d", str(elf)]).stdout
+        needed = [
+            line.split("[")[1].rstrip("]")
+            for line in dynamic.splitlines() if "NEEDED" in line
+        ]
+        unwanted = sorted(set(needed) - needed_allowed)
+        if unwanted:
+            bad_needed.append({"path": str(elf.relative_to(install)), "needed": unwanted})
+        rpaths = [
+            line.partition("[")[2].partition("]")[0]
+            for line in dynamic.splitlines()
+            if "(RPATH)" in line or "(RUNPATH)" in line
+        ]
+        invalid_rpaths = []
+        for value in rpaths:
+            for entry in value.split(":"):
+                if entry != "$ORIGIN" and not entry.startswith("$ORIGIN/"):
+                    invalid_rpaths.append(entry)
+                    continue
+                destination = (elf.parent / entry[len("$ORIGIN/"):]
+                               if entry != "$ORIGIN" else elf.parent).resolve()
+                if not destination.is_relative_to(install_root):
+                    invalid_rpaths.append(entry)
+        if invalid_rpaths:
+            bad_rpaths.append({
+                "path": str(elf.relative_to(install)),
+                "rpaths": invalid_rpaths,
+            })
+        elf_report.append({
+            "path": str(elf.relative_to(install)), "needed": needed,
+            "rpaths": rpaths,
+        })
+    return {
+        "ok": not bad_needed and not bad_rpaths,
+        "forbidden_needed": bad_needed,
+        "forbidden_rpaths": bad_rpaths,
+        "count": len(elf_report),
+        "report": elf_report,
+    }
+
+
 def compute_validation_filc(install: Path) -> dict:
     """Check the bundled loader, distinct ABI, and moved packaged bytes."""
     python = install / "bin/python3.14"
@@ -398,19 +487,8 @@ def compute_validation_filc(install: Path) -> dict:
     interpreter = next((line for line in interp.splitlines() if "interpreter" in line), "")
     launcher_program_headers = _run(["readelf", "-l", str(python)]).stdout
     launcher_dynamic = _run(["readelf", "-d", str(python)]).stdout
-    needed_allowed = {"libc.so", "libpizlo.so", "libyoloc.so", "libpython3.14.so.1.0"}
-    elf_report = []
-    bad = []
-    for elf in find_elfs(install):
-        dynamic = _run(["readelf", "-d", str(elf)]).stdout
-        needed = [
-            line.split("[")[1].rstrip("]")
-            for line in dynamic.splitlines() if "NEEDED" in line
-        ]
-        unwanted = sorted(set(needed) - needed_allowed)
-        if unwanted or "/home/josh/" in dynamic or "build/prefix" in dynamic:
-            bad.append({"path": str(elf.relative_to(install)), "needed": unwanted})
-        elf_report.append({"path": str(elf.relative_to(install)), "needed": needed})
+    elf = filc_elf_evidence(install)
+    symbols = filc_symbol_evidence(install)
     import hashlib
     locked = load_filc_toolchain(REPO / "bootstrap.lock.json")
     source_loader = locked.pizfix / "lib/libyoloc.so"
@@ -470,7 +548,8 @@ def compute_validation_filc(install: Path) -> dict:
         "static_launcher": "INTERP" not in launcher_program_headers
         and "NEEDED" not in launcher_dynamic,
         "loader_bundled": same_loader,
-        "elf_dependency_closure": not bad,
+        "elf_dependency_closure": elf["ok"],
+        "filc_compiled_symbols": symbols["ok"],
         "version": runtime.get("version") == [3, 14, 6],
         "filc_soabi": "x86_64-filc-linux-musl" in (runtime.get("soabi") or ""),
         "remote_debug_disabled": runtime.get("remote_debug") is False,
@@ -495,11 +574,13 @@ def compute_validation_filc(install: Path) -> dict:
         "sys_version_check": {"ok": ok, "output": output},
         "musl_loader": interpreter.strip(),
         "musl_loader_matches_target": checks["inert_direct_interpreter"] and same_loader,
-        "elf_leak_free": not bad,
-        "elf_forbidden_needed": bad,
+        "elf_leak_free": elf["ok"],
+        "elf_forbidden_needed": elf["forbidden_needed"],
+        "elf_forbidden_rpaths": elf["forbidden_rpaths"],
+        "filc_symbol_evidence": symbols,
         "sysconfig_private_prefix_leak": not checks["sysconfig_private_prefix_scrubbed"],
-        "elf_count": len(elf_report),
-        "elf_report": elf_report,
+        "elf_count": elf["count"],
+        "elf_report": elf["report"],
         "runtime": runtime,
         "relocation": moved,
         "metadata_leaks": metadata_leaks,

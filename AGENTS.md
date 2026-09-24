@@ -121,6 +121,9 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
   Its static, libc-free `buildsys/filc_launcher.c` entrypoint passes the
   original environment and invocation path through to the loader, including
   symlink-specific `._pth` files, without a host shared-library dependency.
+  `build/package.py` requires Fil-C symbols in libpython and representative
+  shipped extensions and confines every ELF runtime search path to the
+  installed tree through `$ORIGIN`.
 - `buildsys/inputs.py`: content-addressed `.cache/objects/<sha256>.blob`,
   atomic publication, tamper/size checks on every read, `safe_extract`
   rejecting traversal/absolute/symlink-escape/device entries.
