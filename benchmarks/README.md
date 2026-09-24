@@ -23,7 +23,7 @@ another.
 | Pass | Measures | Instrumentation |
 | --- | --- | --- |
 | Timing | Wall latency, throughput, repeatability, and kernel CPU user/system seconds per operation | No memory polling, Memray, allocator tracing, or `perf record` |
-| Memory | Process-tree peak and steady resident footprint | External Linux `/proc`, or macOS `ps` plus `libproc` for sampled RSS and physical footprint; not used in timing runs |
+| Memory | Process-tree peak and steady resident footprint | External Linux `/proc` or macOS `libproc` for sampled RSS and physical footprint; not used in timing runs |
 | Allocations | Allocation count and bytes, heap high-water mark, allocator and native origins | Memray in a reduced, semantically equivalent run |
 
 Allocation-pass elapsed time is diagnostic only. Do not compare it with normal
@@ -287,25 +287,28 @@ require cgroup delegation.
 The default sampling interval is 10 ms; use `--memory-interval-ms` to change
 it, and compare runs only when they use the same interval.
 
-On macOS, the external sampler reads `ps` RSS for the isolated workload process
-group and discovered descendants. It records raw time-stamped tree totals,
-sampled peak RSS, and process counts. Before reaping the workload root, it also
+On macOS, the external sampler uses filtered `libproc` process-group and
+parent queries to discover the workload tree, then records time-stamped RSS,
+physical-footprint totals, and process counts. The footprint values are
+sequential per-PID reads, so their sampled tree peak is approximate. Before
+reaping the workload root, the sampler also
 reads that PID's lifetime physical-footprint peak via `proc_pid_rusage` and
 uses kernel `wait4` peak RSS for the root and children it reaped. The reported
 peak RSS is the larger of the sampled tree peak and the kernel root-family
 peak, with both sources retained separately. The kernel counters catch a
 short-lived root, but cannot reconstruct a simultaneous peak for children
 that exited between samples. Apple's physical footprint is a charged-memory
-measure for one PID, not Linux USS or PSS. PSS, unique/private resident memory,
+measure, not Linux USS or PSS. PSS, unique/private resident memory,
 and swap remain unavailable, never zero. The macOS peak RSS comparison is
 diagnostic: clear RSS growth can fail, but a non-regression remains incomplete
 for upstream memory parity because RSS counts shared pages in every process.
 The first and last RSS samples remain raw diagnostics; retained RSS is
 unavailable unless a workload marks an explicit steady boundary. The final
 sample of a batch process is not silently relabeled as retained memory.
-MacOS process-table discovery has no stable PID birth identifier, so escaped
-descendants and PID reuse also limit coverage; inspect raw samples and cleanup
-status for each run. Short startup memory runs hold an initialized interpreter
+The sampler checks BSD birth timestamps and kernel start times to reject
+detected PID reuse; escaped or very short-lived descendants can still evade
+sampling. Inspect raw samples and cleanup status for each run. Short startup
+memory runs hold an initialized interpreter
 briefly in the separate memory pass.
 
 Timing result files retain the workload's internal wall-latency sample and

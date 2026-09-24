@@ -1,5 +1,32 @@
 # Rust-for-CPython experiment lanes
 
+## Third cycle (base `87b0eec`)
+
+The optional zlib build recipe was integrated through `87b0eec` after a
+successful whole build of the first link recipe and a bounded incremental
+correction that leaves `binascii` on platform zlib. The revised recipe still
+needs its own clean full PGO build. Its isolated worktree is retained, and the
+coordinator scheduled that build but held it while a separate Cargo job kept
+spawning compilers on the same host. The full-build budget is 1,200 kernel
+user-plus-system CPU seconds and 3 GiB maximum reported RSS. No published
+timing run overlaps it.
+
+The macOS sampler overhead lane owns only
+`benchmarks/harness/process.py`, `benchmarks/harness/macos_resource.py`, and a
+new `rust-cpython/experiments/mac-sampler-overhead-20260924.md` in
+`/private/tmp/python-build-exp-mac-sampler-20260924c`, branch
+`exp/rust-cpython-mac-sampler-20260924c`. It may run one bounded sleeping-child
+diagnostic but no benchmark. Its budget is 150 process CPU seconds and 1 GiB
+peak RSS. It must preserve Linux behavior and report physical footprint as a
+sampled charged-memory diagnostic, never USS/PSS or an exact tree peak.
+Its filtered `libproc` implementation was integrated as `8f98278`. In one
+uncontrolled before/after 0.5-second child diagnostic, the old `ps` path
+gave five valid footprint samples and consumed 0.16 user plus 0.48 system
+command CPU seconds; the new path gave 12 samples and consumed 0.10 user plus
+0.05 system seconds. Host activity and possible overlap with PGO limit the
+comparison. See `mac-sampler-overhead-20260924.md` for the SDK layout,
+identity checks, and residual races. No behavioral suite ran for this change.
+
 ## Second cycle (base `ffb6205`)
 
 The coordinator committed the first cycle as `ffb6205` and opened four
