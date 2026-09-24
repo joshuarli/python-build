@@ -1,5 +1,30 @@
 # Rust-for-CPython experiment lanes
 
+## Sixth cycle (base `2aec7d7`)
+
+The catalog URL baseline lane uses
+`/private/tmp/python-build-exp-url-baseline-20260924f`, branch
+`exp/rust-cpython-url-baseline-20260924f`, and owns only a new
+`catalog-url-baseline-20260924.md` and uniquely named compact raw evidence.
+It reads the already built no-Rust fork and matched upstream control without
+mutating either. At scheduling, host load averages were 5.58/8.04/8.51 on
+ten logical CPUs, with stable 356.38 MiB allocated swap and no active
+compiler. The lane first calibrates the new registered workload against the
+no-Rust control itself. It may compare matched upstream serially only if
+self-noise and host conditions permit; otherwise it records the diagnostic
+and stops. Budget: 120 command CPU seconds and 1 GiB reported RSS. Generated
+benchmark outputs stay in the lane worktree.
+The self-comparison completed with five timing pairs and three memory pairs
+over 100 complete catalog batches per process; all input/output digests
+matched. Paired median wall ratio was 1.0096, inside a 6.62% timing noise
+allowance. Root CPU per batch differed by +0.87%, and median peak RSS by
++1.42%, inside an 801,600-byte self-noise allowance. The controller command
+used 1.94 user plus 0.83 system CPU seconds, 45,301,760 bytes maximum
+reported RSS, and zero swaps. Host load rose from 4.75 to 5.89 during the
+run, so the lane stopped before upstream-versus-fork comparison. See
+`catalog-url-baseline-20260924.md` and its compact raw evidence. This is a
+calibration with an incomplete macOS memory verdict, not a speed result.
+
 ## Fifth cycle (base `097693b`)
 
 The next-target scout uses

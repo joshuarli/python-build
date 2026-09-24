@@ -220,6 +220,9 @@ explicitly.
   calls but did not establish a speed opportunity. See
   [`next-target-after-zlib-20260924.md`](rust-cpython/experiments/next-target-after-zlib-20260924.md)
   and [`catalog-url-workload-20260924.md`](rust-cpython/experiments/catalog-url-workload-20260924.md).
+  Its first control self-comparison had 6.62% timing noise under rising host
+  load, so no upstream or candidate speed claim follows from that run. See
+  [`catalog-url-baseline-20260924.md`](rust-cpython/experiments/catalog-url-baseline-20260924.md).
 
 ## Immediate work queue
 
@@ -239,5 +242,6 @@ explicitly.
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
 - Calibrate the catalog URL workload against itself on a quiet host, then
-  profile its complete operations. Try a guarded `quote_from_bytes` kernel
+  profile its complete operations and assess `quote_from_bytes` headroom. Try
+  a guarded native kernel
   only if quoting occupies a meaningful share of that full task.
