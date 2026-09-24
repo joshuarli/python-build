@@ -222,7 +222,13 @@ class RelocateIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "bin").mkdir()
-            (root / "lib").mkdir()
+            lib = root / "lib" / "python3.14"
+            lib.mkdir(parents=True)
+            # relocate() validates a complete installed tree, including the
+            # generated sysconfig metadata that a real installation contains.
+            (lib / "_sysconfigdata__test.py").write_text(
+                "build_time_vars = {'prefix': '/install'}\n"
+            )
             elf = root / "bin" / "prog"
             subprocess.run(
                 ["cc", "-x", "c", "-o", str(elf), "-"],

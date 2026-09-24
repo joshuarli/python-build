@@ -1,0 +1,31 @@
+{% load benchmark_tags %}
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{{ page_title }}</title></head>
+<body>
+  <main>
+    <h1>{{ page_title }}</h1>
+    {% for post in posts %}
+      <article data-url="{% url 'post-detail' slug=post.slug %}">
+        <h2>{{ post.title }}</h2>
+        <p class="byline">By {{ post.author.name }} · {{ post.published_at|benchmark_date }}</p>
+        <p class="summary">{{ post.body|truncatewords:24 }}</p>
+        <p class="metadata">
+          {{ post.reading_minutes }} minute read · {{ post.score|floatformat:2 }} points
+          {% if post.published %}<strong>Published</strong>{% else %}<span>Draft</span>{% endif %}
+        </p>
+        <ul class="tags">
+          {% for tag in post.benchmark_tags %}<li>{{ tag.name }}</li>{% endfor %}
+        </ul>
+        <ol class="comments">
+          {% for comment in post.approved_comments %}
+            <li><b>{{ comment.display_name }}</b>: {{ comment.body }}
+              <time>{{ comment.created_at|benchmark_timestamp }}</time>
+            </li>
+          {% empty %}<li>No approved comments.</li>{% endfor %}
+        </ol>
+      </article>
+    {% empty %}<p>No published posts.</p>{% endfor %}
+  </main>
+</body>
+</html>

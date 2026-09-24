@@ -1,365 +1,357 @@
-"""Tests for the head-to-head musl benchmark harness (benchmarks/).
+"""Contract tests for the generic CPython benchmark harness.
 
-Unit-level only: no Docker, no network. The Docker image build and the
-rigorous runs themselves are exercised by benchmarks/run_benchmarks.sh.
+These tests use synthetic results and lightweight workload metadata. They do
+not launch benchmark suites, Docker, or network operations.
 """
 
-import ast
-import importlib.util
-import json
-import re
+from __future__ import annotations
+
+from contextlib import redirect_stdout
+import io
+from pathlib import Path
 import tempfile
 import unittest
-from pathlib import Path
+
+from benchmarks.bench import _docker_descriptor, main as bench_main
+from benchmarks.harness.memory import (
+    SmapsRollup,
+    SmapsRollupError,
+    parse_smaps_rollup,
+    sum_rollups,
+)
+from benchmarks.harness.models import (
+    ResultSchemaError,
+    result_from_json,
+    result_to_json,
+)
+from benchmarks.harness.runner import (
+    PROFILE_ROUNDS,
+    workload_command,
+    workload_environment,
+)
+from benchmarks.workloads.registry import WORKLOADS, select_workloads
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCH = ROOT / "benchmarks"
 
 
-def load_compare_module():
-    spec = importlib.util.spec_from_file_location(
-        "bench_compare", BENCH / "compare.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def write_results(path: Path, means: dict[str, float]) -> None:
-    suite = {
-        "benchmarks": [
+class WorkloadRegistryTests(unittest.TestCase):
+    def test_realworld_suite_covers_required_application_paths(self):
+        names = {workload.name for workload in WORKLOADS}
+        self.assertEqual(
+            names,
             {
-                "metadata": {"name": name},
-                "runs": [{"values": [mean, mean]}],
-            }
-            for name, mean in means.items()
-        ]
-    }
-    path.write_text(json.dumps(suite))
-
-
-class CompareTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.compare = load_compare_module()
-
-    def compare_means(self, pbs: dict[str, float], ours: dict[str, float]) -> dict:
-        with tempfile.TemporaryDirectory() as tmp:
-            pbs_path = Path(tmp) / "pbs.json"
-            ours_path = Path(tmp) / "ours.json"
-            write_results(pbs_path, pbs)
-            write_results(ours_path, ours)
-            return self.compare.compare(pbs_path, ours_path)
-
-    def test_identical_runs_score_exactly_one(self):
-        report = self.compare_means({"a": 1.0, "b": 2.0}, {"a": 1.0, "b": 2.0})
-        self.assertAlmostEqual(report["geomean_ours_over_pbs"], 1.0)
-        self.assertTrue(report["pass"])
-
-    def test_half_percent_slower_passes(self):
-        report = self.compare_means({"a": 1.0, "b": 2.0}, {"a": 1.005, "b": 2.01})
-        self.assertAlmostEqual(report["geomean_ours_over_pbs"], 1.005)
-        self.assertTrue(report["pass"])
-
-    def test_two_percent_slower_fails(self):
-        report = self.compare_means({"a": 1.0, "b": 2.0}, {"a": 1.02, "b": 2.04})
-        self.assertFalse(report["pass"])
-        self.assertAlmostEqual(report["delta_pct"], 2.0)
-
-    def test_faster_build_passes(self):
-        report = self.compare_means({"a": 1.0}, {"a": 0.992})
-        self.assertTrue(report["pass"])
-        self.assertLess(report["geomean_ours_over_pbs"], 1.0)
-
-    def test_mp_pool_excluded_from_verdict_but_reported(self):
-        report = self.compare_means(
-            {"a": 1.0, "bench_mp_pool": 1.0},
-            {"a": 1.0, "bench_mp_pool": 1.5},
-        )
-        self.assertTrue(report["pass"])
-        self.assertIn("bench_mp_pool", report["excluded_from_verdict"])
-        self.assertAlmostEqual(
-            report["excluded_from_verdict"]["bench_mp_pool"], 1.5
+                "django_wsgi_request",
+                "django_asgi_request",
+                "django_orm_10k",
+                "django_template_realistic",
+                "pylint_source",
+                "pycparser_source",
+                "compileall_source",
+                "python_startup",
+                "import_django",
+                "import_app_stack",
+                "pip_install_wheelhouse",
+                "serialization_roundtrip",
+                "multiprocess_pool",
+            },
         )
 
-    def test_non_common_benchmarks_are_listed_and_ignored(self):
-        report = self.compare_means(
-            {"a": 1.0, "pbs_extra": 3.0}, {"a": 1.0, "ours_extra": 4.0}
+    def test_each_workload_has_normalizable_operation_counts(self):
+        for workload in WORKLOADS:
+            with self.subTest(workload=workload.name):
+                self.assertGreater(workload.iterations, 0)
+                self.assertGreater(workload.allocation_iterations, 0)
+                self.assertLessEqual(
+                    workload.allocation_iterations, workload.iterations
+                )
+                self.assertTrue(workload.operation)
+                self.assertIn(
+                    workload.noise_class,
+                    {"stable", "noisy", "diagnostic-only"},
+                )
+
+    def test_suite_profile_and_category_select_the_expected_work(self):
+        full = select_workloads("full", "standard", None, None)
+        self.assertEqual(full, list(WORKLOADS))
+
+        quick = select_workloads("realworld", "quick", None, None)
+        self.assertGreater(len(full), len(quick))
+        self.assertTrue({item.name for item in quick} <= {item.name for item in full})
+
+        django = select_workloads("realworld", "standard", None, "web")
+        self.assertTrue(django)
+        self.assertTrue(all(item.category == "web" for item in django))
+
+        one = select_workloads(
+            "realworld", "standard", "django_wsgi_request", None
         )
-        self.assertTrue(report["pass"])
-        self.assertEqual(report["pbs_only"], ["pbs_extra"])
-        self.assertEqual(report["ours_only"], ["ours_extra"])
-        self.assertNotIn("pbs_extra", report["ratios"])
-
-    def test_no_common_benchmarks_raises(self):
-        with self.assertRaises(ValueError):
-            self.compare_means({"a": 1.0}, {"b": 1.0})
-
-    def test_empty_suite_raises(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            empty = Path(tmp) / "empty.json"
-            full = Path(tmp) / "full.json"
-            empty.write_text(json.dumps({"benchmarks": []}))
-            write_results(full, {"a": 1.0})
-            with self.assertRaises(ValueError):
-                self.compare.compare(empty, full)
-
-    def test_compare_module_is_stdlib_only(self):
-        tree = ast.parse((BENCH / "compare.py").read_text())
-        allowed = {"argparse", "json", "math", "sys", "pathlib", "__future__"}
-        imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(a.name.split(".")[0] for a in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imported.add(node.module.split(".")[0])
-        self.assertFalse(
-            imported - allowed, f"non-stdlib imports: {imported - allowed}"
+        self.assertEqual([item.name for item in one], ["django_wsgi_request"])
+        explicit_quick = select_workloads(
+            "realworld", "quick", "django_asgi_request", None
         )
-
-
-class ShardTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location(
-            "bench_shard", BENCH / "shard.py"
-        )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        cls.shard = module
-
-    def test_covers_every_benchmark_exactly_once(self):
-        names = [f"bench_{i:02d}" for i in range(97)]
-        parts = self.shard.shard(names, 8)
-        self.assertEqual(len(parts), 8)
-        flat = sorted(b for part in parts for b in part)
-        self.assertEqual(flat, sorted(names))
-
-    def test_shards_are_balanced_within_one(self):
-        parts = self.shard.shard([f"b{i}" for i in range(10)], 3)
-        sizes = sorted(len(p) for p in parts)
-        self.assertEqual(sizes, [3, 3, 4])
-
-    def test_deterministic_and_deduplicating(self):
-        names = ["b", "a", "b", "c"]
-        self.assertEqual(self.shard.shard(names, 2), self.shard.shard(names, 2))
-        flat = [b for part in self.shard.shard(names, 2) for b in part]
-        self.assertEqual(sorted(flat), ["a", "b", "c"])
-
-    def test_rejects_empty_and_oversharded(self):
-        with self.assertRaises(ValueError):
-            self.shard.shard([], 4)
-        with self.assertRaises(ValueError):
-            self.shard.shard(["a"], 2)
-        with self.assertRaises(ValueError):
-            self.shard.shard(["a"], 0)
-
-    def test_exclude_leaves_out_named_benchmarks(self):
-        import io
-        from contextlib import redirect_stdout
-        with tempfile.TemporaryDirectory() as tmp:
-            names = Path(tmp) / "names.txt"
-            names.write_text("a\nb\nc\n")
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                self.shard.main([str(names), "--shards", "2",
-                                 "--exclude", "b"])
-            self.assertEqual(buf.getvalue(), "a\nc\n")
-
-    def test_shard_module_is_stdlib_only(self):
-        tree = ast.parse((BENCH / "shard.py").read_text())
-        allowed = {"argparse", "sys", "__future__"}
-        imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(a.name.split(".")[0] for a in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imported.add(node.module.split(".")[0])
-        self.assertFalse(
-            imported - allowed, f"non-stdlib imports: {imported - allowed}"
+        self.assertEqual([item.name for item in explicit_quick], ["django_asgi_request"])
+        tooling_quick = select_workloads("realworld", "quick", None, "tooling")
+        self.assertEqual(
+            {item.name for item in tooling_quick},
+            {"pylint_source", "compileall_source"},
         )
 
+    def test_unknown_workload_and_profile_fail_clearly(self):
+        with self.assertRaisesRegex(ValueError, "unknown workload"):
+            select_workloads("realworld", "standard", "not-a-workload", None)
+        with self.assertRaisesRegex(ValueError, "unknown profile"):
+            select_workloads("realworld", "unrecognized", None, None)
 
-class PinTests(unittest.TestCase):
-    def test_base_image_matches_sealed_build_image(self):
-        dockerfile = (BENCH / "Dockerfile").read_text()
-        main = (ROOT / "Dockerfile").read_text()
-        digest = re.search(r"alpine:3\.24\.1@sha256:[0-9a-f]{64}", main)
-        self.assertIsNotNone(digest, "main Dockerfile has no pinned alpine image")
-        self.assertIn(digest.group(0), dockerfile)
 
-    def test_pbs_reference_matches_sources_lock(self):
-        import sys
-
-        sys.path.insert(0, str(ROOT))
-        from buildsys.inputs import load_lock
-
-        lock = {e.name: e for e in load_lock(ROOT / "sources.lock.json")}
-        dockerfile = (BENCH / "Dockerfile").read_text()
-        self.assertIn(lock["reference-pbs"].url, dockerfile)
-        self.assertIn(lock["reference-pbs"].sha256, dockerfile)
-
-    def test_run_single_pins_pyperformance_and_rigorous_flags(self):
-        script = (BENCH / "run_single.sh").read_text()
-        self.assertIn("pyperformance==1.14.0", script)
-        self.assertIn("--rigorous", script)
-        self.assertIn("--warmups 2", script)
-
-    def test_run_single_installs_offline_from_vendor(self):
-        script = (BENCH / "run_single.sh").read_text()
-        self.assertIn("--no-index", script)
-        self.assertIn("--find-links /bench/vendor", script)
-        self.assertNotIn("pypi", script.lower())
-
-    def test_vendor_wheels_match_recorded_hashes(self):
-        vendor = BENCH / "vendor"
-        sums = (vendor / "SHA256SUMS").read_text().splitlines()
-        self.assertTrue(sums, "vendor/SHA256SUMS is empty")
-        import hashlib
-
-        for line in sums:
-            digest, name = line.split()
-            blob = vendor / name
-            self.assertTrue(blob.is_file(), f"vendored wheel missing: {name}")
-            self.assertEqual(hashlib.sha256(blob.read_bytes()).hexdigest(), digest)
-
-    def test_vendor_covers_pyperformance_closure(self):
-        wheels = {p.name for p in (BENCH / "vendor").glob("*.whl")}
-        self.assertTrue(
-            any(n.startswith("pyperformance-1.14.0-") for n in wheels)
+class MemoryMetricsTests(unittest.TestCase):
+    def test_smaps_rollup_converts_kib_to_bytes_and_sums_private_memory(self):
+        rollup = parse_smaps_rollup(
+            "00400000-00401000 r--p 00000000 00:00 0\n"
+            "Rss: 3072 kB\n"
+            "Pss: 2048 kB\n"
+            "Private_Clean: 1000 kB\n"
+            "Private_Dirty: 512 kB\n"
+            "Private_Hugetlb: 4 kB\n"
+            "Shared_Clean: 1200 kB\n"
+            "Shared_Dirty: 300 kB\n"
+            "Swap: 7 kB\n"
         )
-        for prefix in ("pyperf-", "psutil-", "packaging-"):
-            self.assertTrue(
-                any(n.startswith(prefix) for n in wheels), prefix
+        self.assertEqual(rollup.rss_bytes, 3072 * 1024)
+        self.assertEqual(rollup.pss_bytes, 2048 * 1024)
+        self.assertEqual(rollup.private_bytes, 1516 * 1024)
+        self.assertEqual(rollup.swap_bytes, 7 * 1024)
+
+    def test_missing_core_procfs_counter_is_rejected(self):
+        with self.assertRaises(SmapsRollupError):
+            parse_smaps_rollup(
+                "Rss: 1 kB\nPss: 1 kB\nPrivate_Clean: 1 kB\nSwap: 0 kB\n"
             )
 
-    def test_dockerfile_copies_vendor_and_verifies_hashes(self):
-        dockerfile = (BENCH / "Dockerfile").read_text()
-        self.assertIn("COPY vendor/ /bench/vendor/", dockerfile)
-        self.assertIn("sha256sum -c SHA256SUMS", dockerfile)
-
-    def test_run_parallel_merges_per_side(self):
-        script = (BENCH / "run_parallel.sh").read_text()
-        self.assertIn("pool.py", script)
-        self.assertIn("shard.py", script)
-        self.assertIn("--affinity", (BENCH / "run_single.sh").read_text())
-
-    def test_run_parallel_prewarms_worker_venvs(self):
-        script = (BENCH / "run_parallel.sh").read_text()
-        self.assertIn("warmup", script)
-
-    def test_run_parallel_serializes_fixed_port_benchmarks(self):
-        script = (BENCH / "run_parallel.sh").read_text()
-        for bench in ("asyncio_tcp", "asyncio_tcp_ssl", "asyncio_websockets"):
-            self.assertIn(bench, script)
-        self.assertIn("--exclude", script)
-
-    def test_cpu_assignment_interleaves_sides(self):
-        script = (BENCH / "run_benchmarks.sh").read_text()
-        self.assertIn("seq 0 2", script)
-        self.assertIn("seq 1 2", script)
-
-
-class PoolTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location(
-            "bench_pool", BENCH / "pool.py"
+    def test_process_tree_sample_sums_each_process_once(self):
+        first = SmapsRollup(
+            rss_bytes=100,
+            pss_bytes=70,
+            private_clean_bytes=20,
+            private_dirty_bytes=10,
+            swap_bytes=2,
         )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        cls.pool = module
-
-    def write(self, path: Path, benches: dict[str, list[list[float]]]) -> None:
-        path.write_text(json.dumps({
-            "benchmarks": [
-                {"metadata": {"name": n}, "runs": [{"values": v} for v in runs]}
-                for n, runs in benches.items()
-            ],
-        }))
-
-    def test_pools_values_across_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            tmpdir = Path(tmp)
-            self.write(tmpdir / "s1.json", {"a": [[1.0, 1.0]], "b": [[2.0]]})
-            self.write(tmpdir / "s2.json", {"a": [[3.0]], "c": [[4.0]]})
-            suite = self.pool.pool([tmpdir / "s1.json", tmpdir / "s2.json"])
-            by_name = {b["metadata"]["name"]: b for b in suite["benchmarks"]}
-            self.assertEqual(sorted(by_name), ["a", "b", "c"])
-            values = [v for r in by_name["a"]["runs"] for v in r["values"]]
-            self.assertEqual(sorted(values), [1.0, 1.0, 3.0])
-
-    def test_pool_round_trips_through_compare(self):
-        compare = load_compare_module()
-        with tempfile.TemporaryDirectory() as tmp:
-            tmpdir = Path(tmp)
-            self.write(tmpdir / "p1.json", {"a": [[1.0, 1.0]]})
-            self.write(tmpdir / "p2.json", {"a": [[1.0]]})
-            self.write(tmpdir / "o1.json", {"a": [[1.005, 1.005]]})
-            pooled_pbs = tmpdir / "pbs.json"
-            pooled_ours = tmpdir / "ours.json"
-            self.assertEqual(
-                self.pool.main([str(pooled_pbs), str(tmpdir / "p1.json"),
-                                str(tmpdir / "p2.json")]), 0)
-            self.assertEqual(
-                self.pool.main([str(pooled_ours), str(tmpdir / "o1.json")]), 0)
-            report = compare.compare(pooled_pbs, pooled_ours)
-            self.assertAlmostEqual(report["geomean_ours_over_pbs"], 1.005)
-            self.assertTrue(report["pass"])
-
-    def test_single_benchmark_shape_uses_top_level_name(self):
-        compare = load_compare_module()
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "single.json"
-            path.write_text(json.dumps({
-                "metadata": {"name": "python_startup"},
-                "benchmarks": [{"runs": [{"values": [0.007, 0.007]}]}],
-            }))
-            self.assertAlmostEqual(
-                compare.load_means(path)["python_startup"], 0.007)
-
-    def test_pool_normalizes_top_level_names(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            tmpdir = Path(tmp)
-            (tmpdir / "s1.json").write_text(json.dumps({
-                "metadata": {"name": "python_startup"},
-                "benchmarks": [{"runs": [{"values": [0.007]}]}],
-            }))
-            (tmpdir / "s2.json").write_text(json.dumps({
-                "metadata": {"name": "json_loads"},
-                "benchmarks": [{"runs": [{"values": [0.05]}]}],
-            }))
-            suite = self.pool.pool([tmpdir / "s1.json", tmpdir / "s2.json"])
-            by_name = {b["metadata"]["name"]: b for b in suite["benchmarks"]}
-            self.assertEqual(sorted(by_name), ["json_loads", "python_startup"])
-
-    def test_pool_rejects_empty_input(self):
-        with self.assertRaises(ValueError):
-            self.pool.pool([])
-        with tempfile.TemporaryDirectory() as tmp:
-            empty = Path(tmp) / "empty.json"
-            empty.write_text(json.dumps({"benchmarks": []}))
-            with self.assertRaises(ValueError):
-                self.pool.pool([empty])
-
-    def test_pool_module_is_stdlib_only(self):
-        tree = ast.parse((BENCH / "pool.py").read_text())
-        allowed = {"argparse", "json", "sys", "pathlib", "__future__"}
-        imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(a.name.split(".")[0] for a in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imported.add(node.module.split(".")[0])
-        self.assertFalse(
-            imported - allowed, f"non-stdlib imports: {imported - allowed}"
+        child = SmapsRollup(
+            rss_bytes=80,
+            pss_bytes=50,
+            private_clean_bytes=15,
+            private_dirty_bytes=5,
+            swap_bytes=1,
         )
+        sample = sum_rollups({101: first, 102: child}, elapsed_seconds=0.25)
+        self.assertEqual(sample.process_count, 2)
+        self.assertEqual(sample.rss_bytes, 180)
+        self.assertEqual(sample.pss_bytes, 120)
+        self.assertEqual(sample.private_bytes, 50)
+        self.assertEqual(sample.swap_bytes, 3)
+        self.assertEqual(sample.pids, (101, 102))
 
-    def test_run_suite_covers_both_interpreters(self):
-        script = (BENCH / "run_suite.sh").read_text()
-        self.assertIn("/bench/pbs/python/bin/python3.14", script)
-        self.assertIn("/bench/ours/python/bin/python3.14", script)
-        self.assertIn("3, 14, 6", script)
+
+class ResultSchemaTests(unittest.TestCase):
+    def test_common_result_round_trips_with_separate_measurement_passes(self):
+        result = {
+            "schema_version": 1,
+            "identity": {
+                "name": "django_wsgi_request",
+                "category": "web",
+                "operation": "request",
+                "operation_count": 30,
+            },
+            "baseline": {
+                "timing": {"samples": [0.010, 0.011]},
+                "memory": {"rounds": [{"peak_pss": 1_000_000}]},
+                "allocations": {
+                    "rounds": [{"bytes_per_operation": 1234}],
+                    "status": "complete",
+                },
+            },
+            "candidate": {
+                "timing": {"samples": [0.009, 0.010]},
+                "memory": {"rounds": [{"peak_pss": 990_000}]},
+                "allocations": {
+                    "rounds": [{"bytes_per_operation": 1200}],
+                    "status": "complete",
+                },
+            },
+        }
+        encoded = result_to_json(result)
+        self.assertTrue(encoded.endswith("\n"))
+        self.assertEqual(result_from_json(encoded), result)
+
+    def test_incomplete_timing_result_is_rejected(self):
+        result = {
+            "identity": {
+                "name": "python_startup",
+                "category": "startup",
+                "operation": "process",
+                "operation_count": 1,
+            },
+            "baseline": {"timing": {"samples": []}},
+            "candidate": {"timing": {"samples": [0.01]}},
+        }
+        with self.assertRaises(ResultSchemaError):
+            result_to_json(result)
+
+    def test_nan_timing_is_rejected_instead_of_serialized_as_a_number(self):
+        result = {
+            "identity": {
+                "name": "python_startup",
+                "category": "startup",
+                "operation": "process",
+                "operation_count": 1,
+            },
+            "baseline": {"timing": {"samples": [float("nan")]}},
+            "candidate": {"timing": {"samples": [0.01]}},
+        }
+        with self.assertRaises(ResultSchemaError):
+            result_to_json(result)
+
+
+class RunnerContractTests(unittest.TestCase):
+    def test_timing_and_memory_rounds_are_profile_specific(self):
+        self.assertEqual(set(PROFILE_ROUNDS), {"quick", "standard", "rigorous"})
+        for timing_rounds, memory_rounds in PROFILE_ROUNDS.values():
+            self.assertGreater(timing_rounds, 0)
+            self.assertGreater(memory_rounds, 0)
+
+    def test_startup_runs_the_supplied_interpreter_directly(self):
+        command = workload_command(
+            Path("/tmp/python"),
+            next(w for w in WORKLOADS if w.name == "python_startup"),
+            1,
+        )
+        self.assertEqual(command, ["/tmp/python", "-c", "pass"])
+
+    def test_macro_commands_do_not_require_target_venv_or_pip(self):
+        python = Path("/tmp/python")
+        for workload in WORKLOADS:
+            with self.subTest(workload=workload.name):
+                command = workload_command(python, workload, workload.iterations)
+                self.assertEqual(command[0], str(python))
+                self.assertNotIn("venv", command)
+                self.assertNotIn("pip", command[1:])
+                if workload.name != "python_startup":
+                    self.assertEqual(
+                        command[1:3],
+                        ["-m", f"benchmarks.workloads.{workload.module}"],
+                    )
+
+    def test_benchmark_dependencies_are_external_to_the_tested_interpreter(self):
+        env = workload_environment(Path("/bench/site-packages"))
+        paths = env["PYTHONPATH"].split(":")
+        self.assertEqual(paths[0], "/bench/site-packages")
+        self.assertIn(str(ROOT), paths)
+        self.assertEqual(env["PYTHONHASHSEED"], "1")
+        self.assertEqual(env["PYTHONNOUSERSITE"], "1")
+        self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
+
+
+class DocumentationAndCompatibilityTests(unittest.TestCase):
+    def test_readme_explains_new_measurement_and_comparison_contracts(self):
+        readme = (BENCH / "README.md").read_text(encoding="utf-8")
+        for phrase in (
+            "Three independent passes",
+            "Memray",
+            "peak total PSS",
+            "upstream CPython",
+            "Astral PBS",
+            "django_wsgi_request",
+            "django_asgi_request",
+            "pip_install_wheelhouse",
+            "provenance.json",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, readme)
+
+    def test_old_shell_entry_point_delegates_to_the_controller(self):
+        script = (BENCH / "run_benchmarks.sh").read_text(encoding="utf-8")
+        self.assertIn("benchmarks/bench.py", script)
+        self.assertIn("run --preset pbs", script)
+        self.assertIn('exec python3', script)
+        self.assertNotIn("docker build", script)
+        self.assertNotIn("run_parallel.sh", script)
+
+    def test_unremoved_utilities_are_marked_as_legacy(self):
+        for name in (
+            "run_single.sh",
+            "run_suite.sh",
+            "run_parallel.sh",
+            "compare.py",
+            "pool.py",
+            "shard.py",
+        ):
+            with self.subTest(script=name):
+                path = BENCH / name
+                if path.exists():
+                    header = path.read_text(encoding="utf-8")[:240]
+                    self.assertIn("LEGACY", header)
+
+    def test_benchmark_image_does_not_bake_in_pbs_or_legacy_runners(self):
+        dockerfile = (BENCH / "Dockerfile").read_text(encoding="utf-8")
+        for baked_input in (
+            "ARG PBS_URL=",
+            "reference-pbs",
+            "/bench/pbs/python",
+            "run_single.sh",
+            "run_suite.sh",
+            "run_parallel.sh",
+            "compare.py",
+            "pool.py",
+            "shard.py",
+        ):
+            with self.subTest(baked_input=baked_input):
+                self.assertNotIn(baked_input, dockerfile)
+
+
+class ControllerCliTests(unittest.TestCase):
+    def test_executable_mount_preserves_non_bin_layout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            executable = prefix / "custom" / "cpython"
+            executable.parent.mkdir()
+            executable.write_bytes(b"python")
+            mounts: list[str] = []
+            descriptor = _docker_descriptor(str(executable), "baseline", mounts)
+            self.assertEqual(descriptor, "/interpreters/baseline/custom/cpython")
+            self.assertEqual(mounts, ["-v", f"{prefix}:/interpreters/baseline:ro"])
+
+    def help_text(self, command: str) -> str:
+        output = io.StringIO()
+        with redirect_stdout(output), self.assertRaises(SystemExit) as exit_info:
+            bench_main([command, "--help"])
+        self.assertEqual(exit_info.exception.code, 0)
+        return output.getvalue()
+
+    def test_run_accepts_generic_interpreters_and_named_presets(self):
+        help_text = self.help_text("run")
+        for option in (
+            "--baseline",
+            "--candidate",
+            "--baseline-label",
+            "--candidate-label",
+            "--preset",
+            "--suite",
+            "--profile",
+            "--memory-interval-ms",
+            "--allow-cross-version",
+            "--container",
+            "--local",
+        ):
+            with self.subTest(option=option):
+                self.assertIn(option, help_text)
+        self.assertIn("pbs", help_text)
+
+    def test_self_comparison_has_a_direct_python_input(self):
+        help_text = self.help_text("self-compare")
+        self.assertIn("--python", help_text)
+        self.assertIn("--suite", help_text)
+        self.assertIn("--profile", help_text)
 
 
 if __name__ == "__main__":
