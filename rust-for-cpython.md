@@ -128,6 +128,13 @@ self-comparison. Report raw direction even within noise. Investigate material
 allocation growth. An unavailable metric is neither zero nor a pass. Report
 installed interpreter, extension, and Rust runtime bytes separately from
 process memory.
+When an installed Python source file changes, verify equal bytecode-cache
+policy before timing or memory measurement: each side must have valid cache
+bytes for its own source, or both must compile source. Prepare caches outside
+measured processes and record their hashes and invalidation mode. A stale
+candidate cache under `PYTHONDONTWRITEBYTECODE=1` made the URL overlay appear
+roughly 3 MB heavier at import; see the
+[`cache-attribution experiment`](rust-cpython/experiments/url-quote-memory-attribution-20260924.md).
 Calibrate both control against itself and candidate against itself before
 accepting a close result. Use baseline-derived fixed loop counts for
 pyperformance where its interface supports them; that path is still open in

@@ -47,6 +47,13 @@ fork, including Cargo/staticlib, CPython-owned module registration, parser
 patch, cache preparation, and build checks. It runs no compilation or
 benchmark and makes no source changes. Budget: 20 command CPU seconds,
 512 MiB maximum RSS; the coordinator owns any later implementation.
+The audit found that the existing `cpython-rust-staticlib` can hold a kernel
+without changing `Cargo.lock`, but the shared C extension will not link that
+archive automatically. It recommends a dedicated no-std archive rule, a
+CPython-owned stateless C wrapper, gated setup/configure entries, and an
+authored source patch after the fair comparison clears both gates. It also
+separates the build-only pycache prefix from the benchmark environment. No
+build, test, or benchmark ran; see `url-quote-patch-design-20260924.md`.
 
 ## Twelfth cycle (base `5c393f5`)
 

@@ -57,6 +57,12 @@ Linux recipes outside these lanes.
   Use separate uninstrumented timing, external memory, and allocation passes
   as specified in `rust-for-cpython.md`. Pair equivalent control/candidate
   work on the same quiet host and retain raw observations and noise bounds.
+- When a candidate changes installed Python source, verify the source and
+  bytecode-cache state on both sides before measuring. A stale checked-hash
+  `.pyc` in a no-write environment forces source compilation at every fresh
+  import and can dominate startup RSS. Regenerate valid caches for both sides
+  outside measured processes, or make both sides run from source; record the
+  policy and cache identities with the result.
 - `~/d/rustybench` can inform a focused Rust kernel experiment. Inspect its
   contract before use; it currently reports Linux process CPU/resource
   fields and marks the macOS resource extension unsupported. It does not
