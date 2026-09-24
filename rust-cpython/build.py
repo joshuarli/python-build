@@ -1,0 +1,1038 @@
+#!/usr/bin/env python3
+"""Build and validate the isolated macOS Rust-for-CPython lane."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import platform
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+REPO = Path(__file__).resolve().parents[1]
+LANE = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+
+from buildsys import macho  # noqa: E402
+from buildsys.bootstrap import (  # noqa: E402
+    BootstrapError,
+    load_macos_toolchain,
+    problems as toolchain_problems,
+    sdk_version,
+)
+from buildsys.inputs import (  # noqa: E402
+    Cache,
+    Input,
+    InputError,
+    load_lock,
+    safe_extract,
+)
+from buildsys.llvm import (  # noqa: E402
+    extract_llvm_archive,
+    verify_llvm_attestation_metadata,
+)
+from buildsys.sandbox import (  # noqa: E402
+    SealedRun,
+    SandboxError,
+    available as sandbox_available,
+    network_boundary_selftest,
+)
+from buildsys.targets import target_for_triple  # noqa: E402
+
+TARGET = "aarch64-apple-darwin"
+RUST_CHANNEL = "nightly-2026-09-15"
+SOURCE_LOCK = LANE / "sources.lock.json"
+BOOTSTRAP_LOCK = REPO / "bootstrap.lock.json"
+CACHE_ROOT = REPO / ".cache"
+CARGO_HOME = LANE / ".cargo-home"
+WORK = LANE / "work"
+BUILD = WORK / "build"
+SOURCE = WORK / "source"
+STAGE = LANE / "stage"
+LOGS = LANE / "logs"
+RESULTS = LANE / "results"
+BUILD_REPORT = RESULTS / "build.json"
+SOURCE_DATE_EPOCH = "1704067200"
+PROFILE_TASK = "-m test --pgo"
+
+
+class LaneError(Exception):
+    """The pinned experimental build lane cannot safely continue."""
+
+
+def _read_lock() -> tuple[dict[str, Any], Input]:
+    try:
+        document = json.loads(SOURCE_LOCK.read_text())
+        metadata = document["source"]
+        entries = load_lock(SOURCE_LOCK)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, InputError) as error:
+        raise LaneError(f"cannot read Rust-for-CPython source lock: {error}") from error
+    if len(entries) != 1:
+        raise LaneError(f"{SOURCE_LOCK}: expected exactly one source input")
+    entry = entries[0]
+    required = {
+        "repository", "branch", "commit", "version", "license",
+        "cargo_lock_sha256",
+    }
+    missing = sorted(required - metadata.keys())
+    if missing:
+        raise LaneError(f"{SOURCE_LOCK}: source metadata is missing {', '.join(missing)}")
+    if (
+        entry.name != "cpython-rust"
+        or entry.version != metadata["version"]
+        or entry.role != "build-source"
+        or entry.target != TARGET
+        or metadata["commit"] not in entry.url
+        or entry.license != metadata["license"]
+    ):
+        raise LaneError(f"{SOURCE_LOCK}: source metadata and archive pin disagree")
+    return metadata, entry
+
+
+def _toolchain():
+    try:
+        toolchain = load_macos_toolchain(BOOTSTRAP_LOCK)
+    except (BootstrapError, OSError, ValueError) as error:
+        raise LaneError(f"cannot load the locked macOS toolchain: {error}") from error
+    target = target_for_triple(TARGET)
+    if toolchain.cpu_baseline != target.cpu_baseline_cflag:
+        raise LaneError(
+            "bootstrap lock CPU baseline does not match the target table: "
+            f"{toolchain.cpu_baseline!r} != {target.cpu_baseline_cflag!r}"
+        )
+    return toolchain, target
+
+
+def _supported_host() -> bool:
+    return platform.system() == "Darwin" and platform.machine().lower() in {
+        "arm64", "aarch64",
+    }
+
+
+def _require_host() -> None:
+    if not _supported_host():
+        raise LaneError(
+            "rust-cpython currently supports only a native Apple Silicon macOS host; "
+            "cross-compilation is not implemented"
+        )
+
+
+def _command(
+    argv: list[str], *, env: dict[str, str] | None = None, timeout: int = 30
+) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            argv, capture_output=True, text=True, env=env, timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return {"argv": argv, "returncode": None, "output": str(error)}
+    return {
+        "argv": argv,
+        "returncode": result.returncode,
+        "output": (result.stdout + result.stderr).strip(),
+    }
+
+
+def _tool_output(argv: list[str]) -> str:
+    return str(_command(argv, timeout=60)["output"])
+
+
+def _rust_identity(rustup: str | None) -> dict[str, Any]:
+    if rustup is None:
+        return {
+            "rustup": None,
+            "installed": False,
+            "rustc_vv": "",
+            "cargo_v": "",
+            "active_toolchain": "",
+        }
+    env = dict(os.environ)
+    env["RUSTUP_TOOLCHAIN"] = RUST_CHANNEL
+    env["CARGO_HOME"] = str(CARGO_HOME)
+    listing = _command([rustup, "toolchain", "list"], env=env)
+    installed = listing["returncode"] == 0 and any(
+        line.split()[0].startswith(RUST_CHANNEL)
+        for line in listing["output"].splitlines() if line.split()
+    )
+    if not installed:
+        return {
+            "rustup": rustup,
+            "installed": False,
+            "toolchain_list": listing["output"],
+            "rustc_vv": "",
+            "cargo_v": "",
+            "active_toolchain": "",
+        }
+    return {
+        "rustup": rustup,
+        "installed": True,
+        "toolchain_list": listing["output"],
+        "rustc_vv": _command(
+            [rustup, "run", RUST_CHANNEL, "rustc", "-Vv"], env=env
+        )["output"],
+        "cargo_v": _command(
+            [rustup, "run", RUST_CHANNEL, "cargo", "-V"], env=env
+        )["output"],
+        "active_toolchain": _command(
+            [rustup, "show", "active-toolchain"], env=env
+        )["output"],
+    }
+
+
+def _object_path(cache_root: Path, input_: Input) -> Path:
+    return Path(cache_root) / "objects" / f"{input_.sha256}.blob"
+
+
+def doctor_report() -> dict[str, Any]:
+    metadata, source_input = _read_lock()
+    toolchain, target = _toolchain()
+    rustup = shutil.which("rustup")
+    rust = _rust_identity(rustup)
+    source_blob = _object_path(CACHE_ROOT, source_input)
+    try:
+        if source_blob.is_file():
+            Cache(CACHE_ROOT).require(source_input)
+            source_cached = True
+        else:
+            source_cached = False
+    except InputError:
+        source_cached = False
+    llvm_cache = Cache(CACHE_ROOT / "llvm")
+    llvm_archive = _object_path(llvm_cache.root, toolchain.llvm_input())
+    llvm_prefix_ready = (
+        toolchain.llvm_prefix / ".verified.json"
+    ).is_file()
+    failures: list[str] = []
+    if not _supported_host():
+        failures.append(
+            "this experiment supports only native Apple Silicon macOS "
+            f"(found {platform.system()} {platform.machine()})"
+        )
+    failures.extend(toolchain_problems(toolchain, host_floor="26.0"))
+    if rustup is None:
+        failures.append("rustup is not on PATH")
+    elif not rust["installed"]:
+        failures.append(
+            f"install the pinned compiler with `rustup toolchain install {RUST_CHANNEL} --profile minimal`"
+        )
+    elif not rust["rustc_vv"].startswith("rustc ") or "nightly" not in rust["rustc_vv"].splitlines()[0]:
+        failures.append(f"rustup could not run the pinned compiler {RUST_CHANNEL}")
+    if not rust.get("cargo_v", "").startswith("cargo ") or "nightly" not in rust["cargo_v"].splitlines()[0]:
+        failures.append(f"rustup could not run the pinned Cargo for {RUST_CHANNEL}")
+    if not source_cached:
+        failures.append("the pinned CPython archive is not verified in .cache; run fetch")
+    if not llvm_archive.is_file() or not llvm_prefix_ready:
+        failures.append("the locked LLVM 23.1.2 toolchain is not provisioned; run fetch")
+    if not sandbox_available():
+        failures.append("/usr/bin/sandbox-exec is unavailable; the offline build cannot be sealed")
+    active = rust.get("active_toolchain", "")
+    if rust.get("installed") and not active.startswith(RUST_CHANNEL):
+        failures.append(f"rustup did not activate {RUST_CHANNEL} for the build")
+
+    clang = toolchain.llvm_prefix / "bin" / "clang"
+    xcodebuild = _command(["xcodebuild", "-version"])
+    sdk_report = _command(["xcrun", "--sdk", "macosx", "--show-sdk-version"])
+    sdk_path_report = _command(["xcrun", "--sdk", "macosx", "--show-sdk-path"])
+    locked_sdk_version = sdk_version(toolchain.sdkroot)
+    reported_xcode_version = xcodebuild["output"].splitlines()[0] if xcodebuild["output"] else ""
+    if xcodebuild["returncode"] != 0 or not reported_xcode_version.startswith(
+        f"Xcode {toolchain.xcode_version}"
+    ):
+        failures.append(
+            f"Xcode reports {reported_xcode_version or 'unavailable'}; "
+            f"lock requires {toolchain.xcode_version}"
+        )
+    if locked_sdk_version == "unknown" or sdk_report["output"] != locked_sdk_version:
+        failures.append(
+            f"active macOS SDK reports {sdk_report['output'] or 'unavailable'}; "
+            f"locked SDK at {toolchain.sdkroot} reports {locked_sdk_version}"
+        )
+    if (
+        sdk_path_report["returncode"] != 0
+        or not sdk_path_report["output"]
+        or Path(sdk_path_report["output"]).resolve() != toolchain.sdkroot.resolve()
+    ):
+        failures.append(
+            f"active SDK path {sdk_path_report['output'] or 'unavailable'} does not match "
+            f"locked SDK path {toolchain.sdkroot}"
+        )
+    make_report = _command([str(toolchain.make), "--version"])
+    report = {
+        "host": {"os": platform.system(), "architecture": platform.machine()},
+        "target": target.triple,
+        "source": {
+            **metadata,
+            "archive_url": source_input.url,
+            "archive_sha256": source_input.sha256,
+            "archive_size": source_input.size,
+            "cached_and_verified": source_cached,
+        },
+        "rust": rust,
+        "cargo": {
+            "private_home": str(CARGO_HOME),
+            "wrapper_present": (CARGO_HOME / "bin" / "cargo").is_file(),
+            "registry_cache_present": (CARGO_HOME / "registry").is_dir(),
+        },
+        "c_toolchain": {
+            "locked_identity": toolchain.identity(),
+            "clang_path": str(clang),
+            "clang_version": _tool_output([str(clang), "--version"]),
+            "llvm_archive_cached": llvm_archive.is_file(),
+            "llvm_prefix_ready": llvm_prefix_ready,
+        },
+        "xcode": {
+            "locked_version": toolchain.xcode_version,
+            "reported_version": xcodebuild["output"],
+            "sdk_path": str(toolchain.sdkroot),
+            "sdk_version": locked_sdk_version,
+            "active_sdk_version": sdk_report["output"],
+            "active_sdk_path": sdk_path_report["output"],
+        },
+        "deployment_floor": toolchain.deployment_target,
+        "gnu_make": {
+            "path": str(toolchain.make),
+            "version": make_report["output"],
+        },
+        "pgo_profdata": {
+            "path": str(toolchain.llvm_profdata),
+            "version": _tool_output([str(toolchain.llvm_profdata), "--version"]),
+        },
+        "network_sandbox_available": sandbox_available(),
+        "problems": failures,
+        "ok": not failures,
+    }
+    return report
+
+
+def _write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def doctor() -> int:
+    try:
+        report = doctor_report()
+    except (LaneError, BootstrapError, OSError, ValueError) as error:
+        print(json.dumps({"ok": False, "problems": [str(error)]}, indent=2))
+        return 1
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["ok"] else 1
+
+
+def _require_nightly() -> str:
+    rustup = shutil.which("rustup")
+    if rustup is None:
+        raise LaneError("rustup is not on PATH")
+    env = dict(os.environ)
+    env["RUSTUP_TOOLCHAIN"] = RUST_CHANNEL
+    env["CARGO_HOME"] = str(CARGO_HOME)
+    result = subprocess.run(
+        [rustup, "run", RUST_CHANNEL, "rustc", "-Vv"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        raise LaneError(
+            f"the pinned Rust toolchain is unavailable; install it with "
+            f"`rustup toolchain install {RUST_CHANNEL} --profile minimal`"
+        )
+    return rustup
+
+
+def _cargo_wrapper(rustup: str) -> Path:
+    wrapper = CARGO_HOME / "bin" / "cargo"
+    wrapper.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        "#!/bin/sh\n"
+        f"exec {shlex.quote(rustup)} run {shlex.quote(RUST_CHANNEL)} cargo \"$@\"\n"
+    )
+    if not wrapper.is_file() or wrapper.read_text() != content:
+        wrapper.write_text(content)
+    wrapper.chmod(0o755)
+    return wrapper
+
+
+def _source_root(extraction: Path) -> Path:
+    matches = [
+        child for child in extraction.iterdir()
+        if child.is_dir() and (child / "configure").is_file()
+    ]
+    if len(matches) != 1:
+        raise LaneError(
+            f"expected one CPython source directory beneath {extraction}, found {len(matches)}"
+        )
+    source = matches[0]
+    for required in ("Cargo.toml", "Cargo.lock", "Lib", "Modules", "Include/patchlevel.h"):
+        if not (source / required).exists():
+            raise LaneError(f"pinned source archive is missing {required}")
+    metadata, _entry = _read_lock()
+    found_lock_hash = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
+    if found_lock_hash != metadata["cargo_lock_sha256"]:
+        raise LaneError(
+            "Cargo.lock digest disagrees with the source lock: "
+            f"{found_lock_hash} != {metadata['cargo_lock_sha256']}"
+        )
+    return source
+
+
+def _extract_fresh(destination: Path) -> Path:
+    metadata, source_input = _read_lock()
+    del metadata
+    blob = Cache(CACHE_ROOT).require(source_input)
+    if destination.exists():
+        shutil.rmtree(destination)
+    extraction = safe_extract(blob, destination)
+    return _source_root(extraction)
+
+
+def _llvm_ready(toolchain) -> Path:
+    llvm_cache = Cache(CACHE_ROOT / "llvm")
+    archive = llvm_cache.require(toolchain.llvm_input())
+    attestation = llvm_cache.require(toolchain.llvm_attestation_input())
+    verify_llvm_attestation_metadata(
+        attestation,
+        archive_filename=Path(toolchain.llvm_archive_url).name,
+        archive_sha256=toolchain.llvm_archive_sha256,
+        release_tag=toolchain.llvm_release_tag,
+        source_commit=toolchain.llvm_source_commit,
+        workflow=toolchain.llvm_workflow,
+    )
+    return extract_llvm_archive(
+        archive,
+        toolchain.llvm_prefix,
+        archive_root=toolchain.llvm_archive_root,
+        sha256=toolchain.llvm_archive_sha256,
+        size=toolchain.llvm_archive_size,
+        version=toolchain.llvm_version,
+    )
+
+
+def _fetch_llvm(toolchain) -> Path:
+    llvm_cache = Cache(CACHE_ROOT / "llvm")
+    try:
+        archive = llvm_cache.fetch(toolchain.llvm_input())
+        attestation = llvm_cache.fetch(toolchain.llvm_attestation_input())
+        verify_llvm_attestation_metadata(
+            attestation,
+            archive_filename=Path(toolchain.llvm_archive_url).name,
+            archive_sha256=toolchain.llvm_archive_sha256,
+            release_tag=toolchain.llvm_release_tag,
+            source_commit=toolchain.llvm_source_commit,
+            workflow=toolchain.llvm_workflow,
+        )
+        return extract_llvm_archive(
+            archive,
+            toolchain.llvm_prefix,
+            archive_root=toolchain.llvm_archive_root,
+            sha256=toolchain.llvm_archive_sha256,
+            size=toolchain.llvm_archive_size,
+            version=toolchain.llvm_version,
+        )
+    except (InputError, OSError, ValueError) as error:
+        raise LaneError(f"cannot provision the locked LLVM toolchain: {error}") from error
+
+
+def _environment(toolchain, *, offline: bool, build_dir: Path = BUILD) -> dict[str, str]:
+    rustup = shutil.which("rustup")
+    rustup_directory = str(Path(rustup).parent) if rustup else "/usr/bin"
+    cargo_bin = CARGO_HOME / "bin"
+    llvm_bin = toolchain.llvm_prefix / "bin"
+    path_parts = [
+        str(cargo_bin), str(llvm_bin), rustup_directory,
+        "/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin",
+    ]
+    path = ":".join(dict.fromkeys(path_parts))
+    temp_dir = WORK / "tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    env = toolchain.toolchain().env()
+    env.update({
+        "PATH": path,
+        "HOME": str(LANE / ".home"),
+        "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")),
+        "CARGO_HOME": str(CARGO_HOME),
+        "CARGO_NET_OFFLINE": "true" if offline else "false",
+        "CARGO_TARGET_DIR": str(build_dir / "target"),
+        "RUSTUP_TOOLCHAIN": RUST_CHANNEL,
+        "RUST_SHARED_BUILD": "1",
+        "LLVM_TARGET": TARGET,
+        "BINDGEN_EXTRA_CLANG_ARGS": f"-resource-dir={toolchain.llvm_resource_dir}",
+        "SOURCE_DATE_EPOCH": SOURCE_DATE_EPOCH,
+        "PYTHONHASHSEED": SOURCE_DATE_EPOCH,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": str(WORK / "pycache"),
+        "TMPDIR": str(temp_dir),
+        "PKG_CONFIG": str(toolchain.pkgconf),
+    })
+    return env
+
+
+def _test_environment(toolchain) -> dict[str, str]:
+    """Let CPython's test runner populate its isolated bytecode cache."""
+    env = _environment(toolchain, offline=True)
+    env.pop("PYTHONDONTWRITEBYTECODE", None)
+    return env
+
+
+def _run_logged(
+    argv: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    log: Path,
+    sealed: SealedRun | None = None,
+) -> subprocess.CompletedProcess:
+    log.parent.mkdir(parents=True, exist_ok=True)
+    print(f"RUN   {' '.join(shlex.quote(part) for part in argv)}")
+    print(f"LOG   {log}")
+    if sealed is not None:
+        return sealed.run(argv, cwd=cwd, env=env, log=log)
+    with log.open("w") as output:
+        return subprocess.run(
+            argv, cwd=cwd, env=env, stdout=output, stderr=subprocess.STDOUT
+        )
+
+
+def _require_command(
+    argv: list[str], *, cwd: Path, env: dict[str, str], log: Path,
+    sealed: SealedRun | None = None,
+) -> subprocess.CompletedProcess:
+    result = _run_logged(argv, cwd=cwd, env=env, log=log, sealed=sealed)
+    if result.returncode != 0:
+        raise LaneError(
+            f"command failed with exit status {result.returncode}; "
+            f"inspect {log}"
+        )
+    return result
+
+
+def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
+    env = _environment(toolchain, offline=False)
+    env["PATH"] = f"{CARGO_HOME / 'bin'}:{env['PATH']}"
+    command = [
+        str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked",
+        "--manifest-path", str(source / "Cargo.toml"),
+    ]
+    cargo_lock = source / "Cargo.lock"
+    before = hashlib.sha256(cargo_lock.read_bytes()).hexdigest()
+    _require_command(
+        command, cwd=source, env=env, log=LOGS / "cargo-fetch.log"
+    )
+    after = hashlib.sha256(cargo_lock.read_bytes()).hexdigest()
+    metadata, _entry = _read_lock()
+    if before != metadata["cargo_lock_sha256"] or after != before:
+        raise LaneError("cargo fetch changed the locked Cargo.lock")
+
+
+def fetch() -> int:
+    _require_host()
+    rustup = _require_nightly()
+    _cargo_wrapper(rustup)
+    metadata, source_input = _read_lock()
+    toolchain, _target = _toolchain()
+    try:
+        source_blob = Cache(CACHE_ROOT).fetch(source_input)
+    except (InputError, OSError) as error:
+        raise LaneError(f"cannot fetch the pinned CPython source: {error}") from error
+    print(f"OK    source archive -> {source_blob}")
+    _fetch_llvm(toolchain)
+    print(f"OK    LLVM {toolchain.llvm_version} -> {toolchain.llvm_prefix}")
+    WORK.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="cargo-fetch-", dir=WORK) as temporary:
+        source = _source_root(safe_extract(source_blob, Path(temporary) / "source"))
+        _fetch_cargo_dependencies(source, toolchain)
+    print(
+        f"OK    Cargo dependencies cached under {CARGO_HOME}; "
+        f"source pin {metadata['commit']}"
+    )
+    return 0
+
+
+def _profile_task(jobs: int) -> str:
+    if jobs < 1:
+        raise ValueError("profile task requires at least one worker")
+    return f"{PROFILE_TASK} -j {jobs}"
+
+
+def _test_jobs() -> int:
+    return max(1, min(4, (os.cpu_count() or 4) - 1))
+
+
+def _brew_pkg_config_path() -> str:
+    brew = shutil.which("brew")
+    if not brew:
+        return ""
+    found: list[str] = []
+    for formula in ("openssl@3", "sqlite", "libffi", "xz", "bzip2", "zstd"):
+        result = _command([brew, "--prefix", formula])
+        if result["returncode"] != 0:
+            continue
+        pkgconfig = Path(result["output"]) / "lib" / "pkgconfig"
+        if pkgconfig.is_dir():
+            found.append(str(pkgconfig))
+    return ":".join(dict.fromkeys(found))
+
+
+def _configuration(toolchain, target, jobs: int) -> tuple[list[str], dict[str, str]]:
+    profile_task = _profile_task(jobs)
+    flags = " ".join((
+        "-O3", target.cpu_baseline_cflag, "-fPIC",
+        f"-mmacosx-version-min={toolchain.deployment_target}",
+    ))
+    link_flags = f"-mmacosx-version-min={toolchain.deployment_target}"
+    args = [
+        f"--prefix={STAGE}",
+        "--enable-shared",
+        "--with-lto=thin",
+        "--enable-optimizations",
+        "--enable-experimental-jit=no",
+        "--with-tail-call-interp=no",
+        "--without-ensurepip",
+    ]
+    env = _environment(toolchain, offline=True)
+    env.update({
+        "CFLAGS": flags,
+        "CXXFLAGS": flags,
+        "CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
+        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
+        "LDFLAGS": link_flags,
+        "PROFILE_TASK": profile_task,
+        "LLVM_PROFDATA": str(toolchain.llvm_profdata),
+        "PKG_CONFIG_PATH": _brew_pkg_config_path(),
+    })
+    return args, env
+
+
+def _macos_sandbox() -> SealedRun:
+    if not sandbox_available():
+        raise LaneError("offline build requires /usr/bin/sandbox-exec")
+    sandbox = SealedRun(write_paths=[LANE], home=LANE / ".home")
+    try:
+        proof = network_boundary_selftest(Path(sys.executable), WORK / "sandbox-probe")
+    except (SandboxError, OSError, subprocess.SubprocessError) as error:
+        raise LaneError(f"cannot prove the offline network boundary: {error}") from error
+    if not proof.get("ok"):
+        raise LaneError(f"sandbox network-denial self-test failed: {proof}")
+    return sandbox
+
+
+def _make_value(makefile: Path, name: str) -> str:
+    prefix = f"{name}="
+    for line in makefile.read_text(errors="replace").splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    return ""
+
+
+def _build_python() -> Path:
+    makefile = BUILD / "Makefile"
+    if not makefile.is_file():
+        raise LaneError(f"configured build Makefile is missing: {makefile}")
+    name = _make_value(makefile, "BUILDPYTHON")
+    suffix = _make_value(makefile, "BUILDEXE")
+    name = name.replace("$(BUILDEXE)", suffix)
+    if not name or "$" in name or Path(name).name != name:
+        raise LaneError(f"cannot resolve CPython build interpreter name {name!r}")
+    return BUILD / name
+
+
+def _module_report(install: Path, python: Path, toolchain) -> dict[str, Any]:
+    code = r'''
+import base64, binascii, json, sys, sysconfig, _base64
+vectors = [b"", b"f", b"fo", b"foo", bytes(range(256)), b"rust-cpython" * 4096]
+for value in vectors:
+    actual = _base64.standard_b64encode(value)
+    expected = binascii.b2a_base64(value, newline=False)
+    if actual != expected or actual != base64.b64encode(value):
+        raise SystemExit("_base64 disagrees with the CPython base64/binascii result")
+for value in (bytearray(b"buffer"), memoryview(b"view")):
+    if _base64.standard_b64encode(value) != binascii.b2a_base64(value, newline=False):
+        raise SystemExit("_base64 buffer-protocol result differs from binascii")
+if sys.implementation.name != "cpython" or sys.version_info[:2] != (3, 16):
+    raise SystemExit("interpreter is not CPython 3.16")
+if sysconfig.get_config_var("Py_GIL_DISABLED") in (1, "1"):
+    raise SystemExit("the experimental build unexpectedly disabled the GIL")
+if hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled():
+    raise SystemExit("the interpreter reports that the GIL is disabled")
+print(json.dumps({
+    "implementation": sys.implementation.name,
+    "version": sys.version,
+    "gil_disabled": sysconfig.get_config_var("Py_GIL_DISABLED"),
+    "gil_enabled": sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True,
+    "extension_suffix": sysconfig.get_config_var("EXT_SUFFIX"),
+    "config_args": sysconfig.get_config_var("CONFIG_ARGS"),
+    "cflags": sysconfig.get_config_var("CFLAGS"),
+    "ldflags": sysconfig.get_config_var("LDFLAGS"),
+    "base64_vectors": len(vectors) + 2,
+    "base64_matches_binascii": True,
+}))
+'''
+    env = _environment(toolchain, offline=True)
+    result = subprocess.run(
+        [str(python), "-I", "-S", "-c", code],
+        cwd=install,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise LaneError(
+            "installed interpreter/_base64 smoke test failed: "
+            f"{(result.stderr or result.stdout).strip()[-1000:]}"
+        )
+    try:
+        interpreter = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError) as error:
+        raise LaneError(f"cannot parse installed interpreter report: {result.stdout!r}") from error
+    suffix = interpreter["extension_suffix"]
+    module_path = Path(subprocess.run(
+        [str(python), "-I", "-S", "-c", "import _base64; print(_base64.__file__)"],
+        cwd=install, env=env, capture_output=True, text=True, timeout=30, check=True,
+    ).stdout.strip()).resolve()
+    if not module_path.name.endswith(suffix):
+        raise LaneError(f"Rust module {module_path.name} does not use {suffix}")
+    try:
+        module_path.relative_to(install.resolve())
+    except ValueError as error:
+        raise LaneError(f"Rust module was loaded outside the stage tree: {module_path}") from error
+
+    header = macho.read_header(module_path)
+    version = macho.build_version(module_path)
+    if header.arch != "arm64":
+        raise LaneError(f"Rust module architecture is {header.arch}, expected arm64")
+    if version is None or version.minos != toolchain.deployment_target:
+        raise LaneError(
+            f"Rust module deployment floor is {version.minos if version else None}, "
+            f"expected {toolchain.deployment_target}"
+        )
+    dependencies = macho.dependencies(module_path)
+    rpaths = macho.rpaths(module_path)
+    forbidden_markers = (
+        "/opt/homebrew", ".rustup", ".cargo-home", "/.cache/llvm/",
+    )
+    unexpected = [
+        item for item in [*dependencies, *rpaths]
+        if any(marker in item for marker in forbidden_markers)
+    ]
+    if unexpected:
+        raise LaneError(
+            "Rust module has a build-tool/Homebrew dependency or rpath: "
+            + ", ".join(unexpected)
+        )
+    nm = toolchain.llvm_prefix / "bin" / "llvm-nm"
+    symbols = _command([str(nm), "-g", str(module_path)])
+    if symbols["returncode"] != 0:
+        raise LaneError(f"cannot inspect Rust module exports: {symbols['output']}")
+    exports = []
+    for line in symbols["output"].splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[-1].lstrip("_") == "PyInit__base64":
+            exports.append(fields[-1])
+    if not exports:
+        raise LaneError("Rust module does not export PyInit__base64")
+    interpreter["module_path"] = str(module_path)
+    interpreter["module_dependencies"] = dependencies
+    interpreter["module_rpaths"] = rpaths
+    interpreter["module_exports"] = exports
+    interpreter["module_arch"] = header.arch
+    interpreter["module_minos"] = version.minos
+    return interpreter
+
+
+def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
+    command = [
+        str(CARGO_HOME / "bin" / "cargo"), "metadata", "--locked", "--offline",
+        "--no-deps", "--format-version", "1", "--manifest-path",
+        str(source / "Cargo.toml"),
+    ]
+    result = subprocess.run(
+        command, cwd=source, env=env, capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode != 0:
+        raise LaneError(f"cargo metadata failed: {(result.stderr or result.stdout).strip()}")
+    document = json.loads(result.stdout)
+    names = {package["id"]: package["name"] for package in document["packages"]}
+    return sorted(names[member] for member in document["workspace_members"] if member in names)
+
+
+def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
+    members = set(_workspace_members(source, env))
+    pattern = re.compile(r"(?:Compiling|Fresh) ([^ ]+) v[^ ]+")
+    found: set[str] = set()
+    for log in sorted(LOGS.glob("cpython-*.log")):
+        for line in log.read_text(errors="replace").splitlines():
+            match = pattern.search(line)
+            if match and match.group(1) in members:
+                found.add(match.group(1))
+    return sorted(found)
+
+
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun) -> dict[str, Any]:
+    rustup = _require_nightly()
+    _cargo_wrapper(rustup)
+    if BUILD.exists():
+        shutil.rmtree(BUILD)
+    if STAGE.exists():
+        shutil.rmtree(STAGE)
+    BUILD.mkdir(parents=True)
+    STAGE.mkdir(parents=True)
+    args, env = _configuration(toolchain, target, jobs)
+    env.update({
+        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
+        "PY_CPPFLAGS": env["CPPFLAGS"],
+        "PY_CFLAGS": env["CFLAGS"],
+        "PYTHON_BUILD_DIR": str(BUILD),
+        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER": str(toolchain.llvm_prefix / "bin" / "clang"),
+        "IPHONEOS_DEPLOYMENT_TARGET": "",
+    })
+    env = sandbox.environment(env)
+    source_date_env = dict(env)
+    configure = [str(source / "configure"), *args]
+    _require_command(
+        configure, cwd=BUILD, env=source_date_env,
+        log=LOGS / "cpython-configure.log", sealed=sandbox,
+    )
+    make = [str(toolchain.make), f"-j{jobs}"]
+    _require_command(
+        make, cwd=BUILD, env=source_date_env,
+        log=LOGS / "cpython-build.log", sealed=sandbox,
+    )
+    _require_command(
+        [str(toolchain.make), "install"], cwd=BUILD, env=source_date_env,
+        log=LOGS / "cpython-install.log", sealed=sandbox,
+    )
+    python = STAGE / "bin" / "python3.16"
+    if not python.is_file():
+        raise LaneError(f"CPython install did not produce {python}")
+    module = _module_report(STAGE, python, toolchain)
+    cargo_env = dict(source_date_env)
+    cargo_env.update({
+        "PYTHON_BUILD_DIR": str(BUILD),
+        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
+        "PY_CPPFLAGS": source_date_env["CPPFLAGS"],
+        "PY_CFLAGS": source_date_env["CFLAGS"],
+        "CARGO_TARGET_DIR": str(BUILD / "target"),
+        "LLVM_TARGET": TARGET,
+        "RUST_SHARED_BUILD": "1",
+        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER": str(toolchain.llvm_prefix / "bin" / "clang"),
+    })
+    cargo_lock_hash = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
+    metadata, source_input = _read_lock()
+    source_hash = Cache(CACHE_ROOT).require(source_input)
+    makefile = BUILD / "Makefile"
+    cargo_profile = _make_value(makefile, "CARGO_PROFILE")
+    if cargo_profile != "release":
+        raise LaneError(
+            f"optimized CPython configured Cargo profile {cargo_profile!r}; expected 'release'"
+        )
+    workspace_members = _workspace_members(source, cargo_env)
+    built_workspace_members = _built_workspace_members(source, cargo_env)
+    required_rust_members = {"_base64", "cpython-sys"}
+    missing_rust_members = sorted(required_rust_members - set(built_workspace_members))
+    if missing_rust_members:
+        raise LaneError(
+            "CPython build did not compile required Rust workspace members: "
+            + ", ".join(missing_rust_members)
+        )
+    report = {
+        "status": "built",
+        "source": {
+            "repository": metadata["repository"],
+            "branch": metadata["branch"],
+            "commit": metadata["commit"],
+            "version": metadata["version"],
+            "archive_sha256": source_input.sha256,
+            "archive_size": source_input.size,
+            "cargo_lock_sha256": cargo_lock_hash,
+            "source_archive_path": str(source_hash),
+        },
+        "interpreter": module,
+        "build_interpreter": str(_build_python()),
+        "rust": _rust_identity(rustup),
+        "c_toolchain": toolchain.identity(),
+        "sdk": {
+            "path": str(toolchain.sdkroot),
+            "version": sdk_version(toolchain.sdkroot),
+            "xcode_version": toolchain.xcode_version,
+        },
+        "configure_arguments": configure,
+        "configure_environment": {
+            key: env.get(key, "")
+            for key in (
+                "CC", "CXX", "AR", "RANLIB", "CFLAGS", "CXXFLAGS", "LDFLAGS",
+                "CPPFLAGS", "PY_CPPFLAGS", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET", "LLVM_PROFDATA",
+                "PROFILE_TASK", "BINDGEN_EXTRA_CLANG_ARGS", "SOURCE_DATE_EPOCH", "PYTHONHASHSEED",
+                "PKG_CONFIG", "PKG_CONFIG_PATH",
+            )
+        },
+        "pgo_task": env["PROFILE_TASK"],
+        "lto_mode": "thin",
+        "cargo_profile": cargo_profile,
+        "cargo_home": str(CARGO_HOME),
+        "cargo_target_dir": str(BUILD / "target"),
+        "cargo_workspace_members": workspace_members,
+        "built_rust_workspace_members": built_workspace_members,
+        "offline_boundary": {
+            "mechanism": "sandbox-exec with deny network*",
+            "network_self_test": "passed",
+            "cargo_net_offline": env["CARGO_NET_OFFLINE"],
+        },
+        "logs": {
+            "configure": str(LOGS / "cpython-configure.log"),
+            "build": str(LOGS / "cpython-build.log"),
+            "install": str(LOGS / "cpython-install.log"),
+        },
+        "tests": {},
+    }
+    _write_json(BUILD_REPORT, report)
+    return report
+
+
+def build() -> int:
+    _require_host()
+    doctor = doctor_report()
+    if not doctor["ok"]:
+        raise LaneError("doctor found prerequisites missing; run doctor for details")
+    rustup = _require_nightly()
+    _cargo_wrapper(rustup)
+    toolchain, target = _toolchain()
+    _llvm_ready(toolchain)
+    source = _extract_fresh(SOURCE)
+    env = _environment(toolchain, offline=True)
+    _require_command(
+        [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
+         "--manifest-path", str(source / "Cargo.toml")],
+        cwd=source, env=env, log=LOGS / "cargo-offline-check.log",
+    )
+    sandbox = _macos_sandbox()
+    jobs = max(1, (os.cpu_count() or 4) - 1)
+    report = _configure_source(source, toolchain, target, jobs, sandbox)
+    print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
+    print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
+    _write_json(BUILD_REPORT, report)
+    return 0
+
+
+def _test_record(returncode: int, log: Path, summary: str = "") -> dict[str, Any]:
+    return {
+        "status": "passed" if returncode == 0 else "failed",
+        "returncode": returncode,
+        "log": str(log),
+        "summary": summary,
+    }
+
+
+def _run_python_test(
+    argv: list[str], *, cwd: Path, env: dict[str, str], log: Path
+) -> dict[str, Any]:
+    result = _run_logged(argv, cwd=cwd, env=env, log=log)
+    output = log.read_text(errors="replace")
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    summary = " | ".join(lines[-5:])
+    return _test_record(result.returncode, log, summary)
+
+
+def test() -> int:
+    _require_host()
+    if not BUILD_REPORT.is_file() or not _build_python().is_file():
+        raise LaneError("no completed Rust-for-CPython build; run build first")
+    report = json.loads(BUILD_REPORT.read_text())
+    if report.get("status") not in {"built", "tests-failed", "complete"}:
+        raise LaneError("build report does not describe a completed build; run build first")
+    source = SOURCE
+    if not (source / "Cargo.toml").is_file():
+        source = _extract_fresh(SOURCE)
+    toolchain, _target = _toolchain()
+    rustup = _require_nightly()
+    _cargo_wrapper(rustup)
+    env = _test_environment(toolchain)
+    env.update({
+        "PYTHON_BUILD_DIR": str(BUILD),
+        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
+        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
+        "PY_CFLAGS": env.get("CFLAGS", ""),
+        "CARGO_TARGET_DIR": str(BUILD / "target"),
+        "LLVM_TARGET": TARGET,
+        "RUST_SHARED_BUILD": "1",
+        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER": str(toolchain.llvm_prefix / "bin" / "clang"),
+    })
+    build_python = _build_python()
+    report["build_interpreter"] = str(build_python)
+    results: dict[str, Any] = {}
+    _write_json(BUILD_REPORT, report)
+    cargo = _run_python_test(
+        [str(CARGO_HOME / "bin" / "cargo"), "test", "--locked", "--offline", "--workspace", "--manifest-path", str(source / "Cargo.toml")],
+        cwd=source, env=env, log=LOGS / "cargo-test.log",
+    )
+    results["cargo_workspace"] = cargo
+    report["tests"] = results
+    _write_json(BUILD_REPORT, report)
+    if cargo["returncode"] != 0:
+        raise LaneError(f"Cargo workspace tests failed; inspect {cargo['log']}")
+
+    targeted = _run_python_test(
+        [str(build_python), "-m", "test", "-j", str(_test_jobs()),
+         "test_base64", "test_binascii", "test_import", "test_importlib",
+         "test_sysconfig", "test_capi", "test_embed"],
+        cwd=BUILD, env=env, log=LOGS / "cpython-targeted-tests.log",
+    )
+    results["targeted_cpython"] = targeted
+    report["tests"] = results
+    _write_json(BUILD_REPORT, report)
+    if targeted["returncode"] != 0:
+        raise LaneError(f"targeted CPython tests failed; inspect {targeted['log']}")
+
+    regression = _run_python_test(
+        [str(build_python), "-m", "test", "-j", str(_test_jobs())],
+        cwd=BUILD, env=env, log=LOGS / "cpython-regression-tests.log",
+    )
+    results["cpython_regression"] = regression
+    report["tests"] = results
+    report["status"] = "complete" if regression["returncode"] == 0 else "tests-failed"
+    _write_json(BUILD_REPORT, report)
+    if regression["returncode"] != 0:
+        raise LaneError(f"CPython regression suite failed; inspect {regression['log']}")
+    print("OK    Cargo workspace, targeted CPython tests, and broad regression suite")
+    return 0
+
+
+def clean() -> int:
+    for path in (WORK, STAGE, LOGS, RESULTS, LANE / ".home"):
+        if path.exists():
+            shutil.rmtree(path)
+    print(f"OK    removed work, stage, logs, and results; kept private Cargo registry at {CARGO_HOME}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Isolated Rust-for-CPython 3.16 experiment")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for name, help_text in (
+        ("doctor", "report host, source, and toolchain readiness"),
+        ("fetch", "fetch locked sources and Cargo dependencies"),
+        ("build", "build and validate the native arm64 interpreter offline"),
+        ("test", "run Rust and CPython tests"),
+        ("clean", "remove build outputs while keeping the private Cargo cache"),
+    ):
+        subparsers.add_parser(name, help=help_text)
+    args = parser.parse_args(argv)
+    commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
+    try:
+        return commands[args.command]()
+    except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
+        print(f"FAIL  {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
