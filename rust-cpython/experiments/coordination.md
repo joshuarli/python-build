@@ -25,8 +25,17 @@ The follow-on workload lane uses
 `benchmarks/workloads/registry.py`, a new catalog URL workload and focused
 test, and `catalog-url-workload-20260924.md`. It may validate registration
 and content with a bounded smoke but may not run a long comparison or build.
-Budget: 60 process CPU seconds and 512 MB maximum RSS. The coordinator will
-integrate it after checking workload identity and fixture coverage.
+Budget: 60 process CPU seconds and 512 MB maximum RSS. The lane integrated
+as `5f3d14b`. Each complete operation processes 48 URLs and 48 stable keys
+through the checked-in catalog functions, with fixed length-framed input and
+output digests. Two focused tests passed, and a 100-operation smoke returned
+the fixed digest. The test command used 0.05 user plus 0.02 system CPU
+seconds and 26,034,176 bytes maximum RSS; the smoke used 0.08 user plus 0.01
+system seconds and 22,429,696 bytes maximum RSS, with zero swaps. No
+comparative benchmark or Rust build ran. The existing catalog fixture strips
+IPv6 hostname brackets; the workload pins its current output without
+claiming URL validity. See `catalog-url-workload-20260924.md` for inputs and
+limits. A quiet-host control self-comparison is the next measurement gate.
 
 ## Fourth cycle (base `e1a5eb7`)
 

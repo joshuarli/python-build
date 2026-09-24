@@ -214,6 +214,12 @@ explicitly.
   small local files does not establish an application bottleneck. The
   [`tomllib-target.md`](rust-cpython/experiments/tomllib-target.md) report
   defers a native parser until complete public workloads justify its cost.
+- A registered catalog URL workload now exercises the checked-in application's
+  `normalize_url` and `stable_key` functions over 48 mixed records with fixed
+  complete-output digests. A short profile identified `urllib.parse.quote`
+  calls but did not establish a speed opportunity. See
+  [`next-target-after-zlib-20260924.md`](rust-cpython/experiments/next-target-after-zlib-20260924.md)
+  and [`catalog-url-workload-20260924.md`](rust-cpython/experiments/catalog-url-workload-20260924.md).
 
 ## Immediate work queue
 
@@ -232,3 +238,6 @@ explicitly.
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
+- Calibrate the catalog URL workload against itself on a quiet host, then
+  profile its complete operations. Try a guarded `quote_from_bytes` kernel
+  only if quoting occupies a meaningful share of that full task.
