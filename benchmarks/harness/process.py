@@ -1,7 +1,8 @@
 """Run benchmark commands and observe process-tree resources externally.
 
-Linux memory uses procfs. macOS memory uses `ps` RSS snapshots. CPU time is
-kernel wait4 usage for the workload root, including children it has reaped.
+Linux memory uses procfs. macOS memory uses libproc resident-size snapshots.
+CPU time is kernel wait4 usage for the workload root, including children it
+has reaped.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from dataclasses import dataclass, field, replace
 import os
 import resource
 from pathlib import Path
-import shutil
 import signal
 import subprocess
 import sys
@@ -29,7 +29,9 @@ from .memory import (
     parse_smaps_rollup,
     sum_rollups,
 )
-from .macos_resource import MacProcessMemory, read_process_memory
+from .macos_resource import (
+    MacProcessInfo, MacProcessMemory, read_process_memory, read_process_table,
+)
 
 
 @dataclass(frozen=True)
@@ -113,34 +115,17 @@ def _wait4(
         time.sleep(0.005)
 
 
-def _mac_process_table(ps: str) -> dict[int, tuple[int, int, int, str]]:
-    """Return PID -> (parent, process group, resident bytes, state)."""
-    result = subprocess.run(
-        [ps, "-A", "-o", "pid=,ppid=,pgid=,rss=,stat="],
-        capture_output=True, text=True, timeout=3, check=False,
-    )
-    if result.returncode:
-        raise RuntimeError(f"cannot inspect macOS process table: {result.stderr.strip()}")
-    table = {}
-    for line in result.stdout.splitlines():
-        fields = line.split()
-        if len(fields) != 5:
-            continue
-        try:
-            pid, parent, group, rss_kib = map(int, fields[:4])
-        except ValueError:
-            continue
-        table[pid] = (parent, group, rss_kib * 1024, fields[4])
-    return table
+def _mac_process_table(root_pid: int, group: int) -> dict[int, MacProcessInfo]:
+    return read_process_table(root_pid, group)
 
 
 def _mac_tree_members(
-    table: Mapping[int, tuple[int, int, int, str]], root_pid: int, group: int,
-) -> dict[int, tuple[int, int, int, str]]:
+    table: Mapping[int, MacProcessInfo], root_pid: int, group: int,
+) -> dict[int, MacProcessInfo]:
     children: dict[int, list[int]] = {}
-    for pid, (parent, _, _, _) in table.items():
-        children.setdefault(parent, []).append(pid)
-    selected = {pid for pid, (_, pgid, _, _) in table.items() if pgid == group}
+    for pid, info in table.items():
+        children.setdefault(info.parent_pid, []).append(pid)
+    selected = {pid for pid, info in table.items() if info.process_group == group}
     pending = [root_pid]
     while pending:
         parent = pending.pop()
@@ -148,30 +133,34 @@ def _mac_tree_members(
             if child not in selected:
                 selected.add(child)
                 pending.append(child)
-    return {pid: table[pid] for pid in selected if pid in table and not table[pid][3].startswith("Z")}
+    return {pid: table[pid] for pid in selected if pid in table}
 
 
 def _mac_tree_footprint(
-    ps: str, members: Mapping[int, tuple[int, int, int, str]],
+    members: Mapping[int, MacProcessInfo],
     root_pid: int, group: int,
 ) -> int | None:
     """Sum current footprint ledgers only for a stable observed tree.
 
-    Two libproc reads identify PID reuse, and a second process table checks
-    membership after the reads. This remains a sequential sample, not an
-    atomic kernel snapshot; a child that exits during collection invalidates
-    the footprint sample instead of silently making the tree look smaller.
+    Two rusage reads identify PID reuse, and a second process table checks
+    membership and birth times after the reads. This remains a sequential
+    sample, not an atomic kernel snapshot; a child that exits during
+    collection invalidates the footprint sample instead of silently making
+    the tree look smaller.
     """
 
     try:
         first = {pid: read_process_memory(pid) for pid in members}
-        after = _mac_tree_members(_mac_process_table(ps), root_pid, group)
+        after = _mac_tree_members(_mac_process_table(root_pid, group), root_pid, group)
         if set(after) != set(members):
             return None
-        if any(after[pid][:2] != members[pid][:2] for pid in members):
+        if any(after[pid].parent_pid != members[pid].parent_pid
+               or after[pid].process_group != members[pid].process_group
+               or after[pid].start_time != members[pid].start_time
+               for pid in members):
             return None
         second = {pid: read_process_memory(pid) for pid in members}
-    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+    except (OSError, RuntimeError):
         return None
     if any(first[pid].start_abstime != second[pid].start_abstime for pid in members):
         return None
@@ -331,7 +320,6 @@ class ProcessSampler:
         self._remaining_pids: tuple[int, ...] = ()
         self._lock = threading.Lock()
         self._finished_result: ProcessResult | None = None
-        self._ps = shutil.which("ps") if sys.platform == "darwin" else None
 
     def __enter__(self) -> ProcessSampler:
         return self.start()
@@ -348,8 +336,6 @@ class ProcessSampler:
 
         if self._process is not None:
             raise RuntimeError("process sampler has already been started")
-        if sys.platform == "darwin" and self._ps is None:
-            raise RuntimeError("ps is required for macOS memory observation")
         if sys.platform != "darwin" and not self.proc_root.is_dir():
             raise RuntimeError(f"procfs is not available at {self.proc_root}")
 
@@ -483,7 +469,7 @@ class ProcessSampler:
             self._stop_and_join_sampler()
             try:
                 self._terminate_process_group()
-            except (RuntimeError, subprocess.TimeoutExpired):
+            except (OSError, RuntimeError, subprocess.TimeoutExpired):
                 # An unavailable process table cannot prove cleanup. If the
                 # root is still live, terminate its group before surfacing
                 # the inspection failure; never report an empty tree.
@@ -555,12 +541,12 @@ class ProcessSampler:
         if self._started_at is None or self._process is None or self._process_group is None:
             return None
         if sys.platform == "darwin":
-            assert self._ps is not None
             try:
                 members = _mac_tree_members(
-                    _mac_process_table(self._ps), self._process.pid, self._process_group
+                    _mac_process_table(self._process.pid, self._process_group),
+                    self._process.pid, self._process_group
                 )
-            except (RuntimeError, subprocess.TimeoutExpired) as error:
+            except (OSError, RuntimeError) as error:
                 self._record_error(str(error))
                 return None
             if not members:
@@ -568,11 +554,11 @@ class ProcessSampler:
             with self._lock:
                 self._collected.seen.update({pid: 0 for pid in members})
             footprint = _mac_tree_footprint(
-                self._ps, members, self._process.pid, self._process_group
+                members, self._process.pid, self._process_group
             )
             sample = MemorySample(
                 elapsed_seconds=time.monotonic() - self._started_at,
-                rss_bytes=sum(info[2] for info in members.values()),
+                rss_bytes=sum(info.resident_bytes for info in members.values()),
                 pss_bytes=None,
                 private_bytes=None,
                 swap_bytes=None,
@@ -723,8 +709,8 @@ class ProcessSampler:
 
     def _live_process_ids(self) -> tuple[int, ...]:
         if sys.platform == "darwin":
-            assert self._ps is not None and self._process_group is not None
-            table = _mac_process_table(self._ps)
+            assert self._process_group is not None
+            table = _mac_process_table(self.pid, self._process_group)
             return tuple(sorted(_mac_tree_members(table, self.pid, self._process_group)))
         live: set[int] = set()
         try:

@@ -18,6 +18,11 @@ import sys
 
 
 _RUSAGE_INFO_V4 = 4
+_PROC_PGRP_ONLY = 2
+_PROC_PPID_ONLY = 6
+_PROC_PIDTASKALLINFO = 2
+_SZOMB = 5
+_MAXCOMLEN = 16
 
 # Exact SDK layout of struct rusage_info_v4 from <sys/resource.h>. A shorter
 # buffer would let libproc overwrite Python-owned memory, even when only the
@@ -44,6 +49,123 @@ class _RUsageInfoV4(ctypes.Structure):
     _fields_ = [("ri_uuid", ctypes.c_uint8 * 16)] + [
         (name, ctypes.c_uint64) for name in _V4_FIELDS
     ]
+
+
+# Layouts from the installed macOS SDK's <sys/proc_info.h>. The full structs
+# are required: proc_pidinfo writes sizeof(struct proc_taskallinfo) bytes.
+class _ProcBsdInfo(ctypes.Structure):
+    _fields_ = [
+        (name, ctypes.c_uint32) for name in (
+            "pbi_flags", "pbi_status", "pbi_xstatus", "pbi_pid", "pbi_ppid",
+            "pbi_uid", "pbi_gid", "pbi_ruid", "pbi_rgid", "pbi_svuid",
+            "pbi_svgid", "rfu_1",
+        )
+    ] + [
+        ("pbi_comm", ctypes.c_char * _MAXCOMLEN),
+        ("pbi_name", ctypes.c_char * (2 * _MAXCOMLEN)),
+    ] + [
+        (name, ctypes.c_uint32) for name in (
+            "pbi_nfiles", "pbi_pgid", "pbi_pjobc", "e_tdev", "e_tpgid",
+        )
+    ] + [
+        ("pbi_nice", ctypes.c_int32),
+        ("pbi_start_tvsec", ctypes.c_uint64),
+        ("pbi_start_tvusec", ctypes.c_uint64),
+    ]
+
+
+class _ProcTaskInfo(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_uint64) for name in (
+        "pti_virtual_size", "pti_resident_size", "pti_total_user",
+        "pti_total_system", "pti_threads_user", "pti_threads_system",
+    )] + [(name, ctypes.c_int32) for name in (
+        "pti_policy", "pti_faults", "pti_pageins", "pti_cow_faults",
+        "pti_messages_sent", "pti_messages_received", "pti_syscalls_mach",
+        "pti_syscalls_unix", "pti_csw", "pti_threadnum", "pti_numrunning",
+        "pti_priority",
+    )]
+
+
+class _ProcTaskAllInfo(ctypes.Structure):
+    _fields_ = [("pbsd", _ProcBsdInfo), ("ptinfo", _ProcTaskInfo)]
+
+
+@dataclass(frozen=True)
+class MacProcessInfo:
+    parent_pid: int
+    process_group: int
+    resident_bytes: int
+    start_time: tuple[int, int]
+
+
+@lru_cache(maxsize=1)
+def _process_functions() -> tuple[ctypes._CFuncPtr, ctypes._CFuncPtr]:
+    if sys.platform != "darwin":
+        raise RuntimeError("macOS process table requires Darwin")
+    try:
+        library = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    except OSError as error:
+        raise RuntimeError("macOS libproc is unavailable") from error
+    listpids = library.proc_listpids
+    listpids.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int]
+    listpids.restype = ctypes.c_int
+    pidinfo = library.proc_pidinfo
+    pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64,
+                        ctypes.c_void_p, ctypes.c_int]
+    pidinfo.restype = ctypes.c_int
+    return listpids, pidinfo
+
+
+def _listed_pids(kind: int, identifier: int) -> set[int]:
+    listpids, _ = _process_functions()
+    size = listpids(kind, identifier, None, 0)
+    if size < 0:
+        raise OSError(ctypes.get_errno() or errno.EIO, "proc_listpids size failed")
+    capacity = max(1024, size + 1024) // ctypes.sizeof(ctypes.c_int)
+    while True:
+        buffer = (ctypes.c_int * capacity)()
+        count_bytes = listpids(kind, identifier, buffer, ctypes.sizeof(buffer))
+        if count_bytes < 0:
+            raise OSError(ctypes.get_errno() or errno.EIO, "proc_listpids failed")
+        if count_bytes < ctypes.sizeof(buffer):
+            return {pid for pid in buffer[:count_bytes // ctypes.sizeof(ctypes.c_int)]
+                    if pid > 0}
+        capacity *= 2
+        if capacity > 262144:
+            raise RuntimeError("macOS process list exceeded 1 MiB")
+
+
+def read_process_table(root_pid: int, process_group: int) -> dict[int, MacProcessInfo]:
+    """Read group members and recursively discover descendants via libproc."""
+    _, pidinfo = _process_functions()
+    pending = _listed_pids(_PROC_PGRP_ONLY, process_group) | {root_pid}
+    table: dict[int, MacProcessInfo] = {}
+    visited: set[int] = set()
+    while pending:
+        pid = pending.pop()
+        if pid in visited:
+            continue
+        visited.add(pid)
+        info = _ProcTaskAllInfo()
+        ctypes.set_errno(0)
+        size = pidinfo(pid, _PROC_PIDTASKALLINFO, 0, ctypes.byref(info), ctypes.sizeof(info))
+        if size != ctypes.sizeof(info):
+            # An exited process can vanish between listing and this read.
+            code = ctypes.get_errno()
+            if code not in (0, errno.ESRCH, errno.ENOENT):
+                raise OSError(code, f"proc_pidinfo failed for pid {pid}")
+            continue
+        bsd = info.pbsd
+        if bsd.pbi_pid != pid or bsd.pbi_status == _SZOMB:
+            continue
+        table[pid] = MacProcessInfo(
+            parent_pid=bsd.pbi_ppid,
+            process_group=bsd.pbi_pgid,
+            resident_bytes=info.ptinfo.pti_resident_size,
+            start_time=(bsd.pbi_start_tvsec, bsd.pbi_start_tvusec),
+        )
+        pending.update(_listed_pids(_PROC_PPID_ONLY, pid) - visited)
+    return table
 
 
 @dataclass(frozen=True)
