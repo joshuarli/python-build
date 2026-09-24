@@ -15,6 +15,13 @@ While timing is held, the plan-gap audit uses
 criteria to the current Rust-for-CPython contract and implementation evidence
 without running builds or benchmarks. Budget: 20 command CPU seconds,
 512 MiB maximum RSS. The coordinator owns any resulting objective edits.
+The integrated `plan-gap-audit-20260924.md` maps all 34 old acceptance
+criteria to current code and evidence. It highlights unqualified 3.16 Mac
+unique/allocation measures, incomplete child CPU, absent 3.16 third-party
+inputs and full pyperformance/Pyston coverage, and missing baseline-derived
+pyperformance loop counts. It also found stale timing-only wording in
+`rust-cpython/README.md`, which the coordinator corrected. No implementation
+or measurement ran in the audit lane.
 
 ## Tenth cycle (base `43e65fe`)
 

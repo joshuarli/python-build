@@ -115,8 +115,10 @@ same-version comparison, `build_no_rust.py` builds the same locked source,
 with the same LLVM, SDK, CPU flags, ThinLTO, and PGO workload, while hiding
 Cargo from configure so `_base64` is absent. The enhanced benchmark's local
 Apple Silicon path compares these interpreters on the smoke suite and invokes
-the Rust encoder directly for its Base64 workloads. That path records timings
-only; process-memory and allocation measurements remain Linux-only.
+the Rust encoder directly for its Base64 workloads. Native macOS runs now
+record root kernel CPU plus a separate process-tree RSS and sampled physical
+footprint pass. Unique/proportional memory and allocation measurements remain
+unqualified for this 3.16 lane.
 
 After `fetch`, `build_no_rust.py`, `build`, and `test`, run:
 
@@ -131,7 +133,7 @@ python3.14 benchmarks/bench.py run \
   --baseline-label "Rust-for-CPython 3.16 without _base64" \
   --candidate-label "Rust-for-CPython 3.16 with _base64" \
   --baseline-kind custom --candidate-kind custom \
-  --suite smoke --profile standard --local --timing-only
+  --suite smoke --profile standard --local
 ```
 
 The first report compares the Rust implementation directly with `binascii`

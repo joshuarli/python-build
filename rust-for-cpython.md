@@ -128,6 +128,11 @@ self-comparison. Report raw direction even within noise. Investigate material
 allocation growth. An unavailable metric is neither zero nor a pass. Report
 installed interpreter, extension, and Rust runtime bytes separately from
 process memory.
+Calibrate both control against itself and candidate against itself before
+accepting a close result. Use baseline-derived fixed loop counts for
+pyperformance where its interface supports them; that path is still open in
+the current harness. Record child-CPU coverage for each workload. A numeric
+CPU comparison with root-only coverage is not a process-tree total.
 
 ### Present measurement boundary
 
@@ -273,3 +278,7 @@ field was added; see
   make native call overhead decisive. Compare the complete public task and
   resource cost serially before deciding whether to turn the proof into a
   reproducible source patch.
+- Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
+  including a true cold Django request. Extend the primary public-workload
+  suite before claiming broad stdlib gains; then add baseline-derived loops
+  for pyperformance and document which selected Pyston macros can run.
