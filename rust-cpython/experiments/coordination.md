@@ -1,5 +1,33 @@
 # Rust-for-CPython experiment lanes
 
+## Fifth cycle (base `097693b`)
+
+The next-target scout uses
+`/private/tmp/python-build-exp-next-target-20260924e`, branch
+`exp/rust-cpython-next-target-20260924e`, and owns only a new
+`next-target-after-zlib-20260924.md`. It compares application call paths and
+narrow profiles for `ipaddress`, `urllib.parse`, `json`, or a better supported
+stdlib hypothesis after the rejected `difflib` row reuse and deferred
+`tomllib` parser. It may not build or run a long benchmark on this busy host.
+Budget: 30 process CPU seconds and 512 MB maximum RSS. The coordinator
+retains target choice and any follow-on implementation assignment.
+The scout selected catalog URL normalization as the next bounded public
+workload hypothesis. A short pinned-fork `cProfile` run over 2,000
+normalize/key pairs located calls to `urllib.parse.quote_from_bytes`, but did
+not establish a speed opportunity. Its command used 0.13 user plus 0.02
+system CPU seconds and 26,574,848 bytes maximum RSS. The report
+`next-target-after-zlib-20260924.md` defers a native kernel until the full
+catalog task shows useful headroom.
+
+The follow-on workload lane uses
+`/private/tmp/python-build-exp-url-workload-20260924e`, branch
+`exp/rust-cpython-url-workload-20260924e`, based on `f1c7626`. It owns only
+`benchmarks/workloads/registry.py`, a new catalog URL workload and focused
+test, and `catalog-url-workload-20260924.md`. It may validate registration
+and content with a bounded smoke but may not run a long comparison or build.
+Budget: 60 process CPU seconds and 512 MB maximum RSS. The coordinator will
+integrate it after checking workload identity and fixture coverage.
+
 ## Fourth cycle (base `e1a5eb7`)
 
 The host remained busy at load averages 8.74/8.40/9.04 on ten logical CPUs,
