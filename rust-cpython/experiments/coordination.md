@@ -1,5 +1,21 @@
 # Rust-for-CPython experiment lanes
 
+## Eleventh cycle (base `c12e3c6`)
+
+An unrelated `cargo test` in `/Users/josh/d/laputa-systems/xsh` spawned Rust
+compilers during the URL quote lane's first self-comparison, so that run is
+diagnostic only. The URL lane will recalibrate after that external job ends;
+it may not publish an overlapping comparison. Its cloned control and proof
+stage remain isolated under its worktree.
+
+While timing is held, the plan-gap audit uses
+`/private/tmp/python-build-exp-plan-audit-20260924i`, branch
+`exp/rust-cpython-plan-audit-20260924i`, and owns only a new
+`plan-gap-audit-20260924.md`. It maps the retired plan's benchmark acceptance
+criteria to the current Rust-for-CPython contract and implementation evidence
+without running builds or benchmarks. Budget: 20 command CPU seconds,
+512 MiB maximum RSS. The coordinator owns any resulting objective edits.
+
 ## Tenth cycle (base `43e65fe`)
 
 At scheduling, one-minute host load was 2.12 on ten logical CPUs, with
