@@ -32,6 +32,26 @@ Budget: 300 command CPU seconds and 2 GiB maximum reported RSS. Generated
 outputs remain inside this worktree. The result must report size, dynamic
 dependencies, actual command CPU/RSS/swap, semantic evidence, and a
 keep/reject/inconclusive recommendation.
+The proof passed 2,177 differential public cases, 182 unchanged CPython URL
+tests (7 skipped), and one complete catalog digest check. Its corrected
+no-std two-pass kernel writes directly into an exactly sized CPython Unicode
+object. The unstripped extension is 50,712 bytes, down from 1,473,544 bytes,
+and links only to libSystem. Final build and semantic-check commands used
+1.27 actual user-plus-system CPU seconds in total, at most 101,482,496 bytes
+reported RSS, and zero swaps. This is inconclusive pending a paired
+full-workload memory and speed comparison; see
+`url-quote-lean-proof-20260924.md`.
+
+The lean URL comparison uses
+`/private/tmp/python-build-exp-url-lean-compare-20260924k`, branch
+`exp/rust-cpython-url-lean-compare-20260924k` (base `5cda922`). It owns only
+`experiments/url-quote-lean-comparison-20260924.md` and uniquely named
+compact raw data. It clones the same no-Rust stage into control and candidate
+inside its worktree, installs only the hash-verified lean overlay into the
+candidate, calibrates quiet control/control and candidate/candidate noise,
+and runs serial complete catalog pairs if calibration permits. No other lane
+will compile or benchmark concurrently. Budget: 120 command CPU seconds and
+1 GiB maximum reported RSS. The coordinator decides the verdict.
 
 ## Eleventh cycle (base `c12e3c6`)
 
