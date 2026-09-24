@@ -251,6 +251,10 @@ field was added; see
   182 unchanged CPython URL tests, and the complete catalog output check. Its
   unstripped extension is 1.47 MB. It has no paired speed or memory verdict;
   see [`url-quote-proof-20260924.md`](rust-cpython/experiments/url-quote-proof-20260924.md).
+- The proof's paired complete-task run reduced wall time by 19.3% and root
+  CPU per batch by 17.4%, but peak RSS rose 3.19 MB beyond measured noise.
+  This overlay is rejected under the resource rule; see
+  [`url-quote-comparison-20260924.md`](rust-cpython/experiments/url-quote-comparison-20260924.md).
 
 ## Immediate work queue
 
@@ -273,11 +277,10 @@ field was added; see
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
-- The resized catalog URL control is calibrated. The complete-batch profile
-  supports the guarded `quote_from_bytes` proof, but its mostly tiny inputs
-  make native call overhead decisive. Compare the complete public task and
-  resource cost serially before deciding whether to turn the proof into a
-  reproducible source patch.
+- The guarded URL proof found useful public-task speed but failed peak-RSS
+  qualification. Try one smaller-resident implementation boundary and compare
+  it against the same control; only a candidate that clears both time and
+  memory gates merits a reproducible source patch.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops

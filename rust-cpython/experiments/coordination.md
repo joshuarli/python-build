@@ -37,6 +37,18 @@ runs control self-comparison followed by serial standard paired catalog
 workloads if self-noise permits. Budget: 120 command CPU seconds, 1 GiB
 reported RSS. No other lane may compile or benchmark concurrently. The
 coordinator will decide the verdict and preserve the unmodified control.
+The first two self comparisons were diagnostic because one overlapped an
+unrelated Rust compiler and the next had 8.86% wall noise. A later clean
+self-comparison had 2.97% noise. The serial full catalog comparison then
+showed a 0.8073 candidate/control paired wall ratio (−19.3%) and 17.4%
+less root user-plus-system CPU per batch, but median peak RSS rose 3,194,880
+bytes (+12.4%) above a 947,346-byte comparison allowance; sampled physical
+footprint rose 3,096,576 bytes. All 1,500-batch output digests matched, and
+the clone/source hashes stayed intact. Four controller commands used 56.10
+actual CPU seconds total, at most 47,005,696 bytes reported RSS, and zero
+swaps. The 1.47 MB Rust extension and memory increase reject this overlay
+under the current resource rule. See `url-quote-comparison-20260924.md` and
+its compact raw data. A smaller-resident proof is a distinct experiment.
 
 ## Ninth cycle (base `b24b689`)
 
