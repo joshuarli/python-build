@@ -8,12 +8,27 @@ comparative timing run is scheduled under that contention.
 
 | Lane | Worktree and branch | Owned paths | Question | Budget and status |
 | --- | --- | --- | --- | --- |
-| Catalog URL headroom | `/private/tmp/python-build-exp-url-headroom-20260924g`, `exp/rust-cpython-url-headroom-20260924g` | New `experiments/catalog-url-headroom-20260924.md` and optional narrow probe/data | Does `quote_from_bytes` materially contribute to the complete registered batch, and what share reaches an exact-bytes guard? | 30 CPU seconds, 512 MB RSS; active, instrumented diagnostic only |
-| macOS private-memory feasibility | `/private/tmp/python-build-exp-mac-unique-20260924g`, `exp/rust-cpython-mac-unique-20260924g` | New `experiments/mac-unique-memory-feasibility-20260924.md` only | Which host API can give an honest unique/private or proportional memory gate, and which allocation metric is feasible? | 30 CPU seconds, 512 MB RSS; active, read-only research |
+| Catalog URL headroom | `/private/tmp/python-build-exp-url-headroom-20260924g`, `exp/rust-cpython-url-headroom-20260924g` | New `experiments/catalog-url-headroom-20260924.md` and narrow probe | Does `quote_from_bytes` materially contribute to the complete registered batch, and what share reaches an exact-bytes guard? | Integrated; 0.31 CPU seconds, 26.0 MB RSS maximum across two commands |
+| macOS private-memory feasibility | `/private/tmp/python-build-exp-mac-unique-20260924g`, `exp/rust-cpython-mac-unique-20260924g` | New `experiments/mac-unique-memory-feasibility-20260924.md` only | Which host API can give an honest unique/private or proportional memory gate, and which allocation metric is feasible? | Integrated; read-only source research, no measured command |
 
 The coordinator owns target selection, integration, and updates to the shared
 objective. These agents may not edit each other's files or run a build or
 long comparative benchmark.
+
+The complete registered catalog batch made 15,000 `quote_from_bytes` calls
+over 100 iterations. In an instrumented profile, it used 0.03063 of 0.16536
+seconds cumulatively (18.5%, an optimistic upper bound); 9,600 calls passed
+the proposed guard after existing fast exits, and 9,200 of those inputs were
+at most 17 bytes. The diagnostic is not a speed result. See
+`catalog-url-headroom-20260924.md` and its probe for method and limits.
+
+The macOS feasibility report found private-resident page counters in the
+installed SDK's `PROC_PIDREGIONINFO`, but no evidence that their sum is exact
+USS or PSS. Its next step is a bounded region-accounting probe against a
+controlled child, labeled as a diagnostic until submaps, aliasing, access,
+and overhead are checked. Physical footprint remains a separate ledger.
+The allocation pass also needs a CPython 3.16 compatibility decision before
+using Memray. See `mac-unique-memory-feasibility-20260924.md`.
 
 ## Sixth cycle (base `2aec7d7`)
 

@@ -160,6 +160,11 @@ workload definitions interpreter-agnostic and record unsupported workloads rathe
 unmatched package versions for one interpreter. Focused timing and correctness
 experiments may proceed while those gaps remain, with their limits stated
 explicitly.
+The installed macOS SDK exposes per-region private-resident counters as a
+possible sampled diagnostic, but current evidence does not establish exact
+USS or PSS. A bounded probe must check traversal, aliases, COW behavior,
+permissions, and overhead before adding a field. See
+[`mac-unique-memory-feasibility-20260924.md`](rust-cpython/experiments/mac-unique-memory-feasibility-20260924.md).
 
 ## Current evidence
 
@@ -223,6 +228,11 @@ explicitly.
   Its first control self-comparison had 6.62% timing noise under rising host
   load, so no upstream or candidate speed claim follows from that run. See
   [`catalog-url-baseline-20260924.md`](rust-cpython/experiments/catalog-url-baseline-20260924.md).
+- A complete-batch diagnostic attributed 18.5% of instrumented cumulative
+  time to `quote_from_bytes`, an optimistic bound for a helper. After current
+  fast exits, 64% of calls would reach an exact-bytes guard; nearly all of
+  those scan inputs were at most 17 bytes. See
+  [`catalog-url-headroom-20260924.md`](rust-cpython/experiments/catalog-url-headroom-20260924.md).
 
 ## Immediate work queue
 
@@ -237,12 +247,14 @@ explicitly.
 - Establish the missing macOS unique/proportional memory and allocation
   measurements and matched upstream control comparison. Qualify the
   digest-checked source patch path with a full build that actually applies a
-  patch. Continue zlib's quiet-host and memory qualification.
+  patch. Start with the bounded region-accounting feasibility probe; keep
+  USS/PSS unavailable unless their semantics are proved. Continue zlib's
+  quiet-host and memory qualification.
   `difflib.SequenceMatcher` remains an independent hypothesis from
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
-- Calibrate the catalog URL workload against itself on a quiet host, then
-  profile its complete operations and assess `quote_from_bytes` headroom. Try
-  a guarded native kernel
-  only if quoting occupies a meaningful share of that full task.
+- Repeat the catalog URL self-comparison on a quiet host. The complete-batch
+  profile supports a reversible guarded `quote_from_bytes` trial, but its
+  mostly tiny inputs make native call overhead decisive. Qualify the full
+  public task and resource cost before accepting a helper.
