@@ -28,6 +28,14 @@ substantial compilation until the region probe's timed diagnostic finishes;
 no paired benchmark runs without a separate coordinator decision. Budget:
 300 command CPU seconds and 2 GiB maximum reported RSS. All generated files
 remain inside its isolated worktree.
+The proof compiled with pinned nightly Rust and locked clang, without a new
+dependency or source pin. It passed 2,177 differential public quotation
+cases, 182 unchanged `test_urlparse`/`test_urllib` tests (7 skipped), and a
+complete catalog batch with its fixed digest. The final build used 0.21 user
+plus 0.14 system CPU seconds, 114,278,400 bytes maximum reported RSS, and
+zero swaps. Its unstripped arm64 extension is 1,473,544 bytes and depends
+dynamically only on libSystem. See `url-quote-proof-20260924.md`. This is an
+isolated overlay proof; there is no paired performance or memory verdict yet.
 
 ## Eighth cycle (base `1a426e6`)
 

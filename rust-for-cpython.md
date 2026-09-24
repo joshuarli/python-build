@@ -242,6 +242,10 @@ field was added; see
   fast exits, 64% of calls would reach an exact-bytes guard; nearly all of
   those scan inputs were at most 17 bytes. See
   [`catalog-url-headroom-20260924.md`](rust-cpython/experiments/catalog-url-headroom-20260924.md).
+- An isolated guarded Rust quote proof passes 2,177 differential public cases,
+  182 unchanged CPython URL tests, and the complete catalog output check. Its
+  unstripped extension is 1.47 MB. It has no paired speed or memory verdict;
+  see [`url-quote-proof-20260924.md`](rust-cpython/experiments/url-quote-proof-20260924.md).
 
 ## Immediate work queue
 
@@ -265,6 +269,7 @@ field was added; see
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
 - The resized catalog URL control is calibrated. The complete-batch profile
-  supports a reversible guarded `quote_from_bytes` trial, but its
-  mostly tiny inputs make native call overhead decisive. Qualify the full
-  public task and resource cost before accepting a helper.
+  supports the guarded `quote_from_bytes` proof, but its mostly tiny inputs
+  make native call overhead decisive. Compare the complete public task and
+  resource cost serially before deciding whether to turn the proof into a
+  reproducible source patch.
