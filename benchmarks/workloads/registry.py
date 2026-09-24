@@ -47,6 +47,8 @@ WORKLOADS: tuple[Workload, ...] = (
     Workload("difflib_unified_reordered", "tooling", "difflib",
              "complete unified diff", 1000, 10),
     Workload("catalog_url_normalize", "web", "catalog_url", "catalog URL/key batch", 1500, 2),
+    Workload("catalog_search_form", "web", "catalog_url_breadth", "48 search form requests and parses", 500, 2),
+    Workload("catalog_request_path", "web", "catalog_url_breadth", "48 canonical request paths", 1000, 2),
     Workload("serialization_roundtrip", "serialization", "extra", "roundtrip", 100, 20),
     Workload("multiprocess_pool", "multiprocess", "extra", "pool task", 20, 2, noise_class="noisy"),
 )

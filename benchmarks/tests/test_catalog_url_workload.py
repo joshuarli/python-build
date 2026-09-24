@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from benchmarks.workloads import catalog_url
+from benchmarks.workloads import catalog_url, catalog_url_breadth
 from benchmarks.workloads.registry import BY_NAME
 
 
@@ -33,6 +33,42 @@ class CatalogUrlWorkloadTests(unittest.TestCase):
                          "https://example.org/%2f/%ZZ/%?bad=%G1#%")
         self.assertEqual(catalog.stable_key(batch[1][1]),
                          "caf%C3%A9/%E2%82%AC%20price/a%2Fb")
+
+    def test_search_form_frames_complete_round_tripped_requests(self) -> None:
+        self.assertEqual(BY_NAME["catalog_search_form"].module, "catalog_url_breadth")
+        first = catalog_url_breadth.catalog_search_form(1)
+        repeated = catalog_url_breadth.catalog_search_form(2)
+        self.assertEqual(first["digest"],
+                         "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22")
+        self.assertEqual(repeated["digest"], first["digest"])
+        self.assertEqual(first["input_digest"], catalog_url._EXPECTED_INPUT)
+        self.assertEqual(first["operation_count"], 1)
+        self.assertEqual(repeated["operation_count"], 2)
+        self.assertEqual((first["records_per_operation"], first["query_encodes_per_operation"],
+                          first["requests_per_operation"], first["parses_per_operation"],
+                          first["parsed_pairs_per_operation"],
+                          first["parsed_fields_per_operation"],
+                          first["quote_plus_calls_per_operation"]),
+                         (48, 48, 48, 48, 240, 480, 480))
+
+    def test_request_path_frames_complete_rebuilt_urls_and_bytes(self) -> None:
+        self.assertEqual(BY_NAME["catalog_request_path"].module, "catalog_url_breadth")
+        first = catalog_url_breadth.catalog_request_path(1)
+        repeated = catalog_url_breadth.catalog_request_path(2)
+        self.assertEqual(first["digest"],
+                         "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff")
+        self.assertEqual(repeated["digest"], first["digest"])
+        self.assertEqual(first["input_digest"], catalog_url._EXPECTED_INPUT)
+        self.assertEqual(first["operation_count"], 1)
+        self.assertEqual(repeated["operation_count"], 2)
+        self.assertEqual((first["records_per_operation"], first["splits_per_operation"],
+                          first["byte_unquotes_per_operation"], first["quotations_per_operation"],
+                          first["unsplits_per_operation"], first["path_checks_per_operation"]),
+                         (48, 96, 96, 48, 48, 48))
+
+    def test_unknown_breadth_task_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown catalog URL breadth task"):
+            catalog_url_breadth._url_task(1, "not_registered")
 
 
 if __name__ == "__main__":
