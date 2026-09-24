@@ -96,7 +96,7 @@ class ResultSchemaTests(unittest.TestCase):
                     "user_seconds_per_operation": total * 0.8,
                     "system_seconds_per_operation": total * 0.2,
                     "total_seconds_per_operation": total,
-                    "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+                    "coverage": "wait4 root only; descendants excluded",
                 }
                 for _ in range(3)
             ]

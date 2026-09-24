@@ -1,8 +1,8 @@
 """Run benchmark commands and observe process-tree resources externally.
 
 Linux memory uses procfs. macOS memory uses libproc resident-size snapshots.
-CPU time is kernel wait4 usage for the workload root, including children it
-has reaped.
+CPU time is kernel wait4 usage for the workload root only. A workload may
+report CPU for its own reaped children separately.
 """
 
 from __future__ import annotations
@@ -85,8 +85,7 @@ def _wait4(
 ) -> _WaitResult:
     """Reap one workload root and return kernel-accounted CPU usage.
 
-    A child reaped by the workload contributes to the root's cumulative
-    child usage. An orphan or child left alive at the boundary is uncovered.
+    wait4 reports this process's own CPU, not the CPU of children it reaped.
     """
     if not hasattr(os, "wait4"):
         process.wait(timeout=timeout)
@@ -527,7 +526,7 @@ class ProcessSampler:
             cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
             cpu_coverage=("unsupported" if wait_result.usage is None else
                           "incomplete: workload left descendants at completion" if boundary_remaining else
-                          "wait4 root plus descendants reaped by workload; detached or unreaped children excluded"),
+                          "wait4 root only; descendants excluded"),
         )
         self._finished_result = result
         return result
@@ -911,5 +910,5 @@ def _run_unmonitored(
         cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
         cpu_coverage=("unsupported" if wait_result.usage is None else
                       "incomplete: workload left descendants at completion" if boundary_remaining else
-                      "wait4 root plus descendants reaped by workload; detached or unreaped children excluded"),
+                      "wait4 root only; descendants excluded"),
     )

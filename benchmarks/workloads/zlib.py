@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import random
+import resource
 import struct
 import subprocess
 import sys
@@ -20,7 +21,7 @@ import time
 import zipfile
 import zlib
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 
 class WorkloadError(RuntimeError):
@@ -218,8 +219,12 @@ print(json.dumps([module.VALUE, module.LABEL]))
 """
 
 
-def zipimport_cold(iterations: int) -> dict[str, int | float | str]:
-    """Import a compressed package from ZIP in a new interpreter per operation."""
+def zipimport_cold(iterations: int) -> dict[str, Any]:
+    """Import a compressed package from ZIP in a new interpreter per operation.
+
+    Report RUSAGE_CHILDREN deltas for the direct interpreters reaped here.
+    Their CPU is absent from the harness's wait4 usage for this workload root.
+    """
     expected_value = sum(range(1000))
     sources = {
         "zbench_pkg/__init__.py": b"",
@@ -232,6 +237,7 @@ def zipimport_cold(iterations: int) -> dict[str, int | float | str]:
         input_digest = _fixed_input_digest(
             path.read_bytes(), "8b14660fa9a0783095a7c28e4c0e05d24960d826de7516afab28e71597193a6a")
         elapsed = 0.0
+        child_before = resource.getrusage(resource.RUSAGE_CHILDREN)
         for _ in range(iterations):
             started = time.perf_counter()
             completed = subprocess.run(
@@ -241,10 +247,18 @@ def zipimport_cold(iterations: int) -> dict[str, int | float | str]:
             elapsed += time.perf_counter() - started
             if completed.returncode or json.loads(completed.stdout) != expected:
                 raise WorkloadError(f"cold ZIP import failed: {completed.stderr[-500:]}")
-    return _result(iterations, 1, _digest(sorted(sources.items())), elapsed, input_digest)
+        child_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    result: dict[str, Any] = _result(
+        iterations, 1, _digest(sorted(sources.items())), elapsed, input_digest)
+    result["reaped_child_cpu"] = {
+        "user_seconds": child_after.ru_utime - child_before.ru_utime,
+        "system_seconds": child_after.ru_stime - child_before.ru_stime,
+        "process_count": iterations,
+    }
+    return result
 
 
-_SCENARIOS: dict[str, Callable[[int], dict[str, int | float | str]]] = {
+_SCENARIOS: dict[str, Callable[[int], dict[str, Any]]] = {
     "zlib_decode_1m": zlib_decode_1m,
     "zlib_stream_4k": zlib_stream_4k,
     "gzip_extract_1m": gzip_extract_1m,

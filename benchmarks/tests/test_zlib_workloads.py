@@ -25,6 +25,12 @@ class ZlibWorkloadTests(unittest.TestCase):
                 self.assertEqual(result["digest"], digest)
                 self.assertEqual(len(result["input_digest"]), 64)
 
+    def test_cold_import_reports_cpu_for_reaped_interpreters(self) -> None:
+        result = zlib.zipimport_cold(2)
+        child = result["reaped_child_cpu"]
+        self.assertEqual(child["process_count"], 2)
+        self.assertGreater(child["user_seconds"] + child["system_seconds"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

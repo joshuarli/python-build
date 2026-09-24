@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any
@@ -130,10 +131,32 @@ def _ensure_clean(result: Any, workload: Workload, side: str, pass_name: str) ->
         )
 
 
-def _cpu_dict(measured: Any, operation_count: int) -> dict[str, Any]:
-    """Keep kernel CPU observations distinct from workload wall latency."""
-    user = getattr(measured, "cpu_user_seconds", None)
-    system = getattr(measured, "cpu_system_seconds", None)
+def _cpu_dict(measured: Any, payload: dict[str, Any], workload_name: str) -> dict[str, Any]:
+    """Combine separate root and direct child CPU ledgers for cold ZIP import."""
+    operation_count = payload["operation_count"]
+    root_user = getattr(measured, "cpu_user_seconds", None)
+    root_system = getattr(measured, "cpu_system_seconds", None)
+    user, system = root_user, root_system
+    coverage = getattr(measured, "cpu_coverage", "unsupported")
+    child_cpu = None
+    if workload_name == "zipimport_cold":
+        child_cpu = payload.get("reaped_child_cpu")
+        if not isinstance(child_cpu, dict) or child_cpu.get("process_count") != operation_count \
+                or type(child_cpu.get("process_count")) is not int:
+            raise RuntimeError("zipimport_cold: missing or inconsistent direct child CPU ledger")
+        for key in ("user_seconds", "system_seconds"):
+            value = child_cpu.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise RuntimeError(f"zipimport_cold: invalid direct child {key}")
+        if user is not None and system is not None and coverage.startswith("wait4 root"):
+            user += child_cpu["user_seconds"]
+            system += child_cpu["system_seconds"]
+            coverage = ("wait4 root plus workload-reported RUSAGE_CHILDREN direct reaped children; "
+                        "grandchildren and unreaped descendants excluded")
+        else:
+            coverage = "incomplete: direct child CPU reported but root CPU unavailable"
+    elif "reaped_child_cpu" in payload:
+        raise RuntimeError(f"{workload_name}: unexpected direct child CPU ledger")
     return {
         "user_seconds": user,
         "system_seconds": system,
@@ -142,7 +165,10 @@ def _cpu_dict(measured: Any, operation_count: int) -> dict[str, Any]:
         "system_seconds_per_operation": None if system is None else system / operation_count,
         "total_seconds_per_operation": None if user is None or system is None else (user + system) / operation_count,
         "operation_count": operation_count,
-        "coverage": getattr(measured, "cpu_coverage", "unsupported"),
+        "coverage": coverage,
+        "root_user_seconds": root_user,
+        "root_system_seconds": root_system,
+        "reaped_child_cpu": child_cpu,
     }
 
 
@@ -240,7 +266,7 @@ def run_workload(
         if not isinstance(elapsed, (int, float)) or elapsed <= 0:
             raise RuntimeError(f"{workload.name}: invalid elapsed time")
         result[side]["timing"]["samples"].append(elapsed)
-        cpu = _cpu_dict(measured, payload["operation_count"])
+        cpu = _cpu_dict(measured, payload, workload.name)
         result[side]["timing"]["cpu_rounds"].append(cpu)
         (output_dir / f"timing-{index:02d}-{side}.json").write_text(
             json.dumps({"payload": payload, "elapsed_seconds_external": measured.duration_seconds,
@@ -260,7 +286,7 @@ def run_workload(
             digests.add(payload["digest"])
             operation_counts.add(payload["operation_count"])
             memory = _memory_dict(measured.memory)
-            cpu = _cpu_dict(measured, payload["operation_count"])
+            cpu = _cpu_dict(measured, payload, workload.name)
             memory["cpu"] = cpu
             result[side]["memory"]["rounds"].append(memory)
             (output_dir / f"memory-{index:02d}-{side}.json").write_text(
