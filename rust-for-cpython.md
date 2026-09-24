@@ -45,10 +45,10 @@ as checked-in patches or other reproducible inputs; edits only under generated
 `rust-cpython/work/source/` disappear on re-extraction. The candidate builder
 now applies digest-checked patches from `rust-cpython/patches/manifest.json`
 after each fresh extraction. Its no-Rust control remains unpatched. The patch
-path has focused checks, and the optional zlib-rs recipe has completed a full
-candidate build. Do not add a
-dependency, change a source/toolchain pin, or expand product scope without an
-explicit scope decision.
+path has a full patched-build qualification for the URL quotation candidate,
+and the optional zlib-rs recipe has completed a full candidate build. Do not
+add a dependency, change a source/toolchain pin, or expand product scope
+without an explicit scope decision.
 
 Use distinct controls. The immediate control for each change is the last
 accepted fork build without that change; it isolates the proposed module
@@ -283,6 +283,15 @@ field was added; see
   self-noise. All complete digests matched. Keep it as a source-patch
   candidate, not yet an accepted build or upstream parity claim; see
   [`url-quote-fair-comparison-20260924.md`](rust-cpython/experiments/url-quote-fair-comparison-20260924.md).
+- The first full URL candidate build exposed a silent `git apply` no-op inside
+  the enclosing worktree; its `built` report was invalid as candidate evidence.
+  The driver now isolates patch application and rejects zero-file application.
+  A fresh full build changed all seven intended source paths, installed the
+  guarded extension, and passed 2,177 differential public cases, 182 URL
+  tests, the catalog digest, and a subinterpreter check. This qualifies build
+  and behavior, while installed-build paired timing and memory remain open;
+  see [`url-quote-full-build-20260924.md`](rust-cpython/experiments/url-quote-full-build-20260924.md)
+  and [`url-quote-full-build-retry-20260924.md`](rust-cpython/experiments/url-quote-full-build-retry-20260924.md).
 
 ## Immediate work queue
 
@@ -295,23 +304,24 @@ field was added; see
   broadly in Rust. The ranked entries in `rust-cpython/README.md` remain
   candidates, not completed work.
 - Establish the missing macOS unique/proportional memory and allocation
-  measurements and matched upstream control comparison. Qualify the
-  digest-checked source patch path with a full build that actually applies a
-  patch. The simple libproc region probe failed; any further USS/PSS work
-  needs a different interface with proven page identity and coverage.
+  measurements and matched upstream control comparison. The simple libproc
+  region probe failed; any further USS/PSS work needs a different interface
+  with proven page identity and coverage. The installed Xcode Allocations
+  tool may offer a bounded diagnostic route, but its export and child coverage
+  need proof; see
+  [`mac-allocation-feasibility-20260924.md`](rust-cpython/experiments/mac-allocation-feasibility-20260924.md).
   Continue zlib's
   quiet-host and memory qualification.
   `difflib.SequenceMatcher` remains an independent hypothesis from
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
-- Turn the cache-matched lean URL candidate into an authored, digest-checked
-  source patch against the pinned Rust fork. Qualify the actual patched build,
-  unchanged URL tests, public-path reachability, and complete catalog timing
-  and memory against the same-stage control. The
-  [`patch-design audit`](rust-cpython/experiments/url-quote-patch-design-20260924.md)
-  identifies build boundaries; do not assume the overlay's size or speed
-  transfers to the whole build.
+- Compare the installed, patched URL candidate with the same-stage accepted
+  fork on the complete catalog workload under quiet-host, cache-matched paired
+  timing and separate memory passes. Calibrate both sides against themselves,
+  then compare with the matched upstream control and investigate other
+  relevant workloads before an integration verdict. The overlay's size and
+  speed do not automatically transfer to the whole build.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops
