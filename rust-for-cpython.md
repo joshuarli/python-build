@@ -174,6 +174,10 @@ explicitly.
   streaming, and gzip decompression on the existing no-Rust fork, but ZIP
   results were mixed and memory observations were incomplete. See
   [`zlib-probe-20260924.md`](rust-cpython/experiments/zlib-probe-20260924.md).
+- A compressed-byte probe found 210 different encodings among 876 sampled
+  public zlib/gzip/ZIP cases. Every sampled stream decoded with both backends,
+  but the backend cannot be called byte-equivalent. See
+  [`zlib-byte-compat.md`](rust-cpython/experiments/zlib-byte-compat.md).
 - The vanilla upstream 3.16.0a0 merge-base control built with the locked LLVM,
   ThinLTO, and the fork's nine-worker PGO task. Its recipe and limits are in
   [`upstream-baseline.md`](rust-cpython/experiments/upstream-baseline.md).
@@ -185,6 +189,10 @@ explicitly.
   no useful complete-workload gain and increased root peak RSS. It was
   rejected; see
   [`difflib-kernel-probe.md`](rust-cpython/experiments/difflib-kernel-probe.md).
+- `tomllib` remains a possible whole-document target, but a short profile of
+  small local files does not establish an application bottleneck. The
+  [`tomllib-target.md`](rust-cpython/experiments/tomllib-target.md) report
+  defers a native parser until complete public workloads justify its cost.
 
 ## Immediate work queue
 

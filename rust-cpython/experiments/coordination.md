@@ -12,10 +12,10 @@ resource evidence.
 
 | Lane | Worktree and branch | Owned paths | Question | Status |
 | --- | --- | --- | --- | --- |
-| Reproducible zlib candidate build | `/private/tmp/python-build-exp-zlib-build-20260924b`, `exp/rust-cpython-zlib-build-20260924b` | `rust-cpython/build.py`, `rust-cpython/patches/`, new `experiments/zlib-build-candidate.md` | Can the existing pinned zlib-rs backend be an optional full candidate-build input without changing the no-Rust control? | Active; no full build authorized yet |
+| Reproducible zlib candidate build | `/private/tmp/python-build-exp-zlib-build-20260924b`, `exp/rust-cpython-zlib-build-20260924b` | `rust-cpython/build.py`, `rust-cpython/patches/`, new `experiments/zlib-build-candidate.md` | Can the existing pinned zlib-rs backend be an optional full candidate-build input without changing the no-Rust control? | Active; one isolated full build scheduled after code review |
 | macOS footprint | `/private/tmp/python-build-exp-mac-footprint-20260924b`, `exp/rust-cpython-mac-footprint-20260924b` | `benchmarks/harness/memory.py`, `benchmarks/harness/macos_resource.py`, `benchmarks/harness/process.py`, new `experiments/mac-footprint-20260924.md` | Can native counters give a sounder root/tree memory gate? | Integrated as diagnostic; no parity claim |
-| zlib compressed bytes | `/private/tmp/python-build-exp-zlib-bytes-20260924b`, `exp/rust-cpython-zlib-bytes-20260924b` | New `experiments/zlib-byte-compat.py` and `.md` | Which public compressed-byte differences are observable across backends? | Active; serial semantic probe only |
-| tomllib scout | `/private/tmp/python-build-exp-tomllib-scout-20260924b`, `exp/rust-cpython-tomllib-scout-20260924b` | New `experiments/tomllib-target.md` | Is whole-document parsing a viable independent next target? | Active; short diagnostic only |
+| zlib compressed bytes | `/private/tmp/python-build-exp-zlib-bytes-20260924b`, `exp/rust-cpython-zlib-bytes-20260924b` | New `experiments/zlib-byte-compat.py` and `.md` | Which public compressed-byte differences are observable across backends? | Integrated; 210/876 byte differences, interoperability in sampled cases |
+| tomllib scout | `/private/tmp/python-build-exp-tomllib-scout-20260924b`, `exp/rust-cpython-tomllib-scout-20260924b` | New `experiments/tomllib-target.md` | Is whole-document parsing a viable independent next target? | Integrated; defer implementation until public workload evidence |
 
 The coordinator owns this ledger and integration order. The agents cannot
 write each other's files. Generated artifacts stay in their worktrees; the
@@ -30,6 +30,21 @@ scans per sample slowed the effective sampling interval below the requested
 50 ms cadence. The raw field and compact runner mapping are diagnostic only;
 no memory gate uses them yet. No behavioral tests were run for this second
 cycle change. See `mac-footprint-20260924.md` for source-backed limits.
+
+The compressed-byte lane ran 876 deterministic public zlib/gzip/ZIP encoding
+cases against platform zlib and the proved zlib-rs overlay. Exactly 666
+encoded streams matched byte for byte; 210 differed. All sampled streams
+decoded whole and in chunks under both backends, with matching decoded
+checksums. Its complete diagnostic used 4.31 user plus 0.20 system CPU
+seconds and 106,577,920 bytes maximum RSS. The case details and scope limits
+are in `zlib-byte-compat.md`; this is semantic evidence, not a timing result.
+
+The tomllib scout's short profile on 400 complete loads of four 133–798-byte
+local files used 0.05 user plus 0.01 system CPU seconds and 23,117,824 bytes
+maximum RSS for the instrumented command. It found parser work but no
+representative application bottleneck. No new crate is in the pinned Cargo
+lock. `tomllib-target.md` recommends a bounded public workload before any
+native parser implementation. The profile is location evidence only.
 
 ## First cycle (base `04667bb`, then `0224e8f`)
 
