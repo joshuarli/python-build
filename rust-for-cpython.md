@@ -312,10 +312,11 @@ field was added; see
   [`mac-allocation-feasibility-20260924.md`](rust-cpython/experiments/mac-allocation-feasibility-20260924.md).
   Continue zlib's
   quiet-host and memory qualification.
-  `difflib.SequenceMatcher` remains an independent hypothesis from
-  [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
-  kernel needs a distinct mechanism and an explicit guard for mutable public
-  matcher state. The rejected row-reuse probe is not a candidate build change.
+  A native kernel on arbitrary public `difflib.SequenceMatcher` instances has
+  no cheap sound guard for their mutable state; stop that route. A one-shot
+  `unified_diff` path is a separate hypothesis whose snapshot and validation
+  cost should be measured first; see
+  [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
 - Compare the installed, patched URL candidate with the same-stage accepted
   fork on the complete catalog workload under quiet-host, cache-matched paired
   timing and separate memory passes. Calibrate both sides against themselves,
