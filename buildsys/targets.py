@@ -14,7 +14,7 @@ Two families are implemented, and they are deliberately different shapes:
               Section 1.2). ELF, musl loader, Alpine apk toolchain.
               Completed and frozen at commit 6750ae2.
   macos       Native Apple Silicon macOS 26.0+ (plan Section 1.5). Mach-O,
-              Apple libSystem, Homebrew LLVM plus the Xcode SDK.
+              Apple libSystem, the locked official LLVM archive, and the Xcode SDK.
 
 `family` selects the toolchain, relocation module, and binary-format checks.
 Fields belonging to the other family are left empty; do not read

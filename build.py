@@ -125,6 +125,9 @@ def _macos_report(report: dict) -> None:
     report["macos"]["toolchain_lock"] = {
         "ok": not found,
         "llvm_version": locked.llvm_version,
+        "llvm_archive_sha256": locked.llvm_archive_sha256,
+        "llvm_archive_size": locked.llvm_archive_size,
+        "llvm_prefix": str(locked.llvm_prefix),
         "deployment_target": locked.deployment_target,
         "cpu_baseline": locked.cpu_baseline,
         "problems": found,
@@ -238,7 +241,10 @@ def main(argv: list[str] | None = None) -> int:
         return doctor()
     if args.command == "fetch":
         _require_target(args.target)
-        result = subprocess.run([sys.executable, "build/fetch.py"], cwd=Path(__file__).parent)
+        result = subprocess.run(
+            [sys.executable, "build/fetch.py", "--target", args.target],
+            cwd=Path(__file__).parent,
+        )
         return result.returncode
     if args.command == "build":
         return build(args)

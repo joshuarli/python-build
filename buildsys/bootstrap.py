@@ -1,16 +1,16 @@
 """Toolchain and trust roots for the macOS target (plan Section 4).
 
-Plan Section 4 requires pinning "the exact toolchain and trust roots:
-Homebrew formula versions **and bottle digests**, the `brew` version that
-resolved them, the Xcode version and SDK build, and the exact resolved clang
-and linker binaries." This module reads that lock and, separately, verifies
-it against the machine actually present — a lock that is never checked
-against reality is a comment, not a lock.
+LLVM is fetched from the official release archive, whose bytes, license, and
+Sigstore provenance metadata are pinned in `bootstrap.lock.json`. A bounded
+allowlist extracts only the compiler/runtime closure into `.cache`. Homebrew
+supplies make and pkgconf; Xcode supplies the SDK and Apple linker. This
+module checks the resulting tools against the lock and fails closed when a
+toolchain is missing or differs.
 
 Three things are deliberately *not* pinned here:
 
 - **The linker.** clang's driver selects Apple's `ld` and passes the
-  `libLTO.dylib` from its own resource tree, which is what makes ThinLTO
+  matching `libLTO.dylib` from its LLVM prefix, which makes ThinLTO
   work at all: a separately installed LLVM 23 compiler paired with an LLD
   from a different LLVM generation gets a bitcode-version rejection at link
   time, not a graceful fallback. The linker is recorded as an observation
@@ -34,6 +34,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .inputs import Input
 from .recipes import Toolchain
 
 
@@ -44,8 +45,19 @@ class BootstrapError(Exception):
 @dataclass(frozen=True)
 class MacOSToolchain:
     llvm_prefix: Path
+    llvm_resource_dir: Path
     llvm_version: str
-    llvm_bottle_sha256: str
+    llvm_archive_url: str
+    llvm_archive_sha256: str
+    llvm_archive_size: int
+    llvm_license: str
+    llvm_release_tag: str
+    llvm_source_commit: str
+    llvm_attestation_url: str
+    llvm_attestation_sha256: str
+    llvm_attestation_size: int
+    llvm_workflow: str
+    llvm_archive_root: str
     make: Path
     make_version: str
     pkgconf: Path
@@ -59,6 +71,33 @@ class MacOSToolchain:
     def llvm_profdata(self) -> Path:
         """The profile merger paired with the locked clang installation."""
         return self.llvm_prefix / "bin" / "llvm-profdata"
+
+    def llvm_input(self) -> Input:
+        """The exact official binary archive pinned by bootstrap.lock.json."""
+        return Input(
+            name="llvm-macos-aarch64",
+            version=self.llvm_version,
+            url=self.llvm_archive_url,
+            sha256=self.llvm_archive_sha256,
+            size=self.llvm_archive_size,
+            role="build-source",
+            target="aarch64-apple-darwin",
+            license=self.llvm_license,
+            purpose="official LLVM compiler and profiling tools for macOS builds",
+        )
+
+    def llvm_attestation_input(self) -> Input:
+        """The digest-pinned Sigstore provenance statement for the archive."""
+        return Input(
+            name="llvm-macos-aarch64-provenance",
+            version=self.llvm_version,
+            url=self.llvm_attestation_url,
+            sha256=self.llvm_attestation_sha256,
+            size=self.llvm_attestation_size,
+            role="build-source",
+            target="aarch64-apple-darwin",
+            purpose="Sigstore provenance statement for the LLVM release archive",
+        )
 
     def toolchain(self, *, jobs: int | None = None) -> Toolchain:
         """The recipe Toolchain this lock describes."""
@@ -86,7 +125,20 @@ class MacOSToolchain:
         return {
             "family": "macos",
             "llvm_version": self.llvm_version,
-            "llvm_bottle_sha256": self.llvm_bottle_sha256,
+            "llvm_prefix": str(self.llvm_prefix),
+            "llvm_resource_dir": str(self.llvm_resource_dir),
+            "llvm_archive": {
+                "url": self.llvm_archive_url,
+                "sha256": self.llvm_archive_sha256,
+                "size": self.llvm_archive_size,
+                "license": self.llvm_license,
+                "release_tag": self.llvm_release_tag,
+                "source_commit": self.llvm_source_commit,
+                "attestation_url": self.llvm_attestation_url,
+                "attestation_sha256": self.llvm_attestation_sha256,
+                "attestation_size": self.llvm_attestation_size,
+                "workflow": self.llvm_workflow,
+            },
             "llvm_profdata": str(self.llvm_profdata),
             "llvm_profdata_version": profdata_version.splitlines()[0]
             if profdata_version else "unavailable",
@@ -114,13 +166,43 @@ def load_macos_toolchain(path: Path) -> MacOSToolchain:
     if not isinstance(section, dict):
         raise BootstrapError(f"{path}: no macos_toolchain section")
     llvm = _require(section, "llvm", "macos_toolchain")
+    artifact = _require(llvm, "archive", "llvm")
+    provenance = _require(artifact, "provenance", "llvm.archive")
     make = _require(section, "make", "macos_toolchain")
     pkgconf = _require(section, "pkgconf", "macos_toolchain")
     sdk = _require(section, "sdk", "macos_toolchain")
     return MacOSToolchain(
-        llvm_prefix=Path(_require(llvm, "prefix", "llvm")),
+        llvm_prefix=(
+            Path(path).resolve().parent
+            / ".cache"
+            / "llvm"
+            / "toolchains"
+            / f"{_require(llvm, 'version', 'llvm')}-{_require(artifact, 'sha256', 'llvm.archive')}"
+        ),
+        llvm_resource_dir=(
+            Path(path).resolve().parent
+            / ".cache"
+            / "llvm"
+            / "toolchains"
+            / f"{_require(llvm, 'version', 'llvm')}-{_require(artifact, 'sha256', 'llvm.archive')}"
+            / _require(llvm, "resource_dir", "llvm")
+        ),
         llvm_version=_require(llvm, "version", "llvm"),
-        llvm_bottle_sha256=_require(llvm, "bottle_sha256", "llvm"),
+        llvm_archive_url=_require(artifact, "url", "llvm.archive"),
+        llvm_archive_sha256=_require(artifact, "sha256", "llvm.archive"),
+        llvm_archive_size=_require(artifact, "size", "llvm.archive"),
+        llvm_license=_require(artifact, "license", "llvm.archive"),
+        llvm_release_tag=_require(provenance, "release_tag", "llvm.archive.provenance"),
+        llvm_source_commit=_require(provenance, "source_commit", "llvm.archive.provenance"),
+        llvm_attestation_url=_require(provenance, "attestation_url", "llvm.archive.provenance"),
+        llvm_attestation_sha256=_require(
+            provenance, "attestation_sha256", "llvm.archive.provenance"
+        ),
+        llvm_attestation_size=_require(
+            provenance, "attestation_size", "llvm.archive.provenance"
+        ),
+        llvm_workflow=_require(provenance, "workflow", "llvm.archive.provenance"),
+        llvm_archive_root=_require(artifact, "archive_root", "llvm.archive"),
         make=Path(_require(make, "path", "make")),
         make_version=_require(make, "version", "make"),
         pkgconf=Path(_require(pkgconf, "path", "pkgconf")),
@@ -174,6 +256,20 @@ def problems(toolchain: MacOSToolchain, *, host_floor: str = "") -> list[str]:
             found.append(
                 f"host macOS {current} is below the required floor {host_floor}"
             )
+    marker = toolchain.llvm_prefix / ".verified.json"
+    try:
+        marker_data = json.loads(marker.read_text())
+    except (OSError, json.JSONDecodeError):
+        marker_data = None
+    if marker_data != {
+        "version": toolchain.llvm_version,
+        "sha256": toolchain.llvm_archive_sha256,
+    }:
+        found.append(
+            "official LLVM archive is not provisioned at "
+            f"{toolchain.llvm_prefix}; run `python3 build.py fetch "
+            "--target aarch64-apple-darwin`"
+        )
     clang = toolchain.llvm_prefix / "bin" / "clang"
     if not clang.is_file():
         found.append(f"clang not found at {clang}")
@@ -183,6 +279,12 @@ def problems(toolchain: MacOSToolchain, *, host_floor: str = "") -> list[str]:
             found.append(
                 f"{clang} reports {reported.splitlines()[0] if reported else 'nothing'}; "
                 f"lock pins {toolchain.llvm_version}"
+            )
+        resource_dir = _tool_output([str(clang), "-print-resource-dir"])
+        if Path(resource_dir) != toolchain.llvm_resource_dir:
+            found.append(
+                f"{clang} resource directory is {resource_dir!r}; expected "
+                f"{toolchain.llvm_resource_dir}"
             )
     profdata = toolchain.llvm_profdata
     if not profdata.is_file():

@@ -110,7 +110,7 @@ def build(
     if target.is_macos:
         # CPython's configure probe can find Apple's generic llvm-profdata,
         # which may not match the locked clang bitcode. Name the profiler from
-        # the same pinned Homebrew LLVM prefix as CC, as PBS does explicitly.
+        # the same digest-pinned official LLVM prefix as CC.
         assert profile_toolchain is not None
         env_overrides["LLVM_PROFDATA"] = str(profile_toolchain.llvm_profdata)
     env = toolchain.env(

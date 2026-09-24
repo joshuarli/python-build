@@ -9,15 +9,17 @@
 #
 # - macOS builds natively on `macos-26` (Apple Silicon, macOS 26+), because
 #   the artifact declares minos 26.0 and Mach-O cannot be built in Linux
-#   containers. The runner's Homebrew LLVM/make/pkgconf must satisfy
-#   `bootstrap.lock.json`; a toolchain upgrade fails closed in
-#   `build/deps.py` with the exact mismatch, and the fix is to refresh the
-#   lock from a matching local machine, not to loosen the check.
+#   containers. LLVM is fetched from its locked official archive; Homebrew
+#   make/pkgconf and the Xcode SDK must satisfy `bootstrap.lock.json`. A
+#   toolchain upgrade fails closed in `build/deps.py` with the exact mismatch.
 # - Linux builds go through `Dockerfile` (`--target sealed`), one native
 #   runner per architecture, no QEMU: `ubuntu-latest` (x86_64) and
 #   `ubuntu-24.04-arm` (aarch64). Packaging runs inside the sealed image
 #   with `--network none`; it only reads the image and the verified cache.
 # - Caching is source blobs (`.cache/objects`, keyed on sources.lock.json)
+#   and the selectively extracted LLVM toolchain (`.cache/llvm/toolchains`,
+#   keyed on the LLVM archive digest; the 1.57 GB archive itself is fetched
+#   when needed).
 #   plus BuildKit layer caching (`type=gha`, one scope per arch). Compiled
 #   outputs are never cached: a full build owns its prefix and scratch area,
 #   and reusing them across runs is how stale objects leak into artifacts.
@@ -75,24 +77,28 @@ jobs:
           key: sources-${{ hashFiles('sources.lock.json') }}
           restore-keys: sources-
 
+      - name: Cache selectively extracted LLVM toolchain
+        uses: actions/cache@v4
+        with:
+          path: .cache/llvm/toolchains
+          key: llvm-${{ hashFiles('bootstrap.lock.json') }}
+          restore-keys: llvm-
+
       - name: Install toolchain (must satisfy bootstrap.lock.json)
-        # `brew update` first: runner images lag Homebrew (seen: image pins
-        # LLVM 23.1.0 while the lock pins 23.1.1). Install-if-missing, then
-        # upgrade to latest; a bare `install` is a no-op when the formula is
-        # already present. A newer-than-lock toolchain still fails closed in
-        # build/deps.py by design.
+        # LLVM is provisioned from the verified official release archive by
+        # build/fetch.py. Homebrew remains the source of make and pkgconf.
         run: |
           brew update
-          for formula in llvm make pkgconf; do
+          for formula in make pkgconf; do
             brew list "$formula" >/dev/null 2>&1 || brew install "$formula"
           done
-          brew upgrade llvm make pkgconf
-
-      - name: Doctor
-        run: python3 build.py doctor
+          brew upgrade make pkgconf
 
       - name: Fetch
         run: python3 build.py fetch --target aarch64-apple-darwin
+
+      - name: Doctor
+        run: python3 build.py doctor
 
       - name: Build
         run: python3 build.py build --target aarch64-apple-darwin --dev

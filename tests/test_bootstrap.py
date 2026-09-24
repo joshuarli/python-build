@@ -26,6 +26,14 @@ class LockParsingTests(unittest.TestCase):
     def test_repository_lock_parses(self) -> None:
         toolchain = load_macos_toolchain(LOCK)
         self.assertTrue(toolchain.llvm_version)
+        self.assertEqual(toolchain.llvm_version, "23.1.2")
+        self.assertEqual(toolchain.llvm_input().target, "aarch64-apple-darwin")
+        self.assertEqual(toolchain.llvm_input().role, "build-source")
+        self.assertEqual(toolchain.llvm_input().license, "Apache-2.0 WITH LLVM-exception")
+        self.assertEqual(
+            toolchain.llvm_attestation_input().sha256,
+            toolchain.llvm_attestation_sha256,
+        )
         self.assertTrue(toolchain.deployment_target)
         self.assertTrue(toolchain.cpu_baseline)
 
@@ -107,7 +115,7 @@ class ToolchainConstructionTests(unittest.TestCase):
 
 
 class LockAgainstMachineTests(unittest.TestCase):
-    @unittest.skipUnless(sys.platform == "darwin", "locked Homebrew/Xcode tools are macOS-only")
+    @unittest.skipUnless(sys.platform == "darwin", "locked macOS/Xcode tools are macOS-only")
     def test_repository_lock_matches_this_machine(self) -> None:
         locked = load_macos_toolchain(LOCK)
         found = problems(locked, host_floor=locked.deployment_target)
@@ -132,6 +140,7 @@ class LockAgainstMachineTests(unittest.TestCase):
             )
             with patch("buildsys.bootstrap._tool_output", side_effect=[
                 f"clang version {locked.llvm_version}",
+                str(locked.llvm_resource_dir),
                 f"GNU Make {locked.make_version}",
             ]), patch("buildsys.bootstrap.sdk_version", return_value=locked.deployment_target):
                 found = problems(stale)

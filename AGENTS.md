@@ -12,7 +12,7 @@ is the current contract.)
 
 | Triple | Family | Toolchain | Notes |
 | --- | --- | --- | --- |
-| `aarch64-apple-darwin` | macos | Homebrew LLVM 23.1.0+ (`bootstrap.lock.json`) + Xcode 26.x SDK | arm64 only, `-mcpu=apple-m1`, `-mmacosx-version-min=26.0`; host must run macOS 26.0+ |
+| `aarch64-apple-darwin` | macos | Official LLVM 23.1.2 Apple Silicon archive (`bootstrap.lock.json`) + Xcode 26.x SDK | arm64 only, `-mcpu=apple-m1`, `-mmacosx-version-min=26.0`; host must run macOS 26.0+ |
 | `x86_64-unknown-linux-musl` | linux-musl | Alpine 3.24.1 container (`Dockerfile`), clang22/lld22 | `-march=x86-64`, loader `/lib/ld-musl-x86_64.so.1`; frozen, completed |
 | `aarch64-unknown-linux-musl` | linux-musl | Same, via `docker build --platform linux/arm64` | `-march=armv8-a`, loader `/lib/ld-musl-aarch64.so.1`; frozen, completed |
 
@@ -84,9 +84,10 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
   extraction; reference-only entries are comparison inputs, never build
   inputs. `pip` is not an input (nothing unshipped gets locked).
 - `bootstrap.lock.json`: Alpine image digest + resolved apk set (Linux);
-  Homebrew LLVM bottle digest, make, pkgconf, Xcode/SDK identity,
-  deployment floor, CPU baseline (macOS). The macOS linker is recorded, not
-  pinned: clang's driver supplies the matching `libLTO`.
+  official LLVM archive digest, size, license, release provenance and make,
+  pkgconf, Xcode/SDK identity, deployment floor, CPU baseline (macOS). The
+  macOS linker is recorded, not pinned: clang's driver supplies matching
+  `libLTO` from the verified LLVM prefix.
 - `buildsys/inputs.py`: content-addressed `.cache/objects/<sha256>.blob`,
   atomic publication, tamper/size checks on every read, `safe_extract`
   rejecting traversal/absolute/symlink-escape/device entries.
@@ -103,8 +104,14 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
 
 - `buildsys/bootstrap.py`: lock loading, host verification (`problems()`),
   `lto_smoke_test` gate before any large build (ThinLTO bitcode + minos +
-  arm64 checked, not just exit status). Apple `ld` is used via the clang
-  driver; never silently fall back to Apple clang.
+  arm64 checked, not just exit status). `buildsys/llvm.py` verifies the
+  hash-pinned Sigstore statement metadata and streams the official `.tar.xz`
+  archive into an allowlisted prefix under `.cache`; it extracts only clang,
+  llvm-profdata, LLVM binutils, matching `libLTO`, and compiler resources.
+  Apple `ld` is used via the clang driver; never silently fall back to Apple
+  clang. Run `python3 build.py fetch --target aarch64-apple-darwin` before
+  local builds or sealed qualification to populate the prefix; sealed builds
+  consume only the cached verified files.
 - `buildsys/cpython.py`: configure policy derived from 3.14.6's
   `configure --help`; private-prefix selection vars; `PKG_CONFIG_LIBDIR`
   narrowed so Homebrew packages cannot satisfy probes; `ndbm` dbm order;

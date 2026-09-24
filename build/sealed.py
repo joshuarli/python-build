@@ -96,10 +96,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     (workdir / "home").mkdir(parents=True, exist_ok=True)
     env = run.environment({
-        # The declared toolchain plus the platform's own tools. Reads are not
-        # restricted by the profile, so including Homebrew's bin exposes
-        # nothing that reading the filesystem directly would not; the
-        # half of the containment that matters here is writes and network.
+        # The declared LLVM prefix plus Homebrew's make/pkgconf and platform
+        # tools. Reads are not restricted by the profile; the containment
+        # boundary that matters here is writes and network.
         "PATH": f"{locked.llvm_prefix}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
     })
 

@@ -35,8 +35,8 @@ class Toolchain:
     `family` selects the environment conventions that genuinely differ: the
     Linux/musl toolchain is addressed by bare names that the container's PATH
     resolves and pins its linker explicitly, while the macOS toolchain is
-    addressed by absolute Homebrew paths and deliberately leaves the linker
-    to the clang driver, which supplies the libLTO matching the compiler's own
+    addressed by absolute paths in the verified LLVM prefix and deliberately
+    leaves the linker to the clang driver, which supplies the libLTO matching the compiler's own
     bitcode generation (plan Section 5.1).
     """
 
