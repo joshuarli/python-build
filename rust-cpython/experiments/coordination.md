@@ -6,10 +6,16 @@ The optional zlib build recipe was integrated through `87b0eec` after a
 successful whole build of the first link recipe and a bounded incremental
 correction that leaves `binascii` on platform zlib. The revised recipe still
 needs its own clean full PGO build. Its isolated worktree is retained, and the
-coordinator scheduled that build but held it while a separate Cargo job kept
-spawning compilers on the same host. The full-build budget is 1,200 kernel
-user-plus-system CPU seconds and 3 GiB maximum reported RSS. No published
-timing run overlaps it.
+coordinator scheduled that build after a separate Cargo job stopped spawning
+compilers. The full-build budget was 1,200 kernel user-plus-system CPU
+seconds and 3 GiB maximum reported RSS. No published timing run overlapped it.
+The revised clean build succeeded: 736.23 user plus 120.87 system CPU seconds,
+1,739,423,744 bytes maximum reported RSS, no command swaps. The installed
+`zlib` module uses the pinned Rust backend, while `binascii` loads platform
+`libz.1.dylib`; the two unstripped extensions total 1,767,256 bytes, which
+is 1,591,440 bytes above the existing platform control. Exact hashes and
+link evidence are in `zlib-build-candidate.md`. This proves the build and
+installed identity, not runtime speed or memory parity.
 
 The macOS sampler overhead lane owns only
 `benchmarks/harness/process.py`, `benchmarks/harness/macos_resource.py`, and a
@@ -26,6 +32,26 @@ command CPU seconds; the new path gave 12 samples and consumed 0.10 user plus
 0.05 system seconds. Host activity and possible overlap with PGO limit the
 comparison. See `mac-sampler-overhead-20260924.md` for the SDK layout,
 identity checks, and residual races. No behavioral suite ran for this change.
+
+The serial zlib qualification lane used
+`/private/tmp/python-build-exp-zlib-qual-20260924c`, branch
+`exp/rust-cpython-zlib-qual-20260924c`, based on `484cbe4`. It owned a new
+`rust-cpython/experiments/zlib-full-candidate-20260924.md` and uniquely named
+raw JSON under `rust-cpython/experiments/data/`. It read the two built
+interpreters but kept benchmark outputs in its own worktree. It calibrated
+the platform control against itself, then compared public zlib, gzip, ZIP,
+and import workloads serially. The six completed commands used 16.83
+controller process CPU seconds; the largest reported RSS was 48.61 MB, with
+zero command swaps. All five workload content checks passed. Paired operation
+wall ratios were 0.492 for one-shot zlib, 0.644 for streaming zlib, 0.573 for
+gzip extraction, 0.909 for ZIP read, and 1.088 for cold ZIP import against a
+13.79% self-comparison wall noise allowance. ZIP read's median peak RSS rose
+3.13 MB and sampled physical footprint rose 5.18 MB. Memory parity remains
+incomplete because unique/proportional and allocation metrics are unavailable;
+the cold import root CPU measure also excludes its child interpreter. The
+optional candidate stays experimental. The report and raw observations are in
+`zlib-full-candidate-20260924.md` and `data/zlib-full-evidence-20260924.json`.
+No separate CPython/Cargo suite ran in this lane.
 
 ## Second cycle (base `ffb6205`)
 

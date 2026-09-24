@@ -45,7 +45,8 @@ as checked-in patches or other reproducible inputs; edits only under generated
 `rust-cpython/work/source/` disappear on re-extraction. The candidate builder
 now applies digest-checked patches from `rust-cpython/patches/manifest.json`
 after each fresh extraction. Its no-Rust control remains unpatched. The patch
-path has focused checks but still needs a full candidate build. Do not add a
+path has focused checks, and the optional zlib-rs recipe has completed a full
+candidate build. Do not add a
 dependency, change a source/toolchain pin, or expand product scope without an
 explicit scope decision.
 
@@ -178,6 +179,15 @@ explicitly.
   public zlib/gzip/ZIP cases. Every sampled stream decoded with both backends,
   but the backend cannot be called byte-equivalent. See
   [`zlib-byte-compat.md`](rust-cpython/experiments/zlib-byte-compat.md).
+- An optional whole-build zlib-rs candidate retains platform zlib for
+  `binascii`. Its clean PGO build succeeded, but the two unstripped extensions
+  are 1.59 MB larger than the platform-zlib control. Five public decompression
+  workloads preserved checked output. One-shot zlib, streaming zlib, and gzip
+  operations improved in the local paired run; ZIP read and cold ZIP import
+  remained within timing noise. ZIP read's peak RSS and sampled physical
+  footprint increased, and macOS memory parity is still unqualified. See
+  [`zlib-build-candidate.md`](rust-cpython/experiments/zlib-build-candidate.md)
+  and [`zlib-full-candidate-20260924.md`](rust-cpython/experiments/zlib-full-candidate-20260924.md).
 - The vanilla upstream 3.16.0a0 merge-base control built with the locked LLVM,
   ThinLTO, and the fork's nine-worker PGO task. Its recipe and limits are in
   [`upstream-baseline.md`](rust-cpython/experiments/upstream-baseline.md).
@@ -196,17 +206,17 @@ explicitly.
 
 ## Immediate work queue
 
-- **The zlib proof is not a production migration.** The ordinary lane build
-  still links `Modules/zlibmodule.c` to platform zlib; the Rust backend exists
-  only in the separate proof overlay. Its exploratory performance probe is
-  recorded; quiet-host and memory qualification and compressed-byte
-  comparisons remain open.
+- **The optional zlib-rs build is an experiment, not a production migration.**
+  The ordinary lane build still links `Modules/zlibmodule.c` to platform zlib.
+  Repeat ZIP and memory measurements on a quieter host, account for nested
+  child CPU in cold import, and decide whether the compressed-byte differences
+  and installed-size cost fit the desired contract before promotion.
 - No public stdlib API in the experiment has yet been shown to improve
   broadly in Rust. The ranked entries in `rust-cpython/README.md` remain
   candidates, not completed work.
-- Establish the missing macOS resource measurements and matched upstream
-  control comparison, and qualify the reproducible source patch path with a
-  full candidate build. Continue zlib's quiet-host and memory qualification.
+- Establish the missing macOS unique/proportional memory and allocation
+  measurements and matched upstream control comparison. Continue zlib's
+  quiet-host and memory qualification.
   `difflib.SequenceMatcher` remains an independent hypothesis from
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
