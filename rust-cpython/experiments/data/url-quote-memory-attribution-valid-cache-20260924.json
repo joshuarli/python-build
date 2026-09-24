@@ -1,0 +1,650 @@
+{
+  "cache_condition": "valid-cache",
+  "command_tail": [
+    "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/experiments/url-quote-memory-attribution-20260924.py",
+    "--child"
+  ],
+  "controller_time_l": {
+    "maximum_resident_bytes": 28786688,
+    "swaps": 0,
+    "system_seconds": 0.68,
+    "user_seconds": 8.12
+  },
+  "environment": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONHASHSEED": "1",
+    "PYTHONMALLOC": "default",
+    "PYTHONNOUSERSITE": "1",
+    "PYTHONPATH": "/private/tmp/python-build-exp-url-memory-attribution-20260924l"
+  },
+  "expected_input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+  "expected_output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+  "hashes": {
+    "candidate": {
+      "extension": "74feaae8a1f52c735a61b94a4abe82daf2f65c4896434aca2b874200ce93a344",
+      "parse": "8e29cff7399e7bae9e243bcc022afa43d73ad85912b9468b1e3cc73875079576",
+      "python": "ecbc7340ff2ffce477c43ac8cf10465b896708c9599112f6adcbde105418da5f"
+    },
+    "control": {
+      "extension": null,
+      "parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+      "python": "ecbc7340ff2ffce477c43ac8cf10465b896708c9599112f6adcbde105418da5f"
+    },
+    "import_only": {
+      "extension": "74feaae8a1f52c735a61b94a4abe82daf2f65c4896434aca2b874200ce93a344",
+      "parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+      "python": "ecbc7340ff2ffce477c43ac8cf10465b896708c9599112f6adcbde105418da5f"
+    }
+  },
+  "method": "benchmarks.harness.process.run_command, 10 ms external macOS sampler",
+  "paired_summary": {
+    "catalog": {
+      "candidate": {
+        "median_rss_difference_bytes": -65536.0,
+        "rss_differences_bytes": [
+          16384,
+          -32768,
+          -131072,
+          -98304
+        ]
+      },
+      "import_only": {
+        "median_rss_difference_bytes": -65536.0,
+        "rss_differences_bytes": [
+          -163840,
+          98304,
+          -81920,
+          -49152
+        ]
+      }
+    },
+    "import": {
+      "candidate": {
+        "median_rss_difference_bytes": 81920.0,
+        "rss_differences_bytes": [
+          212992,
+          32768,
+          131072,
+          -16384
+        ]
+      },
+      "import_only": {
+        "median_rss_difference_bytes": 237568.0,
+        "rss_differences_bytes": [
+          262144,
+          311296,
+          212992,
+          81920
+        ]
+      }
+    }
+  },
+  "raw_coverage": "full external samples preserved in ignored work area",
+  "raw_path": "rust-cpython/work/url-quote-memory-attribution-20260924/raw-valid-cache.json",
+  "rows": [
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": null,
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "urls_per_operation": 48,
+        "variant": "control"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13566432,
+      "root_kernel_peak_rss_bytes": 26361856,
+      "root_system_seconds": 0.020461999999999998,
+      "root_user_seconds": 0.6819919999999999,
+      "round": 0,
+      "sampled_peak_phys_footprint_bytes": 13451744,
+      "sampled_peak_rss_bytes": 26361856,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "urls_per_operation": 48,
+        "variant": "import_only"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13402592,
+      "root_kernel_peak_rss_bytes": 26198016,
+      "root_system_seconds": 0.020846,
+      "root_user_seconds": 0.6768029999999999,
+      "round": 0,
+      "sampled_peak_phys_footprint_bytes": 13255136,
+      "sampled_peak_rss_bytes": 26198016,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "urls_per_operation": 48,
+        "variant": "candidate"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13550048,
+      "root_kernel_peak_rss_bytes": 26378240,
+      "root_system_seconds": 0.017953,
+      "root_user_seconds": 0.549319,
+      "round": 0,
+      "sampled_peak_phys_footprint_bytes": 13451744,
+      "sampled_peak_rss_bytes": 26378240,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "urls_per_operation": 48,
+        "variant": "import_only"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13435360,
+      "root_kernel_peak_rss_bytes": 26378240,
+      "root_system_seconds": 0.020368,
+      "root_user_seconds": 0.6757059999999999,
+      "round": 1,
+      "sampled_peak_phys_footprint_bytes": 13402592,
+      "sampled_peak_rss_bytes": 26378240,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "urls_per_operation": 48,
+        "variant": "candidate"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13435360,
+      "root_kernel_peak_rss_bytes": 26247168,
+      "root_system_seconds": 0.018963,
+      "root_user_seconds": 0.546709,
+      "round": 1,
+      "sampled_peak_phys_footprint_bytes": 13304288,
+      "sampled_peak_rss_bytes": 26247168,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": null,
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "urls_per_operation": 48,
+        "variant": "control"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13468128,
+      "root_kernel_peak_rss_bytes": 26279936,
+      "root_system_seconds": 0.019672,
+      "root_user_seconds": 0.6760039999999999,
+      "round": 1,
+      "sampled_peak_phys_footprint_bytes": 13353440,
+      "sampled_peak_rss_bytes": 26279936,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "urls_per_operation": 48,
+        "variant": "candidate"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13353440,
+      "root_kernel_peak_rss_bytes": 26181632,
+      "root_system_seconds": 0.019117,
+      "root_user_seconds": 0.543742,
+      "round": 2,
+      "sampled_peak_phys_footprint_bytes": 13238752,
+      "sampled_peak_rss_bytes": 26181632,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": null,
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "urls_per_operation": 48,
+        "variant": "control"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13517280,
+      "root_kernel_peak_rss_bytes": 26312704,
+      "root_system_seconds": 0.020787,
+      "root_user_seconds": 0.670137,
+      "round": 2,
+      "sampled_peak_phys_footprint_bytes": 13386208,
+      "sampled_peak_rss_bytes": 26312704,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "urls_per_operation": 48,
+        "variant": "import_only"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13418976,
+      "root_kernel_peak_rss_bytes": 26230784,
+      "root_system_seconds": 0.018701,
+      "root_user_seconds": 0.6706449999999999,
+      "round": 2,
+      "sampled_peak_phys_footprint_bytes": 13287904,
+      "sampled_peak_rss_bytes": 26230784,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": null,
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "urls_per_operation": 48,
+        "variant": "control"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13435360,
+      "root_kernel_peak_rss_bytes": 26345472,
+      "root_system_seconds": 0.019346,
+      "root_user_seconds": 0.674611,
+      "round": 3,
+      "sampled_peak_phys_footprint_bytes": 13435360,
+      "sampled_peak_rss_bytes": 26345472,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "urls_per_operation": 48,
+        "variant": "import_only"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13484512,
+      "root_kernel_peak_rss_bytes": 26296320,
+      "root_system_seconds": 0.019635,
+      "root_user_seconds": 0.675624,
+      "round": 3,
+      "sampled_peak_phys_footprint_bytes": 13353440,
+      "sampled_peak_rss_bytes": 26296320,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "catalog",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "urls_per_operation": 48,
+        "variant": "candidate"
+      },
+      "phase": "catalog",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 13418976,
+      "root_kernel_peak_rss_bytes": 26247168,
+      "root_system_seconds": 0.019237999999999998,
+      "root_user_seconds": 0.5407649999999999,
+      "round": 3,
+      "sampled_peak_phys_footprint_bytes": 13287904,
+      "sampled_peak_rss_bytes": 26247168,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": null,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "variant": "control"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11747808,
+      "root_kernel_peak_rss_bytes": 24363008,
+      "root_system_seconds": 0.013432,
+      "root_user_seconds": 0.029005999999999997,
+      "round": 0,
+      "sampled_peak_phys_footprint_bytes": 11731424,
+      "sampled_peak_rss_bytes": 24363008,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "variant": "import_only"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 12026336,
+      "root_kernel_peak_rss_bytes": 24625152,
+      "root_system_seconds": 0.013973,
+      "root_user_seconds": 0.029078,
+      "round": 0,
+      "sampled_peak_phys_footprint_bytes": 11796960,
+      "sampled_peak_rss_bytes": 24625152,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "variant": "candidate"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11928032,
+      "root_kernel_peak_rss_bytes": 24576000,
+      "root_system_seconds": 0.014969999999999999,
+      "root_user_seconds": 0.028494,
+      "round": 0,
+      "sampled_peak_phys_footprint_bytes": 11911648,
+      "sampled_peak_rss_bytes": 24576000,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "variant": "import_only"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 12206560,
+      "root_kernel_peak_rss_bytes": 24805376,
+      "root_system_seconds": 0.014357,
+      "root_user_seconds": 0.029401,
+      "round": 1,
+      "sampled_peak_phys_footprint_bytes": 11960800,
+      "sampled_peak_rss_bytes": 24805376,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "variant": "candidate"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11878880,
+      "root_kernel_peak_rss_bytes": 24526848,
+      "root_system_seconds": 0.013982999999999999,
+      "root_user_seconds": 0.029363,
+      "round": 1,
+      "sampled_peak_phys_footprint_bytes": 11862496,
+      "sampled_peak_rss_bytes": 24526848,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": null,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "variant": "control"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11862472,
+      "root_kernel_peak_rss_bytes": 24494080,
+      "root_system_seconds": 0.013652,
+      "root_user_seconds": 0.029138999999999998,
+      "round": 1,
+      "sampled_peak_phys_footprint_bytes": 11846088,
+      "sampled_peak_rss_bytes": 24494080,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "variant": "candidate"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 12026336,
+      "root_kernel_peak_rss_bytes": 24674304,
+      "root_system_seconds": 0.013916,
+      "root_user_seconds": 0.030247,
+      "round": 2,
+      "sampled_peak_phys_footprint_bytes": 12009952,
+      "sampled_peak_rss_bytes": 24674304,
+      "sampling_errors": [],
+      "variant": "candidate"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": null,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "variant": "control"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11928032,
+      "root_kernel_peak_rss_bytes": 24543232,
+      "root_system_seconds": 0.013666999999999999,
+      "root_user_seconds": 0.029195,
+      "round": 2,
+      "sampled_peak_phys_footprint_bytes": 11911648,
+      "sampled_peak_rss_bytes": 24543232,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "variant": "import_only"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 12157408,
+      "root_kernel_peak_rss_bytes": 24756224,
+      "root_system_seconds": 0.013047999999999999,
+      "root_user_seconds": 0.029094,
+      "round": 2,
+      "sampled_peak_phys_footprint_bytes": 11944416,
+      "sampled_peak_rss_bytes": 24756224,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": null,
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/control",
+        "variant": "control"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11993568,
+      "root_kernel_peak_rss_bytes": 24608768,
+      "root_system_seconds": 0.012829,
+      "root_user_seconds": 0.028713,
+      "round": 3,
+      "sampled_peak_phys_footprint_bytes": 11993568,
+      "sampled_peak_rss_bytes": 24608768,
+      "sampling_errors": [],
+      "variant": "control"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/import_only",
+        "variant": "import_only"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 12075464,
+      "root_kernel_peak_rss_bytes": 24690688,
+      "root_system_seconds": 0.014008999999999999,
+      "root_user_seconds": 0.029581,
+      "round": 3,
+      "sampled_peak_phys_footprint_bytes": 11829704,
+      "sampled_peak_rss_bytes": 24690688,
+      "sampling_errors": [],
+      "variant": "import_only"
+    },
+    {
+      "cpu_coverage": "wait4 root only; descendants excluded",
+      "payload": {
+        "extension_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/lib-dynload/_rust_url_quote.cpython-316-darwin.so",
+        "parse_file": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate/lib/python3.16/urllib/parse.py",
+        "phase": "import",
+        "prefix": "/private/tmp/python-build-exp-url-memory-attribution-20260924l/rust-cpython/work/url-quote-memory-attribution-20260924/candidate",
+        "variant": "candidate"
+      },
+      "phase": "import",
+      "process_count": 1,
+      "root_kernel_peak_phys_footprint_bytes": 11944416,
+      "root_kernel_peak_rss_bytes": 24592384,
+      "root_system_seconds": 0.014336999999999999,
+      "root_user_seconds": 0.030563,
+      "round": 3,
+      "sampled_peak_phys_footprint_bytes": 11928032,
+      "sampled_peak_rss_bytes": 24592384,
+      "sampling_errors": [],
+      "variant": "candidate"
+    }
+  ]
+}
