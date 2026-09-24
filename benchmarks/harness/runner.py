@@ -97,11 +97,21 @@ def _memory_dict(value: Any) -> dict[str, Any]:
     return {
         "peak_pss": value.get("peak_pss_bytes"),
         "peak_rss": value.get("peak_rss_bytes"),
+        "peak_rss_coverage": value.get("peak_rss_coverage"),
+        "root_kernel_peak_rss": value.get("root_kernel_peak_rss_bytes"),
+        "root_kernel_peak_phys_footprint": value.get("root_kernel_peak_phys_footprint_bytes"),
         "peak_private": value.get("peak_private_bytes"),
         "peak_swap": value.get("peak_swap_bytes"),
         "process_count": value.get("peak_process_count"),
         "steady_pss": value.get("steady_pss_bytes"),
+        "steady_rss": value.get("steady_rss_bytes"),
         "postload_pss": value.get("postload_pss_bytes"),
+        "retained_rss": value.get("steady_rss_bytes"),
+        "retained_status": ("marked steady boundary" if value.get("steady_rss_bytes") is not None
+                            else "unsupported: no steady boundary marked"),
+        "first": value.get("first"),
+        "last": value.get("last"),
+        "phase_samples": value.get("phase_samples", {}),
         "cgroup_current": value.get("cgroup_current_bytes"),
         "cgroup_peak": value.get("cgroup_peak_bytes"),
         "cgroup_events": value.get("cgroup_events"),
@@ -116,6 +126,22 @@ def _ensure_clean(result: Any, workload: Workload, side: str, pass_name: str) ->
         raise RuntimeError(
             f"{workload.name} {pass_name} {side} left processes behind: {result.remaining_pids}"
         )
+
+
+def _cpu_dict(measured: Any, operation_count: int) -> dict[str, Any]:
+    """Keep kernel CPU observations distinct from workload wall latency."""
+    user = getattr(measured, "cpu_user_seconds", None)
+    system = getattr(measured, "cpu_system_seconds", None)
+    return {
+        "user_seconds": user,
+        "system_seconds": system,
+        "total_seconds": None if user is None or system is None else user + system,
+        "user_seconds_per_operation": None if user is None else user / operation_count,
+        "system_seconds_per_operation": None if system is None else system / operation_count,
+        "total_seconds_per_operation": None if user is None or system is None else (user + system) / operation_count,
+        "operation_count": operation_count,
+        "coverage": getattr(measured, "cpu_coverage", "unsupported"),
+    }
 
 
 def run_workload(
@@ -159,7 +185,7 @@ def run_workload(
             "packages": list(workload.packages),
         },
         "baseline": {
-            "timing": {"samples": []},
+            "timing": {"samples": [], "cpu_rounds": []},
             "memory": {
                 "rounds": [],
                 **({"status": "not_measured", "reason": "timing-only host mode"}
@@ -167,7 +193,7 @@ def run_workload(
             },
         },
         "candidate": {
-            "timing": {"samples": []},
+            "timing": {"samples": [], "cpu_rounds": []},
             "memory": {
                 "rounds": [],
                 **({"status": "not_measured", "reason": "timing-only host mode"}
@@ -212,8 +238,11 @@ def run_workload(
         if not isinstance(elapsed, (int, float)) or elapsed <= 0:
             raise RuntimeError(f"{workload.name}: invalid elapsed time")
         result[side]["timing"]["samples"].append(elapsed)
+        cpu = _cpu_dict(measured, payload["operation_count"])
+        result[side]["timing"]["cpu_rounds"].append(cpu)
         (output_dir / f"timing-{index:02d}-{side}.json").write_text(
-            json.dumps({"payload": payload, "elapsed_seconds_external": measured.duration_seconds}, indent=2) + "\n"
+            json.dumps({"payload": payload, "elapsed_seconds_external": measured.duration_seconds,
+                        "cpu": cpu}, indent=2) + "\n"
         )
     for index in range(memory_rounds):
         for side in (("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline")):
@@ -229,6 +258,8 @@ def run_workload(
             digests.add(payload["digest"])
             operation_counts.add(payload["operation_count"])
             memory = _memory_dict(measured.memory)
+            cpu = _cpu_dict(measured, payload["operation_count"])
+            memory["cpu"] = cpu
             result[side]["memory"]["rounds"].append(memory)
             (output_dir / f"memory-{index:02d}-{side}.json").write_text(
                 json.dumps({"payload": payload, "memory": memory}, indent=2) + "\n"

@@ -2,7 +2,7 @@
 """CPython benchmark controller for Linux amd64 and native Apple Silicon.
 
 Linux `run` enters the generic benchmark image with networking disabled.
-Native macOS runs are explicitly local and timing-only.
+Native macOS runs are local with optional external RSS observation.
 """
 
 from __future__ import annotations
@@ -26,10 +26,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from benchmarks.harness.runner import run_workload
-from benchmarks.workloads.registry import select_workloads
+from benchmarks.workloads.registry import Workload, select_workloads
 
 BENCH = Path(__file__).resolve().parent
 IMAGE = "python-build-bench:local"
+
+
+def _requires_macro_inputs(workloads: list[Workload]) -> bool:
+    """Install locked wheels only for selected workloads that consume them."""
+    return any(workload.packages or workload.name == "pip_install_wheelhouse"
+               for workload in workloads)
+
+
+def _used_input_provenance(lock: Any, groups: set[str]) -> list[dict[str, Any]]:
+    """Describe only input groups actually installed for this measurement."""
+    return lock.provenance(groups) if lock is not None and groups else []
 
 
 def _sha256(path: Path) -> str:
@@ -128,22 +139,22 @@ def _macos_host_provenance() -> dict[str, Any]:
 
 def _run_internal(args: argparse.Namespace) -> Path:
     linux_amd64 = platform.system() == "Linux" and platform.machine() == "x86_64"
-    macos_arm64_timing = (
+    macos_arm64_local = (
         platform.system() == "Darwin"
         and platform.machine() in {"arm64", "aarch64"}
         and args.local
-        and args.timing_only
     )
-    if not linux_amd64 and not macos_arm64_timing:
+    if not linux_amd64 and not macos_arm64_local:
         raise RuntimeError(
-            "measurements require Linux amd64, or native Apple Silicon with "
-            "--local --timing-only"
+            "measurements require Linux amd64, or native Apple Silicon with --local"
         )
-    if args.timing_only and (not args.local or not macos_arm64_timing):
+    if args.timing_only and not macos_arm64_local:
         raise ValueError("--timing-only is currently supported only for local Apple Silicon runs")
-    if macos_arm64_timing and args.profile == "rigorous":
-        raise ValueError("the macOS timing-only path supports quick and standard profiles")
-    if macos_arm64_timing and args.perf_stat:
+    if macos_arm64_local and args.profile == "rigorous":
+        raise ValueError("macOS allocation profiling is unsupported; use quick or standard")
+    if macos_arm64_local and args.suite in {"pyperformance", "full"}:
+        raise ValueError("macOS pyperformance memory profiling is unsupported")
+    if macos_arm64_local and args.perf_stat:
         raise ValueError("--perf-stat is a Linux-only diagnostic")
     if os.environ.get("BENCH_OFFLINE_CONTAINER") != "1" and not args.local:
         raise RuntimeError("measurement requires the offline benchmark container; use `run` on the host")
@@ -169,6 +180,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
         cand_identity["input_descriptor"] = os.environ.get("BENCH_CANDIDATE_HOST_INPUT", args.candidate)
         _check_versions(base_identity, cand_identity, args.allow_cross_version)
         cross_version = base_identity["version"][:2] != cand_identity["version"][:2]
+        workload_specs = select_workloads(args.suite, args.profile, args.workload, args.category)
         wheelhouse = args.wheelhouse or BENCH / ".cache" / "wheelhouse"
         macro_site = None
         perf_site = None
@@ -179,7 +191,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
             from benchmarks.harness.inputs import load_lock, prepare_site
 
             lock = load_lock(lock_snapshot)
-        if args.suite != "smoke":
+        if _requires_macro_inputs(workload_specs):
             used_input_groups.add("macros")
             macro_site = prepare_site(baseline, scratch / "macro-site", wheelhouse=wheelhouse,
                                       groups={"macros"}, lock=lock)
@@ -189,19 +201,17 @@ def _run_internal(args: argparse.Namespace) -> Path:
             if not cross_version:
                 subprocess.run([str(baseline), "-m", "compileall", "-q", str(macro_site.site_packages)],
                                check=True, timeout=300)
-            perf_site = None
-            if args.suite in {"pyperformance", "full"}:
-                used_input_groups.add("pyperformance")
-                perf_site = prepare_site(baseline, scratch / "perf-site", wheelhouse=wheelhouse,
-                                         groups={"core", "pyperformance"}, lock=lock)
-                if not cross_version:
-                    subprocess.run([str(baseline), "-m", "compileall", "-q", str(perf_site.site_packages)],
-                                   check=True, timeout=300)
+        if args.suite in {"pyperformance", "full"}:
+            used_input_groups.add("pyperformance")
+            perf_site = prepare_site(baseline, scratch / "perf-site", wheelhouse=wheelhouse,
+                                     groups={"core", "pyperformance"}, lock=lock)
+            if not cross_version:
+                subprocess.run([str(baseline), "-m", "compileall", "-q", str(perf_site.site_packages)],
+                               check=True, timeout=300)
         if args.profile == "rigorous":
             used_input_groups.add("memray")
             memray_site = prepare_site(baseline, scratch / "memray-site", wheelhouse=wheelhouse,
                                        groups={"memray"}, lock=lock)
-        workload_specs = select_workloads(args.suite, args.profile, args.workload, args.category)
         if linux_amd64:
             topology = discover_cpu_topology()
             # A single discovered physical core is used for paired CPU-heavy macros.
@@ -234,6 +244,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
                                                 candidate_label=args.candidate_label,
                                                 baseline_kind=args.baseline_kind,
                                                 memory_gate=not args.timing_only,
+                                                memory_primary_metric=("peak_rss" if macos_arm64_local else "peak_pss"),
                                                 allocation_gate=(args.profile == "rigorous"
                                                                  and not args.timing_only)))
         perf_comparison = None
@@ -264,7 +275,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
             finally:
                 sys.path.remove(str(perf_site.site_packages))
             (perf_dir / "comparison.json").write_text(json.dumps(perf_comparison, indent=2, sort_keys=True) + "\n")
-        locked_inputs = lock.provenance(used_input_groups) if lock is not None else []
+        locked_inputs = _used_input_provenance(lock, used_input_groups)
         provenance = {
             "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
             "git_commit": _git_commit(),
@@ -292,14 +303,20 @@ def _run_internal(args: argparse.Namespace) -> Path:
             "host": host_provenance,
             "cpu_affinity": sorted(affinity) if affinity else None,
             "memory_sampling_interval_seconds": args.memory_interval_ms / 1000,
+            "memory_primary_metric": "peak_rss" if macos_arm64_local else "peak_pss",
             "measurement_mode": (
                 "timing-only; process memory and allocation passes are not measured"
-                if args.timing_only else "timing plus configured resource passes"
+                if args.timing_only else "timing plus sampled macOS tree RSS and kernel root peak; PSS/private/swap unsupported"
+                if macos_arm64_local else "timing plus configured resource passes"
             ),
             "python_environment": {name: os.environ.get(name) for name in
                                    ("PYTHONHASHSEED", "PYTHONMALLOC", "PYTHONPATH", "PYTHONNOUSERSITE", "PYTHONDONTWRITEBYTECODE")},
             "run_order": "alternating BC/CB",
-            "bytecode_policy": "source imports for cross-version run" if cross_version else "shared baseline-precompiled site",
+            "bytecode_policy": (
+                "source imports for cross-version run" if cross_version else
+                "shared baseline-precompiled site" if macro_site or perf_site else
+                "no third-party site prepared"
+            ),
         }
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2, sort_keys=True, default=str) + "\n")
         summary = {"schema_version": 1, "baseline": base_identity, "candidate": cand_identity,
@@ -465,7 +482,7 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--perf-stat", action="store_true", help="optional separate Linux perf stat diagnostics")
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
         command.add_argument("--timing-only", action="store_true",
-                             help="local Apple Silicon timing run; skips unsupported memory/allocation passes")
+                             help="local Apple Silicon timing run without the external RSS pass")
     run.add_argument("--preset", choices=("pbs",))
     run.add_argument("--container", action="store_true", help="use offline container (the default)")
     run.add_argument(
@@ -521,6 +538,8 @@ def main(argv: list[str] | None = None) -> int:
                                       baseline_label=provenance["baseline"]["label"],
                                       candidate_label=provenance["candidate"]["label"],
                                       baseline_kind=provenance["baseline"].get("kind"),
+                                      memory_primary_metric=provenance.get("memory_primary_metric", "peak_pss"),
+                                      memory_gate="timing-only" not in provenance.get("measurement_mode", ""),
                                       allocation_gate=provenance["profile"] == "rigorous") for path in raw_paths],
                        "suite": provenance["suite"], "profile": provenance["profile"],
                        "cross_version": provenance["baseline"]["version"][:2] != provenance["candidate"]["version"][:2]}
@@ -541,10 +560,10 @@ def main(argv: list[str] | None = None) -> int:
                         platform.system() == "Darwin"
                         and platform.machine() in {"arm64", "aarch64"}
                     )
-                    if not (native_macos and args.timing_only):
+                    if not native_macos:
                         raise ValueError(
                             "PBS references require the offline Linux container, except for "
-                            "native macOS timing-only comparisons"
+                            "native macOS local comparisons"
                         )
                 if args.local and args.container:
                     raise ValueError("--local and --container select incompatible execution boundaries")

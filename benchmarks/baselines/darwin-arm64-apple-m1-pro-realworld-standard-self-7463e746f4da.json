@@ -1,0 +1,150 @@
+{
+  "comparison_role": "self_control_calibration",
+  "pyperformance": null,
+  "recorded_at_utc": "2026-09-24T20:23:49.151947+00:00",
+  "reference_interpreter": {
+    "abi": "cpython-316-darwin",
+    "compiler": "Clang 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22",
+    "config_args": "'--prefix=/private/tmp/python-build-exp-upstream-20260924/rust-cpython/work/upstream-control/stage' '--enable-shared' '--with-lto=thin' '--enable-optimizations' '--enable-experimental-jit=no' '--with-tail-call-interp=no' '--without-ensurepip' 'PKG_CONFIG=/opt/homebrew/Cellar/pkgconf/3.0.4/bin/pkgconf' 'PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@3/lib/pkgconfig:/opt/homebrew/opt/sqlite/lib/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/opt/xz/lib/pkgconfig:/opt/homebrew/opt/zstd/lib/pkgconfig' 'CC=/private/tmp/python-build-exp-upstream-20260924/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang' 'CFLAGS=-O3 -mcpu=apple-m1 -fPIC -mmacosx-version-min=26.0' 'LDFLAGS=-mmacosx-version-min=26.0' 'CPPFLAGS=-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' 'PROFILE_TASK=-m test --pgo -j 9'",
+    "executable": "/private/tmp/python-build-exp-upstream-20260924/rust-cpython/work/upstream-control/stage/bin/python3.16",
+    "executable_sha256": "58743ba42394c18b59d54ca4bfe7360971e3d98da7feabbdadf9e85214d15de8",
+    "implementation": "CPython",
+    "input_descriptor": "/private/tmp/python-build-exp-upstream-20260924/rust-cpython/work/upstream-control/stage/bin/python3.16",
+    "kind": "self",
+    "label": "self-comparison control",
+    "platform": "macosx-26.0-arm64",
+    "source": "executable /private/tmp/python-build-exp-upstream-20260924/rust-cpython/work/upstream-control/stage/bin/python3.16",
+    "version": [
+      3,
+      16,
+      0
+    ]
+  },
+  "runner": {
+    "cpu_affinity": null,
+    "cpu_boost_state": null,
+    "cpu_frequency_control": "not recorded; macOS host policy",
+    "cpu_governors": null,
+    "cpu_model": "Apple M1 Pro",
+    "cpu_topology": null,
+    "efficiency_core_count": 2,
+    "hardware_model": "MacBookPro18,3",
+    "kernel_release": "25.5.0",
+    "load_average": [
+      4.30859375,
+      4.986328125,
+      5.15625
+    ],
+    "logical_cpu_count": 10,
+    "machine": "arm64",
+    "macos_version": "26.5.2",
+    "memory_available_bytes": null,
+    "memory_total_bytes": 34359738368,
+    "numa_topology": null,
+    "performance_core_count": 8,
+    "physical_core_count": 10,
+    "swap_total_bytes": null,
+    "system": "Darwin"
+  },
+  "schema_version": 1,
+  "source": {
+    "benchmark_image_id": null,
+    "benchmark_lock_sha256": "b17cceb3b642ffe36c5c183fd6ac1a2d9f4f83034b21623d74ce5efef973fde1",
+    "benchmark_tool_versions": {},
+    "container_runtime_version": null,
+    "git_commit": "0224e8fa4be570f287f2b46a05191a46ebe0c681",
+    "memory_sampling_interval_seconds": 0.01,
+    "offline_boundary": "local diagnostic; network not denied",
+    "profile": "standard",
+    "suite": "realworld",
+    "timestamp_utc": "2026-09-24T20:23:49.151947+00:00"
+  },
+  "workloads": [
+    {
+      "allocations": {
+        "round_count": 0,
+        "rounds": [],
+        "status": "not_run"
+      },
+      "category": "compression",
+      "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+      "memory_bytes": {
+        "peak_private": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "peak_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "peak_rss": {
+          "max": 45334528,
+          "median": 45023232,
+          "min": 44466176,
+          "sample_count": 3,
+          "stdev": 439934.0448021726
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 3,
+        "rounds": [
+          {
+            "peak_private": null,
+            "peak_pss": null,
+            "peak_rss": 45023232,
+            "peak_swap": null,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": null,
+            "peak_pss": null,
+            "peak_rss": 45334528,
+            "peak_swap": null,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": null,
+            "peak_pss": null,
+            "peak_rss": 44466176,
+            "peak_swap": null,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "zlib_decode_1m",
+      "operation": "decoded byte",
+      "operation_count": 33554432,
+      "timing_seconds": {
+        "max": 0.00802504102466628,
+        "median": 0.007214041019324213,
+        "min": 0.006834707979578525,
+        "sample_count": 5,
+        "stdev": 0.0004488395781910884
+      }
+    }
+  ]
+}

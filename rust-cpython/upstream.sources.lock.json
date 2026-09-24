@@ -1,0 +1,22 @@
+{
+  "source": {
+    "repository": "https://github.com/python/cpython",
+    "commit": "0983642c966d9c536416101e99b7d2b085483847",
+    "version": "3.16.0a0",
+    "license": "PSF-2.0",
+    "fork_merge_base": "0983642c966d9c536416101e99b7d2b085483847"
+  },
+  "inputs": [
+    {
+      "name": "cpython-upstream-control",
+      "version": "3.16.0a0",
+      "url": "https://codeload.github.com/python/cpython/tar.gz/0983642c966d9c536416101e99b7d2b085483847",
+      "sha256": "7b8b68534a75aee0003457d42bf9e77a29bb948544cd993a3e059df811eecc7f",
+      "size": 44189176,
+      "role": "test",
+      "target": "aarch64-apple-darwin",
+      "license": "PSF-2.0",
+      "purpose": "Vanilla upstream CPython 3.16.0a0 comparison control for isolated Rust-for-CPython experiments"
+    }
+  ]
+}

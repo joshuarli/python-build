@@ -50,6 +50,7 @@ from buildsys.targets import target_for_triple  # noqa: E402
 TARGET = "aarch64-apple-darwin"
 RUST_CHANNEL = "nightly-2026-09-15"
 SOURCE_LOCK = LANE / "sources.lock.json"
+PATCH_MANIFEST = LANE / "patches" / "manifest.json"
 BOOTSTRAP_LOCK = REPO / "bootstrap.lock.json"
 CACHE_ROOT = REPO / ".cache"
 CARGO_HOME = LANE / ".cargo-home"
@@ -392,6 +393,72 @@ def _extract_fresh(destination: Path) -> Path:
         shutil.rmtree(destination)
     extraction = safe_extract(blob, destination)
     return _source_root(extraction)
+
+
+def _source_patch_inputs() -> dict[str, Any]:
+    """Validate the authored patch inputs without touching an extracted tree."""
+    metadata, _entry = _read_lock()
+    try:
+        manifest_bytes = PATCH_MANIFEST.read_bytes()
+        manifest = json.loads(manifest_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise LaneError(f"cannot read source patch manifest: {error}") from error
+    if not isinstance(manifest, dict) or set(manifest) != {"source_commit", "patches"}:
+        raise LaneError("source patch manifest has an invalid schema")
+    if manifest["source_commit"] != metadata["commit"]:
+        raise LaneError("source patch manifest source commit disagrees with the source lock")
+    if not isinstance(manifest["patches"], list):
+        raise LaneError("source patch manifest patches must be a list")
+    records: list[dict[str, str]] = []
+    seen: set[str] = set()
+    required = {"file", "sha256", "author", "origin", "license", "reason", "compatibility", "reproducer"}
+    for entry in manifest["patches"]:
+        if not isinstance(entry, dict) or set(entry) != required:
+            raise LaneError("source patch manifest entry has an invalid schema")
+        if any(not isinstance(entry[key], str) or not entry[key].strip() for key in required):
+            raise LaneError("source patch manifest entry has an empty or invalid field")
+        name = entry["file"]
+        if Path(name).name != name or not name.endswith(".patch") or name in seen:
+            raise LaneError(f"source patch file name is unsafe or repeated: {name!r}")
+        if re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) is None:
+            raise LaneError(f"source patch digest is invalid: {name}")
+        seen.add(name)
+        patch_path = PATCH_MANIFEST.parent / name
+        if patch_path.is_symlink() or not patch_path.is_file():
+            raise LaneError(f"source patch is missing or is a symlink: {patch_path}")
+        patch_bytes = patch_path.read_bytes()
+        digest = hashlib.sha256(patch_bytes).hexdigest()
+        if digest != entry["sha256"]:
+            raise LaneError(f"source patch digest disagrees with manifest: {name}")
+        records.append(dict(entry))
+    return {
+        "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        "source_commit": metadata["commit"],
+        "patches": records,
+    }
+
+
+def _apply_source_patches(source: Path) -> dict[str, Any]:
+    """Apply authored patches only to the verified, pinned fresh source tree."""
+    inputs = _source_patch_inputs()
+    metadata, _entry = _read_lock()
+    expected_lock = metadata["cargo_lock_sha256"]
+    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
+        raise LaneError("Cargo.lock digest disagrees with the source lock before patching")
+    for record in inputs["patches"]:
+        path = PATCH_MANIFEST.parent / record["file"]
+        for check_only in (True, False):
+            argv = ["git", "apply", "--whitespace=error"]
+            if check_only:
+                argv.append("--check")
+            argv.append(str(path))
+            result = subprocess.run(argv, cwd=source, capture_output=True, text=True)
+            if result.returncode != 0:
+                detail = (result.stderr or result.stdout).strip()
+                raise LaneError(f"source patch {record['file']} does not apply: {detail}")
+    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
+        raise LaneError("source patches changed the pinned Cargo.lock")
+    return inputs
 
 
 def _llvm_ready(toolchain) -> Path:
@@ -777,7 +844,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any]) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -855,6 +922,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
             "archive_size": source_input.size,
             "cargo_lock_sha256": cargo_lock_hash,
             "source_archive_path": str(source_hash),
+            "patches": patches,
         },
         "interpreter": module,
         "build_interpreter": str(_build_python()),
@@ -908,6 +976,7 @@ def build() -> int:
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
     source = _extract_fresh(SOURCE)
+    patches = _apply_source_patches(source)
     env = _environment(toolchain, offline=True)
     _require_command(
         [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
@@ -916,7 +985,7 @@ def build() -> int:
     )
     sandbox = _macos_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
-    report = _configure_source(source, toolchain, target, jobs, sandbox)
+    report = _configure_source(source, toolchain, target, jobs, sandbox, patches)
     print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
     _write_json(BUILD_REPORT, report)
@@ -949,9 +1018,13 @@ def test() -> int:
     report = json.loads(BUILD_REPORT.read_text())
     if report.get("status") not in {"built", "tests-failed", "complete"}:
         raise LaneError("build report does not describe a completed build; run build first")
+    patches = _source_patch_inputs()
+    if report["source"].get("patches") != patches:
+        raise LaneError("current source patches disagree with the completed build report")
     source = SOURCE
     if not (source / "Cargo.toml").is_file():
         source = _extract_fresh(SOURCE)
+        _apply_source_patches(source)
     toolchain, _target = _toolchain()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)

@@ -11,7 +11,7 @@ BENCH_PYPERFORMANCE_ARGS = $(if $(strip $(BENCH_PYPERFORMANCE_SELECTION)),--pype
 ifeq ($(BENCH_TARGET),aarch64-apple-darwin)
 # The locked wheelhouse is Linux/musl-only; macOS uses dependency-free smoke workloads.
 BENCH_SUITE ?= smoke
-BENCH_RUN_OPTIONS = --local --timing-only
+BENCH_RUN_OPTIONS = --local
 BENCH_PREPARE = @:
 else
 BENCH_SUITE ?= realworld

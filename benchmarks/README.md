@@ -7,8 +7,8 @@ that shows which workloads improved and which resource gates passed.
 
 The full timing, process-memory, and allocation profiles run on Linux amd64,
 including the `x86_64-unknown-linux-musl` python-build artifact. Native Apple
-Silicon macOS also supports paired timing-only runs for Mach-O interpreters;
-its Linux-specific memory and allocation passes remain unavailable. The
+Silicon macOS supports paired timing and an external process-tree RSS pass for
+Mach-O interpreters. Its allocation pass remains unavailable. The
 harness consumes built interpreters; it does not alter the product build.
 
 ## Three independent passes
@@ -19,8 +19,8 @@ another.
 
 | Pass | Measures | Instrumentation |
 | --- | --- | --- |
-| Timing | Wall time, throughput, latency, and repeatability | Minimal; no memory polling, Memray, allocator tracing, or `perf record` |
-| Memory | Process-tree peak and steady resident footprint | External Linux `/proc` sampler; not used in timing runs |
+| Timing | Wall latency, throughput, repeatability, and kernel CPU user/system seconds per operation | No memory polling, Memray, allocator tracing, or `perf record` |
+| Memory | Process-tree peak and steady resident footprint | External Linux `/proc` or macOS `ps` sampler; not used in timing runs |
 | Allocations | Allocation count and bytes, heap high-water mark, allocator and native origins | Memray in a reduced, semantically equivalent run |
 
 Allocation-pass elapsed time is diagnostic only. Do not compare it with normal
@@ -38,11 +38,11 @@ The default profile is `standard` (timing plus process-tree memory); set
 
 On native Apple Silicon macOS, the same entrypoint fetches the matching PBS
 archive, builds and packages the macOS product when absent, and runs the
-dependency-free smoke suite locally with timing only. It skips Docker and the
+dependency-free smoke suite locally with separate timing and RSS passes. It skips Docker and the
 Linux-only wheelhouse. The result records macOS version, model, Apple CPU name,
 performance/efficiency core counts, and memory; automatic baseline names are
 keyed to that runner identity. The macOS comparison has no offline network
-boundary and does not report memory or allocation results. `make bench-full`
+boundary and does not report allocation results. `make bench-full`
 remains Linux amd64 only.
 
 `make bench-full` adds the complete pinned pyperformance suite, which can take
@@ -103,9 +103,8 @@ the pinned benchmark image with Docker networking disabled by default;
 does not provide the offline network boundary. The same image accepts either
 interpreter at run time; it does not contain a baked-in baseline.
 
-The native macOS path is limited to timing. It runs selected repository-owned
-workloads locally, without Docker isolation, CPU affinity, process-memory
-sampling, allocation tracing, or Linux `perf` diagnostics. Use offline
+The native macOS path runs selected repository-owned workloads locally, without
+Docker isolation, CPU affinity, allocation tracing, or Linux `perf` diagnostics. Use offline
 workloads and label this measurement mode in any performance conclusion:
 
 ```sh
@@ -115,15 +114,18 @@ python3 benchmarks/bench.py run \
   --baseline-label "Rust-for-CPython 3.16 without _base64" \
   --candidate-label "Rust-for-CPython 3.16 with _base64" \
   --baseline-kind custom --candidate-kind custom \
-  --suite smoke --profile standard --local --timing-only
+  --suite smoke --profile standard --local
 ```
 
-The smoke suite includes small and large Base64 operations. The no-Rust
+Use `--timing-only` when an RSS pass is unwanted. The smoke suite includes small and large Base64 operations. The no-Rust
 interpreter uses public `base64.b64encode`; the candidate calls
 `_base64.standard_b64encode` directly. Both validate identical output. Other
 smoke workloads reveal interpreter-wide changes such as startup and
 serialization overhead. This is a targeted same-source comparison, not a
 general macOS benchmark profile.
+For a selected stdlib-only workload such as `--suite realworld --workload
+zlib_decode_1m`, the runner prepares no third-party wheel site and needs no
+wheelhouse. Package workloads still require their locked inputs.
 
 ## Compare interpreters
 
@@ -155,7 +157,7 @@ one interpreter's cache format.
 The `pbs` preset resolves the pinned Astral PBS 20260610 artifact and the
 python-build artifact for the native target. Linux amd64 uses the musl pair in
 the isolated benchmark container. Native Apple Silicon uses the macOS PBS
-archive and requires `--local --timing-only`. Reports label the reference
+archive and requires `--local`. Reports label the reference
 **Astral PBS**, never upstream CPython. Linux PBS comparisons receive a
 baseline-relative memory verdict: a failure means the candidate regressed
 against PBS. Only a comparable upstream CPython build, explicitly labeled
@@ -227,6 +229,9 @@ exercise recognizable application paths. Its initial workloads cover:
 | `import_django` | Importing Django in a fresh process |
 | `import_app_stack` | Importing Django, FastAPI/Pydantic, and SQLAlchemy in a fresh process |
 | `pip_install_wheelhouse` | Installing a locked collection of predominantly pure-Python wheels into a fresh target directory, offline |
+| `zlib_decode_1m`, `zlib_stream_4k`, `gzip_extract_1m` | Public one-shot, streaming, and gzip decompression of fixed compressed inputs |
+| `zip_read_wheel`, `zipimport_cold` | ZIP member extraction and cold import through public stdlib paths |
+| `difflib_unified_mostly_equal`, `difflib_unified_reordered` | Complete unified diffs over fixed sparse edits and reordered repetitive blocks |
 | `serialization_roundtrip` | Repeated pickle encoding/decoding of a shared object graph with correctness checks |
 | `multiprocess_pool` | Process creation and work distribution, with child processes included in memory accounting |
 
@@ -267,7 +272,7 @@ benchmark image's musl 1.2 runtime.
 
 ## Memory and allocation measurements
 
-The memory pass samples `/proc/<pid>/smaps_rollup` for the workload process and
+The Linux memory pass samples `/proc/<pid>/smaps_rollup` for the workload process and
 its descendants. It records peak total PSS, RSS, private memory (USS-like), and
 process count, with the sample interval and raw samples retained in the run
 data. PSS is the primary process-tree comparison because RSS counts shared
@@ -278,6 +283,35 @@ only when a result contains a measurement. The process-tree sampler does not
 require cgroup delegation.
 The default sampling interval is 10 ms; use `--memory-interval-ms` to change
 it, and compare runs only when they use the same interval.
+
+On macOS, the external sampler reads `ps` RSS for the isolated workload process
+group and discovered descendants. It records raw time-stamped tree totals,
+sampled peak RSS, and process counts. Before reaping the workload root, it also
+reads that PID's lifetime physical-footprint peak via `proc_pid_rusage` and
+uses kernel `wait4` peak RSS for the root and children it reaped. The reported
+peak RSS is the larger of the sampled tree peak and the kernel root-family
+peak, with both sources retained separately. The kernel counters catch a
+short-lived root, but cannot reconstruct a simultaneous peak for children
+that exited between samples. Apple's physical footprint is a charged-memory
+measure for one PID, not Linux USS or PSS. PSS, unique/private resident memory,
+and swap remain unavailable, never zero. The macOS peak RSS comparison is
+diagnostic: clear RSS growth can fail, but a non-regression remains incomplete
+for upstream memory parity because RSS counts shared pages in every process.
+The first and last RSS samples remain raw diagnostics; retained RSS is
+unavailable unless a workload marks an explicit steady boundary. The final
+sample of a batch process is not silently relabeled as retained memory.
+MacOS process-table discovery has no stable PID birth identifier, so escaped
+descendants and PID reuse also limit coverage; inspect raw samples and cleanup
+status for each run. Short startup memory runs hold an initialized interpreter
+briefly in the separate memory pass.
+
+Timing result files retain the workload's internal wall-latency sample and
+external elapsed time separately. They also record kernel `wait4` user and
+system CPU seconds, raw and per logical operation. The root's kernel usage
+includes children it reaped. A child still running or orphaned when the root
+exits is outside that accounting; timeout rounds mark CPU unavailable. The
+memory pass also records CPU seconds for diagnosis, but its sampled execution
+does not replace the uninstrumented timing pass.
 
 The allocation pass uses Memray separately from timing and memory. It records
 total allocations, total allocated bytes, peak heap, allocator information,

@@ -16,7 +16,11 @@ Judge each candidate in this order:
 1. Preserve public API behavior: values and bytes, exceptions, callbacks,
    subclass behavior, and relevant platform behavior. Unchanged CPython
    regression tests remain the compatibility judge.
-2. Improve real application time, including startup/import and steady work.
+2. Improve real application latency and process CPU time, including
+   startup/import and steady work. Report kernel-accounted user and system CPU
+   seconds per logical operation, including child processes where applicable.
+   Wall time remains the measure of user-visible latency; it is not a proxy
+   for CPU consumption.
    A private microbenchmark win is insufficient unless a public stdlib path
    uses it and a representative workload benefits.
 3. Keep peak and retained process memory at or below a comparable upstream
@@ -38,16 +42,17 @@ source and Rust toolchain pins live in `rust-cpython/sources.lock.json` and
 `rust-cpython/rust-toolchain.toml`. Use the commands and ranked candidate map
 in [`rust-cpython/README.md`](rust-cpython/README.md). Persist source changes
 as checked-in patches or other reproducible inputs; edits only under generated
-`rust-cpython/work/source/` disappear on re-extraction. The current builder
-extracts a fresh tree for each build and has no patch application step, so
-adding a verified patch/overlay step is a prerequisite for a durable source
-migration. Do not add a dependency,
-change a source/toolchain pin, or expand product scope without an explicit
-scope decision.
+`rust-cpython/work/source/` disappear on re-extraction. The candidate builder
+now applies digest-checked patches from `rust-cpython/patches/manifest.json`
+after each fresh extraction. Its no-Rust control remains unpatched. The patch
+path has focused checks but still needs a full candidate build. Do not add a
+dependency, change a source/toolchain pin, or expand product scope without an
+explicit scope decision.
 
-Use two separate controls. `rust-cpython/build_no_rust.py` builds the pinned
-fork with Cargo disabled; it isolates the effect of Rust integration and can
-help compare a replacement against the current C/Python path. A comparably
+Use distinct controls. The immediate control for each change is the last
+accepted fork build without that change; it isolates the proposed module
+patch. `rust-cpython/build_no_rust.py` builds the pinned fork with Cargo
+disabled and isolates the existing Rust integration as a whole. A comparably
 built vanilla upstream CPython 3.16 from the closest appropriate revision is
 the primary baseline for claims about CPython improvement and upstream memory
 parity. Match architecture, compiler, PGO, LTO, GIL, optimization flags, and
@@ -102,7 +107,7 @@ current interface. The rules below govern Rust-for-CPython qualification.
 
 | Pass | Requirement |
 | --- | --- |
-| Time | Serial, counterbalanced control/candidate pairs with equal logical work. No memory sampler, profiler, forced GC, or special allocator in the timed candidate. Keep ordinary GC, ASLR, and hash randomization. Use baseline-derived loop counts where supported. |
+| Time and CPU | Serial, counterbalanced control/candidate pairs with equal logical work. Report wall latency and actual process-tree user/system CPU time per unit separately. No memory sampler, profiler, forced GC, or special allocator in the timed candidate. Keep ordinary GC, ASLR, and hash randomization. Use baseline-derived loop counts where supported. |
 | Memory | Run separately under an external process-tree observer. Keep raw samples, peak and steady/retained memory, RSS and unique/private memory, and PSS where available. Count children. Report absolute and relative deltas. Post-GC retention is diagnostic. |
 | Allocation | Run separately under Memray where compatible, with native/system and Python allocator activity distinguished. Report counts and bytes per logical work unit. Profiled elapsed time is never a speed result. |
 | Diagnostic | Use native profiles, `perf`, or CPython stats to locate changes. Instrumented or differently configured builds produce diagnostic evidence only. |
@@ -128,15 +133,20 @@ process memory.
 `benchmarks/` already provides paired timings, locked CPython 3.14 Linux
 inputs, application macros, pyperformance, an external Linux process-tree
 sampler, Memray passes, self-comparison, and noise-aware per-workload verdicts.
-Native Apple Silicon currently supports timing only for a small local suite.
-It cannot yet issue a memory or allocation pass for this macOS 3.16 lane.
+Native Apple Silicon supports paired wall and kernel CPU time plus a separate
+external process-tree RSS pass for a small local suite. A kernel lifetime peak
+for the workload root catches short runs that sampling misses, but its
+per-PID physical footprint is not a whole-tree unique-memory measure. RSS growth is useful
+regression evidence, but summed RSS can double-count shared pages. Unique or
+proportional memory and allocation passes remain unavailable for this macOS
+3.16 lane, so upstream memory parity is still unqualified.
 The Linux wheel lock targets CPython 3.14 musl and must not be silently reused
 for 3.16.
 
-The next benchmark infrastructure work is native macOS process-memory
-observation and a compatible allocation pass, followed by a matched upstream
-3.16 control and compatible locked benchmark inputs. Keep workload definitions
-interpreter-agnostic and record unsupported workloads rather than substituting
+The next benchmark infrastructure work is native macOS unique/proportional
+memory observation and a compatible allocation pass, followed by self-comparison
+of the newly built matched upstream 3.16 control and compatible locked benchmark inputs. Keep
+workload definitions interpreter-agnostic and record unsupported workloads rather than substituting
 unmatched package versions for one interpreter. Focused timing and correctness
 experiments may proceed while those gaps remain, with their limits stated
 explicitly.
@@ -156,19 +166,36 @@ explicitly.
   `test_zlib` passed 85 tests (2 skipped); `test_gzip`, `test_tarfile`,
   `test_zipfile`, `test_zipimport`, and `test_binascii` passed 1,807 tests
   (37 skipped). The extension had no dynamic `libz` dependency.
+- The first public-path zlib probe found lower CPU use for one-shot,
+  streaming, and gzip decompression on the existing no-Rust fork, but ZIP
+  results were mixed and memory observations were incomplete. See
+  [`zlib-probe-20260924.md`](rust-cpython/experiments/zlib-probe-20260924.md).
+- The vanilla upstream 3.16.0a0 merge-base control built with the locked LLVM,
+  ThinLTO, and the fork's nine-worker PGO task. Its recipe and limits are in
+  [`upstream-baseline.md`](rust-cpython/experiments/upstream-baseline.md).
+- One local upstream-versus-fork public zlib decode comparison found an
+  unresolved peak-RSS signal under a busy host. The paired data and
+  self-comparison are in
+  [`upstream-zlib-control-20260924.md`](rust-cpython/experiments/upstream-zlib-control-20260924.md).
+- A `difflib` row-dictionary reuse probe preserved tested behavior but gave
+  no useful complete-workload gain and increased root peak RSS. It was
+  rejected; see
+  [`difflib-kernel-probe.md`](rust-cpython/experiments/difflib-kernel-probe.md).
 
 ## Immediate work queue
 
 - **The zlib proof is not a production migration.** The ordinary lane build
   still links `Modules/zlibmodule.c` to platform zlib; the Rust backend exists
-  only in the separate proof overlay. Performance and compressed-byte
+  only in the separate proof overlay. Its exploratory performance probe is
+  recorded; quiet-host and memory qualification and compressed-byte
   comparisons remain open.
 - No public stdlib API in the experiment has yet been shown to improve
   broadly in Rust. The ranked entries in `rust-cpython/README.md` remain
   candidates, not completed work.
 - Establish the missing macOS resource measurements and matched upstream
-  control, and add a reproducible source patch path. Profile the existing
-  workload set for the first public API
-  target. The `_base64` bulk slowdown and zlib backend are concrete
-  hypotheses; select among them and the ranked candidates by measured
-  end-to-end potential and compatibility cost.
+  control comparison, and qualify the reproducible source patch path with a
+  full candidate build. Continue zlib's quiet-host and memory qualification.
+  `difflib.SequenceMatcher` remains an independent hypothesis from
+  [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
+  kernel needs a distinct mechanism and an explicit guard for mutable public
+  matcher state. The rejected row-reuse probe is not a candidate build change.

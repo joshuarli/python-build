@@ -73,6 +73,20 @@ class UnmonitoredProcessTests(unittest.TestCase):
         self.assertTrue(result.cleanup_complete)
         self.assertGreater(result.duration_seconds, 0)
 
+    def test_cpu_usage_includes_waited_grandchild(self):
+        code = (
+            "import subprocess,sys; "
+            "subprocess.run([sys.executable, '-c', 'sum(range(12000000))'], check=True)"
+        )
+        result = run_command(
+            [sys.executable, "-c", code], timeout=5, sample_interval_seconds=None
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNotNone(result.cpu_user_seconds)
+        assert result.cpu_user_seconds is not None
+        self.assertGreater(result.cpu_user_seconds, 0.05)
+        self.assertGreaterEqual(result.cpu_system_seconds or 0, 0)
+
     def test_timing_command_cleans_descendant_after_parent_exits(self):
         parent_code = (
             "import subprocess,sys; "
@@ -92,6 +106,57 @@ class UnmonitoredProcessTests(unittest.TestCase):
         self.assertTrue(_wait_until_not_running(child_pid), f"child {child_pid} survived cleanup")
         self.assertTrue(result.cleanup_complete)
         self.assertEqual(result.remaining_pids, ())
+
+
+@unittest.skipUnless(sys.platform == "darwin", "native macOS RSS sampler")
+class MacProcessSamplerTests(unittest.TestCase):
+    def test_short_root_peak_survives_missing_ps_samples(self):
+        code = (
+            "data=bytearray(32*1024*1024); "
+            "data[::4096]=b'x'*len(data[::4096])"
+        )
+        with patch("benchmarks.harness.process._mac_process_table", return_value={}):
+            result = run_command(
+                [sys.executable, "-c", code], timeout=5,
+                sample_interval_seconds=0.02,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        assert result.memory is not None
+        self.assertEqual(result.memory.samples, [])
+        self.assertGreater(result.memory.root_kernel_peak_rss_bytes or 0, 32 * 1024 * 1024)
+        self.assertGreater(
+            result.memory.root_kernel_peak_phys_footprint_bytes or 0,
+            16 * 1024 * 1024,
+        )
+        self.assertEqual(result.memory.peak_rss_bytes,
+                         result.memory.root_kernel_peak_rss_bytes)
+
+    def test_process_table_failure_cannot_report_clean_memory_run(self):
+        with patch("benchmarks.harness.process._mac_process_table",
+                   side_effect=RuntimeError("ps unavailable")):
+            with self.assertRaisesRegex(RuntimeError, "ps unavailable"):
+                run_command(
+                    [sys.executable, "-c", "pass"], timeout=3,
+                    sample_interval_seconds=0.02,
+                )
+
+    def test_external_tree_rss_counts_child_and_marks_unavailable_metrics(self):
+        code = (
+            "import subprocess,sys; "
+            "subprocess.run([sys.executable, '-c', "
+            "'import time; x=bytearray(32*1024*1024); time.sleep(0.3)'], check=True)"
+        )
+        result = run_command(
+            [sys.executable, "-c", code], timeout=5,
+            sample_interval_seconds=0.02,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        assert result.memory is not None
+        self.assertGreater(result.memory.peak_rss_bytes, 20 * 1024 * 1024)
+        self.assertGreaterEqual(result.memory.peak_process_count, 2)
+        self.assertIsNone(result.memory.peak_pss_bytes)
+        self.assertIsNone(result.memory.peak_private_bytes)
+        self.assertGreater(result.cpu_user_seconds or 0, 0)
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "Linux /proc sampler")

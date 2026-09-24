@@ -56,10 +56,18 @@ def _workload_status(workload: Mapping[str, Any]) -> str:
     return "incomplete"
 
 
+def _primary_memory_metric(workload: Mapping[str, Any]) -> str:
+    metric = _comparison_value(workload, "comparison", "memory", "primary_metric")
+    return metric if metric in {"peak_pss", "peak_rss"} else "peak_pss"
+
+
 def _workload_metrics(workload: Mapping[str, Any]) -> dict[str, float | None]:
     return {
         "time_change_percent": _percent_value(
             _comparison_value(workload, "comparison", "timing", "change_percent")
+        ),
+        "peak_memory_change_percent": _percent_value(
+            _comparison_value(workload, "comparison", "memory", "metrics", _primary_memory_metric(workload), "change_percent")
         ),
         "peak_pss_change_percent": _percent_value(
             _comparison_value(workload, "comparison", "memory", "metrics", "peak_pss", "change_percent")
@@ -73,6 +81,9 @@ def _workload_metrics(workload: Mapping[str, Any]) -> dict[str, float | None]:
 def _median_ratios(workloads: Sequence[Mapping[str, Any]]) -> dict[str, float | None]:
     paths = {
         "time_candidate_over_baseline": ("comparison", "timing", "time_ratio"),
+        "peak_memory_candidate_over_baseline": (
+            "comparison", "memory", "metrics", "peak_pss", "ratio_candidate_over_baseline"
+        ),
         "peak_pss_candidate_over_baseline": (
             "comparison", "memory", "metrics", "peak_pss", "ratio_candidate_over_baseline"
         ),
@@ -85,7 +96,10 @@ def _median_ratios(workloads: Sequence[Mapping[str, Any]]) -> dict[str, float | 
         values = [
             float(value)
             for workload in workloads
-            if (value := _comparison_value(workload, *path)) is not None
+            if (value := _comparison_value(
+                workload, *(path[:3] + (_primary_memory_metric(workload),) + path[4:])
+                if name == "peak_memory_candidate_over_baseline" else path
+            )) is not None
             and isinstance(value, (int, float))
             and not isinstance(value, bool)
             and math.isfinite(float(value))
@@ -126,6 +140,7 @@ def _enrich_summary(value: Mapping[str, Any]) -> dict[str, Any]:
     for category, members in sorted(grouped.items()):
         metric_values: dict[str, list[float]] = {
             "time_change_percent": [],
+            "peak_memory_change_percent": [],
             "peak_pss_change_percent": [],
             "bytes_per_operation_change_percent": [],
         }
@@ -144,6 +159,7 @@ def _enrich_summary(value: Mapping[str, Any]) -> dict[str, Any]:
     summary["categories"] = categories
     all_metric_values: dict[str, list[float]] = {
         "time_change_percent": [],
+        "peak_memory_change_percent": [],
         "peak_pss_change_percent": [],
         "bytes_per_operation_change_percent": [],
     }
@@ -545,6 +561,10 @@ def render_summary(value: Mapping[str, Any]) -> str:
         if provenance:
             opening.extend(["## Provenance", "", "```json", json.dumps(provenance, indent=2, sort_keys=True), "```", ""])
         return "\n".join(opening).rstrip() + "\n"
+    memory_metric = "RSS" if any(
+        _primary_memory_metric(workload) == "peak_rss"
+        for workload in summary["workloads"]
+    ) else "PSS"
     lines = [
         f"# Benchmark summary: {candidate_name} vs {baseline_name}",
         "",
@@ -554,12 +574,12 @@ def render_summary(value: Mapping[str, Any]) -> str:
     lines.extend([
         f"Macro verdict: **{overall}** across {len(summary['workloads'])} repository-owned workload(s).",
         "",
-        "Every change is candidate over baseline. For timing, a negative percentage means the candidate took less time; for PSS and allocation bytes, a positive percentage means the candidate used more.",
+        f"Every change is candidate over baseline. For timing, a negative percentage means the candidate took less time; for {memory_metric} and allocation bytes, a positive percentage means the candidate used more.",
         "",
         "## Repository-owned workload results",
         "",
-        "| Workload | Category | Time Δ (faster if −) | Peak PSS Δ (growth +) | Bytes/op Δ (growth +) | Verdict |",
-        "| --- | --- | ---: | ---: | ---: | --- |",
+        f"| Workload | Category | Time Δ (faster if −) | CPU seconds/op Δ (growth +) | Peak {memory_metric} Δ (growth +) | Bytes/op Δ (growth +) | Verdict |",
+        "| --- | --- | ---: | ---: | ---: | ---: | --- |",
     ])
     for workload in summary["workloads"]:
         identity = workload.get("identity", {})
@@ -568,11 +588,17 @@ def render_summary(value: Mapping[str, Any]) -> str:
         category = str(identity.get("category", "uncategorized"))
         metrics = _workload_metrics(workload)
         lines.append(
-            "| {name} | {category} | {time} | {pss} | {alloc} | {verdict} |".format(
+            "| {name} | {category} | {time} | {cpu} | {pss} | {alloc} | {verdict} |".format(
                 name=name,
                 category=category,
                 time=_format_percent(metrics["time_change_percent"]),
-                pss=_format_percent(metrics["peak_pss_change_percent"]),
+                cpu=_format_percent(_percent_value(_comparison_value(
+                    workload, "comparison", "timing", "cpu", "metrics",
+                    "total_seconds_per_operation", "change_percent"
+                ))) if _comparison_value(
+                    workload, "comparison", "timing", "cpu", "status"
+                ) == "compared" else "n/a",
+                pss=_format_percent(metrics["peak_memory_change_percent"]),
                 alloc=_format_percent(metrics["bytes_per_operation_change_percent"]),
                 verdict=_formatted_verdict(workload),
             )
@@ -586,7 +612,7 @@ def render_summary(value: Mapping[str, Any]) -> str:
                 "",
                 "Category medians are descriptive; each workload verdict remains authoritative.",
                 "",
-                "| Category | Workloads | Median time Δ | Median peak PSS Δ | Median bytes/op Δ | Verdict counts |",
+                f"| Category | Workloads | Median time Δ | Median peak {memory_metric} Δ | Median bytes/op Δ | Verdict counts |",
                 "| --- | ---: | ---: | ---: | ---: | --- |",
             ]
         )
@@ -600,7 +626,7 @@ def render_summary(value: Mapping[str, Any]) -> str:
                     category=category,
                     count=result["workload_count"],
                     time=_format_percent(changes["time_change_percent"]),
-                    pss=_format_percent(changes["peak_pss_change_percent"]),
+                    pss=_format_percent(changes["peak_memory_change_percent"]),
                     alloc=_format_percent(changes["bytes_per_operation_change_percent"]),
                     verdicts=counts,
                 )
@@ -616,12 +642,12 @@ def render_summary(value: Mapping[str, Any]) -> str:
                 "",
                 "These medians describe the suite and never replace per-workload gates.",
                 "",
-                "| Workloads | Median time Δ | Median peak PSS Δ | Median bytes/op Δ |",
+                f"| Workloads | Median time Δ | Median peak {memory_metric} Δ | Median bytes/op Δ |",
                 "| ---: | ---: | ---: | ---: |",
                 "| {count} | {time} | {pss} | {alloc} |".format(
                     count=aggregate["workload_count"],
                     time=_format_percent(aggregate_changes["time_change_percent"]),
-                    pss=_format_percent(aggregate_changes["peak_pss_change_percent"]),
+                    pss=_format_percent(aggregate_changes["peak_memory_change_percent"]),
                     alloc=_format_percent(
                         aggregate_changes["bytes_per_operation_change_percent"]
                     ),

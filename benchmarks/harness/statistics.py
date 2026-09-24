@@ -407,12 +407,59 @@ def _compare_timing(
     }
 
 
+def _compare_cpu(
+    baseline_rounds: Any, candidate_rounds: Any,
+) -> dict[str, Any]:
+    """Describe compute consumed in the uninstrumented timing runs."""
+    fields = ("user_seconds_per_operation", "system_seconds_per_operation",
+              "total_seconds_per_operation")
+    result: dict[str, Any] = {"status": "unsupported", "metrics": {}}
+    if not isinstance(baseline_rounds, list) or not isinstance(candidate_rounds, list):
+        return result
+    for field in fields:
+        baseline = [float(item[field]) for item in baseline_rounds
+                    if isinstance(item, Mapping) and isinstance(item.get(field), (int, float))]
+        candidate = [float(item[field]) for item in candidate_rounds
+                     if isinstance(item, Mapping) and isinstance(item.get(field), (int, float))]
+        if not baseline and not candidate:
+            continue
+        base_median = float(std_statistics.median(baseline)) if baseline else None
+        candidate_median = float(std_statistics.median(candidate)) if candidate else None
+        result["metrics"][field] = {
+            "baseline_median": base_median,
+            "candidate_median": candidate_median,
+            "change_percent": (None if base_median is None or candidate_median is None or base_median == 0
+                               else (candidate_median / base_median - 1) * 100),
+            "baseline_samples": baseline,
+            "candidate_samples": candidate,
+        }
+    if result["metrics"]:
+        result["status"] = (
+            "compared" if len(baseline_rounds) == len(candidate_rounds)
+            and all(item.get("coverage", "").startswith("wait4 root")
+                    for item in [*baseline_rounds, *candidate_rounds] if isinstance(item, Mapping))
+            and all(len(metric["baseline_samples"]) == len(baseline_rounds)
+                    and len(metric["candidate_samples"]) == len(candidate_rounds)
+                    for metric in result["metrics"].values()) else "incomplete"
+        )
+    result["coverage"] = {
+        "baseline": [item.get("coverage") for item in baseline_rounds if isinstance(item, Mapping)],
+        "candidate": [item.get("coverage") for item in candidate_rounds if isinstance(item, Mapping)],
+    }
+    return result
+
+
 def _compare_memory(
     baseline: Mapping[str, Any],
     candidate: Mapping[str, Any],
     *,
     memory_gate: bool,
+    memory_primary_metric: str = "peak_pss",
 ) -> dict[str, Any]:
+    if memory_primary_metric not in {"peak_pss", "peak_rss"}:
+        raise ValueError("memory_primary_metric must be peak_pss or peak_rss")
+    gated_metrics = (GATED_MEMORY_METRICS if memory_primary_metric == "peak_pss"
+                     else ("peak_rss",))
     baseline_memory = baseline.get("memory") or {}
     candidate_memory = candidate.get("memory") or {}
     self_calibration = baseline.get("label") == candidate.get("label") and bool(
@@ -421,6 +468,13 @@ def _compare_memory(
     metrics: dict[str, Any] = {}
     statuses: list[str] = []
     measured_gate_metrics = 0
+    sampling_incomplete = any(
+        isinstance(round_result, Mapping) and (
+            round_result.get("sampling_errors") or not round_result.get("samples")
+        )
+        for side_memory in (baseline_memory, candidate_memory)
+        for round_result in side_memory.get("rounds", ())
+    )
 
     for metric in MEMORY_METRICS:
         baseline_samples = _extract_memory_samples(baseline_memory, metric)
@@ -446,9 +500,9 @@ def _compare_memory(
                     else None
                 ),
             )
-        metric_result["gated"] = metric in GATED_MEMORY_METRICS and memory_gate
+        metric_result["gated"] = metric in gated_metrics and memory_gate
         metrics[metric] = metric_result
-        if metric in GATED_MEMORY_METRICS and memory_gate:
+        if metric in gated_metrics and memory_gate:
             measured_gate_metrics += 1
             statuses.append(metric_result["status"])
 
@@ -456,21 +510,33 @@ def _compare_memory(
         status = "not_gated"
     elif not metrics:
         status = "not_measured"
+    elif memory_primary_metric == "peak_rss" and sampling_incomplete:
+        status = "incomplete"
     elif "fail" in statuses:
         status = "fail"
     elif "incomplete" in statuses or "inconclusive" in statuses:
         status = "incomplete"
     elif measured_gate_metrics == 0:
         status = "incomplete"
-    elif "peak_pss" not in metrics:
+    elif memory_primary_metric not in metrics:
+        status = "incomplete"
+    elif memory_primary_metric == "peak_rss":
+        # Summed RSS can double-count shared pages. A regression is useful
+        # evidence, but an RSS pass cannot prove upstream memory parity.
         status = "incomplete"
     else:
         status = "pass"
     return {
         "gate_enabled": memory_gate,
+        "primary_metric": memory_primary_metric,
+        "qualification_coverage": (
+            "diagnostic RSS only; unique/private or PSS unavailable"
+            if memory_primary_metric == "peak_rss" else "PSS resource gate"
+        ),
+        "sampling_incomplete": bool(sampling_incomplete),
         "status": status,
         "metrics": metrics,
-        "gated_metrics": list(GATED_MEMORY_METRICS),
+        "gated_metrics": list(gated_metrics),
         "noise_policy": {
             "normal_comparison": "baseline 3-sigma repeatability bound",
             "self_comparison": "pooled baseline and candidate 3-sigma repeatability bound",
@@ -569,6 +635,7 @@ def compare_workload(
     candidate_label: str = "candidate",
     baseline_kind: str | None = None,
     memory_gate: bool = True,
+    memory_primary_metric: str = "peak_pss",
     allocation_gate: bool = True,
 ) -> dict[str, Any]:
     """Compare one workload with paired timing, memory, and allocation verdicts.
@@ -601,7 +668,12 @@ def compare_workload(
     timing = _compare_timing(
         baseline_samples, candidate_samples, self_calibration=self_calibration
     )
-    memory = _compare_memory(baseline, candidate, memory_gate=memory_gate)
+    timing["cpu"] = _compare_cpu(
+        record["baseline"]["timing"].get("cpu_rounds"),
+        record["candidate"]["timing"].get("cpu_rounds"),
+    )
+    memory = _compare_memory(baseline, candidate, memory_gate=memory_gate,
+                             memory_primary_metric=memory_primary_metric)
     allocations = _compare_allocations(
         baseline, candidate, operation_count, allocation_gate=allocation_gate
     )

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,6 +49,129 @@ class SourcePinTests(unittest.TestCase):
             with patch.object(build, "_read_lock", return_value=(metadata, None)):
                 with self.assertRaisesRegex(build.LaneError, "Cargo.lock digest"):
                     build._source_root(source.parent)
+
+
+class SourcePatchTests(unittest.TestCase):
+    def _fixture(self, root: Path, patch_text: str) -> tuple[Path, Path]:
+        source = root / "source"
+        source.mkdir()
+        (source / "Lib").mkdir()
+        (source / "Lib" / "example.py").write_text("before\n")
+        (source / "Cargo.lock").write_text("locked\n")
+        patches = root / "patches"
+        patches.mkdir()
+        (patches / "example.patch").write_text(patch_text)
+        manifest = {
+            "source_commit": "pinned-commit",
+            "patches": [{
+                "file": "example.patch",
+                "sha256": hashlib.sha256(patch_text.encode()).hexdigest(),
+                "author": "Experiment author",
+                "origin": "local experiment",
+                "license": "PSF-2.0",
+                "reason": "Exercise a reproducible source edit",
+                "compatibility": "Pinned source has before in Lib/example.py",
+                "reproducer": "Run SourcePatchTests against the pinned source fixture",
+            }],
+        }
+        (patches / "manifest.json").write_text(json.dumps(manifest))
+        return source, patches / "manifest.json"
+
+    def test_patch_applies_and_reports_exact_inputs(self) -> None:
+        diff = "--- a/Lib/example.py\n+++ b/Lib/example.py\n@@ -1 +1 @@\n-before\n+after\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            source, manifest = self._fixture(Path(temporary), diff)
+            with (
+                patch.object(build, "PATCH_MANIFEST", manifest),
+                patch.object(build, "_read_lock", return_value=(
+                    {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}, None,
+                )),
+            ):
+                report = build._apply_source_patches(source)
+            self.assertEqual((source / "Lib" / "example.py").read_text(), "after\n")
+            self.assertEqual(report["manifest_sha256"], hashlib.sha256(manifest.read_bytes()).hexdigest())
+            self.assertEqual(report["patches"][0]["sha256"], hashlib.sha256(diff.encode()).hexdigest())
+
+    def test_patch_rejects_drift_without_fuzzy_application(self) -> None:
+        diff = "--- a/Lib/example.py\n+++ b/Lib/example.py\n@@ -1 +1 @@\n-before\n+after\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            source, manifest = self._fixture(Path(temporary), diff)
+            (source / "Lib" / "example.py").write_text("changed\n")
+            with (
+                patch.object(build, "PATCH_MANIFEST", manifest),
+                patch.object(build, "_read_lock", return_value=(
+                    {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}, None,
+                )),
+            ):
+                with self.assertRaisesRegex(build.LaneError, "does not apply"):
+                    build._apply_source_patches(source)
+            self.assertEqual((source / "Lib" / "example.py").read_text(), "changed\n")
+
+    def test_patch_rejects_changed_digest_and_source_pin(self) -> None:
+        diff = "--- a/Lib/example.py\n+++ b/Lib/example.py\n@@ -1 +1 @@\n-before\n+after\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            source, manifest = self._fixture(Path(temporary), diff)
+            lock = {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}
+            (manifest.parent / "example.patch").write_text(diff + "# changed\n")
+            with patch.object(build, "PATCH_MANIFEST", manifest), patch.object(build, "_read_lock", return_value=(lock, None)):
+                with self.assertRaisesRegex(build.LaneError, "digest"):
+                    build._apply_source_patches(source)
+            (manifest.parent / "example.patch").write_text(diff)
+            lock["commit"] = "different-commit"
+            with patch.object(build, "PATCH_MANIFEST", manifest), patch.object(build, "_read_lock", return_value=(lock, None)):
+                with self.assertRaisesRegex(build.LaneError, "source commit"):
+                    build._apply_source_patches(source)
+
+    def test_patch_cannot_change_cargo_lock(self) -> None:
+        diff = "--- a/Cargo.lock\n+++ b/Cargo.lock\n@@ -1 +1 @@\n-locked\n+changed\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            source, manifest = self._fixture(Path(temporary), diff)
+            lock = {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}
+            with patch.object(build, "PATCH_MANIFEST", manifest), patch.object(build, "_read_lock", return_value=(lock, None)):
+                with self.assertRaisesRegex(build.LaneError, "changed the pinned Cargo.lock"):
+                    build._apply_source_patches(source)
+
+    def test_patch_cannot_escape_source_tree(self) -> None:
+        diff = "--- a/../outside\n+++ b/../outside\n@@ -1 +1 @@\n-before\n+after\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, manifest = self._fixture(root, diff)
+            (root / "outside").write_text("before\n")
+            lock = {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}
+            with patch.object(build, "PATCH_MANIFEST", manifest), patch.object(build, "_read_lock", return_value=(lock, None)):
+                with self.assertRaisesRegex(build.LaneError, "does not apply"):
+                    build._apply_source_patches(source)
+            self.assertEqual((root / "outside").read_text(), "before\n")
+
+    def test_test_command_rejects_changed_patch_inputs_with_existing_source(self) -> None:
+        diff = "--- a/Lib/example.py\n+++ b/Lib/example.py\n@@ -1 +1 @@\n-before\n+after\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, manifest = self._fixture(root, diff)
+            (source / "Cargo.toml").write_text("[workspace]\n")
+            python = root / "python"
+            python.write_text("")
+            report_path = root / "build.json"
+            lock = {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}
+            with (
+                patch.object(build, "PATCH_MANIFEST", manifest),
+                patch.object(build, "_read_lock", return_value=(lock, None)),
+                patch.object(build, "SOURCE", source),
+                patch.object(build, "BUILD_REPORT", report_path),
+                patch.object(build, "_build_python", return_value=python),
+                patch.object(build, "_require_host"),
+            ):
+                original_inputs = build._source_patch_inputs()
+                report_path.write_text(json.dumps({"status": "built", "source": {"patches": original_inputs}}))
+                (manifest.parent / "example.patch").write_text(diff + "# changed\n")
+                with self.assertRaisesRegex(build.LaneError, "digest"):
+                    build.test()
+                (manifest.parent / "example.patch").write_text(diff)
+                document = json.loads(manifest.read_text())
+                document["patches"][0]["reason"] = "Changed experiment meaning"
+                manifest.write_text(json.dumps(document))
+                with self.assertRaisesRegex(build.LaneError, "disagree with the completed build report"):
+                    build.test()
 
 
 class ToolchainIsolationTests(unittest.TestCase):

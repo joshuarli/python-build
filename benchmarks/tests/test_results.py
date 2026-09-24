@@ -88,6 +88,64 @@ def workload(
 
 
 class ResultSchemaTests(unittest.TestCase):
+    def test_cpu_seconds_per_operation_are_compared_separately_from_wall_time(self):
+        record = workload()
+        for side, total in (("baseline", 0.002), ("candidate", 0.003)):
+            record[side]["timing"]["cpu_rounds"] = [
+                {
+                    "user_seconds_per_operation": total * 0.8,
+                    "system_seconds_per_operation": total * 0.2,
+                    "total_seconds_per_operation": total,
+                    "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+                }
+                for _ in range(3)
+            ]
+        compared = compare_workload(record)
+        cpu = compared["comparison"]["timing"]["cpu"]
+        self.assertEqual(cpu["status"], "compared")
+        self.assertAlmostEqual(cpu["metrics"]["total_seconds_per_operation"]["change_percent"], 50)
+        self.assertEqual(compared["comparison"]["timing"]["change_percent"], 0)
+
+    def test_macos_rss_gate_keeps_pss_and_private_unavailable(self):
+        record = workload()
+        for side in ("baseline", "candidate"):
+            for round_result in record[side]["memory"]["rounds"]:
+                round_result["peak_pss"] = None
+                round_result["peak_private"] = None
+        compared = compare_workload(record, memory_primary_metric="peak_rss")
+        memory = compared["comparison"]["memory"]
+        self.assertEqual(memory["primary_metric"], "peak_rss")
+        self.assertEqual(memory["status"], "incomplete")
+        self.assertIn("peak_rss", memory["metrics"])
+        self.assertNotIn("peak_pss", memory["metrics"])
+        self.assertEqual(memory["gated_metrics"], ["peak_rss"])
+        rendered = render_summary(build_summary(
+            baseline={"label": "control"}, candidate={"label": "candidate"},
+            workloads=[compared],
+        ))
+        self.assertIn("Peak RSS Δ (growth +)", rendered)
+        summary = build_summary(
+            baseline={"label": "control"}, candidate={"label": "candidate"},
+            workloads=[compared],
+        )
+        self.assertIsNone(summary["aggregate"]["median_changes_percent"]["peak_pss_change_percent"])
+        self.assertIsNone(summary["aggregate"]["median_ratios_candidate_over_baseline"]["peak_pss_candidate_over_baseline"])
+        self.assertIsNotNone(summary["aggregate"]["median_changes_percent"]["peak_memory_change_percent"])
+
+    def test_linux_summary_retains_peak_pss_keys_and_meaning(self):
+        compared = compare_workload(workload())
+        summary = build_summary(
+            baseline={"label": "control"}, candidate={"label": "candidate"},
+            workloads=[compared],
+        )
+        changes = summary["aggregate"]["median_changes_percent"]
+        ratios = summary["aggregate"]["median_ratios_candidate_over_baseline"]
+        self.assertEqual(changes["peak_pss_change_percent"], changes["peak_memory_change_percent"])
+        self.assertEqual(ratios["peak_pss_candidate_over_baseline"], ratios["peak_memory_candidate_over_baseline"])
+        category_changes = summary["categories"]["web"]["median_changes_percent"]
+        self.assertEqual(category_changes["peak_pss_change_percent"], changes["peak_pss_change_percent"])
+        self.assertIn("Peak PSS Δ (growth +)", render_summary(summary))
+
     def test_result_json_round_trips(self):
         original = workload()
         encoded = result_to_json(original)

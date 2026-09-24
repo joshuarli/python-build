@@ -1,0 +1,655 @@
+{
+  "baseline": {
+    "memory": {
+      "rounds": [
+        {
+          "cgroup_current": null,
+          "cgroup_error": null,
+          "cgroup_events": null,
+          "cgroup_peak": null,
+          "cpu": {
+            "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+            "operation_count": 33554432,
+            "system_seconds": 0.019461,
+            "system_seconds_per_operation": 5.799829959869385e-10,
+            "total_seconds": 0.071353,
+            "total_seconds_per_operation": 2.1264851093292236e-09,
+            "user_seconds": 0.051892,
+            "user_seconds_per_operation": 1.5465021133422852e-09
+          },
+          "first": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.03386187501018867,
+            "pids": [
+              53587
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 5226496,
+            "swap_bytes": null
+          },
+          "last": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.06460783403599635,
+            "pids": [
+              53587
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 23986176,
+            "swap_bytes": null
+          },
+          "peak_private": null,
+          "peak_pss": null,
+          "peak_rss": 42418176,
+          "peak_rss_coverage": "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound",
+          "peak_swap": null,
+          "phase_samples": {},
+          "postload_pss": null,
+          "process_count": 1,
+          "retained_rss": null,
+          "retained_status": "unsupported: no steady boundary marked",
+          "root_kernel_peak_phys_footprint": 29442552,
+          "root_kernel_peak_rss": 42418176,
+          "samples": [
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.03386187501018867,
+              "pids": [
+                53587
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 5226496,
+              "swap_bytes": null
+            },
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.06460783403599635,
+              "pids": [
+                53587
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 23986176,
+              "swap_bytes": null
+            }
+          ],
+          "sampling_errors": [],
+          "steady_pss": null,
+          "steady_rss": null
+        },
+        {
+          "cgroup_current": null,
+          "cgroup_error": null,
+          "cgroup_events": null,
+          "cgroup_peak": null,
+          "cpu": {
+            "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+            "operation_count": 33554432,
+            "system_seconds": 0.019596,
+            "system_seconds_per_operation": 5.840063095092773e-10,
+            "total_seconds": 0.071266,
+            "total_seconds_per_operation": 2.123892307281494e-09,
+            "user_seconds": 0.05167,
+            "user_seconds_per_operation": 1.5398859977722168e-09
+          },
+          "first": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.036631416995078325,
+            "pids": [
+              53765
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 7503872,
+            "swap_bytes": null
+          },
+          "last": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.06646629195893183,
+            "pids": [
+              53765
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 24412160,
+            "swap_bytes": null
+          },
+          "peak_private": null,
+          "peak_pss": null,
+          "peak_rss": 39223296,
+          "peak_rss_coverage": "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound",
+          "peak_swap": null,
+          "phase_samples": {},
+          "postload_pss": null,
+          "process_count": 1,
+          "retained_rss": null,
+          "retained_status": "unsupported: no steady boundary marked",
+          "root_kernel_peak_phys_footprint": 26247672,
+          "root_kernel_peak_rss": 39223296,
+          "samples": [
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.036631416995078325,
+              "pids": [
+                53765
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 7503872,
+              "swap_bytes": null
+            },
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.06646629195893183,
+              "pids": [
+                53765
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 24412160,
+              "swap_bytes": null
+            }
+          ],
+          "sampling_errors": [],
+          "steady_pss": null,
+          "steady_rss": null
+        },
+        {
+          "cgroup_current": null,
+          "cgroup_error": null,
+          "cgroup_events": null,
+          "cgroup_peak": null,
+          "cpu": {
+            "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+            "operation_count": 33554432,
+            "system_seconds": 0.019566,
+            "system_seconds_per_operation": 5.831122398376465e-10,
+            "total_seconds": 0.07181699999999999,
+            "total_seconds_per_operation": 2.140313386917114e-09,
+            "user_seconds": 0.052251,
+            "user_seconds_per_operation": 1.5572011470794677e-09
+          },
+          "first": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.03454112500185147,
+            "pids": [
+              53824
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 7061504,
+            "swap_bytes": null
+          },
+          "last": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.06472054100595415,
+            "pids": [
+              53824
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 24379392,
+            "swap_bytes": null
+          },
+          "peak_private": null,
+          "peak_pss": null,
+          "peak_rss": 38486016,
+          "peak_rss_coverage": "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound",
+          "peak_swap": null,
+          "phase_samples": {},
+          "postload_pss": null,
+          "process_count": 1,
+          "retained_rss": null,
+          "retained_status": "unsupported: no steady boundary marked",
+          "root_kernel_peak_phys_footprint": 25510392,
+          "root_kernel_peak_rss": 38486016,
+          "samples": [
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.03454112500185147,
+              "pids": [
+                53824
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 7061504,
+              "swap_bytes": null
+            },
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.06472054100595415,
+              "pids": [
+                53824
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 24379392,
+              "swap_bytes": null
+            }
+          ],
+          "sampling_errors": [],
+          "steady_pss": null,
+          "steady_rss": null
+        }
+      ]
+    },
+    "timing": {
+      "cpu_rounds": [
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.019028,
+          "system_seconds_per_operation": 5.670785903930664e-10,
+          "total_seconds": 0.06963899999999999,
+          "total_seconds_per_operation": 2.0754039287567136e-09,
+          "user_seconds": 0.050610999999999996,
+          "user_seconds_per_operation": 1.5083253383636473e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.019718,
+          "system_seconds_per_operation": 5.876421928405762e-10,
+          "total_seconds": 0.071125,
+          "total_seconds_per_operation": 2.119690179824829e-09,
+          "user_seconds": 0.051406999999999994,
+          "user_seconds_per_operation": 1.5320479869842528e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.017785,
+          "system_seconds_per_operation": 5.300343036651611e-10,
+          "total_seconds": 0.06711,
+          "total_seconds_per_operation": 2.0000338554382325e-09,
+          "user_seconds": 0.049325,
+          "user_seconds_per_operation": 1.4699995517730713e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.020354,
+          "system_seconds_per_operation": 6.065964698791504e-10,
+          "total_seconds": 0.07185799999999999,
+          "total_seconds_per_operation": 2.1415352821350095e-09,
+          "user_seconds": 0.051503999999999994,
+          "user_seconds_per_operation": 1.5349388122558592e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.018338,
+          "system_seconds_per_operation": 5.465149879455566e-10,
+          "total_seconds": 0.06936300000000001,
+          "total_seconds_per_operation": 2.06717848777771e-09,
+          "user_seconds": 0.051025,
+          "user_seconds_per_operation": 1.5206634998321533e-09
+        }
+      ],
+      "samples": [
+        0.007363417011220008,
+        0.007889707980211824,
+        0.007792750024236739,
+        0.007604791026096791,
+        0.007599458040203899
+      ]
+    }
+  },
+  "candidate": {
+    "memory": {
+      "rounds": [
+        {
+          "cgroup_current": null,
+          "cgroup_error": null,
+          "cgroup_events": null,
+          "cgroup_peak": null,
+          "cpu": {
+            "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+            "operation_count": 33554432,
+            "system_seconds": 0.020454999999999997,
+            "system_seconds_per_operation": 6.096065044403075e-10,
+            "total_seconds": 0.072229,
+            "total_seconds_per_operation": 2.1525919437408448e-09,
+            "user_seconds": 0.051774,
+            "user_seconds_per_operation": 1.5429854393005371e-09
+          },
+          "first": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.033776833035517484,
+            "pids": [
+              53643
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 8421376,
+            "swap_bytes": null
+          },
+          "last": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.06573358300374821,
+            "pids": [
+              53643
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 24313856,
+            "swap_bytes": null
+          },
+          "peak_private": null,
+          "peak_pss": null,
+          "peak_rss": 44793856,
+          "peak_rss_coverage": "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound",
+          "peak_swap": null,
+          "phase_samples": {},
+          "postload_pss": null,
+          "process_count": 1,
+          "retained_rss": null,
+          "retained_status": "unsupported: no steady boundary marked",
+          "root_kernel_peak_phys_footprint": 31752696,
+          "root_kernel_peak_rss": 44793856,
+          "samples": [
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.033776833035517484,
+              "pids": [
+                53643
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 8421376,
+              "swap_bytes": null
+            },
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.06573358300374821,
+              "pids": [
+                53643
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 24313856,
+              "swap_bytes": null
+            }
+          ],
+          "sampling_errors": [],
+          "steady_pss": null,
+          "steady_rss": null
+        },
+        {
+          "cgroup_current": null,
+          "cgroup_error": null,
+          "cgroup_events": null,
+          "cgroup_peak": null,
+          "cpu": {
+            "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+            "operation_count": 33554432,
+            "system_seconds": 0.019185999999999998,
+            "system_seconds_per_operation": 5.717873573303222e-10,
+            "total_seconds": 0.071271,
+            "total_seconds_per_operation": 2.1240413188934326e-09,
+            "user_seconds": 0.052085,
+            "user_seconds_per_operation": 1.5522539615631103e-09
+          },
+          "first": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.03336112498072907,
+            "pids": [
+              53704
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 7569408,
+            "swap_bytes": null
+          },
+          "last": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.06537637498695403,
+            "pids": [
+              53704
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 24461312,
+            "swap_bytes": null
+          },
+          "peak_private": null,
+          "peak_pss": null,
+          "peak_rss": 38371328,
+          "peak_rss_coverage": "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound",
+          "peak_swap": null,
+          "phase_samples": {},
+          "postload_pss": null,
+          "process_count": 1,
+          "retained_rss": null,
+          "retained_status": "unsupported: no steady boundary marked",
+          "root_kernel_peak_phys_footprint": 25330168,
+          "root_kernel_peak_rss": 38371328,
+          "samples": [
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.03336112498072907,
+              "pids": [
+                53704
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 7569408,
+              "swap_bytes": null
+            },
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.06537637498695403,
+              "pids": [
+                53704
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 24461312,
+              "swap_bytes": null
+            }
+          ],
+          "sampling_errors": [],
+          "steady_pss": null,
+          "steady_rss": null
+        },
+        {
+          "cgroup_current": null,
+          "cgroup_error": null,
+          "cgroup_events": null,
+          "cgroup_peak": null,
+          "cpu": {
+            "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+            "operation_count": 33554432,
+            "system_seconds": 0.021603999999999998,
+            "system_seconds_per_operation": 6.438493728637695e-10,
+            "total_seconds": 0.07347799999999999,
+            "total_seconds_per_operation": 2.189815044403076e-09,
+            "user_seconds": 0.051873999999999997,
+            "user_seconds_per_operation": 1.5459656715393065e-09
+          },
+          "first": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.03277370805153623,
+            "pids": [
+              53884
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 5603328,
+            "swap_bytes": null
+          },
+          "last": {
+            "cgroup_current_bytes": null,
+            "cgroup_peak_bytes": null,
+            "elapsed_seconds": 0.06341979105491191,
+            "pids": [
+              53884
+            ],
+            "private_bytes": null,
+            "process_count": 1,
+            "pss_bytes": null,
+            "rss_bytes": 24166400,
+            "swap_bytes": null
+          },
+          "peak_private": null,
+          "peak_pss": null,
+          "peak_rss": 48381952,
+          "peak_rss_coverage": "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound",
+          "peak_swap": null,
+          "phase_samples": {},
+          "postload_pss": null,
+          "process_count": 1,
+          "retained_rss": null,
+          "retained_status": "unsupported: no steady boundary marked",
+          "root_kernel_peak_phys_footprint": 35340792,
+          "root_kernel_peak_rss": 48381952,
+          "samples": [
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.03277370805153623,
+              "pids": [
+                53884
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 5603328,
+              "swap_bytes": null
+            },
+            {
+              "cgroup_current_bytes": null,
+              "cgroup_peak_bytes": null,
+              "elapsed_seconds": 0.06341979105491191,
+              "pids": [
+                53884
+              ],
+              "private_bytes": null,
+              "process_count": 1,
+              "pss_bytes": null,
+              "rss_bytes": 24166400,
+              "swap_bytes": null
+            }
+          ],
+          "sampling_errors": [],
+          "steady_pss": null,
+          "steady_rss": null
+        }
+      ]
+    },
+    "timing": {
+      "cpu_rounds": [
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.018458,
+          "system_seconds_per_operation": 5.5009126663208e-10,
+          "total_seconds": 0.068939,
+          "total_seconds_per_operation": 2.054542303085327e-09,
+          "user_seconds": 0.050481,
+          "user_seconds_per_operation": 1.504451036453247e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.017551,
+          "system_seconds_per_operation": 5.230605602264404e-10,
+          "total_seconds": 0.067607,
+          "total_seconds_per_operation": 2.014845609664917e-09,
+          "user_seconds": 0.050055999999999996,
+          "user_seconds_per_operation": 1.4917850494384765e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.017661,
+          "system_seconds_per_operation": 5.263388156890869e-10,
+          "total_seconds": 0.067132,
+          "total_seconds_per_operation": 2.0006895065307616e-09,
+          "user_seconds": 0.049471,
+          "user_seconds_per_operation": 1.4743506908416748e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.019046999999999998,
+          "system_seconds_per_operation": 5.676448345184326e-10,
+          "total_seconds": 0.069017,
+          "total_seconds_per_operation": 2.0568668842315672e-09,
+          "user_seconds": 0.04997,
+          "user_seconds_per_operation": 1.4892220497131348e-09
+        },
+        {
+          "coverage": "wait4 root plus descendants reaped by workload; detached or unreaped children excluded",
+          "operation_count": 33554432,
+          "system_seconds": 0.018748,
+          "system_seconds_per_operation": 5.587339401245117e-10,
+          "total_seconds": 0.069001,
+          "total_seconds_per_operation": 2.0563900470733645e-09,
+          "user_seconds": 0.050253,
+          "user_seconds_per_operation": 1.4976561069488525e-09
+        }
+      ],
+      "samples": [
+        0.007597958960104734,
+        0.0072862920351326466,
+        0.007568417000584304,
+        0.007642292010132223,
+        0.007402332965284586
+      ]
+    }
+  },
+  "identity": {
+    "category": "compression",
+    "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+    "name": "zlib_decode_1m",
+    "noise_class": "stable",
+    "operation": "decoded byte",
+    "operation_count": 33554432,
+    "packages": []
+  }
+}

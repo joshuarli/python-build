@@ -113,9 +113,9 @@ class MemorySample:
 
     elapsed_seconds: float
     rss_bytes: int
-    pss_bytes: int
-    private_bytes: int
-    swap_bytes: int
+    pss_bytes: int | None
+    private_bytes: int | None
+    swap_bytes: int | None
     process_count: int
     pids: tuple[int, ...] = ()
     cgroup_current_bytes: int | None = None
@@ -127,9 +127,9 @@ class ProcessMemoryMetrics:
     """Peak and boundary memory values plus the raw process-tree timeline."""
 
     peak_rss_bytes: int = 0
-    peak_pss_bytes: int = 0
-    peak_private_bytes: int = 0
-    peak_swap_bytes: int = 0
+    peak_pss_bytes: int | None = None
+    peak_private_bytes: int | None = None
+    peak_swap_bytes: int | None = None
     peak_process_count: int = 0
     first: MemorySample | None = None
     last: MemorySample | None = None
@@ -140,6 +140,10 @@ class ProcessMemoryMetrics:
     cgroup_peak_bytes: int | None = None
     cgroup_events: dict[str, int] | None = None
     cgroup_error: str | None = None
+    # macOS kernel lifetime peaks are per root process (or its reaped family),
+    # not a simultaneous process-tree total. Keep them distinct from samples.
+    root_kernel_peak_rss_bytes: int | None = None
+    root_kernel_peak_phys_footprint_bytes: int | None = None
 
     @classmethod
     def from_samples(cls, samples: list[MemorySample]) -> ProcessMemoryMetrics:
@@ -150,9 +154,9 @@ class ProcessMemoryMetrics:
         ordered = sorted(samples, key=lambda sample: sample.elapsed_seconds)
         return cls(
             peak_rss_bytes=max(sample.rss_bytes for sample in ordered),
-            peak_pss_bytes=max(sample.pss_bytes for sample in ordered),
-            peak_private_bytes=max(sample.private_bytes for sample in ordered),
-            peak_swap_bytes=max(sample.swap_bytes for sample in ordered),
+            peak_pss_bytes=max((sample.pss_bytes for sample in ordered if sample.pss_bytes is not None), default=None),
+            peak_private_bytes=max((sample.private_bytes for sample in ordered if sample.private_bytes is not None), default=None),
+            peak_swap_bytes=max((sample.swap_bytes for sample in ordered if sample.swap_bytes is not None), default=None),
             peak_process_count=max(sample.process_count for sample in ordered),
             first=ordered[0],
             last=ordered[-1],
@@ -174,6 +178,12 @@ class ProcessMemoryMetrics:
 
         sample = self.phase_samples.get("steady")
         return None if sample is None else sample.pss_bytes
+
+    @property
+    def steady_rss_bytes(self) -> int | None:
+        """Return resident bytes only at an explicit steady-state boundary."""
+        sample = self.phase_samples.get("steady")
+        return None if sample is None else sample.rss_bytes
 
     @property
     def postload_pss_bytes(self) -> int | None:
@@ -201,7 +211,7 @@ class ProcessMemoryMetrics:
             }
 
         return {
-            "peak_rss_bytes": self.peak_rss_bytes if self.samples else None,
+            "peak_rss_bytes": self.peak_rss_bytes if self.samples or self.root_kernel_peak_rss_bytes is not None else None,
             "peak_pss_bytes": self.peak_pss_bytes if self.samples else None,
             "peak_private_bytes": self.peak_private_bytes if self.samples else None,
             "peak_swap_bytes": self.peak_swap_bytes if self.samples else None,
@@ -209,6 +219,7 @@ class ProcessMemoryMetrics:
             "first": sample_dict(self.first),
             "last": sample_dict(self.last),
             "steady_pss_bytes": self.steady_pss_bytes,
+            "steady_rss_bytes": self.steady_rss_bytes,
             "postload_pss_bytes": self.postload_pss_bytes,
             "samples": [sample_dict(sample) for sample in self.samples],
             "phase_samples": {
@@ -220,6 +231,14 @@ class ProcessMemoryMetrics:
             "cgroup_peak_bytes": self.cgroup_peak_bytes,
             "cgroup_events": self.cgroup_events,
             "cgroup_error": self.cgroup_error,
+            "root_kernel_peak_rss_bytes": self.root_kernel_peak_rss_bytes,
+            "root_kernel_peak_phys_footprint_bytes": self.root_kernel_peak_phys_footprint_bytes,
+            "peak_rss_coverage": (
+                "sampled tree and kernel root-family lifetime peak; tree peak is a lower bound"
+                if self.root_kernel_peak_rss_bytes is not None
+                else "sampled process tree; short-lived children may be missed"
+                if self.samples else "unavailable: no process samples or kernel peak"
+            ),
         }
 
 

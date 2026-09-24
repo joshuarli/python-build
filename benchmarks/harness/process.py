@@ -1,14 +1,14 @@
-"""Run benchmark commands and sample Linux process trees.
+"""Run benchmark commands and observe process-tree resources externally.
 
-The Linux sampler stays outside the target interpreter and reads `/proc`
-directly. On macOS, `sample_interval_seconds=None` selects the unmonitored
-timing runner; process memory sampling is available only on Linux.
+Linux memory uses procfs. macOS memory uses `ps` RSS snapshots. CPU time is
+kernel wait4 usage for the workload root, including children it has reaped.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 import os
+import resource
 from pathlib import Path
 import shutil
 import signal
@@ -29,6 +29,7 @@ from .memory import (
     parse_smaps_rollup,
     sum_rollups,
 )
+from .macos_resource import MacProcessMemory, read_process_memory
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,9 @@ class ProcessResult:
     memory: ProcessMemoryMetrics | None
     cleanup_complete: bool
     remaining_pids: tuple[int, ...]
+    cpu_user_seconds: float | None = None
+    cpu_system_seconds: float | None = None
+    cpu_coverage: str = "unsupported"
 
     def as_dict(self) -> dict[str, object]:
         """Return JSON-ready status and memory data (output is UTF-8 decoded)."""
@@ -58,7 +62,93 @@ class ProcessResult:
             "memory": None if self.memory is None else self.memory.as_dict(),
             "cleanup_complete": self.cleanup_complete,
             "remaining_pids": list(self.remaining_pids),
+            "cpu_user_seconds": self.cpu_user_seconds,
+            "cpu_system_seconds": self.cpu_system_seconds,
+            "cpu_coverage": self.cpu_coverage,
         }
+
+
+@dataclass(frozen=True)
+class _WaitResult:
+    timed_out: bool
+    usage: resource.struct_rusage | None
+    mac_memory: MacProcessMemory | None = None
+    mac_memory_error: str | None = None
+
+
+def _wait4(
+    process: subprocess.Popen[bytes], timeout: float | None, *,
+    capture_macos_memory: bool = False,
+) -> _WaitResult:
+    """Reap one workload root and return kernel-accounted CPU usage.
+
+    A child reaped by the workload contributes to the root's cumulative
+    child usage. An orphan or child left alive at the boundary is uncovered.
+    """
+    if not hasattr(os, "wait4"):
+        process.wait(timeout=timeout)
+        return _WaitResult(False, None)
+    deadline = None if timeout is None else time.monotonic() + timeout
+    read_zombie = capture_macos_memory and sys.platform == "darwin" and hasattr(os, "waitid")
+    while True:
+        if read_zombie:
+            exited = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if exited is not None:
+                try:
+                    mac_memory = read_process_memory(process.pid)
+                    error = None
+                except (OSError, RuntimeError) as failure:
+                    mac_memory = None
+                    error = f"root macOS resource counters unavailable: {failure}"
+                _pid, status, usage = os.wait4(process.pid, 0)
+                process.returncode = os.waitstatus_to_exitcode(status)
+                return _WaitResult(False, usage, mac_memory, error)
+        else:
+            pid, status, usage = os.wait4(process.pid, os.WNOHANG)
+            if pid:
+                process.returncode = os.waitstatus_to_exitcode(status)
+                return _WaitResult(False, usage)
+        if deadline is not None and time.monotonic() >= deadline:
+            return _WaitResult(True, None)
+        time.sleep(0.005)
+
+
+def _mac_process_table(ps: str) -> dict[int, tuple[int, int, int, str]]:
+    """Return PID -> (parent, process group, resident bytes, state)."""
+    result = subprocess.run(
+        [ps, "-A", "-o", "pid=,ppid=,pgid=,rss=,stat="],
+        capture_output=True, text=True, timeout=3, check=False,
+    )
+    if result.returncode:
+        raise RuntimeError(f"cannot inspect macOS process table: {result.stderr.strip()}")
+    table = {}
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) != 5:
+            continue
+        try:
+            pid, parent, group, rss_kib = map(int, fields[:4])
+        except ValueError:
+            continue
+        table[pid] = (parent, group, rss_kib * 1024, fields[4])
+    return table
+
+
+def _mac_tree_members(
+    table: Mapping[int, tuple[int, int, int, str]], root_pid: int, group: int,
+) -> dict[int, tuple[int, int, int, str]]:
+    children: dict[int, list[int]] = {}
+    for pid, (parent, _, _, _) in table.items():
+        children.setdefault(parent, []).append(pid)
+    selected = {pid for pid, (_, pgid, _, _) in table.items() if pgid == group}
+    pending = [root_pid]
+    while pending:
+        parent = pending.pop()
+        for child in children.get(parent, ()):
+            if child not in selected:
+                selected.add(child)
+                pending.append(child)
+    return {pid: table[pid] for pid in selected if pid in table and not table[pid][3].startswith("Z")}
 
 
 @dataclass(frozen=True)
@@ -212,6 +302,7 @@ class ProcessSampler:
         self._remaining_pids: tuple[int, ...] = ()
         self._lock = threading.Lock()
         self._finished_result: ProcessResult | None = None
+        self._ps = shutil.which("ps") if sys.platform == "darwin" else None
 
     def __enter__(self) -> ProcessSampler:
         return self.start()
@@ -228,13 +319,15 @@ class ProcessSampler:
 
         if self._process is not None:
             raise RuntimeError("process sampler has already been started")
-        if not self.proc_root.is_dir():
+        if sys.platform == "darwin" and self._ps is None:
+            raise RuntimeError("ps is required for macOS memory observation")
+        if sys.platform != "darwin" and not self.proc_root.is_dir():
             raise RuntimeError(f"procfs is not available at {self.proc_root}")
 
         self._stdout_file = tempfile.TemporaryFile(mode="w+b")
         self._stderr_file = tempfile.TemporaryFile(mode="w+b")
         argv = list(self.command)
-        if self.sample_interval_seconds is not None:
+        if self.sample_interval_seconds is not None and sys.platform != "darwin":
             self._cgroup_scope = CgroupV2MemoryScope.detect_and_create(
                 proc_root=self.proc_root
             )
@@ -344,25 +437,35 @@ class ProcessSampler:
         if self._finished_result is not None:
             return self._finished_result
 
-        timed_out = False
+        wait_result = _WaitResult(False, None)
+        boundary_remaining: tuple[int, ...] = ()
         try:
-            if self.timeout is None:
-                self._process.wait()
-            else:
-                try:
-                    self._process.wait(timeout=self.timeout)
-                except subprocess.TimeoutExpired:
-                    timed_out = True
+            wait_result = _wait4(
+                self._process, self.timeout,
+                capture_macos_memory=self.sample_interval_seconds is not None,
+            )
             # Preserve the workload boundary before stopping the sampler or
             # cleaning leaked descendants; cleanup time is not command time.
             if self.sample_interval_seconds is not None:
                 self._capture_sample()
+            boundary_remaining = self._live_process_ids()
             duration = time.monotonic() - self._started_at
         finally:
             self._stop_and_join_sampler()
-            self._terminate_process_group()
-            self._final_cgroup_snapshot = self._read_cgroup_snapshot()
-            self._close_cgroup_scope()
+            try:
+                self._terminate_process_group()
+            except (RuntimeError, subprocess.TimeoutExpired):
+                # An unavailable process table cannot prove cleanup. If the
+                # root is still live, terminate its group before surfacing
+                # the inspection failure; never report an empty tree.
+                if self._process.poll() is None and self._process_group is not None:
+                    self._signal_process_group(signal.SIGKILL)
+                    self._process.wait()
+                self._close_output_files()
+                raise
+            finally:
+                self._final_cgroup_snapshot = self._read_cgroup_snapshot()
+                self._close_cgroup_scope()
 
         assert self._stdout_file is not None and self._stderr_file is not None
         self._stdout_file.seek(0)
@@ -384,16 +487,31 @@ class ProcessSampler:
                 )
                 memory.cgroup_events = dict(cgroup_snapshot.events)
             memory.cgroup_error = self._cgroup_error
+            if sys.platform == "darwin":
+                if wait_result.usage is not None:
+                    memory.root_kernel_peak_rss_bytes = wait_result.usage.ru_maxrss
+                    memory.peak_rss_bytes = max(memory.peak_rss_bytes, wait_result.usage.ru_maxrss)
+                if wait_result.mac_memory is not None:
+                    memory.root_kernel_peak_phys_footprint_bytes = (
+                        wait_result.mac_memory.lifetime_max_phys_footprint_bytes
+                    )
+                if wait_result.mac_memory_error is not None:
+                    memory.sampling_errors.append(wait_result.mac_memory_error)
         result = ProcessResult(
             command=self.command,
             returncode=self._process.returncode if self._process.returncode is not None else 0,
             stdout=stdout,
             stderr=stderr,
-            timed_out=timed_out,
+            timed_out=wait_result.timed_out,
             duration_seconds=duration,
             memory=memory,
             cleanup_complete=not self._remaining_pids,
             remaining_pids=self._remaining_pids,
+            cpu_user_seconds=None if wait_result.usage is None else wait_result.usage.ru_utime,
+            cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
+            cpu_coverage=("unsupported" if wait_result.usage is None else
+                          "incomplete: workload left descendants at completion" if boundary_remaining else
+                          "wait4 root plus descendants reaped by workload; detached or unreaped children excluded"),
         )
         self._finished_result = result
         return result
@@ -407,6 +525,31 @@ class ProcessSampler:
     def _capture_sample(self) -> MemorySample | None:
         if self._started_at is None or self._process is None or self._process_group is None:
             return None
+        if sys.platform == "darwin":
+            assert self._ps is not None
+            try:
+                members = _mac_tree_members(
+                    _mac_process_table(self._ps), self._process.pid, self._process_group
+                )
+            except (RuntimeError, subprocess.TimeoutExpired) as error:
+                self._record_error(str(error))
+                return None
+            if not members:
+                return None
+            with self._lock:
+                self._collected.seen.update({pid: 0 for pid in members})
+            sample = MemorySample(
+                elapsed_seconds=time.monotonic() - self._started_at,
+                rss_bytes=sum(info[2] for info in members.values()),
+                pss_bytes=None,
+                private_bytes=None,
+                swap_bytes=None,
+                process_count=len(members),
+                pids=tuple(sorted(members)),
+            )
+            with self._lock:
+                self._collected.samples.append(sample)
+            return sample
         try:
             infos = _proc_table(self.proc_root)
         except RuntimeError as error:
@@ -468,7 +611,8 @@ class ProcessSampler:
     def _terminate_process_group(self) -> None:
         if self._process is None or self._process_group is None:
             return
-        self._signal_process_group(signal.SIGTERM)
+        if self._has_live_processes():
+            self._signal_process_group(signal.SIGTERM)
         self._signal_seen_processes(signal.SIGTERM)
         deadline = time.monotonic() + self.terminate_grace_seconds
         while time.monotonic() < deadline and self._has_live_processes():
@@ -493,6 +637,12 @@ class ProcessSampler:
 
     def _signal_process_group(self, sig: signal.Signals) -> None:
         assert self._process_group is not None
+        if sys.platform == "darwin":
+            try:
+                os.killpg(self._process_group, sig)
+            except ProcessLookupError:
+                pass
+            return
         if self._process is not None and self._process.poll() is None:
             try:
                 os.killpg(self._process_group, sig)
@@ -522,6 +672,8 @@ class ProcessSampler:
                 continue
 
     def _signal_seen_processes(self, sig: signal.Signals) -> None:
+        if sys.platform == "darwin":
+            return
         with self._lock:
             seen = tuple(self._collected.seen.items())
         for pid, start_ticks in seen:
@@ -537,6 +689,10 @@ class ProcessSampler:
         return bool(self._live_process_ids())
 
     def _live_process_ids(self) -> tuple[int, ...]:
+        if sys.platform == "darwin":
+            assert self._ps is not None and self._process_group is not None
+            table = _mac_process_table(self._ps)
+            return tuple(sorted(_mac_tree_members(table, self.pid, self._process_group)))
         live: set[int] = set()
         try:
             infos = _proc_table(self.proc_root)
@@ -665,11 +821,7 @@ def _run_unmonitored(
             start_new_session=True,
             close_fds=True,
         )
-        timed_out = False
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
+        wait_result = _wait4(process, timeout)
         duration = time.monotonic() - started
 
         def group_pids() -> tuple[int, ...]:
@@ -704,6 +856,7 @@ def _run_unmonitored(
                 raise RuntimeError(f"cannot signal benchmark process group {process.pid}: {error}") from error
 
         remaining = group_pids()
+        boundary_remaining = remaining
         if remaining:
             signal_group(signal.SIGTERM)
             deadline = time.monotonic() + terminate_grace_seconds
@@ -729,9 +882,14 @@ def _run_unmonitored(
         returncode=process.returncode if process.returncode is not None else 0,
         stdout=stdout,
         stderr=stderr,
-        timed_out=timed_out,
+        timed_out=wait_result.timed_out,
         duration_seconds=duration,
         memory=None,
         cleanup_complete=not remaining,
         remaining_pids=remaining,
+        cpu_user_seconds=None if wait_result.usage is None else wait_result.usage.ru_utime,
+        cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
+        cpu_coverage=("unsupported" if wait_result.usage is None else
+                      "incomplete: workload left descendants at completion" if boundary_remaining else
+                      "wait4 root plus descendants reaped by workload; detached or unreaped children excluded"),
     )
