@@ -3,7 +3,7 @@ PYTHON ?= python3
 BENCH_TARGET := x86_64-unknown-linux-musl
 BENCH_ARTIFACT := dist/$(BENCH_TARGET)/cpython-3.14.6-$(BENCH_TARGET)-r2.tar.gz
 BENCH_PROFILE ?= standard
-BENCH_PYPERFORMANCE_SELECTION ?=
+BENCH_PYPERFORMANCE_SELECTION ?= all
 BENCH_PYPERFORMANCE_ARGS = $(if $(strip $(BENCH_PYPERFORMANCE_SELECTION)),--pyperformance-selection $(BENCH_PYPERFORMANCE_SELECTION),)
 
 .PHONY: bench bench-host-check bench-inputs bench-product

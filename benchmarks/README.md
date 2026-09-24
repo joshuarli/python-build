@@ -32,13 +32,11 @@ From the repository root, `make bench` is the end-to-end product comparison.
 It checks the native target, fetches locked product and benchmark inputs,
 prepares the offline benchmark image, builds and packages the product when its
 archive is absent, then runs the full repository workload suite against the
-pinned PBS baseline with all selected pyperformance benchmarks. The default
-profile is `standard` (timing plus process-tree memory); override it with
-`BENCH_PROFILE=rigorous` to add allocation tracing. The pyperformance
-selection follows the profile by default: `fastapi` for `standard`, all
-benchmarks for `rigorous`, and `python_startup` for `quick`. Set
-`BENCH_PYPERFORMANCE_SELECTION` to a pyperformance group, benchmark name, or
-`all` to override that selection.
+pinned PBS baseline and the complete pyperformance suite. The default profile
+is `standard` (timing plus process-tree memory); override it with
+`BENCH_PROFILE=rigorous` to add allocation tracing. Set
+`BENCH_PYPERFORMANCE_SELECTION` to a pyperformance group or benchmark name to
+run a smaller selection; it defaults to `all` for every profile.
 
 The supported one-command comparison currently requires native Linux amd64.
 Product input fetching and benchmark preparation may use the network; the
