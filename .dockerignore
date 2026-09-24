@@ -27,4 +27,7 @@ tests/**
 !tests/test_patches.py
 !tests/test_reproduce.py
 !tests/test_targets.py
+!tests/fixtures/
+!tests/fixtures/localhost.crt
+!tests/fixtures/localhost.key
 !sources.lock.json

@@ -1,0 +1,34 @@
+--- a/Lib/ssl.py
++++ b/Lib/ssl.py
+@@ -121,5 +121,10 @@
+ from _ssl import _DEFAULT_CIPHERS, _OPENSSL_API_VERSION
+ 
++_PYTHON_BUILD_DEFAULT_CA_BUNDLE = os.path.join(
++    os.path.dirname(__file__), "python-build-cacert.pem"
++)
++_PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE = "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE"
++
+ _IntEnum._convert_(
+     '_SSLMethod', __name__,
+     lambda name: name.startswith('PROTOCOL_') and name != 'PROTOCOL_SSLv23',
+@@ -532,5 +537,20 @@
+                 self._load_windows_store_certs(storename, purpose)
+         self.set_default_verify_paths()
++
++        # Minimal containers can have a valid OpenSSL installation but no
++        # default trust roots. Add the bundled Mozilla roots only when the
++        # configured default paths loaded none; explicit trust paths and the
++        # product opt-out always take precedence.
++        environment = os.environ
++        if sys.flags.ignore_environment:
++            environment = {}
++        if (
++            self.cert_store_stats()["x509_ca"] == 0
++            and "SSL_CERT_FILE" not in environment
++            and "SSL_CERT_DIR" not in environment
++            and environment.get(_PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE) != "1"
++        ):
++            self.load_verify_locations(cafile=_PYTHON_BUILD_DEFAULT_CA_BUNDLE)
+ 
+     if hasattr(_SSLContext, 'minimum_version'):
+         @property

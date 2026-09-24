@@ -35,11 +35,13 @@ sys.path.insert(0, str(REPO))
 
 from buildsys import macho  # noqa: E402
 from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
+from buildsys.ca_bundle import CABundleError, install_fallback_ca_bundle  # noqa: E402
 from buildsys.elf import gnu_stack_report, hardening_report  # noqa: E402
 from buildsys.cpython import (  # noqa: E402
     CPYTHON_PGO_HASH_SEED, pgo_profile_task,
 )
 from buildsys.inputs import Cache, InputError, canonical_json, load_lock, safe_extract  # noqa: E402
+from buildsys.patches import PatchError, apply_patch  # noqa: E402
 from buildsys.relocate import find_elfs  # noqa: E402
 from buildsys.scope import (  # noqa: E402
     DISTRIBUTION_EXCLUDED_STDLIB_DIRS,
@@ -198,14 +200,17 @@ def compute_inputs(lock_path: Path) -> dict:
 def compute_components(lock_path: Path) -> dict:
     entries = {e.name: e for e in load_lock(lock_path)}
     components = []
-    for name in ("cpython", *BUNDLED_DEPENDENCIES_BY_FAMILY[TARGET_DESCRIPTION.family]):
+    for name in (
+        "cpython", "certifi-ca",
+        *BUNDLED_DEPENDENCIES_BY_FAMILY[TARGET_DESCRIPTION.family],
+    ):
         entry = entries.get(name)
         if entry is None:
             continue
         components.append({
             "name": entry.name, "version": entry.version,
             "license": entry.license, "purpose": entry.purpose,
-            "static": entry.name != "pip",
+            "static": entry.name not in {"pip", "certifi-ca"},
         })
     return {
         "components": components,
@@ -863,6 +868,25 @@ def require_macos_pgo_recipe() -> dict:
     return recipe
 
 
+def install_ca_fallback(install: Path) -> dict[str, object]:
+    """Ensure ssl.py and its locked relocatable trust data ship together."""
+    ssl_module = install / "lib" / "python3.14" / "ssl.py"
+    if not ssl_module.is_file():
+        raise PackagingError(f"installed ssl module is missing: {ssl_module}")
+    if "_PYTHON_BUILD_DEFAULT_CA_BUNDLE" not in ssl_module.read_text():
+        patch = REPO / "patches" / "package" / "0001-ssl-default-ca-bundle-fallback.patch"
+        try:
+            apply_patch(ssl_module.parent, patch, strip=2)
+        except PatchError as error:
+            raise PackagingError(f"cannot enable the locked CA fallback: {error}") from error
+    try:
+        return install_fallback_ca_bundle(
+            install, cache_root=REPO / ".cache", lock_path=REPO / "sources.lock.json"
+        )
+    except CABundleError as error:
+        raise PackagingError(str(error)) from error
+
+
 def main(argv: list[str] | None = None) -> int:
     compare_only = "--compare-only" in (argv if argv is not None else sys.argv[1:])
     stage = REPO / "build" / "stage" / "cpython-staged" / "install"
@@ -899,6 +923,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"OK    compare-reference -> {dist / 'parity.md'}")
             return 0
 
+        trust_store = install_ca_fallback(work)
         if macos:
             recipe = require_macos_pgo_recipe()
             commands[1] += (
@@ -909,6 +934,7 @@ def main(argv: list[str] | None = None) -> int:
         if macos:
             strip_tree_macos(work)
             validation = run_validation(work, REPO / "build" / "validate-work", TARGET_DESCRIPTION)
+            validation["trust_store"] = trust_store
             # The regression suite runs against a *disposable copy* of the
             # install tree before final distribution pruning. Several tests
             # write into the tree they exercise (test_compileall compiles the
@@ -963,6 +989,7 @@ def main(argv: list[str] | None = None) -> int:
             # Validate the tree after both stripping and distribution pruning:
             # elf_report must describe exactly the bytes that enter the archive.
             validation = compute_validation(work)
+            validation["trust_store"] = trust_store
             if not validation["sys_version_check"]["ok"]:
                 raise PackagingError(f"post-strip smoke import failed: {validation['sys_version_check']['output']}")
             if not validation["musl_loader_matches_target"]:

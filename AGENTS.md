@@ -54,6 +54,16 @@ rtree, dbstat, and CPython's loadable-extension API; applications must still
 explicitly enable extension loading on each connection. `compression.zstd`
 uses the zstd multithread-capable static library on all targets.
 
+Default TLS trust: `ssl.create_default_context()` keeps OpenSSL's configured
+default paths. If they load no CA roots, and neither `SSL_CERT_FILE` nor
+`SSL_CERT_DIR` is set, it loads the locked Mozilla bundle at
+`lib/python3.14/python-build-cacert.pem`. Set
+`PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE=1` to disable that fallback. The bundle
+and its MPL-2.0 license are installed from the `certifi-ca` lock entry at
+package time; no runtime download or update occurs. Refresh the pinned
+certifi data for every python-build release, and sooner for relevant trust
+changes. The bundled roots do not provide online revocation checking.
+
 ## Commands
 
 ```text
@@ -79,7 +89,9 @@ compilation so a validated tree can be repackaged without rebuilding.
 `build.py`, `buildsys/` (controller, recipes, `macho.py`, `sandbox.py`,
 `relocate.py`, validation, `uvmirror.py`), `build/` (phase drivers only),
 `sources.lock.json`, `bootstrap.lock.json`, `Dockerfile` (Linux; macOS never
-builds in it), `patches/` (each with provenance + regression link),
+builds in it), `patches/cpython/` (source-tree patches),
+`patches/package/` (installed-tree patches; each with provenance + regression
+link),
 `tests/`, `dist/<triple>/`, `.github/` (CI + smoke toy). No `docs/` tree:
 evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
 

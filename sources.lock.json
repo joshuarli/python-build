@@ -12,6 +12,16 @@
       "purpose": "The distributed interpreter"
     },
     {
+      "name": "certifi-ca",
+      "version": "2026.7.22",
+      "url": "https://files.pythonhosted.org/packages/source/c/certifi/certifi-2026.7.22.tar.gz",
+      "sha256": "741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55",
+      "size": 138112,
+      "role": "source",
+      "license": "MPL-2.0",
+      "purpose": "Mozilla root CA fallback for ssl.create_default_context() when the configured trust store is empty"
+    },
+    {
       "name": "openssl",
       "version": "3.5.7",
       "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.7/openssl-3.5.7.tar.gz",

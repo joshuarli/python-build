@@ -57,10 +57,8 @@ headers and should be enforced separately from less direct fortify evidence.
 
 ### P2 — Define and implement fallback CA trust for minimal images
 
-**Status:** Proposed; requires a trust-store scope decision. Current TLS
-validation uses controlled test certificates and does not establish whether
-`ssl.create_default_context()` can verify ordinary public endpoints in a
-minimal runtime image.
+**Status:** Implemented for all current targets, with the trust-store scope
+decision recorded in `AGENTS.md` (2026-09-24).
 
 **Why:** Minimal container images often omit OS CA packages. In that case a
 Python build may import `ssl` successfully but have no usable default trust
@@ -71,21 +69,22 @@ while preserving the platform trust store when it exists.
 (open PR proposal; not merged). The PR proposes a bundled Mozilla-derived
 fallback and an opt-out, rather than reporting a merged PBS behavior.
 
-**Applicability and proposed change:** All targets, subject to an explicit
-decision about whether trust roots belong in this product. If accepted, lock
-the certificate-bundle input with version, license, digest, and provenance;
-install it under a relocatable product path; and make it a fallback only
-when the platform's default trust paths are unavailable or empty. Preserve
-normal platform trust behavior and document an explicit opt-out if the
-implementation needs one. Do not fetch or update certificates at runtime.
+**Applicability and implementation:** All current targets. The
+`certifi-ca` source is locked with version, license, digest, and size; package
+time installs its validated PEM and license under relocatable paths. The
+runtime keeps OpenSSL's default paths and loads the bundle only when those
+paths produce no CA roots, neither `SSL_CERT_FILE` nor `SSL_CERT_DIR` is set,
+and `PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE=1` has not opted out. No runtime fetch
+or update occurs. The trust-data ownership, update cadence, and revocation
+limits are documented in `AGENTS.md`.
 
-**Acceptance evidence:** In a minimal Linux runtime without a system CA
-store, `ssl.create_default_context()` verifies a known test endpoint/cert
-chain using the bundled roots; with a platform store, the documented
-platform behavior is preserved; a user-provided `SSL_CERT_FILE` continues to
-work; removing or disabling the fallback produces a clear, tested outcome.
-Cover macOS's system trust behavior separately and verify relocation of the
-bundle. Keep private test keys and endpoints confined to fixtures.
+**Acceptance evidence:** Sealed package compatibility checks pass on both
+Linux targets with no system CA store, loading the 121-root bundle and
+verifying a local TLS chain. macOS checks preserve its populated system trust
+store (128 roots on the qualification host) and confirm the fallback is
+available after relocation. A fixture CA supplied by `SSL_CERT_FILE`
+continues to verify the local chain, and the opt-out produces an empty store
+in the isolated probe. Private keys and certificates stay in test fixtures.
 
 **Dependencies and risks:** Adds a maintained trust-data input and changes
 the security contract: shipped roots become trusted by default on systems
@@ -131,5 +130,5 @@ insufficiently actionable here:
   here: Linux recipes already pass `--build-id=sha1`, and this project does
   not currently publish debug symbol files or operate a debuginfod service.
 
-The P1 ticket is implemented; P2 remains a proposal. This work follows
-the repository's source-lock, validation, and target-scope contracts.
+The two selected tickets are implemented in separate commits. Their changes
+follow the repository's source-lock, validation, and target-scope contracts.
