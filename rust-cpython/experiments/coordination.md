@@ -1,5 +1,38 @@
 # Rust-for-CPython experiment lanes
 
+## Second cycle (base `ffb6205`)
+
+The coordinator committed the first cycle as `ffb6205` and opened four
+separate worktrees. Current host load was 5.43/5.49/5.23; OrbStack Helper
+occupied about one CPU and 6.5 GiB RSS. No published timing run is scheduled
+under this load. Each lane has a limit of 300 process CPU seconds and 2 GiB
+peak RSS before asking the coordinator to schedule more. Substantial commands
+must report kernel user/system CPU time and memory; elapsed time alone is not
+resource evidence.
+
+| Lane | Worktree and branch | Owned paths | Question | Status |
+| --- | --- | --- | --- | --- |
+| Reproducible zlib candidate build | `/private/tmp/python-build-exp-zlib-build-20260924b`, `exp/rust-cpython-zlib-build-20260924b` | `rust-cpython/build.py`, `rust-cpython/patches/`, new `experiments/zlib-build-candidate.md` | Can the existing pinned zlib-rs backend be an optional full candidate-build input without changing the no-Rust control? | Active; no full build authorized yet |
+| macOS footprint | `/private/tmp/python-build-exp-mac-footprint-20260924b`, `exp/rust-cpython-mac-footprint-20260924b` | `benchmarks/harness/memory.py`, `benchmarks/harness/macos_resource.py`, `benchmarks/harness/process.py`, new `experiments/mac-footprint-20260924.md` | Can native counters give a sounder root/tree memory gate? | Integrated as diagnostic; no parity claim |
+| zlib compressed bytes | `/private/tmp/python-build-exp-zlib-bytes-20260924b`, `exp/rust-cpython-zlib-bytes-20260924b` | New `experiments/zlib-byte-compat.py` and `.md` | Which public compressed-byte differences are observable across backends? | Active; serial semantic probe only |
+| tomllib scout | `/private/tmp/python-build-exp-tomllib-scout-20260924b`, `exp/rust-cpython-tomllib-scout-20260924b` | New `experiments/tomllib-target.md` | Is whole-document parsing a viable independent next target? | Active; short diagnostic only |
+
+The coordinator owns this ledger and integration order. The agents cannot
+write each other's files. Generated artifacts stay in their worktrees; the
+compressed-byte lane may read the existing proved interpreters and overlay
+without mutating them. The candidate build will be scheduled separately
+after the integration proposal is reviewed.
+
+The footprint lane's bounded 0.5-second child diagnostic returned five
+valid tree-footprint samples. The complete controller command used 0.13 user
+plus 0.44 system CPU seconds and 25,755,648 bytes maximum RSS. Its two `ps`
+scans per sample slowed the effective sampling interval below the requested
+50 ms cadence. The raw field and compact runner mapping are diagnostic only;
+no memory gate uses them yet. No behavioral tests were run for this second
+cycle change. See `mac-footprint-20260924.md` for source-backed limits.
+
+## First cycle (base `04667bb`, then `0224e8f`)
+
 The first three lanes started at `04667bb013cf40443aaa0203e737a900d44e4464`.
 The upstream control and zlib workload lanes started at
 `0224e8fa4be570f287f2b46a05191a46ebe0c681`.

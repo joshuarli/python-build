@@ -134,12 +134,16 @@ process memory.
 inputs, application macros, pyperformance, an external Linux process-tree
 sampler, Memray passes, self-comparison, and noise-aware per-workload verdicts.
 Native Apple Silicon supports paired wall and kernel CPU time plus a separate
-external process-tree RSS pass for a small local suite. A kernel lifetime peak
+external process-tree RSS and sampled physical-footprint pass for a small local suite. A kernel lifetime peak
 for the workload root catches short runs that sampling misses, but its
 per-PID physical footprint is not a whole-tree unique-memory measure. RSS growth is useful
 regression evidence, but summed RSS can double-count shared pages. Unique or
 proportional memory and allocation passes remain unavailable for this macOS
 3.16 lane, so upstream memory parity is still unqualified.
+The sampled footprint is a kernel ledger of charged dirty memory across the
+observed process tree; it is neither USS/PSS nor an exact tree peak. The
+[`mac-footprint-20260924.md`](rust-cpython/experiments/mac-footprint-20260924.md)
+report records its coverage and sampler cost.
 The Linux wheel lock targets CPython 3.14 musl and must not be silently reused
 for 3.16.
 

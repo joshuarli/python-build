@@ -7,8 +7,11 @@ that shows which workloads improved and which resource gates passed.
 
 The full timing, process-memory, and allocation profiles run on Linux amd64,
 including the `x86_64-unknown-linux-musl` python-build artifact. Native Apple
-Silicon macOS supports paired timing and an external process-tree RSS pass for
-Mach-O interpreters. Its allocation pass remains unavailable. The
+Silicon macOS supports paired timing and external process-tree RSS and sampled
+physical-footprint passes for Mach-O interpreters. Physical footprint is Apple's
+charged dirty-memory ledger, not USS or PSS; its sequential samples can miss
+short-lived children. The kernel root lifetime peaks are separate from the
+sampled tree values. The allocation pass remains unavailable. The
 harness consumes built interpreters; it does not alter the product build.
 
 ## Three independent passes
@@ -20,7 +23,7 @@ another.
 | Pass | Measures | Instrumentation |
 | --- | --- | --- |
 | Timing | Wall latency, throughput, repeatability, and kernel CPU user/system seconds per operation | No memory polling, Memray, allocator tracing, or `perf record` |
-| Memory | Process-tree peak and steady resident footprint | External Linux `/proc` or macOS `ps` sampler; not used in timing runs |
+| Memory | Process-tree peak and steady resident footprint | External Linux `/proc`, or macOS `ps` plus `libproc` for sampled RSS and physical footprint; not used in timing runs |
 | Allocations | Allocation count and bytes, heap high-water mark, allocator and native origins | Memray in a reduced, semantically equivalent run |
 
 Allocation-pass elapsed time is diagnostic only. Do not compare it with normal

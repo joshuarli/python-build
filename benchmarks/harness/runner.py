@@ -98,6 +98,8 @@ def _memory_dict(value: Any) -> dict[str, Any]:
         "peak_pss": value.get("peak_pss_bytes"),
         "peak_rss": value.get("peak_rss_bytes"),
         "peak_rss_coverage": value.get("peak_rss_coverage"),
+        "peak_phys_footprint": value.get("peak_phys_footprint_bytes"),
+        "phys_footprint_coverage": value.get("phys_footprint_coverage"),
         "root_kernel_peak_rss": value.get("root_kernel_peak_rss_bytes"),
         "root_kernel_peak_phys_footprint": value.get("root_kernel_peak_phys_footprint_bytes"),
         "peak_private": value.get("peak_private_bytes"),
