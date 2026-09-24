@@ -299,6 +299,14 @@ field was added; see
   rather than isolates the patch effect; upstream resource parity remains
   open. See
   [`url-quote-installed-comparison-20260924.md`](rust-cpython/experiments/url-quote-installed-comparison-20260924.md).
+- Against the matched upstream 3.16 build, five complete catalog pairs had
+  19.0% less wall time and 19.2% less root CPU. Three separate peak-RSS pairs
+  had mixed signs and a +49,152-byte median inside measured self-noise; one
+  pair was higher than the candidate's memory-noise allowance. The fork and
+  upstream have different ancestry and PGO profiles, and macOS unique memory,
+  PSS, and allocations remain unavailable. Keep the patch speed-qualified,
+  with resource acceptance open; see
+  [`url-quote-upstream-comparison-20260924.md`](rust-cpython/experiments/url-quote-upstream-comparison-20260924.md).
 
 ## Immediate work queue
 
@@ -324,10 +332,12 @@ field was added; see
   `unified_diff` path is a separate hypothesis whose snapshot and validation
   cost should be measured first; see
   [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
-- Compare the installed, patched URL candidate with the matched upstream
-  control under the same cache and quiet-host rules, then investigate other
-  relevant workloads before an integration verdict. Unique/proportional
-  memory and allocations remain unqualified even if RSS stays within noise.
+- Add and measure the two package-free URL breadth tasks proposed in
+  [`url-quote-breadth-audit-20260924.md`](rust-cpython/experiments/url-quote-breadth-audit-20260924.md),
+  plus fresh-import and long-input sentinels. The patched URL candidate has a
+  repeatable catalog speed gain, but resource acceptance and breadth remain
+  open. Unique/proportional memory and allocations are unqualified even when
+  paired RSS medians fall within noise.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops
