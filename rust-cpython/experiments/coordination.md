@@ -14,6 +14,17 @@ It may run serial paired external memory passes and fixed-digest checks,
 but no compilation or authoritative timing. Budget: 50 command CPU seconds,
 1 GiB maximum reported RSS. All generated clones and raw samples stay in its
 own worktree; the coordinator owns the next implementation decision.
+Five 24-process passes isolated the old RSS signal to parser cache state.
+The candidate inherited an invalid checked-hash `parse.py` cache in both
+earlier overlays, while control caches were valid and benchmark bytecode
+writes were disabled. Stale-cache catalog RSS deltas were +2.78 and +3.03
+MB; with all parser caches removed they were +65,536 and +114,688 bytes;
+with valid caches on all copies the delta was −65,536 bytes. Extension import
+alone stayed near control. All 120 processes passed exact digest and import
+checks. Five measured controllers used 45.06 user-plus-system CPU seconds,
+31,424,512 bytes maximum reported RSS, and zero swaps. The earlier memory
+rejections are withdrawn pending a cache-matched standard comparison; see
+`url-quote-memory-attribution-20260924.md`.
 
 ## Twelfth cycle (base `5c393f5`)
 

@@ -1,5 +1,14 @@
 # Lean Rust URL quotation: memory diagnostic
 
+**Measurement correction (2026-09-24):** The candidate inherited an invalid
+checked-hash `parse.py` bytecode cache while the control's cache was valid.
+The RSS rejection below applies to this unequal-cache overlay, not to the
+lean Rust implementation. See the
+[cache-attribution experiment](url-quote-memory-attribution-20260924.md):
+with valid caches on both sides, the lean candidate's paired median catalog
+peak RSS difference was −65,536 bytes across four diagnostic pairs. A fresh
+standard paired qualification is still required.
+
 ## Decision
 
 **Reject the lean overlay on peak RSS.** A separate five-pair, memory-only

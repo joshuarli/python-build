@@ -1,5 +1,13 @@
 # Guarded Rust URL quotation: complete-task comparison
 
+**Measurement correction (2026-09-24):** This overlay replaced `parse.py` but
+left the installed checked-hash parser bytecode cache invalid while the control
+used a valid cache. With bytecode writes disabled, the candidate compiled the
+parser during every fresh process. The RSS rejection below describes that
+unequal-cache run; it is not a valid verdict on the Rust implementation's
+memory. The [cache-attribution experiment](url-quote-memory-attribution-20260924.md)
+reproduced and removed the effect. A cache-matched paired run is required.
+
 ## Decision
 
 **Reject this overlay as a keep candidate.** On the registered 1,500-batch
