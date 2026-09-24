@@ -277,6 +277,12 @@ field was added; see
   stayed near control. This removes the earlier RSS rejection but is not a
   standard speed or upstream-memory qualification; see
   [`url-quote-memory-attribution-20260924.md`](rust-cpython/experiments/url-quote-memory-attribution-20260924.md).
+- A cache-matched comparison against the last accepted Rust fork stage found
+  the lean guarded overlay 18.7% faster in paired complete-task wall time and
+  18.6% lower in root CPU, with +131,072 bytes median peak RSS inside measured
+  self-noise. All complete digests matched. Keep it as a source-patch
+  candidate, not yet an accepted build or upstream parity claim; see
+  [`url-quote-fair-comparison-20260924.md`](rust-cpython/experiments/url-quote-fair-comparison-20260924.md).
 
 ## Immediate work queue
 
@@ -299,11 +305,13 @@ field was added; see
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
-- Repeat the lean guarded URL comparison against the last accepted Rust fork
-  control with verified valid parser bytecode caches on both sides. Calibrate
-  timing and memory noise, then compare the complete public workload. Only a
-  candidate that clears both time and memory gates merits a reproducible
-  source patch.
+- Turn the cache-matched lean URL candidate into an authored, digest-checked
+  source patch against the pinned Rust fork. Qualify the actual patched build,
+  unchanged URL tests, public-path reachability, and complete catalog timing
+  and memory against the same-stage control. The
+  [`patch-design audit`](rust-cpython/experiments/url-quote-patch-design-20260924.md)
+  identifies build boundaries; do not assume the overlay's size or speed
+  transfers to the whole build.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops

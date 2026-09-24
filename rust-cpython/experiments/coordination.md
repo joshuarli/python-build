@@ -37,6 +37,17 @@ bytecode in both clones outside measurement. Then it runs serial control and
 candidate self-calibration and a complete standard paired catalog comparison
 if timing noise permits. No concurrent build or benchmark lane. Budget:
 120 actual command CPU seconds and 1 GiB maximum reported RSS.
+With both parser pycs regenerated and verified as checked-hash caches, the
+quiet control and candidate self-calibrations had 2.05% and 1.90% timing
+noise. Five complete-task pairs gave a 0.81324 median external wall ratio
+(−18.7%) and 18.6% lower root CPU. Three separately sampled memory pairs
+gave +131,072 bytes median peak RSS, within the 327,927-byte control and
+169,160-byte candidate self-noise allowances. All digests matched. The
+discarded first control run overlapped unrelated `rustc` and had 28.5% noise.
+Seven measured controller commands used 52.88 user-plus-system CPU seconds,
+28,082,176 bytes maximum command RSS, and zero swaps. Keep the lean overlay
+as a source-patch candidate only; upstream USS/PSS and allocation gates are
+still open. See `url-quote-fair-comparison-20260924.md`.
 
 While unrelated host compilation holds timing, the source-patch feasibility
 audit uses `/private/tmp/python-build-exp-url-patch-design-20260924m`, branch
