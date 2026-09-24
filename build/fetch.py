@@ -10,6 +10,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
+from buildsys.filc import load_filc_toolchain, setup_filc_toolchain  # noqa: E402
 from buildsys.inputs import Cache, InputError, load_lock  # noqa: E402
 from buildsys.llvm import (  # noqa: E402
     extract_llvm_archive,
@@ -37,6 +38,17 @@ def main(argv: list[str] | None = None) -> int:
                 path = source_cache.fetch(entry)
                 print(f"ok      {entry.name} -> {path}")
 
+        if target.is_filc:
+            locked_filc = load_filc_toolchain(REPO / "bootstrap.lock.json")
+            filc_cache = Cache(REPO / ".cache" / "filc")
+            try:
+                filc_cache.require(locked_filc.archive_input)
+                print("cached  filc-pizfix-x86_64")
+            except InputError:
+                print("fetch   filc-pizfix-x86_64 ...", flush=True)
+                filc_cache.fetch(locked_filc.archive_input)
+            prefix = setup_filc_toolchain(locked_filc, filc_cache)
+            print(f"ready   filc-pizfix-x86_64 -> {prefix}")
         if target.is_macos:
             locked = load_macos_toolchain(REPO / "bootstrap.lock.json")
             llvm_cache = Cache(REPO / ".cache" / "llvm")

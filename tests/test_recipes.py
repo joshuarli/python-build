@@ -21,6 +21,30 @@ def _resolved(path: Path) -> Path:
 
 
 class RecipeTests(unittest.TestCase):
+    def test_dependency_patch_changes_verified_tree_before_configure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "source.tar"
+            with tarfile.open(archive, "w") as output:
+                for name, data in (("demo/configure", b"#!/bin/sh\n"),
+                                   ("demo/abi.txt", b"ordinary\n")):
+                    entry = tarfile.TarInfo(name)
+                    entry.size = len(data)
+                    entry.mode = 0o755 if name.endswith("configure") else 0o644
+                    output.addfile(entry, io.BytesIO(data))
+            patch_dir = root / "patches"
+            patch_dir.mkdir()
+            (patch_dir / "0001-abi.patch").write_text(
+                "--- a/abi.txt\n+++ b/abi.txt\n@@ -1 +1 @@\n"
+                "-ordinary\n+filc\n"
+            )
+            recipe = Recipe("demo", "demo", source_subdir="demo",
+                            patch_dir=patch_dir, log_path=root / "logs")
+            with patch("buildsys.recipes.run") as runner:
+                build_recipe(recipe, archive, root / "work", root / "prefix")
+            self.assertEqual((root / "work/demo/demo/abi.txt").read_text(), "filc\n")
+            self.assertEqual(len(runner.call_args_list), 3)
+
     def test_sqlite_build_enables_the_standalone_feature_profile(self):
         import runpy
 
@@ -45,10 +69,62 @@ class RecipeTests(unittest.TestCase):
 
         driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
         self.assertEqual(driver["make_targets"]("zstd"), ("libzstd.a-mt",))
+        self.assertEqual(
+            driver["make_variables"]("zstd", TARGETS["x86_64-filc-linux-musl"]),
+            ("ZSTD_NO_ASM=1",),
+        )
+        self.assertEqual(
+            driver["make_variables"]("zstd", TARGETS["x86_64-unknown-linux-musl"]),
+            (),
+        )
         self.assertIn(
             "-pthread",
             driver["cflags_for"]("zstd", TARGETS["x86_64-unknown-linux-musl"]),
         )
+        self.assertIn(
+            "-DZSTD_DISABLE_ASM=1",
+            driver["cflags_for"]("zstd", TARGETS["x86_64-filc-linux-musl"]),
+        )
+        self.assertNotIn(
+            "ZSTD_DISABLE_ASM",
+            driver["cflags_for"]("zstd", TARGETS["x86_64-unknown-linux-musl"]),
+        )
+
+    def test_filc_openssl_selects_portable_c_implementation(self):
+        import runpy
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        self.assertEqual(
+            driver["configure_args"]("openssl", target=TARGETS["x86_64-filc-linux-musl"]),
+            ("no-asm",),
+        )
+        self.assertEqual(
+            driver["configure_args"]("openssl", target=TARGETS["x86_64-unknown-linux-musl"]),
+            (),
+        )
+
+    def test_filc_xz_disables_both_assembler_paths(self):
+        import runpy
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        target = TARGETS["x86_64-filc-linux-musl"]
+        ordinary = TARGETS["x86_64-unknown-linux-musl"]
+        self.assertIn("--disable-assembler", driver["configure_args"]("xz", target=target))
+        self.assertEqual(driver["cflags_for"]("xz", target), "-DLZMA_RANGE_DECODER_CONFIG=0")
+        self.assertNotIn("--disable-assembler", driver["configure_args"]("xz", target=ordinary))
+        self.assertEqual(driver["cflags_for"]("xz", ordinary), "")
+
+    def test_filc_mpdecimal_selects_portable_uint128_machine(self):
+        import runpy
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        filc = TARGETS["x86_64-filc-linux-musl"]
+        ordinary = TARGETS["x86_64-unknown-linux-musl"]
+        self.assertIn("MACHINE=uint128", driver["configure_args"]("mpdecimal", target=filc))
+        self.assertNotIn("MACHINE=uint128", driver["configure_args"]("mpdecimal", target=ordinary))
 
     def test_gui_recipes_are_not_selectable(self):
         import runpy

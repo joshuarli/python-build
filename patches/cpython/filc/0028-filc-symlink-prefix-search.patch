@@ -1,0 +1,16 @@
+--- a/Modules/getpath.py
++++ b/Modules/getpath.py
+@@ -500,6 +500,13 @@
+         home = pth_dir
+         pythonpath = []
+ 
++# Fil-C's launcher keeps the invoked symlink in PYTHONEXECUTABLE so a
++# neighboring ._pth file above can override the path. Without such a file,
++# find the installed stdlib beside the real launcher, not beside an external
++# symlink that may live anywhere in the filesystem.
++if ENV_PYTHONEXECUTABLE and not pth_dir and real_executable:
++    executable_dir = dirname(real_executable)
++
+ 
+ # ******************************************************************************
+ # CHECK FOR BUILD DIRECTORY

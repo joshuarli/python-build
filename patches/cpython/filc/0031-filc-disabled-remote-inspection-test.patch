@@ -1,0 +1,12 @@
+--- a/Lib/test/test_external_inspection.py
++++ b/Lib/test/test_external_inspection.py
+@@ -20,6 +20,9 @@
+ 
+ import subprocess
+ 
++if not sys.is_remote_debug_enabled():
++    raise unittest.SkipTest("CPython remote debugging is disabled for this build")
++
+ PROCESS_VM_READV_SUPPORTED = False
+ 
+ try:

@@ -1,6 +1,7 @@
 # Allow only controller sources, never downloaded or compiled trees.
 **
 !Dockerfile
+!Dockerfile.filc
 !build.py
 !buildsys/
 buildsys/**

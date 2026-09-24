@@ -1,0 +1,42 @@
+--- a/Modules/socketmodule.c
++++ b/Modules/socketmodule.c
+@@ -1990,7 +1990,7 @@
+ #endif /* AF_VSOCK */
+ 
+ 
+-#ifdef AF_RDS
++#if defined(AF_RDS) && !defined(__FILC__)
+     case AF_RDS:
+         /* RDS sockets use sockaddr_in */
+         _Py_FALLTHROUGH;
+@@ -2762,7 +2762,7 @@
+        }
+ #endif /* AF_VSOCK */
+ 
+-#ifdef AF_RDS
++#if defined(AF_RDS) && !defined(__FILC__)
+     case AF_RDS:
+         /* RDS sockets use sockaddr_in */
+        _Py_FALLTHROUGH;
+@@ -8031,10 +8031,10 @@
+ #endif
+ 
+ /* Reliable Datagram Sockets */
+-#ifdef AF_RDS
++#if defined(AF_RDS) && !defined(__FILC__)
+     ADD_INT_MACRO(m, AF_RDS);
+ #endif
+-#ifdef PF_RDS
++#if defined(PF_RDS) && !defined(__FILC__)
+     ADD_INT_MACRO(m, PF_RDS);
+ #endif
+ 
+@@ -8517,7 +8517,7 @@
+ 
+     ADD_INT_MACRO(m, J1939_FILTER_MAX);
+ #endif
+-#ifdef SOL_RDS
++#if defined(SOL_RDS) && !defined(__FILC__)
+     ADD_INT_MACRO(m, SOL_RDS);
+ #endif
+ #ifdef HAVE_SOCKADDR_ALG

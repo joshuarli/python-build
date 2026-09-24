@@ -16,6 +16,12 @@ from pathlib import Path
 from buildsys.bootstrap import (
     BootstrapError, load_macos_toolchain, problems, toolchain_for,
 )
+from buildsys.filc import (
+    _MAX_ALIGN_NEW, _MAX_ALIGN_OLD, _correct_max_align_t,
+    _member_hashes, load_filc_toolchain,
+)
+from buildsys.inputs import InputError
+from buildsys.recipes import Toolchain
 from buildsys.targets import target_for_triple
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +29,72 @@ LOCK = ROOT / "bootstrap.lock.json"
 
 
 class LockParsingTests(unittest.TestCase):
+    def test_filc_toolchain_lock_has_distinct_musl_abi(self) -> None:
+        locked = load_filc_toolchain(LOCK)
+        self.assertEqual(locked.archive_input.target, "x86_64-filc-linux-musl")
+        self.assertEqual(locked.archive_input.role, "build-source")
+        self.assertEqual(locked.archive_input.sha256, locked.prefix.parent.name)
+        self.assertEqual(locked.pizfix, locked.prefix / "pizfix")
+        self.assertEqual(locked.header_correction_commit,
+                         "7712527fceb0dc1e89dee0146b6a98a8d071d888")
+
+    def test_filc_toolchain_fails_closed_when_setup_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            document = json.loads(LOCK.read_text())
+            path = Path(temporary) / "bootstrap.lock.json"
+            path.write_text(json.dumps(document))
+            with self.assertRaises(BootstrapError):
+                toolchain_for(target_for_triple("x86_64-filc-linux-musl"), path)
+
+    def test_filc_lock_rejects_glibc_archive_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            document = json.loads(LOCK.read_text())
+            document["filc_toolchain"]["kind"] = "glibc"
+            path = Path(temporary) / "bootstrap.lock.json"
+            path.write_text(json.dumps(document))
+            with self.assertRaises(InputError):
+                load_filc_toolchain(path)
+
+    def test_filc_toolchain_rejects_changed_runtime_member(self) -> None:
+        from dataclasses import replace
+
+        with tempfile.TemporaryDirectory() as temporary:
+            locked = replace(load_filc_toolchain(LOCK), prefix=Path(temporary))
+            for name in (
+                "build/bin/clang", "build/bin/clang++", "pizfix/lib/libc.so",
+                "pizfix/lib/libpizlo.so", "pizfix/lib/libyoloc.so",
+                "pizfix/lib/ld-fil1-x86_64.so", "pizfix/stdfil-include/stdfil.h",
+                "pizfix/include/bits/alltypes.h",
+            ):
+                member = locked.prefix / name
+                member.parent.mkdir(parents=True, exist_ok=True)
+                member.write_bytes(b"verified member")
+            (locked.pizfix / "include/bits/alltypes.h").write_bytes(_MAX_ALIGN_NEW)
+            asm = locked.pizfix / "os-include/asm"
+            asm.parent.mkdir(parents=True)
+            asm.symlink_to("/usr/include/x86_64-linux-gnu/asm")
+            marker = locked.prefix / ".python-build-filc.json"
+            marker.write_text(json.dumps({
+                "sha256": locked.archive_input.sha256,
+                "version": locked.version,
+                "members": _member_hashes(locked.prefix),
+            }))
+            locked.require_ready()
+            (locked.pizfix / "lib/libpizlo.so").write_bytes(b"changed")
+            with self.assertRaises(InputError):
+                locked.require_ready()
+
+    def test_filc_max_align_correction_is_exact_and_single_use(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            header = prefix / "pizfix/include/bits/alltypes.h"
+            header.parent.mkdir(parents=True)
+            header.write_bytes(b"prefix\n" + _MAX_ALIGN_OLD + b"\nsuffix\n")
+            _correct_max_align_t(prefix)
+            self.assertEqual(header.read_bytes(), b"prefix\n" + _MAX_ALIGN_NEW + b"\nsuffix\n")
+            with self.assertRaises(InputError):
+                _correct_max_align_t(prefix)
+
     def test_repository_lock_parses(self) -> None:
         toolchain = load_macos_toolchain(LOCK)
         self.assertTrue(toolchain.llvm_version)
@@ -62,6 +134,16 @@ class LockParsingTests(unittest.TestCase):
 class ToolchainConstructionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.locked = load_macos_toolchain(LOCK)
+
+    def test_filc_pkg_config_cannot_find_build_host_libraries(self) -> None:
+        with patch.dict("os.environ", {"PKG_CONFIG_LIBDIR": "/host/lib/pkgconfig"}):
+            empty = Toolchain(family="linux-filc-musl").env()
+            private = Toolchain(
+                family="linux-filc-musl",
+                pkg_config_path="/private/lib/pkgconfig",
+            ).env()
+        self.assertEqual(empty["PKG_CONFIG_LIBDIR"], "/nonexistent")
+        self.assertEqual(private["PKG_CONFIG_LIBDIR"], "/private/lib/pkgconfig")
 
     def test_recipe_toolchain_addresses_the_locked_llvm(self) -> None:
         toolchain = self.locked.toolchain()

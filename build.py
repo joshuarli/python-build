@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from buildsys.targets import TARGETS, UnsupportedTargetError, native_target  # noqa: E402
+from buildsys.targets import (  # noqa: E402
+    TARGETS, UnsupportedTargetError, native_target, target_for_host,
+)
 
 SUPPORTED = set(TARGETS)
 try:
@@ -48,18 +50,10 @@ def _require_target(target: str) -> None:
 
 def _require_native_target(target: str) -> None:
     _require_target(target)
-    if _NATIVE is None:
-        _fail(f"this machine ({platform.machine()}) has no target description; "
-              f"run inside a container built for one of {sorted(SUPPORTED)}")
-    if target != _NATIVE.triple:
-        if _NATIVE.is_macos:
-            _fail(f"--target {target} does not match the running machine "
-                  f"({_NATIVE.triple}); the macOS target builds and runs "
-                  f"natively on Apple Silicon, it does not cross-compile")
-        _fail(f"--target {target} does not match the running machine "
-              f"({_NATIVE.triple}); this project builds natively per-arch "
-              f"via `docker build --platform {TARGETS[target].docker_platform}`, "
-              f"it does not cross-compile")
+    try:
+        target_for_host(target)
+    except UnsupportedTargetError as error:
+        _fail(str(error))
 
 
 def _positive_int(value: str) -> int:
@@ -198,11 +192,12 @@ def build(args: argparse.Namespace) -> int:
             + "(M1c owns the offline build; see plan Section 7)"
         )
     result = subprocess.run(
-        [sys.executable, "build/deps.py"], cwd=Path(__file__).parent
+        [sys.executable, "build/deps.py", "--target", args.target],
+        cwd=Path(__file__).parent,
     )
     if result.returncode != 0:
         return result.returncode
-    cpython_command = [sys.executable, "build/cpython.py"]
+    cpython_command = [sys.executable, "build/cpython.py", "--target", args.target]
     if args.pgo_jobs is not None:
         cpython_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
     return subprocess.run(cpython_command, cwd=Path(__file__).parent).returncode
@@ -258,11 +253,11 @@ def main(argv: list[str] | None = None) -> int:
         return result.returncode
     if args.command == "compare-reference":
         result = subprocess.run(
-            [sys.executable, "build/package.py", "--compare-only"], cwd=Path(__file__).parent
+            [sys.executable, "build/package.py", "--compare-only", "--target", args.target], cwd=Path(__file__).parent
         )
         return result.returncode
     if args.command == "package":
-        result = subprocess.run([sys.executable, "build/package.py"], cwd=Path(__file__).parent)
+        result = subprocess.run([sys.executable, "build/package.py", "--target", args.target], cwd=Path(__file__).parent)
         return result.returncode
     if args.command == "reproduce":
         _require_target(args.target)

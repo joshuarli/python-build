@@ -30,13 +30,18 @@ from buildsys.cpython import (  # noqa: E402
     configuration, resolve_build_jobs, resolve_pgo_jobs,
 )
 from buildsys.inputs import Cache, InputError, load_lock, safe_extract  # noqa: E402
-from buildsys.patches import PatchError, apply_patch_set  # noqa: E402
+from buildsys.filc_runtime import relocate_filc  # noqa: E402
+from buildsys.patches import (  # noqa: E402
+    PatchError, apply_patch_set, cpython_patch_directories,
+)
 from buildsys.recipes import BuildError, run  # noqa: E402
 from buildsys.relocate import RelocationError, macho_relocate, relocate  # noqa: E402
 from buildsys.scope import (
     ScopeError, enforce_exclusions, probe_in_process, verify_exclusions,
 )  # noqa: E402
-from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
+from buildsys.targets import (  # noqa: E402
+    Target, UnsupportedTargetError, native_target, target_for_host,
+)
 
 CONFIGURE_PREFIX = "/install"
 JOBS = str(resolve_build_jobs())
@@ -76,9 +81,10 @@ def build(
     logs: Path,
     cache: Cache,
     *,
+    target: Target | None = None,
     pgo_jobs: int | None = None,
 ) -> Path:
-    target = native_target()
+    target = target or native_target()
     if pgo_jobs is not None and not target.is_macos:
         raise BuildError("--pgo-jobs is only supported for the macOS PGO build")
     resolved_pgo_jobs = resolve_pgo_jobs(pgo_jobs) if target.is_macos else None
@@ -94,7 +100,8 @@ def build(
     if (work / "cpython").exists():
         shutil.rmtree(work / "cpython")
     source = safe_extract(blob, work / "cpython") / f"Python-{pin.version}"
-    apply_patch_set(source, REPO / "patches" / "cpython")
+    for patch_dir in cpython_patch_directories(REPO / "patches", target):
+        apply_patch_set(source, patch_dir)
     build_directory = work / "cpython-build"
     if build_directory.exists():
         shutil.rmtree(build_directory)
@@ -128,7 +135,7 @@ def build(
         log=logs / "cpython-configure.log",
     )
     run(
-        [toolchain.make, "-j", JOBS],
+        [toolchain.make, "-j", str(toolchain.jobs) if target.is_filc else JOBS],
         cwd=build_directory,
         env=env,
         log=logs / "cpython-make.log",
@@ -137,8 +144,13 @@ def build(
     if staged.exists():
         shutil.rmtree(staged)
     staged.parent.mkdir(parents=True, exist_ok=True)
+    install_command = [toolchain.make, "install", f"DESTDIR={staged}"]
+    if target.is_filc:
+        # CPython's default compileall -j0 sees all host CPUs even when the
+        # Fil-C build container has a much smaller CPU and memory budget.
+        install_command.append("COMPILEALL_OPTS=-j2")
     run(
-        [toolchain.make, "install", f"DESTDIR={staged}"],
+        install_command,
         cwd=build_directory,
         env=env,
         log=logs / "cpython-install.log",
@@ -154,6 +166,10 @@ def build(
             raise RelocationError(
                 "deployment floor mismatch: " + "; ".join(floor["mismatches"][:5])
             )
+    elif target.is_filc:
+        if toolchain.filc_pizfix is None:
+            raise BuildError("Fil-C toolchain has no verified Pizfix runtime")
+        relocate_filc(install, prefix, toolchain.filc_pizfix, target)
     else:
         relocate(install, prefix)
     # Scope enforcement runs after relocation so the shebang rewrite cannot
@@ -232,6 +248,7 @@ def _positive_int(value: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the locked CPython source")
+    parser.add_argument("--target", default=native_target().triple)
     parser.add_argument(
         "--pgo-jobs", type=_positive_int,
         help="number of workers for the macOS CPython --pgo training task "
@@ -252,8 +269,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"BUILD cpython {version}", flush=True)
     try:
+        target = target_for_host(args.target)
         staged = build(
-            work, prefix, stage, logs, cache, pgo_jobs=args.pgo_jobs
+            work, prefix, stage, logs, cache, target=target,
+            pgo_jobs=args.pgo_jobs,
         )
     except (BuildError, InputError, PatchError, BootstrapError,
             UnsupportedTargetError, RelocationError, ScopeError) as error:

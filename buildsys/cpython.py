@@ -67,6 +67,52 @@ def configuration(
     target = target or native_target()
     if target.is_macos:
         return _macos_configuration(prefix, target, resolve_pgo_jobs(pgo_jobs))
+    if target.is_filc:
+        args, env = _linux_musl_configuration(prefix, target)
+        # BDB's private heap queues lose Fil-C capabilities through relative
+        # integer offsets. dbm.sqlite3 is the standard-library backend for
+        # this target and uses our already-locked SQLite library.
+        args.remove("--with-dbmliborder=bdb:ndbm:gdbm")
+        args.append("--with-dbmliborder=")
+        env.pop("DBM_CFLAGS")
+        env.pop("DBM_LIBS")
+        # Fil-C's malloc is already capability checked and GC backed. The
+        # interpreter must not bypass it with either CPython allocator.
+        args.extend(("--without-mimalloc", "--without-pymalloc"))
+        # The official 0.685 compiler archive has no matching LTO linker.
+        # Its LLVM 20 bitcode fails to link with the host's older GNU/LLD
+        # plugins; a non-LTO link works. Keep this exception target scoped.
+        args.remove("--with-lto=thin")
+        # Remote process inspection assumes ordinary ELF/PyRuntime discovery.
+        # Fil-C's bundled loader cannot satisfy that contract; configure it
+        # off so sys.is_remote_debug_enabled() reports the actual capability.
+        args.append("--without-remote-debug")
+        # Fil-C accepts these assembly snippets at link-probe time but cannot
+        # execute x87/mc68881 control-word operations with pointer operands.
+        # The x64 probe likewise proves only syntax, not runtime support.
+        env.update({
+            "ac_cv_gcc_asm_for_x64": "no",
+            "ac_cv_gcc_asm_for_x87": "no",
+            "ac_cv_gcc_asm_for_mc68881": "no",
+            # Pizfix exposes fexecve but its implementation aborts on the
+            # unavailable syscall; CPython must not advertise fd execve.
+            "ac_cv_func_fexecve": "no",
+            # Pizfix exposes these entry points but aborts in their syscall
+            # stubs. Do not advertise an operation that cannot return ENOSYS.
+            "ac_cv_func_prlimit": "no",
+            "ac_cv_func_sethostname": "no",
+            "ac_cv_func_clock_settime": "no",
+            # Configure otherwise re-enables it through a -lrt link probe.
+            "ac_cv_lib_rt_clock_settime": "no",
+            # pthread_t is a capability in Pizfix; Python's public numeric
+            # thread ID cannot be cast back into a valid pthread_t.
+            "ac_cv_func_pthread_kill": "no",
+            "ac_cv_func_pthread_getcpuclockid": "no",
+            "ac_cv_func_sched_rr_get_interval": "no",
+            "ac_cv_func_unshare": "no",
+            "ac_cv_func_setns": "no",
+        })
+        return args, env
     return _linux_musl_configuration(prefix, target)
 
 

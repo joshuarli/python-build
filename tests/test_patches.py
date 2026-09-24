@@ -6,7 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from buildsys.patches import PatchError, apply_patch, apply_patch_set
+from buildsys.patches import (
+    PatchError, apply_patch, apply_patch_set, cpython_patch_directories,
+)
+from buildsys.targets import TARGETS
 
 REPO = Path(__file__).resolve().parent.parent
 PATCH_DIR = REPO / "patches" / "cpython"
@@ -15,7 +18,7 @@ CPYTHON_SOURCE = REPO / "src" / "Python-3.14.6"
 
 class PatchProvenanceTests(unittest.TestCase):
     def test_every_patch_has_a_provenance_note(self) -> None:
-        for patch in PATCH_DIR.glob("*.patch"):
+        for patch in (REPO / "patches").rglob("*.patch"):
             note = patch.with_suffix(".md")
             self.assertTrue(note.is_file(), f"{patch.name} is missing its provenance note")
             text = note.read_text()
@@ -24,6 +27,16 @@ class PatchProvenanceTests(unittest.TestCase):
 
 
 class ApplyPatchTests(unittest.TestCase):
+    def test_filc_patches_are_selected_only_for_filc(self) -> None:
+        self.assertEqual(
+            cpython_patch_directories(REPO / 'patches', TARGETS['x86_64-unknown-linux-musl']),
+            (PATCH_DIR,),
+        )
+        self.assertEqual(
+            cpython_patch_directories(REPO / 'patches', TARGETS['x86_64-filc-linux-musl']),
+            (PATCH_DIR, PATCH_DIR / 'filc'),
+        )
+
     def test_unknown_patch_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(PatchError):

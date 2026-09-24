@@ -176,10 +176,12 @@ def module_inventory(python: Path) -> dict:
     return data
 
 
-def capability_checks(python: Path) -> dict:
+def capability_checks(python: Path, *, dbm_backend: str = "ndbm") -> dict:
     """Round trips through the bundled and platform-backed modules."""
+    if dbm_backend not in {"ndbm", "sqlite3"}:
+        raise ValueError(f"unsupported dbm backend: {dbm_backend}")
     code = """
-        import bz2, dbm, dbm.ndbm, decimal, hashlib, json, lzma, os
+        import bz2, dbm, decimal, hashlib, json, lzma, os
         import sqlite3, tempfile, uuid, zlib
         import compression.zstd
         out = {}
@@ -200,6 +202,10 @@ def capability_checks(python: Path) -> dict:
             con.close()
         out["decimal"] = str(decimal.Decimal(2).sqrt())[:9]
         out["uuid4"] = len(uuid.uuid4().hex) == 32
+    """
+    if dbm_backend == "ndbm":
+        code += """
+        import dbm.ndbm
         out["ndbm_roundtrip"] = False
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "n")
@@ -208,6 +214,20 @@ def capability_checks(python: Path) -> dict:
             with dbm.ndbm.open(p, "r") as db:
                 out["ndbm_roundtrip"] = db[b"k"] == b"v"
             out["whichdb"] = dbm.whichdb(p)
+        """
+    else:
+        code += """
+        import dbm.sqlite3
+        out["sqlite_dbm_roundtrip"] = False
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "n")
+            with dbm.sqlite3.open(p, "c") as db:
+                db[b"k"] = b"v"
+            with dbm.sqlite3.open(p, "r") as db:
+                out["sqlite_dbm_roundtrip"] = db[b"k"] == b"v"
+            out["whichdb"] = dbm.whichdb(p)
+        """
+    code += """
         out["dbm_default"] = None
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "d")

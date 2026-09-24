@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 from buildsys.deporder import (
-    DEPENDENCY_ORDER, LINUX_DEPENDENCY_ORDER, MACOS_DEPENDENCY_ORDER,
+    DEPENDENCY_ORDER, FILC_DEPENDENCY_ORDER, LINUX_DEPENDENCY_ORDER,
+    MACOS_DEPENDENCY_ORDER,
 )
 from buildsys.inputs import load_lock
 from buildsys.scope import (
@@ -59,6 +60,10 @@ class ScopeTests(unittest.TestCase):
         self.assertIn("libuuid", LINUX_DEPENDENCY_ORDER)
         self.assertIn("pkgconf", LINUX_DEPENDENCY_ORDER)
         self.assertIn("ncurses", LINUX_DEPENDENCY_ORDER)
+
+    def test_filc_uses_locked_sqlite_for_dbm(self):
+        self.assertNotIn("bdb", FILC_DEPENDENCY_ORDER)
+        self.assertIn("sqlite", FILC_DEPENDENCY_ORDER)
 
     def test_no_order_contains_duplicates(self):
         for order in (LINUX_DEPENDENCY_ORDER, MACOS_DEPENDENCY_ORDER):

@@ -1,0 +1,82 @@
+--- a/Lib/test/test_capi/test_mem.py
++++ b/Lib/test/test_capi/test_mem.py
+@@ -1,4 +1,5 @@
+ import re
++import sys
+ import textwrap
+ import unittest
+ 
+@@ -114,6 +115,8 @@
+     def test_pyobject_forbidden_bytes_is_freed(self):
+         self.check_pyobject_is_freed('check_pyobject_forbidden_bytes_is_freed')
+ 
++    @unittest.skipIf(sys.implementation._multiarch == 'x86_64-filc-linux-musl',
++                     'Fil-C traps the intentional use-after-free in this test')
+     def test_pyobject_freed_is_freed(self):
+         self.check_pyobject_is_freed('check_pyobject_freed_is_freed')
+ 
+--- a/Lib/test/test_ctypes/test_pointers.py
++++ b/Lib/test/test_ctypes/test_pointers.py
+@@ -57,14 +57,15 @@
+     def test_pass_pointers(self):
+         dll = CDLL(_ctypes_test.__file__)
+         func = dll._testfunc_p_p
+-        if sizeof(c_longlong) == sizeof(c_void_p):
+-            func.restype = c_longlong
+-        else:
+-            func.restype = c_long
+-
+         i = c_int(12345678)
+-        address = func(byref(i))
+-        self.assertEqual(c_int.from_address(address).value, 12345678)
++        if sys.implementation._multiarch != 'x86_64-filc-linux-musl':
++            # A numeric return type discards the Fil-C pointer capability.
++            if sizeof(c_longlong) == sizeof(c_void_p):
++                func.restype = c_longlong
++            else:
++                func.restype = c_long
++            address = func(byref(i))
++            self.assertEqual(c_int.from_address(address).value, 12345678)
+ 
+         func.restype = POINTER(c_int)
+         res = func(pointer(i))
+--- a/Lib/test/test_signal.py
++++ b/Lib/test/test_signal.py
+@@ -1346,6 +1346,8 @@
+         self.assertEqual(len(sigs), N, "Some signals were lost")
+ 
+     @support.requires_gil_enabled("gh-121065: test is flaky on free-threaded build")
++    @unittest.skipIf(sys.implementation._multiarch == 'x86_64-filc-linux-musl',
++                     'Pizfix asserts when this test races signal handler replacement')
+     @unittest.skipIf(is_apple, "crashes due to system bug (FB13453490)")
+     @unittest.skipUnless(hasattr(signal, "SIGUSR1"),
+                          "test needs SIGUSR1")
+--- a/Lib/test/test_threading.py
++++ b/Lib/test/test_threading.py
+@@ -722,8 +722,12 @@
+     @unittest.skipUnless(hasattr(os, 'waitpid'), "test needs os.waitpid()")
+     def test_main_thread_after_fork(self):
+         code = """if 1:
+-            import os, threading
++            import os, threading, warnings, sys
+             from test import support
++
++            if sys.implementation._multiarch == 'x86_64-filc-linux-musl':
++                warnings.filterwarnings('ignore', message='This process.*fork',
++                                        category=DeprecationWarning)
+ 
+             ident = threading.get_ident()
+             pid = os.fork()
+@@ -1358,7 +1362,12 @@
+         script = """if True:
+             import threading
+             import os
++            import sys, warnings
+             from test import support
++
++            if sys.implementation._multiarch == 'x86_64-filc-linux-musl':
++                warnings.filterwarnings('ignore', message='This process.*fork',
++                                        category=DeprecationWarning)
+ 
+             parent_thread_native_id = threading.current_thread().native_id
+             print(parent_thread_native_id, flush=True)

@@ -1,0 +1,15 @@
+--- a/Lib/test/support/__init__.py
++++ b/Lib/test/support/__init__.py
+@@ -3206,6 +3206,12 @@
+         _linked_to_musl = (0, 0, 0)
+         return _linked_to_musl
+ 
++    # Fil-C uses musl behind a distinct Pizfix loader, which platform.libc_ver
++    # cannot recognize from the executable's ordinary ELF interpreter name.
++    if (sysconfig.get_config_var("SOABI") or "").endswith("-filc-linux-musl"):
++        _linked_to_musl = (0, 0, 0)
++        return _linked_to_musl
++
+     # On all other non-linux platforms assume no musl.
+     if sys.platform != 'linux':
+         _linked_to_musl = False

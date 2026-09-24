@@ -1,0 +1,41 @@
+--- a/Modules/_ctypes/cfield.c
++++ b/Modules/_ctypes/cfield.c
+@@ -1257,7 +1257,12 @@
+         *(const char **)ptr = PyBytes_AsString(value);
+         return Py_NewRef(value);
+     } else if (PyLong_Check(value)) {
+-#if SIZEOF_VOID_P == SIZEOF_LONG_LONG
++#ifdef __FILC__
++        *(char **)ptr = PyLong_AsVoidPtr(value);
++        if (PyErr_Occurred()) {
++            return NULL;
++        }
++#elif SIZEOF_VOID_P == SIZEOF_LONG_LONG
+         *(char **)ptr = (char *)PyLong_AsUnsignedLongLongMask(value);
+ #else
+         *(char **)ptr = (char *)PyLong_AsUnsignedLongMask(value);
+@@ -1295,7 +1300,12 @@
+         return Py_NewRef(value);
+     }
+     if (PyLong_Check(value)) {
+-#if SIZEOF_VOID_P == SIZEOF_LONG_LONG
++#ifdef __FILC__
++        *(wchar_t **)ptr = PyLong_AsVoidPtr(value);
++        if (PyErr_Occurred()) {
++            return NULL;
++        }
++#elif SIZEOF_VOID_P == SIZEOF_LONG_LONG
+         *(wchar_t **)ptr = (wchar_t *)PyLong_AsUnsignedLongLongMask(value);
+ #else
+         *(wchar_t **)ptr = (wchar_t *)PyLong_AsUnsignedLongMask(value);
+@@ -1415,7 +1425,9 @@
+         return NULL;
+     }
+ 
+-#if SIZEOF_VOID_P <= SIZEOF_LONG
++#ifdef __FILC__
++    v = PyLong_AsVoidPtr(value);
++#elif SIZEOF_VOID_P <= SIZEOF_LONG
+     v = (void *)PyLong_AsUnsignedLongMask(value);
+ #else
+ #if SIZEOF_LONG_LONG < SIZEOF_VOID_P

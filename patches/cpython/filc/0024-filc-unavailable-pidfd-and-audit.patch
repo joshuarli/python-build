@@ -1,0 +1,42 @@
+--- a/Modules/signalmodule.c
++++ b/Modules/signalmodule.c
+@@ -1310,7 +1310,7 @@
+ 
+ // This system call always crashes on older Android versions.
+ #if defined(__linux__) && defined(__NR_pidfd_send_signal) && \
+-    !(defined(__ANDROID__) && __ANDROID_API__ < 31)
++    !(defined(__ANDROID__) && __ANDROID_API__ < 31) && !defined(__FILC__)
+ /*[clinic input]
+ signal.pidfd_send_signal
+ 
+--- a/Modules/clinic/signalmodule.c.h
++++ b/Modules/clinic/signalmodule.c.h
+@@ -674,7 +674,7 @@
+ 
+ #endif /* defined(HAVE_PTHREAD_KILL) */
+ 
+-#if (defined(__linux__) && defined(__NR_pidfd_send_signal) && !(defined(__ANDROID__) && __ANDROID_API__ < 31))
++#if (defined(__linux__) && defined(__NR_pidfd_send_signal) && !(defined(__ANDROID__) && __ANDROID_API__ < 31) && !defined(__FILC__))
+ 
+ PyDoc_STRVAR(signal_pidfd_send_signal__doc__,
+ "pidfd_send_signal($module, pidfd, signalnum, siginfo=None, flags=0, /)\n"
+--- a/Lib/test/audit-tests.py
++++ b/Lib/test/audit-tests.py
+@@ -320,10 +320,13 @@
+         ctypes.cast(ctypes.c_voidp(0), ctypes.POINTER(ctypes.c_char))
+         assert "ctypes.call_function" in hook.seen_events
+ 
+-    with TestHook() as hook:
+-        ctypes.string_at(id("ctypes.string_at") + 40)
+-        assert "ctypes.call_function" in hook.seen_events
+-        assert "ctypes.string_at" in hook.seen_events
++    # Fil-C correctly rejects an invented pointer made by adding to id().
++    # The tests above still check real _ctypes call_function audit events.
++    if sys.implementation._multiarch != "x86_64-filc-linux-musl":
++        with TestHook() as hook:
++            ctypes.string_at(id("ctypes.string_at") + 40)
++            assert "ctypes.call_function" in hook.seen_events
++            assert "ctypes.string_at" in hook.seen_events
+ 
+ 
+ def test_posixsubprocess():

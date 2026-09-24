@@ -1,0 +1,28 @@
+--- a/Modules/_elementtree.c
++++ b/Modules/_elementtree.c
+@@ -23,6 +23,9 @@
+ #include <stddef.h>               // offsetof()
+ #include "expat.h"
+ #include "pyexpat.h"
++#ifdef __FILC__
++#  include <stdfil.h>             // Tagged pointers retain their capabilities.
++#endif
+ 
+ /* -------------------------------------------------------------------- */
+ /* configuration */
+@@ -55,8 +58,13 @@
+    JOIN_OBJ.  see comments in the ElementObject definition for more
+    info. */
+ #define JOIN_GET(p) ((uintptr_t) (p) & 1)
+-#define JOIN_SET(p, flag) ((void*) ((uintptr_t) (JOIN_OBJ(p)) | (flag)))
+-#define JOIN_OBJ(p) ((PyObject*) ((uintptr_t) (p) & ~(uintptr_t)1))
++#ifdef __FILC__
++#  define JOIN_SET(p, flag) ((PyObject *)zorptr(JOIN_OBJ(p), (flag)))
++#  define JOIN_OBJ(p) ((PyObject *)zandptr((p), ~(uintptr_t)1))
++#else
++#  define JOIN_SET(p, flag) ((void*) ((uintptr_t) (JOIN_OBJ(p)) | (flag)))
++#  define JOIN_OBJ(p) ((PyObject*) ((uintptr_t) (p) & ~(uintptr_t)1))
++#endif
+ 
+ /* Py_SETREF for a PyObject* that uses a join flag. */
+ Py_LOCAL_INLINE(void)

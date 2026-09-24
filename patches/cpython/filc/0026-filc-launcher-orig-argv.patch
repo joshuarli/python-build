@@ -1,0 +1,24 @@
+--- a/Python/initconfig.c
++++ b/Python/initconfig.c
+@@ -3489,6 +3489,21 @@
+         }
+     }
+ 
++#ifdef __FILC__
++    /* The bundled Pizfix loader receives python3.14.real as argv[0]. The
++       launcher supplies the public executable path in PYTHONEXECUTABLE;
++       preserve that spelling in sys.orig_argv as well as sys.executable. */
++    const char *filc_launcher = getenv("PYTHONEXECUTABLE");
++    if (filc_launcher != NULL && config->orig_argv.length > 0) {
++        wchar_t *launcher_argv = Py_DecodeLocale(filc_launcher, NULL);
++        if (launcher_argv == NULL) {
++            return _PyStatus_NO_MEMORY();
++        }
++        PyMem_RawFree(config->orig_argv.items[0]);
++        config->orig_argv.items[0] = launcher_argv;
++    }
++#endif
++
+     _PyPreCmdline precmdline = _PyPreCmdline_INIT;
+     status = core_read_precmdline(config, &precmdline);
+     if (_PyStatus_EXCEPTION(status)) {

@@ -69,6 +69,54 @@ CASE_EXCLUSIONS = (
     ),
 )
 
+# These exact cases require installing fatal-signal handlers. Pizfix returns
+# ENOSYS for that operation; other faulthandler cases still run and must pass.
+FILC_CASE_EXCLUSIONS = tuple(
+    Exclusion(
+        test=f"test_faulthandler:{name}",
+        reason="Pizfix returns ENOSYS for fatal-signal handler installation",
+        consequence="faulthandler.enable(), PYTHONFAULTHANDLER and -X "
+                    "faulthandler cannot provide automatic fatal tracebacks",
+    )
+    for name in (
+        "test_is_enabled", "test_dump_ext_modules", "test_enable_fd",
+        "test_enable_file", "test_env_var", "test_sys_xoptions",
+    )
+) + (
+    Exclusion(
+        test="test_cmd_line:test_python_malloc_stats",
+        reason="the Fil-C interpreter uses Pizfix's GC-backed malloc and "
+               "configures CPython without pymalloc",
+        consequence="PYTHONMALLOCSTATS has no pymalloc small-block data to emit",
+    ),
+    Exclusion(
+        test="test_cmd_line:test_xdev",
+        reason="-X dev requests faulthandler, but Pizfix rejects fatal-signal "
+               "handlers with ENOSYS",
+        consequence="other development-mode checks run; automatic fatal "
+                    "tracebacks remain unavailable",
+    ),
+    Exclusion(
+        test="test_mmap:test_access_parameter",
+        reason="Pizfix rejects PROT_READ|PROT_EXEC file mappings with EINVAL",
+        consequence="executable mmap mappings are unavailable; ordinary "
+                    "read/write and copy-on-write mmap tests still run",
+    ),
+    Exclusion(
+        test="test_mmap:test_resize_up_private_anonymous_mapping",
+        reason="Pizfix returns ENOSYS for mremap of a private anonymous map",
+        consequence="that mmap cannot be resized upward in place; other "
+                    "mmap operations remain under test",
+    ),
+    Exclusion(
+        test="test_subprocess:test_run_abort",
+        reason="Pizfix abort() invokes its safety panic and exits with SIGTRAP "
+               "rather than delivering SIGABRT",
+        consequence="subprocess reports signal 5 for an aborting Fil-C child; "
+                    "ordinary process exit and signal handling remain tested",
+    ),
+)
+
 
 class SuiteError(Exception):
     """The regression suite could not be run or its output not understood."""
@@ -82,16 +130,24 @@ _FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
 # The failing files are listed space-separated on a single indented line, not
 # one per line — a regex that assumes one-per-line silently finds nothing and
 # makes the whole run look clean.
-_FAILED_FILES = re.compile(r"^\d+ tests failed:\n\s+([\w\s]+)$", re.M)
+_FAILED_FILES = re.compile(r"^\d+ tests failed:\n((?:[ \t]+[^\n]+\n)+)", re.M)
 
 
-def run_suite(python: Path, *, jobs: int = 6, timeout: int = 600) -> dict:
+def run_suite(
+    python: Path, *, jobs: int = 6, timeout: int = 600,
+    output_path: Path | None = None,
+) -> dict:
     """Run the standard library test suite, excluding the scoped-out modules."""
     command = [str(python), "-m", "test", "-j", str(jobs), f"--timeout={timeout}"]
     for exclusion in FILE_EXCLUSIONS:
         command += ["-x", exclusion.test]
-    result = subprocess.run(command, capture_output=True, text=True)
-    output = result.stdout + result.stderr
+    if output_path is None:
+        result = subprocess.run(command, capture_output=True, text=True)
+        output = result.stdout + result.stderr
+    else:
+        with output_path.open("w") as stream:
+            subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, text=True)
+        output = output_path.read_text()
     match = _SUMMARY.search(output)
     if not match:
         raise SuiteError(f"could not parse suite summary:\n{output[-2000:]}")
@@ -120,6 +176,7 @@ def verify_excluded_failures(
     *,
     attempts: int = 3,
     fresh_python=None,
+    additional_exclusions: tuple[Exclusion, ...] = (),
 ) -> dict:
     """Re-run each failing file alone to separate real failures from flakes.
 
@@ -145,7 +202,7 @@ def verify_excluded_failures(
     findings: dict[str, dict] = {}
     case_exclusions = {
         exclusion.test.split(":", 1)[0]
-        for exclusion in CASE_EXCLUSIONS
+        for exclusion in (*CASE_EXCLUSIONS, *additional_exclusions)
     }
     for name in failed_files:
         best: dict | None = None
@@ -177,12 +234,15 @@ def verify_excluded_failures(
     return findings
 
 
-def classify(solo_findings: dict) -> dict:
+def classify(
+    solo_findings: dict, *, additional_exclusions: tuple[Exclusion, ...] = (),
+) -> dict:
     """Split observed failures into registered exclusions and real failures."""
-    registered = {e.test for e in FILE_EXCLUSIONS} | {e.test for e in CASE_EXCLUSIONS}
+    case_exclusions = (*CASE_EXCLUSIONS, *additional_exclusions)
+    registered = {e.test for e in FILE_EXCLUSIONS} | {e.test for e in case_exclusions}
     registered_files = {e.test for e in FILE_EXCLUSIONS}
     file_cases: dict[str, set[str]] = {}
-    for exclusion in CASE_EXCLUSIONS:
+    for exclusion in case_exclusions:
         file_name, case_name = exclusion.test.split(":", 1)
         file_cases.setdefault(file_name, set()).add(case_name)
 
@@ -206,7 +266,9 @@ def classify(solo_findings: dict) -> dict:
     }
 
 
-def report_payload(report: dict) -> dict:
+def report_payload(
+    report: dict, *, additional_exclusions: tuple[Exclusion, ...] = (),
+) -> dict:
     """Shape the suite result for `dist/validation.json`."""
     return {
         "tests_run": report["tests_run"],
@@ -217,7 +279,7 @@ def report_payload(report: dict) -> dict:
         ),
         "exclusions": [
             {"test": e.test, "reason": e.reason, "consequence": e.consequence}
-            for e in (*FILE_EXCLUSIONS, *CASE_EXCLUSIONS)
+            for e in (*FILE_EXCLUSIONS, *CASE_EXCLUSIONS, *additional_exclusions)
         ],
         "unexpected_failures": report.get("classification", {}).get("unexpected_failures", []),
         "ok": not report.get("classification", {}).get("unexpected_failures", []),

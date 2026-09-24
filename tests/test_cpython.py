@@ -11,6 +11,33 @@ from buildsys.targets import TARGETS
 
 
 class CPythonTests(unittest.TestCase):
+    def test_filc_uses_its_safe_allocator_without_changing_ordinary_musl(self):
+        prefix = Path('/private')
+        filc_args, filc_env = configuration(prefix, TARGETS['x86_64-filc-linux-musl'])
+        ordinary_args, _ = configuration(prefix, TARGETS['x86_64-unknown-linux-musl'])
+        self.assertIn('--without-mimalloc', filc_args)
+        self.assertIn('--without-pymalloc', filc_args)
+        self.assertNotIn('--without-freelists', filc_args)
+        self.assertNotIn('--without-mimalloc', ordinary_args)
+        self.assertNotIn('--without-pymalloc', ordinary_args)
+        self.assertNotIn('--with-lto=thin', filc_args)
+        self.assertIn('--without-remote-debug', filc_args)
+        self.assertNotIn('--without-remote-debug', ordinary_args)
+        self.assertEqual(filc_env['ac_cv_func_fexecve'], 'no')
+        for unsupported in ('prlimit', 'sethostname', 'clock_settime',
+                            'pthread_kill', 'pthread_getcpuclockid',
+                            'sched_rr_get_interval',
+                            'unshare', 'setns'):
+            self.assertEqual(filc_env[f'ac_cv_func_{unsupported}'], 'no')
+        self.assertEqual(filc_env['ac_cv_lib_rt_clock_settime'], 'no')
+        self.assertNotIn('--enable-optimizations', filc_args)
+        self.assertIn('--with-dbmliborder=', filc_args)
+        self.assertNotIn('DBM_LIBS', filc_env)
+        self.assertEqual(filc_env['PKG_CONFIG_LIBDIR'],
+                         '/private/lib/pkgconfig:/private/share/pkgconfig')
+        for probe in ('x64', 'x87', 'mc68881'):
+            self.assertEqual(filc_env[f'ac_cv_gcc_asm_for_{probe}'], 'no')
+
     def test_release_policy_and_private_dependencies(self):
         args, env = configuration(Path('/private'), TARGETS['x86_64-unknown-linux-musl'])
         self.assertIn('--with-lto=thin', args)

@@ -40,6 +40,10 @@ class NamingTests(unittest.TestCase):
             metadata_key("aarch64-unknown-linux-musl"), "cpython-3.14.6-linux-aarch64-musl"
         )
 
+    def test_filc_abi_is_not_advertised_as_ordinary_musl(self) -> None:
+        with self.assertRaises(UvMirrorError):
+            metadata_key("x86_64-filc-linux-musl")
+
     def test_metadata_entry_encodes_plus_like_upstream(self) -> None:
         entry = metadata_entry(
             "aarch64-apple-darwin", "20260923", "https://example.invalid/dl", "0" * 64

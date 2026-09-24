@@ -1,0 +1,11 @@
+--- a/Include/internal/pycore_tracemalloc.h
++++ b/Include/internal/pycore_tracemalloc.h
+@@ -40,7 +40,7 @@
+ #endif
+ 
+ struct
+-#ifdef __GNUC__
++#if defined(__GNUC__) && !defined(__FILC__)
+ __attribute__((packed))
+ #endif
+ tracemalloc_frame {

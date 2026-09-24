@@ -1,0 +1,17 @@
+--- a/Modules/readline.c
++++ b/Modules/readline.c
+@@ -415,8 +415,14 @@
+             return NULL;
+         }
+     }
++#ifdef __FILC__
++    /* libedit's append count is exact; only replace_history_entry uses
++       the one-based index adjustment detected during initialization. */
++    errno = err = append_history(nelements, filename);
++#else
+     errno = err = append_history(
+         nelements - libedit_append_replace_history_offset, filename);
++#endif
+     int history_length = FT_ATOMIC_LOAD_INT_RELAXED(_history_length);
+     if (!err && history_length >= 0)
+         history_truncate_file(filename, history_length);

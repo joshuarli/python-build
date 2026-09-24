@@ -1,0 +1,37 @@
+--- a/src/readline.c
++++ b/src/readline.c
+@@ -1483,6 +1483,14 @@
+ 
+ 	if ((fp = fopen(filename, "a")) == NULL)
+ 		return errno;
++	/* Pizfix's append stream begins with position zero even when the file
++	 * already has content. H_NSAVE_FP uses ftell to decide whether to write
++	 * the history cookie, so seek to the actual end first. */
++	if (fseek(fp, 0, SEEK_END) != 0) {
++		int serrno = errno;
++		fclose(fp);
++		return serrno;
++	}
+ 
+ 	if (history(h, &ev, H_NSAVE_FP, (size_t)n,  fp) == -1) {
+ 		int serrno = errno ? errno : EINVAL;
+--- a/src/history.c
++++ b/src/history.c
+@@ -845,6 +845,8 @@
+ #ifndef NARROWCHAR
+ 	static ct_buffer_t conv;
+ #endif
++	if (nelem == 0)
++		return 0;
+ 
+ 	if (ftell(fp) == 0 && fputs(hist_cookie, fp) == EOF)
+ 		goto done;
+@@ -852,7 +854,7 @@
+ 	if (ptr == NULL)
+ 		goto done;
+ 	if (nelem != (size_t)-1) {
+-		for (retval = HFIRST(h, &ev); retval != -1 && nelem-- > 0;
++		for (retval = HFIRST(h, &ev); retval != -1 && nelem-- > 1;
+ 		    retval = HNEXT(h, &ev))
+ 			continue;
+ 	} else

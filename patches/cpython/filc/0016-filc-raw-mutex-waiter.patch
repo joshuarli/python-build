@@ -1,0 +1,137 @@
+--- a/Include/internal/pycore_lock.h
++++ b/Include/internal/pycore_lock.h
+@@ -95,7 +95,11 @@
+ // indicate whether the mutex is locked or not. The remaining bits are either
+ // zero or a pointer to a `struct raw_mutex_entry` (see lock.c).
+ typedef struct {
++#ifdef __FILC__
++    void *v;
++#else
+     uintptr_t v;
++#endif
+ } _PyRawMutex;
+ 
+ // Slow paths for lock/unlock
+@@ -105,8 +109,13 @@
+ static inline void
+ _PyRawMutex_Lock(_PyRawMutex *m)
+ {
++#ifdef __FILC__
++    void *unlocked = NULL;
++    if (_Py_atomic_compare_exchange_ptr(&m->v, &unlocked, (void *)_Py_LOCKED)) {
++#else
+     uintptr_t unlocked = _Py_UNLOCKED;
+     if (_Py_atomic_compare_exchange_uintptr(&m->v, &unlocked, _Py_LOCKED)) {
++#endif
+         return;
+     }
+     _PyRawMutex_LockSlow(m);
+@@ -115,8 +124,13 @@
+ static inline void
+ _PyRawMutex_Unlock(_PyRawMutex *m)
+ {
++#ifdef __FILC__
++    void *locked = (void *)_Py_LOCKED;
++    if (_Py_atomic_compare_exchange_ptr(&m->v, &locked, NULL)) {
++#else
+     uintptr_t locked = _Py_LOCKED;
+     if (_Py_atomic_compare_exchange_uintptr(&m->v, &locked, _Py_UNLOCKED)) {
++#endif
+         return;
+     }
+     _PyRawMutex_UnlockSlow(m);
+--- a/Python/lock.c
++++ b/Python/lock.c
+@@ -6,6 +6,9 @@
+ #include "pycore_parking_lot.h"
+ #include "pycore_semaphore.h"
+ #include "pycore_time.h"          // _PyTime_Add()
++#ifdef __FILC__
++#  include <stdfil.h>             // capability-preserving raw-mutex waiter tags
++#endif
+ 
+ #ifdef MS_WINDOWS
+ #  ifndef WIN32_LEAN_AND_MEAN
+@@ -193,20 +196,38 @@
+     struct raw_mutex_entry waiter;
+     _PySemaphore_Init(&waiter.sema);
+ 
++#ifdef __FILC__
++    void *v = _Py_atomic_load_ptr(&m->v);
++#else
+     uintptr_t v = _Py_atomic_load_uintptr(&m->v);
+-    for (;;) {
++#endif
++    for (;;) {
++#ifdef __FILC__
++        if (((uintptr_t)v & _Py_LOCKED) == 0) {
++#else
+         if ((v & _Py_LOCKED) == 0) {
++#endif
+             // Unlocked: try to grab it (even if it has a waiter).
++#ifdef __FILC__
++            if (_Py_atomic_compare_exchange_ptr(&m->v, &v, zorptr(v, _Py_LOCKED))) {
++#else
+             if (_Py_atomic_compare_exchange_uintptr(&m->v, &v, v|_Py_LOCKED)) {
++#endif
+                 break;
+             }
+             continue;
+         }
+ 
+         // Locked: try to add ourselves as a waiter.
++#ifdef __FILC__
++        waiter.next = zandptr(v, ~1UL);
++        void *desired = zorptr(&waiter, _Py_LOCKED);
++        if (!_Py_atomic_compare_exchange_ptr(&m->v, &v, desired)) {
++#else
+         waiter.next = (struct raw_mutex_entry *)(v & ~1);
+         uintptr_t desired = ((uintptr_t)&waiter)|_Py_LOCKED;
+         if (!_Py_atomic_compare_exchange_uintptr(&m->v, &v, desired)) {
++#endif
+             continue;
+         }
+ 
+@@ -230,22 +251,41 @@
+ void
+ _PyRawMutex_UnlockSlow(_PyRawMutex *m)
+ {
++#ifdef __FILC__
++    void *v = _Py_atomic_load_ptr(&m->v);
++#else
+     uintptr_t v = _Py_atomic_load_uintptr(&m->v);
+-    for (;;) {
++#endif
++    for (;;) {
++#ifdef __FILC__
++        if (((uintptr_t)v & _Py_LOCKED) == 0) {
++#else
+         if ((v & _Py_LOCKED) == 0) {
++#endif
+             Py_FatalError("unlocking mutex that is not locked");
+         }
+ 
++#ifdef __FILC__
++        struct raw_mutex_entry *waiter = zandptr(v, ~1UL);
++        if (waiter) {
++            void *next_waiter = waiter->next;
++            if (_Py_atomic_compare_exchange_ptr(&m->v, &v, next_waiter)) {
++#else
+         struct raw_mutex_entry *waiter = (struct raw_mutex_entry *)(v & ~1);
+         if (waiter) {
+             uintptr_t next_waiter = (uintptr_t)waiter->next;
+             if (_Py_atomic_compare_exchange_uintptr(&m->v, &v, next_waiter)) {
++#endif
+                 _PySemaphore_Wakeup(&waiter->sema);
+                 return;
+             }
+         }
+         else {
++#ifdef __FILC__
++            if (_Py_atomic_compare_exchange_ptr(&m->v, &v, NULL)) {
++#else
+             if (_Py_atomic_compare_exchange_uintptr(&m->v, &v, _Py_UNLOCKED)) {
++#endif
+                 return;
+             }
+         }

@@ -15,8 +15,11 @@ is the current contract.)
 | `aarch64-apple-darwin` | macos | Official LLVM 23.1.2 Apple Silicon archive (`bootstrap.lock.json`) + Xcode 26.x SDK | arm64 only, `-mcpu=apple-m1`, `-mmacosx-version-min=26.0`; host must run macOS 26.0+ |
 | `x86_64-unknown-linux-musl` | linux-musl | Alpine 3.24.1 container (`Dockerfile`), clang22/lld22 | `-march=x86-64`, loader `/lib/ld-musl-x86_64.so.1`; frozen, completed |
 | `aarch64-unknown-linux-musl` | linux-musl | Same, via `docker build --platform linux/arm64` | `-march=armv8-a`, loader `/lib/ld-musl-aarch64.so.1`; frozen, completed |
+| `x86_64-filc-linux-musl` | linux-filc-musl | Official Fil-C 0.685 musl/Pizfix archive (`bootstrap.lock.json`) in `Dockerfile.filc` build host | Distinct capability ABI and extension suffix; bundled Fil-C loader and runtime; local qualification only |
 
-Policy everywhere: ThinLTO (`--with-lto=thin`), PGO enabled on macOS using
+Policy on ordinary targets: ThinLTO (`--with-lto=thin`); Fil-C 0.685 uses
+its pinned compiler without LTO because that archive has no matching LTO
+linker. PGO enabled on macOS using
 CPython's `-m test --pgo -j <jobs>` profile task and the locked LLVM
 `llvm-profdata`, no PGO on Linux, no BOLT/JIT/tail-call interpreter,
 GIL-enabled release ABI, `-O3`. CPython's macOS PGO build omits frame
@@ -37,11 +40,31 @@ Deliberately absent (tested absences, not omissions): `pip`, `ensurepip`
 (with its bundled wheel), `venv`; `_tkinter`, `tkinter`, `idlelib`,
 `turtle`, `lib/python3.14/test` (retained through regression validation only),
 generated `.pyc`/`__pycache__`, and the Tcl/Tk+X11 closure; `_gdbm` (dbm
-backend is `ndbm` on macOS, Berkeley DB on Linux). macOS additionally takes
+backend is `ndbm` on macOS, Berkeley DB on ordinary Linux, and CPython's
+`dbm.sqlite3` on Fil-C). macOS additionally takes
 zlib, libedit, ncurses/panel from the platform (`/usr/lib`) and bundles
 OpenSSL, SQLite, Expat, libffi, bzip2, xz, zstd, mpdecimal from source; it
 builds no libuuid or Berkeley DB (`_uuid`/dbm use platform facilities). Linux
-bundles all thirteen.
+bundles all thirteen on ordinary Linux. Fil-C bundles twelve: Berkeley DB's
+private-region queues discard pointer capabilities through relative integer
+offsets, so the Fil-C `dbm` mapping uses the already-locked SQLite library.
+Fil-C's Pizfix runtime returns ENOSYS for fatal-signal handlers:
+`faulthandler.enable()` reports the error, `-X faulthandler` leaves the
+feature disabled, and manual/timed traceback dumps omit thread names because
+Fil-C's `pthread_t` capability cannot be reconstructed from a numeric ID.
+The Fil-C target disables CPython remote debugging: its bundled loader does
+not support the ordinary ELF PyRuntime discovery used by that feature.
+Pizfix 0.685 exposes stubs that abort for `fexecve`, `prlimit`,
+`sethostname`, `clock_settime`, `sched_rr_get_interval`, `unshare`, and `setns`;
+those APIs are
+configured absent. `signal.pthread_kill` is absent because a numeric thread
+ID cannot recover Pizfix's `pthread_t` capability; the same constraint
+removes `time.pthread_getcpuclockid`. `pidfd_send_signal` and
+`ctypes.util.dllist` are absent because their Pizfix entry points abort.
+Pizfix `abort()` exits with SIGTRAP. The Fil-C regression report records
+these exact limitations and keeps all other cases under test.
+The Fil-C socket module omits RDS family constants because its RDS receive
+tests repeatedly hang; TCP, UDP, and Unix sockets remain required checks.
 
 SQLite enables FTS3/4/5 (including the enhanced FTS3 query syntax), geopoly,
 rtree, dbstat, and CPython's loadable-extension API; applications must still
@@ -88,6 +111,16 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
   pkgconf, Xcode/SDK identity, deployment floor, CPU baseline (macOS). The
   macOS linker is recorded, not pinned: clang's driver supplies matching
   `libLTO` from the verified LLVM prefix.
+- `buildsys/filc.py`: official 0.685 musl/Pizfix archive digest and source
+  commit are pinned in `bootstrap.lock.json`. Setup corrects the released
+  `max_align_t` header to the compiler's 16-byte `long double` alignment;
+  the correction is committed in `joshuarli/fil-c` and its commit is pinned
+  in the lock. The corrected header digest is checked and reported in
+  provenance.
+  `buildsys/filc_runtime.py` bundles the exact Pizfix loader and runtime.
+  Its static, libc-free `buildsys/filc_launcher.c` entrypoint passes the
+  original environment and invocation path through to the loader, including
+  symlink-specific `._pth` files, without a host shared-library dependency.
 - `buildsys/inputs.py`: content-addressed `.cache/objects/<sha256>.blob`,
   atomic publication, tamper/size checks on every read, `safe_extract`
   rejecting traversal/absolute/symlink-escape/device entries.
@@ -162,7 +195,7 @@ macOS).
 Checks, against the installed tree with build-prefix/Homebrew scrubbed:
 Mach-O arch/minos/allowlisted load commands/signatures; version 3.14.6 +
 GIL/ABI/tags; module inventory with required-vs-excluded split; real
-round-trips (TLS both directions, sqlite, ndbm, compression incl.
+round-trips (TLS both directions, sqlite, target-specific dbm, compression incl.
 `compression.zstd`, decimal, uuid, Expat); multiprocessing queue+pool
 (`SemLock` present); curses/panel/readline; ctypes both directions +
 callbacks + private dylib; extension build/load and ABI3 fixture with no
@@ -189,6 +222,10 @@ retired plan appendices; current pins live in `sources.lock.json` as
 root, never on the bare host, and never let their bytes become inputs.
 
 ## CI and releases (`.github/workflows/build.yml`)
+
+Fil-C compilation and validation are out of scope for GitHub Actions; its
+compiler exceeds the free runner capacity. Qualify the exact Fil-C archive
+bytes locally. Never advertise the Fil-C ABI through uv's ordinary musl key.
 
 `workflow_dispatch` only. Matrix: `macos-26` native; `ubuntu-latest` +
 `ubuntu-24.04-arm` through `Dockerfile --target sealed`, then package

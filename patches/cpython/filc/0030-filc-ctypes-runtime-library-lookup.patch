@@ -1,0 +1,24 @@
+--- a/Lib/ctypes/util.py
++++ b/Lib/ctypes/util.py
+@@ -441,6 +441,21 @@
+             return _findSoname_ldconfig(name) or \
+                    _get_soname(_findLib_gcc(name)) or _get_soname(_findLib_ld(name))
+ 
++        if getattr(sys.implementation, "_multiarch", "") == "x86_64-filc-linux-musl":
++            def find_library(name):
++                # Host ldconfig/gcc describe glibc libraries. Pizfix puts
++                # libc, libm, libdl, pthread and librt symbols in its own
++                # bundled libc.so, which follows this install on relocation.
++                soname = {
++                    "c": "libc.so", "m": "libc.so", "dl": "libc.so",
++                    "pthread": "libc.so", "rt": "libc.so",
++                    "pizlo": "libpizlo.so", "yoloc": "libyoloc.so",
++                }.get(name)
++                if soname is None:
++                    return None
++                path = os.path.join(sys.base_prefix, "lib", soname)
++                return path if os.path.isfile(path) else None
++
+ 
+ # Listing loaded libraries on other systems will try to use
+ # functions common to Linux and a few other Unix-like systems.

@@ -22,8 +22,11 @@ sys.path.insert(0, str(REPO))
 from buildsys.bootstrap import BootstrapError, lto_smoke_test, toolchain_for  # noqa: E402
 from buildsys.deporder import dependency_order  # noqa: E402
 from buildsys.inputs import Cache, InputError, load_lock  # noqa: E402
+from buildsys.patches import PatchError  # noqa: E402
 from buildsys.recipes import BuildError, Recipe, build_recipe  # noqa: E402
-from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
+from buildsys.targets import (  # noqa: E402
+    Target, UnsupportedTargetError, native_target, target_for_host,
+)
 
 # Extract-directory names as they appear inside each tarball.
 EXTRACT_DIRS = {
@@ -65,13 +68,24 @@ def configure_args(name: str, prefix: Path | None = None, target: Target | None 
     # Static PIC libraries keep downstream linkage simple on both families
     # (plan 5.2); neither family has a use for shared dependency libraries.
     if name == "openssl":
-        return ()  # the Configure target string carries the platform choice
+        # Fil-C's assembler cannot compile OpenSSL's hand-written x86 code;
+        # its supported C implementation is compiled with the Fil-C ABI.
+        return ("no-asm",) if target.is_filc else ()
     if target.is_macos:
         # The macOS set has no package needing a bespoke argument: bzip2 and
         # zstd are plain-make recipes, and the rest take the generic pair.
         return ("--disable-shared", "--enable-static")
     if name == "zlib":
         return ("--static",)
+    if name == "xz" and target.is_filc:
+        # xz's configure switch handles its assembler files; its separate
+        # range decoder chooses inline x86 asm in a header by compiler macro.
+        return ("--disable-shared", "--enable-static", "--disable-assembler")
+    if name == "mpdecimal" and target.is_filc:
+        # The default x64 machine emits inline mulq/divq which Fil-C cannot
+        # execute. mpdecimal's uint128 configuration keeps 64-bit digits and
+        # uses portable C arithmetic supported by the Fil-C compiler.
+        return ("--disable-shared", "--enable-static", "MACHINE=uint128")
     if name in {"xz", "ncurses", "libffi", "sqlite"}:
         return ("--disable-shared", "--enable-static")
     if name == "bdb":
@@ -107,9 +121,19 @@ def install_style(name: str) -> str:
         return "openssl"
     return "autotools"
 
+
+def filc_patch_dir(name: str, target: Target) -> Path | None:
+    """Only Fil-C recipes may consume source adaptations for its C ABI."""
+    directory = REPO / "patches" / "deps" / name / "filc"
+    return directory if target.is_filc and directory.is_dir() else None
+
 def cflags_for(name: str, target: Target | None = None) -> str:
     """Per-package CFLAGS additions."""
     target = target or native_target()
+    if name == "xz" and target.is_filc:
+        # The inline range decoder defaults to x86 asm independently of
+        # --disable-assembler. Its supported C path retains Fil-C bounds.
+        return "-DLZMA_RANGE_DECODER_CONFIG=0"
     if name == "sqlite":
         # Match the supported SQLite extension profile exercised by the
         # python-build-standalone distribution tests. Keep these as compile
@@ -127,6 +151,11 @@ def cflags_for(name: str, target: Target | None = None) -> str:
     if name == "zstd" and not target.is_macos:
         # The static Makefile target is compiled with ZSTD_MULTITHREAD; POSIX
         # threading must also be enabled on the compile line.
+        if target.is_filc:
+            # ZSTD_NO_ASM removes .S files, while ZSTD_DISABLE_ASM selects
+            # the portable C BMI2 path. The remaining .p2align hints in the
+            # locked source are guarded by the Fil-C-only source patch.
+            return "-pthread -DZSTD_DISABLE_ASM=1"
         return "-pthread"
     if name == "libedit" and not target.is_macos:
         # musl's stdc-predef.h declares __STDC_ISO_10646__, but clang does
@@ -145,6 +174,14 @@ def make_targets(name: str) -> tuple[str, ...]:
         return ("libzstd.a-mt",)
     if name == "openssl":
         return ()
+    return ()
+
+
+def make_variables(name: str, target: Target) -> tuple[str, ...]:
+    # Fil-C's assembler rejects zstd's amd64 assembly; zstd explicitly
+    # supports this switch and keeps its C implementation and threads.
+    if target.is_filc and name == "zstd":
+        return ("ZSTD_NO_ASM=1",)
     return ()
 
 
@@ -176,6 +213,7 @@ def special_install(name: str, source: Path, prefix: Path, log: Path) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Non-hermetic dependency development builds")
     parser.add_argument("--only", choices=EXTRACT_DIRS)
+    parser.add_argument("--target", default=native_target().triple)
     args = parser.parse_args()
     work = REPO / "build" / "work"
     prefix = (REPO / "build" / "prefix").resolve()
@@ -199,7 +237,7 @@ def main() -> int:
     cache = Cache(REPO / ".cache")
     lock = {e.name: e for e in load_lock(REPO / "sources.lock.json")}
     try:
-        target = native_target()
+        target = target_for_host(args.target)
         toolchain = toolchain_for(target, REPO / "bootstrap.lock.json")
     except (UnsupportedTargetError, BootstrapError) as error:
         print(f"FAIL deps: {error}")
@@ -241,16 +279,19 @@ def main() -> int:
             build_subdir="db-6.0.19/build_unix" if name == "bdb" else "",
             configure_args=configure_args(name, target=target),
             make_targets=make_targets(name),
+            make_variables=make_variables(name, target),
             cflags=cflags_for(name, target),
             install=install_style(name),
             log_path=logs / name,
+            patch_dir=filc_patch_dir(name, target),
         )
         print(f"BUILD {name} {entry.version}", flush=True)
         try:
-            build_recipe(recipe, blob, work, prefix, toolchain=toolchain)
+            build_recipe(recipe, blob, work, prefix, toolchain=toolchain,
+                         target=target)
             if special_install(name, dest, prefix, logs / f"{name}-special.log"):
                 pass
-        except (BuildError, InputError) as error:
+        except (BuildError, InputError, PatchError) as error:
             print(f"FAIL {name}: {error}")
             return 1
         print(f"OK    {name}", flush=True)

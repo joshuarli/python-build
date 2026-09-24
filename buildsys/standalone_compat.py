@@ -201,7 +201,12 @@ def target_abi():
     soabi = sysconfig.get_config_var("SOABI") or ""
     multiarch = getattr(sys.implementation, "_multiarch", "")
     suffix = importlib.machinery.EXTENSION_SUFFIXES[0]
-    if target.endswith("-linux-musl"):
+    if target == "x86_64-filc-linux-musl":
+        for value in (soabi, multiarch, suffix):
+            assert "x86_64-filc-linux-musl" in value, f"{value!r} loses Fil-C ABI identity"
+        assert len(importlib.machinery.EXTENSION_SUFFIXES) == 1, \
+            "Fil-C must not load generic .so or abi3 extensions"
+    elif target.endswith("-linux-musl"):
         for value in (soabi, multiarch, suffix):
             assert "musl" in value, f"{value!r} does not identify musl"
             assert "gnu" not in value, f"{value!r} identifies glibc"

@@ -87,15 +87,24 @@ def asset_name(tag: str, triple: str) -> str:
     return f"cpython-{VERSION}+{tag}-{triple}-install_only_stripped.tar.gz"
 
 
+def _metadata_triple(triple: str) -> dict:
+    try:
+        return TRIPLES[triple]
+    except KeyError:
+        raise UvMirrorError(
+            f"{triple} has no uv download key; distinct ABIs cannot be advertised as ordinary musl"
+        ) from None
+
+
 def metadata_key(triple: str) -> str:
     """The uv download-metadata.json key for one triple."""
-    info = TRIPLES[triple]
+    info = _metadata_triple(triple)
     return f"cpython-{VERSION}-{info['os']}-{info['key_arch']}-{info['libc']}"
 
 
 def metadata_entry(triple: str, tag: str, url_base: str, sha256: str) -> dict:
     """One download-metadata.json entry, matching uv's schema for stable releases."""
-    info = TRIPLES[triple]
+    info = _metadata_triple(triple)
     name = asset_name(tag, triple)
     return {
         "name": "cpython",

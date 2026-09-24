@@ -427,6 +427,14 @@ def toolchain_for(target, lock_path: Path, *, jobs: int | None = None) -> Toolch
     artifact nobody can attribute. The Linux targets keep the bare-name
     toolchain their container's PATH provides.
     """
+    if target.is_filc:
+        from .filc import load_filc_toolchain
+        from .inputs import InputError
+
+        try:
+            return load_filc_toolchain(lock_path).toolchain(jobs=jobs)
+        except InputError as error:
+            raise BootstrapError(str(error)) from error
     if not target.is_macos:
         return Toolchain(jobs=jobs) if jobs else Toolchain()
     locked = load_macos_toolchain(lock_path)

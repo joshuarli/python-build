@@ -8,13 +8,16 @@ on a given host (including a QEMU-emulated one, which reports the emulated
 architecture, not the host's) — target selection reads that rather than
 trusting an external flag that could disagree with reality.
 
-Two families are implemented, and they are deliberately different shapes:
+Three families are implemented, and they are deliberately different shapes:
 
   linux-musl  Alpine userspace in a Dockerfile-defined container (plan
               Section 1.2). ELF, musl loader, Alpine apk toolchain.
               Completed and frozen at commit 6750ae2.
   macos       Native Apple Silicon macOS 26.0+ (plan Section 1.5). Mach-O,
               Apple libSystem, the locked official LLVM archive, and the Xcode SDK.
+  linux-filc-musl  Fil-C's capability ABI and musl/Pizfix runtime. The x86_64
+              target must be selected explicitly; a Linux machine cannot
+              distinguish this ABI from ordinary musl by uname alone.
 
 `family` selects the toolchain, relocation module, and binary-format checks.
 Fields belonging to the other family are left empty; do not read
@@ -27,9 +30,10 @@ import platform
 from dataclasses import dataclass
 
 LINUX_MUSL = "linux-musl"
+LINUX_FILC_MUSL = "linux-filc-musl"
 MACOS = "macos"
 
-FAMILIES = (LINUX_MUSL, MACOS)
+FAMILIES = (LINUX_MUSL, LINUX_FILC_MUSL, MACOS)
 
 
 class UnsupportedTargetError(Exception):
@@ -40,9 +44,10 @@ class UnsupportedTargetError(Exception):
 class Target:
     triple: str
     machine: str  # platform.machine() spelling
-    family: str  # linux-musl | macos
+    family: str  # linux-musl | linux-filc-musl | macos
     cpu_baseline_cflag: str  # explicit, recorded ISA floor (plan 5.1/7)
     openssl_configure_target: str  # `Configure <target>` string
+    explicit_only: bool = False  # ABI cannot be inferred from OS and CPU
 
     # linux-musl only
     alpine_arch: str = ""  # apk/Alpine architecture tag
@@ -58,6 +63,8 @@ class Target:
             raise UnsupportedTargetError(f"{self.triple}: unknown family {self.family!r}")
         if self.family == LINUX_MUSL and not (self.alpine_arch and self.musl_loader):
             raise UnsupportedTargetError(f"{self.triple}: linux-musl target needs loader/arch")
+        if self.family == LINUX_FILC_MUSL and not (self.explicit_only and self.musl_loader):
+            raise UnsupportedTargetError(f"{self.triple}: Fil-C target needs explicit selection and loader")
         if self.family == MACOS and not self.deployment_target:
             raise UnsupportedTargetError(f"{self.triple}: macos target needs a deployment floor")
 
@@ -65,8 +72,21 @@ class Target:
     def is_macos(self) -> bool:
         return self.family == MACOS
 
+    @property
+    def is_filc(self) -> bool:
+        return self.family == LINUX_FILC_MUSL
+
 
 TARGETS: dict[str, Target] = {
+    "x86_64-filc-linux-musl": Target(
+        triple="x86_64-filc-linux-musl",
+        machine="x86_64",
+        family=LINUX_FILC_MUSL,
+        cpu_baseline_cflag="-march=x86-64",
+        openssl_configure_target="linux-x86_64",
+        explicit_only=True,
+        musl_loader="ld-fil1-x86_64.so",
+    ),
     "x86_64-unknown-linux-musl": Target(
         triple="x86_64-unknown-linux-musl",
         machine="x86_64",
@@ -119,9 +139,28 @@ def native_target() -> Target:
     """
     machine = platform.machine()
     family = MACOS if platform.system() == "Darwin" else LINUX_MUSL
-    for target in TARGETS.values():
-        if target.family == family and target.machine == machine:
-            return target
+    matches = [target for target in TARGETS.values()
+               if target.family == family and target.machine == machine
+               and not target.explicit_only]
+    if len(matches) == 1:
+        return matches[0]
     raise UnsupportedTargetError(
         f"no {family} target description for host machine {machine!r}"
     )
+
+
+def target_for_host(triple: str) -> Target:
+    """Resolve an explicitly requested target, then check its OS and CPU.
+
+    uname identifies the architecture but cannot identify the Fil-C ABI. The
+    caller must name that target; this check only rejects cross-compilation.
+    """
+    target = target_for_triple(triple)
+    system = platform.system()
+    expected_system = "Darwin" if target.is_macos else "Linux"
+    if system != expected_system or platform.machine() != target.machine:
+        raise UnsupportedTargetError(
+            f"--target {triple} does not match the running machine "
+            f"({system}/{platform.machine()}); cross-compilation is unsupported"
+        )
+    return target

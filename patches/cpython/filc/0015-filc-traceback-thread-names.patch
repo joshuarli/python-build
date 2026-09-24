@@ -1,0 +1,32 @@
+--- a/Python/traceback.c
++++ b/Python/traceback.c
+@@ -1187,6 +1187,7 @@
+ 
+ 
+ // Write the thread name
++#ifndef __FILC__
+ static void
+ write_thread_name(int fd, PyThreadState *tstate)
+ {
+@@ -1233,6 +1234,7 @@
+     CloseHandle(thread);
+ #endif
+ }
++#endif
+ 
+ 
+ /* Write the thread identifier into the file 'fd': "Current thread 0xHHHH:\" if
+@@ -1251,9 +1253,13 @@
+                         tstate->thread_id,
+                         sizeof(unsigned long) * 2);
+ 
++    /* Fil-C's pthread_t is a capability; thread_id is only its numeric
++       diagnostic value, so it cannot be passed back to pthread_getname_np. */
++#ifndef __FILC__
+     if (!_PyMem_IsULongFreed(tstate->thread_id)) {
+         write_thread_name(fd, tstate);
+     }
++#endif
+ 
+     PUTS(fd, " (most recent call first):\n");
+ }

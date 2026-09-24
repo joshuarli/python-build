@@ -1,0 +1,21 @@
+# Build-host tools for the explicit Fil-C/musl target. Debian's glibc is used
+# only to execute the official Pizfix compiler; the compiler's own musl
+# sysroot, loader and Fil-C runtime supply every product libc symbol.
+FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TZ=UTC \
+    PYTHONNOUSERSITE=1 \
+    SOURCE_DATE_EPOCH=1704067200
+
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    binutils llvm lld gcc make perl python3 pkg-config autoconf automake libtool \
+    patch patchelf bison flex git ca-certificates diffutils file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Local qualification runs as the checkout owner. libc account lookups must
+# find that UID, as they would on a normal installed system.
+RUN groupadd --gid 1000 builder \
+    && useradd --uid 1000 --gid 1000 --home-dir /tmp --no-create-home builder

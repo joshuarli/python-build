@@ -17,6 +17,8 @@ produced the tree, not the packaging step.
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import math
 import os
@@ -27,6 +29,7 @@ import statistics
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 from pathlib import Path
 
@@ -35,6 +38,8 @@ sys.path.insert(0, str(REPO))
 
 from buildsys import macho  # noqa: E402
 from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
+from buildsys.filc import load_filc_toolchain  # noqa: E402
+from buildsys.filc_runtime import FILC_RUNTIME_LIBRARIES  # noqa: E402
 from buildsys.cpython import (  # noqa: E402
     CPYTHON_PGO_HASH_SEED, pgo_profile_task,
 )
@@ -47,11 +52,13 @@ from buildsys.scope import (  # noqa: E402
     prune_distribution_payload,
 )
 from buildsys.standalone_compat import run_standalone_compatibility  # noqa: E402
-from buildsys.targets import native_target  # noqa: E402
+from buildsys.targets import native_target, target_for_host  # noqa: E402
 from buildsys.testsuite import (  # noqa: E402
-    classify, report_payload, run_suite, verify_excluded_failures,
+    FILC_CASE_EXCLUSIONS, SuiteError, classify, report_payload, run_suite,
+    verify_excluded_failures,
 )
 from buildsys.validate_macos import run_validation  # noqa: E402
+from buildsys.validate_filc import run_validation as run_validation_filc  # noqa: E402
 
 TARGET_DESCRIPTION = native_target()
 TARGET = TARGET_DESCRIPTION.triple
@@ -71,6 +78,10 @@ BUNDLED_DEPENDENCIES_BY_FAMILY = {
         "openssl", "sqlite", "expat", "zlib", "bzip2", "xz", "zstd",
         "mpdecimal", "libffi", "libedit", "ncurses", "libuuid", "bdb",
     ),
+    "linux-filc-musl": (
+        "openssl", "sqlite", "expat", "zlib", "bzip2", "xz", "zstd",
+        "mpdecimal", "libffi", "libedit", "ncurses", "libuuid",
+    ),
     "macos": (
         "openssl", "sqlite", "expat", "bzip2", "xz", "zstd", "mpdecimal",
         "libffi",
@@ -81,6 +92,7 @@ BUNDLED_DEPENDENCIES_BY_FAMILY = {
 # report can name them instead of leaving their absence unexplained.
 PLATFORM_PROVIDED_BY_FAMILY = {
     "linux-musl": (),
+    "linux-filc-musl": (),
     "macos": (
         "zlib", "libedit", "ncurses", "ndbm (dbm backend)",
     ),
@@ -130,6 +142,11 @@ def strip_tree(install: Path, *, strip: str = "llvm-strip") -> list[Path]:
     """
     stripped = []
     for elf in find_elfs(install):
+        # The Pizfix loader/runtime came from the verified toolchain. In
+        # particular, changing libyoloc's ELF metadata makes it crash before
+        # Python starts; do not strip the relocated runtime members.
+        if TARGET_DESCRIPTION.is_filc and elf.name in FILC_RUNTIME_LIBRARIES:
+            continue
         _run([strip, "--strip-unneeded", str(elf)])
         stripped.append(elf)
     return stripped
@@ -181,6 +198,8 @@ def write_sha256sums(dist: Path, archive: Path) -> Path:
 
 def compute_inputs(lock_path: Path) -> dict:
     entries = load_lock(lock_path)
+    if TARGET_DESCRIPTION.is_filc:
+        entries.append(load_filc_toolchain(REPO / "bootstrap.lock.json").archive_input)
     return {
         "target": TARGET,
         "inputs": [
@@ -206,8 +225,20 @@ def compute_components(lock_path: Path) -> dict:
             "license": entry.license, "purpose": entry.purpose,
             "static": entry.name != "pip",
         })
+    if TARGET_DESCRIPTION.is_filc:
+        locked_filc = load_filc_toolchain(REPO / "bootstrap.lock.json")
+        components.append({
+            "name": locked_filc.archive_input.name,
+            "version": locked_filc.version,
+            "license": locked_filc.archive_input.license,
+            "purpose": "bundled musl/Pizfix loader, libc and Fil-C runtime",
+            "static": False,
+        })
     return {
         "components": components,
+        "dbm_backend": "sqlite3" if TARGET_DESCRIPTION.is_filc else (
+            "ndbm" if TARGET_DESCRIPTION.is_macos else "bdb"
+        ),
         "platform_provided": list(
             PLATFORM_PROVIDED_BY_FAMILY[TARGET_DESCRIPTION.family]
         ),
@@ -262,7 +293,7 @@ def compute_provenance(archive: Path, commands: list[str]) -> dict:
     build_mode = recipe_mode or (
         "sealed" if sealed_record and sealed_record.get("sealed") else "development"
     )
-    return {
+    provenance = {
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "source_date_epoch": SOURCE_DATE_EPOCH,
         "git_commit": git_commit,
@@ -281,6 +312,26 @@ def compute_provenance(archive: Path, commands: list[str]) -> dict:
         "sealed_build": sealed_record if build_mode == "sealed" else None,
         "archive_sha256_reported_in": "SHA256SUMS",
     }
+    if TARGET_DESCRIPTION.is_filc:
+        locked_filc = load_filc_toolchain(REPO / "bootstrap.lock.json")
+        launcher_compiler = subprocess.run(
+            ["cc", "--version"], capture_output=True, text=True, check=True,
+        ).stdout.splitlines()[0]
+        provenance["filc_toolchain"] = {
+            "source_commit": locked_filc.source_commit,
+            "header_correction_commit": locked_filc.header_correction_commit,
+            "release_tag": locked_filc.release_tag,
+            "archive_sha256": locked_filc.archive_input.sha256,
+            "archive_size": locked_filc.archive_input.size,
+            "abi": "x86_64-filc-linux-musl",
+            "lto": "off: official 0.685 archive has no matching LTO linker",
+            "header_correction": "Pizfix max_align_t raised to 16-byte long-double alignment",
+            "corrected_alltypes_sha256": hashlib.sha256(
+                (locked_filc.pizfix / "include/bits/alltypes.h").read_bytes()
+            ).hexdigest(),
+            "launcher_compiler": launcher_compiler,
+        }
+    return provenance
 
 
 def _smoke_import(python: Path) -> tuple[bool, str]:
@@ -334,6 +385,172 @@ def compute_validation(install: Path) -> dict:
     }
 
 
+def compute_validation_filc(install: Path) -> dict:
+    """Check the bundled loader, distinct ABI, and moved packaged bytes."""
+    python = install / "bin/python3.14"
+    real = install / "bin/python3.14.real"
+    loader = install / "lib" / TARGET_DESCRIPTION.musl_loader
+    expected_loader = install / "lib/libyoloc.so"
+    ok, output = _smoke_import(python)
+    if not real.is_file() or not loader.is_symlink() or loader.resolve() != expected_loader:
+        raise PackagingError("Fil-C launcher or bundled loader is incomplete")
+    interp = _run(["readelf", "-l", str(real)]).stdout
+    interpreter = next((line for line in interp.splitlines() if "interpreter" in line), "")
+    launcher_program_headers = _run(["readelf", "-l", str(python)]).stdout
+    launcher_dynamic = _run(["readelf", "-d", str(python)]).stdout
+    needed_allowed = {"libc.so", "libpizlo.so", "libyoloc.so", "libpython3.14.so.1.0"}
+    elf_report = []
+    bad = []
+    for elf in find_elfs(install):
+        dynamic = _run(["readelf", "-d", str(elf)]).stdout
+        needed = [
+            line.split("[")[1].rstrip("]")
+            for line in dynamic.splitlines() if "NEEDED" in line
+        ]
+        unwanted = sorted(set(needed) - needed_allowed)
+        if unwanted or "/home/josh/" in dynamic or "build/prefix" in dynamic:
+            bad.append({"path": str(elf.relative_to(install)), "needed": unwanted})
+        elf_report.append({"path": str(elf.relative_to(install)), "needed": needed})
+    import hashlib
+    locked = load_filc_toolchain(REPO / "bootstrap.lock.json")
+    source_loader = locked.pizfix / "lib/libyoloc.so"
+    same_loader = (
+        hashlib.sha256(expected_loader.read_bytes()).digest()
+        == hashlib.sha256(source_loader.read_bytes()).digest()
+    )
+    probe = subprocess.run(
+        [str(python), "-c", "import gc,json,os,subprocess,sys,sysconfig,tracemalloc; "
+         "tracemalloc.start(); a=[]; a.append(a); del a; gc.collect(); "
+         "print(json.dumps({'version':sys.version_info[:3],"
+         "'executable':sys.executable,'prefix':sys.prefix,"
+         "'base_executable':sys._base_executable,"
+         "'orig_argv0':sys.orig_argv[0],"
+         "'soabi':sysconfig.get_config_var('SOABI'),"
+         "'cc':sysconfig.get_config_var('CC'),"
+         "'remote_debug':sys.is_remote_debug_enabled(),"
+         "'ldshared':sysconfig.get_config_var('LDSHARED'),"
+         "'ldflags':sysconfig.get_config_var('LDFLAGS'),"
+         "'launcher_env':os.environ.get('PYTHONEXECUTABLE'),"
+         "'child':subprocess.check_output([sys.executable,'-c',"
+         "'print(42)'],text=True).strip(),"
+         "'base_child':subprocess.check_output([sys._base_executable,'-c',"
+         "'print(43)'],text=True).strip()}))"],
+        capture_output=True, text=True, timeout=120,
+    )
+    try:
+        runtime = json.loads(probe.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        runtime = {"error": (probe.stdout + probe.stderr)[-1000:]}
+    relocated = install.parent / "Fil-C relocated space" / "python"
+    if relocated.parent.exists():
+        shutil.rmtree(relocated.parent)
+    shutil.copytree(install, relocated, symlinks=True)
+    relocated_probe = subprocess.run(
+        [str(relocated / "bin/python3.14"), "-c",
+         "import json,sys; print(json.dumps({'prefix':sys.prefix,'executable':sys.executable}))"],
+        cwd="/", capture_output=True, text=True, timeout=120,
+    )
+    try:
+        moved = json.loads(relocated_probe.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        moved = {"error": (relocated_probe.stdout + relocated_probe.stderr)[-1000:]}
+    metadata = [
+        *install.glob("lib/python3.14/_sysconfigdata_*.py"),
+        *install.glob("lib/python3.14/_sysconfig_vars_*.json"),
+        *install.glob("lib/python3.14/config-*/Makefile"),
+        *install.glob("lib/pkgconfig/python-3.14*.pc"),
+    ]
+    metadata_leaks = [
+        str(path.relative_to(install)) for path in metadata
+        if str(REPO) in path.read_text()
+    ]
+    checks = {
+        "required_modules": ok,
+        "inert_direct_interpreter": "/proc/self/fd/255" in interpreter,
+        "static_launcher": "INTERP" not in launcher_program_headers
+        and "NEEDED" not in launcher_dynamic,
+        "loader_bundled": same_loader,
+        "elf_dependency_closure": not bad,
+        "version": runtime.get("version") == [3, 14, 6],
+        "filc_soabi": "x86_64-filc-linux-musl" in (runtime.get("soabi") or ""),
+        "remote_debug_disabled": runtime.get("remote_debug") is False,
+        "launcher_executable": runtime.get("executable") == str(python),
+        "launcher_base_executable": runtime.get("base_executable") == str(python),
+        "launcher_orig_argv": runtime.get("orig_argv0") == str(python),
+        "launcher_env_consumed": runtime.get("launcher_env") is None,
+        "python_subprocess": runtime.get("child") == "42",
+        "base_python_subprocess": runtime.get("base_child") == "43",
+        "sysconfig_private_prefix_scrubbed": "build/prefix" not in (runtime.get("ldflags") or ""),
+        "sysconfig_filc_compiler": runtime.get("cc") == "filc-clang"
+        and (runtime.get("ldshared") or "").startswith("filc-clang -shared"),
+        "metadata_present": len(metadata) >= 5,
+        "metadata_no_builder_paths": not metadata_leaks,
+        "relocated_prefix": moved.get("prefix") == str(relocated),
+        "relocated_executable": moved.get("executable") == str(relocated / "bin/python3.14"),
+    }
+    return {
+        "target": TARGET,
+        "ok": all(checks.values()),
+        "checks": checks,
+        "sys_version_check": {"ok": ok, "output": output},
+        "musl_loader": interpreter.strip(),
+        "musl_loader_matches_target": checks["inert_direct_interpreter"] and same_loader,
+        "elf_leak_free": not bad,
+        "elf_forbidden_needed": bad,
+        "sysconfig_private_prefix_leak": not checks["sysconfig_private_prefix_scrubbed"],
+        "elf_count": len(elf_report),
+        "elf_report": elf_report,
+        "runtime": runtime,
+        "relocation": moved,
+        "metadata_leaks": metadata_leaks,
+    }
+
+
+def validate_filc_archive_bytes(archive: Path, workdir: Path) -> dict:
+    """Extract the final tar bytes twice and run them at unrelated prefixes."""
+    results = {}
+    with tempfile.TemporaryDirectory(prefix="filc-archive-") as external:
+        destinations = {
+            "workspace_space": workdir / "Fil-C archive moved space",
+            "system_temp": Path(external) / "unrelated-python",
+        }
+        for name, destination in destinations.items():
+            safe_extract(archive, destination)
+            root = destination / "python"
+            python = root / "bin/python3.14"
+            probe = subprocess.run(
+                [str(python), "-c",
+                 "import json,os,sys,sysconfig;print(json.dumps({"
+                 "'prefix':sys.prefix,'executable':sys.executable,"
+                 "'soabi':sysconfig.get_config_var('SOABI'),"
+                 "'launcher_env':os.environ.get('PYTHONEXECUTABLE')}))"],
+                cwd="/", capture_output=True, text=True, timeout=120,
+            )
+            try:
+                identity = json.loads(probe.stdout.strip().splitlines()[-1])
+            except (IndexError, json.JSONDecodeError):
+                identity = {"error": (probe.stdout + probe.stderr)[-800:]}
+            toy = subprocess.run(
+                [str(python), str(REPO / ".github/scripts/toy.py")],
+                cwd="/", capture_output=True, text=True, timeout=180,
+            )
+            results[name] = {
+                "prefix": identity.get("prefix"),
+                "executable": identity.get("executable"),
+                "soabi": identity.get("soabi"),
+                "launcher_env": identity.get("launcher_env"),
+                "toy_returncode": toy.returncode,
+                "toy_output_tail": (toy.stdout + toy.stderr)[-600:],
+                "ok": probe.returncode == 0
+                and identity.get("prefix") == str(root)
+                and identity.get("executable") == str(python)
+                and identity.get("soabi") == "cpython-314-x86_64-filc-linux-musl"
+                and identity.get("launcher_env") is None
+                and toy.returncode == 0,
+            }
+    return {"prefixes": results, "ok": all(item["ok"] for item in results.values())}
+
+
 def reference_binary(reference_root: Path | None) -> Path | None:
     """The reference python3.14, only when runnable on this target.
 
@@ -360,6 +577,51 @@ def compute_parity(install: Path, reference_root: Path | None) -> dict:
         capture_output=True, text=True,
     ).stdout.strip()
     row("cpython_version", "match" if version == "3.14.6" else "gap", version)
+
+    if TARGET_DESCRIPTION.is_filc:
+        row(
+            "native_abi", "intentional_difference",
+            "Fil-C/musl capability ABI, distinct extension suffix and bundled "
+            "Pizfix loader/runtime; the PBS reference uses ordinary musl C.",
+        )
+        row(
+            "dbm_backend", "intentional_difference",
+            "dbm.sqlite3 uses the locked SQLite library. Berkeley DB's "
+            "private-region queues store relative integer offsets between "
+            "separate allocations and lose Fil-C pointer capabilities.",
+        )
+        row(
+            "fatal_signal_tracebacks", "intentional_difference",
+            "Pizfix returns ENOSYS when installing fatal-signal handlers. "
+            "Explicit faulthandler.enable() reports that error; -X "
+            "faulthandler leaves the feature disabled. Manual and timed "
+            "traceback dumps remain available without thread names.",
+        )
+        row(
+            "remote_debugger", "intentional_difference",
+            "Fil-C's bundled loader does not expose CPython's PyRuntime ELF "
+            "section to remote process inspection; remote debugging is "
+            "disabled at configure time and sys reports it as unavailable.",
+        )
+        row(
+            "pizfix_optional_apis", "intentional_difference",
+            "Pizfix 0.685 stubs abort for fexecve, prlimit, sethostname, "
+            "clock_settime, sched_rr_get_interval, unshare, setns, and "
+            "pidfd_send_signal; Fil-C's pointer pthread_t also precludes "
+            "numeric-ID pthread_kill and pthread_getcpuclockid. CPython "
+            "reports these APIs absent. ctypes.util.dllist is absent because "
+            "Pizfix's dl_iterate_phdr stub aborts.",
+        )
+        row(
+            "abort_signal", "intentional_difference",
+            "Pizfix abort() traps with SIGTRAP rather than SIGABRT; the exact "
+            "subprocess regression case is registered as an exclusion.",
+        )
+        row(
+            "rds_sockets", "intentional_difference",
+            "Fil-C omits RDS socket family constants after repeated RDS "
+            "recvfrom hangs; TCP, UDP, and Unix sockets remain validated.",
+        )
 
     row(
         "tcl_tk_gui", "intentional_difference",
@@ -830,7 +1092,18 @@ def require_macos_pgo_recipe() -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    compare_only = "--compare-only" in (argv if argv is not None else sys.argv[1:])
+    global TARGET_DESCRIPTION, TARGET, ARCHIVE_NAME
+    parser = argparse.ArgumentParser(description="Package the staged interpreter")
+    parser.add_argument("--compare-only", action="store_true")
+    parser.add_argument("--target", default=native_target().triple)
+    args = parser.parse_args(argv)
+    TARGET_DESCRIPTION = target_for_host(args.target)
+    TARGET = TARGET_DESCRIPTION.triple
+    ARCHIVE_NAME = (
+        f"cpython-3.14.6+{REVISION}-{TARGET}-install_only_stripped.tar.gz"
+        if TARGET_DESCRIPTION.is_filc else f"cpython-3.14.6-{TARGET}-{REVISION}.tar.gz"
+    )
+    compare_only = args.compare_only
     stage = REPO / "build" / "stage" / "cpython-staged" / "install"
     if not stage.is_dir():
         print("FAIL package: no staged install at build/stage/cpython-staged/install; run `build` first")
@@ -850,6 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
 
     commands = ["python3 build/deps.py", "python3 build/cpython.py", "python3 build/package.py"]
     macos = TARGET_DESCRIPTION.is_macos
+    archive: Path | None = None
     try:
         reference_root = extract_reference(
             Cache(REPO / ".cache"), REPO / "sources.lock.json",
@@ -924,7 +1198,63 @@ def main(argv: list[str] | None = None) -> int:
                 raise PackagingError("validation failed: " + ", ".join(failed_checks))
         else:
             strip_tree(work)
-            validation = compute_validation(work)
+            validation = (
+                compute_validation_filc(work) if TARGET_DESCRIPTION.is_filc
+                else compute_validation(work)
+            )
+            if TARGET_DESCRIPTION.is_filc:
+                focused = run_validation_filc(
+                    work,
+                    load_filc_toolchain(REPO / "bootstrap.lock.json"),
+                    REPO / "build/validate-work/filc",
+                    REPO,
+                )
+                validation["focused"] = focused
+                validation["ok"] = validation["ok"] and focused["ok"]
+            if TARGET_DESCRIPTION.is_filc and not validation["ok"]:
+                failed = [name for name, passed in validation["checks"].items() if not passed]
+                failed.extend(validation["focused"]["failed"])
+                (dist / "validation.json").write_text(canonical_json(validation) + "\n")
+                raise PackagingError("Fil-C validation failed: " + ", ".join(failed))
+            if TARGET_DESCRIPTION.is_filc:
+                # The suite writes .pyc files and sometimes edits fixtures.
+                # Qualify a disposable pre-prune install, then archive only
+                # the untouched packaged tree.
+                suite_tree = REPO / "build/package-work/filc-regression-copy"
+                shutil.copytree(work, suite_tree, symlinks=True)
+                suite_python = suite_tree / "bin/python3.14"
+
+                def fresh_filc_python() -> Path:
+                    retry = REPO / "build/package-work/filc-regression-retry"
+                    if retry.exists():
+                        shutil.rmtree(retry)
+                    shutil.copytree(work, retry, symlinks=True)
+                    return retry / "bin/python3.14"
+
+                suite = run_suite(
+                    suite_python, jobs=1,
+                    output_path=REPO / "build/logs/filc-regression-suite.log",
+                )
+                solo = verify_excluded_failures(
+                    suite_python, suite["failed_files"], fresh_python=fresh_filc_python,
+                    additional_exclusions=FILC_CASE_EXCLUSIONS,
+                )
+                suite["classification"] = classify(
+                    solo, additional_exclusions=FILC_CASE_EXCLUSIONS,
+                )
+                validation["regression_suite"] = report_payload(
+                    suite, additional_exclusions=FILC_CASE_EXCLUSIONS,
+                )
+                validation["regression_suite"]["solo_reruns"] = solo
+                validation["regression_suite"]["output_tail"] = suite["output_tail"]
+                shutil.rmtree(suite_tree)
+                if not validation["regression_suite"]["ok"]:
+                    validation["ok"] = False
+                    (dist / "validation.json").write_text(canonical_json(validation) + "\n")
+                    raise PackagingError(
+                        "Fil-C regression suite failed: "
+                        + ", ".join(validation["regression_suite"]["unexpected_failures"])
+                    )
             if not validation["sys_version_check"]["ok"]:
                 raise PackagingError(f"post-strip smoke import failed: {validation['sys_version_check']['output']}")
             if not validation["musl_loader_matches_target"]:
@@ -952,6 +1282,12 @@ def main(argv: list[str] | None = None) -> int:
                 "PBS distribution compatibility checks failed: " + ", ".join(failures)
             )
         archive = build_archive(work, dist)
+        if TARGET_DESCRIPTION.is_filc:
+            archive_check = validate_filc_archive_bytes(archive, work.parent)
+            validation["archived_bytes"] = archive_check
+            if not archive_check["ok"]:
+                (dist / "validation.json").write_text(canonical_json(validation) + "\n")
+                raise PackagingError("Fil-C archive failed moved-prefix smoke")
         write_sha256sums(dist, archive)
         (dist / "inputs.json").write_text(canonical_json(compute_inputs(REPO / "sources.lock.json")) + "\n")
         (dist / "components.json").write_text(canonical_json(compute_components(REPO / "sources.lock.json")) + "\n")
@@ -968,7 +1304,11 @@ def main(argv: list[str] | None = None) -> int:
         (dist / "parity.json").write_text(canonical_json(parity) + "\n")
         write_parity_md(parity, dist / "parity.md")
         (dist / "benchmarks.json").write_text(canonical_json(benchmarks) + "\n")
-    except (PackagingError, InputError, ScopeError) as error:
+    except (PackagingError, InputError, ScopeError, SuiteError,
+            subprocess.TimeoutExpired) as error:
+        if TARGET_DESCRIPTION.is_filc and archive is not None:
+            archive.unlink(missing_ok=True)
+            (dist / "SHA256SUMS").unlink(missing_ok=True)
         print(f"FAIL package: {error}")
         return 1
 

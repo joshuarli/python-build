@@ -1,0 +1,58 @@
+--- a/Modules/_ctypes/cfield.c
++++ b/Modules/_ctypes/cfield.c
+@@ -23,6 +23,28 @@
+ 
+ #include "clinic/cfield.c.h"
+ 
++#ifdef __FILC__
++/* ctypes pointer fields mask integer inputs to pointer width. Decode the
++ * masked address through PyLong_AsVoidPtr so genuine encoded pointers keep
++ * their capability and arbitrary numeric addresses remain invalid. */
++static void *
++filc_masked_void_ptr(PyObject *value)
++{
++    _Static_assert(sizeof(void *) == sizeof(unsigned long), "Fil-C x86_64 pointer size");
++    unsigned long bits = PyLong_AsUnsignedLongMask(value);
++    if (PyErr_Occurred()) {
++        return NULL;
++    }
++    PyObject *masked = PyLong_FromUnsignedLong(bits);
++    if (masked == NULL) {
++        return NULL;
++    }
++    void *pointer = PyLong_AsVoidPtr(masked);
++    Py_DECREF(masked);
++    return pointer;
++}
++#endif
++
+ static void pymem_destructor(PyObject *ptr)
+ {
+     void *p = PyCapsule_GetPointer(ptr, CTYPES_CFIELD_CAPSULE_NAME_PYMEM);
+@@ -1258,7 +1280,7 @@
+         return Py_NewRef(value);
+     } else if (PyLong_Check(value)) {
+ #ifdef __FILC__
+-        *(char **)ptr = PyLong_AsVoidPtr(value);
++        *(char **)ptr = filc_masked_void_ptr(value);
+         if (PyErr_Occurred()) {
+             return NULL;
+         }
+@@ -1301,7 +1323,7 @@
+     }
+     if (PyLong_Check(value)) {
+ #ifdef __FILC__
+-        *(wchar_t **)ptr = PyLong_AsVoidPtr(value);
++        *(wchar_t **)ptr = filc_masked_void_ptr(value);
+         if (PyErr_Occurred()) {
+             return NULL;
+         }
+@@ -1426,7 +1448,7 @@
+     }
+ 
+ #ifdef __FILC__
+-    v = PyLong_AsVoidPtr(value);
++    v = filc_masked_void_ptr(value);
+ #elif SIZEOF_VOID_P <= SIZEOF_LONG
+     v = (void *)PyLong_AsUnsignedLongMask(value);
+ #else

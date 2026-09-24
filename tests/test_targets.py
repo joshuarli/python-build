@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from buildsys.targets import (
-    MACOS, TARGETS, UnsupportedTargetError, native_target, target_for_triple,
+    MACOS, TARGETS, UnsupportedTargetError, native_target, target_for_host,
+    target_for_triple,
 )
+from buildsys.deporder import dependency_order
 
 LINUX_TRIPLES = ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl")
 MACOS_TRIPLE = "aarch64-apple-darwin"
@@ -40,9 +43,12 @@ class TargetRegistryTests(unittest.TestCase):
         self.assertEqual(len({t.musl_loader for t in linux}), len(linux))
         self.assertEqual(len({t.openssl_configure_target for t in linux}), len(linux))
 
-    def test_openssl_names_are_distinct_across_every_target(self) -> None:
-        names = {t.openssl_configure_target for t in TARGETS.values()}
-        self.assertEqual(len(names), len(TARGETS))
+    def test_openssl_configure_name_describes_cpu_not_python_abi(self) -> None:
+        self.assertTrue(all(t.openssl_configure_target for t in TARGETS.values()))
+        self.assertEqual(
+            TARGETS["x86_64-filc-linux-musl"].openssl_configure_target,
+            TARGETS["x86_64-unknown-linux-musl"].openssl_configure_target,
+        )
 
     def test_family_specific_fields_are_not_populated_on_the_other_family(self) -> None:
         self.assertEqual(target_for_triple(MACOS_TRIPLE).musl_loader, "")
@@ -76,6 +82,28 @@ class TargetRegistryTests(unittest.TestCase):
         # otherwise every native-execution command fails closed.
         target = native_target()
         self.assertEqual(target, target_for_triple(target.triple))
+
+    def test_filc_target_requires_explicit_selection_on_x86_64(self) -> None:
+        with patch("buildsys.targets.platform.system", return_value="Linux"), patch(
+            "buildsys.targets.platform.machine", return_value="x86_64"
+        ):
+            self.assertEqual(native_target().triple, "x86_64-unknown-linux-musl")
+            filc = target_for_host("x86_64-filc-linux-musl")
+        self.assertEqual(filc.family, "linux-filc-musl")
+        self.assertTrue(filc.is_filc)
+        self.assertNotEqual(filc.musl_loader,
+                            TARGETS["x86_64-unknown-linux-musl"].musl_loader)
+        self.assertEqual(
+            set(dependency_order(filc)),
+            set(dependency_order(TARGETS["x86_64-unknown-linux-musl"])) - {"bdb"},
+        )
+
+    def test_explicit_target_still_checks_the_host_architecture(self) -> None:
+        with patch("buildsys.targets.platform.system", return_value="Linux"), patch(
+            "buildsys.targets.platform.machine", return_value="aarch64"
+        ):
+            with self.assertRaisesRegex(UnsupportedTargetError, "does not match"):
+                target_for_host("x86_64-filc-linux-musl")
 
 
 if __name__ == "__main__":

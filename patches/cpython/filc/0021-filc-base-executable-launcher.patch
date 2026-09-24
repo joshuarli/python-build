@@ -1,0 +1,13 @@
+--- a/Modules/getpath.py
++++ b/Modules/getpath.py
+@@ -317,6 +317,10 @@
+         # embedded app bundle. That bundle is an implementation detail
+         # and should not affect base_executable.
+         base_executable = f"{dirname(library)}/bin/python{VERSION_MAJOR}.{VERSION_MINOR}"
++    elif ENV_PYTHONEXECUTABLE:
++        # Fil-C's shell launcher names the bundled loader as the kernel
++        # executable. Subprocesses need the launcher as their base executable.
++        base_executable = ENV_PYTHONEXECUTABLE
+     else:
+         # Use the real executable as our base, or argv[0] otherwise
+         # (on Windows, argv[0] is likely to be ENV___PYVENV_LAUNCHER__; on

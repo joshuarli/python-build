@@ -19,7 +19,7 @@ import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .targets import native_target
+from .targets import Target, native_target
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -55,10 +55,15 @@ class Toolchain:
     sdkroot: str = ""  # macOS
     deployment_target: str = ""  # macOS
     cpu_baseline: str = ""  # e.g. -march=x86-64, -mcpu=apple-m1
+    filc_pizfix: Path | None = None  # verified musl/Pizfix sysroot and runtime
 
     @property
     def is_macos(self) -> bool:
         return self.family == "macos"
+
+    @property
+    def is_filc(self) -> bool:
+        return self.family == "linux-filc-musl"
 
     def env(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         env = dict(os.environ)
@@ -102,18 +107,18 @@ class Toolchain:
             # (plan 5.2): the private prefix is the only search root.
             env["PKG_CONFIG_PATH"] = self.pkg_config_path
             env["PKG_CONFIG_SYSROOT_DIR"] = ""
-            if self.is_macos:
-                # PKG_CONFIG_PATH only *prepends*; Homebrew's own
-                # /opt/homebrew/lib/pkgconfig stays on the default search
-                # path and carries .pc files for openssl, sqlite, libffi and
-                # the rest at different versions. PKG_CONFIG_LIBDIR replaces
-                # the default path outright. The frozen Linux container has
-                # no competing prefix, so it keeps its original behavior.
+            if self.is_macos or self.is_filc:
+                # PKG_CONFIG_PATH only prepends. macOS Homebrew and the Fil-C
+                # glibc build host both have default .pc files for libraries
+                # with incompatible provenance or ABI. Replace the default
+                # search path outright; frozen Alpine keeps its old policy.
                 env["PKG_CONFIG_LIBDIR"] = self.pkg_config_path
         else:
             env.pop("PKG_CONFIG_PATH", None)
             if self.is_macos:
                 env.pop("PKG_CONFIG_LIBDIR", None)
+            elif self.is_filc:
+                env["PKG_CONFIG_LIBDIR"] = "/nonexistent"
         if extra:
             env.update(extra)
         return env
@@ -184,11 +189,13 @@ class Recipe:
     build_subdir: str = ""
     configure_args: tuple[str, ...] = ()
     make_targets: tuple[str, ...] = ()
+    make_variables: tuple[str, ...] = ()
     cflags: str = ""
     cxxflags: str = ""
     ldflags: str = ""
     install: str = "autotools"
     log_path: Path | None = None
+    patch_dir: Path | None = None
 
 
 def build_recipe(
@@ -198,6 +205,7 @@ def build_recipe(
     prefix: Path,
     *,
     toolchain: Toolchain | None = None,
+    target: Target | None = None,
 ) -> None:
     """Extract a verified blob and build it into the private prefix.
 
@@ -217,8 +225,14 @@ def build_recipe(
         raise BuildError(f"{scratch} already exists; refusing to reuse scratch tree")
     sys.path.insert(0, str(REPO))
     from buildsys.inputs import safe_extract
+    from buildsys.patches import apply_patch_set
 
     safe_extract(blob, scratch)
+    if recipe.patch_dir is not None:
+        patch_root = scratch / recipe.extract_dir
+        if not patch_root.is_dir():
+            raise BuildError(f"patch root missing from verified archive: {patch_root}")
+        apply_patch_set(patch_root, recipe.patch_dir)
     source = scratch / recipe.source_subdir if recipe.source_subdir else scratch
     pkg_config_path = (
         f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig"
@@ -272,6 +286,7 @@ def build_recipe(
             f"AR={toolchain.ar}",
             f"RANLIB={toolchain.ranlib}",
         ]
+        command += list(recipe.make_variables)
         command += list(recipe.make_targets)
         run(command, cwd=makefile.parent, env=env, log=recipe.log_path / "make.log")
     elif recipe.install == "autotools":
@@ -308,7 +323,7 @@ def build_recipe(
             log=recipe.log_path / "install.log",
         )
     elif recipe.install == "openssl":
-        target = native_target()
+        target = target or native_target()
         if toolchain.is_macos:
             openssl_cflags = (
                 f"-O3 -fPIC {toolchain.cpu_baseline} -fno-omit-frame-pointer "

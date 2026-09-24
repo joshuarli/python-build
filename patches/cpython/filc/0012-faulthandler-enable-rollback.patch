@@ -1,0 +1,13 @@
+--- a/Modules/faulthandler.c
++++ b/Modules/faulthandler.c
+@@ -556,6 +556,10 @@
+         err = (handler->previous == SIG_ERR);
+ #endif
+         if (err) {
++            for (size_t j = 0; j < i; j++) {
++                faulthandler_disable_fatal_handler(&faulthandler_handlers[j]);
++            }
++            fatal_error.enabled = 0;
+             PyErr_SetFromErrno(PyExc_RuntimeError);
+             return -1;
+         }

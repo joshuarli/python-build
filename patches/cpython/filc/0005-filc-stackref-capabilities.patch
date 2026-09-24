@@ -1,0 +1,269 @@
+--- a/Include/internal/pycore_structs.h
++++ b/Include/internal/pycore_structs.h
+@@ -68,6 +68,7 @@
+     uint64_t index;
+ #else
+     uintptr_t bits;
++    PyObject *ptr;  // Fil-C capability for pointer-valued stack references
+ #endif
+ } _PyStackRef;
+ 
+--- a/Include/internal/pycore_stackref.h
++++ b/Include/internal/pycore_stackref.h
+@@ -10,6 +10,7 @@
+ 
+ #include "pycore_object.h"        // Py_DECREF_MORTAL
+ #include "pycore_object_deferred.h" // _PyObject_HasDeferredRefcount()
++#include <stdfil.h>             // zandptr(), zorptr() preserve capabilities
+ 
+ #include <stdbool.h>              // bool
+ 
+@@ -463,16 +464,16 @@
+ #  error "_Py_IMMORTAL_FLAGS != Py_TAG_REFCNT"
+ #endif
+ 
+-#define BITS_TO_PTR(REF) ((PyObject *)((REF).bits))
+-#define BITS_TO_PTR_MASKED(REF) ((PyObject *)(((REF).bits) & (~Py_TAG_REFCNT)))
++#define BITS_TO_PTR(REF) ((REF).ptr)
++#define BITS_TO_PTR_MASKED(REF) ((PyObject *)zandptr((REF).ptr, ~Py_TAG_REFCNT))
+ 
+ #define PyStackRef_NULL_BITS Py_TAG_REFCNT
+ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };
+ 
+ #define PyStackRef_IsNull(ref) ((ref).bits == PyStackRef_NULL_BITS)
+-#define PyStackRef_True ((_PyStackRef){.bits = ((uintptr_t)&_Py_TrueStruct) | Py_TAG_REFCNT })
+-#define PyStackRef_False ((_PyStackRef){.bits = ((uintptr_t)&_Py_FalseStruct) | Py_TAG_REFCNT })
+-#define PyStackRef_None ((_PyStackRef){.bits = ((uintptr_t)&_Py_NoneStruct) | Py_TAG_REFCNT })
++#define PyStackRef_True ((_PyStackRef){.ptr = zorptr(&_Py_TrueStruct, Py_TAG_REFCNT) })
++#define PyStackRef_False ((_PyStackRef){.ptr = zorptr(&_Py_FalseStruct, Py_TAG_REFCNT) })
++#define PyStackRef_None ((_PyStackRef){.ptr = zorptr(&_Py_NoneStruct, Py_TAG_REFCNT) })
+ 
+ #define PyStackRef_IsTrue(REF) ((REF).bits == (((uintptr_t)&_Py_TrueStruct) | Py_TAG_REFCNT))
+ #define PyStackRef_IsFalse(REF) ((REF).bits == (((uintptr_t)&_Py_FalseStruct) | Py_TAG_REFCNT))
+@@ -524,7 +525,7 @@
+ static inline _PyStackRef
+ PyStackRef_Borrow(_PyStackRef ref)
+ {
+-    return (_PyStackRef){ .bits = ref.bits | Py_TAG_REFCNT };
++    return (_PyStackRef){ .ptr = zorptr(ref.ptr, Py_TAG_REFCNT) };
+ }
+ #endif
+ 
+@@ -548,7 +549,7 @@
+ #else
+     unsigned int tag = _Py_IsImmortal(obj) ? Py_TAG_REFCNT : 0;
+ #endif
+-    _PyStackRef ref = ((_PyStackRef){.bits = ((uintptr_t)(obj)) | tag});
++    _PyStackRef ref = ((_PyStackRef){.ptr = zorptr(obj, tag)});
+     PyStackRef_CheckValid(ref);
+     return ref;
+ }
+@@ -557,7 +558,7 @@
+ PyStackRef_FromPyObjectBorrow(PyObject *obj)
+ {
+     assert(obj != NULL);
+-    return (_PyStackRef){ .bits = (uintptr_t)obj | Py_TAG_REFCNT };
++    return (_PyStackRef){ .ptr = zorptr(obj, Py_TAG_REFCNT) };
+ }
+ 
+ static inline _PyStackRef
+@@ -565,7 +566,7 @@
+ {
+     assert(obj != NULL);
+     assert(!_Py_IsImmortal(obj));
+-    _PyStackRef ref = ((_PyStackRef){.bits = ((uintptr_t)(obj)) });
++    _PyStackRef ref = ((_PyStackRef){.ptr = obj });
+     PyStackRef_CheckValid(ref);
+     return ref;
+ }
+@@ -575,10 +576,10 @@
+ {
+     assert(obj != NULL);
+     if (_Py_IsImmortal(obj)) {
+-        return (_PyStackRef){ .bits = ((uintptr_t)obj) | Py_TAG_REFCNT};
++        return (_PyStackRef){ .ptr = zorptr(obj, Py_TAG_REFCNT)};
+     }
+     _Py_INCREF_MORTAL(obj);
+-    _PyStackRef ref = (_PyStackRef){ .bits = (uintptr_t)obj };
++    _PyStackRef ref = (_PyStackRef){ .ptr = obj };
+     PyStackRef_CheckValid(ref);
+     return ref;
+ }
+@@ -589,7 +590,7 @@
+ {
+     assert(obj != NULL);
+     _Py_INCREF_MORTAL(obj);
+-    _PyStackRef ref = (_PyStackRef){ .bits = (uintptr_t)obj };
++    _PyStackRef ref = (_PyStackRef){ .ptr = obj };
+     PyStackRef_CheckValid(ref);
+     return ref;
+ }
+@@ -600,7 +601,7 @@
+ PyStackRef_FromPyObjectImmortal(PyObject *obj)
+ {
+     assert(_Py_IsImmortal(obj));
+-    return (_PyStackRef){ .bits = (uintptr_t)obj | Py_TAG_REFCNT};
++    return (_PyStackRef){ .ptr = zorptr(obj, Py_TAG_REFCNT)};
+ }
+ 
+ /* WARNING: This macro evaluates its argument more than once */
+@@ -633,7 +634,7 @@
+     }
+     PyObject *obj = BITS_TO_PTR_MASKED(ref);
+     Py_INCREF(obj);
+-    ref.bits = (uintptr_t)obj;
++    ref.ptr = obj;
+     PyStackRef_CheckValid(ref);
+     return ref;
+ }
+--- a/Tools/cases_generator/stack.py
++++ b/Tools/cases_generator/stack.py
+@@ -269,7 +269,7 @@
+         if var.name in UNUSED or not var.used:
+             return Local.unused(var, self.base_offset)
+         cast = f"({var.type})" if (not indirect and var.type) else ""
+-        bits = ".bits" if cast and self.extract_bits else ""
++        bits = (".ptr" if var.type and "*" in var.type else ".bits") if cast and self.extract_bits else ""
+         c_offset = (self.base_offset - self.physical_sp).to_c()
+         assign = f"{var.name} = {cast}{indirect}stack_pointer[{c_offset}]{bits};\n"
+         out.emit(assign)
+@@ -296,7 +296,10 @@
+         extract_bits: bool,
+     ) -> None:
+         cast = f"({cast_type})" if var.type else ""
+-        bits = ".bits" if cast and extract_bits else ""
++        pointer = bool(var.type and "*" in var.type)
++        bits = (".ptr" if pointer else ".bits") if cast and extract_bits else ""
++        if pointer and extract_bits:
++            cast = "(PyObject *)"
+         out.emit(f"stack_pointer[{stack_offset.to_c()}]{bits} = {cast}{var.name};\n")
+ 
+     def _save_physical_sp(self, out: CWriter) -> None:
+--- a/Python/executor_cases.c.h
++++ b/Python/executor_cases.c.h
+@@ -1579,7 +1579,7 @@
+             new_frame->localsplus[0] = container;
+             new_frame->localsplus[1] = sub;
+             frame->return_offset = 6u ;
+-            stack_pointer[-3].bits = (uintptr_t)new_frame;
++            stack_pointer[-3].ptr = (PyObject *)new_frame;
+             stack_pointer += -2;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -1949,7 +1949,7 @@
+             assert( 2u + oparg <= UINT16_MAX);
+             frame->return_offset = (uint16_t)( 2u + oparg);
+             gen_frame->previous = frame;
+-            stack_pointer[-1].bits = (uintptr_t)gen_frame;
++            stack_pointer[-1].ptr = (PyObject *)gen_frame;
+             break;
+         }
+ 
+@@ -3505,7 +3505,7 @@
+             STAT_INC(LOAD_ATTR, hit);
+             new_frame = _PyFrame_PushUnchecked(tstate, PyStackRef_FromPyObjectNew(fget), 1, frame);
+             new_frame->localsplus[0] = owner;
+-            stack_pointer[-1].bits = (uintptr_t)new_frame;
++            stack_pointer[-1].ptr = (PyObject *)new_frame;
+             break;
+         }
+ 
+@@ -4534,7 +4534,7 @@
+             tstate->exc_info = &gen->gi_exc_state;
+             gen_frame->previous = frame;
+             frame->return_offset = (uint16_t)( 2u + oparg);
+-            stack_pointer[0].bits = (uintptr_t)gen_frame;
++            stack_pointer[0].ptr = (PyObject *)gen_frame;
+             stack_pointer += 1;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -4841,7 +4841,7 @@
+                 JUMP_TO_ERROR();
+             }
+             new_frame = temp;
+-            stack_pointer[0].bits = (uintptr_t)new_frame;
++            stack_pointer[0].ptr = (PyObject *)new_frame;
+             stack_pointer += 1;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5121,7 +5121,7 @@
+             for (int i = 0; i < oparg; i++) {
+                 first_non_self_local[i] = args[i];
+             }
+-            stack_pointer[-2 - oparg].bits = (uintptr_t)new_frame;
++            stack_pointer[-2 - oparg].ptr = (PyObject *)new_frame;
+             stack_pointer += -1 - oparg;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5145,7 +5145,7 @@
+             for (int i = 0; i < oparg; i++) {
+                 first_non_self_local[i] = args[i];
+             }
+-            stack_pointer[-2 - oparg].bits = (uintptr_t)new_frame;
++            stack_pointer[-2 - oparg].ptr = (PyObject *)new_frame;
+             stack_pointer += -1 - oparg;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5169,7 +5169,7 @@
+             for (int i = 0; i < oparg; i++) {
+                 first_non_self_local[i] = args[i];
+             }
+-            stack_pointer[-2 - oparg].bits = (uintptr_t)new_frame;
++            stack_pointer[-2 - oparg].ptr = (PyObject *)new_frame;
+             stack_pointer += -1 - oparg;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5193,7 +5193,7 @@
+             for (int i = 0; i < oparg; i++) {
+                 first_non_self_local[i] = args[i];
+             }
+-            stack_pointer[-2 - oparg].bits = (uintptr_t)new_frame;
++            stack_pointer[-2 - oparg].ptr = (PyObject *)new_frame;
+             stack_pointer += -1 - oparg;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5217,7 +5217,7 @@
+             for (int i = 0; i < oparg; i++) {
+                 first_non_self_local[i] = args[i];
+             }
+-            stack_pointer[-2 - oparg].bits = (uintptr_t)new_frame;
++            stack_pointer[-2 - oparg].ptr = (PyObject *)new_frame;
+             stack_pointer += -1 - oparg;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5240,7 +5240,7 @@
+             for (int i = 0; i < oparg; i++) {
+                 first_non_self_local[i] = args[i];
+             }
+-            stack_pointer[-2 - oparg].bits = (uintptr_t)new_frame;
++            stack_pointer[-2 - oparg].ptr = (PyObject *)new_frame;
+             stack_pointer += -1 - oparg;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -5248,7 +5248,7 @@
+ 
+         case _PUSH_FRAME: {
+             _PyInterpreterFrame *new_frame;
+-            new_frame = (_PyInterpreterFrame *)stack_pointer[-1].bits;
++            new_frame = (_PyInterpreterFrame *)stack_pointer[-1].ptr;
+             assert(tstate->interp->eval_frame == NULL);
+             _PyInterpreterFrame *temp = new_frame;
+             stack_pointer += -1;
+@@ -5475,7 +5475,7 @@
+             init_frame = temp;
+             frame->return_offset = 1 + INLINE_CACHE_ENTRIES_CALL;
+             tstate->py_recursion_remaining--;
+-            stack_pointer[0].bits = (uintptr_t)init_frame;
++            stack_pointer[0].ptr = (PyObject *)init_frame;
+             stack_pointer += 1;
+             assert(WITHIN_STACK_BOUNDS());
+             break;
+@@ -6362,7 +6362,7 @@
+                 JUMP_TO_ERROR();
+             }
+             new_frame = temp;
+-            stack_pointer[0].bits = (uintptr_t)new_frame;
++            stack_pointer[0].ptr = (PyObject *)new_frame;
+             stack_pointer += 1;
+             assert(WITHIN_STACK_BOUNDS());
+             break;

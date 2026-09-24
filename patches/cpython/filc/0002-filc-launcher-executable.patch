@@ -1,0 +1,16 @@
+--- a/Modules/getpath.c
++++ b/Modules/getpath.c
+@@ -942,7 +942,13 @@
+         !wchar_to_dict(dict, "EXE_SUFFIX", EXE_SUFFIX) ||
+         !env_to_dict(dict, "ENV_PATH", 0) ||
+         !env_to_dict(dict, "ENV_PYTHONHOME", 0) ||
++#ifdef __FILC__
++        // The relocatable Fil-C launcher sets this for sys.executable, then
++        // it must disappear before child processes inherit the environment.
++        !env_to_dict(dict, "ENV_PYTHONEXECUTABLE", 1) ||
++#else
+         !env_to_dict(dict, "ENV_PYTHONEXECUTABLE", 0) ||
++#endif
+         !env_to_dict(dict, "ENV___PYVENV_LAUNCHER__", 1) ||
+         !progname_to_dict(dict, "real_executable") ||
+         !library_to_dict(dict, "library") ||

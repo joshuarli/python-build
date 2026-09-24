@@ -1,0 +1,11 @@
+--- a/Include/internal/pycore_faulthandler.h
++++ b/Include/internal/pycore_faulthandler.h
+@@ -24,7 +24,7 @@
+ #ifdef HAVE_SIGACTION
+ /* Using an alternative stack requires sigaltstack()
+    and sigaction() SA_ONSTACK */
+-#  ifdef HAVE_SIGALTSTACK
++#  if defined(HAVE_SIGALTSTACK) && !defined(__FILC__)
+ #    define FAULTHANDLER_USE_ALT_STACK
+ #  endif
+ typedef struct sigaction _Py_sighandler_t;

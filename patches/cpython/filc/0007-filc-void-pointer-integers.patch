@@ -1,0 +1,48 @@
+--- a/Objects/longobject.c
++++ b/Objects/longobject.c
+@@ -15,6 +15,7 @@
+ 
+ #include <float.h>                // DBL_MANT_DIG
+ #include <stddef.h>               // offsetof
++#include <stdfil.h>               // exact pointer table for C pointer integers
+ 
+ #include "clinic/longobject.c.h"
+ /*[clinic input]
+@@ -1424,12 +1425,24 @@
+ }
+ 
+ 
++// Preserve capabilities through public pointer-to-int round trips while
++// keeping the ordinary numeric pointer value observable to Python.
++static zexact_ptrtable *voidptr_table;
++
++static void __attribute__((constructor))
++init_voidptr_table(void)
++{
++    voidptr_table = zexact_ptrtable_new();
++}
++
+ /* Create a new int object from a C pointer */
+ 
+ PyObject *
+ PyLong_FromVoidPtr(void *p)
+ {
+-#if SIZEOF_VOID_P <= SIZEOF_LONG
++#ifdef __FILC__
++    return PyLong_FromUnsignedLong((unsigned long)zexact_ptrtable_encode(voidptr_table, p));
++#elif SIZEOF_VOID_P <= SIZEOF_LONG
+     return PyLong_FromUnsignedLong((unsigned long)(uintptr_t)p);
+ #else
+ 
+@@ -1473,7 +1486,11 @@
+ 
+     if (x == -1 && PyErr_Occurred())
+         return NULL;
++#ifdef __FILC__
++    return zexact_ptrtable_decode(voidptr_table, (uintptr_t)x);
++#else
+     return (void *)x;
++#endif
+ }
+ 
+ /* Initial long long support by Chris Herborth (chrish@qnx.com), later

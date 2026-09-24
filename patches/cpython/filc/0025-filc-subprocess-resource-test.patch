@@ -1,0 +1,12 @@
+--- a/Lib/test/test_subprocess.py
++++ b/Lib/test/test_subprocess.py
+@@ -2501,6 +2501,9 @@
+ 
+     @unittest.skipIf(
+         sys.platform == 'darwin', 'setrlimit() seems to fail on OS X')
++    @unittest.skipIf(
++        sys.implementation._multiarch == 'x86_64-filc-linux-musl',
++        'Pizfix aborts when its GC worker cannot be created at RLIMIT_NPROC=0')
+     def test_preexec_fork_failure(self):
+         # The internal code did not preserve the previous exception when
+         # re-enabling garbage collection

@@ -1,0 +1,17 @@
+--- a/Modules/mathmodule.c
++++ b/Modules/mathmodule.c
+@@ -2356,6 +2356,14 @@
+ /*[clinic end generated code: output=4fc8626dbc278d17 input=e3ad1f4a4c89626e]*/
+ {
+     double r = fma(x, y, z);
++#ifdef __FILC__
++    /* Pizfix's musl fma computes x*y + 0 with separate rounding. If the
++       exact negative product underflows, the addition loses its minus zero. */
++    if (z == 0.0 && r == 0.0 && x != 0.0 && y != 0.0
++            && signbit(x) != signbit(y)) {
++        r = -0.0;
++    }
++#endif
+ 
+     /* Fast path: if we got a finite result, we're done. */
+     if (isfinite(r)) {

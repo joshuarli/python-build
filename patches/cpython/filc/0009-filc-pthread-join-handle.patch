@@ -1,0 +1,15 @@
+--- a/Include/internal/pycore_pythread.h
++++ b/Include/internal/pycore_pythread.h
+@@ -117,7 +117,12 @@
+     PY_TIMEOUT_T microseconds);
+ 
+ typedef unsigned long long PyThread_ident_t;
++#ifdef __FILC__
++// Pizfix pthread_t is a pointer; a join handle must retain its capability.
++typedef void *PyThread_handle_t;
++#else
+ typedef Py_uintptr_t PyThread_handle_t;
++#endif
+ 
+ #define PY_FORMAT_THREAD_IDENT_T "llu"
+ #define Py_PARSE_THREAD_IDENT_T "K"

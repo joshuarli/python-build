@@ -1,0 +1,31 @@
+--- a/Include/cpython/longintrepr.h
++++ b/Include/cpython/longintrepr.h
+@@ -156,7 +156,7 @@
+     Py_ssize_t ndigits;
+     const void *digits;
+     // Member used internally, must not be used for other purpose.
+-    Py_uintptr_t _reserved;
++    PyObject *_reserved;
+ } PyLongExport;
+ 
+ PyAPI_FUNC(int) PyLong_Export(
+--- a/Objects/longobject.c
++++ b/Objects/longobject.c
+@@ -6821,7 +6821,7 @@
+             export_long->ndigits = 1;
+         }
+         export_long->digits = self->long_value.ob_digit;
+-        export_long->_reserved = (Py_uintptr_t)Py_NewRef(obj);
++        export_long->_reserved = Py_NewRef(obj);
+     }
+     return 0;
+ }
+@@ -6830,7 +6830,7 @@
+ void
+ PyLong_FreeExport(PyLongExport *export_long)
+ {
+-    PyObject *obj = (PyObject*)export_long->_reserved;
++    PyObject *obj = export_long->_reserved;
+     if (obj) {
+         export_long->_reserved = 0;
+         Py_DECREF(obj);

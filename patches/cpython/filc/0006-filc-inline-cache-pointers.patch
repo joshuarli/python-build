@@ -1,0 +1,53 @@
+--- a/Include/internal/pycore_code.h
++++ b/Include/internal/pycore_code.h
+@@ -11,6 +11,9 @@
+ #include "pycore_backoff.h"     // _Py_BackoffCounter
+ #include "pycore_structs.h"     // _Py_CODEUNIT
+ #include "pycore_tstate.h"      // _PyThreadStateImpl
++#include <stdfil.h>             // zptrtable preserves cached pointer capabilities
++
++extern zptrtable *_PyCode_PtrTable;
+ 
+ 
+ #define _PyCode_CODE(CO) _Py_RVALUE((_Py_CODEUNIT *)(CO)->co_code_adaptive)
+@@ -350,7 +353,8 @@
+ static inline void
+ write_ptr(uint16_t *p, void *val)
+ {
+-    memcpy(p, &val, sizeof(val));
++    uintptr_t handle = zptrtable_encode(_PyCode_PtrTable, val);
++    memcpy(p, &handle, sizeof(handle));
+ }
+ 
+ static inline uint16_t
+@@ -378,9 +382,9 @@
+ static inline PyObject *
+ read_obj(uint16_t *p)
+ {
+-    PyObject *val;
+-    memcpy(&val, p, sizeof(val));
+-    return val;
++    uintptr_t handle;
++    memcpy(&handle, p, sizeof(handle));
++    return zptrtable_decode(_PyCode_PtrTable, handle);
+ }
+ 
+ /* See InternalDocs/exception_handling.md for details.
+--- a/Objects/codeobject.c
++++ b/Objects/codeobject.c
+@@ -21,6 +21,15 @@
+ 
+ #include "clinic/codeobject.c.h"
+ #include <stdbool.h>
++
++// Inline bytecode caches contain handles because code units cannot store Fil-C pointers.
++zptrtable *_PyCode_PtrTable;
++
++static void __attribute__((constructor))
++init_code_ptrtable(void)
++{
++    _PyCode_PtrTable = zptrtable_new();
++}
+ 
+ 
+ #define INITIAL_SPECIALIZED_CODE_SIZE 16

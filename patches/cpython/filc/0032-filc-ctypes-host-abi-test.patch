@@ -1,0 +1,11 @@
+--- a/Lib/test/test_ctypes/test_find.py
++++ b/Lib/test/test_ctypes/test_find.py
+@@ -79,6 +79,8 @@
+                      'Test only valid for Linux')
+ class FindLibraryLinux(unittest.TestCase):
+     @thread_unsafe('uses setenv')
++    @unittest.skipIf(sys.implementation._multiarch == 'x86_64-filc-linux-musl',
++                     'host gcc builds an ordinary C ABI library, not Fil-C')
+     def test_find_on_libpath(self):
+         import subprocess
+         import tempfile

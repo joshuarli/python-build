@@ -1,0 +1,21 @@
+--- a/src/readline.c
++++ b/src/readline.c
+@@ -1387,6 +1387,18 @@
+ 		ret = errno;
+ 		goto out3;
+ 	}
++	/* H_LOAD requires the file cookie; tail truncation must retain it. */
++	char header[sizeof("_HiStOrY_V2_\n")];
++	int has_header = fgets(header, sizeof(header), fp) != NULL &&
++	    strcmp(header, "_HiStOrY_V2_\n") == 0;
++	if (fseeko(fp, (off_t)0, SEEK_SET) == (off_t)-1) {
++		ret = errno;
++		goto out3;
++	}
++	if (has_header && fputs(header, fp) == EOF) {
++		ret = errno;
++		goto out3;
++	}
+ 
+ 	if (fseeko(tp, (off_t)sizeof(buf) * count + (cp - buf), SEEK_SET) ==
+ 	    (off_t)-1) {

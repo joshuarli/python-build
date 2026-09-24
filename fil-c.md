@@ -19,7 +19,11 @@ The existing builds must continue to work unchanged.
 
 This is not a feasibility spike and not a "get it compiling" task. You own the complete implementation, including changes to Fil-C itself if CPython 3.14.6 exposes compiler/runtime/libc limitations.
 
-**Do not stop until we have a real CPython 3.14.6 interpreter built by python-build with Fil-C, with its native dependency closure built for the Fil-C ABI, packaged, tested, and built in CI.**
+**Do not stop until we have a real CPython 3.14.6 interpreter built by python-build with Fil-C, with its native dependency closure built for the Fil-C ABI, packaged, and tested locally.**
+
+GitHub Actions compilation and validation of the Fil-C target are out of scope.
+The Fil-C compiler is too large for the available free GitHub Actions runners.
+Local qualification must still exercise the exact packaged bytes.
 
 glibc is completely out of scope. Do not use `/opt/fil`, Fil-C glibc, or Pizlix's glibc configuration. We are interested only in the classic **musl-based Pizfix Fil-C environment**.
 
@@ -53,17 +57,11 @@ The task is complete only when all of the following are true:
 
 10. Existing ordinary musl and macOS artifacts remain green.
 
-11. GitHub CI actually builds and tests the Fil-C x86_64 artifact.
+11. The Fil-C archive is a clearly distinct additional release asset, built and validated locally from a recorded toolchain.
 
-12. The release pipeline publishes the Fil-C archive as a clearly distinct additional release asset.
+12. **Do not put the Fil-C artifact into the ordinary uv `linux-x86_64-musl` download metadata.** uv has no Fil-C ABI dimension and advertising this as a normal musl CPython would be incorrect.
 
-13. **Do not put the Fil-C artifact into the ordinary uv `linux-x86_64-musl` download metadata.** uv has no Fil-C ABI dimension and advertising this as a normal musl CPython would be incorrect.
-
-14. If Fil-C itself needs changes, those changes exist as clean commits in the Fil-C fork/local checkout, and `python-build` CI consumes an immutable, hash-pinned compact Fil-C toolchain artifact corresponding exactly to those changes.
-
-15. No CI path clones the gigantic Fil-C repository just to build Python. CI consumes a compact prebuilt Fil-C Pizfix toolchain archive. `~/d/fil-c` is for local development and for producing that toolchain when necessary.
-
-16. The final CI workflow has been dispatched and observed to pass. Do not stop at "the YAML looks right."
+13. If Fil-C itself needs changes, those changes exist as clean commits in the Fil-C fork/local checkout. Record the exact Fil-C commit and a digest of the compact musl Pizfix toolchain used to build and validate the artifact.
 
 # Important existing Fil-C prior art
 
@@ -278,12 +276,16 @@ If Fil-C changes are necessary:
 7. Make clean, general-purpose Fil-C commits rather than CPython-specific hacks when the problem is genuinely generic.
 8. Rebuild the fast musl/Pizfix toolchain and rerun relevant Fil-C tests.
 9. Package the compact Pizfix binary toolchain using Fil-C's existing packaging machinery.
-10. Publish that compact binary artifact from the fork under an immutable tag/release.
-11. Pin its exact URL, digest, version/tag and provenance in python-build's bootstrap inputs.
+10. Package the compact musl Pizfix toolchain, record its digest and source commit, and retain it for local qualification and extension builds.
 
-**python-build CI must download that compact artifact, not clone `fil-c`.**
+If stock Fil-C works with only CPython/dependency patches, the official Fil-C 0.685 x86_64 Pizfix binary release may be used as the recorded toolchain.
 
-If stock Fil-C works with only CPython/dependency patches, prefer the official Fil-C 0.685 x86_64 Pizfix binary release as the pinned CI toolchain.
+The 0.685 archive's x86_64 Pizfix `max_align_t` header is underaligned for
+`long double`. `python-build` applies one exact, digest-checked header
+correction after verifying the official archive. The corresponding source
+fix is committed at `joshuarli/fil-c` commit
+`7712527fceb0dc1e89dee0146b6a98a8d071d888` and pinned separately from
+the official toolchain source commit in `bootstrap.lock.json`.
 
 # python-build architecture
 
@@ -308,7 +310,7 @@ A reasonable shape is:
 * explicit target selection for phase drivers;
 * default-to-native behavior remains for the existing targets;
 * Fil-C always requires the explicit Fil-C target;
-* Docker/CI passes the target explicitly.
+* local build drivers pass the target explicitly.
 
 Do not make dictionary ordering decide which x86_64 target is selected.
 
@@ -329,6 +331,11 @@ Establish this experimentally.
 If ThinLTO works correctly with Fil-C, retain it.
 
 If it does not, make **only the Fil-C target** a documented LTO exception rather than adding hacks or blocking the port forever.
+
+The official 0.685 musl/Pizfix archive has no matching LLVM 20 LTO linker.
+The 3.14.6 core compiles with ThinLTO, but its first link fails with GNU ld's
+missing `LLVMgold.so`; Debian LLD 19 rejects the bitcode summary version.
+The Fil-C target therefore omits ThinLTO while the other targets retain it.
 
 Do not add PGO just for this target.
 
@@ -519,26 +526,13 @@ Ensure:
 
 appears in the runtime dependency resolution or installed sysconfig.
 
-# CI
+# Local qualification
 
-Add a dedicated Fil-C Linux x86_64 build job rather than complicating the existing ordinary-musl matrix unnecessarily.
-
-The CI path should roughly be:
-
-1. checkout `python-build`;
-2. fetch/verify the compact pinned Fil-C musl Pizfix toolchain archive;
-3. build the python-build native dependency closure with Fil-C;
-4. build patched CPython 3.14.6 with Fil-C;
-5. package;
-6. run build identity checks;
-7. run runtime/compatibility/regression tests;
-8. upload the Fil-C dist artifact;
-9. include it in release assets;
-10. smoke-test the exact bytes being released on a clean Linux environment.
-
-Do not clone the Fil-C source repository in this workflow.
-
-For additional confidence, smoke the packaged result in two substantially different userspaces if practical, e.g. an Ubuntu runner and an Alpine container. Since this build carries its own Fil-C/musl slice, it should not accidentally depend on the host's glibc.
+Build and test the Fil-C target locally with a recorded musl Pizfix toolchain.
+Smoke the exact packaged bytes in two substantially different userspaces if
+practical, e.g. the Linux host and an Alpine container. Since this build
+carries its own Fil-C/musl slice, it must not depend on the host's glibc.
+GitHub Actions build and release workflow changes are out of scope.
 
 Do not add the Fil-C asset to ordinary uv metadata.
 
@@ -549,7 +543,7 @@ Before large refactors, establish the current test baseline.
 After implementation:
 
 * run the full project unit-test suite;
-* ensure existing x86_64 ordinary musl CI remains green;
+* keep the existing x86_64 ordinary musl build green;
 * ensure aarch64 ordinary musl remains structurally unchanged/green;
 * ensure macOS remains structurally unchanged/green.
 
@@ -617,8 +611,7 @@ The following are explicitly **not** completion:
 * it works only inside the Fil-C checkout.
 * it requires `/opt/fil`.
 * it accidentally uses glibc.
-* it requires a full Fil-C source clone in python-build CI.
-* the GitHub workflow has merely been written but not run.
+* it requires a full Fil-C source clone to consume the release archive.
 * a native extension cannot be built.
 * the ordinary builds were broken.
 * the final artifact is mislabeled as ordinary musl ABI.
@@ -632,13 +625,10 @@ When everything works:
 
 1. Make coherent commits in `python-build`.
 2. If Fil-C changed, make coherent commits in `~/d/fil-c` and push the dedicated branch/fork.
-3. If Fil-C changed, publish the compact x86_64 musl Pizfix toolchain binary used by CI and pin its immutable digest in python-build.
+3. Record the compact x86_64 musl Pizfix toolchain's source commit and digest.
 4. Push python-build changes.
-5. Dispatch the real build/release workflow.
-6. Follow it to completion.
-7. Fix any CI-only problems and rerun until green.
-8. Inspect the produced Fil-C release archive itself, not an intermediate tree.
-9. Run the final smoke/relocation/native-extension checks against those exact release bytes.
+5. Inspect the produced Fil-C release archive itself, not an intermediate tree.
+6. Run the final smoke/relocation/native-extension checks against those exact release bytes.
 
 Only then report completion.
 
@@ -648,7 +638,6 @@ The final report should be concise and factual:
 * Fil-C commit/fork/tag if changed
 * Fil-C toolchain artifact/digest
 * final CPython Fil-C release asset name
-* CI run and status
 * CPython regression-suite result and any narrowly justified exclusions
 * native-extension result
 * relocation result

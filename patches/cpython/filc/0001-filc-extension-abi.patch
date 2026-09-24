@@ -1,0 +1,56 @@
+--- a/configure.ac
++++ b/configure.ac
+@@ -1185,6 +1185,8 @@
+   MULTIARCH=$PLATFORM_TRIPLET
+ fi
+ AC_SUBST([PLATFORM_TRIPLET])
++# Fil-C pointers and calls have a distinct ABI from ordinary musl.
++MULTIARCH=x86_64-filc-linux-musl
+ AC_MSG_RESULT([$MULTIARCH])
+ 
+ dnl Even if we *do* include the CPU architecture in the MULTIARCH value, some
+@@ -1196,6 +1198,7 @@
+   [iOS], [SOABI_PLATFORM=`echo "$PLATFORM_TRIPLET" | cut -d '-' -f2`],
+   [SOABI_PLATFORM=$PLATFORM_TRIPLET]
+ )
++SOABI_PLATFORM=x86_64-filc-linux-musl
+ 
+ if test x$MULTIARCH != x; then
+   MULTIARCH_CPPFLAGS="-DMULTIARCH=\\\"$MULTIARCH\\\""
+--- a/configure
++++ b/configure
+@@ -7196,6 +7196,8 @@
+ elif test x$PLATFORM_TRIPLET != x && test x$MULTIARCH = x; then
+   MULTIARCH=$PLATFORM_TRIPLET
+ fi
++# Fil-C pointers and calls have a distinct ABI from ordinary musl.
++MULTIARCH=x86_64-filc-linux-musl
+ 
+ { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $MULTIARCH" >&5
+ printf "%s\n" "$MULTIARCH" >&6; }
+@@ -7207,6 +7209,7 @@
+     SOABI_PLATFORM=$PLATFORM_TRIPLET
+  ;;
+ esac
++SOABI_PLATFORM=x86_64-filc-linux-musl
+ 
+ if test x$MULTIARCH != x; then
+   MULTIARCH_CPPFLAGS="-DMULTIARCH=\\\"$MULTIARCH\\\""
+--- a/Python/dynload_shlib.c
++++ b/Python/dynload_shlib.c
+@@ -41,11 +41,15 @@
+     ".dll",
+ #else  /* !__CYGWIN__ */
+     "." SOABI ".so",
++#ifdef __FILC__
++    /* A Fil-C interpreter only searches for Fil-C-tagged extensions. */
++#else
+ #ifdef ALT_SOABI
+     "." ALT_SOABI ".so",
+ #endif
+     ".abi" PYTHON_ABI_STRING ".so",
+     ".so",
++#endif
+ #endif  /* __CYGWIN__ */
+     NULL,
+ };

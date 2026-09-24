@@ -25,7 +25,11 @@ class CLITests(unittest.TestCase):
         # be rejected clearly rather than silently building/mislabeling the
         # wrong architecture. Picked dynamically so this test is correct
         # under QEMU-emulated aarch64 runs too, not just on an x86_64 host.
-        foreign = next(t for t in TARGETS if t != native_target().triple)
+        host = native_target()
+        foreign = next(
+            triple for triple, target in TARGETS.items()
+            if target.machine != host.machine or target.is_macos != host.is_macos
+        )
         result = self.invoke('build', '--target', foreign, '--dev')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('does not match the running machine', result.stderr)

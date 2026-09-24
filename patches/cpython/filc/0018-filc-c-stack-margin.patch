@@ -1,0 +1,12 @@
+--- a/Include/internal/pycore_pythonrun.h
++++ b/Include/internal/pycore_pythonrun.h
+@@ -40,7 +40,8 @@
+  * stack consumption of PyEval_EvalDefault */
+ #if (defined(Py_DEBUG) \
+      || defined(_Py_ADDRESS_SANITIZER) \
+-     || defined(_Py_THREAD_SANITIZER))
++     || defined(_Py_THREAD_SANITIZER) \
++     || defined(__FILC__))
+ #  define _PyOS_LOG2_STACK_MARGIN 12
+ #else
+ #  define _PyOS_LOG2_STACK_MARGIN 11

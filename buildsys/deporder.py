@@ -14,7 +14,7 @@ than bundling them:
 
 from __future__ import annotations
 
-from .targets import MACOS, Target
+from .targets import LINUX_FILC_MUSL, MACOS, Target
 
 # Ordering constraints:
 #   pkg-config must exist before any pkg-config consumer configures.
@@ -36,6 +36,15 @@ LINUX_DEPENDENCY_ORDER: tuple[str, ...] = (
     "sqlite",
     "openssl",
     # Tcl/Tk and their X11 closure are deliberately outside the product scope.
+)
+
+# Fil-C cannot use Berkeley DB's private-region representation: its shared
+# queue links are integer offsets between distinct heap allocations, which
+# discard the capability needed to access the destination. CPython 3.14's
+# dbm.sqlite3 uses the already-locked SQLite dependency and provides the
+# supported dbm mapping API and format detection on this target.
+FILC_DEPENDENCY_ORDER: tuple[str, ...] = tuple(
+    name for name in LINUX_DEPENDENCY_ORDER if name != "bdb"
 )
 
 # macOS ordering constraints are weaker: none of these consumes another's
@@ -60,7 +69,11 @@ MACOS_DEPENDENCY_ORDER: tuple[str, ...] = (
     "openssl",
 )
 
-ORDERS = {"linux-musl": LINUX_DEPENDENCY_ORDER, MACOS: MACOS_DEPENDENCY_ORDER}
+ORDERS = {
+    "linux-musl": LINUX_DEPENDENCY_ORDER,
+    LINUX_FILC_MUSL: FILC_DEPENDENCY_ORDER,
+    MACOS: MACOS_DEPENDENCY_ORDER,
+}
 
 # Retained for the frozen Linux importers and tests; prefer dependency_order().
 DEPENDENCY_ORDER = LINUX_DEPENDENCY_ORDER
