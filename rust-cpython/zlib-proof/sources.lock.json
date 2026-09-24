@@ -1,0 +1,22 @@
+{
+  "backend": {
+    "repository": "https://github.com/trifectatechfoundation/zlib-rs",
+    "crate": "libz-rs-sys-cdylib",
+    "version": "0.6.7",
+    "license": "Zlib",
+    "cargo_lock_sha256": "52a4ebe3f39273d7e27f3a2cb4a8a216877be6c1fc0394e18f26f7ec98b28a82"
+  },
+  "inputs": [
+    {
+      "name": "libz-rs-sys-cdylib",
+      "version": "0.6.7",
+      "url": "https://static.crates.io/crates/libz-rs-sys-cdylib/libz-rs-sys-cdylib-0.6.7.crate",
+      "sha256": "09ab8373154ca2cd2ba61b44dcf28bcb91733f1f7652ce96a502c5ae3b7ca702",
+      "size": 5370041,
+      "role": "build-source",
+      "target": "aarch64-apple-darwin",
+      "license": "Zlib",
+      "purpose": "Pinned Rust zlib C ABI for a research-only static backend under CPython's unchanged zlibmodule.c"
+    }
+  ]
+}

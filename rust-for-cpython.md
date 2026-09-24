@@ -16,15 +16,22 @@ boundaries.
 - `_base64` is an integration proof, not a public stdlib optimization:
   `Lib/base64.py` still routes through `binascii`. The Rust path is faster for
   64-byte inputs but 42–48% slower at 4 KiB and above in the measured cases.
+- A separate [`zlib-proof`](rust-cpython/zlib-proof/README.md) links the pinned
+  `zlib-rs` 0.6.7 C ABI beneath the unchanged CPython `Modules/zlibmodule.c`.
+  `test_zlib` passed 85 tests (2 skipped); `test_gzip`, `test_tarfile`,
+  `test_zipfile`, `test_zipimport`, and `test_binascii` passed 1,807 tests
+  (37 skipped). The extension had no dynamic `libz` dependency.
 
 ## Work still open
 
-- **zlib has no Rust proof or integration here.** The pinned source still uses
-  `Modules/zlibmodule.c` and the existing zlib backend. Rust zlib projects in
-  the roadmap are references only.
-- No stdlib implementation beyond the isolated `_base64` extension proof has
-  been migrated or broadly optimized in Rust. The ranked entries in
-  `rust-cpython/README.md` are candidates, not completed work.
+- **The zlib proof is not a production migration.** The ordinary lane build
+  still links `Modules/zlibmodule.c` to platform zlib; the Rust backend exists
+  only in the separate proof overlay. Performance and compressed-byte
+  comparisons remain open.
+- No stdlib module has been migrated into the public product or broadly
+  optimized in Rust. Beyond the isolated `_base64` extension and the zlib
+  backend proof, ranked entries in `rust-cpython/README.md` are candidates,
+  not completed work.
 - A user-visible stdlib migration has not started. Choose a target from the
   ranked map before implementation.
 

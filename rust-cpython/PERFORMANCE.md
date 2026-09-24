@@ -70,9 +70,16 @@ is faster for very small inputs. At 4 KiB and above, the existing C encoder is
 about 43–48% faster. Do not route the public Base64 API to this implementation
 until the bulk path is improved and remeasured.
 
-This repository has **no Rust zlib integration proof**: `Modules/zlibmodule.c`
-and the existing zlib backend remain in use. Beyond the `_base64` integration
-proof, no standard-library implementation has been migrated or broadly
+The separate [`zlib-proof`](zlib-proof/README.md) links the pinned
+`libz-rs-sys-cdylib` 0.6.7 C ABI beneath the unchanged CPython
+`Modules/zlibmodule.c`. Its extension has no dynamic `libz` dependency, and
+1,892 CPython tests passed across `zlib`, `gzip`, `tarfile`, `zipfile`,
+`zipimport`, and `binascii`. This is a compatibility proof; zlib throughput
+and compressed-byte comparisons have not been measured. The regular lane and
+production builds still use their existing zlib backend.
+
+Beyond the `_base64` extension and this isolated zlib backend proof, no
+standard-library implementation has been migrated into the product or broadly
 optimized in Rust. The ranked candidates in `rust-cpython/README.md` remain
 future work.
 
