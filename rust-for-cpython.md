@@ -188,6 +188,9 @@ explicitly.
   footprint increased, and macOS memory parity is still unqualified. See
   [`zlib-build-candidate.md`](rust-cpython/experiments/zlib-build-candidate.md)
   and [`zlib-full-candidate-20260924.md`](rust-cpython/experiments/zlib-full-candidate-20260924.md).
+  A paired follow-up found the 3.13 MB ZIP peak-RSS increase below local
+  repeatability noise; the footprint signal remains sample-sensitive. See
+  [`zlib-memory-followup-20260924.md`](rust-cpython/experiments/zlib-memory-followup-20260924.md).
 - The vanilla upstream 3.16.0a0 merge-base control built with the locked LLVM,
   ThinLTO, and the fork's nine-worker PGO task. Its recipe and limits are in
   [`upstream-baseline.md`](rust-cpython/experiments/upstream-baseline.md).

@@ -9,11 +9,21 @@ with OrbStack Helper near one CPU and 7.5 GB RSS. Its allocated swap remained
 | Lane | Worktree and branch | Owned paths | Question | Budget and status |
 | --- | --- | --- | --- | --- |
 | Child CPU accounting | `/private/tmp/python-build-exp-child-cpu-20260924d`, `exp/rust-cpython-child-cpu-20260924d` | `benchmarks/harness/process.py`, `benchmarks/harness/runner.py`, `benchmarks/workloads/zlib.py`, relevant focused tests, new `experiments/child-cpu-accounting-20260924.md` | Can the cold ZIP import report direct reaped child CPU without implying arbitrary descendant coverage? | 150 CPU seconds, 1 GiB RSS; active, no long benchmark/build |
-| ZIP memory diagnosis | `/private/tmp/python-build-exp-zlib-memory-20260924d`, `exp/rust-cpython-zlib-memory-20260924d` | New `experiments/zlib-memory-followup-20260924.md` only | What does the raw paired ZIP read RSS/footprint evidence support, and which quiet-host measurement should follow? | 30 CPU seconds, 512 MB RSS; active, read-only analysis |
+| ZIP memory diagnosis | `/private/tmp/python-build-exp-zlib-memory-20260924d`, `exp/rust-cpython-zlib-memory-20260924d` | New `experiments/zlib-memory-followup-20260924.md` only | What does the raw paired ZIP read RSS/footprint evidence support, and which quiet-host measurement should follow? | Integrated; no benchmark/build |
 
 The coordinator owns this ledger and the integration order. The agents have
 distinct source and report paths, may not delegate, and keep any scratch in
 their own worktrees.
+
+The ZIP memory diagnosis found paired root-kernel peak RSS differences of
++3.801, −0.131, and +3.129 MB. The 3.129 MB median gap is below the 4.028 MB
+ZIP repeatability allowance. Sampled footprint gaps were +5.177, +9.749,
+and +0.754 MB; a missing final sample in the third candidate shows this is
+not an exact lifetime peak. The root kernel footprint median gap was 2.916
+MB. `zlib-memory-followup-20260924.md` records the raw-data interpretation
+and a quiet-host ZIP self-comparison plan. Four small analysis commands each
+used about 0.03 CPU seconds and below 19 MB reported RSS. This is an
+inconclusive memory signal, not a parity pass or established regression.
 
 ## Third cycle (base `87b0eec`)
 
