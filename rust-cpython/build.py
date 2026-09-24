@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -51,10 +52,14 @@ TARGET = "aarch64-apple-darwin"
 RUST_CHANNEL = "nightly-2026-09-15"
 SOURCE_LOCK = LANE / "sources.lock.json"
 PATCH_MANIFEST = LANE / "patches" / "manifest.json"
+ZLIB_LOCK = LANE / "zlib-proof" / "sources.lock.json"
 BOOTSTRAP_LOCK = REPO / "bootstrap.lock.json"
 CACHE_ROOT = REPO / ".cache"
 CARGO_HOME = LANE / ".cargo-home"
 WORK = LANE / "work"
+ZLIB_SOURCE = WORK / "zlib-candidate-source"
+ZLIB_TARGET = WORK / "zlib-candidate-target"
+ZLIB_ARCHIVE = ZLIB_TARGET / "release" / "libz_rs.a"
 BUILD = WORK / "build"
 SOURCE = WORK / "source"
 STAGE = LANE / "stage"
@@ -600,7 +605,117 @@ def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
         raise LaneError("cargo fetch changed the locked Cargo.lock")
 
 
-def fetch() -> int:
+def _zlib_input() -> tuple[dict[str, str], Input]:
+    """Use the proof's existing source pin for the optional whole-build candidate."""
+    try:
+        metadata = json.loads(ZLIB_LOCK.read_text())["backend"]
+        entries = load_lock(ZLIB_LOCK)
+    except (OSError, ValueError, KeyError, TypeError, InputError) as error:
+        raise LaneError(f"cannot read pinned zlib-rs backend: {error}") from error
+    expected = {
+        "repository": "https://github.com/trifectatechfoundation/zlib-rs",
+        "crate": "libz-rs-sys-cdylib",
+        "version": "0.6.7",
+        "license": "Zlib",
+    }
+    if any(metadata.get(key) != value for key, value in expected.items()):
+        raise LaneError("zlib-rs metadata disagrees with the proven 0.6.7 pin")
+    if len(entries) != 1:
+        raise LaneError("zlib-rs lock must contain exactly one source archive")
+    entry = entries[0]
+    if (entry.name != metadata["crate"] or entry.version != metadata["version"]
+            or entry.role != "build-source" or entry.target != TARGET
+            or entry.license != metadata["license"]
+            or entry.url != "https://static.crates.io/crates/libz-rs-sys-cdylib/libz-rs-sys-cdylib-0.6.7.crate"):
+        raise LaneError("zlib-rs archive entry disagrees with backend metadata")
+    cargo_hash = metadata.get("cargo_lock_sha256")
+    if not isinstance(cargo_hash, str) or re.fullmatch(r"[0-9a-f]{64}", cargo_hash) is None:
+        raise LaneError("zlib-rs Cargo.lock pin is invalid")
+    return metadata, entry
+
+
+def _zlib_source(blob: Path) -> Path:
+    if ZLIB_SOURCE.exists():
+        shutil.rmtree(ZLIB_SOURCE)
+    extraction = safe_extract(blob, ZLIB_SOURCE)
+    roots = [path for path in extraction.iterdir() if path.is_dir()]
+    if len(roots) != 1:
+        raise LaneError("zlib-rs archive must contain exactly one crate root")
+    source = roots[0]
+    manifest = source / "Cargo.toml"
+    cargo_lock = source / "Cargo.lock"
+    if not manifest.is_file() or not cargo_lock.is_file():
+        raise LaneError("zlib-rs archive lacks Cargo.toml or Cargo.lock")
+    metadata, _entry = _zlib_input()
+    try:
+        manifest_data = tomllib.loads(manifest.read_text())
+        package = manifest_data["package"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise LaneError(f"cannot read pinned zlib-rs Cargo.toml: {error}") from error
+    if any(package.get(key) != metadata[value] for key, value in
+           (("name", "crate"), ("version", "version"), ("license", "license"))):
+        raise LaneError("zlib-rs Cargo.toml disagrees with the source pin")
+    if "staticlib" not in manifest_data.get("lib", {}).get("crate-type", []):
+        raise LaneError("zlib-rs crate does not declare a static library")
+    if hashlib.sha256(cargo_lock.read_bytes()).hexdigest() != metadata["cargo_lock_sha256"]:
+        raise LaneError("zlib-rs Cargo.lock digest disagrees with the source pin")
+    return source
+
+
+def _zlib_cargo_env(toolchain, *, offline: bool) -> dict[str, str]:
+    env = _environment(toolchain, offline=offline)
+    env["CARGO_TARGET_DIR"] = str(ZLIB_TARGET)
+    for key in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER"):
+        env.pop(key, None)
+    return env
+
+
+def _fetch_zlib(toolchain) -> None:
+    _metadata, entry = _zlib_input()
+    blob = Cache(CACHE_ROOT).fetch(entry)
+    source = _zlib_source(blob)
+    _require_command(
+        [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked",
+         "--manifest-path", str(source / "Cargo.toml")],
+        cwd=source, env=_zlib_cargo_env(toolchain, offline=False),
+        log=LOGS / "zlib-candidate-fetch.log",
+    )
+    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != _zlib_input()[0]["cargo_lock_sha256"]:
+        raise LaneError("zlib-rs Cargo.lock changed during fetch")
+
+
+def _build_zlib(toolchain, sandbox: SealedRun) -> dict[str, Any]:
+    metadata, entry = _zlib_input()
+    blob = Cache(CACHE_ROOT).require(entry)
+    source = _zlib_source(blob)
+    _require_command(
+        [str(CARGO_HOME / "bin" / "cargo"), "build", "--release", "--locked",
+         "--offline", "--manifest-path", str(source / "Cargo.toml")],
+        cwd=source, env=sandbox.environment(_zlib_cargo_env(toolchain, offline=True)),
+        log=LOGS / "zlib-candidate-build.log",
+        sealed=sandbox,
+    )
+    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != metadata["cargo_lock_sha256"]:
+        raise LaneError("zlib-rs Cargo.lock changed during build")
+    if not ZLIB_ARCHIVE.is_file():
+        raise LaneError(f"zlib-rs did not produce {ZLIB_ARCHIVE}")
+    return {
+        "source_lock": str(ZLIB_LOCK),
+        "source_lock_sha256": hashlib.sha256(ZLIB_LOCK.read_bytes()).hexdigest(),
+        "repository": metadata["repository"],
+        "crate": metadata["crate"],
+        "version": metadata["version"],
+        "source_archive_sha256": entry.sha256,
+        "source_archive_size": entry.size,
+        "cargo_lock_sha256": metadata["cargo_lock_sha256"],
+        "static_library": str(ZLIB_ARCHIVE),
+        "static_library_sha256": hashlib.sha256(ZLIB_ARCHIVE.read_bytes()).hexdigest(),
+        "static_library_size": ZLIB_ARCHIVE.stat().st_size,
+        "cargo_build_log": str(LOGS / "zlib-candidate-build.log"),
+    }
+
+
+def fetch(*, zlib_rs: bool = False) -> int:
     _require_host()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -617,6 +732,8 @@ def fetch() -> int:
     with tempfile.TemporaryDirectory(prefix="cargo-fetch-", dir=WORK) as temporary:
         source = _source_root(safe_extract(source_blob, Path(temporary) / "source"))
         _fetch_cargo_dependencies(source, toolchain)
+    if zlib_rs:
+        _fetch_zlib(toolchain)
     print(
         f"OK    Cargo dependencies cached under {CARGO_HOME}; "
         f"source pin {metadata['commit']}"
@@ -649,7 +766,7 @@ def _brew_pkg_config_path() -> str:
     return ":".join(dict.fromkeys(found))
 
 
-def _configuration(toolchain, target, jobs: int) -> tuple[list[str], dict[str, str]]:
+def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None) -> tuple[list[str], dict[str, str]]:
     profile_task = _profile_task(jobs)
     flags = " ".join((
         "-O3", target.cpu_baseline_cflag, "-fPIC",
@@ -676,6 +793,8 @@ def _configuration(toolchain, target, jobs: int) -> tuple[list[str], dict[str, s
         "LLVM_PROFDATA": str(toolchain.llvm_profdata),
         "PKG_CONFIG_PATH": _brew_pkg_config_path(),
     })
+    if zlib_archive is not None:
+        env["ZLIB_LIBS"] = str(zlib_archive)
     return args, env
 
 
@@ -816,6 +935,58 @@ print(json.dumps({
     return interpreter
 
 
+def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
+    """Prove the installed whole-build module uses the candidate C ABI."""
+    code = (
+        "import json,zlib; "
+        "payload=bytes(range(256))*4096; "
+        "assert zlib.decompress(zlib.compress(payload))==payload; "
+        "print(json.dumps({'path':zlib.__file__,"
+        "'header_version':zlib.ZLIB_VERSION,"
+        "'runtime_version':zlib.ZLIB_RUNTIME_VERSION}))"
+    )
+    result = subprocess.run(
+        [str(python), "-I", "-S", "-c", code],
+        cwd=STAGE, env=_environment(toolchain, offline=True),
+        capture_output=True, text=True, timeout=60,
+    )
+    if result.returncode != 0:
+        raise LaneError(f"installed zlib candidate smoke failed: {result.stderr.strip()}")
+    try:
+        identity = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError) as error:
+        raise LaneError("installed zlib candidate did not report its identity") from error
+    if identity["runtime_version"] != "1.3.0-zlib-rs-0.6.7":
+        raise LaneError(f"installed zlib runtime is not the pinned backend: {identity['runtime_version']!r}")
+    module = Path(identity["path"]).resolve()
+    try:
+        module.relative_to(STAGE.resolve())
+    except ValueError as error:
+        raise LaneError(f"zlib module was loaded outside the stage tree: {module}") from error
+    if not module.is_file():
+        raise LaneError(f"installed zlib module is missing: {module}")
+    dependencies = macho.dependencies(module)
+    if any("libz" in dependency.lower() for dependency in dependencies):
+        raise LaneError("installed zlib module retains a dynamic libz dependency")
+    symbols = _command([
+        str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
+        "-g", "--defined-only", str(module),
+    ])
+    if symbols["returncode"] != 0:
+        raise LaneError(f"cannot inspect installed zlib module symbols: {symbols['output']}")
+    for symbol in ("_zlibVersion", "_deflateInit2_", "_inflateInit2_"):
+        if symbol not in symbols["output"]:
+            raise LaneError(f"installed zlib module lacks static backend symbol {symbol}")
+    return {
+        **identity,
+        "path": str(module),
+        "sha256": hashlib.sha256(module.read_bytes()).hexdigest(),
+        "dynamic_dependencies": dependencies,
+        "static_backend_symbols": ["zlibVersion", "deflateInit2_", "inflateInit2_"],
+        "python_wrapper": "unchanged pinned CPython Modules/zlibmodule.c",
+    }
+
+
 def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     command = [
         str(CARGO_HOME / "bin" / "cargo"), "metadata", "--locked", "--offline",
@@ -844,7 +1015,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any]) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -853,7 +1024,10 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         shutil.rmtree(STAGE)
     BUILD.mkdir(parents=True)
     STAGE.mkdir(parents=True)
-    args, env = _configuration(toolchain, target, jobs)
+    args, env = _configuration(
+        toolchain, target, jobs,
+        zlib_archive=ZLIB_ARCHIVE if zlib_backend is not None else None,
+    )
     env.update({
         "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
         "PY_CPPFLAGS": env["CPPFLAGS"],
@@ -869,6 +1043,10 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         configure, cwd=BUILD, env=source_date_env,
         log=LOGS / "cpython-configure.log", sealed=sandbox,
     )
+    if zlib_backend is not None:
+        configured_zlib = _make_value(BUILD / "Makefile", "ZLIB_LIBS")
+        if configured_zlib != str(ZLIB_ARCHIVE):
+            raise LaneError(f"configure did not preserve the pinned zlib archive: {configured_zlib!r}")
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(
         make, cwd=BUILD, env=source_date_env,
@@ -882,6 +1060,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     if not python.is_file():
         raise LaneError(f"CPython install did not produce {python}")
     module = _module_report(STAGE, python, toolchain)
+    if zlib_backend is not None:
+        zlib_backend["installed_module"] = _zlib_module_report(python, toolchain)
     cargo_env = dict(source_date_env)
     cargo_env.update({
         "PYTHON_BUILD_DIR": str(BUILD),
@@ -940,7 +1120,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
                 "CC", "CXX", "AR", "RANLIB", "CFLAGS", "CXXFLAGS", "LDFLAGS",
                 "CPPFLAGS", "PY_CPPFLAGS", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET", "LLVM_PROFDATA",
                 "PROFILE_TASK", "BINDGEN_EXTRA_CLANG_ARGS", "SOURCE_DATE_EPOCH", "PYTHONHASHSEED",
-                "PKG_CONFIG", "PKG_CONFIG_PATH",
+                "PKG_CONFIG", "PKG_CONFIG_PATH", "ZLIB_LIBS",
             )
         },
         "pgo_task": env["PROFILE_TASK"],
@@ -950,6 +1130,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "cargo_target_dir": str(BUILD / "target"),
         "cargo_workspace_members": workspace_members,
         "built_rust_workspace_members": built_workspace_members,
+        "zlib_backend": zlib_backend if zlib_backend is not None else {"kind": "platform"},
         "offline_boundary": {
             "mechanism": "sandbox-exec with deny network*",
             "network_self_test": "passed",
@@ -966,7 +1147,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     return report
 
 
-def build() -> int:
+def build(*, zlib_rs: bool = False) -> int:
     _require_host()
     doctor = doctor_report()
     if not doctor["ok"]:
@@ -975,17 +1156,26 @@ def build() -> int:
     _cargo_wrapper(rustup)
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
+    sandbox = _macos_sandbox() if zlib_rs else None
+    zlib_backend = _build_zlib(toolchain, sandbox) if sandbox is not None else None
     source = _extract_fresh(SOURCE)
+    wrapper = source / "Modules" / "zlibmodule.c"
+    wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_rs else None
     patches = _apply_source_patches(source)
+    if zlib_backend is not None:
+        if hashlib.sha256(wrapper.read_bytes()).hexdigest() != wrapper_sha256:
+            raise LaneError("candidate patches changed pinned Modules/zlibmodule.c")
+        zlib_backend["cpython_zlibmodule_sha256"] = wrapper_sha256
     env = _environment(toolchain, offline=True)
     _require_command(
         [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
          "--manifest-path", str(source / "Cargo.toml")],
         cwd=source, env=env, log=LOGS / "cargo-offline-check.log",
     )
-    sandbox = _macos_sandbox()
+    if sandbox is None:
+        sandbox = _macos_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
-    report = _configure_source(source, toolchain, target, jobs, sandbox, patches)
+    report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend)
     print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
     _write_json(BUILD_REPORT, report)
@@ -1097,10 +1287,17 @@ def main(argv: list[str] | None = None) -> int:
         ("test", "run Rust and CPython tests"),
         ("clean", "remove build outputs while keeping the private Cargo cache"),
     ):
-        subparsers.add_parser(name, help=help_text)
+        command_parser = subparsers.add_parser(name, help=help_text)
+        if name in ("fetch", "build"):
+            command_parser.add_argument(
+                "--zlib-rs", action="store_true",
+                help="include pinned zlib-rs 0.6.7 in this optional candidate build",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
+        if args.command in ("fetch", "build"):
+            return commands[args.command](zlib_rs=args.zlib_rs)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
         print(f"FAIL  {error}", file=sys.stderr)
