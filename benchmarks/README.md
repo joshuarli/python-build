@@ -30,21 +30,29 @@ timing score alone cannot show.
 ## Prepare and run
 
 From the repository root, `make bench` is the end-to-end product comparison.
-It checks the native target, fetches locked product and benchmark inputs,
-prepares the offline benchmark image, builds and packages the product when its
-archive is absent, then runs all repository-owned workloads against the pinned
-PBS baseline. The default profile is `standard` (timing plus process-tree
-memory); override it with `BENCH_PROFILE=rigorous` to add allocation tracing.
+On Linux amd64 it fetches the locked product and benchmark inputs, prepares the
+offline benchmark image, builds and packages the product when its archive is
+absent, then runs the repository-owned application suite against pinned PBS.
+The default profile is `standard` (timing plus process-tree memory); set
+`BENCH_PROFILE=rigorous` to add allocation tracing.
+
+On native Apple Silicon macOS, the same entrypoint fetches the matching PBS
+archive, builds and packages the macOS product when absent, and runs the
+dependency-free smoke suite locally with timing only. It skips Docker and the
+Linux-only wheelhouse. The result records macOS version, model, Apple CPU name,
+performance/efficiency core counts, and memory; automatic baseline names are
+keyed to that runner identity. The macOS comparison has no offline network
+boundary and does not report memory or allocation results. `make bench-full`
+remains Linux amd64 only.
 
 `make bench-full` adds the complete pinned pyperformance suite, which can take
 substantially longer. Set `BENCH_PYPERFORMANCE_SELECTION` to a pyperformance
 group or benchmark name to run a smaller selection; it defaults to `all`.
 
-The supported one-command comparison currently requires native Linux amd64.
-Product input fetching and benchmark preparation may use the network; the
-measurement container runs with networking disabled. The benchmark result and
-runner-specific baseline snapshot are written under `benchmarks/results/` and
-`benchmarks/baselines/` respectively.
+Product input fetching and benchmark preparation may use the network. Linux
+measurements run with networking disabled in the benchmark container; macOS
+measurements are local. The benchmark result and runner-specific baseline
+snapshot are written under `benchmarks/results/` and `benchmarks/baselines/`.
 
 To prepare or run the components separately, first check the host and fetch
 the locked benchmark inputs. Fetching is the network-enabled preparation step;
@@ -52,8 +60,15 @@ measurements use the prepared inputs offline.
 
 ```sh
 python3 benchmarks/bench.py doctor
-python3 benchmarks/bench.py fetch
+python3 benchmarks/bench.py fetch --target x86_64-unknown-linux-musl
 python3 benchmarks/bench.py prepare
+```
+
+For native Apple Silicon, fetch its pinned PBS comparison artifact without
+downloading Linux-only benchmark wheels:
+
+```sh
+python3 benchmarks/bench.py fetch --target aarch64-apple-darwin
 ```
 
 The profiles trade run time for coverage. `quick` is for iteration, `standard`
@@ -137,13 +152,14 @@ the report labels that research comparison. Cross-version runs import from
 source on both sides, since a shared precompiled bytecode tree would favor
 one interpreter's cache format.
 
-The `pbs` preset resolves the pinned Astral PBS 20260610 artifact as the
-baseline and the current x86-64 musl python-build artifact as the candidate.
-Reports label it **Astral PBS**, never upstream CPython. A PBS comparison is
-useful for parity research. The pair still receives a baseline-relative
-memory verdict: a failure means the candidate regressed against PBS. Only a
-comparable upstream CPython build, explicitly labeled `upstream CPython`, can
-establish the upstream memory parity guarantee.
+The `pbs` preset resolves the pinned Astral PBS 20260610 artifact and the
+python-build artifact for the native target. Linux amd64 uses the musl pair in
+the isolated benchmark container. Native Apple Silicon uses the macOS PBS
+archive and requires `--local --timing-only`. Reports label the reference
+**Astral PBS**, never upstream CPython. Linux PBS comparisons receive a
+baseline-relative memory verdict: a failure means the candidate regressed
+against PBS. Only a comparable upstream CPython build, explicitly labeled
+`upstream CPython`, can establish the upstream memory parity guarantee.
 
 Use the same comparison machinery to calibrate a Python against itself:
 
@@ -162,8 +178,9 @@ python3 benchmarks/bench.py compare benchmarks/results/<run>/run
 
 Every completed `run` or `self-compare` updates a compact baseline JSON file
 under `benchmarks/baselines/`. Its stable path is keyed by runner hardware,
-baseline interpreter kind/version, suite/profile, and selected workload names;
-repeating the same comparison updates that file in place. `--record-baseline
+baseline interpreter kind/version, suite/profile, and selected workload names.
+On macOS, that runner identity includes the Apple CPU and model plus core and
+memory counts. Repeating the same comparison updates that file in place. `--record-baseline
 PATH` selects a specific file under `benchmarks/baselines/` instead:
 
 ```sh

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Linux amd64 CPython benchmark controller.
+"""CPython benchmark controller for Linux amd64 and native Apple Silicon.
 
-`run` enters the generic benchmark image with networking disabled before
-executing either interpreter. `_run` is the container-only measurement entry.
+Linux `run` enters the generic benchmark image with networking disabled.
+Native macOS runs are explicitly local and timing-only.
 """
 
 from __future__ import annotations
@@ -97,6 +97,13 @@ def _macos_host_provenance() -> dict[str, Any]:
     def sysctl_value(name: str) -> str | None:
         return command_output(["sysctl", "-n", name])
 
+    def sysctl_integer(name: str) -> int | None:
+        value = sysctl_value(name)
+        try:
+            return int(value) if value is not None else None
+        except ValueError:
+            return None
+
     try:
         load_average: list[float] | None = list(os.getloadavg())
     except OSError:
@@ -108,11 +115,11 @@ def _macos_host_provenance() -> dict[str, Any]:
         "macos_version": command_output(["sw_vers", "-productVersion"]),
         "hardware_model": sysctl_value("hw.model"),
         "cpu_model": sysctl_value("machdep.cpu.brand_string"),
-        "logical_cpu_count": sysctl_value("hw.logicalcpu"),
-        "physical_cpu_count": sysctl_value("hw.physicalcpu"),
-        "performance_core_count": sysctl_value("hw.perflevel0.physicalcpu"),
-        "efficiency_core_count": sysctl_value("hw.perflevel1.physicalcpu"),
-        "memory_total_bytes": sysctl_value("hw.memsize"),
+        "logical_cpu_count": sysctl_integer("hw.logicalcpu"),
+        "physical_core_count": sysctl_integer("hw.physicalcpu"),
+        "performance_core_count": sysctl_integer("hw.perflevel0.physicalcpu"),
+        "efficiency_core_count": sysctl_integer("hw.perflevel1.physicalcpu"),
+        "memory_total_bytes": sysctl_integer("hw.memsize"),
         "load_average": load_average,
         "cpu_affinity": None,
         "cpu_frequency_control": "not recorded; macOS host policy",
@@ -166,11 +173,14 @@ def _run_internal(args: argparse.Namespace) -> Path:
         macro_site = None
         perf_site = None
         memray_site = None
+        lock = None
+        used_input_groups: set[str] = set()
         if args.suite != "smoke" or args.profile == "rigorous":
             from benchmarks.harness.inputs import load_lock, prepare_site
 
             lock = load_lock(lock_snapshot)
         if args.suite != "smoke":
+            used_input_groups.add("macros")
             macro_site = prepare_site(baseline, scratch / "macro-site", wheelhouse=wheelhouse,
                                       groups={"macros"}, lock=lock)
             # A shared bytecode tree is fair only when both interpreters have
@@ -181,12 +191,14 @@ def _run_internal(args: argparse.Namespace) -> Path:
                                check=True, timeout=300)
             perf_site = None
             if args.suite in {"pyperformance", "full"}:
+                used_input_groups.add("pyperformance")
                 perf_site = prepare_site(baseline, scratch / "perf-site", wheelhouse=wheelhouse,
                                          groups={"core", "pyperformance"}, lock=lock)
                 if not cross_version:
                     subprocess.run([str(baseline), "-m", "compileall", "-q", str(perf_site.site_packages)],
                                    check=True, timeout=300)
         if args.profile == "rigorous":
+            used_input_groups.add("memray")
             memray_site = prepare_site(baseline, scratch / "memray-site", wheelhouse=wheelhouse,
                                        groups={"memray"}, lock=lock)
         workload_specs = select_workloads(args.suite, args.profile, args.workload, args.category)
@@ -252,7 +264,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
             finally:
                 sys.path.remove(str(perf_site.site_packages))
             (perf_dir / "comparison.json").write_text(json.dumps(perf_comparison, indent=2, sort_keys=True) + "\n")
-        locked_inputs = json.loads(lock_snapshot.read_text()).get("inputs", [])
+        locked_inputs = lock.provenance(used_input_groups) if lock is not None else []
         provenance = {
             "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
             "git_commit": _git_commit(),
@@ -381,17 +393,21 @@ def _run_container(args: argparse.Namespace) -> Path:
 def _resolve_preset(args: argparse.Namespace) -> None:
     if args.preset != "pbs":
         return
+    from buildsys.targets import native_target
     from benchmarks.harness.inputs import resolve_pbs
 
+    target = native_target().triple
     if not args.baseline:
-        artifact = resolve_pbs()
+        artifact = resolve_pbs(target=target)
         args.baseline = str(getattr(artifact, "path", artifact))
         args.baseline_label = "Astral PBS 20260610"
         args.baseline_kind = "pbs"
     if not args.candidate:
-        candidates = sorted((ROOT / "dist" / "x86_64-unknown-linux-musl").glob("*.tar.gz"))
+        candidates = sorted((ROOT / "dist" / target).glob("*.tar.gz"))
         if len(candidates) != 1:
-            raise ValueError("PBS preset requires exactly one x86_64 musl dist archive; specify --candidate")
+            raise ValueError(
+                f"PBS preset requires exactly one {target} dist archive; specify --candidate"
+            )
         args.candidate = str(candidates[0])
         args.candidate_label = "python-build CPython 3.14.6"
         args.candidate_kind = "python-build"
@@ -419,7 +435,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor")
-    sub.add_parser("fetch")
+    fetch = sub.add_parser("fetch")
+    fetch.add_argument(
+        "--target",
+        choices=("x86_64-unknown-linux-musl", "aarch64-apple-darwin"),
+        help="product/reference target; macOS timing runs fetch only the matching PBS archive",
+    )
     sub.add_parser("prepare")
     run = sub.add_parser("run")
     internal = sub.add_parser("_run", help=argparse.SUPPRESS)
@@ -474,8 +495,14 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "fetch":
             from benchmarks.harness.inputs import fetch_inputs, fetch_pbs, load_lock
 
-            print(fetch_inputs(load_lock()))
-            print(fetch_pbs().path)
+            from buildsys.targets import native_target
+
+            target = args.target or native_target().triple
+            if target == "aarch64-apple-darwin":
+                print("Linux-only benchmark wheels are not needed for the macOS smoke suite")
+            else:
+                print(fetch_inputs(load_lock()))
+            print(fetch_pbs(target=target).path)
         elif args.command == "prepare":
             subprocess.run(["docker", "build", "--platform", "linux/amd64", "-t", IMAGE, str(BENCH)], check=True)
         elif args.command == "record-baseline":
@@ -510,7 +537,15 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "run":
                 _resolve_preset(args)
                 if args.baseline_kind == "pbs" and args.local:
-                    raise ValueError("PBS reference runs require the isolated offline benchmark container")
+                    native_macos = (
+                        platform.system() == "Darwin"
+                        and platform.machine() in {"arm64", "aarch64"}
+                    )
+                    if not (native_macos and args.timing_only):
+                        raise ValueError(
+                            "PBS references require the offline Linux container, except for "
+                            "native macOS timing-only comparisons"
+                        )
                 if args.local and args.container:
                     raise ValueError("--local and --container select incompatible execution boundaries")
                 if args.timing_only and not args.local:

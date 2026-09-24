@@ -507,25 +507,39 @@ def prepare_site(
     )
 
 
+def _pbs_reference_record(raw: Mapping[str, Any], target: str) -> Mapping[str, Any]:
+    records = raw.get("inputs", [])
+    if not isinstance(records, list):
+        raise InputError("sources.lock.json must contain an inputs list")
+    matches = [
+        item for item in records
+        if isinstance(item, Mapping)
+        and item.get("role") == "reference"
+        and (
+            item.get("target") == target
+            or (item.get("target") is None and target in str(item.get("url", "")))
+        )
+    ]
+    if len(matches) != 1:
+        raise InputError(f"sources.lock.json must contain exactly one PBS reference for {target}")
+    return matches[0]
+
+
 def resolve_pbs(
     sources_lock: Path | str | None = None,
     *,
     cache_dir: Path | str | None = None,
     offline: bool = True,
+    target: str = "x86_64-unknown-linux-musl",
 ) -> PBSArtifact:
-    """Resolve the pinned x86_64 musl PBS artifact from its verified cache.
+    """Resolve a pinned target-specific PBS artifact from its verified cache.
 
     Resolution is offline by default. Fetch the artifact explicitly during
     `fetch` with :func:`fetch_pbs`; measurement runs only read this cache.
     """
     lock_path = Path(sources_lock) if sources_lock is not None else SOURCES_LOCK_PATH
     raw = json.loads(lock_path.read_text())
-    matches = [item for item in raw.get("inputs", []) if item.get("name") == "reference-pbs"]
-    if len(matches) != 1:
-        raise InputError("sources.lock.json must contain exactly one reference-pbs record")
-    item = matches[0]
-    if item.get("role") != "reference" or "x86_64-unknown-linux-musl" not in item.get("url", ""):
-        raise InputError("reference-pbs must be the x86_64 Linux musl comparison artifact")
+    item = _pbs_reference_record(raw, target)
     url = str(item["url"])
     filename = Path(unquote(urlparse(url).path)).name
     if not filename:
@@ -549,24 +563,23 @@ def resolve_pbs(
         raise FileNotFoundError(
             f"pinned PBS artifact is not cached: {artifact_path}; run `python3 benchmarks/bench.py fetch` first"
         )
-    return fetch_pbs(sources_lock=lock_path, cache_dir=cache)
+    return fetch_pbs(sources_lock=lock_path, cache_dir=cache, target=target)
 
 
 def fetch_pbs(
     sources_lock: Path | str | None = None,
     *,
     cache_dir: Path | str | None = None,
+    target: str = "x86_64-unknown-linux-musl",
 ) -> PBSArtifact:
     """Download and hash-verify the pinned PBS artifact during the fetch phase."""
     try:
-        return resolve_pbs(sources_lock, cache_dir=cache_dir, offline=True)
+        return resolve_pbs(sources_lock, cache_dir=cache_dir, offline=True, target=target)
     except FileNotFoundError:
         pass
     lock_path = Path(sources_lock) if sources_lock is not None else SOURCES_LOCK_PATH
     raw = json.loads(lock_path.read_text())
-    item = next((entry for entry in raw.get("inputs", []) if entry.get("name") == "reference-pbs"), None)
-    if item is None:
-        raise InputError("sources.lock.json does not contain reference-pbs")
+    item = _pbs_reference_record(raw, target)
     url = str(item["url"])
     filename = Path(unquote(urlparse(url).path)).name
     cache = Path(cache_dir) if cache_dir is not None else DEFAULT_REFERENCE_CACHE
@@ -592,4 +605,4 @@ def fetch_pbs(
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    return resolve_pbs(lock_path, cache_dir=cache, offline=True)
+    return resolve_pbs(lock_path, cache_dir=cache, offline=True, target=target)

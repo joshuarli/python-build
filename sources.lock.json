@@ -142,6 +142,7 @@
     {
       "name": "reference-pbs",
       "version": "20260610",
+      "target": "x86_64-unknown-linux-musl",
       "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
       "sha256": "54eca143d09ed3c596ecad5e3bfcb7724387818f8f984f44f3d8c0e9f36681d3",
       "role": "reference",

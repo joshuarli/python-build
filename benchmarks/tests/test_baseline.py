@@ -6,8 +6,10 @@ from contextlib import redirect_stdout
 from datetime import datetime, timezone
 import io
 import json
+from subprocess import CompletedProcess
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -127,6 +129,105 @@ class BaselineSnapshotTests(unittest.TestCase):
         self.assertEqual(workload["memory_bytes"]["peak_pss"]["median"], 105)
         self.assertEqual(workload["allocations"]["round_count"], 1)
         self.assertNotIn("capture_path", workload["allocations"]["rounds"][0])
+
+    def test_macos_runner_snapshot_keeps_apple_silicon_identity_and_core_counts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run = self.make_run(root)
+            provenance_path = run / "provenance.json"
+            provenance = json.loads(provenance_path.read_text())
+            provenance["host"] = {
+                "system": "Darwin",
+                "machine": "arm64",
+                "kernel_release": "25.5.0",
+                "macos_version": "26.5.2",
+                "hardware_model": "MacBookPro18,3",
+                "cpu_model": "Apple M1 Pro",
+                "logical_cpu_count": 10,
+                "physical_core_count": 10,
+                "performance_core_count": 8,
+                "efficiency_core_count": 2,
+                "memory_total_bytes": 34_359_738_368,
+            }
+            provenance_path.write_text(json.dumps(provenance))
+
+            snapshot = build_baseline_snapshot(run)
+            runner = snapshot["runner"]
+            path = baseline_snapshot_path(snapshot, root / "baselines")
+            changed_runner = dict(runner, hardware_model="Macmini9,1")
+            changed_snapshot = dict(snapshot, runner=changed_runner)
+            changed_path = baseline_snapshot_path(changed_snapshot, root / "baselines")
+
+        self.assertEqual(runner["system"], "Darwin")
+        self.assertEqual(runner["machine"], "arm64")
+        self.assertEqual(runner["hardware_model"], "MacBookPro18,3")
+        self.assertEqual(runner["physical_core_count"], 10)
+        self.assertEqual(runner["performance_core_count"], 8)
+        self.assertEqual(runner["efficiency_core_count"], 2)
+        self.assertTrue(path.name.startswith("darwin-arm64-apple-m1-pro-"))
+        self.assertNotEqual(path, changed_path)
+
+    def test_macos_host_provenance_normalizes_sysctl_counts(self):
+        outputs = {
+            "sw_vers -productVersion": "26.5.2",
+            "sysctl -n hw.model": "MacBookPro18,3",
+            "sysctl -n machdep.cpu.brand_string": "Apple M1 Pro",
+            "sysctl -n hw.logicalcpu": "10",
+            "sysctl -n hw.physicalcpu": "10",
+            "sysctl -n hw.perflevel0.physicalcpu": "8",
+            "sysctl -n hw.perflevel1.physicalcpu": "2",
+            "sysctl -n hw.memsize": "34359738368",
+        }
+
+        def run(argv, **kwargs):
+            return CompletedProcess(argv, 0, stdout=outputs.get(" ".join(argv), ""), stderr="")
+
+        with patch("benchmarks.bench.platform.system", return_value="Darwin"):
+            with patch("benchmarks.bench.platform.machine", return_value="arm64"):
+                with patch("benchmarks.bench.subprocess.run", side_effect=run):
+                    host = benchmark_cli._macos_host_provenance()
+
+        self.assertEqual(host["macos_version"], "26.5.2")
+        self.assertEqual(host["hardware_model"], "MacBookPro18,3")
+        self.assertEqual(host["cpu_model"], "Apple M1 Pro")
+        self.assertEqual(host["physical_core_count"], 10)
+        self.assertEqual(host["logical_cpu_count"], 10)
+        self.assertEqual(host["performance_core_count"], 8)
+        self.assertEqual(host["efficiency_core_count"], 2)
+        self.assertEqual(host["memory_total_bytes"], 34_359_738_368)
+
+    def test_pbs_preset_uses_native_macos_reference_and_product_artifact(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            candidate_directory = root / "dist" / "aarch64-apple-darwin"
+            candidate_directory.mkdir(parents=True)
+            candidate = candidate_directory / "cpython-3.14.6-aarch64-apple-darwin-r2.tar.gz"
+            candidate.touch()
+            reference = root / "pbs-macos.tar.gz"
+            args = SimpleNamespace(
+                preset="pbs",
+                baseline=None,
+                candidate=None,
+                baseline_label="baseline CPython",
+                candidate_label="candidate CPython",
+                baseline_kind="custom",
+                candidate_kind="custom",
+            )
+            with patch.object(benchmark_cli, "ROOT", root):
+                with patch("buildsys.targets.native_target") as native_target:
+                    native_target.return_value.triple = "aarch64-apple-darwin"
+                    with patch(
+                        "benchmarks.harness.inputs.resolve_pbs",
+                        return_value=SimpleNamespace(path=reference),
+                    ) as resolve_pbs:
+                        benchmark_cli._resolve_preset(args)
+
+        self.assertEqual(args.baseline, str(reference))
+        self.assertEqual(args.baseline_label, "Astral PBS 20260610")
+        self.assertEqual(args.baseline_kind, "pbs")
+        self.assertEqual(args.candidate, str(candidate))
+        self.assertEqual(args.candidate_kind, "python-build")
+        resolve_pbs.assert_called_once_with(target="aarch64-apple-darwin")
 
     def test_pyperformance_snapshot_retains_group_coverage(self):
         comparison = {

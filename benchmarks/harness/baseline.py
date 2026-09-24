@@ -169,6 +169,17 @@ def baseline_snapshot_path(snapshot: Mapping[str, Any], baseline_directory: Path
             "memory_total_bytes",
         )
     }
+    # Keep Linux snapshot names stable; distinguish Apple Silicon runners by
+    # model and core mix because their sysctl topology is not Linux topology.
+    if runner.get("system") == "Darwin":
+        host_key.update({
+            key: runner.get(key)
+            for key in (
+                "hardware_model",
+                "performance_core_count",
+                "efficiency_core_count",
+            )
+        })
     reference_key = {
         key: reference.get(key)
         for key in ("kind", "version", "abi", "platform")
@@ -201,7 +212,7 @@ def baseline_snapshot_path(snapshot: Mapping[str, Any], baseline_directory: Path
             digest,
         )
     )
-    return baseline_directory / f"{name}.json"
+    return baseline_directory.resolve() / f"{name}.json"
 
 
 def build_baseline_snapshot(
@@ -258,9 +269,13 @@ def build_baseline_snapshot(
             "system": runner.get("system"),
             "machine": runner.get("machine"),
             "kernel_release": runner.get("kernel_release"),
+            "macos_version": runner.get("macos_version"),
+            "hardware_model": runner.get("hardware_model"),
             "cpu_model": runner.get("cpu_model"),
             "physical_core_count": runner.get("physical_core_count"),
             "logical_cpu_count": runner.get("logical_cpu_count"),
+            "performance_core_count": runner.get("performance_core_count"),
+            "efficiency_core_count": runner.get("efficiency_core_count"),
             "cpu_topology": runner.get("cpu_topology"),
             "numa_topology": runner.get("numa_topology"),
             "memory_total_bytes": runner.get("memory_total_bytes"),
@@ -270,6 +285,7 @@ def build_baseline_snapshot(
             "cpu_affinity": runner.get("cpu_affinity"),
             "load_average": runner.get("load_average"),
             "memory_available_bytes": runner.get("memory_available_bytes"),
+            "cpu_frequency_control": runner.get("cpu_frequency_control"),
         },
         "reference_interpreter": dict(reference),
         "workloads": workloads,

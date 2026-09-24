@@ -204,6 +204,52 @@ class BenchmarkInputTests(unittest.TestCase):
             with self.assertRaises(InputError):
                 resolve_pbs(source_lock, cache_dir=cache)
 
+    def test_pbs_resolution_selects_the_requested_target_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            linux_archive = b"linux reference"
+            macos_archive = b"macOS reference"
+            records = []
+            for target, name, filename, contents in (
+                (
+                    "x86_64-unknown-linux-musl",
+                    "reference-pbs",
+                    "cpython-3.14.6+20260610-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+                    linux_archive,
+                ),
+                (
+                    "aarch64-apple-darwin",
+                    "reference-pbs-aarch64-apple-darwin",
+                    "cpython-3.14.6+20260610-aarch64-apple-darwin-install_only.tar.gz",
+                    macos_archive,
+                ),
+            ):
+                records.append({
+                    "name": name,
+                    "target": target,
+                    "version": "20260610",
+                    "url": f"https://example.invalid/{filename}",
+                    "sha256": hashlib.sha256(contents).hexdigest(),
+                    "role": "reference",
+                    "license": "Python-2.0",
+                    "purpose": "comparison-only test input",
+                })
+            source_lock = root / "sources.lock.json"
+            source_lock.write_text(json.dumps({"inputs": records}))
+            cache = root / "references"
+            cache.mkdir()
+            for record, contents in zip(records, (linux_archive, macos_archive)):
+                (cache / Path(record["url"]).name).write_bytes(contents)
+
+            artifact = resolve_pbs(
+                source_lock,
+                cache_dir=cache,
+                target="aarch64-apple-darwin",
+            )
+
+        self.assertEqual(artifact.path.name, records[1]["url"].rsplit("/", 1)[1])
+        self.assertEqual(artifact.sha256, records[1]["sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()
