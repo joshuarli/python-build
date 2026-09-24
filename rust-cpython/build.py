@@ -450,6 +450,13 @@ def _apply_source_patches(source: Path) -> dict[str, Any]:
     expected_lock = metadata["cargo_lock_sha256"]
     if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
         raise LaneError("Cargo.lock digest disagrees with the source lock before patching")
+    # The extracted tree can live inside this repository's worktree. Without a
+    # ceiling, git apply treats that repository as its own and silently skips
+    # every path in a diff --git patch because of the source directory prefix.
+    git_env = os.environ.copy()
+    for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"):
+        git_env.pop(key, None)
+    git_env["GIT_CEILING_DIRECTORIES"] = str(source.parent.resolve())
     for record in inputs["patches"]:
         path = PATCH_MANIFEST.parent / record["file"]
         for check_only in (True, False):
@@ -457,10 +464,25 @@ def _apply_source_patches(source: Path) -> dict[str, Any]:
             if check_only:
                 argv.append("--check")
             argv.append(str(path))
-            result = subprocess.run(argv, cwd=source, capture_output=True, text=True)
+            result = subprocess.run(argv, cwd=source, env=git_env, capture_output=True, text=True)
             if result.returncode != 0:
                 detail = (result.stderr or result.stdout).strip()
                 raise LaneError(f"source patch {record['file']} does not apply: {detail}")
+        # A zero exit status alone is insufficient: git apply may skip all
+        # paths and still report success. The applied patch must now reverse.
+        reverse = subprocess.run(
+            ["git", "apply", "--reverse", "--check", str(path)],
+            cwd=source, env=git_env, capture_output=True, text=True,
+        )
+        if reverse.returncode != 0:
+            detail = (reverse.stderr or reverse.stdout).strip()
+            raise LaneError(f"source patch {record['file']} did not change the source: {detail}")
+        forward = subprocess.run(
+            ["git", "apply", "--check", str(path)],
+            cwd=source, env=git_env, capture_output=True, text=True,
+        )
+        if forward.returncode == 0:
+            raise LaneError(f"source patch {record['file']} did not change the source")
     if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
         raise LaneError("source patches changed the pinned Cargo.lock")
     return inputs

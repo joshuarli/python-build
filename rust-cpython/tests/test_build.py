@@ -92,6 +92,20 @@ class SourcePatchTests(unittest.TestCase):
             self.assertEqual(report["manifest_sha256"], hashlib.sha256(manifest.read_bytes()).hexdigest())
             self.assertEqual(report["patches"][0]["sha256"], hashlib.sha256(diff.encode()).hexdigest())
 
+    def test_patch_applies_inside_outer_git_worktree(self) -> None:
+        diff = (
+            "diff --git a/Lib/example.py b/Lib/example.py\n"
+            "--- a/Lib/example.py\n+++ b/Lib/example.py\n@@ -1 +1 @@\n-before\n+after\n"
+        )
+        work = ROOT / "rust-cpython" / "work"
+        work.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=work) as temporary:
+            source, manifest = self._fixture(Path(temporary), diff)
+            lock = {"commit": "pinned-commit", "cargo_lock_sha256": hashlib.sha256(b"locked\n").hexdigest()}
+            with patch.object(build, "PATCH_MANIFEST", manifest), patch.object(build, "_read_lock", return_value=(lock, None)):
+                build._apply_source_patches(source)
+            self.assertEqual((source / "Lib" / "example.py").read_text(), "after\n")
+
     def test_patch_rejects_drift_without_fuzzy_application(self) -> None:
         diff = "--- a/Lib/example.py\n+++ b/Lib/example.py\n@@ -1 +1 @@\n-before\n+after\n"
         with tempfile.TemporaryDirectory() as temporary:
