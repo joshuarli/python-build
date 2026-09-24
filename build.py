@@ -62,6 +62,16 @@ def _require_native_target(target: str) -> None:
               f"it does not cross-compile")
 
 
+def _positive_int(value: str) -> int:
+    try:
+        result = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if result < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return result
+
+
 SANDBOX_EXEC = "/usr/bin/sandbox-exec"
 
 
@@ -125,6 +135,14 @@ def _macos_report(report: dict) -> None:
         subprocess.run([str(clang), "--version"], capture_output=True, text=True)
         .stdout.splitlines()[0] if clang.is_file() else None
     )
+    profdata = locked.llvm_profdata
+    report["macos"]["llvm_profdata"] = (
+        str(profdata) if profdata.is_file() else None
+    )
+    report["macos"]["llvm_profdata_reported"] = (
+        subprocess.run([str(profdata), "--version"], capture_output=True, text=True)
+        .stdout.splitlines()[0] if profdata.is_file() else None
+    )
 
 
 def doctor() -> int:
@@ -154,6 +172,8 @@ def doctor() -> int:
 
 def build(args: argparse.Namespace) -> int:
     _require_native_target(args.target)
+    if args.pgo_jobs is not None and not _NATIVE.is_macos:
+        _fail("--pgo-jobs is only supported for the macOS PGO build")
     if args.sealed and not args.offline:
         _fail("--sealed requires --offline; qualification runs never touch the network")
     if args.offline and not args.sealed:
@@ -179,9 +199,10 @@ def build(args: argparse.Namespace) -> int:
     )
     if result.returncode != 0:
         return result.returncode
-    return subprocess.run(
-        [sys.executable, "build/cpython.py"], cwd=Path(__file__).parent
-    ).returncode
+    cpython_command = [sys.executable, "build/cpython.py"]
+    if args.pgo_jobs is not None:
+        cpython_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
+    return subprocess.run(cpython_command, cwd=Path(__file__).parent).returncode
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -195,6 +216,11 @@ def main(argv: list[str] | None = None) -> int:
     build_parser.add_argument("--dev", action="store_true")
     build_parser.add_argument("--offline", action="store_true")
     build_parser.add_argument("--sealed", action="store_true")
+    build_parser.add_argument(
+        "--pgo-jobs", type=_positive_int,
+        help="number of workers for macOS CPython's --pgo training task "
+             "(default: CPython compile jobs, one fewer than host CPUs)",
+    )
     test = commands.add_parser("test")
     test.add_argument("--target", default=DEFAULT_TARGET)
     compare = commands.add_parser("compare-reference")
@@ -203,6 +229,10 @@ def main(argv: list[str] | None = None) -> int:
     package.add_argument("--target", default=DEFAULT_TARGET)
     reproduce = commands.add_parser("reproduce")
     reproduce.add_argument("--target", default=DEFAULT_TARGET)
+    reproduce.add_argument(
+        "--pgo-jobs", type=_positive_int,
+        help="reuse this worker count for each clean macOS PGO build",
+    )
     args = parser.parse_args(argv)
     if args.command == "doctor":
         return doctor()
@@ -231,10 +261,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "reproduce":
         _require_target(args.target)
         if not _qualification_available():
-            _fail("reproduce needs two independent sealed Docker builds; "
-                  "docker/BuildKit is unavailable")
+            isolation = (
+                "sandbox-exec" if _NATIVE and _NATIVE.is_macos
+                else "Docker BuildKit"
+            )
+            _fail(f"reproduce needs the target's sealed build isolation; {isolation} is unavailable")
         result = subprocess.run(
-            [sys.executable, "build/reproduce.py", "--target", args.target],
+            [sys.executable, "build/reproduce.py", "--target", args.target]
+            + (["--pgo-jobs", str(args.pgo_jobs)] if args.pgo_jobs is not None else []),
             cwd=Path(__file__).parent,
         )
         return result.returncode

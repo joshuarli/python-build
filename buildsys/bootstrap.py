@@ -55,6 +55,11 @@ class MacOSToolchain:
     deployment_target: str
     cpu_baseline: str
 
+    @property
+    def llvm_profdata(self) -> Path:
+        """The profile merger paired with the locked clang installation."""
+        return self.llvm_prefix / "bin" / "llvm-profdata"
+
     def toolchain(self, *, jobs: int | None = None) -> Toolchain:
         """The recipe Toolchain this lock describes."""
         binary = self.llvm_prefix / "bin"
@@ -77,10 +82,14 @@ class MacOSToolchain:
 
     def identity(self) -> dict:
         """The subset that determines build output, for cache/identity use."""
+        profdata_version = _tool_output([str(self.llvm_profdata), "--version"])
         return {
             "family": "macos",
             "llvm_version": self.llvm_version,
             "llvm_bottle_sha256": self.llvm_bottle_sha256,
+            "llvm_profdata": str(self.llvm_profdata),
+            "llvm_profdata_version": profdata_version.splitlines()[0]
+            if profdata_version else "unavailable",
             "sdk": str(self.sdkroot),
             "xcode_version": self.xcode_version,
             "deployment_target": self.deployment_target,
@@ -173,6 +182,16 @@ def problems(toolchain: MacOSToolchain, *, host_floor: str = "") -> list[str]:
         if toolchain.llvm_version not in reported:
             found.append(
                 f"{clang} reports {reported.splitlines()[0] if reported else 'nothing'}; "
+                f"lock pins {toolchain.llvm_version}"
+            )
+    profdata = toolchain.llvm_profdata
+    if not profdata.is_file():
+        found.append(f"llvm-profdata not found at {profdata}")
+    else:
+        reported = _tool_output([str(profdata), "--version"])
+        if toolchain.llvm_version not in reported:
+            found.append(
+                f"{profdata} reports {reported.splitlines()[0] if reported else 'nothing'}; "
                 f"lock pins {toolchain.llvm_version}"
             )
     if not toolchain.make.is_file():

@@ -75,6 +75,10 @@ class SuiteError(Exception):
 
 
 _SUMMARY = re.compile(r"^Total tests: run=([\d,]+) failures=(\d+)", re.M)
+# Verbose unittest output names each failing method after `FAIL:`/`ERROR:`.
+# Case exclusions are accepted only when every observed failure matches one
+# of those exact methods.
+_FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
 # The failing files are listed space-separated on a single indented line, not
 # one per line — a regex that assumes one-per-line silently finds nothing and
 # makes the whole run look clean.
@@ -139,6 +143,10 @@ def verify_excluded_failures(
     nothing to do with the product.
     """
     findings: dict[str, dict] = {}
+    case_exclusions = {
+        exclusion.test.split(":", 1)[0]
+        for exclusion in CASE_EXCLUSIONS
+    }
     for name in failed_files:
         best: dict | None = None
         attempts_made = 0
@@ -147,14 +155,18 @@ def verify_excluded_failures(
             if attempt == attempts and fresh_python is not None:
                 interpreter = fresh_python()
             attempts_made += 1
-            result = subprocess.run(
-                [str(interpreter), "-m", "test", name], capture_output=True, text=True,
-            )
+            command = [str(interpreter), "-m", "test"]
+            if name in case_exclusions:
+                command.append("-v")
+            command.append(name)
+            result = subprocess.run(command, capture_output=True, text=True)
             output = result.stdout + result.stderr
             match = _SUMMARY.search(output)
+            failed_cases = sorted(set(_FAILED_CASE.findall(output)))
             best = {
                 "returncode": result.returncode,
                 "failures": int(match.group(2)) if match else None,
+                "failed_cases": failed_cases,
                 "output_tail": output[-1500:],
                 "attempts": attempts_made,
                 "used_fresh_tree": interpreter != python,
@@ -169,7 +181,10 @@ def classify(solo_findings: dict) -> dict:
     """Split observed failures into registered exclusions and real failures."""
     registered = {e.test for e in FILE_EXCLUSIONS} | {e.test for e in CASE_EXCLUSIONS}
     registered_files = {e.test for e in FILE_EXCLUSIONS}
-    file_stems = {e.test.split(":", 1)[0]: e for e in CASE_EXCLUSIONS}
+    file_cases: dict[str, set[str]] = {}
+    for exclusion in CASE_EXCLUSIONS:
+        file_name, case_name = exclusion.test.split(":", 1)
+        file_cases.setdefault(file_name, set()).add(case_name)
 
     accepted, unexpected = [], []
     for name, finding in sorted(solo_findings.items()):
@@ -178,9 +193,11 @@ def classify(solo_findings: dict) -> dict:
             continue
         if finding["returncode"] == 0:
             continue  # passed alone: it was a load-related flake
-        if name in file_stems:
-            accepted.append(name)
-            continue
+        if name in file_cases:
+            observed_cases = set(finding.get("failed_cases", []))
+            if observed_cases and observed_cases <= file_cases[name]:
+                accepted.append(name)
+                continue
         unexpected.append(name)
     return {
         "accepted_exclusions": accepted,
@@ -195,6 +212,9 @@ def report_payload(report: dict) -> dict:
         "tests_run": report["tests_run"],
         "failure_count": report["failure_count"],
         "failed_files": report["failed_files"],
+        "accepted_exclusions": report.get("classification", {}).get(
+            "accepted_exclusions", []
+        ),
         "exclusions": [
             {"test": e.test, "reason": e.reason, "consequence": e.consequence}
             for e in (*FILE_EXCLUSIONS, *CASE_EXCLUSIONS)

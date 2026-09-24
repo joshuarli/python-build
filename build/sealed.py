@@ -32,12 +32,26 @@ from buildsys.sandbox import SealedRun, available, describe, network_boundary_se
 from buildsys.targets import UnsupportedTargetError, native_target  # noqa: E402
 
 
+def _positive_int(value: str) -> int:
+    try:
+        result = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if result < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Sealed offline macOS build")
     parser.add_argument("--offline", action="store_true",
                         help="accepted for symmetry; the profile denies the network regardless")
+    parser.add_argument(
+        "--pgo-jobs", type=_positive_int,
+        help="number of workers for CPython's --pgo training task "
+             "(default: CPython compile jobs, one fewer than host CPUs)",
+    )
     args = parser.parse_args(argv)
-    del args
 
     try:
         target = native_target()
@@ -93,8 +107,11 @@ def main(argv: list[str] | None = None) -> int:
     for script in ("build/deps.py", "build/cpython.py"):
         log = REPO / "build" / "sealed" / f"{Path(script).stem}-sealed.log"
         print(f"SEAL  {script}", flush=True)
-        result = run.run([sys.executable, script], cwd=REPO, env=env, log=log)
-        commands.append(f"python3 {script}")
+        command = [sys.executable, script]
+        if script == "build/cpython.py" and args.pgo_jobs is not None:
+            command.extend(["--pgo-jobs", str(args.pgo_jobs)])
+        result = run.run(command, cwd=REPO, env=env, log=log)
+        commands.append(" ".join(["python3", script, *command[2:]]))
         if result.returncode != 0:
             print(f"FAIL sealed: {script} exited {result.returncode}; log {log}")
             return 1
@@ -105,6 +122,15 @@ def main(argv: list[str] | None = None) -> int:
     if not after["ok"]:
         print("FAIL sealed: network boundary no longer holds after the build")
         return 1
+
+    recipe_path = REPO / "build" / "logs" / "cpython-build.json"
+    try:
+        recipe = json.loads(recipe_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"FAIL sealed: CPython build recipe is missing or invalid: {error}")
+        return 1
+    recipe["build_mode"] = "sealed"
+    recipe_path.write_text(json.dumps(recipe, indent=2, sort_keys=True) + "\n")
 
     record = {
         "target": target.triple,

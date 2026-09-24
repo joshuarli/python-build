@@ -144,7 +144,7 @@ def version_and_abi(python: Path, target) -> dict:
     info["sysconfig_cflags"] = ldf
     info["ok"] = bool(
         info["version_ok"] and info["arch_ok"] and info["gil_enabled"]
-        and not info["free_threaded"] and info["lto"] and not info["pgo"]
+        and not info["free_threaded"] and info["lto"] and info["pgo"]
         and not info["tail_call"]
     )
     return info

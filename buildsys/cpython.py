@@ -1,9 +1,10 @@
 """CPython 3.14.6 configuration policy (plan 5.3).
 
 Values derive from the verified 3.14.6 `configure --help` output, not memory:
-LTO is explicit ThinLTO, PGO/BOLT/JIT/tail-call stay off, ensurepip is
-deferred to a pinned offline pip wheel, and every third-party dependency is
-pinned to the private prefix so host packages cannot be detected.
+LTO is explicit ThinLTO; macOS uses CPython's instrumented PGO build with
+Astral's pinned `-m test --pgo` workload; BOLT/JIT/tail-call stay off;
+ensurepip is deferred to a pinned offline pip wheel; and every third-party
+dependency is pinned to the private prefix so host packages cannot be detected.
 
 The two families differ in more than flag spelling, and the differences are
 consequences of the platform rather than preferences:
@@ -22,16 +23,50 @@ consequences of the platform rather than preferences:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from .targets import Target, native_target
 
 
-def configuration(prefix: Path, target: Target | None = None) -> tuple[list[str], dict[str, str]]:
+# Keep the profile workload as a named policy input. PBS f1d7b92 uses this
+# same CPython test-runner selection, then appends `-j ${NUM_CPUS}`. These
+# tests are shipped with the locked CPython source, so updating that source
+# pin also updates the profile workload's implementation.
+CPYTHON_PGO_PROFILE_TASK = "-m test --pgo"
+CPYTHON_PGO_HASH_SEED = "1704067200"
+
+
+def resolve_pgo_jobs(jobs: int | None = None) -> int:
+    """Choose PGO workers, defaulting to the CPython compile parallelism."""
+    resolved = jobs if jobs is not None else resolve_build_jobs()
+    if resolved < 1:
+        raise ValueError("PGO profile jobs must be at least one")
+    return resolved
+
+
+def resolve_build_jobs() -> int:
+    """Match PBS's host parallelism convention: one fewer than host CPUs."""
+    return max(1, (os.cpu_count() or 4) - 1)
+
+
+def pgo_profile_task(jobs: int) -> str:
+    """Return the exact PBS profile task with an explicit worker count."""
+    if jobs < 1:
+        raise ValueError("PGO profile jobs must be at least one")
+    return f"{CPYTHON_PGO_PROFILE_TASK} -j {jobs}"
+
+
+def configuration(
+    prefix: Path,
+    target: Target | None = None,
+    *,
+    pgo_jobs: int | None = None,
+) -> tuple[list[str], dict[str, str]]:
     prefix = Path(prefix)
     target = target or native_target()
     if target.is_macos:
-        return _macos_configuration(prefix, target)
+        return _macos_configuration(prefix, target, resolve_pgo_jobs(pgo_jobs))
     return _linux_musl_configuration(prefix, target)
 
 
@@ -61,7 +96,7 @@ def _base_env(prefix: Path) -> dict[str, str]:
 
 
 # Configure arguments that encode the product policy and are identical on
-# every platform: LTO without PGO/BOLT/JIT/tail-call, shared libpython, and
+# every platform: ThinLTO, BOLT/JIT/tail-call off, shared libpython, and
 # ensurepip deferred to the pinned wheel. The Linux branch spells its own
 # list out rather than sharing this tuple so its argument order stays
 # byte-identical to the frozen build that produced its evidence.
@@ -137,7 +172,10 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
     return args, env
 
 
-def _macos_configuration(prefix: Path, target: Target) -> tuple[list[str], dict[str, str]]:
+def _macos_configuration(
+    prefix: Path, target: Target, pgo_jobs: int
+) -> tuple[list[str], dict[str, str]]:
+    profile_task = pgo_profile_task(pgo_jobs)
     env = {
         **_base_env(prefix),
         # Lock dependency detection to the private prefix. Without this,
@@ -166,13 +204,24 @@ def _macos_configuration(prefix: Path, target: Target) -> tuple[list[str], dict[
             # room the default header layout does not leave (plan Section 6).
             "-Wl,-headerpad_max_install_names"
         ),
+        # The pinned PBS macOS build omits frame pointers. Keep that compiler
+        # policy for parity; the installed-tree deep-recursion tests remain the
+        # authority on whether the stack guard works with this profile.
         "CFLAGS": (
-            f"-O3 {target.cpu_baseline_cflag} -fno-omit-frame-pointer -fPIC "
+            f"-O3 {target.cpu_baseline_cflag} -fPIC "
             f"-mmacosx-version-min={target.deployment_target}"
         ),
+        # `--enable-optimizations` runs this task against the instrumented
+        # interpreter, then consumes its profile for the optimized build.
+        # Keep the worker count explicit so the recipe can be reproduced.
+        "PROFILE_TASK": profile_task,
+        # SOURCE_DATE_EPOCH fixes libregrtest's seed; also fix the interpreter
+        # hash seed so parallel profile shards use stable hash ordering.
+        "PYTHONHASHSEED": CPYTHON_PGO_HASH_SEED,
     }
     args = [
         *COMMON_POLICY_ARGS,
+        "--enable-optimizations",
         # `--with-system-expat` means "use an external Expat rather than a
         # vendored one"; the search path above decides *which* external one.
         "--with-system-expat",

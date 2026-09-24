@@ -10,6 +10,8 @@ would let a wrong dependency through validation.
 from __future__ import annotations
 
 import struct
+import platform
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -290,7 +292,25 @@ class HostBinaryTests(unittest.TestCase):
 
     def test_host_interpreter_parses(self) -> None:
         executable = Path(sys.executable)
-        self.assertTrue(is_macho(executable), f"{executable} is not Mach-O")
+        if not is_macho(executable):
+            # The system Python can be a universal Mach-O. The product parser
+            # intentionally rejects fat files, so give it the running host's
+            # thin slice rather than weakening that product invariant.
+            with tempfile.TemporaryDirectory() as temporary:
+                thin = Path(temporary) / "python"
+                result = subprocess.run(
+                    ["lipo", "-thin", platform.machine(), str(executable), "-output", str(thin)],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                executable = thin
+                self._assert_host_interpreter(executable)
+            return
+        self._assert_host_interpreter(executable)
+
+    def _assert_host_interpreter(self, executable: Path) -> None:
+        self.assertTrue(is_macho(executable), f"{executable} is not a thin Mach-O")
         summary = inspect(executable)
         self.assertIn(summary["arch"], {"arm64", "x86_64"})
         self.assertEqual(summary["kind"], "execute")

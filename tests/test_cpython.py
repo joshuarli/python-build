@@ -1,8 +1,12 @@
 """CPython recipe policy, before executing the expensive build."""
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
-from buildsys.cpython import configuration
+from buildsys.cpython import (
+    CPYTHON_PGO_HASH_SEED, configuration, pgo_profile_task,
+    resolve_build_jobs, resolve_pgo_jobs,
+)
 from buildsys.targets import TARGETS
 
 
@@ -14,6 +18,7 @@ class CPythonTests(unittest.TestCase):
         self.assertIn('--enable-loadable-sqlite-extensions', args)
         self.assertIn('--without-ensurepip', args)
         self.assertNotIn('--enable-optimizations', args)
+        self.assertNotIn('PROFILE_TASK', env)
         self.assertIn('--enable-experimental-jit=no', args)
         # Tcl/Tk is out of scope (plan "Current scope decision"); configure
         # has no knob to mark _tkinter "disabled" rather than "missing" when
@@ -32,6 +37,16 @@ class CPythonTests(unittest.TestCase):
         self.assertEqual(env['ZLIB_LIBS'], '/private/lib/libz.a')
         self.assertIn('-I/private/include/uuid', env['LIBUUID_CFLAGS'])
         self.assertIn('-march=x86-64', env['CFLAGS'])
+
+    def test_pgo_profile_task_matches_pbs_and_requires_a_worker(self):
+        self.assertEqual(pgo_profile_task(8), '-m test --pgo -j 8')
+        with self.assertRaises(ValueError):
+            pgo_profile_task(0)
+
+    def test_pgo_default_matches_compile_parallelism(self):
+        with patch('buildsys.cpython.os.cpu_count', return_value=10):
+            self.assertEqual(resolve_build_jobs(), 9)
+            self.assertEqual(resolve_pgo_jobs(), 9)
 
     def test_cpu_baseline_follows_the_requested_target(self):
         _, env = configuration(Path('/private'), TARGETS['aarch64-unknown-linux-musl'])
@@ -64,17 +79,20 @@ class MacOSCPythonTests(unittest.TestCase):
 
     def setUp(self):
         self.args, self.env = configuration(
-            Path('/private'), TARGETS['aarch64-apple-darwin']
+            Path('/private'), TARGETS['aarch64-apple-darwin'], pgo_jobs=4
         )
 
-    def test_product_policy_is_identical_to_linux(self):
+    def test_product_policy_enables_exact_macos_pgo(self):
         self.assertIn('--with-lto=thin', self.args)
         self.assertIn('--enable-shared', self.args)
         self.assertIn('--enable-loadable-sqlite-extensions', self.args)
         self.assertIn('--without-ensurepip', self.args)
         self.assertIn('--enable-experimental-jit=no', self.args)
         self.assertIn('--with-tail-call-interp=no', self.args)
-        self.assertNotIn('--enable-optimizations', self.args)
+        self.assertIn('--enable-optimizations', self.args)
+        self.assertEqual(self.env['PROFILE_TASK'], '-m test --pgo -j 4')
+        self.assertEqual(self.env['PYTHONHASHSEED'], CPYTHON_PGO_HASH_SEED)
+        self.assertNotIn('-fno-omit-frame-pointer', self.env['CFLAGS'])
 
     def test_deployment_floor_is_explicit_in_flags(self):
         # Left unset, clang inherits the SDK's version (newer than the

@@ -16,8 +16,12 @@ is the current contract.)
 | `x86_64-unknown-linux-musl` | linux-musl | Alpine 3.24.1 container (`Dockerfile`), clang22/lld22 | `-march=x86-64`, loader `/lib/ld-musl-x86_64.so.1`; frozen, completed |
 | `aarch64-unknown-linux-musl` | linux-musl | Same, via `docker build --platform linux/arm64` | `-march=armv8-a`, loader `/lib/ld-musl-aarch64.so.1`; frozen, completed |
 
-Policy everywhere: ThinLTO (`--with-lto=thin`), no PGO/BOLT/JIT/tail-call
-interpreter, GIL-enabled release ABI, `-O3`, frame pointers kept. Unknown
+Policy everywhere: ThinLTO (`--with-lto=thin`), PGO enabled on macOS using
+CPython's `-m test --pgo -j <jobs>` profile task and the locked LLVM
+`llvm-profdata`, no PGO on Linux, no BOLT/JIT/tail-call interpreter,
+GIL-enabled release ABI, `-O3`. CPython's macOS PGO build omits frame
+pointers because retaining them makes CPython's deep recursion regression
+tests abort; other native builds keep them. Unknown
 targets fail closed with `target not implemented`; build/test/package
 commands require the requested target to match the running machine (no
 cross-compiling).
@@ -49,12 +53,13 @@ uses the zstd multithread-capable static library on all targets.
 ```text
 python3 build.py doctor                                  # host/SDK/toolchain report, no side effects
 python3 build.py fetch --target <triple>                 # verify + populate .cache (online; skips reference-only)
-python3 build.py build --target <triple> --dev           # deps + CPython, non-hermetic iteration
-python3 build/sealed.py                                  # sealed macOS qualification (sandbox-exec, offline)
+python3 build.py build --target <triple> --dev [--pgo-jobs N] # deps + CPython, non-hermetic iteration
+python3 build/sealed.py [--pgo-jobs N]                    # sealed macOS qualification (sandbox-exec, offline)
 docker build --platform <plat> --target sealed .         # sealed Linux qualification (BuildKit --network=none)
 python3 build.py test --target <triple>                  # controller + distribution tests
 python3 build.py compare-reference --target <triple>     # parity report only
 python3 build.py package --target <triple>               # strip, validate, archive, write dist/ reports
+python3 build.py reproduce --target aarch64-apple-darwin [--pgo-jobs N] # two clean sealed builds
 python3 build/uvmirror.py --tag <tag> --repo <o/n>       # rename dist/ archives to Astral layout + uv metadata
 ```
 
@@ -90,7 +95,9 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
 - `buildsys/patches.py`: patches apply against verified trees, fail on
   rejects; every patch needs origin, license/attribution, explanation,
   applicability check, reproducer. Do not import PBS module machinery,
-  PGO/BOLT/JIT, GUI, or older-platform patches.
+  BOLT/JIT, GUI, or older-platform patches. macOS PGO is CPython's native
+  `--enable-optimizations` flow with the profile task below; do not import or
+  execute PBS build code.
 
 ## macOS specifics
 
@@ -101,7 +108,21 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
 - `buildsys/cpython.py`: configure policy derived from 3.14.6's
   `configure --help`; private-prefix selection vars; `PKG_CONFIG_LIBDIR`
   narrowed so Homebrew packages cannot satisfy probes; `ndbm` dbm order;
-  platform libedit; `-Wl,-headerpad_max_install_names` for later edits.
+  platform libedit; `--enable-optimizations` with
+  `PROFILE_TASK="-m test --pgo -j <jobs>"`; and
+  no frame pointers for the PGO interpreter, matching the pinned PBS build.
+  The deep recursion suite remains a required runtime check. `build/cpython.py`
+  selects locked `llvm-profdata` and writes the exact recipe, including the
+  merged profile-data hash and fixed `PYTHONHASHSEED`, to
+  `build/logs/cpython-build.json`;
+  `--pgo-jobs N` pins the test worker count for a replay, with CPython's
+  compile parallelism (one fewer than host CPUs) as the default.
+  `python3 build.py reproduce --target aarch64-apple-darwin` repeats the
+  sealed build from cleared work/stage trees and compares the recipe,
+  profile data, and compiled Mach-O content separately. A matching locked
+  recipe proves the build can be recreated from its inputs; varying PGO
+  counters can still change profile bytes and machine code, so only an
+  identical profile and compiled content count as byte reproducibility.
 - `buildsys/sandbox.py`: `(deny network*)` profile, writes restricted to
   declared outputs (+ Darwin linker scratch), reads unrestricted, allowlist
   environment. `network_boundary_selftest` proves the denial against a
@@ -126,7 +147,8 @@ re-sign on macOS), validate the packaged bytes, deterministic `tar.gz`
 with top-level `python/` (`SOURCE_DATE_EPOCH=1704067200`, sorted entries,
 fixed owners/modes), refuse to overwrite an existing archive. `dist/`
 gets the archive, `SHA256SUMS`, `inputs.json`, `components.json`,
-`provenance.json` (`build_mode` sealed vs development), `validation.json`,
+`provenance.json` (`build_mode` sealed vs development, including the exact
+macOS PGO recipe and locked `llvm-profdata` identity), `validation.json`,
 `parity.json`/`parity.md`, `benchmarks.json` (+ `reproducibility.json` on
 macOS).
 
@@ -148,7 +170,8 @@ Windows-only SSL key-log check, GUI, `venv` path-resolution path, and glibc
 Linux syscall checks are reported as out of scope. Final validation asserts
 the regression package, `.pyc`, and `__pycache__` caches are absent from the
 release tree. Parity rows are `match`/`intentional_difference`/`gap`/
-`untested`; benchmarks must disclose LTO-only vs the reference's PGO+LTO.
+`untested`; macOS benchmarks must record the profile task, worker count, LTO
+mode, and a paired noise interval against the reference.
 
 ## Reference baseline (comparison only)
 

@@ -146,7 +146,7 @@
       "role": "reference",
       "target": "aarch64-apple-darwin",
       "license": "Python-2.0",
-      "purpose": "comparison-only; never a product build input. The pinned macOS reference is PGO+LTO while this project is LTO-only, so every performance comparison must disclose the optimization difference."
+      "purpose": "comparison-only; never a product build input. The pinned macOS reference is PGO+LTO; this project records its own CPython PGO task, worker count, and llvm-profdata identity in provenance.json."
     }
   ]
 }

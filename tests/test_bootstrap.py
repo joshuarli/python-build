@@ -59,6 +59,10 @@ class ToolchainConstructionTests(unittest.TestCase):
         toolchain = self.locked.toolchain()
         self.assertTrue(toolchain.is_macos)
         self.assertEqual(toolchain.cc, str(self.locked.llvm_prefix / "bin" / "clang"))
+        self.assertEqual(
+            self.locked.llvm_profdata,
+            self.locked.llvm_prefix / "bin" / "llvm-profdata",
+        )
         self.assertEqual(toolchain.make, str(self.locked.make))
         self.assertEqual(toolchain.deployment_target, self.locked.deployment_target)
 
@@ -138,6 +142,12 @@ class LockAgainstMachineTests(unittest.TestCase):
         locked = load_macos_toolchain(LOCK)
         broken = dataclasses.replace(locked, sdkroot=Path("/nonexistent/SDK"))
         self.assertTrue(any("SDK not found" in problem for problem in problems(broken)))
+
+    def test_missing_llvm_profdata_is_reported(self) -> None:
+        import dataclasses
+        locked = load_macos_toolchain(LOCK)
+        broken = dataclasses.replace(locked, llvm_prefix=Path("/nonexistent/llvm"))
+        self.assertTrue(any("llvm-profdata not found" in problem for problem in problems(broken)))
 
     def test_host_below_floor_is_reported(self) -> None:
         locked = load_macos_toolchain(LOCK)

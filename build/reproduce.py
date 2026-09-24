@@ -16,6 +16,7 @@ content per image rather than leaving the reader to guess which they have.
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,16 @@ from buildsys import macho  # noqa: E402
 from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
 from buildsys.reproduce import compare_trees, macho_difference  # noqa: E402
 from buildsys.targets import target_for_triple  # noqa: E402
+
+
+def _positive_int(value: str) -> int:
+    try:
+        result = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if result < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return result
 
 
 def _method(platform: str) -> str:
@@ -61,7 +72,7 @@ def _extract_staged(tag: str, dest: Path) -> Path:
     return dest
 
 
-def _reproduce_macos(target) -> int:
+def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
     """Two clean sealed builds on this machine, compared file-by-file.
 
     The first tree is set aside before the rebuild wipes the staging area, so
@@ -75,6 +86,30 @@ def _reproduce_macos(target) -> int:
     if not stage.is_dir():
         print("FAIL reproduce: no staged install; run a build first")
         return 1
+    recipe_path = REPO / "build" / "logs" / "cpython-build.json"
+    try:
+        first_recipe = json.loads(recipe_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"FAIL reproduce: no valid CPython build recipe at {recipe_path}: {error}")
+        return 1
+    if not first_recipe.get("optimization", {}).get("pgo"):
+        print("FAIL reproduce: the staged build was not produced with PGO")
+        return 1
+    if first_recipe.get("build_mode") != "sealed":
+        print("FAIL reproduce: the staged PGO build was not produced by build/sealed.py")
+        return 1
+    recorded_jobs = first_recipe["optimization"].get("pgo_jobs")
+    if type(recorded_jobs) is not int or recorded_jobs < 1:
+        print("FAIL reproduce: staged recipe has no valid PGO worker count")
+        return 1
+    if pgo_jobs is None:
+        pgo_jobs = recorded_jobs
+    if pgo_jobs != recorded_jobs:
+        print(
+            f"FAIL reproduce: requested PGO jobs {pgo_jobs} differ from the staged "
+            f"build's recorded {recorded_jobs}"
+        )
+        return 1
     work = REPO / "build" / "reproduce-work"
     if work.exists():
         shutil.rmtree(work)
@@ -85,10 +120,32 @@ def _reproduce_macos(target) -> int:
     for stale in ("work", "stage", "prefix"):
         shutil.rmtree(REPO / "build" / stale, ignore_errors=True)
     print("BUILD sealed (clean, rebuilds dependencies and CPython)", flush=True)
-    result = subprocess.run([sys.executable, "build/sealed.py"], cwd=REPO)
+    result = subprocess.run(
+        [sys.executable, "build/sealed.py", "--pgo-jobs", str(pgo_jobs)], cwd=REPO
+    )
     if result.returncode != 0:
         print("FAIL reproduce: sealed rebuild failed")
         return 1
+    try:
+        second_recipe = json.loads(recipe_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"FAIL reproduce: sealed rebuild did not record its recipe: {error}")
+        return 1
+    def without_profile_data(recipe: dict) -> dict:
+        comparable = dict(recipe)
+        optimization = dict(recipe.get("optimization", {}))
+        optimization.pop("profile_data", None)
+        comparable["optimization"] = optimization
+        return comparable
+
+    recipe_match = without_profile_data(first_recipe) == without_profile_data(second_recipe)
+    first_profile = first_recipe.get("optimization", {}).get("profile_data")
+    second_profile = second_recipe.get("optimization", {}).get("profile_data")
+    profile_match = (
+        isinstance(first_profile, dict)
+        and isinstance(second_profile, dict)
+        and first_profile == second_profile
+    )
 
     second = work / "second"
     shutil.copytree(stage, second, symlinks=True)
@@ -136,6 +193,11 @@ def _reproduce_macos(target) -> int:
     # the stripped trees are what actually ships, so that is the comparison
     # that answers "is the artifact reproducible".
     report = analyse(first, second)
+    report["pgo_build_recipe"] = {
+        "identical": recipe_match,
+        "first": first_recipe,
+        "second": second_recipe,
+    }
     strip = load_macos_toolchain(REPO / "bootstrap.lock.json").llvm_prefix / "bin" / "llvm-strip"
     for tree in (first, second):
         for image in macho.find_machos(tree):
@@ -143,17 +205,38 @@ def _reproduce_macos(target) -> int:
                            capture_output=True, check=True)
             macho.sign_adhoc(image)
     stripped = analyse(first, second)
+    stripped_analysis = stripped["macho_analysis"]
+    unclassified_differences = [
+        name for name in stripped["content_differs"]
+        if not (macho.is_macho(first / name) and macho.is_macho(second / name))
+    ]
+    compiled_content_match = (
+        not stripped["only_in_first"]
+        and not stripped["only_in_second"]
+        and not unclassified_differences
+        and not stripped_analysis["images_with_content_differences"]
+        and stripped_analysis["images_differing"]
+        == stripped_analysis["images_whose_compiled_content_is_identical"]
+    )
     report["stripped"] = {
         "files_compared": stripped["files_compared"],
         "content_differs": stripped["content_differs"],
         "byte_identical": stripped["byte_identical"],
-        "macho_analysis": stripped["macho_analysis"],
+        "macho_analysis": stripped_analysis,
+        "unclassified_content_differences": unclassified_differences,
+        "compiled_content_identical": compiled_content_match,
         "note": (
-            "The comparison that describes the shipped artifact. Entries "
-            "above are the unstripped trees, which additionally differ in "
-            "per-object build timestamps that --strip-debug removes."
+            "The comparison that describes the shipped artifact. Raw bytes "
+            "can differ because each link stamps an LC_UUID and ad-hoc code "
+            "signature; `macho_analysis` separates those fields from compiled "
+            "content. Unstripped trees also differ in per-object timestamps "
+            "that --strip-debug removes."
         ),
     }
+    report["pgo_recipe_identical"] = recipe_match
+    report["pgo_profile_data_identical"] = profile_match
+    report["compiled_content_identical"] = compiled_content_match
+    report["reproducible"] = recipe_match and profile_match and compiled_content_match
     report["method"] = (
         "Two independent sealed `sandbox-exec` builds on this machine, each "
         "rebuilding every native dependency and CPython from a cleared work "
@@ -176,18 +259,25 @@ def _reproduce_macos(target) -> int:
     dist = REPO / "dist" / target.triple
     dist.mkdir(parents=True, exist_ok=True)
     (dist / "reproducibility.json").write_text(canonical_json(report) + "\n")
-    print(f"OK    reproduce -> byte_identical={report['byte_identical']} "
-          f"({len(report['content_differs'])} of {report['files_compared']} files differ)")
-    return 0
+    print(f"{'OK' if report['reproducible'] else 'FAIL'} reproduce -> "
+          f"raw_byte_identical={report['byte_identical']}, "
+          f"compiled_content_identical={compiled_content_match}, "
+          f"pgo_recipe_identical={recipe_match}, "
+          f"pgo_profile_data_identical={profile_match}")
+    return 0 if report["reproducible"] else 1
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
+    parser.add_argument("--pgo-jobs", type=_positive_int,
+                        help="use this worker count for both clean macOS PGO builds")
     args = parser.parse_args()
     target = target_for_triple(args.target)
     if target.is_macos:
-        return _reproduce_macos(target)
+        return _reproduce_macos(target, pgo_jobs=args.pgo_jobs)
+    if args.pgo_jobs is not None:
+        parser.error("--pgo-jobs is only supported for the macOS PGO build")
     tags = (f"python-build-m1:reproduce-a-{target.alpine_arch}",
             f"python-build-m1:reproduce-b-{target.alpine_arch}")
 

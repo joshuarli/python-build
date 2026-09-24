@@ -25,8 +25,18 @@ class ExclusionRegisterTests(unittest.TestCase):
 
 
 class ClassifyTests(unittest.TestCase):
-    def _finding(self, returncode: int, failures: int = 1) -> dict:
-        return {"returncode": returncode, "failures": failures, "output_tail": ""}
+    def _finding(
+        self,
+        returncode: int,
+        failures: int = 1,
+        failed_cases: list[str] | None = None,
+    ) -> dict:
+        return {
+            "returncode": returncode,
+            "failures": failures,
+            "failed_cases": failed_cases or [],
+            "output_tail": "",
+        }
 
     def test_registered_file_failure_is_accepted(self) -> None:
         result = classify({"test_venv": self._finding(1)})
@@ -46,9 +56,22 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(result["unexpected_failures"], [])
 
     def test_registered_case_failure_is_accepted(self) -> None:
+        stem, case = CASE_EXCLUSIONS[0].test.split(":", 1)
+        result = classify({stem: self._finding(1, failed_cases=[case])})
+        self.assertIn(stem, result["accepted_exclusions"])
+        self.assertEqual(result["unexpected_failures"], [])
+
+    def test_unregistered_case_in_registered_file_is_unexpected(self) -> None:
+        stem = CASE_EXCLUSIONS[0].test.split(":", 1)[0]
+        result = classify({stem: self._finding(1, failed_cases=["test_other_case"])})
+        self.assertEqual(result["accepted_exclusions"], [])
+        self.assertEqual(result["unexpected_failures"], [stem])
+
+    def test_case_failure_without_parsed_method_is_unexpected(self) -> None:
         stem = CASE_EXCLUSIONS[0].test.split(":", 1)[0]
         result = classify({stem: self._finding(1)})
-        self.assertIn(stem, result["accepted_exclusions"])
+        self.assertEqual(result["accepted_exclusions"], [])
+        self.assertEqual(result["unexpected_failures"], [stem])
 
     def test_report_payload_fails_when_something_is_unexpected(self) -> None:
         report = {
@@ -58,6 +81,7 @@ class ClassifyTests(unittest.TestCase):
         payload = report_payload(report)
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["unexpected_failures"], ["test_x"])
+        self.assertEqual(payload["accepted_exclusions"], [])
         self.assertTrue(payload["exclusions"])
 
 

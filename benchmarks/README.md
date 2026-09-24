@@ -84,13 +84,14 @@ Stability control: same-interpreter pairs across runs 2/3 score −0.55%
 (PBS) and −1.53% (ours), so run-to-run noise on this shared host is
 ~1–1.5pp — well below the ~6–7% gap.
 
-Interpretation: the gap is real, systematic, and PGO-shaped —
-CPU-bound benchmarks run ~5–30% slower while IO-bound ones
-(`asyncio_tcp` 1.01x, `asyncio_websockets` 1.00x) sit at parity. PBS
-advertises it directly: its `CONFIG_ARGS` contains `PROFILE_TASK` /
-`--pgo`; our build carries no profile flags (LTO-only by policy).
-Recorded verdict: **~6–7% is the measured cost of the no-PGO policy**,
-stable across three runs — not a build defect, and not closable to
-±1% without adding PGO. `2to3` dies intermittently on both sides
+Interpretation: the measured Linux musl gap is systematic, with
+CPU-bound benchmarks running ~5–30% slower while IO-bound benchmarks
+(`asyncio_tcp` 1.01x, `asyncio_websockets` 1.00x) sit at parity. It cannot
+be attributed to PGO: the pinned PBS musl artifact is LTO-only, and the
+presence of `PROFILE_TASK` in sysconfig does not prove training ran;
+`--enable-optimizations` is the configure signal that activates CPython's
+PGO build. Our Linux build remains LTO-only by policy. The ~6–7% gap needs
+further investigation across compiler flags, generated code, dependency
+versions, and benchmark noise. `2to3` dies intermittently on both sides
 (lib2to3 is gone in 3.14; pyperformance still ships the bench) and is
 correctly absent from whichever side it fails on.
