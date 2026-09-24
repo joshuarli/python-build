@@ -248,27 +248,93 @@ def _fix_python_config_scripts(install: Path) -> list[Path]:
         if not script.is_file():
             continue
         source = script.read_text()
-        if (
-            "print(shlex.join(flags))" in source
-            and "print(shlex.join(libs))" in source
-        ):
-            continue
-        if (
-            source.count("print(' '.join(flags))") != 1
-            or source.count("print(' '.join(libs))") != 1
-        ):
-            raise RelocationError(
-                f"unexpected python-config flag output in {script}; expected cflags and library lists"
+        try:
+            module = ast.parse(source, filename=str(script))
+        except SyntaxError as error:
+            raise RelocationError(f"cannot parse python-config script {script}: {error}") from error
+
+        printers: dict[str, list[ast.Call]] = {"flags": [], "libs": []}
+        has_shlex_import = any(
+            isinstance(node, ast.Import)
+            and any(alias.name == "shlex" for alias in node.names)
+            for node in module.body
+        )
+        for node in ast.walk(module):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "print"
+                and len(node.args) == 1
+            ):
+                continue
+            output = node.args[0]
+            if not isinstance(output, ast.Call) or not isinstance(output.func, ast.Attribute):
+                continue
+            if output.func.attr != "join" or len(output.args) != 1:
+                continue
+            joined = output.args[0]
+            if not isinstance(joined, ast.Name) or joined.id not in printers:
+                continue
+            is_space_join = (
+                isinstance(output.func.value, ast.Constant)
+                and output.func.value.value == " "
             )
-        if "import getopt\n" not in source:
-            raise RelocationError(f"unexpected python-config imports in {script}")
-        rewritten = source.replace("import getopt\n", "import getopt\nimport shlex\n", 1)
-        rewritten = rewritten.replace(
-            "print(' '.join(flags))", "print(shlex.join(flags))"
-        )
-        rewritten = rewritten.replace(
-            "print(' '.join(libs))", "print(shlex.join(libs))"
-        )
+            is_shlex_join = (
+                isinstance(output.func.value, ast.Name)
+                and output.func.value.id == "shlex"
+            )
+            if is_space_join or is_shlex_join:
+                printers[joined.id].append(node)
+
+        counts = {name: len(nodes) for name, nodes in printers.items()}
+        if counts != {"flags": 1, "libs": 1}:
+            raise RelocationError(
+                f"unexpected python-config flag output in {script}; found {counts}, expected one cflags and library output"
+            )
+
+        rewritten_bytes = source.encode("utf-8")
+        line_offsets = [0]
+        for line in source.splitlines(keepends=True):
+            line_offsets.append(line_offsets[-1] + len(line.encode("utf-8")))
+        replacements = [
+            (
+                line_offsets[node.lineno - 1] + node.col_offset,
+                line_offsets[node.end_lineno - 1] + node.end_col_offset,
+                f"print(shlex.join({name}))".encode("ascii"),
+            )
+            for name, nodes in printers.items()
+            for node in nodes
+            if not (
+                isinstance(node.args[0], ast.Call)
+                and isinstance(node.args[0].func, ast.Attribute)
+                and isinstance(node.args[0].func.value, ast.Name)
+                and node.args[0].func.value.id == "shlex"
+            )
+        ]
+        for start, end, replacement in sorted(replacements, reverse=True):
+            rewritten_bytes = rewritten_bytes[:start] + replacement + rewritten_bytes[end:]
+        rewritten = rewritten_bytes.decode("utf-8")
+        if not has_shlex_import:
+            getopt_import = next(
+                (
+                    node for node in module.body
+                    if isinstance(node, ast.Import)
+                    and any(alias.name == "getopt" for alias in node.names)
+                ),
+                None,
+            )
+            if getopt_import is None or getopt_import.end_lineno is None:
+                raise RelocationError(f"unexpected python-config imports in {script}")
+            insertion = line_offsets[getopt_import.end_lineno]
+            rewritten_bytes = rewritten.encode("utf-8")
+            rewritten_bytes = (
+                rewritten_bytes[:insertion]
+                + b"import shlex\n"
+                + rewritten_bytes[insertion:]
+            )
+            rewritten = rewritten_bytes.decode("utf-8")
+        if rewritten == source:
+            continue
         script.write_text(rewritten)
         changed.append(script)
     return changed

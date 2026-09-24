@@ -99,7 +99,10 @@ class CleanSysconfigTests(unittest.TestCase):
             )
             config_script.write_text(config_source)
             library_config_script = configdir / "python-config.py"
-            library_config_script.write_text(config_source)
+            library_config_script.write_text(
+                config_source.replace("print(' '.join(flags))", 'print(" ".join(flags))')
+                .replace("print(' '.join(libs))", 'print(" ".join(libs))')
+            )
 
             changed = clean_sysconfig(
                 root,
