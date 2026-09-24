@@ -38,6 +38,16 @@ candidate self-calibration and a complete standard paired catalog comparison
 if timing noise permits. No concurrent build or benchmark lane. Budget:
 120 actual command CPU seconds and 1 GiB maximum reported RSS.
 
+While unrelated host compilation holds timing, the source-patch feasibility
+audit uses `/private/tmp/python-build-exp-url-patch-design-20260924m`, branch
+`exp/rust-cpython-url-patch-design-20260924m` (base `578c4db`). It owns only
+`experiments/url-quote-patch-design-20260924.md`. It identifies an exact
+no-new-dependency integration path for the lean kernel in the pinned Rust
+fork, including Cargo/staticlib, CPython-owned module registration, parser
+patch, cache preparation, and build checks. It runs no compilation or
+benchmark and makes no source changes. Budget: 20 command CPU seconds,
+512 MiB maximum RSS; the coordinator owns any later implementation.
+
 ## Twelfth cycle (base `5c393f5`)
 
 The macOS 3.16 application-input audit uses
