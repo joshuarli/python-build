@@ -1,5 +1,26 @@
 # Rust-for-CPython experiment lanes
 
+## Ninth cycle (base `b24b689`)
+
+The macOS region probe uses
+`/private/tmp/python-build-exp-mac-region-20260924h`, branch
+`exp/rust-cpython-mac-region-20260924h`, and owns a new diagnostic script,
+report, and uniquely named compact data only. It tests the installed SDK's
+`PROC_PIDREGIONINFO` counters against controlled child memory states without
+adding a benchmark field or claiming exact USS/PSS. Budget: 30 command CPU
+seconds, 512 MiB observer RSS. Its timed diagnostic has priority over any
+compiler or benchmark on this host.
+
+The URL quote proof uses `/private/tmp/python-build-exp-url-proof-20260924h`,
+branch `exp/rust-cpython-url-proof-20260924h`, and owns only the new
+`experiments/url-quote-proof/` and its report. It prototypes a guarded
+domain-specific Rust quote kernel without changing the pinned build or adding
+a dependency. It may prepare source and focused semantic checks, but holds
+substantial compilation until the region probe's timed diagnostic finishes;
+no paired benchmark runs without a separate coordinator decision. Budget:
+300 command CPU seconds and 2 GiB maximum reported RSS. All generated files
+remain inside its isolated worktree.
+
 ## Eighth cycle (base `1a426e6`)
 
 At scheduling, the earlier compiler had exited and one-minute load fell to
