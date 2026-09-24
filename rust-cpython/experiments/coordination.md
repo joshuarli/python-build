@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## Seventh cycle (base `57a7a54`)
+
+An unrelated Rust compiler was observed near 590% process CPU at the start
+of this cycle, and host load remained about 7–8 on ten logical CPUs. No
+comparative timing run is scheduled under that contention.
+
+| Lane | Worktree and branch | Owned paths | Question | Budget and status |
+| --- | --- | --- | --- | --- |
+| Catalog URL headroom | `/private/tmp/python-build-exp-url-headroom-20260924g`, `exp/rust-cpython-url-headroom-20260924g` | New `experiments/catalog-url-headroom-20260924.md` and optional narrow probe/data | Does `quote_from_bytes` materially contribute to the complete registered batch, and what share reaches an exact-bytes guard? | 30 CPU seconds, 512 MB RSS; active, instrumented diagnostic only |
+| macOS private-memory feasibility | `/private/tmp/python-build-exp-mac-unique-20260924g`, `exp/rust-cpython-mac-unique-20260924g` | New `experiments/mac-unique-memory-feasibility-20260924.md` only | Which host API can give an honest unique/private or proportional memory gate, and which allocation metric is feasible? | 30 CPU seconds, 512 MB RSS; active, read-only research |
+
+The coordinator owns target selection, integration, and updates to the shared
+objective. These agents may not edit each other's files or run a build or
+long comparative benchmark.
+
 ## Sixth cycle (base `2aec7d7`)
 
 The catalog URL baseline lane uses
