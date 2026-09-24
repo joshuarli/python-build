@@ -1,0 +1,296 @@
+diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
+index 4247b9a..54d4032 100644
+--- a/Lib/urllib/parse.py
++++ b/Lib/urllib/parse.py
+@@ -34,6 +34,7 @@ It serves as a useful guide when making changes.
+ from collections import namedtuple
+ import functools
+ import math
++import _rust_url_quote
+ import re
+ import types
+ import warnings
+@@ -1110,6 +1111,9 @@ def quote_from_bytes(bs, safe='/'):
+         safe = bytes([c for c in safe if c < 128])
+     if not bs.rstrip(_ALWAYS_SAFE_BYTES + safe):
+         return bs.decode()
++    # Only exact bytes enter the native kernel after the original fast exits.
++    if type(bs) is bytes and type(safe) is bytes and len(bs) < 200_000:
++        return _rust_url_quote.quote_bytes(bs, safe)
+     quoter = _byte_quoter_factory(safe)
+     if (bs_len := len(bs)) < 200_000:
+         return ''.join(map(quoter, bs))
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+index 0925d02..042af80 100644
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -3461,6 +3461,16 @@ Python/thread.o: @THREADHEADERS@ $(srcdir)/Python/condvar.h
+ cpython-sys: Modules/cpython-sys/Cargo.toml Modules/cpython-sys/build.rs Modules/cpython-sys/wrapper.h Modules/cpython-sys/parser.h
+ 	CARGO_TARGET_DIR=$(abs_builddir)/target PYTHON_BUILD_DIR=$(abs_builddir) PY_CC="$(CC)" PY_CPPFLAGS="$(CPPFLAGS)" PY_CFLAGS="$(CFLAGS)" LLVM_TARGET="$(LLVM_TARGET)" IPHONEOS_DEPLOYMENT_TARGET=$(IPHONEOS_DEPLOYMENT_TARGET) $(CARGO_HOME)/bin/cargo build --lib --locked --package cpython-sys --profile $(CARGO_PROFILE) $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) --manifest-path $(srcdir)/Cargo.toml
+ 
++# Private no_std URL quotation kernel for the shared C extension. The
++# build driver pins RUSTUP_TOOLCHAIN; rustup run also names that pin explicitly.
++RUST_URL_QUOTE_A=Modules/_rust_url_quote/libquote_ascii.a
++MODULE__RUST_URL_QUOTE_LDEPS=$(RUST_URL_QUOTE_A)
++MODULE__RUST_URL_QUOTE_LDFLAGS=$(RUST_URL_QUOTE_A)
++
++$(RUST_URL_QUOTE_A): $(srcdir)/Modules/_rust_url_quote/quote.rs
++	mkdir -p Modules/_rust_url_quote
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin $< -o $@
++
+ RUST_STATICLIB_A= target/$(if $(CARGO_TARGET),$(CARGO_TARGET)/$(CARGO_TARGET_DIR),$(CARGO_TARGET_DIR))/libcpython_rust_staticlib.a
+ 
+ cpython-rust-staticlib: cpython-sys
+diff --git a/Modules/Setup.stdlib.in b/Modules/Setup.stdlib.in
+index 19431c7..f061f36 100644
+--- a/Modules/Setup.stdlib.in
++++ b/Modules/Setup.stdlib.in
+@@ -119,6 +119,7 @@
+ # Rust modules
+ #
+ @MODULE__BASE64_TRUE@_base64 _base64/Cargo.toml _base64/src/lib.rs
++@MODULE__RUST_URL_QUOTE_TRUE@_rust_url_quote _rust_url_quote/module.c
+ 
+ ############################################################################
+ # Modules with some UNIX dependencies
+diff --git a/Modules/_rust_url_quote/module.c b/Modules/_rust_url_quote/module.c
+new file mode 100644
+index 0000000..19fa50a
+--- /dev/null
++++ b/Modules/_rust_url_quote/module.c
+@@ -0,0 +1,70 @@
++/* CPython-owned object boundary for an exact-size, ASCII-only Rust quote. */
++#define PY_SSIZE_T_CLEAN
++#include <Python.h>
++
++extern Py_ssize_t quote_ascii(const unsigned char *, size_t,
++                             const unsigned char *, size_t,
++                             unsigned char *, size_t);
++
++static PyObject *quote_bytes(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
++{
++    (void)self;
++    if (nargs != 2 || !PyBytes_CheckExact(args[0]) || !PyBytes_CheckExact(args[1])) {
++        PyErr_SetString(PyExc_TypeError, "quote_bytes requires exact bytes input and safe");
++        return NULL;
++    }
++    Py_ssize_t len = PyBytes_GET_SIZE(args[0]);
++    Py_ssize_t safe_len = PyBytes_GET_SIZE(args[1]);
++    if (len >= 200000) {
++        PyErr_SetString(PyExc_ValueError, "quote_bytes input exceeds guarded limit");
++        return NULL;
++    }
++    const unsigned char *input = (const unsigned char *)PyBytes_AS_STRING(args[0]);
++    const unsigned char *safe = (const unsigned char *)PyBytes_AS_STRING(args[1]);
++    Py_ssize_t output_len = quote_ascii(input, (size_t)len, safe, (size_t)safe_len, NULL, 0);
++    if (output_len < 0 || output_len > len * 3) {
++        PyErr_SetString(PyExc_RuntimeError, "Rust quotation length contract failed");
++        return NULL;
++    }
++    PyObject *result = PyUnicode_New(output_len, 127);
++    if (result == NULL) return NULL;
++    Py_ssize_t written = quote_ascii(input, (size_t)len, safe, (size_t)safe_len,
++                                    PyUnicode_1BYTE_DATA(result), (size_t)output_len);
++    if (written != output_len) {
++        Py_DECREF(result);
++        PyErr_SetString(PyExc_RuntimeError, "Rust quotation fill contract failed");
++        return NULL;
++    }
++    return result;
++}
++
++static PyMethodDef methods[] = {
++    {"quote_bytes", (PyCFunction)(void (*)(void))quote_bytes, METH_FASTCALL,
++     "Percent-quote exact bytes using a normalized exact-bytes safe set."},
++    {NULL, NULL, 0, NULL}
++};
++
++static int module_exec(PyObject *module)
++{
++    (void)module;
++    return 0;
++}
++
++static PyModuleDef_Slot slots[] = {
++    {Py_mod_exec, module_exec},
++    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
++    {0, NULL}
++};
++
++static struct PyModuleDef module = {
++    PyModuleDef_HEAD_INIT,
++    .m_name = "_rust_url_quote",
++    .m_size = 0,
++    .m_methods = methods,
++    .m_slots = slots,
++};
++
++PyMODINIT_FUNC PyInit__rust_url_quote(void)
++{
++    return PyModuleDef_Init(&module);
++}
+diff --git a/Modules/_rust_url_quote/quote.rs b/Modules/_rust_url_quote/quote.rs
+new file mode 100644
+index 0000000..7b00ec5
+--- /dev/null
++++ b/Modules/_rust_url_quote/quote.rs
+@@ -0,0 +1,75 @@
++//! Exact-byte percent quoting for the guarded urllib.parse overlay.
++//!
++//! A null output requests the required length. The C caller then allocates an
++//! exact-size ASCII Unicode object and calls again to fill it. Exact CPython
++//! bytes inputs stay owned by the caller throughout both passes.
++#![no_std]
++
++use core::panic::PanicInfo;
++
++unsafe extern "C" {
++    fn abort() -> !;
++}
++
++#[panic_handler]
++fn panic(_info: &PanicInfo<'_>) -> ! {
++    // A Rust panic must never unwind across the CPython C boundary. Normal
++    // bounds and capacity failures return -1; this handles only broken Rust
++    // invariants, for which continuing with a partly filled object is unsafe.
++    unsafe { abort() }
++}
++
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn quote_ascii(
++    input: *const u8,
++    input_len: usize,
++    safe: *const u8,
++    safe_len: usize,
++    output: *mut u8,
++    capacity: usize,
++) -> isize {
++    if input.is_null() || safe.is_null() || input_len > isize::MAX as usize / 3 {
++        return -1;
++    }
++    if output.is_null() && capacity != 0 {
++        return -1;
++    }
++
++    let mut allowed = [0_u8; 128];
++    for c in b'A'..=b'Z' { allowed[c as usize] = 1; }
++    for c in b'a'..=b'z' { allowed[c as usize] = 1; }
++    for c in b'0'..=b'9' { allowed[c as usize] = 1; }
++    for c in b"_.-~" { allowed[*c as usize] = 1; }
++    for i in 0..safe_len {
++        // C supplies a live exact-bytes buffer of safe_len bytes.
++        let c = unsafe { *safe.add(i) };
++        if c < 128 { allowed[c as usize] = 1; }
++    }
++
++    let hex = b"0123456789ABCDEF";
++    let mut written = 0_usize;
++    for i in 0..input_len {
++        // C supplies a live exact-bytes buffer of input_len bytes.
++        let c = unsafe { *input.add(i) };
++        let literal = c < 128 && allowed[c as usize] != 0;
++        let width = if literal { 1 } else { 3 };
++        if !output.is_null() && (written > capacity || capacity - written < width) {
++            return -1;
++        }
++        if !output.is_null() {
++            // The capacity check above proves each write is within the
++            // PyUnicode_New(result_len, 127) one-byte payload.
++            unsafe {
++                if literal {
++                    *output.add(written) = c;
++                } else {
++                    *output.add(written) = b'%';
++                    *output.add(written + 1) = hex[(c >> 4) as usize];
++                    *output.add(written + 2) = hex[(c & 15) as usize];
++                }
++            }
++        }
++        written += width;
++    }
++    written as isize
++}
+diff --git a/configure b/configure
+index 7b5f7bd..a56d3d9 100755
+--- a/configure
++++ b/configure
+@@ -694,6 +694,8 @@ MODULE_ZLIB_FALSE
+ MODULE_ZLIB_TRUE
+ MODULE__BASE64_FALSE
+ MODULE__BASE64_TRUE
++MODULE__RUST_URL_QUOTE_FALSE
++MODULE__RUST_URL_QUOTE_TRUE
+ MODULE__UUID_FALSE
+ MODULE__UUID_TRUE
+ MODULE__TKINTER_FALSE
+@@ -35725,6 +35727,45 @@ fi
+   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__base64" >&5
+ printf "%s\n" "$py_cv_module__base64" >&6; }
+ 
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_url_quote" >&5
++printf %s "checking for stdlib extension module _rust_url_quote... " >&6; }
++        if test "$py_cv_module__rust_url_quote" != "n/a"
++then :
++
++    if test "$HAVE_CARGO" = yes
++then :
++  if test "$HAVE_CARGO" = yes
++then :
++  py_cv_module__rust_url_quote=yes
++else case e in #(
++  e) py_cv_module__rust_url_quote=missing ;;
++esac
++fi
++else case e in #(
++  e) py_cv_module__rust_url_quote=disabled ;;
++esac
++fi
++
++fi
++  as_fn_append MODULE_BLOCK "MODULE__RUST_URL_QUOTE_STATE=$py_cv_module__rust_url_quote$as_nl"
++  if test "x$py_cv_module__rust_url_quote" = xyes
++then :
++
++
++
++
++fi
++   if test "$py_cv_module__rust_url_quote" = yes; then
++  MODULE__RUST_URL_QUOTE_TRUE=
++  MODULE__RUST_URL_QUOTE_FALSE='#'
++else
++  MODULE__RUST_URL_QUOTE_TRUE='#'
++  MODULE__RUST_URL_QUOTE_FALSE=
++fi
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_url_quote" >&5
++printf "%s\n" "$py_cv_module__rust_url_quote" >&6; }
++
+ 
+ 
+   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module zlib" >&5
+@@ -37034,6 +37075,10 @@ if test -z "${MODULE__BASE64_TRUE}" && test -z "${MODULE__BASE64_FALSE}"; then
+   as_fn_error $? "conditional \"MODULE__BASE64\" was never defined.
+ Usually this means the macro was only invoked conditionally." "$LINENO" 5
+ fi
++if test -z "${MODULE__RUST_URL_QUOTE_TRUE}" && test -z "${MODULE__RUST_URL_QUOTE_FALSE}"; then
++  as_fn_error $? "conditional \"MODULE__RUST_URL_QUOTE\" was never defined.
++Usually this means the macro was only invoked conditionally." "$LINENO" 5
++fi
+ if test -z "${MODULE_ZLIB_TRUE}" && test -z "${MODULE_ZLIB_FALSE}"; then
+   as_fn_error $? "conditional \"MODULE_ZLIB\" was never defined.
+ Usually this means the macro was only invoked conditionally." "$LINENO" 5
+diff --git a/configure.ac b/configure.ac
+index 7fde993..c1f4f55 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -8613,6 +8613,9 @@ PY_STDLIB_MOD([_uuid],
+ PY_STDLIB_MOD([_base64],
+   [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
+   [], [])
++PY_STDLIB_MOD([_rust_url_quote],
++  [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
++  [], [])
+ 
+ dnl compression libs
+ PY_STDLIB_MOD([zlib], [], [test "$have_zlib" = yes],
