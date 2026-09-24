@@ -35,9 +35,9 @@ class PerfStatTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary:
             output_path = Path(temporary) / "perf.json"
-            with patch.object(perf.shutil, "which", return_value="/usr/bin/perf"), patch.object(
-                perf.subprocess, "run", return_value=completed
-            ) as run:
+            with patch.object(perf.Path, "exists", return_value=True), patch.object(
+                perf.shutil, "which", return_value="/usr/bin/perf"
+            ), patch.object(perf.subprocess, "run", return_value=completed) as run:
                 report = perf.run_perf_stat(
                     ["python", "-c", "pass"],
                     enabled=True,
@@ -64,9 +64,9 @@ class PerfStatTests(unittest.TestCase):
                 "4,,page-faults,100.0,\n"
             ),
         )
-        with patch.object(perf.shutil, "which", return_value="/usr/bin/perf"), patch.object(
-            perf.subprocess, "run", return_value=completed
-        ):
+        with patch.object(perf.Path, "exists", return_value=True), patch.object(
+            perf.shutil, "which", return_value="/usr/bin/perf"
+        ), patch.object(perf.subprocess, "run", return_value=completed):
             report = perf.run_perf_stat(
                 ["python", "-m", "workload"], enabled=True, operations=10
             )

@@ -34,6 +34,8 @@ WORKLOADS: tuple[Workload, ...] = (
     Workload("import_app_stack", "startup", "extra", "import process", 1, 1,
              ("Django", "FastAPI", "Pydantic", "SQLAlchemy")),
     Workload("pip_install_wheelhouse", "packaging", "extra", "installation", 1, 1, ("pip",), "noisy"),
+    Workload("rust_base64_small", "encoding", "rust_base64", "64-byte Base64 encode", 100_000, 1),
+    Workload("rust_base64_large", "encoding", "rust_base64", "1-MiB Base64 encode", 16, 1),
     Workload("serialization_roundtrip", "serialization", "extra", "roundtrip", 100, 20),
     Workload("multiprocess_pool", "multiprocess", "extra", "pool task", 20, 2, noise_class="noisy"),
 )
@@ -47,7 +49,13 @@ def select_workloads(suite: str, profile: str, name: str | None, category: str |
     if profile not in {"quick", "standard", "rigorous"}:
         raise ValueError(f"unknown profile: {profile}")
     if suite == "smoke":
-        selected = [BY_NAME[n] for n in ("python_startup", "serialization_roundtrip", "multiprocess_pool")]
+        selected = [BY_NAME[n] for n in (
+            "python_startup",
+            "rust_base64_small",
+            "rust_base64_large",
+            "serialization_roundtrip",
+            "multiprocess_pool",
+        )]
     elif suite in {"realworld", "full"}:
         selected = list(WORKLOADS)
         if profile == "quick" and name is None and category is None:

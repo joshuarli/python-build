@@ -75,7 +75,7 @@ class ExtraWorkloadTests(unittest.TestCase):
             self.assertIn("--no-index", command)
             self.assertIn("--ignore-installed", command)
             self.assertIn("--only-binary=:all:", command)
-            self.assertIn(str(wheelhouse), command)
+            self.assertIn(str(wheelhouse.resolve()), command)
         first_target = commands[0][commands[0].index("--target") + 1]
         second_target = commands[1][commands[1].index("--target") + 1]
         self.assertNotEqual(first_target, second_target)

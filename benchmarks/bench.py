@@ -82,9 +82,62 @@ def _check_versions(baseline: dict[str, Any], candidate: dict[str, Any], allow_c
         raise ValueError("major.minor versions differ; use --allow-cross-version for research")
 
 
+def _macos_host_provenance() -> dict[str, Any]:
+    def command_output(argv: list[str]) -> str | None:
+        try:
+            result = subprocess.run(
+                argv, capture_output=True, text=True, timeout=5, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
+
+    def sysctl_value(name: str) -> str | None:
+        return command_output(["sysctl", "-n", name])
+
+    try:
+        load_average: list[float] | None = list(os.getloadavg())
+    except OSError:
+        load_average = None
+    return {
+        "system": platform.system(),
+        "kernel_release": platform.release(),
+        "machine": platform.machine(),
+        "macos_version": command_output(["sw_vers", "-productVersion"]),
+        "hardware_model": sysctl_value("hw.model"),
+        "cpu_model": sysctl_value("machdep.cpu.brand_string"),
+        "logical_cpu_count": sysctl_value("hw.logicalcpu"),
+        "physical_cpu_count": sysctl_value("hw.physicalcpu"),
+        "performance_core_count": sysctl_value("hw.perflevel0.physicalcpu"),
+        "efficiency_core_count": sysctl_value("hw.perflevel1.physicalcpu"),
+        "memory_total_bytes": sysctl_value("hw.memsize"),
+        "load_average": load_average,
+        "cpu_affinity": None,
+        "cpu_frequency_control": "not recorded; macOS host policy",
+    }
+
+
 def _run_internal(args: argparse.Namespace) -> Path:
-    if platform.system() != "Linux" or platform.machine() != "x86_64":
-        raise RuntimeError("benchmark measurements require Linux amd64")
+    linux_amd64 = platform.system() == "Linux" and platform.machine() == "x86_64"
+    macos_arm64_timing = (
+        platform.system() == "Darwin"
+        and platform.machine() in {"arm64", "aarch64"}
+        and args.local
+        and args.timing_only
+    )
+    if not linux_amd64 and not macos_arm64_timing:
+        raise RuntimeError(
+            "measurements require Linux amd64, or native Apple Silicon with "
+            "--local --timing-only"
+        )
+    if args.timing_only and (not args.local or not macos_arm64_timing):
+        raise ValueError("--timing-only is currently supported only for local Apple Silicon runs")
+    if macos_arm64_timing and args.profile == "rigorous":
+        raise ValueError("the macOS timing-only path supports quick and standard profiles")
+    if macos_arm64_timing and args.perf_stat:
+        raise ValueError("--perf-stat is a Linux-only diagnostic")
     if os.environ.get("BENCH_OFFLINE_CONTAINER") != "1" and not args.local:
         raise RuntimeError("measurement requires the offline benchmark container; use `run` on the host")
     if not 1 <= args.memory_interval_ms <= 1000:
@@ -137,9 +190,16 @@ def _run_internal(args: argparse.Namespace) -> Path:
             memray_site = prepare_site(baseline, scratch / "memray-site", wheelhouse=wheelhouse,
                                        groups={"memray"}, lock=lock)
         workload_specs = select_workloads(args.suite, args.profile, args.workload, args.category)
-        topology = discover_cpu_topology()
-        # A single discovered physical core is used for paired CPU-heavy macros.
-        affinity = set(select_physical_cpus(topology, 1)) if topology.cores else None
+        if linux_amd64:
+            topology = discover_cpu_topology()
+            # A single discovered physical core is used for paired CPU-heavy macros.
+            affinity = set(select_physical_cpus(topology, 1)) if topology.cores else None
+            host_provenance = collect_host_provenance(
+                selected_affinity=sorted(affinity) if affinity else None
+            )
+        else:
+            affinity = None
+            host_provenance = _macos_host_provenance()
         raw: list[dict[str, Any]] = []
         comparisons: list[dict[str, Any]] = []
         for workload in workload_specs:
@@ -155,12 +215,15 @@ def _run_internal(args: argparse.Namespace) -> Path:
                 affinity=affinity,
                 memory_interval_seconds=args.memory_interval_ms / 1000,
                 perf_stat=args.perf_stat,
+                measure_memory=not args.timing_only,
             )
             raw.append(result)
             comparisons.append(compare_workload(result, baseline_label=args.baseline_label,
                                                 candidate_label=args.candidate_label,
                                                 baseline_kind=args.baseline_kind,
-                                                allocation_gate=args.profile == "rigorous"))
+                                                memory_gate=not args.timing_only,
+                                                allocation_gate=(args.profile == "rigorous"
+                                                                 and not args.timing_only)))
         perf_comparison = None
         if perf_site is not None:
             from benchmarks.harness.pyperformance import (
@@ -214,9 +277,13 @@ def _run_internal(args: argparse.Namespace) -> Path:
             "benchmark_image_id": os.environ.get("BENCH_IMAGE_ID"),
             "container_runtime_version": os.environ.get("BENCH_DOCKER_VERSION"),
             "perf_tool_path": shutil.which("perf"),
-            "host": collect_host_provenance(selected_affinity=sorted(affinity) if affinity else None),
+            "host": host_provenance,
             "cpu_affinity": sorted(affinity) if affinity else None,
             "memory_sampling_interval_seconds": args.memory_interval_ms / 1000,
+            "measurement_mode": (
+                "timing-only; process memory and allocation passes are not measured"
+                if args.timing_only else "timing plus configured resource passes"
+            ),
             "python_environment": {name: os.environ.get(name) for name in
                                    ("PYTHONHASHSEED", "PYTHONMALLOC", "PYTHONPATH", "PYTHONNOUSERSITE", "PYTHONDONTWRITEBYTECODE")},
             "run_order": "alternating BC/CB",
@@ -225,7 +292,8 @@ def _run_internal(args: argparse.Namespace) -> Path:
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2, sort_keys=True, default=str) + "\n")
         summary = {"schema_version": 1, "baseline": base_identity, "candidate": cand_identity,
                    "workloads": comparisons, "suite": args.suite, "profile": args.profile,
-                   "cross_version": cross_version}
+                   "cross_version": cross_version,
+                   "measurement_mode": provenance["measurement_mode"]}
         if perf_comparison is not None:
             summary["pyperformance"] = perf_comparison
         save_summary(summary, output, provenance)
@@ -357,6 +425,8 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--allow-cross-version", action="store_true")
         command.add_argument("--perf-stat", action="store_true", help="optional separate Linux perf stat diagnostics")
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
+        command.add_argument("--timing-only", action="store_true",
+                             help="local Apple Silicon timing run; skips unsupported memory/allocation passes")
     run.add_argument("--preset", choices=("pbs",))
     run.add_argument("--container", action="store_true", help="use offline container (the default)")
     self_compare.add_argument("--python", required=True)
@@ -405,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError("PBS reference runs require the isolated offline benchmark container")
                 if args.local and args.container:
                     raise ValueError("--local and --container select incompatible execution boundaries")
+                if args.timing_only and not args.local:
+                    raise ValueError("--timing-only requires --local")
             if not args.baseline or not args.candidate:
                 raise ValueError("--baseline and --candidate are required")
             if args.output is None:

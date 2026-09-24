@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -12,7 +13,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from benchmarks.harness.memory import CgroupV2MemoryScope
-from benchmarks.harness.process import ProcessSampler, run_command
+from benchmarks.harness.process import ProcessSampler, _run_unmonitored, run_command
 
 
 def _process_state(pid: int) -> str | None:
@@ -35,6 +36,62 @@ def _wait_until_not_live(pid: int, timeout: float = 2.0) -> bool:
             return True
         time.sleep(0.01)
     return False
+
+
+def _wait_until_not_running(pid: int, timeout: float = 2.0) -> bool:
+    ps = shutil.which("ps")
+    if ps is None:
+        return False
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            [ps, "-p", str(pid), "-o", "stat="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        state = result.stdout.strip()
+        if result.returncode != 0 or not state or state.startswith("Z"):
+            return True
+        time.sleep(0.01)
+    return False
+
+
+class UnmonitoredProcessTests(unittest.TestCase):
+    def test_timing_command_collects_output_without_memory_sampling(self):
+        result = _run_unmonitored(
+            [sys.executable, "-c", "print('timing-only')"],
+            env=None,
+            cwd=None,
+            timeout=3,
+            terminate_grace_seconds=0.1,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        self.assertEqual(result.stdout, b"timing-only\n")
+        self.assertIsNone(result.memory)
+        self.assertTrue(result.cleanup_complete)
+        self.assertGreater(result.duration_seconds, 0)
+
+    def test_timing_command_cleans_descendant_after_parent_exits(self):
+        parent_code = (
+            "import subprocess,sys; "
+            "child=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
+            "print(child.pid, flush=True)"
+        )
+        result = _run_unmonitored(
+            [sys.executable, "-c", parent_code],
+            env=None,
+            cwd=None,
+            timeout=3,
+            terminate_grace_seconds=0.1,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        child_pid = int(result.stdout.decode("ascii").strip())
+        self.assertTrue(_wait_until_not_running(child_pid), f"child {child_pid} survived cleanup")
+        self.assertTrue(result.cleanup_complete)
+        self.assertEqual(result.remaining_pids, ())
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "Linux /proc sampler")

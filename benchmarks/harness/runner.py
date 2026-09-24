@@ -133,12 +133,15 @@ def run_workload(
     timeout_seconds: float = 300,
     memory_interval_seconds: float = 0.01,
     perf_stat: bool = False,
+    measure_memory: bool = True,
 ) -> dict[str, Any]:
     if profile not in PROFILE_ROUNDS:
         raise ValueError(f"unknown profile: {profile}")
     output_dir.mkdir(parents=True, exist_ok=True)
     timing_rounds, memory_rounds = PROFILE_ROUNDS[profile]
-    if workload.noise_class == "noisy":
+    if not measure_memory:
+        memory_rounds = 0
+    if workload.noise_class == "noisy" and measure_memory:
         # Scheduling and child overlap make process-tree peaks less stable in
         # ASGI, pip, and multiprocessing workloads. Five separate memory
         # processes give their medians enough observations to resist one
@@ -155,11 +158,26 @@ def run_workload(
             "noise_class": workload.noise_class,
             "packages": list(workload.packages),
         },
-        "baseline": {"timing": {"samples": []}, "memory": {"rounds": []}},
-        "candidate": {"timing": {"samples": []}, "memory": {"rounds": []}},
+        "baseline": {
+            "timing": {"samples": []},
+            "memory": {
+                "rounds": [],
+                **({"status": "not_measured", "reason": "timing-only host mode"}
+                   if not measure_memory else {}),
+            },
+        },
+        "candidate": {
+            "timing": {"samples": []},
+            "memory": {
+                "rounds": [],
+                **({"status": "not_measured", "reason": "timing-only host mode"}
+                   if not measure_memory else {}),
+            },
+        },
     }
     digests: set[str] = set()
     operation_counts: set[int] = set()
+    implementations: dict[str, str] = {}
     for side, python in sides.items():
         warmup = run_command(workload_command(python, workload, workload.iterations),
                              env=env, cwd=Path(__file__).resolve().parents[2],
@@ -172,6 +190,9 @@ def run_workload(
                                               workload.iterations)
         digests.add(warmup_payload["digest"])
         operation_counts.add(warmup_payload["operation_count"])
+        backend = warmup_payload.get("backend")
+        if isinstance(backend, str) and backend:
+            implementations[side] = backend
     # Alternating BC/CB order prevents one side from always running cold.
     order = [side for index in range(timing_rounds) for side in
              (("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline"))]
@@ -218,6 +239,8 @@ def run_workload(
         raise RuntimeError(f"{workload.name}: operation count differs across runs: {operation_counts}")
     result["identity"]["digest"] = next(iter(digests))
     result["identity"]["operation_count"] = next(iter(operation_counts))
+    if implementations:
+        result["identity"]["implementation_by_side"] = implementations
     if allocation_site is not None:
         from benchmarks.harness.allocations import run_allocation_pass
 

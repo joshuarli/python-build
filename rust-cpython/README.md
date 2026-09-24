@@ -23,6 +23,7 @@ python3 rust-cpython/build.py doctor  # read-only host, pins, and toolchain chec
 python3 rust-cpython/build.py fetch   # verified sources, LLVM, and locked Cargo deps
 python3 rust-cpython/build.py build   # out-of-tree optimized build, network denied
 python3 rust-cpython/build.py test    # Cargo, focused CPython, then broad regression
+python3 rust-cpython/build_no_rust.py # matched same-source benchmark control
 python3 rust-cpython/build.py clean   # remove generated outputs; retain private Cargo cache
 ```
 
@@ -87,6 +88,41 @@ C accelerators). Report separate cold/warm, input-size, callback, and I/O
 cases. Keep a Rust path only when it has exact behavior and a repeatable
 measured benefit or a clearly scoped safety/maintenance case.
 
+## Performance comparison
+
+The pinned fork's Rust `_base64` module is not called by public `base64.py`,
+so its presence alone does not imply an interpreter-wide speedup. For a fair
+same-version comparison, `build_no_rust.py` builds the same locked source,
+with the same LLVM, SDK, CPU flags, ThinLTO, and PGO workload, while hiding
+Cargo from configure so `_base64` is absent. The enhanced benchmark's local
+Apple Silicon path compares these interpreters on the smoke suite and invokes
+the Rust encoder directly for its Base64 workloads. That path records timings
+only; process-memory and allocation measurements remain Linux-only.
+
+After `fetch`, `build_no_rust.py`, `build`, and `test`, run:
+
+```sh
+rust-cpython/stage/bin/python3.16 rust-cpython/bench_base64.py \
+  --output rust-cpython/results/base64-pyperf.json \
+  --processes 5 --values 8 --warmups 2 --min-time 0.1
+
+python3.14 benchmarks/bench.py run \
+  --baseline rust-cpython/stage-no-rust/bin/python3.16 \
+  --candidate rust-cpython/stage/bin/python3.16 \
+  --baseline-label "Rust-for-CPython 3.16 without _base64" \
+  --candidate-label "Rust-for-CPython 3.16 with _base64" \
+  --baseline-kind custom --candidate-kind custom \
+  --suite smoke --profile standard --local --timing-only
+```
+
+The first report compares the Rust implementation directly with `binascii`
+and public `base64`; the second tests the added module alongside startup,
+serialization, and multiprocessing workloads. Neither is an Astral PBS or
+upstream CPython comparison. A broader interpreter comparison needs a
+same-version vanilla CPython build and a host/platform-matched benchmark.
+The measured results, repeated runs, and limits are recorded in
+[`PERFORMANCE.md`](PERFORMANCE.md).
+
 ### Tier A — prototype early, subject to baseline measurements
 
 | Rank | Area: current implementation and CPython tests | Leverage and proposed Rust boundary | Hazards, prior art, and measurement gate |
@@ -113,7 +149,7 @@ measured benefit or a clearly scoped safety/maintenance case.
 | 15 | **email parsing / importlib.metadata** — `Lib/email/{_header_value_parser,feedparser,message}.py`, `Lib/importlib/metadata/__init__.py`; `test_email/`, `test_importlib/` | Start with RFC header tokenization or body-boundary scanning; preserve Python message/provider objects and policy. | Folding, defects, MIME, filesystem providers, hooks and custom policies. `mail-parser`/`mailparse` are references. Benchmark email parsing separately from package metadata discovery and import startup. |
 | 16 | **`re` compile pipeline** — `Lib/re/{_parser,_compiler,_optimizer,_constants}.py`, `Modules/_sre/`; `test_re.py`, `test_free_threading/test_re.py` | Parse/optimize to the same CPython regex bytecode while retaining `_sre` as the matcher. | Syntax, flags, error spans/messages, cache behavior and backtracking semantics. Rust `regex` is not a drop-in engine; `regex-syntax` is parser prior art. Fuzz patterns and separate cold compilation from warm matching. |
 | 17 | **plistlib** — `Lib/plistlib.py`; `test_plistlib.py` | Parse or serialize a whole XML/binary plist buffer to ordinary Python values. | UID, datetime, key ordering, binary details, and error behavior. Rust plist crates are prior art. Test large real macOS plists and compare bytes as well as decoded values. |
-| 18 | **base64 / binascii** — `Lib/base64.py`, `Modules/binascii.c`, `Modules/_base64/`; `test_base64.py`, `test_binascii.py` | Consider raw buffer codec kernels, especially operations not already handled efficiently by `binascii`. | Standard Base64 already enters C; `_base64` is not wired into the public module. Preserve alphabets, newlines, validation and buffer formats. Study Rust `base64`/`base64-simd`; benchmark against current C for sizes and codecs before promoting. |
+| 18 | **base64 / binascii** — `Lib/base64.py`, `Modules/binascii.c`, `Modules/_base64/`; `test_base64.py`, `test_binascii.py` | Consider raw buffer codec kernels, especially operations not already handled efficiently by `binascii`. | Standard Base64 already enters C; `_base64` is not wired into the public module. The first size sweep in [`PERFORMANCE.md`](PERFORMANCE.md) found Rust 39.5% faster at 64 bytes but 42–48% slower at 4 KiB and above. Preserve alphabets, newlines, validation and buffer formats; improve the bulk path before promoting. |
 | 19 | **csv / `_csv`** — `Lib/csv.py`, `Modules/_csv.c`; `test_csv.py`, `test_free_threading/test_csv.py` | Only consider a row scanner or batched field parser if it beats the existing C accelerator. | Dialects, custom iterators, quoting, errors and callbacks are observable. `csv-core` is prior art. Compare realistic dialects and row sizes against `_csv`; separate scanning from Python object creation. |
 | 20 | **pickle / `_pickle`** — `Lib/pickle.py`, `Modules/_pickle.c`; `test_pickle.py`, `test_picklebuffer.py`, `test_pickletools.py` | Restrict experiments to bounded opcode/buffer kernels; keep arbitrary object construction and callbacks at CPython's boundary. | Existing implementation is native and deeply coupled to object identity, reducers, protocols and callbacks. Serde is not a compatibility replacement. Profile real serialization before prototyping; compare every protocol and object graph. |
 

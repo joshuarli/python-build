@@ -1,8 +1,8 @@
-"""Run and sample Linux benchmark process trees.
+"""Run benchmark commands and sample Linux process trees.
 
-The sampler stays outside the target interpreter and reads `/proc` directly.
-Memory polling belongs in a separate memory pass; pass
-`sample_interval_seconds=None` for an uninstrumented timing command.
+The Linux sampler stays outside the target interpreter and reads `/proc`
+directly. On macOS, `sample_interval_seconds=None` selects the unmonitored
+timing runner; process memory sampling is available only on Linux.
 """
 
 from __future__ import annotations
@@ -10,8 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -607,6 +609,17 @@ def run_command(
     is applied in the forked child before target code runs.
     """
 
+    if sys.platform == "darwin" and sample_interval_seconds is None:
+        if affinity is not None:
+            raise RuntimeError("CPU affinity is not supported by the macOS timing runner")
+        return _run_unmonitored(
+            command,
+            env=env,
+            cwd=cwd,
+            timeout=timeout,
+            terminate_grace_seconds=terminate_grace_seconds,
+        )
+
     sampler = ProcessSampler(
         command,
         env=env,
@@ -617,3 +630,108 @@ def run_command(
         terminate_grace_seconds=terminate_grace_seconds,
     ).start()
     return sampler.wait()
+
+
+def _run_unmonitored(
+    command: Sequence[str | os.PathLike[str]],
+    *,
+    env: Mapping[str, str] | None,
+    cwd: str | os.PathLike[str] | None,
+    timeout: float | None,
+    terminate_grace_seconds: float,
+) -> ProcessResult:
+    """Run a timing-only macOS command and clean its process group."""
+    normalized = _normalize_command(command)
+    if timeout is not None and timeout < 0:
+        raise ValueError("timeout must be non-negative or None")
+    if terminate_grace_seconds < 0:
+        raise ValueError("terminate_grace_seconds must be non-negative")
+    ps = shutil.which("ps")
+    if ps is None:
+        raise RuntimeError("ps is required to verify macOS benchmark process cleanup")
+
+    with (
+        tempfile.TemporaryFile(mode="w+b") as stdout_file,
+        tempfile.TemporaryFile(mode="w+b") as stderr_file,
+    ):
+        started = time.monotonic()
+        process = subprocess.Popen(
+            normalized,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            cwd=None if cwd is None else os.fspath(cwd),
+            env=None if env is None else dict(env),
+            start_new_session=True,
+            close_fds=True,
+        )
+        timed_out = False
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        duration = time.monotonic() - started
+
+        def group_pids() -> tuple[int, ...]:
+            result = subprocess.run(
+                [ps, "-A", "-o", "pid=,pgid=,stat="],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=False,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"cannot inspect process groups with ps: {result.stderr.strip()}")
+            pids = []
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if len(fields) < 3:
+                    continue
+                try:
+                    pid, process_group = int(fields[0]), int(fields[1])
+                except ValueError:
+                    continue
+                if process_group == process.pid and not fields[2].startswith("Z"):
+                    pids.append(pid)
+            return tuple(sorted(pids))
+
+        def signal_group(sig: signal.Signals) -> None:
+            try:
+                os.killpg(process.pid, sig)
+            except ProcessLookupError:
+                pass
+            except PermissionError as error:
+                raise RuntimeError(f"cannot signal benchmark process group {process.pid}: {error}") from error
+
+        remaining = group_pids()
+        if remaining:
+            signal_group(signal.SIGTERM)
+            deadline = time.monotonic() + terminate_grace_seconds
+            while remaining and time.monotonic() < deadline:
+                time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+                remaining = group_pids()
+            if remaining:
+                signal_group(signal.SIGKILL)
+                deadline = time.monotonic() + max(1.0, terminate_grace_seconds)
+                while remaining and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                    remaining = group_pids()
+        if process.poll() is None:
+            signal_group(signal.SIGKILL)
+            process.wait()
+
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        stdout = stdout_file.read()
+        stderr = stderr_file.read()
+    return ProcessResult(
+        command=normalized,
+        returncode=process.returncode if process.returncode is not None else 0,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        duration_seconds=duration,
+        memory=None,
+        cleanup_complete=not remaining,
+        remaining_pids=remaining,
+    )

@@ -5,10 +5,11 @@ benchmarks and repository-owned application workloads. The result is a set of
 separate timing, resident-memory, and allocation measurements, plus a report
 that shows which workloads improved and which resource gates passed.
 
-The first supported environment is Linux amd64, including the
-`x86_64-unknown-linux-musl` python-build artifact. The harness consumes built
-interpreters; it does not alter the product build. It does not implement
-macOS benchmarking.
+The full timing, process-memory, and allocation profiles run on Linux amd64,
+including the `x86_64-unknown-linux-musl` python-build artifact. Native Apple
+Silicon macOS also supports paired timing-only runs for Mach-O interpreters;
+its Linux-specific memory and allocation passes remain unavailable. The
+harness consumes built interpreters; it does not alter the product build.
 
 ## Three independent passes
 
@@ -69,6 +70,28 @@ the pinned benchmark image with Docker networking disabled by default;
 `--container` makes that choice explicit. `--local` is a diagnostic mode and
 does not provide the offline network boundary. The same image accepts either
 interpreter at run time; it does not contain a baked-in baseline.
+
+The native macOS path is limited to timing. It runs selected repository-owned
+workloads locally, without Docker isolation, CPU affinity, process-memory
+sampling, allocation tracing, or Linux `perf` diagnostics. Use offline
+workloads and label this measurement mode in any performance conclusion:
+
+```sh
+python3 benchmarks/bench.py run \
+  --baseline rust-cpython/stage-no-rust/bin/python3.16 \
+  --candidate rust-cpython/stage/bin/python3.16 \
+  --baseline-label "Rust-for-CPython 3.16 without _base64" \
+  --candidate-label "Rust-for-CPython 3.16 with _base64" \
+  --baseline-kind custom --candidate-kind custom \
+  --suite smoke --profile standard --local --timing-only
+```
+
+The smoke suite includes small and large Base64 operations. The no-Rust
+interpreter uses public `base64.b64encode`; the candidate calls
+`_base64.standard_b64encode` directly. Both validate identical output. Other
+smoke workloads reveal interpreter-wide changes such as startup and
+serialization overhead. This is a targeted same-source comparison, not a
+general macOS benchmark profile.
 
 ## Compare interpreters
 

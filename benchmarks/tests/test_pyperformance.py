@@ -301,9 +301,9 @@ class DirectRunTests(unittest.TestCase):
         self.assertNotIn("pip", " ".join(command).lower())
         self.assertNotIn("venv", " ".join(command).lower())
         self.assertEqual(result.to_dict()["benchmarks"][0]["manifest_name"], "fixture_benchmark")
-        self.assertEqual(environment["PYTHONPATH"], str(site_packages))
+        self.assertEqual(environment["PYTHONPATH"], str(site_packages.resolve()))
         self.assertIn("fixture-option", command)
-        self.assertEqual(result.files[0].parents[3], output_dir)
+        self.assertEqual(result.files[0].parents[3], output_dir.resolve())
 
     def test_memory_is_a_separate_track_memory_pass(self):
         result, command, _environment, _site_packages, _output_dir = self.run_fixture("memory")
@@ -372,7 +372,7 @@ class DirectRunTests(unittest.TestCase):
             def run_script(command, *, env, stdout, **_kwargs):
                 self.assertNotIn("pip", " ".join(command).lower())
                 self.assertEqual(
-                    env["PYTHONPATH"].split(os.pathsep)[0], str(external_source)
+                    env["PYTHONPATH"].split(os.pathsep)[0], str(external_source.resolve())
                 )
                 output = Path(command[command.index("--output") + 1])
                 output.write_text(json.dumps(raw_suite("2to3", [0.1])))

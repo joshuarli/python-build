@@ -53,6 +53,8 @@ class WorkloadRegistryTests(unittest.TestCase):
                 "import_django",
                 "import_app_stack",
                 "pip_install_wheelhouse",
+                "rust_base64_small",
+                "rust_base64_large",
                 "serialization_roundtrip",
                 "multiprocess_pool",
             },
@@ -319,7 +321,7 @@ class ControllerCliTests(unittest.TestCase):
             mounts: list[str] = []
             descriptor = _docker_descriptor(str(executable), "baseline", mounts)
             self.assertEqual(descriptor, "/interpreters/baseline/custom/cpython")
-            self.assertEqual(mounts, ["-v", f"{prefix}:/interpreters/baseline:ro"])
+            self.assertEqual(mounts, ["-v", f"{prefix.resolve()}:/interpreters/baseline:ro"])
 
     def help_text(self, command: str) -> str:
         output = io.StringIO()
@@ -342,6 +344,7 @@ class ControllerCliTests(unittest.TestCase):
             "--allow-cross-version",
             "--container",
             "--local",
+            "--timing-only",
         ):
             with self.subTest(option=option):
                 self.assertIn(option, help_text)
