@@ -286,6 +286,15 @@ correction after verifying the official archive. The corresponding source
 fix is committed at `joshuarli/fil-c` commit
 `7712527fceb0dc1e89dee0146b6a98a8d071d888` and pinned separately from
 the official toolchain source commit in `bootstrap.lock.json`.
+The fork commit was rebuilt with `./build_all_fast.sh` (6,566 Fil-C tests
+passed) and packaged with `./package-build.sh` as
+`filc-0.685-linux-x86_64.tar.xz`, SHA-256
+`daac2559e8cddc29b88da6f3099d1fbe3f3e9af56a93ea5d781ecab495440d69`.
+That local package was extracted and used to compile an extension against the
+final CPython archive; the extension loaded and trapped on an out-of-bounds
+write with only the CPython archive's runtime mounted in Alpine. The CPython
+archive itself remains built from the official pinned release plus the exact
+header correction.
 
 # python-build architecture
 
