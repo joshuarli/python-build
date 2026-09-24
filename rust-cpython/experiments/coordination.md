@@ -11,6 +11,13 @@ code/manifest changes needed for compatible byte-pinned inputs. It does not
 fetch packages, add dependencies, edit benchmarks, or run substantial
 compilation/timing while the lean URL proof is active. Budget: 20 command CPU
 seconds, 512 MiB maximum RSS. The coordinator owns any decision or edits.
+The audit found that the single wheel lock is Linux x86_64 CPython 3.14,
+including native musllinux wheels, while native macOS realworld runs still
+select it. The current Django request interval starts after setup, handler
+construction, and a warm-up request. Its report proposes a separate
+target-validated lock, per-workload input groups, and a fresh-process first
+request using an identical preseeded fixture. No packages were fetched,
+tests run, or dependency changes made; see `mac-input-audit-20260924.md`.
 
 The lean URL quotation proof uses
 `/private/tmp/python-build-exp-url-lean-20260924j`, branch
