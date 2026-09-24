@@ -12,6 +12,11 @@ is the current contract.)
 its source pin is scoped there and does not change the product's exact 3.14.6
 contract or participate in production targets and packaging.
 
+For delegated work on that experiment, use the repo-local
+`.agents/skills/rust-cpython-coordinator/SKILL.md` in place of the general
+`orchestrate` skill. The root agent coordinates isolated worktrees and
+integration; no more than six experiment subagents run concurrently.
+
 ## Targets (`buildsys/targets.py` is the only file that branches on target)
 
 | Triple | Family | Toolchain | Notes |
