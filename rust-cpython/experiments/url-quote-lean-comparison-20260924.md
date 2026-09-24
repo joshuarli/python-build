@@ -1,13 +1,15 @@
-# Lean Rust URL quotation: calibration-limited comparison
+# Lean Rust URL quotation: memory diagnostic
 
 ## Decision
 
-**Inconclusive.** The intended matched control/candidate comparison did not
-run. The control self-comparison had a 1.35% timing-noise allowance, below the
-3% gate, but two serial candidate self-comparisons had 5.81% and 6.19%.
-The second was the bounded retry. These rounds cannot support a speed or
-memory verdict for the lean overlay. Keep it as an isolated proof; do not
-promote it as a qualifying public-path improvement.
+**Reject the lean overlay on peak RSS.** A separate five-pair, memory-only
+diagnostic found a candidate increase in every pair; the paired median was
++2,932,736 bytes, versus at most 437,237 bytes of measured RSS self-noise.
+The timing verdict remains inconclusive. The control self-comparison had a
+1.35% timing-noise allowance, below the 3% gate, but two serial candidate
+self-comparisons had 5.81% and 6.19%. The second was the bounded retry, so
+no matched timing comparison ran. The lean overlay remains an isolated proof
+and does not qualify as a public-path improvement.
 
 ## Inputs and boundary
 
@@ -33,9 +35,12 @@ The candidate imported the extension from its own `lib-dynload` and returned
 task. No compilation or new correctness suite ran in this lane. The
 [lean proof](url-quote-lean-proof-20260924.md) reports the differential and
 CPython URL tests. Its unstripped extension is 50,712 bytes. The source
-stage's current executable hash differs from the executable hash in the
-[earlier quote comparison](url-quote-comparison-20260924.md), so its
-measurements are context, not a matched historical control.
+stage's executable hash differs from the executable hash in the
+[earlier quote comparison](url-quote-comparison-20260924.md). The earlier
+`6eeeb64b...` executable is the Rust fork's `rust-cpython/stage` build,
+whereas this lane's `ecbc7340...` executable is `stage-no-rust`. The earlier
+report called its input a no-Rust stage inaccurately. Its +3.19 MB RSS
+observation is context only; it is not a matched historical control.
 
 ## Calibration and resource accounting
 
@@ -82,14 +87,12 @@ control/control, 28,393,472/28,524,544 bytes for candidate/candidate, and
 28,704,768/28,655,616 bytes on the candidate retry. Corresponding median
 sampled physical footprints were 12,599,776/12,681,672,
 15,385,056/15,516,128, and 15,712,760/15,647,200 bytes. The roughly 3 MB
-gap between separately timed control and candidate self-runs resembles the
-earlier overlay's +3.19 MB result, but it is unpaired and cannot establish a
-new regression or a memory allowance for this implementation.
+gap between separately timed control and candidate self-runs was unpaired and
+did not establish a memory verdict. It motivated the paired diagnostic below.
 
 `/usr/bin/time -l` recorded 14.17, 11.98, and 12.05 seconds elapsed for the
-three controller commands. Their combined user plus system CPU was 37.19
-seconds, below the 120-second budget; the largest controller maximum RSS was
-45,809,664 bytes, below 1 GiB, and all reported zero swaps. Controller CPU
+three calibration controller commands. Their combined user plus system CPU
+was 37.19 seconds. Controller CPU
 includes waited workload children; its RSS maximum is per process. The
 timing-pass `wait4` CPU covers each workload root, including startup and
 imports. Memory rounds saw one process. The macOS memory pass combines
@@ -98,12 +101,57 @@ footprint separately; transient footprint peaks can be missed. Unique or
 proportional memory and a compatible allocation pass were unavailable. The
 workload has no marked steady boundary, so retained memory was unavailable.
 
+## Separate paired memory diagnostic
+
+After the timing-noise gate failed, I used the repository's
+`benchmarks.harness.process.run_command` external sampler directly. Five
+serial pairs alternated control/candidate and candidate/control order. Each
+fresh workload process ran the same registered 1,500-batch command with the
+same `workload_environment`, a 10 ms sample interval, and exact operation,
+URL/key count, input digest, and output digest checks. All ten runs returned
+the expected values, had one process, and reported no sampling errors.
+Wall and CPU measurements from these sampled runs are resource accounting
+only; they do not supply a speed verdict.
+
+| Pair | Order | Candidate minus control peak RSS | Candidate minus control sampled physical footprint |
+| --- | --- | ---: | ---: |
+| 0 | control, candidate | +2,637,824 B | +2,605,056 B |
+| 1 | candidate, control | +3,014,656 B | +2,981,888 B |
+| 2 | control, candidate | +2,719,744 B | +2,719,768 B |
+| 3 | candidate, control | +2,932,736 B | +2,899,992 B |
+| 4 | control, candidate | +3,031,040 B | +3,014,680 B |
+| **Paired median** | | **+2,932,736 B** | **+2,899,992 B** |
+
+The peak RSS values were kernel root lifetime peaks in all ten one-process
+runs, with external tree samples also recorded. The paired median RSS rise
+exceeds the largest local self-noise allowance, 437,237 bytes from the first
+candidate self-comparison, by 6.7 times. It also exceeds the control's
+291,491-byte and candidate retry's 255,055-byte allowances. The earlier
+guarded quote overlay rose 3,194,880 bytes, but that comparison used the
+different Rust fork stage; the two sizes are contextual, not a direct
+before/after measurement.
+
+The memory-only controller took 6.86 seconds elapsed, 6.47 user plus 0.41
+system CPU seconds, with 28,753,920 bytes maximum RSS and zero swaps under
+`/usr/bin/time -l`. Including the three calibrations and one failed
+import-only setup command, measured command CPU for this lane was 44.10
+seconds. The maximum reported command RSS remained 45,809,664 bytes; both
+limits stayed within the 120 CPU-second and 1 GiB budgets. The ignored
+`memory-paired-raw.json` retains complete sampler output; the committed
+[compact data](data/url-quote-lean-comparison-20260924.json) retains each
+process's digest, root CPU counters, RSS, footprint, process count, and
+paired differences. Unique or proportional memory, allocations, and retained
+memory remain unavailable. The root RSS increase alone is a clear resource
+failure under the experiment decision rule.
+
 ## Next measurement
 
-Repeat both self-calibrations in a quieter host window and require each to
-fall below 3% before a serial matched `standard` control/candidate run.
+For any revised quote implementation, repeat both self-calibrations in a
+quieter host window and require each to fall below 3% before a serial matched
+`standard` control/candidate timing run. Repeat paired memory sampling to
+check that the RSS rise is removed.
 The registered workload currently fixes 1,500 iterations in
 `benchmarks/workloads/registry.py`; increasing that count to lengthen the
 timed interval requires a coordinated harness change in a separate lane.
-If the host stays busy, retain the inconclusive result rather than treating
-separately timed self-runs as a paired comparison.
+If the host stays busy, retain the inconclusive speed result rather than
+treating separately timed self-runs as a paired comparison.

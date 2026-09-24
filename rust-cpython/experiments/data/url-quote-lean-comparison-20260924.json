@@ -1,6 +1,6 @@
 {
   "clone_root": "rust-cpython/work/url-quote-lean-comparison-20260924",
-  "decision": "inconclusive: candidate self-comparisons exceeded the 3% timing noise gate; no matched comparison run",
+  "decision": "reject lean overlay on paired peak RSS growth; speed remains inconclusive due to failed candidate timing self-calibrations",
   "expected_input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
   "expected_output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
   "hashes": {
@@ -11,6 +11,251 @@
   },
   "iterations_per_process": 1500,
   "keys_per_operation": 48,
+  "memory_only_diagnostic": {
+    "controller_time_l": {
+      "maximum_resident_bytes": 28753920,
+      "peak_phys_footprint_bytes": 14352888,
+      "swaps": 0,
+      "system_seconds": 0.41,
+      "user_seconds": 6.47,
+      "wall_seconds": 6.86
+    },
+    "max_self_rss_noise_allowance_bytes": 437236.53119999997,
+    "method": "benchmarks.harness.process.run_command, 10 ms macOS external memory sampler",
+    "pair_count": 5,
+    "paired_median_rss_difference_bytes": 2932736,
+    "paired_median_sampled_phys_footprint_difference_bytes": 2899992,
+    "pairs": [
+      {
+        "order": [
+          "control",
+          "candidate"
+        ],
+        "pair": 0,
+        "rss_difference_bytes": 2637824,
+        "sampled_phys_footprint_difference_bytes": 2605056
+      },
+      {
+        "order": [
+          "candidate",
+          "control"
+        ],
+        "pair": 1,
+        "rss_difference_bytes": 3014656,
+        "sampled_phys_footprint_difference_bytes": 2981888
+      },
+      {
+        "order": [
+          "control",
+          "candidate"
+        ],
+        "pair": 2,
+        "rss_difference_bytes": 2719744,
+        "sampled_phys_footprint_difference_bytes": 2719768
+      },
+      {
+        "order": [
+          "candidate",
+          "control"
+        ],
+        "pair": 3,
+        "rss_difference_bytes": 2932736,
+        "sampled_phys_footprint_difference_bytes": 2899992
+      },
+      {
+        "order": [
+          "control",
+          "candidate"
+        ],
+        "pair": 4,
+        "rss_difference_bytes": 3031040,
+        "sampled_phys_footprint_difference_bytes": 3014680
+      }
+    ],
+    "purpose": "resource diagnostic only; no wall or CPU speed verdict",
+    "rows": [
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 0,
+        "peak_rss_bytes": 25575424,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 12616160,
+        "root_kernel_peak_rss_bytes": 25575424,
+        "root_system_seconds": 0.028051,
+        "root_user_seconds": 0.6850499999999999,
+        "sampled_peak_phys_footprint_bytes": 12599776,
+        "sampling_errors": [],
+        "side": "control",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 0,
+        "peak_rss_bytes": 28213248,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 15319520,
+        "root_kernel_peak_rss_bytes": 28213248,
+        "root_system_seconds": 0.020779,
+        "root_user_seconds": 0.552018,
+        "sampled_peak_phys_footprint_bytes": 15204832,
+        "sampling_errors": [],
+        "side": "candidate",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 1,
+        "peak_rss_bytes": 28721152,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 15811040,
+        "root_kernel_peak_rss_bytes": 28721152,
+        "root_system_seconds": 0.01642,
+        "root_user_seconds": 0.556425,
+        "sampled_peak_phys_footprint_bytes": 15712736,
+        "sampling_errors": [],
+        "side": "candidate",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 1,
+        "peak_rss_bytes": 25706496,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 12747232,
+        "root_kernel_peak_rss_bytes": 25706496,
+        "root_system_seconds": 0.021106,
+        "root_user_seconds": 0.694098,
+        "sampled_peak_phys_footprint_bytes": 12730848,
+        "sampling_errors": [],
+        "side": "control",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 2,
+        "peak_rss_bytes": 25739264,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 12780000,
+        "root_kernel_peak_rss_bytes": 25739264,
+        "root_system_seconds": 0.018654999999999998,
+        "root_user_seconds": 0.7057,
+        "sampled_peak_phys_footprint_bytes": 12763616,
+        "sampling_errors": [],
+        "side": "control",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 2,
+        "peak_rss_bytes": 28459008,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 15548920,
+        "root_kernel_peak_rss_bytes": 28459008,
+        "root_system_seconds": 0.018397999999999998,
+        "root_user_seconds": 0.564987,
+        "sampled_peak_phys_footprint_bytes": 15483384,
+        "sampling_errors": [],
+        "side": "candidate",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 3,
+        "peak_rss_bytes": 28655616,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 15696376,
+        "root_kernel_peak_rss_bytes": 28655616,
+        "root_system_seconds": 0.019811,
+        "root_user_seconds": 0.570113,
+        "sampled_peak_phys_footprint_bytes": 15663608,
+        "sampling_errors": [],
+        "side": "candidate",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 3,
+        "peak_rss_bytes": 25722880,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 12763616,
+        "root_kernel_peak_rss_bytes": 25722880,
+        "root_system_seconds": 0.021308999999999998,
+        "root_user_seconds": 0.7083659999999999,
+        "sampled_peak_phys_footprint_bytes": 12763616,
+        "sampling_errors": [],
+        "side": "control",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 4,
+        "peak_rss_bytes": 25722880,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 12763616,
+        "root_kernel_peak_rss_bytes": 25722880,
+        "root_system_seconds": 0.021528,
+        "root_user_seconds": 0.702649,
+        "sampled_peak_phys_footprint_bytes": 12747232,
+        "sampling_errors": [],
+        "side": "control",
+        "urls_per_operation": 48
+      },
+      {
+        "cpu_coverage": "wait4 root only; descendants excluded",
+        "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+        "keys_per_operation": 48,
+        "operation_count": 1500,
+        "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+        "pair": 4,
+        "peak_rss_bytes": 28753920,
+        "process_count": 1,
+        "root_kernel_peak_phys_footprint_bytes": 15860216,
+        "root_kernel_peak_rss_bytes": 28753920,
+        "root_system_seconds": 0.020326,
+        "root_user_seconds": 0.582958,
+        "sampled_peak_phys_footprint_bytes": 15761912,
+        "sampling_errors": [],
+        "side": "candidate",
+        "urls_per_operation": 48
+      }
+    ]
+  },
   "runs": {
     "self-candidate": {
       "controller_time_l": {
