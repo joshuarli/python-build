@@ -120,6 +120,33 @@ regenerate a report from an existing result directory, run:
 python3 benchmarks/bench.py compare benchmarks/results/<run>/run
 ```
 
+Every completed `run` or `self-compare` updates a compact baseline JSON file
+under `benchmarks/baselines/`. Its stable path is keyed by runner hardware,
+baseline interpreter kind/version, suite/profile, and selected workload names;
+repeating the same comparison updates that file in place. `--record-baseline
+PATH` selects a specific file under `benchmarks/baselines/` instead:
+
+```sh
+python3 benchmarks/bench.py self-compare --python image-python \
+  --suite realworld --profile standard \
+  --record-baseline benchmarks/baselines/linux-amd64-self-control.json
+```
+
+An existing result can refresh its automatically selected baseline without
+repeating measurements:
+
+```sh
+python3 benchmarks/bench.py record-baseline benchmarks/results/<run>/run
+```
+
+The snapshot records per-workload timing, process-tree memory, allocation
+rounds when collected, interpreter identity, input-lock and image identity,
+and runner CPU, memory, kernel, affinity, and load details. It leaves raw
+sampler data and Memray captures in the ignored run directory. Baseline files
+are atomically refreshed after successful measurements. A self-comparison is
+labeled `self_control_calibration`; it characterizes the runner and harness,
+but it does not substitute for a product-versus-upstream baseline.
+
 The benchmark dependency prefix is separate from the tested interpreter. The
 controller prepares it from verified wheelhouse inputs, so the tested
 distribution does not need to ship `pip` or `venv`. Use `--wheelhouse PATH` to

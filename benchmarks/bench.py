@@ -329,6 +329,24 @@ def _resolve_preset(args: argparse.Namespace) -> None:
         args.candidate_kind = "python-build"
 
 
+def _record_baseline(result_directory: Path, destination: Path) -> Path:
+    from benchmarks.harness.baseline import save_baseline_snapshot
+
+    destination = destination.resolve()
+    baseline_directory = (BENCH / "baselines").resolve()
+    if not destination.is_relative_to(baseline_directory):
+        raise ValueError("baseline output must be inside benchmarks/baselines/")
+    if destination.suffix.lower() != ".json":
+        raise ValueError("baseline output must end in .json")
+    return save_baseline_snapshot(result_directory, destination, overwrite=True)
+
+
+def _update_baseline(result_directory: Path) -> Path:
+    from benchmarks.harness.baseline import update_baseline_snapshot
+
+    return update_baseline_snapshot(result_directory, BENCH / "baselines")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -359,8 +377,23 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
     run.add_argument("--preset", choices=("pbs",))
     run.add_argument("--container", action="store_true", help="use offline container (the default)")
+    run.add_argument(
+        "--record-baseline",
+        type=Path,
+        metavar="PATH",
+        help="write baseline-side measurements and runner specs under benchmarks/baselines/",
+    )
     self_compare.add_argument("--python", required=True)
+    self_compare.add_argument(
+        "--record-baseline",
+        type=Path,
+        metavar="PATH",
+        help="write self-control measurements and runner specs under benchmarks/baselines/",
+    )
     self_compare.set_defaults(profile="rigorous")
+    record = sub.add_parser("record-baseline", help="export a completed run's baseline-side measurements")
+    record.add_argument("result_directory", type=Path)
+    record.add_argument("--output", type=Path, help="override the automatically selected baseline path")
     compare = sub.add_parser("compare")
     compare.add_argument("result_directory", type=Path)
     args = parser.parse_args(argv)
@@ -375,6 +408,11 @@ def main(argv: list[str] | None = None) -> int:
             print(fetch_pbs().path)
         elif args.command == "prepare":
             subprocess.run(["docker", "build", "--platform", "linux/amd64", "-t", IMAGE, str(BENCH)], check=True)
+        elif args.command == "record-baseline":
+            if args.output is None:
+                print(_update_baseline(args.result_directory))
+            else:
+                print(_record_baseline(args.result_directory, args.output))
         elif args.command == "compare":
             from benchmarks.harness.report import compare_workload, save_summary
 
@@ -415,6 +453,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 result = _run_container(args)
             print(result)
+            if args.command != "_run":
+                baseline_destination = getattr(args, "record_baseline", None)
+                if baseline_destination is None:
+                    print(_update_baseline(result))
+                else:
+                    print(_record_baseline(result, baseline_destination))
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"error: {exc}", file=sys.stderr)

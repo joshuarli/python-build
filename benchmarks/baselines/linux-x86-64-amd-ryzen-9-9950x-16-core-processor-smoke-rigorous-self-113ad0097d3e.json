@@ -1,0 +1,828 @@
+{
+  "comparison_role": "self_control_calibration",
+  "pyperformance": null,
+  "recorded_at_utc": "2026-09-24T16:28:05.564120+00:00",
+  "reference_interpreter": {
+    "abi": "cpython-314-x86_64-linux-musl",
+    "compiler": "GCC 15.2.0",
+    "config_args": "'--build=x86_64-alpine-linux-musl' '--host=x86_64-alpine-linux-musl' '--prefix=/usr' '--enable-ipv6' '--enable-loadable-sqlite-extensions' '--enable-optimizations' '--enable-shared' '--with-lto' '--with-computed-gotos' '--with-dbmliborder=gdbm:ndbm' '--with-system-expat' '--with-system-libmpdec' '--without-ensurepip' 'build_alias=x86_64-alpine-linux-musl' 'host_alias=x86_64-alpine-linux-musl' 'CC=cc'",
+    "executable": "/usr/bin/python3",
+    "executable_sha256": "16c8377b7e809985cf46d64559df85bda416264f63b06c84536d3acbe549e23b",
+    "implementation": "CPython",
+    "input_descriptor": "image-python",
+    "kind": "self",
+    "label": "self-comparison control",
+    "platform": "linux-x86_64",
+    "source": "benchmark image Python",
+    "version": [
+      3,
+      14,
+      7
+    ]
+  },
+  "runner": {
+    "cpu_affinity": {
+      "allowed_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "selected_cpus": [
+        0
+      ]
+    },
+    "cpu_boost_state": {
+      "amd_pstate_status": "active",
+      "generic_boost": "1",
+      "intel_no_turbo": null
+    },
+    "cpu_governors": [
+      "powersave"
+    ],
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "cpu_topology": {
+      "allowed_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "cores": [
+        {
+          "allowed_cpus": [
+            0,
+            16
+          ],
+          "core_id": 0,
+          "logical_cpus": [
+            0,
+            16
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            1,
+            17
+          ],
+          "core_id": 1,
+          "logical_cpus": [
+            1,
+            17
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            2,
+            18
+          ],
+          "core_id": 2,
+          "logical_cpus": [
+            2,
+            18
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            3,
+            19
+          ],
+          "core_id": 3,
+          "logical_cpus": [
+            3,
+            19
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            4,
+            20
+          ],
+          "core_id": 4,
+          "logical_cpus": [
+            4,
+            20
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            5,
+            21
+          ],
+          "core_id": 5,
+          "logical_cpus": [
+            5,
+            21
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            6,
+            22
+          ],
+          "core_id": 6,
+          "logical_cpus": [
+            6,
+            22
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            7,
+            23
+          ],
+          "core_id": 7,
+          "logical_cpus": [
+            7,
+            23
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            8,
+            24
+          ],
+          "core_id": 8,
+          "logical_cpus": [
+            8,
+            24
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            9,
+            25
+          ],
+          "core_id": 9,
+          "logical_cpus": [
+            9,
+            25
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            10,
+            26
+          ],
+          "core_id": 10,
+          "logical_cpus": [
+            10,
+            26
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            11,
+            27
+          ],
+          "core_id": 11,
+          "logical_cpus": [
+            11,
+            27
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            12,
+            28
+          ],
+          "core_id": 12,
+          "logical_cpus": [
+            12,
+            28
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            13,
+            29
+          ],
+          "core_id": 13,
+          "logical_cpus": [
+            13,
+            29
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            14,
+            30
+          ],
+          "core_id": 14,
+          "logical_cpus": [
+            14,
+            30
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        },
+        {
+          "allowed_cpus": [
+            15,
+            31
+          ],
+          "core_id": 15,
+          "logical_cpus": [
+            15,
+            31
+          ],
+          "numa_node": 0,
+          "package_id": 0
+        }
+      ],
+      "numa_nodes": [
+        0
+      ],
+      "online_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    "kernel_release": "6.18.33-0-lts",
+    "load_average": [
+      2.8115234375,
+      5.4091796875,
+      3.82861328125
+    ],
+    "logical_cpu_count": 32,
+    "machine": "x86_64",
+    "memory_available_bytes": 59693236224,
+    "memory_total_bytes": 64900644864,
+    "numa_topology": {
+      "core_counts": {
+        "0": 16
+      },
+      "nodes": [
+        0
+      ]
+    },
+    "physical_core_count": 16,
+    "swap_total_bytes": 34359730176,
+    "system": "Linux"
+  },
+  "schema_version": 1,
+  "source": {
+    "benchmark_image_id": "sha256:4ef5d5420a5c044fa12efdede1c3db05a1ff3976e63adf9be3d0fc85176e86b6",
+    "benchmark_lock_sha256": "b17cceb3b642ffe36c5c183fd6ac1a2d9f4f83034b21623d74ce5efef973fde1",
+    "benchmark_tool_versions": {
+      "memray": "1.20.0",
+      "pyperf": "2.10.0",
+      "pyperformance": "1.14.0"
+    },
+    "container_runtime_version": "29.5.2/29.5.2",
+    "git_commit": "b2778c0d4c92c3668dd4e837b69dc8c6b066cecc",
+    "memory_sampling_interval_seconds": 0.01,
+    "offline_boundary": "docker --network none",
+    "profile": "rigorous",
+    "suite": "smoke",
+    "timestamp_utc": "2026-09-24T16:28:05.564120+00:00"
+  },
+  "workloads": [
+    {
+      "allocations": {
+        "round_count": 3,
+        "rounds": [
+          {
+            "allocations_per_operation": 73.0,
+            "bytes_allocated_per_operation": 43012.0,
+            "heap_peak_bytes": 27545,
+            "heap_peak_status": "available",
+            "native_origins_status": "available",
+            "operations": 1,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 43012,
+            "total_num_allocations": 73
+          },
+          {
+            "allocations_per_operation": 73.0,
+            "bytes_allocated_per_operation": 43012.0,
+            "heap_peak_bytes": 27545,
+            "heap_peak_status": "available",
+            "native_origins_status": "available",
+            "operations": 1,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 43012,
+            "total_num_allocations": 73
+          },
+          {
+            "allocations_per_operation": 73.0,
+            "bytes_allocated_per_operation": 43012.0,
+            "heap_peak_bytes": 27545,
+            "heap_peak_status": "available",
+            "native_origins_status": "available",
+            "operations": 1,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 43012,
+            "total_num_allocations": 73
+          }
+        ],
+        "status": "recorded"
+      },
+      "category": "startup",
+      "digest": "empty-interpreter",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 3190784,
+          "median": 3133440,
+          "min": 3117056,
+          "sample_count": 5,
+          "stdev": 29875.540015203074
+        },
+        "peak_pss": {
+          "max": 4796416,
+          "median": 4739072,
+          "min": 4701184,
+          "sample_count": 5,
+          "stdev": 37262.90835670238
+        },
+        "peak_rss": {
+          "max": 6905856,
+          "median": 6811648,
+          "min": 6717440,
+          "sample_count": 5,
+          "stdev": 66904.11966986787
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 5,
+        "rounds": [
+          {
+            "peak_private": 3117056,
+            "peak_pss": 4734976,
+            "peak_rss": 6811648,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 3121152,
+            "peak_pss": 4739072,
+            "peak_rss": 6815744,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 3149824,
+            "peak_pss": 4796416,
+            "peak_rss": 6905856,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 3133440,
+            "peak_pss": 4701184,
+            "peak_rss": 6717440,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 3190784,
+            "peak_pss": 4775936,
+            "peak_rss": 6799360,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "python_startup",
+      "operation": "process",
+      "operation_count": 1,
+      "timing_seconds": {
+        "max": 0.01690858695656061,
+        "median": 0.016679349937476218,
+        "min": 0.016421448905020952,
+        "sample_count": 10,
+        "stdev": 0.00016712662890904423
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 3,
+        "rounds": [
+          {
+            "allocations_per_operation": 30196.25,
+            "bytes_allocated_per_operation": 3768877.65,
+            "heap_peak_bytes": 4007870,
+            "heap_peak_status": "available",
+            "native_origins_status": "available",
+            "operations": 20,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 75377553,
+            "total_num_allocations": 603925
+          },
+          {
+            "allocations_per_operation": 30196.25,
+            "bytes_allocated_per_operation": 3768877.65,
+            "heap_peak_bytes": 4007990,
+            "heap_peak_status": "available",
+            "native_origins_status": "available",
+            "operations": 20,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 75377553,
+            "total_num_allocations": 603925
+          },
+          {
+            "allocations_per_operation": 30196.25,
+            "bytes_allocated_per_operation": 3768877.65,
+            "heap_peak_bytes": 4007745,
+            "heap_peak_status": "available",
+            "native_origins_status": "available",
+            "operations": 20,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 75377553,
+            "total_num_allocations": 603925
+          }
+        ],
+        "status": "recorded"
+      },
+      "category": "serialization",
+      "digest": "b0280b9d0f878e0561e130aa67093196f0b555ecb45031789da97ad2d0236987",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 16785408,
+          "median": 16646144,
+          "min": 16605184,
+          "sample_count": 5,
+          "stdev": 69716.27840899139
+        },
+        "peak_pss": {
+          "max": 19579904,
+          "median": 19512320,
+          "min": 19369984,
+          "sample_count": 5,
+          "stdev": 92442.87254731973
+        },
+        "peak_rss": {
+          "max": 24367104,
+          "median": 24145920,
+          "min": 24084480,
+          "sample_count": 5,
+          "stdev": 118692.15759771157
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 5,
+        "rounds": [
+          {
+            "peak_private": 16646144,
+            "peak_pss": 19369984,
+            "peak_rss": 24145920,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 16633856,
+            "peak_pss": 19512320,
+            "peak_rss": 24084480,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 16658432,
+            "peak_pss": 19391488,
+            "peak_rss": 24092672,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 16605184,
+            "peak_pss": 19536896,
+            "peak_rss": 24240128,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 16785408,
+            "peak_pss": 19579904,
+            "peak_rss": 24367104,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 1,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "serialization_roundtrip",
+      "operation": "roundtrip",
+      "operation_count": 100,
+      "timing_seconds": {
+        "max": 0.28907157201319933,
+        "median": 0.17633014894090593,
+        "min": 0.17433642409741879,
+        "sample_count": 10,
+        "stdev": 0.03631931670249596
+      }
+    },
+    {
+      "allocations": {
+        "round_count": 3,
+        "rounds": [
+          {
+            "allocations_per_operation": 1764219.0,
+            "bytes_allocated_per_operation": 68649128.0,
+            "heap_peak_bytes": null,
+            "heap_peak_status": "per_process_only",
+            "native_origins_status": "per_process",
+            "operations": 2,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 137298256,
+            "total_num_allocations": 3528438
+          },
+          {
+            "allocations_per_operation": 1764976.5,
+            "bytes_allocated_per_operation": 68785944.0,
+            "heap_peak_bytes": null,
+            "heap_peak_status": "per_process_only",
+            "native_origins_status": "per_process",
+            "operations": 2,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 137571888,
+            "total_num_allocations": 3529953
+          },
+          {
+            "allocations_per_operation": 1771137.5,
+            "bytes_allocated_per_operation": 69886384.0,
+            "heap_peak_bytes": null,
+            "heap_peak_status": "per_process_only",
+            "native_origins_status": "per_process",
+            "operations": 2,
+            "profiler": "memray",
+            "profiler_version": "1.20.0",
+            "status": "complete",
+            "total_bytes_allocated": 139772768,
+            "total_num_allocations": 3542275
+          }
+        ],
+        "status": "recorded"
+      },
+      "category": "multiprocess",
+      "digest": "d3e25bab2875a20e271505e6d0c2953256a4102b254ece19c691b0a181fefee8",
+      "memory_bytes": {
+        "peak_private": {
+          "max": 13029376,
+          "median": 12988416,
+          "min": 12865536,
+          "sample_count": 5,
+          "stdev": 66841.39900391074
+        },
+        "peak_pss": {
+          "max": 20593664,
+          "median": 20322304,
+          "min": 20165632,
+          "sample_count": 5,
+          "stdev": 160287.24040546708
+        },
+        "peak_rss": {
+          "max": 52195328,
+          "median": 51965952,
+          "min": 51679232,
+          "sample_count": 5,
+          "stdev": 228202.7135333846
+        },
+        "postload_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        },
+        "round_count": 5,
+        "rounds": [
+          {
+            "peak_private": 13029376,
+            "peak_pss": 20417536,
+            "peak_rss": 52195328,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 12959744,
+            "peak_pss": 20593664,
+            "peak_rss": 51679232,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 12988416,
+            "peak_pss": 20322304,
+            "peak_rss": 52080640,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 12865536,
+            "peak_pss": 20165632,
+            "peak_rss": 51965952,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          },
+          {
+            "peak_private": 13025280,
+            "peak_pss": 20284416,
+            "peak_rss": 51703808,
+            "peak_swap": 0,
+            "postload_pss": null,
+            "process_count": 3,
+            "steady_pss": null
+          }
+        ],
+        "steady_pss": {
+          "max": null,
+          "median": null,
+          "min": null,
+          "sample_count": 0,
+          "stdev": null
+        }
+      },
+      "name": "multiprocess_pool",
+      "operation": "pool task",
+      "operation_count": 20,
+      "timing_seconds": {
+        "max": 0.5721452347934246,
+        "median": 0.4881282465066761,
+        "min": 0.41158132813870907,
+        "sample_count": 10,
+        "stdev": 0.06504862146703999
+      }
+    }
+  ]
+}
