@@ -144,8 +144,26 @@ def build(
         log=logs / "cpython-install.log",
     )
     install = staged / CONFIGURE_PREFIX.lstrip("/")
+    builder_paths = [prefix, source, build_directory]
+    command_paths = [
+        Path(path)
+        for path in (
+            toolchain.cc, toolchain.cxx, toolchain.ar, toolchain.ranlib,
+            toolchain.ld, toolchain.nm, toolchain.strip, toolchain.make,
+        )
+        if path
+    ]
     if target.is_macos:
-        macho_relocate(install, prefix, configure_prefix=CONFIGURE_PREFIX)
+        assert profile_toolchain is not None
+        builder_paths.extend((profile_toolchain.llvm_prefix, profile_toolchain.sdkroot))
+        command_paths.extend((profile_toolchain.llvm_profdata, profile_toolchain.pkgconf))
+        macho_relocate(
+            install,
+            prefix,
+            configure_prefix=CONFIGURE_PREFIX,
+            builder_paths=builder_paths,
+            command_paths=command_paths,
+        )
         floor = verify_deployment_floor(install, target)
         (logs / "minos.json").write_text(
             json.dumps(floor, indent=2, sort_keys=True) + "\n"
@@ -155,7 +173,13 @@ def build(
                 "deployment floor mismatch: " + "; ".join(floor["mismatches"][:5])
             )
     else:
-        relocate(install, prefix)
+        relocate(
+            install,
+            prefix,
+            configure_prefix=CONFIGURE_PREFIX,
+            builder_paths=builder_paths,
+            command_paths=command_paths,
+        )
     # Scope enforcement runs after relocation so the shebang rewrite cannot
     # resurrect a launcher that was meant to be removed, and before anything
     # downstream treats the tree as shippable.

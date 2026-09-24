@@ -19,24 +19,29 @@ so a literal '$ORIGIN' reaches the ELF dynamic section unescaped.
 
 from __future__ import annotations
 
+import ast
 import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
+from typing import Iterable
 
 ELF_MAGIC = b"\x7fELF"
 
-# Consumer-facing sysconfigdata keys read by distutils/setuptools/pip when
-# building third-party C extensions (plan Section 6). Per-module keys like
-# MODULE__SSL_LDFLAGS are build provenance for CPython's own stdlib modules,
-# not part of that consumer contract, and are left alone.
-CONSUMER_FLAG_KEYS = (
-    "BASECFLAGS", "BLDSHARED", "CFLAGS", "CFLAGS_NODIST", "CONFIGURE_CFLAGS",
-    "CONFIGURE_CPPFLAGS", "CONFIGURE_LDFLAGS", "CPPFLAGS", "LDCXXSHARED",
-    "LDFLAGS", "LDFLAGS_NODIST", "LDSHARED", "OPT", "PY_CFLAGS",
-    "PY_CFLAGS_NODIST", "PY_CORE_CFLAGS", "PY_CORE_LDFLAGS", "PY_CPPFLAGS",
-    "PY_LDFLAGS", "PY_LDFLAGS_NODIST", "PY_LDFLAGS_NOLTO",
+_RELOCATABLE_SYSCONFIG_MARKER = "# python-build relocatable sysconfig values"
+_BUILD_ONLY_FLAGS = re.compile(
+    r"(?<!\S)(?:-fprofile-instr-use|-resource-dir)(?:=|\s+)\S+"
+    r"|(?<!\S)-isysroot(?:=|\s+)\S+"
 )
+_BUILD_ONLY_PROFILE_KEYS = frozenset({
+    "LLVM_PROF_FILE", "LLVM_PROF_MERGER", "PGO_PROF_GEN_FLAG",
+    "PGO_PROF_USE_FLAG", "PROFILE_TASK",
+})
+_COMMAND_VARIABLES = frozenset({
+    "AR", "CC", "CXX", "INSTALL", "LD", "LINKCC", "LDCXXSHARED",
+    "LDSHARED", "MAKE", "NM", "RANLIB", "STRIP",
+})
 
 
 class RelocationError(Exception):
@@ -82,47 +87,260 @@ def strip_private_prefix(text: str, private_prefix: Path) -> str:
     return re.sub(r"[ \t]{2,}", " ", cleaned)
 
 
-def _rewrite(path: Path, private_prefix: Path) -> bool:
+def _clean_build_value(
+    value: str,
+    key: str,
+    builder_paths: tuple[Path, ...],
+    command_paths: tuple[Path, ...],
+) -> str:
+    """Remove builder-only inputs while retaining usable consumer commands."""
+    if key in _BUILD_ONLY_PROFILE_KEYS:
+        return ""
+    cleaned = value
+    for command_path in command_paths:
+        cleaned = cleaned.replace(str(command_path), command_path.name)
+    cleaned = _BUILD_ONLY_FLAGS.sub("", cleaned)
+    for builder_path in builder_paths:
+        cleaned = strip_private_prefix(cleaned, builder_path)
+
+    if key in _COMMAND_VARIABLES:
+        try:
+            words = shlex.split(cleaned)
+        except ValueError as error:
+            raise RelocationError(f"cannot parse sysconfig command {key}: {error}") from error
+        if words and Path(words[0]).is_absolute():
+            words[0] = Path(words[0]).name
+            cleaned = shlex.join(words)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
+
+def _sysconfigdata_assignment(source: str, path: Path) -> tuple[ast.Module, ast.Assign]:
+    try:
+        module = ast.parse(source, filename=str(path))
+    except SyntaxError as error:
+        raise RelocationError(f"cannot parse generated sysconfigdata {path}: {error}") from error
+    assignments = [
+        node
+        for node in module.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "build_time_vars"
+                for target in node.targets)
+    ]
+    if (
+        len(assignments) != 1
+        or not isinstance(assignments[0].value, ast.Dict)
+        or len(module.body) != 1
+    ):
+        raise RelocationError(
+            f"unexpected generated sysconfigdata layout in {path}; expected one literal build_time_vars dictionary"
+        )
+    return module, assignments[0]
+
+
+def _relocate_sysconfigdata(
+    path: Path,
+    *,
+    builder_paths: tuple[Path, ...],
+    command_paths: tuple[Path, ...],
+    configure_prefix: str,
+) -> bool:
+    source = path.read_text()
+    if _RELOCATABLE_SYSCONFIG_MARKER in source:
+        return False
+
+    _, assignment = _sysconfigdata_assignment(source, path)
+    values = assignment.value
+    assert isinstance(values, ast.Dict)
+    lines = source.splitlines()
+    header = "\n".join(lines[: assignment.lineno - 1]).rstrip()
+    output = (header + "\n" if header else "") + "build_time_vars = {\n"
+    for key_node, value_node in zip(values.keys, values.values):
+        if key_node is None:
+            raise RelocationError(f"unexpected dictionary unpack in {path}")
+        try:
+            key = ast.literal_eval(key_node)
+            value = ast.literal_eval(value_node)
+        except (ValueError, TypeError, SyntaxError) as error:
+            raise RelocationError(
+                f"unexpected non-literal sysconfig value in {path}: {error}"
+            ) from error
+        if not isinstance(key, str):
+            raise RelocationError(f"non-string sysconfig key in {path}: {key!r}")
+        if isinstance(value, str):
+            rendered_value = repr(
+                _clean_build_value(value, key, builder_paths, command_paths)
+            )
+        else:
+            rendered_value = ast.unparse(value_node)
+        output += f"    {key!r}: {rendered_value},\n"
+    output += "}\n\n"
+    output += (
+        f"{_RELOCATABLE_SYSCONFIG_MARKER}\n"
+        "import os as _python_build_os\n"
+        "import re as _python_build_re\n"
+        "_python_build_root = _python_build_os.path.dirname(\n"
+        "    _python_build_os.path.dirname(\n"
+        "        _python_build_os.path.dirname(\n"
+        "            _python_build_os.path.realpath(__file__)\n"
+        "        )\n"
+        "    )\n"
+        ")\n"
+        f"_python_build_prefix = {configure_prefix!r}\n"
+        "_python_build_prefix_pattern = _python_build_re.compile(\n"
+        "    _python_build_re.escape(_python_build_prefix) + r'(?=$|[^A-Za-z0-9_.-])'\n"
+        ")\n"
+        "for _python_build_key, _python_build_value in tuple(build_time_vars.items()):\n"
+        "    if isinstance(_python_build_value, str):\n"
+        "        build_time_vars[_python_build_key] = _python_build_prefix_pattern.sub(\n"
+        "            lambda _: _python_build_root, _python_build_value\n"
+        "        )\n"
+        "del _python_build_key, _python_build_value\n"
+        "del _python_build_prefix_pattern, _python_build_prefix, _python_build_root\n"
+        "del _python_build_os, _python_build_re\n"
+    )
+    if output == source:
+        return False
+    path.write_text(output)
+    return True
+
+
+def _rewrite(
+    path: Path,
+    builder_paths: tuple[Path, ...],
+    command_paths: tuple[Path, ...],
+    configure_prefix: str,
+) -> bool:
     original = path.read_text()
-    cleaned = strip_private_prefix(original, private_prefix)
+    cleaned = original
+    prefix_pattern = re.compile(
+        re.escape(configure_prefix) + r"(?=$|[^A-Za-z0-9_.-])"
+    )
+    if prefix_pattern.search(cleaned):
+        cleaned = prefix_pattern.sub("$(_PYTHON_BUILD_PREFIX)", cleaned)
+        if "_PYTHON_BUILD_PREFIX := " not in cleaned:
+            cleaned = (
+                "_PYTHON_BUILD_PREFIX := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../../..)\n"
+                + cleaned
+            )
+    for key in _BUILD_ONLY_PROFILE_KEYS:
+        cleaned = re.sub(
+            rf"(?m)^([ \t]*{re.escape(key)}[ \t]*=).*$",
+            rf"\1",
+            cleaned,
+        )
+    for command_path in command_paths:
+        cleaned = cleaned.replace(str(command_path), command_path.name)
+    cleaned = _BUILD_ONLY_FLAGS.sub("", cleaned)
+    for builder_path in builder_paths:
+        cleaned = strip_private_prefix(cleaned, builder_path)
     if cleaned == original:
         return False
     path.write_text(cleaned)
     return True
 
 
-def clean_sysconfig(staged_install: Path, private_prefix: Path) -> list[Path]:
-    """Strip the private prefix from consumer-facing build configuration.
+def _fix_python_config_scripts(install: Path) -> list[Path]:
+    """Shell-quote compiler flags so config scripts survive prefix spaces."""
+    scripts = [install / "bin" / "python3.14-config"]
+    scripts.extend(sorted((install / "lib").rglob("python-config.py")))
+    changed: list[Path] = []
+    for script in scripts:
+        if not script.is_file():
+            continue
+        source = script.read_text()
+        if (
+            "print(shlex.join(flags))" in source
+            and "print(shlex.join(libs))" in source
+        ):
+            continue
+        if (
+            source.count("print(' '.join(flags))") != 1
+            or source.count("print(' '.join(libs))") != 1
+        ):
+            raise RelocationError(
+                f"unexpected python-config flag output in {script}; expected cflags and library lists"
+            )
+        if "import getopt\n" not in source:
+            raise RelocationError(f"unexpected python-config imports in {script}")
+        rewritten = source.replace("import getopt\n", "import getopt\nimport shlex\n", 1)
+        rewritten = rewritten.replace(
+            "print(' '.join(flags))", "print(shlex.join(flags))"
+        )
+        rewritten = rewritten.replace(
+            "print(' '.join(libs))", "print(shlex.join(libs))"
+        )
+        script.write_text(rewritten)
+        changed.append(script)
+    return changed
 
-    Only sysconfigdata's CONSUMER_FLAG_KEYS lines and the installed
-    Makefile are edited; per-module MODULE_*_{CFLAGS,LDFLAGS} provenance
-    strings are informational and are not part of the pip/distutils
-    extension-build contract this project promises (plan 8.1).
+
+def clean_sysconfig(
+    staged_install: Path,
+    private_prefix: Path,
+    *,
+    configure_prefix: str = "/install",
+    builder_paths: Iterable[Path] = (),
+    command_paths: Iterable[Path] = (),
+) -> list[Path]:
+    """Make installed sysconfig metadata follow the moved tree.
+
+    CPython records the configure-time prefix and build-tool paths in its
+    generated sysconfigdata and Makefile. Sysconfigdata resolves that prefix
+    from its own installed location at import time; all other builder paths
+    are removed or reduced to executable names so consumers can build
+    extensions without the original checkout, dependency prefix, SDK, or
+    compiler cache. `python3.14-config` shell-quotes its flag lists so a
+    relocated install under a path containing spaces remains usable.
     """
+    roots = tuple(dict.fromkeys(
+        Path(path).resolve() for path in (private_prefix, *builder_paths)
+        if str(path)
+    ))
+    commands = tuple(dict.fromkeys(
+        Path(path) for path in command_paths
+        if str(path) and Path(path).is_absolute()
+    ))
     changed: list[Path] = []
     lib = staged_install / "lib"
     for sysconfigdata in lib.rglob("_sysconfigdata_*.py"):
-        text = sysconfigdata.read_text()
-        rewritten = text
-        for key in CONSUMER_FLAG_KEYS:
-            pattern = re.compile(rf"('{re.escape(key)}':\s*')([^']*)(')")
-
-            def _clean(match: re.Match[str]) -> str:
-                return match.group(1) + strip_private_prefix(match.group(2), private_prefix) + match.group(3)
-
-            rewritten = pattern.sub(_clean, rewritten)
-        if rewritten != text:
-            sysconfigdata.write_text(rewritten)
+        if _relocate_sysconfigdata(
+            sysconfigdata,
+            builder_paths=roots,
+            command_paths=commands,
+            configure_prefix=configure_prefix,
+        ):
             changed.append(sysconfigdata)
+        remaining = sysconfigdata.read_text()
+        leaked = [str(path) for path in (*roots, *commands) if str(path) in remaining]
+        if leaked:
+            raise RelocationError(
+                f"sysconfigdata still contains builder paths in {sysconfigdata}: "
+                + ", ".join(leaked)
+            )
         # A stale bytecode cache would shadow the rewritten source on import.
         cache = sysconfigdata.parent / "__pycache__"
         if cache.is_dir():
             for compiled in cache.glob(f"{sysconfigdata.stem}.*.pyc"):
                 compiled.unlink()
 
+    if not changed and not list(lib.rglob("_sysconfigdata_*.py")):
+        raise RelocationError(f"no generated sysconfigdata found under {lib}")
+
     for makefile in lib.rglob("Makefile"):
-        if _rewrite(makefile, private_prefix):
+        if _rewrite(makefile, roots, commands, configure_prefix):
             changed.append(makefile)
+        remaining = makefile.read_text()
+        leaked = [str(path) for path in (*roots, *commands) if str(path) in remaining]
+        if re.search(
+            re.escape(configure_prefix) + r"(?=$|[^A-Za-z0-9_.-])", remaining
+        ):
+            leaked.append(configure_prefix)
+        if leaked:
+            raise RelocationError(
+                f"installed Makefile still contains builder paths in {makefile}: "
+                + ", ".join(leaked)
+            )
+    changed.extend(_fix_python_config_scripts(Path(staged_install)))
     return changed
 
 
@@ -180,14 +398,28 @@ def fix_script_shebangs(install: Path, interpreter: str = "python3.14") -> list[
     return changed
 
 
-def relocate(staged_install: Path, private_prefix: Path, *, patchelf: str = "patchelf") -> list[Path]:
+def relocate(
+    staged_install: Path,
+    private_prefix: Path,
+    *,
+    patchelf: str = "patchelf",
+    configure_prefix: str = "/install",
+    builder_paths: Iterable[Path] = (),
+    command_paths: Iterable[Path] = (),
+) -> list[Path]:
     """Apply both fixups to a staged `make install` tree; return changed ELFs."""
     lib_dir = staged_install / "lib"
     touched = []
     for elf in find_elfs(staged_install):
         set_relative_rpath(elf, lib_dir, patchelf=patchelf)
         touched.append(elf)
-    clean_sysconfig(staged_install, private_prefix)
+    clean_sysconfig(
+        staged_install,
+        private_prefix,
+        configure_prefix=configure_prefix,
+        builder_paths=builder_paths,
+        command_paths=command_paths,
+    )
     fix_script_shebangs(staged_install)
     return touched
 
@@ -214,6 +446,8 @@ def macho_relocate(
     private_prefix: Path,
     *,
     configure_prefix: str = "/install",
+    builder_paths: Iterable[Path] = (),
+    command_paths: Iterable[Path] = (),
 ) -> list[Path]:
     """Make a staged `make install` tree relocatable; return the images edited.
 
@@ -256,6 +490,12 @@ def macho_relocate(
         if image not in touched:
             touched.append(image)
 
-    clean_sysconfig(install, private_prefix)
+    clean_sysconfig(
+        install,
+        private_prefix,
+        configure_prefix=configure_prefix,
+        builder_paths=builder_paths,
+        command_paths=command_paths,
+    )
     fix_script_shebangs(install)
     return touched

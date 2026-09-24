@@ -11,8 +11,10 @@ from __future__ import annotations
 import json
 import os
 import pty
+import shlex
 import select
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -364,6 +366,107 @@ def _getpath_check(python: Path, install: Path, environment: dict[str, str]) -> 
     }
 
 
+def _relocated_sysconfig_check(
+    python: Path, install: Path, environment: dict[str, str]
+) -> dict:
+    """Move the complete tree and require sysconfig tools to follow it."""
+    with tempfile.TemporaryDirectory(prefix="standalone moved ") as temporary:
+        destination = Path(temporary) / "python install with spaces"
+        shutil.copytree(Path(install).resolve(), destination, symlinks=True)
+        moved_python = destination / "bin" / "python3.14"
+        probe = subprocess.run(
+            [str(moved_python), "-I", "-B", "-c", r'''
+import json, os, sys, sysconfig
+root = os.path.realpath(sys.prefix)
+keys = (
+    "BINDIR", "BINLIBDEST", "LIBDIR", "LIBPL", "DESTSHARED", "INCLUDEPY",
+    "CONFINCLUDEPY", "LIBDEST", "EXENAME", "prefix", "exec_prefix",
+    "base", "base_prefix",
+)
+values = {key: sysconfig.get_config_var(key) for key in keys}
+values = {key: value for key, value in values.items() if value}
+def inside(path):
+    return os.path.commonpath((root, os.path.realpath(path))) == root
+paths = sysconfig.get_paths()
+rooted = all(inside(value) for value in paths.values())
+rooted = rooted and all(inside(value) for value in values.values())
+forbidden = (
+    "/install", "/build/prefix", "/.cache/llvm/", "/Python-3.14.6/",
+    "code.profclangd", "code-%p.profclangr", "-fprofile-instr-use=",
+    "LLVM_PROFILE_FILE=",
+)
+stale = [f"{key}={value}" for key, value in sysconfig.get_config_vars().items()
+         if isinstance(value, str) and any(marker in value for marker in forbidden)]
+print(json.dumps({"prefix": sys.prefix, "paths": values, "rooted": rooted, "stale": stale}))
+'''],
+            cwd=destination,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        try:
+            data = json.loads(probe.stdout.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError) as error:
+            raise CompatibilityError(
+                "moved sysconfig probe returned no report: "
+                f"returncode={probe.returncode}, stderr={probe.stderr.strip()[-500:]}"
+            ) from error
+        config = destination / "bin" / "python3.14-config"
+        outputs = {
+            option: subprocess.run(
+                [str(config), *arguments],
+                cwd=destination,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            for option, arguments in (
+                ("prefix", ["--prefix"]),
+                ("configdir", ["--configdir"]),
+                ("cflags", ["--cflags"]),
+                ("ldflags", ["--ldflags", "--embed"]),
+            )
+        }
+        include_flags = (
+            shlex.split(outputs["cflags"].stdout)
+            if outputs["cflags"].returncode == 0 else []
+        )
+        link_flags = (
+            shlex.split(outputs["ldflags"].stdout)
+            if outputs["ldflags"].returncode == 0 else []
+        )
+        prefix_ok = (
+            outputs["prefix"].returncode == 0
+            and Path(outputs["prefix"].stdout.strip()).resolve() == destination.resolve()
+        )
+        configdir_ok = (
+            outputs["configdir"].returncode == 0
+            and Path(outputs["configdir"].stdout.strip()).resolve().is_relative_to(destination.resolve())
+        )
+        flags_ok = (
+            outputs["cflags"].returncode == 0
+            and f"-I{destination / 'include' / 'python3.14'}" in include_flags
+            and outputs["ldflags"].returncode == 0
+            and f"-L{destination / 'lib'}" in link_flags
+        )
+        data.update({
+            "moved_to": str(destination),
+            "config_prefix": outputs["prefix"].stdout.strip(),
+            "configdir": outputs["configdir"].stdout.strip(),
+            "cflags": outputs["cflags"].stdout.strip(),
+            "ldflags": outputs["ldflags"].stdout.strip(),
+            "ok": (
+                probe.returncode == 0 and data["rooted"] and not data["stale"]
+                and prefix_ok and configdir_ok and flags_ok
+            ),
+        })
+        if probe.stderr.strip():
+            data["stderr"] = probe.stderr.strip()[-1000:]
+        return data
+
+
 def _curses_tty_check(python: Path, install: Path, environment: dict[str, str]) -> dict:
     child, master = pty.fork()
     if child == 0:
@@ -460,6 +563,7 @@ def run_standalone_compatibility(python: Path, install: Path, target: Target) ->
         raise CompatibilityError("standalone compatibility probe returned no checks")
     for name, function in (
         ("interpreter_getpath", lambda: _getpath_check(python, install, environment)),
+        ("relocated_sysconfig", lambda: _relocated_sysconfig_check(python, install, environment)),
         ("curses_tty", lambda: _curses_tty_check(python, install, environment)),
     ):
         try:

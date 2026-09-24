@@ -142,10 +142,15 @@ evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
   re-sign (unsigned Mach-O does not launch on Apple Silicon).
 - No `DYLD_*` in the product or its tests; system dylibs may exist only in
   the dyld shared cache, so classify load commands by name, not by file
-  presence. Scrub build-only prefix/toolchain paths from consumer-facing
-  sysconfig/Makefile (`buildsys/relocate.py`); shebang rewrite is the
-  sh/python polyglot. A relocatable libpython means an out-of-tree embedder
-  must set `PYTHONHOME` or live in-tree; record that cost, don't hide it.
+  presence. `buildsys/relocate.py` resolves the configured install prefix
+  from the installed `_sysconfigdata` location, removes builder-only source,
+  dependency, SDK, profile, and compiler-cache paths from sysconfig/Makefile,
+  and shell-quotes `python3.14-config` flags so a moved prefix may contain
+  spaces. Validate by moving the complete tree and rebuilding/loading an
+  extension from it. The installation tree is relocatable; an out-of-tree C
+  embedder still has to tell CPython where its tree is with `PYTHONHOME` or
+  `PyConfig.home`, because CPython otherwise infers paths from the embedder's
+  executable location.
 
 ## Validation and packaging (`build/package.py`, `buildsys/validate_macos.py`, `buildsys/testsuite.py`)
 
@@ -167,12 +172,14 @@ round-trips (TLS both directions, sqlite, ndbm, compression incl.
 (`SemLock` present); curses/panel/readline; ctypes both directions +
 callbacks + private dylib; extension build/load and ABI3 fixture with no
 installer present; C embedding via shipped shared libpython (both placement
-recipes); relocation under a path with spaces; launcher scripts; broad
-CPython regression suite on a disposable pre-prune install copy with narrow,
+recipes); relocation under a path with spaces, including sysconfig path
+metadata and extension compilation from the moved macOS tree; launcher
+scripts; broad CPython regression suite on a disposable pre-prune install copy with narrow,
 justified exclusions only; PBS-adapted distribution checks run on the final
 post-prune bytes for SQLite's feature/security profile, locked OpenSSL/SQLite
 versions, zstd multithreading, libc ABI tags, interpreter startup through
-symlinks and unusual `argv[0]`, and Linux sysconfig/MDWE behavior. The
+symlinks and unusual `argv[0]`, moved-tree sysconfig on every target, and
+Linux MDWE behavior. The
 Windows-only SSL key-log check, GUI, `venv` path-resolution path, and glibc
 Linux syscall checks are reported as out of scope. Final validation asserts
 the regression package, `.pyc`, and `__pycache__` caches are absent from the

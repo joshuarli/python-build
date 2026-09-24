@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import textwrap
@@ -516,8 +517,8 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
     """))
     target = workdir / "fixture_ext.so"
     build = _run(
-        ["xcrun", "clang", "-O2", "-fPIC", "-shared", *cflags.stdout.split(),
-         str(source), "-o", str(target), *ldflags.stdout.split()],
+        ["xcrun", "clang", "-O2", "-fPIC", "-shared", *shlex.split(cflags.stdout),
+         str(source), "-o", str(target), *shlex.split(ldflags.stdout)],
     )
     if build.returncode != 0:
         return {"ok": False, "error": f"extension build failed: {build.stderr.strip()[:400]}"}
@@ -570,7 +571,7 @@ def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
     """))
     target = workdir / "abi3_ext.so"
     build = _run(
-        ["xcrun", "clang", "-O2", "-fPIC", "-shared", *cflags.stdout.split(),
+        ["xcrun", "clang", "-O2", "-fPIC", "-shared", *shlex.split(cflags.stdout),
          str(source), "-o", str(target), "-undefined", "dynamic_lookup"],
     )
     if build.returncode != 0:
@@ -617,8 +618,8 @@ def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
     # emits no -rpath by design).
     libdir = install / "lib"
     build = _run(
-        ["xcrun", "clang", "-O2", *cflags.stdout.split(), str(source),
-         "-o", str(binary), f"-Wl,-rpath,{libdir}", *ldflags.stdout.split()],
+        ["xcrun", "clang", "-O2", *shlex.split(cflags.stdout), str(source),
+         "-o", str(binary), f"-Wl,-rpath,{libdir}", *shlex.split(ldflags.stdout)],
     )
     if build.returncode != 0:
         return {"ok": False, "error": f"embed build failed: {build.stderr.strip()[:400]}"}
@@ -657,7 +658,7 @@ def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
 
 
 def relocation_checks(install: Path, workdir: Path) -> dict:
-    """Run the tree from a different prefix, including one with spaces."""
+    """Run the moved tree, its public config tools, and a new extension build."""
     destination = (workdir / "moved prefix with spaces").resolve()
     if destination.exists():
         shutil.rmtree(destination)
@@ -668,6 +669,28 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
         libdir = os.path.join(sys.prefix, "lib")
         shared = ctypes.CDLL(os.path.join(libdir,
                                           sysconfig.get_config_var("INSTSONAME")))
+        root = os.path.realpath(sys.prefix)
+        path_keys = (
+            "BINDIR", "BINLIBDEST", "LIBDIR", "LIBPL", "DESTSHARED",
+            "INCLUDEPY", "CONFINCLUDEPY", "LIBDEST", "EXENAME", "prefix",
+            "exec_prefix", "base", "base_prefix",
+        )
+        paths = {key: sysconfig.get_config_var(key) for key in path_keys}
+        paths = {key: value for key, value in paths.items() if value}
+        def is_inside(path):
+            return os.path.commonpath((root, os.path.realpath(path))) == root
+        sysconfig_paths = sysconfig.get_paths()
+        path_rooted = all(is_inside(value) for value in sysconfig_paths.values())
+        path_rooted = path_rooted and all(is_inside(value) for value in paths.values())
+        forbidden = (
+            "/install", "/build/prefix", "/.cache/llvm/",
+            "/Python-3.14.6/", "code.profclangd", "code-%p.profclangr",
+            "-fprofile-instr-use=", "LLVM_PROFILE_FILE=",
+        )
+        stale_values = [
+            f"{key}={value}" for key, value in sysconfig.get_config_vars().items()
+            if isinstance(value, str) and any(marker in value for marker in forbidden)
+        ]
         print(json.dumps({
             "executable": sys.executable,
             "prefix": sys.prefix,
@@ -675,16 +698,51 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
             "openssl": ssl.OPENSSL_VERSION.split()[1],
             "libpython_loaded": shared is not None,
             "ldflags_leak": "build/prefix" in (sysconfig.get_config_var("LDFLAGS") or ""),
+            "sysconfig_paths": paths,
+            "sysconfig_paths_rooted": path_rooted,
+            "stale_sysconfig_values": stale_values,
         }))
     """)])
     if probe.returncode != 0:
         return {"ok": False, "error": probe.stderr.strip()[:400]}
     data = json.loads(probe.stdout.strip().splitlines()[-1])
     data["moved_to"] = str(destination)
+    config = destination / "bin" / "python3.14-config"
+    config_prefix = _run([str(config), "--prefix"])
+    configdir = _run([str(config), "--configdir"])
+    cflags = _run([str(config), "--cflags"])
+    ldflags = _run([str(config), "--ldflags", "--embed"])
+    include_flags = shlex.split(cflags.stdout) if cflags.returncode == 0 else []
+    link_flags = shlex.split(ldflags.stdout) if ldflags.returncode == 0 else []
+    data["config_script_paths"] = {
+        "prefix": config_prefix.stdout.strip(),
+        "configdir": configdir.stdout.strip(),
+        "cflags": cflags.stdout.strip(),
+        "ldflags": ldflags.stdout.strip(),
+        "ok": (
+            config_prefix.returncode == 0
+            and Path(config_prefix.stdout.strip()).resolve() == destination
+            and configdir.returncode == 0
+            and Path(configdir.stdout.strip()).resolve().is_relative_to(destination)
+            and cflags.returncode == 0
+            and f"-I{destination / 'include' / 'python3.14'}" in include_flags
+            and ldflags.returncode == 0
+            and f"-L{destination / 'lib'}" in link_flags
+        ),
+    }
+    stale_values = data["stale_sysconfig_values"]
+    moved_extension_work = workdir / "relocated extension build"
+    moved_extension_work.mkdir(parents=True, exist_ok=True)
+    moved_extension = extension_checks(python, destination, moved_extension_work)
+    data["extension_build_after_move"] = moved_extension
     data["ok"] = (
         data["prefix"] == str(destination)
         and data["version"] == "3.14.6"
         and not data["ldflags_leak"]
+        and data["sysconfig_paths_rooted"]
+        and not stale_values
+        and data["config_script_paths"]["ok"]
+        and moved_extension.get("ok", False)
     )
     return data
 
