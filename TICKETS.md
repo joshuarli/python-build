@@ -10,18 +10,19 @@ binaries copied into this project.
 
 ### P1 — Validate Linux ELF hardening in the packaged artifact
 
-**Status:** Proposed; not implemented. Linux compilation flags are present,
-but this property is not currently checked on the final stripped artifact.
+**Status:** Implemented and validated on both Linux musl targets (2026-09-24).
+The build recipes remain unchanged; package-time checks enforce the final
+artifact contract.
 
 **Why:** A PBS report documented a Linux `libpython` with an executable
 `PT_GNU_STACK` segment that modern glibc systems refused to load. PBS then
 merged checks for non-executable stacks and compiler hardening. Our Linux
 recipe already passes `-Wl,-z,noexecstack`, `-fstack-protector-strong`, and
-`-D_FORTIFY_SOURCE=2`; however, `build/package.py::compute_validation`
-currently checks dependencies, RUNPATH, the loader, and a sysconfig leak,
-not the final ELF stack permissions or hardening evidence. Checking the
-packaged bytes protects against ignored flags, link-time regressions, and
-stripping or relinking mistakes.
+`-D_FORTIFY_SOURCE=2`. `buildsys.elf` parses final program headers and
+dynamic symbols, and `build/package.py::compute_validation` checks the
+packaged bytes after stripping and distribution pruning. This protects
+against ignored flags, link-time regressions, and stripping or relinking
+mistakes.
 
 **PBS evidence:** [#1072, executable-stack regression](https://github.com/astral-sh/python-build-standalone/issues/1072)
 (closed); [#1070, validate non-executable stack](https://github.com/astral-sh/python-build-standalone/pull/1070)
@@ -29,21 +30,23 @@ stripping or relinking mistakes.
 (closed); [#1174, validation implementation](https://github.com/astral-sh/python-build-standalone/pull/1174)
 (merged).
 
-**Applicability and proposed change:** Linux musl targets only. Extend the
-post-strip validator to inspect every shipped ELF's `PT_GNU_STACK` and fail
-if it requests execute permission. Also report and enforce stack-protector
-and fortify evidence for the CPython executable and shared `libpython`, using
-checks that are valid for this project's clang/musl builds. Keep macOS out of
-the ELF check. Record any change to shared Linux behavior and its frozen
-target contract before implementation.
+**Applicability and implementation:** Linux musl targets only. The
+post-strip validator inspects every shipped ELF's `PT_GNU_STACK` and fails
+closed on missing, malformed, duplicate, or executable records. It checks the
+configured stack-protector and fortify flags, plus a post-strip dynamic
+`__stack_chk_fail` reference in shared `libpython`. The small launcher is
+reported but is not required to contain a guard reference when its functions
+do not meet clang's selection rules. Fortify evidence uses the configured
+flag because musl does not require glibc `_chk` symbols. macOS is outside the
+ELF check. `AGENTS.md` records this packaging-only contract change; the
+frozen Linux compile recipes are unchanged.
 
-**Acceptance evidence:** Both Linux target packages report every ELF path and
-stack-execution result; intentionally malformed ELF fixtures fail the
-validator; the CPython executable and shared library satisfy the chosen
-musl-aware stack-protector/fortify checks after stripping; normal packaging
-continues to pass on x86_64 and aarch64. No new runtime dependency is needed;
-prefer parsing ELF metadata or an inspection tool already available in the
-sealed Linux image.
+**Acceptance evidence:** Sealed package runs pass for x86_64 and aarch64.
+Each final report contains 78 ELF objects, with no stack violations; unit
+fixtures reject missing, duplicate, malformed, and executable-stack records.
+Both targets retain the configured hardening flags and the shared libpython
+guard reference after stripping. No runtime dependency was added; validation
+uses `readelf`, already present in the sealed Linux image.
 
 **Dependencies and risks:** The Linux targets are documented as frozen, so
 this is a validation-contract change that needs an explicit record and review.
@@ -128,6 +131,5 @@ insufficiently actionable here:
   here: Linux recipes already pass `--build-id=sha1`, and this project does
   not currently publish debug symbol files or operate a debuginfod service.
 
-No code, tests, or upstream artifacts were changed or executed for this
-survey. This file records proposals only; implementation still needs to
-follow the repository's source-lock, validation, and target-scope contracts.
+The P1 ticket is implemented; P2 remains a proposal. This work follows
+the repository's source-lock, validation, and target-scope contracts.

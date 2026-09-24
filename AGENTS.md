@@ -16,6 +16,12 @@ is the current contract.)
 | `x86_64-unknown-linux-musl` | linux-musl | Alpine 3.24.1 container (`Dockerfile`), clang22/lld22 | `-march=x86-64`, loader `/lib/ld-musl-x86_64.so.1`; frozen, completed |
 | `aarch64-unknown-linux-musl` | linux-musl | Same, via `docker build --platform linux/arm64` | `-march=armv8-a`, loader `/lib/ld-musl-aarch64.so.1`; frozen, completed |
 
+Linux build recipes remain frozen. Packaging validates every final ELF after
+stripping and distribution pruning: each must carry a non-executable
+`PT_GNU_STACK`; CPython's configured stack-protector/fortify flags and the
+post-strip libpython stack-guard reference are checked with musl-compatible
+evidence.
+
 Policy everywhere: ThinLTO (`--with-lto=thin`), PGO enabled on macOS using
 CPython's `-m test --pgo -j <jobs>` profile task and the locked LLVM
 `llvm-profdata`, no PGO on Linux, no BOLT/JIT/tail-call interpreter,

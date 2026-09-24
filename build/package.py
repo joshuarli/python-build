@@ -35,6 +35,7 @@ sys.path.insert(0, str(REPO))
 
 from buildsys import macho  # noqa: E402
 from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
+from buildsys.elf import gnu_stack_report, hardening_report  # noqa: E402
 from buildsys.cpython import (  # noqa: E402
     CPYTHON_PGO_HASH_SEED, pgo_profile_task,
 )
@@ -296,6 +297,7 @@ def compute_validation(install: Path) -> dict:
     elfs = find_elfs(install)
     elf_report = []
     bad = []
+    stack_violations = []
     for elf in elfs:
         readelf = _run(["readelf", "-d", str(elf)])
         needed = [
@@ -306,9 +308,13 @@ def compute_validation(install: Path) -> dict:
         forbidden = [n for n in needed if n.startswith("libc.so.6") or "GLIBC" in n]
         if forbidden:
             bad.append(str(elf))
+        stack = gnu_stack_report(_run(["readelf", "-lW", str(elf)]).stdout)
+        if not stack["ok"]:
+            stack_violations.append(str(elf.relative_to(install)))
         elf_report.append({
             "path": str(elf.relative_to(install)), "needed": needed,
             "runpath": runpath[0].split("[")[1].rstrip("]") if runpath else None,
+            "gnu_stack": stack,
         })
     interp = _run(["readelf", "-l", str(python)])
     interp_line = next(
@@ -320,6 +326,31 @@ def compute_validation(install: Path) -> dict:
          "print('LEAK' if 'build/prefix' in v else 'CLEAN')"],
         capture_output=True, text=True,
     )
+    configured = _run([
+        str(python), "-c",
+        "import json, sysconfig; print(json.dumps({k: sysconfig.get_config_var(k) "
+        "for k in ('CFLAGS', 'CFLAGS_NODIST', 'PY_CFLAGS', 'PY_CFLAGS_NODIST', 'CPPFLAGS')}))",
+    ])
+    configured_flags = json.loads(configured.stdout)
+    compiler_flags = " ".join(
+        value for value in configured_flags.values() if isinstance(value, str)
+    )
+    shared_name = _run([
+        str(python), "-c",
+        "import sysconfig; print(sysconfig.get_config_var('INSTSONAME'))",
+    ]).stdout.strip()
+    libpython = install / "lib" / shared_name
+    if not libpython.is_file():
+        raise PackagingError(f"sysconfig names a missing shared libpython: {libpython}")
+    hardening_symbols = {
+        "python3.14": _run([
+            "readelf", "--dyn-syms", "-W", str(python),
+        ]).stdout,
+        "libpython": _run([
+            "readelf", "--dyn-syms", "-W", str(libpython),
+        ]).stdout,
+    }
+    hardening = hardening_report(compiler_flags, hardening_symbols)
     return {
         "target": TARGET,
         "sys_version_check": {"ok": ok, "output": output},
@@ -330,6 +361,9 @@ def compute_validation(install: Path) -> dict:
         "sysconfig_private_prefix_leak": sysconfig_check.stdout.strip() != "CLEAN",
         "elf_count": len(elf_report),
         "elf_report": elf_report,
+        "elf_stack_permissions_ok": bool(elf_report) and not stack_violations,
+        "elf_stack_violations": stack_violations,
+        "elf_hardening": hardening,
         "expected_missing_modules": list(EXPECTED_MISSING_MODULES),
     }
 
@@ -924,6 +958,10 @@ def main(argv: list[str] | None = None) -> int:
                 raise PackagingError("validation failed: " + ", ".join(failed_checks))
         else:
             strip_tree(work)
+        distribution_scope = prune_distribution_payload(work)
+        if not macos:
+            # Validate the tree after both stripping and distribution pruning:
+            # elf_report must describe exactly the bytes that enter the archive.
             validation = compute_validation(work)
             if not validation["sys_version_check"]["ok"]:
                 raise PackagingError(f"post-strip smoke import failed: {validation['sys_version_check']['output']}")
@@ -932,7 +970,15 @@ def main(argv: list[str] | None = None) -> int:
                     f"PT_INTERP {validation['musl_loader']!r} does not match "
                     f"expected {TARGET_DESCRIPTION.musl_loader!r} for target {TARGET}"
                 )
-        distribution_scope = prune_distribution_payload(work)
+            if not validation["elf_stack_permissions_ok"]:
+                raise PackagingError(
+                    "packaged ELF objects request an executable or unknown stack: "
+                    + ", ".join(validation["elf_stack_violations"][:10])
+                )
+            if not validation["elf_hardening"]["ok"]:
+                raise PackagingError(
+                    "packaged CPython does not satisfy clang/musl hardening checks"
+                )
         validation["scope"] = {
             "excluded_by_scope": list(EXPECTED_EXCLUDED_MODULES),
             "excluded_stdlib_dirs": list(DELIBERATE_EXCLUDED_STDLIB_DIRS),
