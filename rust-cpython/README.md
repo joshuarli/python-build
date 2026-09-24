@@ -22,6 +22,8 @@ nightly. Do not run `cargo update` or alter the lockfile.
 python3 rust-cpython/build.py doctor  # read-only host, pins, and toolchain check
 python3 rust-cpython/build.py fetch   # verified sources, LLVM, and locked Cargo deps
 python3 rust-cpython/build.py build   # out-of-tree optimized build, network denied
+python3 rust-cpython/build.py fetch --zlib-rs  # also cache pinned optional backend
+python3 rust-cpython/build.py build --zlib-rs  # isolated optional zlib candidate
 python3 rust-cpython/build.py test    # Cargo, focused CPython, then broad regression
 python3 rust-cpython/build_no_rust.py # matched same-source benchmark control
 python3 rust-cpython/build.py clean   # remove generated outputs; retain private Cargo cache
@@ -68,7 +70,11 @@ deployment floor. It also runs the workspace Cargo tests and CPython tests.
 At this commit, `_base64` is an integration proof, not a faster public
 `base64` implementation: `Lib/base64.py` still routes its normal APIs through
 `binascii`. The ordinary lane build still compiles `Modules/zlibmodule.c`
-against the platform zlib library. Separately,
+against the platform zlib library. `--zlib-rs` builds an optional candidate
+from the pinned proof backend, retaining platform zlib for `binascii`; its
+whole-build and public-workload evidence is in
+[`experiments/zlib-full-candidate-20260924.md`](experiments/zlib-full-candidate-20260924.md).
+Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under
 that unchanged CPython wrapper and runs CPython's zlib and compression-consumer
 tests. This is an isolated backend proof, not a production build change.
@@ -140,7 +146,7 @@ The measured results, repeated runs, and limits are recorded in
 
 | Rank | Area: current implementation and CPython tests | Leverage and proposed Rust boundary | Hazards, prior art, and measurement gate |
 | ---: | --- | --- | --- |
-| 1 | **zlib** — `Modules/zlibmodule.c`; `test_zlib.py`, `test_gzip.py`, `test_binascii.py` | Compression and decompression sit under ZIP, gzip, wheels, and HTTP. Keep the CPython C/Python API and swap only the backend. | The isolated [`zlib-proof/`](zlib-proof/README.md) statically links `libz-rs-sys-cdylib` beneath unchanged `zlibmodule.c`; 1,892 CPython tests passed across zlib, gzip, tar, ZIP, zipimport, and binascii. Measure throughput and byte-for-byte output separately; this is not a production migration. |
+| 1 | **zlib** — `Modules/zlibmodule.c`; `test_zlib.py`, `test_gzip.py`, `test_binascii.py` | Compression and decompression sit under ZIP, gzip, wheels, and HTTP. Keep the CPython C/Python API and swap only the backend. | The isolated [`zlib-proof/`](zlib-proof/README.md) passed 1,892 CPython tests across zlib, gzip, tar, ZIP, zipimport, and binascii. An optional whole-build candidate improved three decompression paths locally, but ZIP and memory parity remain open; 210 of 876 sampled public encodings differed in bytes. See [`experiments/zlib-full-candidate-20260924.md`](experiments/zlib-full-candidate-20260924.md). |
 | 2 | **difflib** — `Lib/difflib.py`; `test_difflib.py` | A substantial pure-Python matching and diff kernel can accept sequences and return matching blocks/opcodes while keeping Python classes and generators. | `isjunk`, `autojunk`, arbitrary elements, tie-breaking, ratios, and output formatting are observable. Study `sweepai/difflib-rs` and `prostomarkeloff/difflib-fast`; compare exact opcodes/rendered text on normal and pathological inputs, then benchmark complete diff tasks. |
 | 3 | **tomllib** — `Lib/tomllib/{_parser,_re,_types}.py`; `test_tomllib/{test_data,test_error,test_misc}.py` | A parser can take one document and return an ordinary Python tree, leaving `parse_float` callback policy at the Python boundary. | Match duplicate-key behavior, datetime values, error locations/messages, and callback invocation. `rtoml` and `toml-rs` are references. Use TOML corpora, malformed-input/error comparisons, callback tests, and real project metadata. |
 | 4 | **ipaddress** — `Lib/ipaddress.py`; `test_ipaddress.py` | Parse/normalize once and move integer subnet arithmetic and formatting kernels beneath existing Python address/network classes. | Preserve legacy forms, strict masks, exceptions, subclass behavior, and ordering. Rust `std::net`/`ipnet` offer primitives, not Python semantics. Differential/property-test IPv4/IPv6 and benchmark routing-table and parsing workloads. |

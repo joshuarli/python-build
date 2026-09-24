@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## Fourth cycle (base `e1a5eb7`)
+
+The host remained busy at load averages 8.74/8.40/9.04 on ten logical CPUs,
+with OrbStack Helper near one CPU and 7.5 GB RSS. Its allocated swap remained
+356.38 MiB. No comparative timing run is scheduled during this cycle.
+
+| Lane | Worktree and branch | Owned paths | Question | Budget and status |
+| --- | --- | --- | --- | --- |
+| Child CPU accounting | `/private/tmp/python-build-exp-child-cpu-20260924d`, `exp/rust-cpython-child-cpu-20260924d` | `benchmarks/harness/process.py`, `benchmarks/harness/runner.py`, `benchmarks/workloads/zlib.py`, relevant focused tests, new `experiments/child-cpu-accounting-20260924.md` | Can the cold ZIP import report direct reaped child CPU without implying arbitrary descendant coverage? | 150 CPU seconds, 1 GiB RSS; active, no long benchmark/build |
+| ZIP memory diagnosis | `/private/tmp/python-build-exp-zlib-memory-20260924d`, `exp/rust-cpython-zlib-memory-20260924d` | New `experiments/zlib-memory-followup-20260924.md` only | What does the raw paired ZIP read RSS/footprint evidence support, and which quiet-host measurement should follow? | 30 CPU seconds, 512 MB RSS; active, read-only analysis |
+
+The coordinator owns this ledger and the integration order. The agents have
+distinct source and report paths, may not delegate, and keep any scratch in
+their own worktrees.
+
 ## Third cycle (base `87b0eec`)
 
 The optional zlib build recipe was integrated through `87b0eec` after a
