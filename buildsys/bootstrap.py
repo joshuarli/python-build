@@ -367,7 +367,9 @@ def lto_smoke_test(toolchain: Toolchain, workdir: Path) -> dict:
         (base + [str(main), str(archive), "-o", str(binary)], "link with thinlto"),
     ]
     for command, description in steps:
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(
+            command, capture_output=True, text=True, env=toolchain.env()
+        )
         if result.returncode != 0:
             raise BootstrapError(
                 f"LTO smoke test failed to {description}: "
@@ -386,7 +388,9 @@ def lto_smoke_test(toolchain: Toolchain, workdir: Path) -> dict:
             f"-flto=thin was not honoured by {toolchain.cc}"
         )
 
-    run = subprocess.run([str(binary)], capture_output=True, text=True)
+    run = subprocess.run(
+        [str(binary)], capture_output=True, text=True, env=toolchain.env()
+    )
     if run.returncode != 0 or run.stdout.strip() != "42":
         raise BootstrapError(
             f"LTO smoke binary did not run correctly: rc={run.returncode} "

@@ -17,9 +17,9 @@
 #   `ubuntu-24.04-arm` (aarch64). Packaging runs inside the sealed image
 #   with `--network none`; it only reads the image and the verified cache.
 # - Caching is source blobs (`.cache/objects`, keyed on sources.lock.json)
-#   and the selectively extracted LLVM toolchain (`.cache/llvm/toolchains`,
-#   keyed on the LLVM archive digest; the 1.57 GB archive itself is fetched
-#   when needed).
+#   and the LLVM cache (`.cache/llvm`, keyed on bootstrap.lock.json): it
+#   retains both the 1.57 GB verified archive and the selectively extracted
+#   toolchain, so cache hits avoid re-downloading the archive.
 #   plus BuildKit layer caching (`type=gha`, one scope per arch). Compiled
 #   outputs are never cached: a full build owns its prefix and scratch area,
 #   and reusing them across runs is how stale objects leak into artifacts.
@@ -80,7 +80,7 @@ jobs:
       - name: Cache selectively extracted LLVM toolchain
         uses: actions/cache@v4
         with:
-          path: .cache/llvm/toolchains
+          path: .cache/llvm
           key: llvm-${{ hashFiles('bootstrap.lock.json') }}
           restore-keys: llvm-
 
