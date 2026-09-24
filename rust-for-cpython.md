@@ -255,6 +255,13 @@ field was added; see
   CPU per batch by 17.4%, but peak RSS rose 3.19 MB beyond measured noise.
   This overlay is rejected under the resource rule; see
   [`url-quote-comparison-20260924.md`](rust-cpython/experiments/url-quote-comparison-20260924.md).
+- A no-std, direct-Unicode variant shrank the extension from 1.47 MB to 50,712
+  bytes and passed the same public semantic checks. Its five paired memory
+  runs still raised peak RSS by a median 2,932,736 bytes, beyond 437,237
+  bytes of self-noise. It is rejected on memory; timing self-calibration was
+  too noisy for a speed verdict. See
+  [`url-quote-lean-proof-20260924.md`](rust-cpython/experiments/url-quote-lean-proof-20260924.md)
+  and [`url-quote-lean-comparison-20260924.md`](rust-cpython/experiments/url-quote-lean-comparison-20260924.md).
 
 ## Immediate work queue
 
@@ -277,10 +284,10 @@ field was added; see
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
-- The guarded URL proof found useful public-task speed but failed peak-RSS
-  qualification. Try one smaller-resident implementation boundary and compare
-  it against the same control; only a candidate that clears both time and
-  memory gates merits a reproducible source patch.
+- Both guarded URL overlays failed peak-RSS qualification, including the
+  50,712-byte no-std extension. Locate where the added resident memory appears
+  before trying another URL boundary. Only a candidate that clears both time
+  and memory gates merits a reproducible source patch.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops

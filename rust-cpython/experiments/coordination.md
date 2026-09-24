@@ -52,6 +52,16 @@ candidate, calibrates quiet control/control and candidate/candidate noise,
 and runs serial complete catalog pairs if calibration permits. No other lane
 will compile or benchmark concurrently. Budget: 120 command CPU seconds and
 1 GiB maximum reported RSS. The coordinator decides the verdict.
+Control self-noise was 1.35%; two candidate self-calibrations had 5.81% and
+6.19% timing noise, so no matched speed run occurred. A separate five-pair
+memory-only diagnostic then found a 2,932,736-byte median peak-RSS rise and
+2,899,992-byte sampled footprint rise, versus at most 437,237 bytes of
+local RSS self-noise. All ten digest checks passed. The lane used 44.10
+measured command CPU seconds total, at most 45,809,664 bytes command RSS,
+and zero swaps. Reject the lean overlay on memory; speed is inconclusive.
+The earlier quote comparison used the Rust fork stage, while this lane used
+the no-Rust stage, so their absolute memory changes are context rather than
+a matched before/after result. See `url-quote-lean-comparison-20260924.md`.
 
 ## Eleventh cycle (base `c12e3c6`)
 
