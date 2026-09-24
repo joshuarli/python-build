@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## Thirteenth cycle (base `6d8a8c0`)
+
+The URL memory-attribution diagnostic uses
+`/private/tmp/python-build-exp-url-memory-attribution-20260924l`, branch
+`exp/rust-cpython-url-memory-attribution-20260924l`, and owns only a new
+`experiments/url-quote-memory-attribution-20260924.md`, a diagnostic script,
+and uniquely named compact data. It compares cloned no-Rust interpreters
+with original parse/no extension, original parse plus imported lean extension,
+and the guarded lean parse plus extension. The question is whether the
+roughly 2.9 MB paired RSS rise starts at extension import or during quotation.
+It may run serial paired external memory passes and fixed-digest checks,
+but no compilation or authoritative timing. Budget: 50 command CPU seconds,
+1 GiB maximum reported RSS. All generated clones and raw samples stay in its
+own worktree; the coordinator owns the next implementation decision.
+
 ## Twelfth cycle (base `5c393f5`)
 
 The macOS 3.16 application-input audit uses
