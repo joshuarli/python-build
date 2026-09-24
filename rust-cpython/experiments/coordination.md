@@ -1,5 +1,21 @@
 # Rust-for-CPython experiment lanes
 
+## Twelfth cycle (base `5c393f5`)
+
+The lean URL quotation proof uses
+`/private/tmp/python-build-exp-url-lean-20260924j`, branch
+`exp/rust-cpython-url-lean-20260924j`, and owns only a new
+`experiments/url-quote-lean-proof/` plus its report. It tests a no-std Rust
+kernel and direct CPython Unicode allocation/fill to remove the former
+temporary bytes output and reduce resident extension cost. The pinned stage,
+build configuration, and existing rejected proof stay intact. It may run
+focused differential and CPython URL tests, but no paired performance
+benchmark; the coordinator will schedule that separately on a quiet host.
+Budget: 300 command CPU seconds and 2 GiB maximum reported RSS. Generated
+outputs remain inside this worktree. The result must report size, dynamic
+dependencies, actual command CPU/RSS/swap, semantic evidence, and a
+keep/reject/inconclusive recommendation.
+
 ## Eleventh cycle (base `c12e3c6`)
 
 An unrelated `cargo test` in `/Users/josh/d/laputa-systems/xsh` spawned Rust
