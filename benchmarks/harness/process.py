@@ -151,6 +151,35 @@ def _mac_tree_members(
     return {pid: table[pid] for pid in selected if pid in table and not table[pid][3].startswith("Z")}
 
 
+def _mac_tree_footprint(
+    ps: str, members: Mapping[int, tuple[int, int, int, str]],
+    root_pid: int, group: int,
+) -> int | None:
+    """Sum current footprint ledgers only for a stable observed tree.
+
+    Two libproc reads identify PID reuse, and a second process table checks
+    membership after the reads. This remains a sequential sample, not an
+    atomic kernel snapshot; a child that exits during collection invalidates
+    the footprint sample instead of silently making the tree look smaller.
+    """
+
+    try:
+        first = {pid: read_process_memory(pid) for pid in members}
+        after = _mac_tree_members(_mac_process_table(ps), root_pid, group)
+        if set(after) != set(members):
+            return None
+        if any(after[pid][:2] != members[pid][:2] for pid in members):
+            return None
+        second = {pid: read_process_memory(pid) for pid in members}
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        return None
+    if any(first[pid].start_abstime != second[pid].start_abstime for pid in members):
+        return None
+    if any(second[pid].exit_abstime for pid in members):
+        return None
+    return sum(second[pid].phys_footprint_bytes for pid in members)
+
+
 @dataclass(frozen=True)
 class _ProcInfo:
     pid: int
@@ -538,6 +567,9 @@ class ProcessSampler:
                 return None
             with self._lock:
                 self._collected.seen.update({pid: 0 for pid in members})
+            footprint = _mac_tree_footprint(
+                self._ps, members, self._process.pid, self._process_group
+            )
             sample = MemorySample(
                 elapsed_seconds=time.monotonic() - self._started_at,
                 rss_bytes=sum(info[2] for info in members.values()),
@@ -546,6 +578,7 @@ class ProcessSampler:
                 swap_bytes=None,
                 process_count=len(members),
                 pids=tuple(sorted(members)),
+                phys_footprint_bytes=footprint,
             )
             with self._lock:
                 self._collected.samples.append(sample)

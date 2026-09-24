@@ -120,6 +120,9 @@ class MemorySample:
     pids: tuple[int, ...] = ()
     cgroup_current_bytes: int | None = None
     cgroup_peak_bytes: int | None = None
+    # macOS per-process dirty-memory ledger, summed over a validated tree.
+    # Reads are sequential, so this is an approximate simultaneous snapshot.
+    phys_footprint_bytes: int | None = None
 
 
 @dataclass
@@ -130,6 +133,7 @@ class ProcessMemoryMetrics:
     peak_pss_bytes: int | None = None
     peak_private_bytes: int | None = None
     peak_swap_bytes: int | None = None
+    peak_phys_footprint_bytes: int | None = None
     peak_process_count: int = 0
     first: MemorySample | None = None
     last: MemorySample | None = None
@@ -157,6 +161,10 @@ class ProcessMemoryMetrics:
             peak_pss_bytes=max((sample.pss_bytes for sample in ordered if sample.pss_bytes is not None), default=None),
             peak_private_bytes=max((sample.private_bytes for sample in ordered if sample.private_bytes is not None), default=None),
             peak_swap_bytes=max((sample.swap_bytes for sample in ordered if sample.swap_bytes is not None), default=None),
+            peak_phys_footprint_bytes=max(
+                (sample.phys_footprint_bytes for sample in ordered if sample.phys_footprint_bytes is not None),
+                default=None,
+            ),
             peak_process_count=max(sample.process_count for sample in ordered),
             first=ordered[0],
             last=ordered[-1],
@@ -208,6 +216,7 @@ class ProcessMemoryMetrics:
                 "pids": list(sample.pids),
                 "cgroup_current_bytes": sample.cgroup_current_bytes,
                 "cgroup_peak_bytes": sample.cgroup_peak_bytes,
+                "phys_footprint_bytes": sample.phys_footprint_bytes,
             }
 
         return {
@@ -215,6 +224,11 @@ class ProcessMemoryMetrics:
             "peak_pss_bytes": self.peak_pss_bytes if self.samples else None,
             "peak_private_bytes": self.peak_private_bytes if self.samples else None,
             "peak_swap_bytes": self.peak_swap_bytes if self.samples else None,
+            "peak_phys_footprint_bytes": self.peak_phys_footprint_bytes,
+            "phys_footprint_coverage": (
+                "sampled process tree; sequential per-PID reads, so short-lived children and transient peaks may be missed"
+                if self.peak_phys_footprint_bytes is not None else "unavailable"
+            ),
             "peak_process_count": self.peak_process_count if self.samples else None,
             "first": sample_dict(self.first),
             "last": sample_dict(self.last),

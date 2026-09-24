@@ -3,7 +3,9 @@
 `proc_pid_rusage` accepts a live or zombie PID. Its lifetime footprint peak
 survives process exit only until the parent reaps that PID. These counters are
 per process: summing lifetime peaks does not give a simultaneous tree peak.
-Physical footprint is Apple's charged memory measure, not Linux USS or PSS.
+Physical footprint is Apple's kernel ledger of dirty memory owned by a
+process. It can include charges outside the process's mappings and is neither
+Linux USS nor PSS; its definition is subject to OS changes (`footprint(1)`).
 """
 
 from __future__ import annotations
@@ -46,12 +48,13 @@ class _RUsageInfoV4(ctypes.Structure):
 
 @dataclass(frozen=True)
 class MacProcessMemory:
-    """Byte counts for one PID; ``start_abstime`` identifies PID reuse."""
+    """Byte counts for one PID; absolute times identify birth and exit."""
 
     resident_bytes: int
     phys_footprint_bytes: int
     lifetime_max_phys_footprint_bytes: int
     start_abstime: int
+    exit_abstime: int
 
 
 @lru_cache(maxsize=1)
@@ -88,4 +91,5 @@ def read_process_memory(pid: int) -> MacProcessMemory:
         phys_footprint_bytes=info.ri_phys_footprint,
         lifetime_max_phys_footprint_bytes=info.ri_lifetime_max_phys_footprint,
         start_abstime=info.ri_proc_start_abstime,
+        exit_abstime=info.ri_proc_exit_abstime,
     )
