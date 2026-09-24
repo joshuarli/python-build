@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## Tenth cycle (base `43e65fe`)
+
+At scheduling, one-minute host load was 2.12 on ten logical CPUs, with
+348.38 MiB allocated swap, OrbStack Helper near one CPU, and no compiler or
+other benchmark. The URL quote comparison lane uses
+`/private/tmp/python-build-exp-url-compare-20260924i`, branch
+`exp/rust-cpython-url-compare-20260924i`. It owns only a new
+`url-quote-comparison-20260924.md` and compact raw evidence. It clones the
+existing no-Rust stage using copy-on-write files inside its worktree, installs
+the proof overlay only into that clone, verifies imports and hashes, then
+runs control self-comparison followed by serial standard paired catalog
+workloads if self-noise permits. Budget: 120 command CPU seconds, 1 GiB
+reported RSS. No other lane may compile or benchmark concurrently. The
+coordinator will decide the verdict and preserve the unmodified control.
+
 ## Ninth cycle (base `b24b689`)
 
 The macOS region probe uses
