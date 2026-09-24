@@ -20,16 +20,21 @@ builds its static archive with pinned nightly Rust, `--locked --offline`, and
 the existing network-denial sandbox. The absolute archive path becomes
 CPython configure's `ZLIB_LIBS`. This changes the link input for the existing
 `Modules/zlibmodule.c`; it does not patch that C source. The builder requires
-the configured Makefile to retain the archive path.
+the configured Makefile to retain the archive path for `zlib`. CPython also
+copies `ZLIB_LIBS` into `MODULE_BINASCII_LDFLAGS`; after checking the exact
+generated lines, the builder rewrites only that Makefile variable to the
+platform control's `-lz`. It records the Makefile hashes before and after
+the rewrite and fails if either module link setting later changes.
 
 The build report at `rust-cpython/results/build.json` records the source-lock
 hash, crate archive hash and size, Cargo.lock hash, built static archive hash
 and size, and installed `zlib` and `binascii` extension hashes and sizes. Before reporting success, the
-builder imports the installed module in isolated mode, round-trips a payload,
+builder imports the installed modules in isolated mode, round-trips a payload,
 checks zlib-rs's runtime version, verifies that the module came from the stage
-tree, rejects a dynamic `libz` dependency in either extension, and checks
-that both extensions define zlib C ABI symbols. A missing cache input, changed lockfile,
-failed build, or platform-zlib fallback fails the candidate build.
+tree, requires static zlib C ABI symbols only in `zlib`, and requires
+`binascii` to depend on platform `/usr/lib/libz.1.dylib` with no static
+backend symbols. A missing cache input, changed lockfile, failed build, or
+wrong backend fails the candidate build.
 
 ## One whole-build result, 2026-09-24
 
@@ -71,7 +76,7 @@ The built `libz_rs.a` SHA-256 was
 `354f64c7596c4b0a65813ee8bd264bb802c13a11d96677cd0f28f8c7583fad83`
 (18,948,304 bytes).
 
-The installed `zlib` reports header version `1.2.12` and runtime version
+In this first whole build, the installed `zlib` reports header version `1.2.12` and runtime version
 `1.3.0-zlib-rs-0.6.7`. It is 1,674,056 bytes, SHA-256
 `0259414fe8a42d46169685b694781262bb616103f162a6526e0af5090f899ccd`,
 and defines `zlibVersion`, `deflateInit2_`, and `inflateInit2_`. Installed
@@ -82,8 +87,47 @@ and defines `crc32`, `adler32`, and `zlibVersion`. Each extension lists only
 so their combined installed size is 3,342,984 bytes before distribution
 stripping; a matched control size comparison remains to be done.
 
-**Verdict:** the optional full candidate build and installed backend identity
-are established. The build's own import and roundtrip passed. No separate
+**First-build result:** the optional full build and installed Rust backend
+identity were established, with the extra binascii link identified below.
+The build's own import and roundtrip passed. No separate
 CPython or Cargo test suite, no no-Rust control build in this worktree, and no
 timing benchmark ran. Broader semantic and performance qualification remains
 open.
+
+## Narrow binascii link correction
+
+The first full candidate build above exposed a scope mistake: configure
+propagated the Rust archive into `binascii` as well as `zlib`. The existing
+platform control's unstripped `zlib` and `binascii` total 175,816 bytes
+(82,664 and 93,152); the first candidate total was 3,342,984 bytes, an
+increase of 3,167,168 bytes. This duplicated zlib-rs static code in two
+extensions and exceeded the intended one-module boundary.
+
+The new `_select_platform_binascii` setting changes only the generated
+`MODULE_BINASCII_LDFLAGS` line from the verified Rust archive path to `-lz`.
+The original generated Makefile SHA-256 was
+`62e66455ef30b9d604f4438549952cb24fd72d965458549d26dcf4db9fbdbd6f`;
+the effective Makefile SHA-256 is
+`481c71c5bc4666dc2756db65ff72d74573bfc3f5f1ec16ee9d4a5dcc99dddb0c`.
+`MODULE_ZLIB_LDFLAGS` still names the Rust archive and both modules remain
+enabled. No CPython source file or lock changed.
+
+To probe that setting without another PGO build, the coordinator authorized
+removing only the generated `Modules/binascii.cpython-316-darwin.so`, relinking
+that target under the existing offline sandbox, and copying it into this
+worktree's stage. `/usr/bin/time -l` recorded 0.49 user plus 0.13 system CPU
+seconds, 5.73 seconds elapsed, 74,924,032 bytes maximum RSS and zero swaps.
+The installed `binascii` is now 93,200 bytes, SHA-256
+`ba37caec053b4609046c16364be98719f2902024e77c5afc614b1e80ab7b3ef5`.
+It depends on `/usr/lib/libz.1.dylib` and `/usr/lib/libSystem.B.dylib` and
+defines none of `crc32`, `adler32`, or `zlibVersion`. The installed `zlib`
+retains the SHA-256, size, Rust runtime identity, static symbols, and sole
+`libSystem` dynamic dependency reported above. A fresh isolated import
+confirmed both modules load and agree on CRC32 for the fixed payload.
+
+The incremental stage now totals 1,767,256 bytes across those two unstripped
+extensions, 1,591,440 bytes above the platform control. The new recipe's
+full PGO build has **not** run. That clean build must confirm the generated
+Makefile rewrite persists through profile and install phases, and must record
+the final installed hashes before any broader correctness or performance
+claim.

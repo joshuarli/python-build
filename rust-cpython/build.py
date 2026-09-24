@@ -941,6 +941,7 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
         "import binascii,json,zlib; "
         "payload=bytes(range(256))*4096; "
         "assert zlib.decompress(zlib.compress(payload))==payload; "
+        "assert binascii.crc32(payload)==zlib.crc32(payload); "
         "print(json.dumps({'path':zlib.__file__,"
         "'binascii_path':binascii.__file__,"
         "'header_version':zlib.ZLIB_VERSION,"
@@ -986,8 +987,8 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
     if not binascii.is_file():
         raise LaneError(f"installed binascii module is missing: {binascii}")
     binascii_dependencies = macho.dependencies(binascii)
-    if any("libz" in dependency.lower() for dependency in binascii_dependencies):
-        raise LaneError("installed binascii module retains a dynamic libz dependency")
+    if not any(dependency == "/usr/lib/libz.1.dylib" for dependency in binascii_dependencies):
+        raise LaneError("installed binascii module does not use platform libz")
     binascii_symbols = _command([
         str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
         "-g", "--defined-only", str(binascii),
@@ -995,8 +996,8 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
     if binascii_symbols["returncode"] != 0:
         raise LaneError(f"cannot inspect installed binascii symbols: {binascii_symbols['output']}")
     for symbol in ("_crc32", "_adler32", "_zlibVersion"):
-        if symbol not in binascii_symbols["output"]:
-            raise LaneError(f"installed binascii lacks static backend symbol {symbol}")
+        if symbol in binascii_symbols["output"]:
+            raise LaneError(f"installed binascii still defines static backend symbol {symbol}")
     return {
         **identity,
         "path": str(module),
@@ -1010,8 +1011,41 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
             "sha256": hashlib.sha256(binascii.read_bytes()).hexdigest(),
             "size": binascii.stat().st_size,
             "dynamic_dependencies": binascii_dependencies,
-            "static_backend_symbols": ["crc32", "adler32", "zlibVersion"],
+            "backend": "platform libz",
+            "static_backend_symbols": [],
         },
+    }
+
+
+def _select_platform_binascii(makefile: Path) -> dict[str, str]:
+    """Narrow configure's shared zlib input to the zlib extension alone.
+
+    The pinned CPython configure derives BINASCII_LIBS from ZLIB_LIBS. Rewrite
+    only the generated binascii link variable after checking both module
+    variables, and retain the before/after Makefile digests as recipe evidence.
+    """
+    if _make_value(makefile, "MODULE_ZLIB_STATE") != "yes":
+        raise LaneError("configure did not enable the zlib extension")
+    if _make_value(makefile, "MODULE_BINASCII_STATE") != "yes":
+        raise LaneError("configure did not enable the binascii extension")
+    for name in ("MODULE_ZLIB_LDFLAGS", "MODULE_BINASCII_LDFLAGS"):
+        found = _make_value(makefile, name)
+        if found != str(ZLIB_ARCHIVE):
+            raise LaneError(f"configure did not preserve the pinned zlib archive in {name}: {found!r}")
+    original = makefile.read_bytes()
+    needle = f"MODULE_BINASCII_LDFLAGS={ZLIB_ARCHIVE}\n".encode()
+    if original.count(needle) != 1:
+        raise LaneError("cannot locate one exact binascii link variable in generated Makefile")
+    modified = original.replace(needle, b"MODULE_BINASCII_LDFLAGS=-lz\n")
+    makefile.write_bytes(modified)
+    if (_make_value(makefile, "MODULE_ZLIB_LDFLAGS") != str(ZLIB_ARCHIVE)
+            or _make_value(makefile, "MODULE_BINASCII_LDFLAGS") != "-lz"):
+        raise LaneError("generated Makefile did not retain the distinct zlib/binascii link inputs")
+    return {
+        "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
+        "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
+        "zlib_ldflags": str(ZLIB_ARCHIVE),
+        "binascii_ldflags": "-lz",
     }
 
 
@@ -1072,25 +1106,20 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         log=LOGS / "cpython-configure.log", sealed=sandbox,
     )
     if zlib_backend is not None:
-        makefile = BUILD / "Makefile"
-        if _make_value(makefile, "MODULE_ZLIB_STATE") != "yes":
-            raise LaneError("configure did not enable the zlib extension")
-        for name in ("MODULE_ZLIB_LDFLAGS", "MODULE_BINASCII_LDFLAGS"):
-            configured_zlib = _make_value(makefile, name)
-            if configured_zlib != str(ZLIB_ARCHIVE):
-                raise LaneError(
-                    f"configure did not preserve the pinned zlib archive in "
-                    f"{name}: {configured_zlib!r}"
-                )
+        zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile")
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(
         make, cwd=BUILD, env=source_date_env,
         log=LOGS / "cpython-build.log", sealed=sandbox,
     )
+    if zlib_backend is not None and _make_value(BUILD / "Makefile", "MODULE_BINASCII_LDFLAGS") != "-lz":
+        raise LaneError("CPython build regenerated the binascii platform link setting")
     _require_command(
         [str(toolchain.make), "install"], cwd=BUILD, env=source_date_env,
         log=LOGS / "cpython-install.log", sealed=sandbox,
     )
+    if zlib_backend is not None and _make_value(BUILD / "Makefile", "MODULE_BINASCII_LDFLAGS") != "-lz":
+        raise LaneError("CPython install regenerated the binascii platform link setting")
     python = STAGE / "bin" / "python3.16"
     if not python.is_file():
         raise LaneError(f"CPython install did not produce {python}")
