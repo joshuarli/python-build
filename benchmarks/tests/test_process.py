@@ -1,0 +1,243 @@
+"""Integration tests for command execution and Linux process-tree cleanup."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+import time
+import unittest
+from unittest.mock import Mock, patch
+
+from benchmarks.harness.memory import CgroupV2MemoryScope
+from benchmarks.harness.process import ProcessSampler, run_command
+
+
+def _process_state(pid: int) -> str | None:
+    try:
+        stat_line = (Path("/proc") / str(pid) / "stat").read_text(encoding="ascii")
+    except FileNotFoundError:
+        return None
+    close = stat_line.rfind(")")
+    if close < 0:
+        return "?"
+    fields = stat_line[close + 1 :].split()
+    return fields[0] if fields else "?"
+
+
+def _wait_until_not_live(pid: int, timeout: float = 2.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = _process_state(pid)
+        if state is None or state in {"Z", "X", "x"}:
+            return True
+        time.sleep(0.01)
+    return False
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "Linux /proc sampler")
+class ProcessSamplerTests(unittest.TestCase):
+    def test_memory_peak_observes_touched_child_allocation(self):
+        code = (
+            "import time; data=bytearray(64*1024*1024); "
+            "[data.__setitem__(i, 1) for i in range(0, len(data), 4096)]; "
+            "time.sleep(0.3)"
+        )
+        result = run_command(
+            [sys.executable, "-c", code],
+            timeout=5,
+            sample_interval_seconds=0.01,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        self.assertFalse(result.timed_out)
+        self.assertIsNotNone(result.memory)
+        assert result.memory is not None
+        self.assertGreater(result.memory.peak_rss_bytes, 32 * 1024 * 1024)
+        self.assertGreater(result.memory.peak_pss_bytes, 32 * 1024 * 1024)
+        self.assertGreaterEqual(len(result.memory.samples), 2)
+
+    def test_descendant_memory_is_counted_and_timeout_cleans_process_group(self):
+        parent_code = (
+            "import subprocess,sys,time; "
+            "child=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
+            "print(child.pid, flush=True); time.sleep(30)"
+        )
+        result = run_command(
+            [sys.executable, "-c", parent_code],
+            timeout=0.3,
+            sample_interval_seconds=0.01,
+            terminate_grace_seconds=0.1,
+        )
+
+        self.assertTrue(result.timed_out)
+        self.assertTrue(result.cleanup_complete)
+        self.assertEqual(result.remaining_pids, ())
+        self.assertIsNotNone(result.memory)
+        assert result.memory is not None
+        self.assertGreaterEqual(result.memory.peak_process_count, 2)
+        child_pid = int(result.stdout.decode("ascii").strip())
+        self.assertTrue(_wait_until_not_live(child_pid), f"child {child_pid} survived cleanup")
+
+    def test_affinity_and_environment_are_applied_before_target_runs(self):
+        allowed = sorted(os.sched_getaffinity(0))
+        chosen_cpu = allowed[0]
+        result = run_command(
+            [
+                sys.executable,
+                "-c",
+                "import os; print(min(os.sched_getaffinity(0))); print(os.environ['BENCH_MARK'])",
+            ],
+            env={"PATH": os.environ.get("PATH", ""), "BENCH_MARK": "ready"},
+            affinity=[chosen_cpu],
+            sample_interval_seconds=None,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        self.assertTrue(result.cleanup_complete)
+        self.assertEqual(result.stdout.decode().splitlines(), [str(chosen_cpu), "ready"])
+        self.assertIsNone(result.memory)
+        self.assertTrue(result.as_dict()["duration_seconds"] > 0)
+
+    def test_affinity_launcher_does_not_inflate_target_memory(self):
+        sleep = shutil.which("sleep")
+        if sleep is None:
+            self.skipTest("sleep command unavailable")
+        result = run_command(
+            [sleep, "0.12"],
+            affinity=[min(os.sched_getaffinity(0))],
+            timeout=2,
+            sample_interval_seconds=0.01,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNotNone(result.memory)
+        assert result.memory is not None
+        self.assertLess(result.memory.peak_pss_bytes, 2 * 1024 * 1024)
+
+    def test_timing_pass_skips_cgroup_setup(self):
+        with patch("benchmarks.harness.process.CgroupV2MemoryScope.detect_and_create") as detect:
+            result = run_command(
+                [sys.executable, "-c", "print('timing')"],
+                sample_interval_seconds=None,
+            )
+
+        self.assertEqual(result.stdout, b"timing\n")
+        self.assertIsNone(result.memory)
+        detect.assert_not_called()
+
+    def test_unavailable_cgroup_falls_back_to_procfs_metrics(self):
+        with patch(
+            "benchmarks.harness.process.CgroupV2MemoryScope.detect_and_create",
+            return_value=None,
+        ):
+            result = run_command(
+                [sys.executable, "-c", "import time; time.sleep(0.1)"],
+                timeout=3,
+                sample_interval_seconds=0.01,
+            )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNotNone(result.memory)
+        assert result.memory is not None
+        self.assertGreater(result.memory.peak_pss_bytes, 0)
+        self.assertIsNone(result.memory.cgroup_current_bytes)
+        self.assertIsNone(result.memory.cgroup_peak_bytes)
+        self.assertIsNone(result.memory.cgroup_events)
+
+    def test_cgroup_attach_denial_retries_without_cgroup(self):
+        scope = Mock(spec=CgroupV2MemoryScope)
+        scope.attach_pid.side_effect = PermissionError("delegation revoked")
+        scope.cleanup_error = None
+        with patch(
+            "benchmarks.harness.process.CgroupV2MemoryScope.detect_and_create",
+            return_value=scope,
+        ):
+            result = run_command(
+                [sys.executable, "-c", "print('ran once')"],
+                timeout=3,
+                sample_interval_seconds=0.01,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        self.assertEqual(result.stdout, b"ran once\n")
+        self.assertIsNotNone(result.memory)
+        assert result.memory is not None
+        self.assertIsNone(result.memory.cgroup_peak_bytes)
+        self.assertIn("cgroup attach unavailable", result.memory.cgroup_error or "")
+        scope.close.assert_called_once()
+
+    def test_cgroup_scope_is_attached_before_target_exec_and_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scope_path = Path(tmp) / "cgroup"
+            scope_path.mkdir()
+            (scope_path / "cgroup.procs").write_text("", encoding="ascii")
+            (scope_path / "memory.current").write_text("1024\n", encoding="ascii")
+            (scope_path / "memory.peak").write_text("4096\n", encoding="ascii")
+            (scope_path / "memory.events").write_text("low 0\nmax 0\noom 0\n", encoding="ascii")
+            scope = CgroupV2MemoryScope(scope_path)
+            with (
+                patch(
+                    "benchmarks.harness.process.CgroupV2MemoryScope.detect_and_create",
+                    return_value=scope,
+                ),
+                patch("benchmarks.harness.memory._remove_cgroup_directory"),
+            ):
+                sampler = ProcessSampler(
+                    [sys.executable, "-c", "import time; time.sleep(0.1)"],
+                    timeout=3,
+                    sample_interval_seconds=0.01,
+                ).start()
+                target_pid = sampler.pid
+                result = sampler.wait()
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(
+                (scope_path / "cgroup.procs").read_text(encoding="ascii"),
+                f"{target_pid}\n",
+            )
+            self.assertIsNotNone(result.memory)
+            assert result.memory is not None
+            self.assertEqual(result.memory.cgroup_current_bytes, 1024)
+            self.assertEqual(result.memory.cgroup_peak_bytes, 4096)
+            self.assertEqual(result.memory.cgroup_events, {"low": 0, "max": 0, "oom": 0})
+
+    def test_normal_exit_kills_a_leftover_child(self):
+        parent_code = (
+            "import subprocess,sys,time; "
+            "child=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
+            "print(child.pid, flush=True)"
+        )
+        result = run_command(
+            [sys.executable, "-c", parent_code],
+            timeout=5,
+            sample_interval_seconds=0.01,
+            terminate_grace_seconds=0.1,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        child_pid = int(result.stdout.decode("ascii").strip())
+        self.assertTrue(_wait_until_not_live(child_pid), f"child {child_pid} survived cleanup")
+
+    def test_caller_can_mark_postload_memory_phase(self):
+        sampler = ProcessSampler(
+            [sys.executable, "-c", "import time; time.sleep(0.2)"],
+            timeout=3,
+            sample_interval_seconds=0.01,
+        ).start()
+        time.sleep(0.05)
+        phase = sampler.mark_phase("postload")
+        result = sampler.wait()
+
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(result.cleanup_complete)
+        self.assertIsNotNone(phase)
+        self.assertIsNotNone(result.memory)
+        assert result.memory is not None
+        self.assertIsNotNone(result.memory.postload_pss_bytes)
+        self.assertIn("postload", result.memory.phase_samples)
+
+
+if __name__ == "__main__":
+    unittest.main()
