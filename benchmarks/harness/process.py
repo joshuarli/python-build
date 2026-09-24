@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 import os
 import resource
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
