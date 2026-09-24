@@ -235,8 +235,9 @@ explicitly.
   broadly in Rust. The ranked entries in `rust-cpython/README.md` remain
   candidates, not completed work.
 - Establish the missing macOS unique/proportional memory and allocation
-  measurements and matched upstream control comparison. Continue zlib's
-  quiet-host and memory qualification.
+  measurements and matched upstream control comparison. Qualify the
+  digest-checked source patch path with a full build that actually applies a
+  patch. Continue zlib's quiet-host and memory qualification.
   `difflib.SequenceMatcher` remains an independent hypothesis from
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
