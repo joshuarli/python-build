@@ -1,5 +1,33 @@
 # Rust-for-CPython experiment lanes
 
+## Eighth cycle (base `1a426e6`)
+
+At scheduling, the earlier compiler had exited and one-minute load fell to
+2.40 on ten logical CPUs, with 348.38 MiB allocated swap. The catalog URL
+sizing lane uses `/private/tmp/python-build-exp-url-sizing-20260924h`, branch
+`exp/rust-cpython-url-sizing-20260924h`. It owns only the registered
+`catalog_url_normalize` loop count in `benchmarks/workloads/registry.py`, a
+new `catalog-url-quiet-baseline-20260924.md`, and compact uniquely named raw
+evidence. It first sizes the existing fixed batch to a roughly 0.5–1.0
+second internal interval, then self-compares serially. A matched upstream
+comparison is conditional on a <=3% self timing allowance and quiet host.
+Budget: 120 command CPU seconds and 1 GiB reported RSS. No other lane will
+run a benchmark or compiler concurrently.
+The registered count is now 1,500 batches, with a measured 0.64081-second
+internal loop on the pinned no-Rust fork. Its corrected standard
+self-comparison returned a 2.61% wall noise allowance, 1.00368 paired median
+ratio, and a 376,832-byte root RSS median difference inside a 765,164-byte
+self allowance. With that gate met, the lane compared matched vanilla
+upstream serially against the no-Rust fork: paired wall median 0.99995,
+root CPU +0.39% per batch on the fork, and root RSS −196,608 bytes, just
+inside the diagnostic allowance. All fixed digests matched. Source ancestry
+and independent PGO profiles limit attribution; macOS unique memory and
+allocations remain unavailable. Sizing and completed comparisons used about
+41.8 controller command CPU seconds in total, at most 45,416,448 bytes
+reported RSS, and no swaps. The report and compact observations are in
+`catalog-url-quiet-baseline-20260924.md` and its `data/` JSON. No Rust URL
+implementation was built or measured.
+
 ## Seventh cycle (base `57a7a54`)
 
 An unrelated Rust compiler was observed near 590% process CPU at the start

@@ -228,6 +228,11 @@ permissions, and overhead before adding a field. See
   Its first control self-comparison had 6.62% timing noise under rising host
   load, so no upstream or candidate speed claim follows from that run. See
   [`catalog-url-baseline-20260924.md`](rust-cpython/experiments/catalog-url-baseline-20260924.md).
+- Sizing the same fixed batch to 1,500 iterations gave a 0.64-second timed
+  interval and reduced control self-comparison noise to 2.61%. Matched vanilla
+  upstream and the no-Rust fork had a 0.99995 paired wall ratio on the URL
+  task; this establishes a control, not a Rust speedup. See
+  [`catalog-url-quiet-baseline-20260924.md`](rust-cpython/experiments/catalog-url-quiet-baseline-20260924.md).
 - A complete-batch diagnostic attributed 18.5% of instrumented cumulative
   time to `quote_from_bytes`, an optimistic bound for a helper. After current
   fast exits, 64% of calls would reach an exact-bytes guard; nearly all of
@@ -254,7 +259,7 @@ permissions, and overhead before adding a field. See
   [`next-target.md`](rust-cpython/experiments/next-target.md), but a native
   kernel needs a distinct mechanism and an explicit guard for mutable public
   matcher state. The rejected row-reuse probe is not a candidate build change.
-- Repeat the catalog URL self-comparison on a quiet host. The complete-batch
-  profile supports a reversible guarded `quote_from_bytes` trial, but its
+- The resized catalog URL control is calibrated. The complete-batch profile
+  supports a reversible guarded `quote_from_bytes` trial, but its
   mostly tiny inputs make native call overhead decisive. Qualify the full
   public task and resource cost before accepting a helper.
