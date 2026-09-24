@@ -251,6 +251,12 @@ def _fix_python_config_scripts(install: Path) -> list[Path]:
         try:
             module = ast.parse(source, filename=str(script))
         except SyntaxError as error:
+            if script.name == "python3.14-config" and source.startswith("#!/bin/sh\n"):
+                rewritten = _fix_shell_python_config_script(source, script)
+                if rewritten != source:
+                    script.write_text(rewritten)
+                    changed.append(script)
+                continue
             raise RelocationError(f"cannot parse python-config script {script}: {error}") from error
 
         printers: dict[str, list[ast.Call]] = {"flags": [], "libs": []}
@@ -338,6 +344,35 @@ def _fix_python_config_scripts(install: Path) -> list[Path]:
         script.write_text(rewritten)
         changed.append(script)
     return changed
+
+
+def _fix_shell_python_config_script(source: str, path: Path) -> str:
+    """Quote tokens printed by CPython's Linux shell python-config wrapper."""
+    rewrites = {
+        'echo "$INCDIR $PLATINCDIR"': 'quote_args "$INCDIR" "$PLATINCDIR"',
+        'echo "$INCDIR $PLATINCDIR $BASECFLAGS $CFLAGS $OPT"': (
+            'quote_args "$INCDIR" "$PLATINCDIR" $BASECFLAGS $CFLAGS $OPT'
+        ),
+        'echo "$LIBS"': 'quote_args $LIBS',
+        'echo "$LIBPLUSED -L$libdir $LIBS"': (
+            'quote_args $LIBPLUSED "-L$libdir" $LIBS'
+        ),
+    }
+    output = source
+    for original, replacement in rewrites.items():
+        if output.count(original) != 1:
+            raise RelocationError(
+                f"unexpected python-config shell output in {path}: "
+                f"expected one {original!r}, found {output.count(original)}"
+            )
+        output = output.replace(original, replacement, 1)
+    helper = (
+        '\nquote_args() {\n'
+        '    "$(dirname "$0")/python3.14" -c '
+        "'import shlex, sys; print(shlex.join(sys.argv[1:]))' \"$@\"\n"
+        '}\n'
+    )
+    return output.replace("#!/bin/sh\n", "#!/bin/sh\n" + helper, 1)
 
 
 def clean_sysconfig(

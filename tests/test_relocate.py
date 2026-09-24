@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import shutil
 import runpy
+import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from buildsys.relocate import (
     clean_sysconfig,
+    _fix_python_config_scripts,
     find_elfs,
     is_elf,
     origin_token,
@@ -149,6 +152,49 @@ class CleanSysconfigTests(unittest.TestCase):
                 self.assertIn("import shlex", script.read_text())
                 self.assertIn("print(shlex.join(flags))", script.read_text())
                 self.assertIn("print(shlex.join(libs))", script.read_text())
+
+    def test_linux_shell_config_quotes_paths_with_spaces(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            install = Path(tmp) / "moved python"
+            binary_dir = install / "bin"
+            binary_dir.mkdir(parents=True)
+            shutil.copy2(sys.executable, binary_dir / "python3.14")
+            config_script = binary_dir / "python3.14-config"
+            config_script.write_text(
+                "#!/bin/sh\n"
+                'INCDIR="-I' + str(install / "include") + '"\n'
+                'PLATINCDIR="-I' + str(install / "platinclude") + '"\n'
+                'BASECFLAGS="-O3"\nCFLAGS="-DTEST=1"\nOPT=""\n'
+                'LIBS="-lpython3.14 -lm"\nLIBPLUSED=""\n'
+                'libdir="' + str(install / "lib") + '"\n'
+                'case "$1" in\n'
+                '  --includes) echo "$INCDIR $PLATINCDIR" ;;\n'
+                '  --cflags) echo "$INCDIR $PLATINCDIR $BASECFLAGS $CFLAGS $OPT" ;;\n'
+                '  --libs) echo "$LIBS" ;;\n'
+                '  --ldflags) echo "$LIBPLUSED -L$libdir $LIBS" ;;\n'
+                'esac\n'
+            )
+            config_script.chmod(0o755)
+
+            changed = _fix_python_config_scripts(install)
+
+            self.assertIn(config_script, changed)
+            cflags = subprocess.run(
+                [str(config_script), "--cflags"], capture_output=True, text=True, check=True
+            ).stdout.strip()
+            self.assertEqual(
+                shlex.split(cflags),
+                [
+                    f"-I{install}/include", f"-I{install}/platinclude",
+                    "-O3", "-DTEST=1",
+                ],
+            )
+            ldflags = subprocess.run(
+                [str(config_script), "--ldflags"], capture_output=True, text=True, check=True
+            ).stdout.strip()
+            self.assertEqual(
+                shlex.split(ldflags), [f"-L{install}/lib", "-lpython3.14", "-lm"]
+            )
 
 
 class ElfDiscoveryTests(unittest.TestCase):
