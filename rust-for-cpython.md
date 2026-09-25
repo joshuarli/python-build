@@ -439,11 +439,14 @@ as a separate baseline change.
   [`source-tar-hybrid-20260925.md`](rust-cpython/experiments/source-tar-hybrid-20260925.md).
   A built `--zlib-oneshot` experiment now leaves the regressing streaming
   path on platform zlib while keeping Rust for one-shot `zlib.decompress`.
-  Installed symbol and version checks passed, but the unstripped zlib module
-  remains 1.59 MB larger than platform control. Compare complete workloads,
-  memory, and semantic edges before deciding whether this split earns its
-  installed cost; see
-  [`zlib-oneshot-build-20260925.md`](rust-cpython/experiments/zlib-oneshot-build-20260925.md).
+  Installed symbol and version checks passed. Five paired complete-process
+  comparisons found 36.6% lower wall time and 38.4% lower kernel CPU for
+  sustained one-shot decode. Gzip, the real source-tar read, and streaming
+  remained within self-noise. The unstripped zlib module is 1.59 MB larger
+  than platform control, and the three-pair memory readings changed sign.
+  Keep the split experimental while checking small-call application breadth,
+  semantic edges, and upstream-matched memory; see
+  [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
