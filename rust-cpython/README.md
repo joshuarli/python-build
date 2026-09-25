@@ -95,11 +95,16 @@ Five paired complete-process comparisons found 36.6% lower wall time and 38.4%
 lower kernel CPU for sustained one-shot decode; gzip, source-tar, and streaming
 tasks remained within control noise. A separate synthetic SQLite task with
 many small, highly compressible BLOBs used 10.8% less complete-process wall
-time and 10.9% less kernel CPU. The unstripped installed extension is 1.59 MB
-larger. Broader input distributions, memory parity, and semantic edges remain
-open, so the route is not promoted. See
+time and 10.9% less kernel CPU. A second SQLite task spanning repetitive to
+nearly random BLOBs reversed that result: 8.4% more wall time and 9.0% more
+CPU, beyond control noise. The unstripped installed extension is 1.59 MB
+larger. This mixed-input regression blocks general promotion; memory parity
+and semantic edges also remain open. A link-size reduction is scoped but
+deferred until that regression is resolved. See
 [`experiments/zlib-oneshot-comparison-20260925.md`](experiments/zlib-oneshot-comparison-20260925.md)
-and [`experiments/zlib-oneshot-smallblobs-20260925.md`](experiments/zlib-oneshot-smallblobs-20260925.md).
+and [`experiments/zlib-oneshot-mixedblobs-20260925.md`](experiments/zlib-oneshot-mixedblobs-20260925.md);
+the size audit is in
+[`experiments/zlib-oneshot-size-feasibility-20260925.md`](experiments/zlib-oneshot-size-feasibility-20260925.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under
 that unchanged CPython wrapper and runs CPython's zlib and compression-consumer
@@ -174,7 +179,7 @@ The measured results, repeated runs, and limits are recorded in
 
 | Rank | Area: current implementation and CPython tests | Leverage and proposed Rust boundary | Hazards, prior art, and measurement gate |
 | ---: | --- | --- | --- |
-| 1 | **zlib** — `Modules/zlibmodule.c`; `test_zlib.py`, `test_gzip.py`, `test_binascii.py` | Compression and decompression sit under ZIP, gzip, wheels, and HTTP. Keep the CPython C/Python API and swap only the backend. | The whole-backend candidate changed 210 of 876 sampled compressed encodings. The inflate-only hybrid preserved those bytes and lowered CPU about 36% in sustained direct decode/gzip tasks, but raised CPU 10.81% in a checked public read of the locked CPython source `.tar.gz`. A one-shot split removed that regression and improved sustained public decode CPU by 38.4%; a synthetic small-BLOB SQLite task also improved CPU by 10.9%. The extension adds 1.59 MB unstripped, and broader inputs plus resource parity remain open. See [`experiments/zlib-oneshot-smallblobs-20260925.md`](experiments/zlib-oneshot-smallblobs-20260925.md). |
+| 1 | **zlib** — `Modules/zlibmodule.c`; `test_zlib.py`, `test_gzip.py`, `test_binascii.py` | Compression and decompression sit under ZIP, gzip, wheels, and HTTP. Keep the CPython C/Python API and swap only the backend. | The whole-backend candidate changed 210 of 876 sampled compressed encodings. The inflate-only hybrid preserved those bytes and lowered CPU about 36% in sustained direct decode/gzip tasks, but raised CPU 10.81% in a checked public read of the locked CPython source `.tar.gz`. A one-shot split removed that tar regression and improved sustained decode CPU by 38.4%, but mixed-compressibility small BLOBs regressed 9.0% in CPU. The extension adds 1.59 MB unstripped. Neither route meets the breadth and resource gates; see [`experiments/zlib-oneshot-mixedblobs-20260925.md`](experiments/zlib-oneshot-mixedblobs-20260925.md). |
 | 2 | **difflib (rejected routes)** — `Lib/difflib.py`; `test_difflib.py` | A substantial pure-Python matching and diff kernel was the initial hypothesis. | Stop the transparent public matcher and one-shot `unified_diff` routes: exposed mutable state, callbacks, and trace-mediated mutation change behavior under snapshot dispatch. The measured snapshot alone also added CPU. See [`experiments/difflib-one-shot-contract-20260924.md`](experiments/difflib-one-shot-contract-20260924.md). |
 | 3 | **tomllib** — `Lib/tomllib/{_parser,_re,_types}.py`; `test_tomllib/{test_data,test_error,test_misc}.py` | A parser can take one document and return an ordinary Python tree, leaving `parse_float` callback policy at the Python boundary. | Match duplicate-key behavior, datetime values, error locations/messages, and callback invocation. `rtoml` and `toml-rs` are references. Use TOML corpora, malformed-input/error comparisons, callback tests, and real project metadata. |
 | 4 | **ipaddress** — `Lib/ipaddress.py`; `test_ipaddress.py` | Parse/normalize once and move integer subnet arithmetic and formatting kernels beneath existing Python address/network classes. | Preserve legacy forms, strict masks, exceptions, subclass behavior, and ordering. Rust `std::net`/`ipnet` offer primitives, not Python semantics. Differential/property-test IPv4/IPv6 and benchmark routing-table and parsing workloads. |

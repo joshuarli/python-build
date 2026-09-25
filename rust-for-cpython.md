@@ -272,10 +272,16 @@ as a separate baseline change.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
   Seven further pairs on a synthetic SQLite task with many small, highly
-  compressible BLOBs reduced wall/CPU by 10.8%/10.9%. The extension adds
-  1.59 MB unstripped, and memory readings do not establish parity. See
+  compressible BLOBs reduced wall/CPU by 10.8%/10.9%. Seven pairs on a
+  mixed-compressibility SQLite task instead raised wall/CPU by 8.4%/9.0%,
+  beyond self-noise. That breadth regression blocks general promotion; the
+  extension also adds 1.59 MB unstripped, and memory readings do not
+  establish parity. See
   [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md)
-  and [`zlib-oneshot-smallblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-smallblobs-20260925.md).
+  and [`zlib-oneshot-mixedblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-mixedblobs-20260925.md).
+  The link-size audit found many unused exported Rust entry points but
+  defers a dead-strip experiment until the mixed-input regression is fixed;
+  see [`zlib-oneshot-size-feasibility-20260925.md`](rust-cpython/experiments/zlib-oneshot-size-feasibility-20260925.md).
 - Cold ZIP import now records directly reaped child CPU separately from the
   root's `wait4` usage. Earlier cold-import CPU data remain root-only; see
   [`child-cpu-accounting-20260924.md`](rust-cpython/experiments/child-cpu-accounting-20260924.md).
@@ -458,10 +464,12 @@ as a separate baseline change.
   than platform control, and the three-pair memory readings changed sign.
   A separate synthetic SQLite workload with many small, highly compressible
   BLOBs improved complete-process wall/CPU by 10.8%/10.9% across seven pairs.
-  Keep the split experimental while checking less compressible inputs,
-  semantic edges, and upstream-matched memory; see
+  A mixed-compressibility version instead regressed wall/CPU by 8.4%/9.0%
+  across seven pairs, well outside its control noise. This is a blocking
+  breadth result for the general one-shot route. Retain its evidence as an
+  experiment and move to the next measured bottleneck; see
   [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md)
-  and [`zlib-oneshot-smallblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-smallblobs-20260925.md).
+  and [`zlib-oneshot-mixedblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-mixedblobs-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.

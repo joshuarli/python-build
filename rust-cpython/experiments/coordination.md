@@ -11,6 +11,20 @@ compressible, and nearly incompressible 1–4 KiB values. It is the only active
 timing lane, with a 120-second kernel CPU and 1 GiB per-process RSS cap.
 The coordinator will review its input distribution and self-noise before
 deciding whether the one-shot route earns further size and memory work.
+The mixed fixture had 64 rows in each of four compressibility categories.
+Seven candidate pairs regressed complete-process wall/CPU by 8.41%/9.00%,
+outside seven control/control pairs' −1.12% to +0.58% wall range. All 39
+attempts matched output identity. The controller used 37.10 kernel CPU
+seconds, at most 35.98 MB per-process RSS, and zero swaps. See
+`zlib-oneshot-mixedblobs-20260925.md`. This blocks general one-shot
+promotion regardless of a possible size reduction.
+The static size scout in
+`/private/tmp/python-build-exp-zlib-size-scout-20260925a`, branch
+`exp/zlib-size-scout-20260925a` (base `9ca3c68`), owned only
+`experiments/zlib-oneshot-size-feasibility-20260925.md`. It found 63
+exported prefixed Rust entry points and 713,724 bytes of `__text` in the
+one-shot extension. It ran no build or substantial command, and deferred a
+private-export/dead-strip build while the mixed-input regression stands.
 
 ## Current cycle (bases `1b0507a` and `c2baee4`)
 
