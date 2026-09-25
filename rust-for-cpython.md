@@ -37,8 +37,12 @@ parsing where exposed.
 4. Build with `python3 rust-cpython/build.py build`, which now defaults to
    a non-PGO, non-LTO CPython `--with-pydebug` build and Cargo `dev`
    profile. Run `python3 rust-cpython/build.py test --suite test_NAME`
-   for every identified full suite. Do not write or run Rust tests, run
-   pyperformance, or run benchmarks during this phase.
+   for every identified full suite. Import the public module and exercise a
+   representative call in a CPython subinterpreter; private extensions must
+   either load there or leave a compatible Python fallback. Assert that
+   `_interpreters.run_string()` returns `None`, since a child exception is
+   returned as a value. Do not write or
+   run Rust tests, pyperformance, or benchmarks during this phase.
 5. Inspect failures at the Python API, fix the Rust boundary, and rerun the
    affected suites. Agents may use focused tests while developing, but the
    final candidate must pass every relevant unchanged module suite. The
@@ -76,7 +80,7 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count starts at **0 complete targets**. Do not carry
+module. The strict count is now **2 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 ### Priority 0: common application paths
@@ -109,7 +113,11 @@ their performance ranking into this coverage phase.
 - [ ] `logging` — record creation, formatting, and handler dispatch.
 - [ ] `asyncio` — task scheduling and event-loop operations on public APIs.
 - [ ] `http.client` — parse and send HTTP messages through public connections.
-- [ ] `ipaddress` — parse addresses and calculate network ranges.
+- [x] `ipaddress` — IPv4/IPv6 string parsing and network bounds reach Rust on
+  macOS arm64 (`249d0cb`). Full `test_ipaddress`, `test_socket`, and
+  `test_concurrent_futures`: 1,363 run/284 skipped. Integrated default-resource
+  suite: 50,158 run/2,703 skipped, zero failures (496/505 files; nine
+  resource-denied).
 - [ ] `socket` — public address conversion and I/O operations.
 - [ ] `ssl` — public TLS context and stream operations.
 - [ ] `subprocess` — command launch and communication.
@@ -150,7 +158,13 @@ their performance ranking into this coverage phase.
 - [ ] `tokenize` — token generation from Python source.
 - [ ] `_strptime` — directive parsing used by public date/time calls.
 - [ ] `shlex` — POSIX and non-POSIX token splitting.
-- [ ] `textwrap` — paragraph wrapping and shortening.
+- [x] `textwrap` — common ASCII wrap, fill, and shorten reach the Rust textwrap
+  crate on macOS arm64 (`a23a25b`). Full `test_textwrap`, `test_argparse`,
+  `test_optparse`, and `test_pydoc`: 2,301 run/0 skipped; full
+  `test_textwrap`, `test_concurrent_futures`, and `test_interpreters` after the
+  subinterpreter repair: 638 run/30 skipped. Integrated default-resource
+  suite: 50,158 run/2,703 skipped, zero failures (496/505 files; nine
+  resource-denied).
 - [ ] `threading` — public thread coordination and synchronization.
 - [ ] `typing` — runtime annotation and generic operations.
 - [ ] `warnings` — warning filtering and display.

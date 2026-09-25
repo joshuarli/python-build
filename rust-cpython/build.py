@@ -19,6 +19,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -1075,7 +1076,14 @@ def _configure_source(source: Path, toolchain, target, jobs: int,
         "RUST_SHARED_BUILD": "1",
     })
     built_members = _built_workspace_members(source, cargo_env)
-    missing = {"_base64", "cpython-sys"} - set(built_members)
+    overlay_members = set()
+    for manifest in OVERLAY.glob("Modules/_*/Cargo.toml"):
+        package = tomllib.loads(manifest.read_text()).get("package", {})
+        name = package.get("name") if isinstance(package, dict) else None
+        if not isinstance(name, str) or not name:
+            raise LaneError(f"overlay Rust module has no package name: {manifest}")
+        overlay_members.add(name)
+    missing = ({"_base64", "cpython-sys"} | overlay_members) - set(built_members)
     if missing:
         raise LaneError("CPython build did not compile Rust members: " + ", ".join(sorted(missing)))
     metadata, source_input = _read_lock()

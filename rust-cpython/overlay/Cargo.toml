@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = [
+    "Modules/_base64", "Modules/_ipaddress_rs", "Modules/_textwrap_rs",
+    "Modules/cpython-build-helper",
+    "Modules/cpython-rust-staticlib", "Modules/cpython-sys"
+]
+
+[workspace.package]
+# Make sure to also update the Rust toolchains in GitHub Actions whenever this version is modified
+rust-version = "1.95"

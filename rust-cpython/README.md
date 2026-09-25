@@ -64,6 +64,12 @@ preauthorized for this isolated lane. Keep CPython's Python and C-ABI boundaries
 where they carry public object, callback, or exception behavior. A private
 Rust extension counts only when the named public module behavior reaches it
 and its full relevant Python suite passes.
+Check a public import and representative call in a CPython subinterpreter
+before handing off a candidate. Single-phase private extensions can reject
+loading there, so their public wrapper must use a compatible fallback or the
+extension must support multi-phase loading. Assert that
+`_interpreters.run_string()` returns `None`; an exception in the child is
+returned as a value and can leave the parent process exit status at zero.
 
 Develop in a committed branch and isolated worktree. Keep candidate source
 in Git under `overlay/`. Put the public Rust route, crate licenses, target,

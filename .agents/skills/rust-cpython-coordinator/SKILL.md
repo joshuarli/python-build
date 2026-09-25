@@ -63,7 +63,15 @@ are complete.
    callback, and state semantics at the CPython boundary.
 3. Build only debug CPython: no PGO, LTO, benchmark, or Rust tests. Do not
    write Rust tests. A private extension or passing test subset alone gives
-   no coverage credit. The named public behavior must reach Rust.
+   no coverage credit. The named public behavior must reach Rust. Before
+   handing off a candidate, import its public module in a subinterpreter and
+   exercise a representative public call there. A single-phase private
+   extension may reject subinterpreter loading; make its use lazy with a
+   compatible Python fallback or implement the extension's multi-phase
+   loading contract correctly. Public module imports must remain usable.
+   `_interpreters.run_string()` returns an exception namespace when code in
+   the child fails without making the parent process exit nonzero: assert its
+   result is `None`, rather than checking only the process exit status.
 4. The root agent integrates completed module branches in a small batch,
    reconciles shared files, builds the combined interpreter, and runs
    `build.py test --all`. If it fails, isolate the interacting change and
