@@ -1,0 +1,1105 @@
+{
+  "hypothesis": "short inputs with any nonempty exact-byte safe set favor the cached Python quoter; empty safe favors the Rust kernel",
+  "rule": "after existing fast exit and exact type checks, nonempty safe and 1 < input length < 32 use original Python route",
+  "accounting": "wait4 direct child; monotonic external wall; ru_maxrss and ru_nswap; workloads have no descendants; rustup launcher may spawn rustc and its wait4 CPU excludes that child",
+  "cache": "all overlays source-only, -B and PYTHONDONTWRITEBYTECODE=1; fresh copied urllib directory has no __pycache__",
+  "environment": "PYTHONPATH=SIDE:NATIVE:ROOT; PYTHONHASHSEED=1",
+  "host_initial": {
+    "load": [
+      3.99853515625,
+      3.46142578125,
+      4.1474609375
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985 111.3 7680704 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "74219 100.0  47552 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+      "53193   6.0  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "826   5.4  34304 /Users/josh/.local/bin/mactop"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                     4057.",
+      "Pages active:                                 747314.",
+      "Pages inactive:                               961177.",
+      "Pages speculative:                               154.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             162306.",
+      "Pages purgeable:                                 850."
+    ]
+  },
+  "attempts": [
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09164995898026973,
+      "user_seconds": 0.048888999999999995,
+      "system_seconds": 0.027205999999999998,
+      "peak_rss_bytes": 101482496,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-0"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.11310341604985297,
+      "user_seconds": 0.052038999999999995,
+      "system_seconds": 0.029190999999999998,
+      "peak_rss_bytes": 54263808,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-1"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10313408391084522,
+      "user_seconds": 0.071936,
+      "system_seconds": 0.044639,
+      "peak_rss_bytes": 35749888,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-2"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.11542366596404463,
+      "user_seconds": 0.050656,
+      "system_seconds": 0.024317,
+      "peak_rss_bytes": 27443200,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8--0",
+      "side": "pure",
+      "length": 8,
+      "safe_hex": "",
+      "output_digest": "236909753f04d9b928b7c6fede928082dd51ec8ecf3e7e8c9bff988d1e0292e7",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09168066701386124,
+      "user_seconds": 0.070828,
+      "system_seconds": 0.013085999999999999,
+      "peak_rss_bytes": 27787264,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8--1",
+      "side": "current",
+      "length": 8,
+      "safe_hex": "",
+      "output_digest": "236909753f04d9b928b7c6fede928082dd51ec8ecf3e7e8c9bff988d1e0292e7",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09396599989850074,
+      "user_seconds": 0.071156,
+      "system_seconds": 0.0132,
+      "peak_rss_bytes": 27541504,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8--2",
+      "side": "proposed",
+      "length": 8,
+      "safe_hex": "",
+      "output_digest": "236909753f04d9b928b7c6fede928082dd51ec8ecf3e7e8c9bff988d1e0292e7",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.07183520798571408,
+      "user_seconds": 0.050744,
+      "system_seconds": 0.01262,
+      "peak_rss_bytes": 27820032,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2f-0",
+      "side": "pure",
+      "length": 8,
+      "safe_hex": "2f",
+      "output_digest": "86370528643400c4029356ed8cc27c39476c05dada5a6a3ebc0851a018476c56",
+      "quoted_value": "a/b%2Bc%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.096025750041008,
+      "user_seconds": 0.07206599999999999,
+      "system_seconds": 0.013302,
+      "peak_rss_bytes": 27525120,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2f-1",
+      "side": "current",
+      "length": 8,
+      "safe_hex": "2f",
+      "output_digest": "86370528643400c4029356ed8cc27c39476c05dada5a6a3ebc0851a018476c56",
+      "quoted_value": "a/b%2Bc%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.07891858299262822,
+      "user_seconds": 0.055268,
+      "system_seconds": 0.013209,
+      "peak_rss_bytes": 27607040,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2f-2",
+      "side": "proposed",
+      "length": 8,
+      "safe_hex": "2f",
+      "output_digest": "86370528643400c4029356ed8cc27c39476c05dada5a6a3ebc0851a018476c56",
+      "quoted_value": "a/b%2Bc%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.07148204208351672,
+      "user_seconds": 0.051202,
+      "system_seconds": 0.012887,
+      "peak_rss_bytes": 27688960,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2b-0",
+      "side": "pure",
+      "length": 8,
+      "safe_hex": "2b",
+      "output_digest": "bb733f0adfe7ab22d134078162ed3fd6fde4b3a1cd7eafd243540b0f7a554e4e",
+      "quoted_value": "a%2Fb+c%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10011054202914238,
+      "user_seconds": 0.074181,
+      "system_seconds": 0.015264999999999999,
+      "peak_rss_bytes": 27885568,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2b-1",
+      "side": "current",
+      "length": 8,
+      "safe_hex": "2b",
+      "output_digest": "bb733f0adfe7ab22d134078162ed3fd6fde4b3a1cd7eafd243540b0f7a554e4e",
+      "quoted_value": "a%2Fb+c%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.07501479203347117,
+      "user_seconds": 0.054452999999999994,
+      "system_seconds": 0.012584,
+      "peak_rss_bytes": 27885568,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2b-2",
+      "side": "proposed",
+      "length": 8,
+      "safe_hex": "2b",
+      "output_digest": "bb733f0adfe7ab22d134078162ed3fd6fde4b3a1cd7eafd243540b0f7a554e4e",
+      "quoted_value": "a%2Fb+c%20%3F%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.07253662508446723,
+      "user_seconds": 0.052464,
+      "system_seconds": 0.012555,
+      "peak_rss_bytes": 27410432,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2f3a3f-0",
+      "side": "pure",
+      "length": 8,
+      "safe_hex": "2f3a3f",
+      "output_digest": "b1751b0c14c74174569963b8149b6a0c2939ec8acc8a4e65ae69223fc4af4c28",
+      "quoted_value": "a/b%2Bc%20?%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09878866700455546,
+      "user_seconds": 0.074834,
+      "system_seconds": 0.013767,
+      "peak_rss_bytes": 27508736,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2f3a3f-1",
+      "side": "current",
+      "length": 8,
+      "safe_hex": "2f3a3f",
+      "output_digest": "b1751b0c14c74174569963b8149b6a0c2939ec8acc8a4e65ae69223fc4af4c28",
+      "quoted_value": "a/b%2Bc%20?%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08099870895966887,
+      "user_seconds": 0.056867999999999995,
+      "system_seconds": 0.013666999999999999,
+      "peak_rss_bytes": 27541504,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-8-2f3a3f-2",
+      "side": "proposed",
+      "length": 8,
+      "safe_hex": "2f3a3f",
+      "output_digest": "b1751b0c14c74174569963b8149b6a0c2939ec8acc8a4e65ae69223fc4af4c28",
+      "quoted_value": "a/b%2Bc%20?%25",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09934054198674858,
+      "user_seconds": 0.072784,
+      "system_seconds": 0.013493,
+      "peak_rss_bytes": 27705344,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24--0",
+      "side": "proposed",
+      "length": 24,
+      "safe_hex": "",
+      "output_digest": "f38fd3f0f5f7e63fff525bc36027a82b4d805d0c154de5f6c20ff58a64447f31",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10042491706553847,
+      "user_seconds": 0.072199,
+      "system_seconds": 0.013779999999999999,
+      "peak_rss_bytes": 28114944,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24--1",
+      "side": "current",
+      "length": 24,
+      "safe_hex": "",
+      "output_digest": "f38fd3f0f5f7e63fff525bc36027a82b4d805d0c154de5f6c20ff58a64447f31",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08992275001946837,
+      "user_seconds": 0.061244999999999994,
+      "system_seconds": 0.014377,
+      "peak_rss_bytes": 27525120,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24--2",
+      "side": "pure",
+      "length": 24,
+      "safe_hex": "",
+      "output_digest": "f38fd3f0f5f7e63fff525bc36027a82b4d805d0c154de5f6c20ff58a64447f31",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.0841587909962982,
+      "user_seconds": 0.064095,
+      "system_seconds": 0.012601999999999999,
+      "peak_rss_bytes": 27803648,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2f-0",
+      "side": "proposed",
+      "length": 24,
+      "safe_hex": "2f",
+      "output_digest": "65253aa9e5eae83ac4286a0ae7097e7b0dd839403bcf42b801ad947ae164d74f",
+      "quoted_value": "a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.1000626670429483,
+      "user_seconds": 0.073539,
+      "system_seconds": 0.013205999999999999,
+      "peak_rss_bytes": 27705344,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2f-1",
+      "side": "current",
+      "length": 24,
+      "safe_hex": "2f",
+      "output_digest": "65253aa9e5eae83ac4286a0ae7097e7b0dd839403bcf42b801ad947ae164d74f",
+      "quoted_value": "a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08613458299078047,
+      "user_seconds": 0.059939,
+      "system_seconds": 0.012490999999999999,
+      "peak_rss_bytes": 27394048,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2f-2",
+      "side": "pure",
+      "length": 24,
+      "safe_hex": "2f",
+      "output_digest": "65253aa9e5eae83ac4286a0ae7097e7b0dd839403bcf42b801ad947ae164d74f",
+      "quoted_value": "a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.0884328749962151,
+      "user_seconds": 0.065374,
+      "system_seconds": 0.013994,
+      "peak_rss_bytes": 27901952,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2b-0",
+      "side": "proposed",
+      "length": 24,
+      "safe_hex": "2b",
+      "output_digest": "04daf0c120a15a889c3d54ce44d685f807fe2fac733c97c227d9bdf1d1a9ebb0",
+      "quoted_value": "a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09476383298169822,
+      "user_seconds": 0.073154,
+      "system_seconds": 0.013476,
+      "peak_rss_bytes": 27918336,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2b-1",
+      "side": "current",
+      "length": 24,
+      "safe_hex": "2b",
+      "output_digest": "04daf0c120a15a889c3d54ce44d685f807fe2fac733c97c227d9bdf1d1a9ebb0",
+      "quoted_value": "a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08275120903272182,
+      "user_seconds": 0.060329999999999995,
+      "system_seconds": 0.012733999999999999,
+      "peak_rss_bytes": 27688960,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2b-2",
+      "side": "pure",
+      "length": 24,
+      "safe_hex": "2b",
+      "output_digest": "04daf0c120a15a889c3d54ce44d685f807fe2fac733c97c227d9bdf1d1a9ebb0",
+      "quoted_value": "a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08649124996736646,
+      "user_seconds": 0.06616999999999999,
+      "system_seconds": 0.012863,
+      "peak_rss_bytes": 27770880,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2f3a3f-0",
+      "side": "proposed",
+      "length": 24,
+      "safe_hex": "2f3a3f",
+      "output_digest": "250aae9f99a694ba8e85c3d7ed853b97600daebd19aabd20314d18f40b32f438",
+      "quoted_value": "a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09927670902106911,
+      "user_seconds": 0.076025,
+      "system_seconds": 0.013595999999999999,
+      "peak_rss_bytes": 27639808,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2f3a3f-1",
+      "side": "current",
+      "length": 24,
+      "safe_hex": "2f3a3f",
+      "output_digest": "250aae9f99a694ba8e85c3d7ed853b97600daebd19aabd20314d18f40b32f438",
+      "quoted_value": "a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08777554100379348,
+      "user_seconds": 0.061966999999999994,
+      "system_seconds": 0.012235999999999999,
+      "peak_rss_bytes": 27836416,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-24-2f3a3f-2",
+      "side": "pure",
+      "length": 24,
+      "safe_hex": "2f3a3f",
+      "output_digest": "250aae9f99a694ba8e85c3d7ed853b97600daebd19aabd20314d18f40b32f438",
+      "quoted_value": "a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.1094247909495607,
+      "user_seconds": 0.086597,
+      "system_seconds": 0.012941999999999999,
+      "peak_rss_bytes": 27557888,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64--0",
+      "side": "pure",
+      "length": 64,
+      "safe_hex": "",
+      "output_digest": "3879a6d829b2462c9bb7501605354d2c29531bb8e03781e5211a33d4fc6244de",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10221587505657226,
+      "user_seconds": 0.076012,
+      "system_seconds": 0.014109,
+      "peak_rss_bytes": 27869184,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64--1",
+      "side": "current",
+      "length": 64,
+      "safe_hex": "",
+      "output_digest": "3879a6d829b2462c9bb7501605354d2c29531bb8e03781e5211a33d4fc6244de",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.09891029098071158,
+      "user_seconds": 0.075112,
+      "system_seconds": 0.012483999999999999,
+      "peak_rss_bytes": 27820032,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64--2",
+      "side": "proposed",
+      "length": 64,
+      "safe_hex": "",
+      "output_digest": "3879a6d829b2462c9bb7501605354d2c29531bb8e03781e5211a33d4fc6244de",
+      "quoted_value": "a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a%2Fb%2Bc%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10810241696890444,
+      "user_seconds": 0.08551099999999999,
+      "system_seconds": 0.013389,
+      "peak_rss_bytes": 27525120,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2f-0",
+      "side": "pure",
+      "length": 64,
+      "safe_hex": "2f",
+      "output_digest": "eb7f29a0bd697cbb5d616e34cae1d7ed0dbe293682743381773210c0d5bb1b20",
+      "quoted_value": "a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.1025010000448674,
+      "user_seconds": 0.078967,
+      "system_seconds": 0.013722999999999999,
+      "peak_rss_bytes": 27852800,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2f-1",
+      "side": "current",
+      "length": 64,
+      "safe_hex": "2f",
+      "output_digest": "eb7f29a0bd697cbb5d616e34cae1d7ed0dbe293682743381773210c0d5bb1b20",
+      "quoted_value": "a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10151504201348871,
+      "user_seconds": 0.077803,
+      "system_seconds": 0.013243999999999999,
+      "peak_rss_bytes": 27754496,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2f-2",
+      "side": "proposed",
+      "length": 64,
+      "safe_hex": "2f",
+      "output_digest": "eb7f29a0bd697cbb5d616e34cae1d7ed0dbe293682743381773210c0d5bb1b20",
+      "quoted_value": "a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a/b%2Bc%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.1052276249974966,
+      "user_seconds": 0.08502,
+      "system_seconds": 0.012802,
+      "peak_rss_bytes": 27623424,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2b-0",
+      "side": "pure",
+      "length": 64,
+      "safe_hex": "2b",
+      "output_digest": "ee6320ff64f54a9adf91db21afd9ca3b45629397f952f133675ba36662ba1a18",
+      "quoted_value": "a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10199529107194394,
+      "user_seconds": 0.077197,
+      "system_seconds": 0.013309999999999999,
+      "peak_rss_bytes": 27836416,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2b-1",
+      "side": "current",
+      "length": 64,
+      "safe_hex": "2b",
+      "output_digest": "ee6320ff64f54a9adf91db21afd9ca3b45629397f952f133675ba36662ba1a18",
+      "quoted_value": "a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10212008305825293,
+      "user_seconds": 0.07794899999999999,
+      "system_seconds": 0.013994,
+      "peak_rss_bytes": 27656192,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2b-2",
+      "side": "proposed",
+      "length": 64,
+      "safe_hex": "2b",
+      "output_digest": "ee6320ff64f54a9adf91db21afd9ca3b45629397f952f133675ba36662ba1a18",
+      "quoted_value": "a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a%2Fb+c%20%3F%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.11222633300349116,
+      "user_seconds": 0.088013,
+      "system_seconds": 0.013803,
+      "peak_rss_bytes": 27557888,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2f3a3f-0",
+      "side": "pure",
+      "length": 64,
+      "safe_hex": "2f3a3f",
+      "output_digest": "82f0d69d5ecc142949353ab8b612fee12c3bc4f6021fdf236207dd813978579f",
+      "quoted_value": "a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10125579102896154,
+      "user_seconds": 0.07868699999999999,
+      "system_seconds": 0.013207,
+      "peak_rss_bytes": 27623424,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2f3a3f-1",
+      "side": "current",
+      "length": 64,
+      "safe_hex": "2f3a3f",
+      "output_digest": "82f0d69d5ecc142949353ab8b612fee12c3bc4f6021fdf236207dd813978579f",
+      "quoted_value": "a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.10195874993223697,
+      "user_seconds": 0.079747,
+      "system_seconds": 0.013866,
+      "peak_rss_bytes": 27721728,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "calibration-64-2f3a3f-2",
+      "side": "proposed",
+      "length": 64,
+      "safe_hex": "2f3a3f",
+      "output_digest": "82f0d69d5ecc142949353ab8b612fee12c3bc4f6021fdf236207dd813978579f",
+      "quoted_value": "a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a/b%2Bc%20?%25%E9a",
+      "operation_count": 30000,
+      "valid": true
+    }
+  ],
+  "groups": [
+    {
+      "id": "calibration-8-",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 106.5 7681280 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  99.0  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "74646   7.8  24224 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+          "53193   7.6  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     5182.",
+          "Pages active:                                 746139.",
+          "Pages inactive:                               960500.",
+          "Pages speculative:                               868.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162304.",
+          "Pages purgeable:                                 848."
+        ]
+      }
+    },
+    {
+      "id": "calibration-8-2f",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 103.8 7683344 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  99.4  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   6.5  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.7  24240 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     5006.",
+          "Pages active:                                 745557.",
+          "Pages inactive:                               961425.",
+          "Pages speculative:                               719.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162289.",
+          "Pages purgeable:                                 850."
+        ]
+      }
+    },
+    {
+      "id": "calibration-8-2b",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 105.8 7684960 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219 100.0  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   5.8  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.1  24288 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4901.",
+          "Pages active:                                 745640.",
+          "Pages inactive:                               961436.",
+          "Pages speculative:                               752.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162300.",
+          "Pages purgeable:                                 850."
+        ]
+      }
+    },
+    {
+      "id": "calibration-8-2f3a3f",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 106.5 7693696 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  98.8  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   7.5  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "32688   6.8 320544 codex"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4877.",
+          "Pages active:                                 745694.",
+          "Pages inactive:                               961437.",
+          "Pages speculative:                               759.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162301.",
+          "Pages purgeable:                                 850."
+        ]
+      }
+    },
+    {
+      "id": "calibration-24-",
+      "order": [
+        "proposed",
+        "current",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 108.3 7699136 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  99.9  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   6.1  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.1  24352 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4915.",
+          "Pages active:                                 745608.",
+          "Pages inactive:                               961443.",
+          "Pages speculative:                               759.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162284.",
+          "Pages purgeable:                                 852."
+        ]
+      }
+    },
+    {
+      "id": "calibration-24-2f",
+      "order": [
+        "proposed",
+        "current",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 106.8 7699488 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  99.0  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   5.3  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.3  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4838.",
+          "Pages active:                                 745699.",
+          "Pages inactive:                               961445.",
+          "Pages speculative:                               759.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162294.",
+          "Pages purgeable:                                 850."
+        ]
+      }
+    },
+    {
+      "id": "calibration-24-2b",
+      "order": [
+        "proposed",
+        "current",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 103.9 7717904 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219 100.0  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   5.1  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   2.9  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4792.",
+          "Pages active:                                 745702.",
+          "Pages inactive:                               961461.",
+          "Pages speculative:                               788.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162297.",
+          "Pages purgeable:                                 850."
+        ]
+      }
+    },
+    {
+      "id": "calibration-24-2f3a3f",
+      "order": [
+        "proposed",
+        "current",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 113.8 7780096 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  99.6  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   5.2  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.0  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4900.",
+          "Pages active:                                 745632.",
+          "Pages inactive:                               961471.",
+          "Pages speculative:                               821.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162290.",
+          "Pages purgeable:                                 850."
+        ]
+      }
+    },
+    {
+      "id": "calibration-64-",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 110.2 7781456 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  98.7  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   5.0  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.6  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4739.",
+          "Pages active:                                 745642.",
+          "Pages inactive:                               961483.",
+          "Pages speculative:                               821.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162297.",
+          "Pages purgeable:                                 852."
+        ]
+      }
+    },
+    {
+      "id": "calibration-64-2f",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 105.5 7782752 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  99.0  47568 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "53193   5.1  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "74646   3.0  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4833.",
+          "Pages active:                                 745657.",
+          "Pages inactive:                               961483.",
+          "Pages speculative:                               821.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162300.",
+          "Pages purgeable:                                 852."
+        ]
+      }
+    },
+    {
+      "id": "calibration-64-2b",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 105.7 7783936 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "74219  98.1  48000 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+          "75326  23.2 139712 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/154.0.8037.57/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)",
+          "40895   7.6 370256 /Applications/Helium.app/Contents/MacOS/Helium"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     4732.",
+          "Pages active:                                 748009.",
+          "Pages inactive:                               958887.",
+          "Pages speculative:                               801.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162609.",
+          "Pages purgeable:                                 854."
+        ]
+      }
+    },
+    {
+      "id": "calibration-64-2f3a3f",
+      "order": [
+        "pure",
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.99853515625,
+          3.46142578125,
+          4.1474609375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985 110.4 7785248 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.8  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "75326   5.1 139712 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/154.0.8037.57/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)",
+          "74646   2.9  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                     6593.",
+          "Pages active:                                 746638.",
+          "Pages inactive:                               958357.",
+          "Pages speculative:                               801.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             162616.",
+          "Pages purgeable:                                 852."
+        ]
+      }
+    }
+  ],
+  "identities": {
+    "patch": "8117e87d51a91dd362d5c315f3eae552ac1144b83f43dae1980423c320b618ad",
+    "python": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "experimental_patch": "20714dd6c54391b367f52120b16a5393efad81425114bdf6407d75f7defabe3e",
+    "stage_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "pure_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "current_parse": "f2949f2bfd61891f33a9e79168f1c188587b374985ebb3faa04a476202b280f2",
+    "proposed_parse": "0264651c499fc0fab167dde63a953e84facd55a4813bda044987555df5ac1835",
+    "module_c": "727e5b12a8a2e0b8a81be59b86ccb5252f88b1f66c64ca1cbc05ec71448f44df",
+    "quote_rs": "bb9156522ea47140e52e309b501ee3222ed5466fb8b33a779a31566e184fad8c",
+    "extension": "b1ab627f758d778087fb2c8e8e8df0835396e9b9c8d3db45550c7ca74710d617"
+  },
+  "build_recipe": {
+    "rust": "rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin quote.rs -o libquote_ascii.a",
+    "c": "locked LLVM 23.1.2 clang -O3 -fPIC -mcpu=apple-m1 -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK -I stage/include/python3.16 -c module.c -o module.o",
+    "link": "locked LLVM clang -bundle -undefined dynamic_lookup -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK module.o libquote_ascii.a -o _rust_url_quote.cpython-316-darwin.so"
+  },
+  "host_final": {
+    "load": [
+      4.31884765625,
+      3.53662109375,
+      4.169921875
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985 108.2 7787744 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "75416  71.7  41712 /Users/josh/d/laputa-systems/xsh/target/debug/xsht",
+      "53193   5.7  27280 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "74646   3.0  24368 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                     5552.",
+      "Pages active:                                 747751.",
+      "Pages inactive:                               958357.",
+      "Pages speculative:                               801.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             162596.",
+      "Pages purgeable:                                 852."
+    ]
+  }
+}

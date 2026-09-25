@@ -825,9 +825,15 @@ as a separate baseline change.
   it was not adopted because its narrow threshold needs broader evidence.
   An all-length default-safe fallback improved request path but added a
   measurable search cost and lost a long-input gain, so it was rejected.
+  A broader nonempty-safe, short-input fallback reduced request-path CPU
+  5.7–6.4% against the current guard in two pairs, but remained 2.0% slower
+  than the pure parser there. Search and normalization showed no clear loss;
+  heavy host load and one calibration observation per safe/length case leave
+  the crossover threshold unqualified. Keep the active patch unchanged.
   See the [bounded diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md),
   [short-safe trial](rust-cpython/experiments/url-quote-short-safe-20260925.md),
-  and [default-safe trial](rust-cpython/experiments/url-quote-safe-slash-20260925.md).
+  [default-safe trial](rust-cpython/experiments/url-quote-safe-slash-20260925.md),
+  and [safe/length crossover](rust-cpython/experiments/url-quote-crossover-20260925.md).
   The ranked entries in `rust-cpython/README.md` remain hypotheses, not
   completed ports.
 - Establish the missing macOS unique/proportional memory and allocation
