@@ -1,0 +1,159 @@
+{
+  "hypothesis": "default exact safe=b'/' dispatch cost dominates request path",
+  "rule": "after existing fast exit and exact bytes checks, safe=b'/' uses original Python route at every length",
+  "accounting": "wait4 direct child; monotonic external wall; ru_maxrss and ru_nswap; workloads and direct compiler commands have no descendants",
+  "cache": "all overlays source-only, -B and PYTHONDONTWRITEBYTECODE=1; fresh copied urllib directory has no __pycache__",
+  "environment": "PYTHONPATH=SIDE:NATIVE:ROOT; PYTHONHASHSEED=1",
+  "host_initial": {
+    "load": [
+      3.71728515625,
+      6.02392578125,
+      6.4296875
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985  27.8 6220144 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "53193   7.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "12339   4.8 389072 codex",
+      "826   2.5  34320 /Users/josh/.local/bin/mactop"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                   251125.",
+      "Pages active:                                 717397.",
+      "Pages inactive:                               733936.",
+      "Pages speculative:                              5106.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             168098.",
+      "Pages purgeable:                                 675."
+    ]
+  },
+  "attempts": [
+    {
+      "returncode": 0,
+      "wall_seconds": 0.365769625059329,
+      "user_seconds": 0.043983999999999995,
+      "system_seconds": 0.092998,
+      "peak_rss_bytes": 101515264,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-0"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.1420618329429999,
+      "user_seconds": 0.050391,
+      "system_seconds": 0.052099,
+      "peak_rss_bytes": 54149120,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-1"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.13782620802521706,
+      "user_seconds": 0.075819,
+      "system_seconds": 0.050065,
+      "peak_rss_bytes": 35291136,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-2"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.08170758304186165,
+      "user_seconds": 0.030729999999999997,
+      "system_seconds": 0.018820999999999997,
+      "peak_rss_bytes": 30572544,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "long-safe-current-proposed-0",
+      "side": "current",
+      "task": "long_safe_slash_synthetic",
+      "synthetic": true,
+      "digest": "9b9c37ebbefc3425d238a24e61ba13474604c16dfdeebc03a04f7abc5bb4d44e",
+      "output_length": 38912,
+      "input_length": 30720,
+      "valid": false
+    }
+  ],
+  "groups": [
+    {
+      "id": "long-safe-current-proposed",
+      "order": [
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.71728515625,
+          6.02392578125,
+          6.4296875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  18.3 6222208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   8.9  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "63076   4.6 215456 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+          "826   3.3  34320 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                   211420.",
+          "Pages active:                                 738213.",
+          "Pages inactive:                               750098.",
+          "Pages speculative:                              7722.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             168118.",
+          "Pages purgeable:                                 673."
+        ]
+      }
+    }
+  ],
+  "identities": {
+    "patch": "8117e87d51a91dd362d5c315f3eae552ac1144b83f43dae1980423c320b618ad",
+    "python": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "experimental_patch": "46a76b4cf1555b382901f17f38a8c941dae5be56db1fb9b6dd63e0e00b46c029",
+    "stage_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "rustc": "edec7bb64507ef47b9ec91410a0c3f76f33fb2f41168a972cf722d6ded109d25",
+    "clang": "f8fa7184dab7d8fa7f6af268a6f1b3aa3d2e598d0cca04dc68447b4c0ca58d8e",
+    "pure_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "current_parse": "f2949f2bfd61891f33a9e79168f1c188587b374985ebb3faa04a476202b280f2",
+    "proposed_parse": "d9d3259acb4e9da268445e1dba6613d7796d92723631d010822976c3745e9765",
+    "module_c": "727e5b12a8a2e0b8a81be59b86ccb5252f88b1f66c64ca1cbc05ec71448f44df",
+    "quote_rs": "bb9156522ea47140e52e309b501ee3222ed5466fb8b33a779a31566e184fad8c",
+    "extension": "b1ab627f758d778087fb2c8e8e8df0835396e9b9c8d3db45550c7ca74710d617"
+  },
+  "build_recipe": {
+    "rust": "nightly-2026-09-15 rustc directly --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin quote.rs -o libquote_ascii.a",
+    "c": "locked LLVM 23.1.2 clang -O3 -fPIC -mcpu=apple-m1 -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK -I stage/include/python3.16 -c module.c -o module.o",
+    "link": "locked LLVM clang -bundle -undefined dynamic_lookup -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK module.o libquote_ascii.a -o _rust_url_quote.cpython-316-darwin.so"
+  },
+  "host_after_build": {
+    "load": [
+      3.71728515625,
+      6.02392578125,
+      6.4296875
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985  19.6 6222208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "53193   7.1  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "63076   6.6 215408 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+      "826   4.9  34320 /Users/josh/.local/bin/mactop"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                   211636.",
+      "Pages active:                                 738134.",
+      "Pages inactive:                               750098.",
+      "Pages speculative:                              7722.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             168111.",
+      "Pages purgeable:                                 673."
+    ]
+  }
+}

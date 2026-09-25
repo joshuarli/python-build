@@ -542,6 +542,9 @@ as a separate baseline change.
   open. A separate short `safe=b'/'` fallback recovered 6.4% request-path CPU
   versus the current guard but still cost 3.0% more than pure Python in two
   direct pairs; it remains an overfit experimental route, not a default change.
+  Sending every exact default `safe=b'/'` call to Python recovered 4.4–6.9%
+  request-path CPU but raised search CPU 0.7–0.9% beyond local self-noise and
+  discarded a long-input native gain, so that route was rejected too.
   Optional `unquote`
   changes public output if `_hextobyte` is edited and skips its lazy setup;
   the narrow in-loop Rust replacement was stopped. Earlier URL speed ratios
@@ -549,6 +552,7 @@ as a separate baseline change.
   [cache cost](rust-cpython/experiments/url-quote-cache-cost-20260925.md),
   [revised-guard diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md),
   [short-safe trial](rust-cpython/experiments/url-quote-short-safe-20260925.md),
+  [default-safe trial](rust-cpython/experiments/url-quote-safe-slash-20260925.md),
   and [decoder decision](rust-cpython/experiments/url-unquote-contract-followup-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
   recipe. Its installed parser matches the selected source, its extension
@@ -819,8 +823,11 @@ as a separate baseline change.
   claim; broad behavior and installed-build resource qualification remain open.
   A short-safe fallback recovered most but not all of the request-path cost;
   it was not adopted because its narrow threshold needs broader evidence.
-  See the [bounded diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md)
-  and [fallback trial](rust-cpython/experiments/url-quote-short-safe-20260925.md).
+  An all-length default-safe fallback improved request path but added a
+  measurable search cost and lost a long-input gain, so it was rejected.
+  See the [bounded diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md),
+  [short-safe trial](rust-cpython/experiments/url-quote-short-safe-20260925.md),
+  and [default-safe trial](rust-cpython/experiments/url-quote-safe-slash-20260925.md).
   The ranked entries in `rust-cpython/README.md` remain hypotheses, not
   completed ports.
 - Establish the missing macOS unique/proportional memory and allocation
