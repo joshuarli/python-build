@@ -1,5 +1,19 @@
 # Rust-for-CPython experiment lanes
 
+## Residual URL workload profile (base `6fe484d`)
+
+The next-target diagnostic uses
+`/private/tmp/python-build-exp-url-residual-profile-20260925a`, branch
+`exp/url-residual-profile-20260925a`. It owns only
+`experiments/url-residual-profile-20260925.md`, optional compact probe/data,
+and ignored logs in its own worktree. On the fresh installed decoder build,
+it profiles the complete catalog search and normalization tasks, verifies
+registered digests, separates remaining stdlib work from application work,
+and reports conservative instrumented headroom for one next public boundary.
+No other benchmark or compiler runs concurrently. Budget: 30 kernel CPU
+seconds and 512 MiB per-process RSS. The profile is diagnostic, not a
+performance verdict; the coordinator chooses whether any prototype follows.
+
 ## URL decoder upstream speed comparison (base `dee6771`)
 
 The queued three-way timing lane uses
@@ -13,6 +27,13 @@ candidate, with exact outputs, equivalent valid caches, self-noise, and
 counterbalanced serial attempts. Budget: 120 kernel CPU seconds and 1 GiB
 per-process RSS. Separate source ancestry and PGO profiles limit causal
 attribution; the same-executable proof supplies that narrower evidence.
+The completed 60-child comparison found median installed decoder/upstream
+wall and kernel CPU ratios of 0.504 and 0.492 on complete search, all digests
+matching. Decoder/quote-only ratios were 0.583 and 0.570. Same-side wall
+variation reached 4.35%; distinct ancestry and PGO profiles still limit
+upstream attribution. Recorded commands used 45.57 kernel CPU seconds,
+42,090,496 bytes maximum process RSS, and zero swaps. See
+`url-unquote-upstream-speed-20260925.md`.
 
 ## URL decoder upstream memory comparison (base `b09ac07`)
 
