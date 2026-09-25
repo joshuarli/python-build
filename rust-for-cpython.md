@@ -405,6 +405,16 @@ as a separate baseline change.
   runs. The overlay also delays a missing-extension failure until first use.
   Keep the eager source patch; see
   [`url-quote-lazy-import-20260924.md`](rust-cpython/experiments/url-quote-lazy-import-20260924.md).
+- On that installed quote candidate, public `unquote` had 182 eligible
+  escaped calls per complete 48-record search-form batch. A bounded Rust
+  decoder proof, compared with a same-compiler quote-only extension, reduced
+  complete search-form wall time by 43.6% and kernel CPU by 44.7% across
+  five pairs with exact output digests. The extension added 368 bytes.
+  Full-tree and bytecode-cache audits isolated the parser source/cache and
+  extension; broad public semantic behavior and upstream memory remain
+  unqualified. See
+  [`url-unquote-headroom-20260925.md`](rust-cpython/experiments/url-unquote-headroom-20260925.md)
+  and [`url-unquote-proof-20260925.md`](rust-cpython/experiments/url-unquote-proof-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and
@@ -494,7 +504,9 @@ as a separate baseline change.
   directional RSS increase. Keep the eager patch as the current experiment.
   Unique/proportional memory and allocations remain unqualified even when
   paired RSS medians fall within noise. Extend to broader applications when
-  compatible byte-pinned inputs exist.
+  compatible byte-pinned inputs exist. The separate `unquote` proof has a
+  large search-form gain, but is still being encoded as an optional pinned
+  source patch and lacks broad public semantic qualification.
 - The approved macOS CPython 3.16 Django benchmark lock now pins and verifies
   Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 without changing the
   product or Linux lock. See
