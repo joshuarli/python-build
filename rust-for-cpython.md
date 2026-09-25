@@ -89,12 +89,16 @@ comparisons accordingly; they cannot pass the upstream resource gate.
    regression elsewhere. Investigate a concrete failure, or revert the
    candidate and record why. Update the evidence and choose the next target.
 
-Keep a compact experiment record beside the lane's performance evidence:
-question, source/patch revision, controls, workload and operation count,
-tests, raw report paths, time/memory/allocation deltas, noise bounds, verdict,
-and next action. Preserve rejected ideas as findings, without leaving their
-code in the active build. A later unattended run should be able to resume
-from that record. Continue through independent, reversible experiments. If
+Commit each finished experiment's source or patch, exact build and workload
+recipe, compact measurements for every attempt, relevant failure excerpts,
+noise bounds, verdict, and next action. Record the shared command and
+environment once; each observation needs only its ID, side and order, outcome,
+wall and kernel CPU, memory and swap where measured. Avoid per-attempt log
+paths and coordinator status files. Generated interpreters and raw compiler
+output are rebuildable and stay outside Git. Preserve rejected ideas as
+findings without leaving their code in the active build. A later unattended
+run should be able to resume from checked-in evidence after a reboot. Continue
+through independent, reversible experiments. If
 progress needs a new dependency, pin, production scope change, or a choice
 between material resource tradeoffs, complete the preparatory analysis and
 record the proposed decision before pausing for that decision.
@@ -268,6 +272,11 @@ as a separate baseline change.
   of the current hybrid until the regression is understood and removed; see
   [`tarfile-hybrid-breadth-20260925.md`](rust-cpython/experiments/tarfile-hybrid-breadth-20260925.md)
   and [`source-tar-hybrid-20260925.md`](rust-cpython/experiments/source-tar-hybrid-20260925.md).
+- A narrow Rust checksum scan under public `tarfile` reduced five paired
+  complete source-archive reads by 10.18% wall and 10.38% kernel CPU. It
+  preserved the checked output digest; three memory pairs were inconclusive.
+  This is a same-interpreter proof, not an accepted stdlib patch; see
+  [`tar-checksum-proof-20260925.md`](rust-cpython/experiments/tar-checksum-proof-20260925.md).
 - An optional one-shot split routes only public `zlib.decompress` to Rust.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
@@ -301,6 +310,10 @@ as a separate baseline change.
   [`tomllib-boundary-20260925.md`](rust-cpython/experiments/tomllib-boundary-20260925.md)
   report narrows a possible guarded boundary and defers a native parser until
   a representative complete metadata task justifies its cost.
+- The three pinned macOS Django wheel metadata records are parsed during host
+  benchmark setup, before either compared interpreter starts. The currently
+  admitted macOS tasks have no substantial `importlib.metadata` inventory;
+  defer an email-parser proof until a real measured caller is pinned.
 - A package-free catalog export workload now checks one complete 512-record,
   259,349-byte JSON document per operation. The pinned interpreter completed
   300 exports in 1.33 process CPU seconds. A separate instrumented profile

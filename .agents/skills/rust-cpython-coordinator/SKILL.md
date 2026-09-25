@@ -25,8 +25,8 @@ Linux recipes outside these lanes.
   Give each lane exact owned paths, its deliverable, checks, and stop condition.
   No two agents edit the same source or docs. Read-only scouting can share a
   checkout, but may not mutate it.
-- Keep generated `rust-cpython/work/`, `stage/`, `.cargo-home/`, logs, and
-  benchmark results inside the lane's own worktree. Do not share writable
+- Keep generated `rust-cpython/work/`, `stage/`, `.cargo-home/`, and transient
+  logs inside the lane's own worktree. Do not share writable
   build outputs or use the primary checkout as scratch. A common verified
   input cache is acceptable only if its publication and reads are atomic and
   content checked; otherwise copy inputs into the lane.
@@ -55,10 +55,14 @@ Linux recipes outside these lanes.
   documentation-sync commits around the same experiment. Update the main plan
   and candidate map when a decision changes, grouping those edits with the
   relevant result when practical.
-- Preserve raw measurements in the lane and summarize rejected candidates
-  concisely in the next substantive decision record. Do not integrate a
-  negative scout's branch solely to archive ceremony. Keep the main branch
-  focused on code and evidence that changes what to try or accept next.
+- An experiment is not finished until its source or patch, exact build and
+  workload recipe, all numerical observations, and relevant failure excerpts
+  are committed. Store compact data and one short verdict beside the source.
+  Stage trees and compiler output can be rebuilt; they do not belong in Git.
+  Do not leave the only copy of a result under `/private/tmp`, an ignored
+  directory, or a discarded worktree. Preserve rejected findings concisely
+  in the next substantive decision record. Do not integrate a negative
+  scout's branch solely to archive ceremony.
 
 ## Resource and measurement discipline
 
@@ -74,9 +78,12 @@ Linux recipes outside these lanes.
   method and coverage of short-lived children. Never infer CPU consumption
   from wall time or treat missing memory as zero.
 - Give every attempt, including failed and discarded calibrations, a unique
-  raw log and resource record. Do not overwrite earlier observations when
-  retrying. If a record is lost, state exactly which command is missing and
-  do not claim a total lane resource cost.
+  ID in checked-in compact data. Keep outcome, paired order, output identity,
+  wall and kernel CPU, memory, swap, and relevant failure text directly in
+  the record. Put the shared command and environment once in the recipe;
+  do not repeat absolute worktree paths or `stdout_path`/`stderr_path` fields
+  per attempt. If a record is lost, state which attempt is missing and do
+  not claim a complete lane resource cost.
 - For workload performance, wall time still measures user-visible latency;
   CPU time measures compute consumption. Report both per logical work unit.
   A faster wall time with more CPU work or more memory is a visible tradeoff.

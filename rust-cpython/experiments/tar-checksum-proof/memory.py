@@ -3,9 +3,10 @@
 import json
 import os
 import subprocess
+import tempfile
 import time
 
-from measure import ARCHIVE, DATA, RAW, ROOT, RUNNER, WORK, TIME_FIELD, kernel_field
+from measure import ARCHIVE, DATA, RUNNER, WORK, TIME_FIELD, kernel_field
 
 
 def attempt(name, side):
@@ -18,10 +19,9 @@ def attempt(name, side):
             environment.pop(key)
     environment.update(PYTHONHASHSEED="1", PYTHONNOUSERSITE="1",
                        PYTHONMALLOC="default", PYTHONDONTWRITEBYTECODE="1")
-    stdout = RAW / f"{name}.stdout"
-    stderr = RAW / f"{name}.time"
     samples = []
-    with stdout.open("x") as out, stderr.open("x") as err:
+    sampled_pids = set()
+    with tempfile.TemporaryFile(mode="w+t") as out, tempfile.TemporaryFile(mode="w+t") as err:
         process = subprocess.Popen(command, stdout=out, stderr=err, env=environment)
         while process.poll() is None:
             listed = subprocess.run(["ps", "-axo", "pid=,ppid=,rss=,comm="],
@@ -29,18 +29,18 @@ def attempt(name, side):
             for line in listed.stdout.splitlines():
                 fields = line.split(None, 3)
                 if len(fields) == 4 and int(fields[1]) == process.pid:
-                    samples.append({"pid": int(fields[0]), "rss_bytes": int(fields[2]) * 1024,
-                                    "command": fields[3]})
+                    sampled_pids.add(int(fields[0]))
+                    samples.append({"rss_bytes": int(fields[2]) * 1024})
             time.sleep(0.02)
         returncode = process.wait()
-    raw = stderr.read_text()
+        out.seek(0)
+        err.seek(0)
+        stdout, raw = out.read(), err.read()
     timing = TIME_FIELD.search(raw)
     record = {"id": name, "side": side, "returncode": returncode,
-              "raw_stdout": str(stdout.relative_to(ROOT)),
-              "raw_stderr": str(stderr.relative_to(ROOT)),
               "samples": samples, "sampled_peak_rss_bytes": max(
                   (sample["rss_bytes"] for sample in samples), default=None),
-              "sampled_pids": sorted({sample["pid"] for sample in samples})}
+              "sampled_process_count": len(sampled_pids)}
     if timing:
         record.update(user_seconds=float(timing.group(2)),
                       system_seconds=float(timing.group(3)),
@@ -48,7 +48,9 @@ def attempt(name, side):
                       peak_footprint_bytes=kernel_field(raw, "peak memory footprint"),
                       swaps=kernel_field(raw, "swaps"))
     if returncode == 0:
-        record["output"] = json.loads(stdout.read_text())
+        record["output"] = json.loads(stdout)
+    else:
+        record["failure"] = {"stdout": stdout[-2000:], "stderr": raw[-2000:]}
     return record
 
 

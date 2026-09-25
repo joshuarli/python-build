@@ -1,4 +1,4 @@
-"""Retain every whole-process timing attempt and its kernel resource record."""
+"""Record whole-process timing attempts as compact, portable observations."""
 
 import json
 import os
@@ -11,7 +11,6 @@ import time
 
 ROOT = Path(__file__).resolve().parents[3]
 WORK = ROOT / "rust-cpython/work/tar-checksum-proof"
-RAW = WORK / "logs"
 ARCHIVE = WORK / "source.tar.gz"
 RUNNER = Path(__file__).with_name("run.py")
 DATA = ROOT / "rust-cpython/experiments/data/tar-checksum-proof-20260925.json"
@@ -38,17 +37,9 @@ def run_attempt(name, side, mode):
     start = time.perf_counter()
     completed = subprocess.run(command, capture_output=True, text=True, env=environment)
     external = time.perf_counter() - start
-    stdout = RAW / f"{name}.stdout"
-    stderr = RAW / f"{name}.time"
-    with stdout.open("x") as stream:
-        stream.write(completed.stdout)
-    with stderr.open("x") as stream:
-        stream.write(completed.stderr)
     timing = TIME_FIELD.search(completed.stderr)
-    record = {"id": name, "side": side, "mode": mode, "command": command,
-              "returncode": completed.returncode, "external_wall_seconds": external,
-              "raw_stdout": str(stdout.relative_to(ROOT)),
-              "raw_stderr": str(stderr.relative_to(ROOT))}
+    record = {"id": name, "side": side, "mode": mode,
+              "returncode": completed.returncode, "external_wall_seconds": external}
     if timing:
         record.update(kernel_real_seconds=float(timing.group(1)),
                       user_seconds=float(timing.group(2)),
@@ -61,6 +52,9 @@ def run_attempt(name, side, mode):
         expected_mode = "candidate" if side == "candidate" else "control"
         if record["output"]["mode"] != expected_mode:
             raise ValueError(f"incorrect mode: {name}")
+    else:
+        record["failure"] = {"stdout": completed.stdout[-2000:],
+                             "stderr": completed.stderr[-2000:]}
     return record
 
 

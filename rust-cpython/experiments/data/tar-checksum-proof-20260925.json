@@ -1,16 +1,6 @@
 {
   "attempts": [
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0873709589941427,
       "id": "self-01-01-control",
       "kernel_real_seconds": 1.07,
@@ -27,8 +17,6 @@
       },
       "peak_footprint_bytes": 26952184,
       "peak_rss_bytes": 39682048,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-01-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-01-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -36,16 +24,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.128589874948375,
       "id": "self-01-02-control",
       "kernel_real_seconds": 1.12,
@@ -62,8 +40,6 @@
       },
       "peak_footprint_bytes": 30015992,
       "peak_rss_bytes": 42745856,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-01-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-01-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -71,16 +47,6 @@
       "user_seconds": 1.05
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.086427417001687,
       "id": "self-02-01-control",
       "kernel_real_seconds": 1.08,
@@ -97,8 +63,6 @@
       },
       "peak_footprint_bytes": 27083256,
       "peak_rss_bytes": 39813120,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-02-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-02-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -106,16 +70,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0810193750075996,
       "id": "self-02-02-control",
       "kernel_real_seconds": 1.07,
@@ -132,8 +86,6 @@
       },
       "peak_footprint_bytes": 26771960,
       "peak_rss_bytes": 39501824,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-02-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-02-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -141,16 +93,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.085156499990262,
       "id": "self-03-01-control",
       "kernel_real_seconds": 1.08,
@@ -167,8 +109,6 @@
       },
       "peak_footprint_bytes": 27279864,
       "peak_rss_bytes": 40009728,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-03-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-03-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -176,16 +116,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0859107919968665,
       "id": "self-03-02-control",
       "kernel_real_seconds": 1.08,
@@ -202,8 +132,6 @@
       },
       "peak_footprint_bytes": 27197944,
       "peak_rss_bytes": 39927808,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-03-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-03-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -211,16 +139,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0827741660177708,
       "id": "self-04-01-control",
       "kernel_real_seconds": 1.07,
@@ -237,8 +155,6 @@
       },
       "peak_footprint_bytes": 27361784,
       "peak_rss_bytes": 40091648,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-04-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-04-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -246,16 +162,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.088564374949783,
       "id": "self-04-02-control",
       "kernel_real_seconds": 1.07,
@@ -272,8 +178,6 @@
       },
       "peak_footprint_bytes": 26526200,
       "peak_rss_bytes": 39256064,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-04-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-04-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -281,16 +185,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0863528749905527,
       "id": "self-05-01-control",
       "kernel_real_seconds": 1.08,
@@ -307,8 +201,6 @@
       },
       "peak_footprint_bytes": 26952184,
       "peak_rss_bytes": 39682048,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-05-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-05-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -316,16 +208,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0847633329685777,
       "id": "self-05-02-control",
       "kernel_real_seconds": 1.07,
@@ -342,8 +224,6 @@
       },
       "peak_footprint_bytes": 27116024,
       "peak_rss_bytes": 39845888,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/self-05-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/self-05-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -351,16 +231,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0925150000257418,
       "id": "comparison-01-01-control",
       "kernel_real_seconds": 1.08,
@@ -377,8 +247,6 @@
       },
       "peak_footprint_bytes": 27820536,
       "peak_rss_bytes": 40550400,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-01-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-01-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -386,16 +254,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "candidate",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 0.9788911250652745,
       "id": "comparison-01-02-candidate",
       "kernel_real_seconds": 0.97,
@@ -412,8 +270,6 @@
       },
       "peak_footprint_bytes": 27378168,
       "peak_rss_bytes": 40108032,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-01-02-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-01-02-candidate.stdout",
       "returncode": 0,
       "side": "candidate",
       "swaps": 0,
@@ -421,16 +277,6 @@
       "user_seconds": 0.92
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "candidate",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 0.9753915830515325,
       "id": "comparison-02-01-candidate",
       "kernel_real_seconds": 0.97,
@@ -447,8 +293,6 @@
       },
       "peak_footprint_bytes": 27935224,
       "peak_rss_bytes": 40665088,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-02-01-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-02-01-candidate.stdout",
       "returncode": 0,
       "side": "candidate",
       "swaps": 0,
@@ -456,16 +300,6 @@
       "user_seconds": 0.92
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.085943290963769,
       "id": "comparison-02-02-control",
       "kernel_real_seconds": 1.08,
@@ -482,8 +316,6 @@
       },
       "peak_footprint_bytes": 26706424,
       "peak_rss_bytes": 39436288,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-02-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-02-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -491,16 +323,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0850282500032336,
       "id": "comparison-03-01-control",
       "kernel_real_seconds": 1.07,
@@ -517,8 +339,6 @@
       },
       "peak_footprint_bytes": 27689464,
       "peak_rss_bytes": 40419328,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-03-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-03-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -526,16 +346,6 @@
       "user_seconds": 1.02
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "candidate",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 0.9781110410112888,
       "id": "comparison-03-02-candidate",
       "kernel_real_seconds": 0.97,
@@ -552,8 +362,6 @@
       },
       "peak_footprint_bytes": 27542008,
       "peak_rss_bytes": 40271872,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-03-02-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-03-02-candidate.stdout",
       "returncode": 0,
       "side": "candidate",
       "swaps": 0,
@@ -561,16 +369,6 @@
       "user_seconds": 0.92
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "candidate",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 0.9829869579989463,
       "id": "comparison-04-01-candidate",
       "kernel_real_seconds": 0.97,
@@ -587,8 +385,6 @@
       },
       "peak_footprint_bytes": 26722808,
       "peak_rss_bytes": 39452672,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-04-01-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-04-01-candidate.stdout",
       "returncode": 0,
       "side": "candidate",
       "swaps": 0,
@@ -596,16 +392,6 @@
       "user_seconds": 0.92
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.085555833997205,
       "id": "comparison-04-02-control",
       "kernel_real_seconds": 1.07,
@@ -622,8 +408,6 @@
       },
       "peak_footprint_bytes": 26903032,
       "peak_rss_bytes": 39632896,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-04-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-04-02-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -631,16 +415,6 @@
       "user_seconds": 1.02
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "control",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 1.0915378750069067,
       "id": "comparison-05-01-control",
       "kernel_real_seconds": 1.08,
@@ -657,8 +431,6 @@
       },
       "peak_footprint_bytes": 27836920,
       "peak_rss_bytes": 40566784,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-05-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-05-01-control.stdout",
       "returncode": 0,
       "side": "control",
       "swaps": 0,
@@ -666,16 +438,6 @@
       "user_seconds": 1.03
     },
     {
-      "command": [
-        "/usr/bin/time",
-        "-l",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/experiments/tar-checksum-proof/run.py",
-        "candidate",
-        "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/source.tar.gz",
-        "--loops",
-        "3"
-      ],
       "external_wall_seconds": 0.978734124917537,
       "id": "comparison-05-02-candidate",
       "kernel_real_seconds": 0.96,
@@ -692,8 +454,6 @@
       },
       "peak_footprint_bytes": 26853880,
       "peak_rss_bytes": 39583744,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/comparison-05-02-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/comparison-05-02-candidate.stdout",
       "returncode": 0,
       "side": "candidate",
       "swaps": 0,
@@ -702,15 +462,12 @@
     }
   ],
   "cache_audit": {
-    "candidate": "import-candidate.stderr",
-    "control": "import-control.stderr",
     "result": "Both verbose imports loaded matching installed tarfile.cpython-316.pyc and the overlaid extension."
   },
   "identities": {
     "archive_sha256": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
     "archive_size_bytes": 44210863,
     "c_source_sha256": "ae951019af8e6f02010da34e60974c507ab49127fffeaa833e86fc4966ae7aa4",
-    "original_stage": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage",
     "runner_sha256": "c027a31c6f393392187b247616163a88e07e14d72f51c80ccbd84ad24dad414f",
     "rust_object_sha256": "c5b28d4030d7ea8e32a297396fd79a1912911bb2b488d1cc01926ef9ab23fe1e",
     "rust_source_sha256": "2c722df91553cd9fa417749571743ee25243a5afba3c41237814b2cb626fa358",
@@ -739,92 +496,56 @@
         "regular_files": 6031
       },
       "peak_footprint_bytes": 27623928,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/memory-01-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/memory-01-01-control.stdout",
       "returncode": 0,
       "sampled_peak_rss_bytes": 39501824,
-      "sampled_pids": [
-        91660
-      ],
+      "sampled_process_count": 1,
       "samples": [
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 32768
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 28999680
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 34078720
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 35291136
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 36847616
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 38076416
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 36995072
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 37126144
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 37339136
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 37388288
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 38338560
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 38223872
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 39124992
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 39337984
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 39337984
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 91660,
           "rss_bytes": 39501824
         }
       ],
@@ -847,87 +568,53 @@
         "regular_files": 6031
       },
       "peak_footprint_bytes": 27394552,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/memory-01-02-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/memory-01-02-candidate.stdout",
       "returncode": 0,
       "sampled_peak_rss_bytes": 39747584,
-      "sampled_pids": [
-        91872
-      ],
+      "sampled_process_count": 1,
       "samples": [
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 32768
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 29065216
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 33816576
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 35733504
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 37306368
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 38715392
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 37421056
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 37634048
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 37634048
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 38846464
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 38993920
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 39010304
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 39239680
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 91872,
           "rss_bytes": 39256064
         },
         {
-          "command": "(python3.16)",
-          "pid": 91872,
           "rss_bytes": 39747584
         }
       ],
@@ -950,87 +637,53 @@
         "regular_files": 6031
       },
       "peak_footprint_bytes": 27722232,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/memory-02-01-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/memory-02-01-candidate.stdout",
       "returncode": 0,
       "sampled_peak_rss_bytes": 40402944,
-      "sampled_pids": [
-        92065
-      ],
+      "sampled_process_count": 1,
       "samples": [
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 32768
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 29065216
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 32768000
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 34717696
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 37175296
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 38699008
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 37715968
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 38174720
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 38174720
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 39141376
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 40402944
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 39354368
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 39567360
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92065,
           "rss_bytes": 39583744
         },
         {
-          "command": "(python3.16)",
-          "pid": 92065,
           "rss_bytes": 39878656
         }
       ],
@@ -1053,92 +706,56 @@
         "regular_files": 6031
       },
       "peak_footprint_bytes": 28492280,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/memory-02-02-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/memory-02-02-control.stdout",
       "returncode": 0,
       "sampled_peak_rss_bytes": 40370176,
-      "sampled_pids": [
-        92254
-      ],
+      "sampled_process_count": 1,
       "samples": [
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 32768
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 29327360
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 32587776
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 35373056
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 36880384
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 38010880
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 37814272
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 37896192
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 38797312
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 38813696
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 40222720
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 40108032
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 40108032
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 40321024
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 40337408
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92254,
           "rss_bytes": 40370176
         }
       ],
@@ -1161,92 +778,56 @@
         "regular_files": 6031
       },
       "peak_footprint_bytes": 27836920,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/memory-03-01-control.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/memory-03-01-control.stdout",
       "returncode": 0,
       "sampled_peak_rss_bytes": 39698432,
-      "sampled_pids": [
-        92468
-      ],
+      "sampled_process_count": 1,
       "samples": [
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 32768
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 29196288
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 33062912
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 34717696
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 36192256
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 37306368
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39206912
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 38010880
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 38223872
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 38223872
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39256064
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39223296
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39239680
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39665664
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39665664
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/control/stage/bin/python3.16",
-          "pid": 92468,
           "rss_bytes": 39698432
         }
       ],
@@ -1269,87 +850,53 @@
         "regular_files": 6031
       },
       "peak_footprint_bytes": 27673080,
-      "raw_stderr": "rust-cpython/work/tar-checksum-proof/logs/memory-03-02-candidate.time",
-      "raw_stdout": "rust-cpython/work/tar-checksum-proof/logs/memory-03-02-candidate.stdout",
       "returncode": 0,
       "sampled_peak_rss_bytes": 40271872,
-      "sampled_pids": [
-        92687
-      ],
+      "sampled_process_count": 1,
       "samples": [
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 32768
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 29360128
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 33947648
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 35487744
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 37011456
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 38420480
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 37126144
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 37339136
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 37519360
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 38961152
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 40271872
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 39321600
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 39534592
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 39534592
         },
         {
-          "command": "/private/tmp/python-build-exp-tar-checksum-proof-20260925a/rust-cpython/work/tar-checksum-proof/candidate/stage/bin/python3.16",
-          "pid": 92687,
           "rss_bytes": 39600128
         }
       ],
@@ -1468,7 +1015,6 @@
   ],
   "resource_ledger": {
     "c-compile.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/c-compile.time",
       "peak_footprint_bytes": 2605368,
       "peak_rss_bytes": 57360384,
       "swaps": 0,
@@ -1477,7 +1023,6 @@
       "wall_seconds": 0.41
     },
     "clone-candidate.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/clone-candidate.time",
       "peak_footprint_bytes": 1818864,
       "peak_rss_bytes": 3342336,
       "swaps": 0,
@@ -1486,7 +1031,6 @@
       "wall_seconds": 3.42
     },
     "clone-control.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/clone-control.time",
       "peak_footprint_bytes": 1835248,
       "peak_rss_bytes": 3358720,
       "swaps": 0,
@@ -1495,7 +1039,6 @@
       "wall_seconds": 3.1
     },
     "measure-controller.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/measure-controller.time",
       "peak_footprint_bytes": 9585096,
       "peak_rss_bytes": 42745856,
       "swaps": 0,
@@ -1504,7 +1047,6 @@
       "wall_seconds": 21.31
     },
     "memory-controller.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/memory-controller.time",
       "peak_footprint_bytes": 10764744,
       "peak_rss_bytes": 41222144,
       "swaps": 0,
@@ -1513,7 +1055,6 @@
       "wall_seconds": 6.64
     },
     "probe-candidate.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/probe-candidate.time",
       "peak_footprint_bytes": 10027488,
       "peak_rss_bytes": 20709376,
       "swaps": 0,
@@ -1522,7 +1063,6 @@
       "wall_seconds": 0.04
     },
     "probe-control.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/probe-control.time",
       "peak_footprint_bytes": 9961952,
       "peak_rss_bytes": 20643840,
       "swaps": 0,
@@ -1531,7 +1071,6 @@
       "wall_seconds": 0.04
     },
     "rust-compile.time": {
-      "log": "rust-cpython/work/tar-checksum-proof/logs/rust-compile.time",
       "peak_footprint_bytes": 24871560,
       "peak_rss_bytes": 90046464,
       "swaps": 0,
