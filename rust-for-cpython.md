@@ -712,8 +712,12 @@ as a separate baseline change.
   See [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md)
   and [`tar-helper-guard-20260925.md`](rust-cpython/experiments/tar-helper-guard-20260925.md).
   A later binding and import guard matched 13 source-overlay scenarios; the
-  speed figures above belong to its predecessor. See the
-  [contract audit](rust-cpython/experiments/tar-contract-20260925.md).
+  speed figures above belong to its predecessor. Two subsequent complete
+  rewrite diagnostics of the current guard matched all outputs and reduced
+  median paired kernel CPU by 10.65% and 10.53%. The host remained loaded
+  and same-side wall drift reached 8.2%, so this is not a quiet-host
+  promotion result. See the [contract audit](rust-cpython/experiments/tar-contract-20260925.md)
+  and [guarded measurement](rust-cpython/experiments/tar-guard-measure-20260925.md).
 - The optional `ipaddress` IPv4 parser improved a complete mixed routing task
   beyond its local self-comparison, with matching public output. Keep it
   behind `--ipv4-scan` while focused behavior, other important workloads,

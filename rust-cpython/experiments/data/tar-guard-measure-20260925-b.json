@@ -1,0 +1,822 @@
+{
+  "attempts": [
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "-v",
+        "-c",
+        "import tarfile; print(tarfile.__file__)"
+      ],
+      "id": "audit-control",
+      "output": "audit-control.stdout",
+      "peak_rss_bytes": 30310400,
+      "status": 0,
+      "stderr": "audit-control.stderr",
+      "system_seconds": 0.01418,
+      "user_seconds": 0.08062799999999999,
+      "wall_seconds": 0.10355337499640882
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "-v",
+        "-c",
+        "import tarfile; print(tarfile.__file__)"
+      ],
+      "id": "audit-candidate",
+      "output": "audit-candidate.stdout",
+      "peak_rss_bytes": 30375936,
+      "status": 0,
+      "stderr": "audit-candidate.stderr",
+      "system_seconds": 0.013626,
+      "user_seconds": 0.079121,
+      "wall_seconds": 0.10157754190731794
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "-c",
+        "import tarfile,sys; assert '_rust_tar_checksum' not in sys.modules; tarfile.calc_chksums(bytes(512)); import _rust_tar_checksum; print(_rust_tar_checksum.__file__)"
+      ],
+      "id": "extension-probe",
+      "output": "extension-probe.stdout",
+      "peak_rss_bytes": 30343168,
+      "status": 0,
+      "stderr": "extension-probe.stderr",
+      "system_seconds": 0.012048,
+      "user_seconds": 0.079109,
+      "wall_seconds": 0.09908212500158697
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/self-01-1-control.tar"
+      ],
+      "family": "self",
+      "id": "self-01-1-control",
+      "output": "self-01-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.8080929170828313,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 1,
+      "peak_rss_bytes": 43220992,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "self-01-1-control.stderr",
+      "system_seconds": 0.137908,
+      "user_seconds": 0.7726379999999999,
+      "wall_seconds": 0.9857586250873283
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/self-01-2-control.tar"
+      ],
+      "family": "self",
+      "id": "self-01-2-control",
+      "output": "self-01-2-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.759272790979594,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 1,
+      "peak_rss_bytes": 43368448,
+      "position": 2,
+      "side": "control",
+      "status": 0,
+      "stderr": "self-01-2-control.stderr",
+      "system_seconds": 0.129445,
+      "user_seconds": 0.754309,
+      "wall_seconds": 0.904852082952857
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/self-02-1-control.tar"
+      ],
+      "family": "self",
+      "id": "self-02-1-control",
+      "output": "self-02-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7651099170325324,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 2,
+      "peak_rss_bytes": 43220992,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "self-02-1-control.stderr",
+      "system_seconds": 0.12749,
+      "user_seconds": 0.760895,
+      "wall_seconds": 0.9104727919911966
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/self-02-2-control.tar"
+      ],
+      "family": "self",
+      "id": "self-02-2-control",
+      "output": "self-02-2-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7503179999766871,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 2,
+      "peak_rss_bytes": 43270144,
+      "position": 2,
+      "side": "control",
+      "status": 0,
+      "stderr": "self-02-2-control.stderr",
+      "system_seconds": 0.12864699999999998,
+      "user_seconds": 0.753107,
+      "wall_seconds": 0.8958422500872985
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/self-03-1-control.tar"
+      ],
+      "family": "self",
+      "id": "self-03-1-control",
+      "output": "self-03-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7573395409854129,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 3,
+      "peak_rss_bytes": 43319296,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "self-03-1-control.stderr",
+      "system_seconds": 0.12986,
+      "user_seconds": 0.757099,
+      "wall_seconds": 0.9095158750424162
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/self-03-2-control.tar"
+      ],
+      "family": "self",
+      "id": "self-03-2-control",
+      "output": "self-03-2-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7415993749164045,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 3,
+      "peak_rss_bytes": 41533440,
+      "position": 2,
+      "side": "control",
+      "status": 0,
+      "stderr": "self-03-2-control.stderr",
+      "system_seconds": 0.125719,
+      "user_seconds": 0.7490129999999999,
+      "wall_seconds": 0.8850148749770597
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-01-1-control.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-01-1-control",
+      "output": "comparison-01-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7636054999893531,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 1,
+      "peak_rss_bytes": 43302912,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "comparison-01-1-control.stderr",
+      "system_seconds": 0.125072,
+      "user_seconds": 0.750856,
+      "wall_seconds": 0.9072628329740837
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-01-2-candidate.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-01-2-candidate",
+      "output": "comparison-01-2-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6474560829810798,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 1,
+      "peak_rss_bytes": 43679744,
+      "position": 2,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "comparison-01-2-candidate.stderr",
+      "system_seconds": 0.12503599999999998,
+      "user_seconds": 0.6575759999999999,
+      "wall_seconds": 0.7980122090084478
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-02-1-candidate.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-02-1-candidate",
+      "output": "comparison-02-1-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6586702089989558,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 2,
+      "peak_rss_bytes": 43483136,
+      "position": 1,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "comparison-02-1-candidate.stderr",
+      "system_seconds": 0.126957,
+      "user_seconds": 0.6558919999999999,
+      "wall_seconds": 0.8034752920502797
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-02-2-control.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-02-2-control",
+      "output": "comparison-02-2-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.740815999917686,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 2,
+      "peak_rss_bytes": 43302912,
+      "position": 2,
+      "side": "control",
+      "status": 0,
+      "stderr": "comparison-02-2-control.stderr",
+      "system_seconds": 0.126221,
+      "user_seconds": 0.750617,
+      "wall_seconds": 0.8936366660054773
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-03-1-control.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-03-1-control",
+      "output": "comparison-03-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7408764580031857,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 3,
+      "peak_rss_bytes": 43466752,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "comparison-03-1-control.stderr",
+      "system_seconds": 0.124793,
+      "user_seconds": 0.748444,
+      "wall_seconds": 0.8832508330233395
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-03-2-candidate.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-03-2-candidate",
+      "output": "comparison-03-2-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6532150000566617,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 3,
+      "peak_rss_bytes": 43515904,
+      "position": 2,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "comparison-03-2-candidate.stderr",
+      "system_seconds": 0.124914,
+      "user_seconds": 0.656364,
+      "wall_seconds": 0.7983884159475565
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-04-1-candidate.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-04-1-candidate",
+      "output": "comparison-04-1-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6465568749699742,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 4,
+      "peak_rss_bytes": 42074112,
+      "position": 1,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "comparison-04-1-candidate.stderr",
+      "system_seconds": 0.124841,
+      "user_seconds": 0.655017,
+      "wall_seconds": 0.7931030829204246
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-04-2-control.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-04-2-control",
+      "output": "comparison-04-2-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7509834170341492,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 4,
+      "peak_rss_bytes": 43253760,
+      "position": 2,
+      "side": "control",
+      "status": 0,
+      "stderr": "comparison-04-2-control.stderr",
+      "system_seconds": 0.125003,
+      "user_seconds": 0.7506419999999999,
+      "wall_seconds": 0.8946461669402197
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-05-1-control.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-05-1-control",
+      "output": "comparison-05-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7437104999553412,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 5,
+      "peak_rss_bytes": 42123264,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "comparison-05-1-control.stderr",
+      "system_seconds": 0.125019,
+      "user_seconds": 0.749012,
+      "wall_seconds": 0.8924099579453468
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/comparison-05-2-candidate.tar"
+      ],
+      "family": "comparison",
+      "id": "comparison-05-2-candidate",
+      "output": "comparison-05-2-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6534437909722328,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 5,
+      "peak_rss_bytes": 43581440,
+      "position": 2,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "comparison-05-2-candidate.stderr",
+      "system_seconds": 0.12545699999999999,
+      "user_seconds": 0.656913,
+      "wall_seconds": 0.8059344170615077
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/memory-01-1-control.tar"
+      ],
+      "family": "memory",
+      "id": "memory-01-1-control",
+      "output": "memory-01-1-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.7402692079776898,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 1,
+      "peak_rss_bytes": 43155456,
+      "position": 1,
+      "side": "control",
+      "status": 0,
+      "stderr": "memory-01-1-control.stderr",
+      "system_seconds": 0.125091,
+      "user_seconds": 0.747853,
+      "wall_seconds": 0.8855568749131635
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/memory-01-2-candidate.tar"
+      ],
+      "family": "memory",
+      "id": "memory-01-2-candidate",
+      "output": "memory-01-2-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6471013749251142,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 1,
+      "peak_rss_bytes": 43515904,
+      "position": 2,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "memory-01-2-candidate.stderr",
+      "system_seconds": 0.125855,
+      "user_seconds": 0.655835,
+      "wall_seconds": 0.7947758329100907
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/memory-02-1-candidate.tar"
+      ],
+      "family": "memory",
+      "id": "memory-02-1-candidate",
+      "output": "memory-02-1-candidate.stdout",
+      "output_identity": {
+        "internal_seconds": 0.6514848329825327,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 2,
+      "peak_rss_bytes": 44613632,
+      "position": 1,
+      "side": "candidate",
+      "status": 0,
+      "stderr": "memory-02-1-candidate.stderr",
+      "system_seconds": 0.12645199999999998,
+      "user_seconds": 0.660215,
+      "wall_seconds": 0.798195792012848
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/experiments/source_tar_rewrite.py",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925a/source.tar.gz",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/memory-02-2-control.tar"
+      ],
+      "family": "memory",
+      "id": "memory-02-2-control",
+      "output": "memory-02-2-control.stdout",
+      "output_identity": {
+        "internal_seconds": 0.755185166024603,
+        "members": 6539,
+        "output_bytes": 147763200,
+        "output_digest": "8026bc5b211c69b1d7cda5a929b506cb7bf61d70290a3dfa5e51d275c4f85efd",
+        "regular_bytes": 136064031,
+        "regular_files": 6031,
+        "source_digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805"
+      },
+      "pair": 2,
+      "peak_rss_bytes": 43270144,
+      "position": 2,
+      "side": "control",
+      "status": 0,
+      "stderr": "memory-02-2-control.stderr",
+      "system_seconds": 0.129161,
+      "user_seconds": 0.749849,
+      "wall_seconds": 0.9031707090325654
+    }
+  ],
+  "build": [
+    {
+      "command": [
+        "/Users/josh/.rustup/toolchains/nightly-2026-09-15-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-type=staticlib",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "panic=abort",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/overlay/Modules/_rust_tar_checksum/checksum.rs",
+        "-o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/libtar_checksum.a"
+      ],
+      "id": "build-1",
+      "output": "build-1.stdout",
+      "peak_rss_bytes": 96305152,
+      "status": 0,
+      "stderr": "build-1.stderr",
+      "system_seconds": 0.016978,
+      "user_seconds": 0.024097999999999998,
+      "wall_seconds": 0.04778383404482156
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-O3",
+        "-fPIC",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-I",
+        "/Users/josh/d/python-build/rust-cpython/stage/include/python3.16",
+        "-c",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/overlay/Modules/_rust_tar_checksum/module.c",
+        "-o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/module.o"
+      ],
+      "id": "build-2",
+      "output": "build-2.stdout",
+      "peak_rss_bytes": 53166080,
+      "status": 0,
+      "stderr": "build-2.stderr",
+      "system_seconds": 0.02763,
+      "user_seconds": 0.049836,
+      "wall_seconds": 0.09601337497588247
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/module.o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/libtar_checksum.a",
+        "-o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/candidate/lib/python3.16/lib-dynload/_rust_tar_checksum.cpython-316-darwin.so"
+      ],
+      "id": "build-3",
+      "output": "build-3.stdout",
+      "peak_rss_bytes": 35454976,
+      "status": 0,
+      "stderr": "build-3.stderr",
+      "system_seconds": 0.042068,
+      "user_seconds": 0.07216,
+      "wall_seconds": 0.10176633298397064
+    }
+  ],
+  "cache_entries_after": [],
+  "cache_entries_after_audit": [],
+  "host_after": {
+    "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "uptime": "6:53  up 10 days, 18:59, 2 users, load averages: 4.09 3.68 3.73"
+  },
+  "host_before": {
+    "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "uptime": "6:53  up 10 days, 18:59, 2 users, load averages: 4.67 3.75 3.76"
+  },
+  "pairs": [
+    {
+      "attempts": [
+        "self-01-1-control",
+        "self-01-2-control"
+      ],
+      "family": "self",
+      "pair": 1
+    },
+    {
+      "attempts": [
+        "self-02-1-control",
+        "self-02-2-control"
+      ],
+      "family": "self",
+      "pair": 2
+    },
+    {
+      "attempts": [
+        "self-03-1-control",
+        "self-03-2-control"
+      ],
+      "family": "self",
+      "pair": 3
+    },
+    {
+      "attempts": [
+        "comparison-01-1-control",
+        "comparison-01-2-candidate"
+      ],
+      "family": "comparison",
+      "pair": 1
+    },
+    {
+      "attempts": [
+        "comparison-02-1-candidate",
+        "comparison-02-2-control"
+      ],
+      "family": "comparison",
+      "pair": 2
+    },
+    {
+      "attempts": [
+        "comparison-03-1-control",
+        "comparison-03-2-candidate"
+      ],
+      "family": "comparison",
+      "pair": 3
+    },
+    {
+      "attempts": [
+        "comparison-04-1-candidate",
+        "comparison-04-2-control"
+      ],
+      "family": "comparison",
+      "pair": 4
+    },
+    {
+      "attempts": [
+        "comparison-05-1-control",
+        "comparison-05-2-candidate"
+      ],
+      "family": "comparison",
+      "pair": 5
+    },
+    {
+      "attempts": [
+        "memory-01-1-control",
+        "memory-01-2-candidate"
+      ],
+      "family": "memory",
+      "pair": 1
+    },
+    {
+      "attempts": [
+        "memory-02-1-candidate",
+        "memory-02-2-control"
+      ],
+      "family": "memory",
+      "pair": 2
+    }
+  ],
+  "patch_application": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "patching file 'Lib/tarfile.py'\n"
+  },
+  "recipe": {
+    "archive_sha256": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+    "candidate_tarfile_sha256": "d008a71d8ca02d773befae4db3df875eba245d432b8771e1aa981e6c913a27b3",
+    "checksum_rs_sha256": "cf6ad8ee3507772f3b8b1356c5fa6389634a4dfaac860424238c0be9eadccdae",
+    "control_tarfile_sha256": "a1a9f6ed36eb63b24a1bfb2c70210c2f42251559e796968183e90202b34bd44a",
+    "environment": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONHASHSEED": "1",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONPYCACHEPREFIX": "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-b/empty-pycache"
+    },
+    "extension_sha256": "cffd05fdbee3dcd9133de3dbb033922fccb1c74066f017af02e9dc652a39f227",
+    "guarded_tarfile_sha256": "d008a71d8ca02d773befae4db3df875eba245d432b8771e1aa981e6c913a27b3",
+    "interpreter": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+    "interpreter_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "libpython_sha256": "a81b7abb07a9837ef7c2eecd08729fd86c1b9dd01613f13f809ef9f7cb61065c",
+    "measurement": "os.wait4 on direct child; macOS ru_maxrss in bytes; direct process tree has no child processes",
+    "module_c_sha256": "998793ad200928b5ce957991acfbf40cb07a24a50709061dbed1fe9db64c601f",
+    "patch_sha256": "0da95722ef14a790c984c7056929c7d08eaa7deb7a21e6a3b64df4296ce42df6",
+    "source_cache_policy": "empty PYTHONPYCACHEPREFIX; PYTHONDONTWRITEBYTECODE=1; no pyc reads or writes",
+    "workload_sha256": "1396d603616c9c13e45c50fbaca37ac2f61db00f6d412bfbb34b5f3d6eceb931"
+  },
+  "run_id": "b"
+}

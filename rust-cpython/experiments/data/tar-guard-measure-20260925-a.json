@@ -1,0 +1,124 @@
+{
+  "attempts": [
+    {
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "-v",
+        "-c",
+        "import tarfile; print(tarfile.__file__)"
+      ],
+      "id": "audit-control",
+      "output": "audit-control.stdout",
+      "peak_rss_bytes": 29769728,
+      "status": 0,
+      "stderr": "audit-control.stderr",
+      "system_seconds": 0.013826,
+      "user_seconds": 0.08106,
+      "wall_seconds": 0.10699595895130187
+    }
+  ],
+  "build": [
+    {
+      "command": [
+        "/Users/josh/.rustup/toolchains/nightly-2026-09-15-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-type=staticlib",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "panic=abort",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/overlay/Modules/_rust_tar_checksum/checksum.rs",
+        "-o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/libtar_checksum.a"
+      ],
+      "id": "build-1",
+      "output": "build-1.stdout",
+      "peak_rss_bytes": 96272384,
+      "status": 0,
+      "stderr": "build-1.stderr",
+      "system_seconds": 0.093195,
+      "user_seconds": 0.02649,
+      "wall_seconds": 0.36999516596551985
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-O3",
+        "-fPIC",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-I",
+        "/Users/josh/d/python-build/rust-cpython/stage/include/python3.16",
+        "-c",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/overlay/Modules/_rust_tar_checksum/module.c",
+        "-o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/module.o"
+      ],
+      "id": "build-2",
+      "output": "build-2.stdout",
+      "peak_rss_bytes": 52953088,
+      "status": 0,
+      "stderr": "build-2.stderr",
+      "system_seconds": 0.06765299999999999,
+      "user_seconds": 0.050609999999999995,
+      "wall_seconds": 0.29408462496940047
+    },
+    {
+      "command": [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/module.o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/libtar_checksum.a",
+        "-o",
+        "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/candidate/lib/python3.16/lib-dynload/_rust_tar_checksum.cpython-316-darwin.so"
+      ],
+      "id": "build-3",
+      "output": "build-3.stdout",
+      "peak_rss_bytes": 35323904,
+      "status": 0,
+      "stderr": "build-3.stderr",
+      "system_seconds": 0.066954,
+      "user_seconds": 0.071698,
+      "wall_seconds": 0.22355641599278897
+    }
+  ],
+  "host_before": {
+    "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "uptime": "6:52  up 10 days, 18:58, 2 users, load averages: 4.27 3.59 3.70"
+  },
+  "pairs": [],
+  "patch_application": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "patching file 'Lib/tarfile.py'\n"
+  },
+  "recipe": {
+    "archive_sha256": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+    "candidate_tarfile_sha256": "d008a71d8ca02d773befae4db3df875eba245d432b8771e1aa981e6c913a27b3",
+    "checksum_rs_sha256": "cf6ad8ee3507772f3b8b1356c5fa6389634a4dfaac860424238c0be9eadccdae",
+    "control_tarfile_sha256": "a1a9f6ed36eb63b24a1bfb2c70210c2f42251559e796968183e90202b34bd44a",
+    "environment": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONHASHSEED": "1",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONPYCACHEPREFIX": "/Users/josh/d/python-build-exp-tar-guard-measure-20260925/rust-cpython/work/tar-guard-measure-20260925-a/empty-pycache"
+    },
+    "extension_sha256": "cffd05fdbee3dcd9133de3dbb033922fccb1c74066f017af02e9dc652a39f227",
+    "guarded_tarfile_sha256": "d008a71d8ca02d773befae4db3df875eba245d432b8771e1aa981e6c913a27b3",
+    "interpreter": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+    "interpreter_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "libpython_sha256": "a81b7abb07a9837ef7c2eecd08729fd86c1b9dd01613f13f809ef9f7cb61065c",
+    "measurement": "os.wait4 on direct child; macOS ru_maxrss in bytes; direct process tree has no child processes",
+    "module_c_sha256": "998793ad200928b5ce957991acfbf40cb07a24a50709061dbed1fe9db64c601f",
+    "patch_sha256": "0da95722ef14a790c984c7056929c7d08eaa7deb7a21e6a3b64df4296ce42df6",
+    "source_cache_policy": "empty PYTHONPYCACHEPREFIX; PYTHONDONTWRITEBYTECODE=1; no pyc reads or writes",
+    "workload_sha256": "1396d603616c9c13e45c50fbaca37ac2f61db00f6d412bfbb34b5f3d6eceb931"
+  },
+  "run_id": "a"
+}
