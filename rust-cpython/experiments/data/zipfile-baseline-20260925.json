@@ -1,0 +1,430 @@
+{
+  "base_commit": "293c23bb997563a83b068c92d7d59d4204903097",
+  "experiment": "Uninstrumented zip_read_wheel control/control baseline",
+  "host": {
+    "cpu_count": 10,
+    "other_activity": "No benchmark, compiler, PGO, or build process in pre/post scans; OrbStack Helper about 12-30% CPU, about 5.8-6.0 GB RSS.",
+    "physical_memory_bytes": 34359738368,
+    "swap_usage_post": "243.88 MiB",
+    "swap_usage_pre": "243.88 MiB"
+  },
+  "interpreter": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+  "interpreter_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+  "measurement": "Every invocation uses /usr/bin/time -l around one Python process. It launches no children; user+sys therefore covers the command tree. Full-process wall is time -l real, quantized to 0.01 s. Peak RSS and swaps are time -l kernel fields. No memory sampler, profiler, forced GC, or special allocator. Internal elapsed is workload perf_counter around its read/check loop, excluding fixture generation and startup. Raw stdout and complete time -l log retained per attempt.",
+  "pairs": [
+    {
+      "A_id": "pair-01-A",
+      "B_id": "pair-01-B",
+      "B_minus_A_cpu_percent": -0.8928571428571397,
+      "B_minus_A_internal_percent": 0.34466420186458624,
+      "B_minus_A_wall_percent": 0.0,
+      "order": "AB",
+      "pair": 1
+    },
+    {
+      "A_id": "pair-02-A",
+      "B_id": "pair-02-B",
+      "B_minus_A_cpu_percent": 0.9090909090909038,
+      "B_minus_A_internal_percent": 0.34301640919374154,
+      "B_minus_A_wall_percent": 0.8928571428571175,
+      "order": "BA",
+      "pair": 2
+    },
+    {
+      "A_id": "pair-03-A",
+      "B_id": "pair-03-B",
+      "B_minus_A_cpu_percent": 0.0,
+      "B_minus_A_internal_percent": 0.5263707926069561,
+      "B_minus_A_wall_percent": 0.8928571428571175,
+      "order": "AB",
+      "pair": 3
+    },
+    {
+      "A_id": "pair-04-A",
+      "B_id": "pair-04-B",
+      "B_minus_A_cpu_percent": 0.0,
+      "B_minus_A_internal_percent": 0.6126321122891909,
+      "B_minus_A_wall_percent": 0.8928571428571175,
+      "order": "BA",
+      "pair": 4
+    },
+    {
+      "A_id": "pair-05-A",
+      "B_id": "pair-05-B",
+      "B_minus_A_cpu_percent": 0.0,
+      "B_minus_A_internal_percent": 0.12297338468840735,
+      "B_minus_A_wall_percent": 0.0,
+      "order": "AB",
+      "pair": 5
+    },
+    {
+      "A_id": "pair-06-A",
+      "B_id": "pair-06-B",
+      "B_minus_A_cpu_percent": -1.7857142857142905,
+      "B_minus_A_internal_percent": -0.8929284207264243,
+      "B_minus_A_wall_percent": -0.8849557522123686,
+      "order": "BA",
+      "pair": 6
+    },
+    {
+      "A_id": "pair-07-A",
+      "B_id": "pair-07-B",
+      "B_minus_A_cpu_percent": 0.0,
+      "B_minus_A_internal_percent": 0.10083408950709583,
+      "B_minus_A_wall_percent": 0.0,
+      "order": "AB",
+      "pair": 7
+    }
+  ],
+  "records": [
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 500",
+      "full_process_wall_seconds": 0.48,
+      "id": "pilot-001",
+      "iterations": 500,
+      "kernel_system_seconds": 0.02,
+      "kernel_total_cpu_seconds": 0.47000000000000003,
+      "kernel_user_seconds": 0.45,
+      "max_rss_bytes": 45924352,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 0.4134678749833256,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 1051658000
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":0.4134678749833256,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":1051658000}\n",
+      "swaps": 0,
+      "time_log": "        0.48 real         0.45 user         0.02 sys\n            45924352  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3448  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 400  involuntary context switches\n          5339919330  instructions retired\n          1497173138  cycles elapsed\n            32850424  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-01-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.02,
+      "kernel_total_cpu_seconds": 1.12,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 49971200,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0628217089688405,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0628217089688405,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.02 sys\n            49971200  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3695  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 455  involuntary context switches\n         13143182646  instructions retired\n          3541718498  cycles elapsed\n            36897272  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-01-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 49872896,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0664848749293014,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0664848749293014,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.01 sys\n            49872896  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3689  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 445  involuntary context switches\n         13154844323  instructions retired\n          3544868303  cycles elapsed\n            36798968  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-02-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 45842432,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0642286249203607,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0642286249203607,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.01 sys\n            45842432  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3443  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 456  involuntary context switches\n         13167862647  instructions retired\n          3538416420  cycles elapsed\n            32768504  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.12,
+      "id": "pair-02-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.1,
+      "kernel_user_seconds": 1.09,
+      "max_rss_bytes": 49807360,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0605906250420958,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0605906250420958,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.12 real         1.09 user         0.01 sys\n            49807360  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3685  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 471  involuntary context switches\n         13147266739  instructions retired\n          3527661135  cycles elapsed\n            36733432  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.12,
+      "id": "pair-03-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.02,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.09,
+      "max_rss_bytes": 50020352,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0585537910228595,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0585537910228595,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.12 real         1.09 user         0.02 sys\n            50020352  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3699  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 473  involuntary context switches\n         13136294248  instructions retired\n          3531829834  cycles elapsed\n            36946424  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-03-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 48857088,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0641257090028375,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0641257090028375,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.01 sys\n            48857088  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3627  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 491  involuntary context switches\n         13136449839  instructions retired\n          3540613849  cycles elapsed\n            35783160  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-04-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 49905664,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.070321875042282,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.070321875042282,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.01 sys\n            49905664  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3691  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 510  involuntary context switches\n         13072064909  instructions retired\n          3559359188  cycles elapsed\n            36831736  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.12,
+      "id": "pair-04-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 45907968,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0638046660460532,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0638046660460532,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.12 real         1.10 user         0.01 sys\n            45907968  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3447  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 481  involuntary context switches\n         13145526264  instructions retired\n          3539295143  cycles elapsed\n            32834040  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-05-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 49922048,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0629674999509007,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0629674999509007,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.01 sys\n            49922048  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3692  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 454  involuntary context switches\n         13140015656  instructions retired\n          3537908224  cycles elapsed\n            36848120  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-05-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.11,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 45973504,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.064274667063728,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.064274667063728,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.01 sys\n            45973504  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3451  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 486  involuntary context switches\n         13151577203  instructions retired\n          3537486509  cycles elapsed\n            32899576  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.12,
+      "id": "pair-06-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.1,
+      "kernel_user_seconds": 1.09,
+      "max_rss_bytes": 45826048,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0598675000946969,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0598675000946969,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.12 real         1.09 user         0.01 sys\n            45826048  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3442  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 446  involuntary context switches\n         13155711772  instructions retired\n          3530122039  cycles elapsed\n            32752120  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.13,
+      "id": "pair-06-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.02,
+      "kernel_total_cpu_seconds": 1.12,
+      "kernel_user_seconds": 1.1,
+      "max_rss_bytes": 49250304,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0694166250759736,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0694166250759736,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.13 real         1.10 user         0.02 sys\n            49250304  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3651  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 490  involuntary context switches\n         13150478758  instructions retired\n          3560455254  cycles elapsed\n            36176376  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.12,
+      "id": "pair-07-A",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.1,
+      "kernel_user_seconds": 1.09,
+      "max_rss_bytes": 49790976,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0593717920128256,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0593717920128256,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.12 real         1.09 user         0.01 sys\n            49790976  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3684  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 461  involuntary context switches\n         13092788693  instructions retired\n          3525212782  cycles elapsed\n            36717048  peak memory footprint\n"
+    },
+    {
+      "command": "env PYTHONPATH=/private/tmp/python-build-exp-zipfile-baseline-20260925a PYTHONHASHSEED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONMALLOC=default /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -m benchmarks.workloads.zlib zip_read_wheel --iterations 1300",
+      "full_process_wall_seconds": 1.12,
+      "id": "pair-07-B",
+      "iterations": 1300,
+      "kernel_system_seconds": 0.01,
+      "kernel_total_cpu_seconds": 1.1,
+      "kernel_user_seconds": 1.09,
+      "max_rss_bytes": 45793280,
+      "process_count": 1,
+      "result": {
+        "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+        "elapsed_seconds": 1.0604399999137968,
+        "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+        "operation_count": 2734310800
+      },
+      "stdout": "{\"digest\":\"e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071\",\"elapsed_seconds\":1.0604399999137968,\"input_digest\":\"216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7\",\"operation_count\":2734310800}\n",
+      "swaps": 0,
+      "time_log": "        1.12 real         1.09 user         0.01 sys\n            45793280  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3441  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 469  involuntary context switches\n         13144723187  instructions retired\n          3534033161  cycles elapsed\n            32719352  peak memory footprint\n"
+    }
+  ],
+  "summary": {
+    "B_minus_A_cpu_percent": {
+      "max": 0.9090909090909038,
+      "max_abs": 1.7857142857142905,
+      "median": 0.0,
+      "min": -1.7857142857142905
+    },
+    "B_minus_A_internal_percent": {
+      "max": 0.6126321122891909,
+      "max_abs": 0.8929284207264243,
+      "median": 0.34301640919374154,
+      "min": -0.8929284207264243
+    },
+    "B_minus_A_wall_percent": {
+      "max": 0.8928571428571175,
+      "max_abs": 0.8928571428571175,
+      "median": 0.0,
+      "min": -0.8849557522123686
+    },
+    "full_process_wall_seconds": {
+      "max": 1.13,
+      "median": 1.13,
+      "min": 1.12,
+      "per_extracted_byte_ns_max": 0.4132668458903794,
+      "per_extracted_byte_ns_median": 0.4132668458903794,
+      "per_extracted_byte_ns_min": 0.4096096171656858
+    },
+    "internal_task_seconds": {
+      "max": 1.070321875042282,
+      "median": 1.063386082998477,
+      "min": 1.0585537910228595
+    },
+    "kernel_total_cpu_seconds": {
+      "max": 1.12,
+      "median": 1.11,
+      "min": 1.1,
+      "per_extracted_byte_ns_max": 0.4096096171656858,
+      "per_extracted_byte_ns_median": 0.40595238844099213,
+      "per_extracted_byte_ns_min": 0.40229515971629853
+    },
+    "max_rss_bytes": 50020352,
+    "total_cpu_seconds": 15.99,
+    "total_extracted_bytes_timed": 38280351200,
+    "total_system_seconds": 0.19,
+    "total_user_seconds": 15.8
+  },
+  "workload_source_sha256": "735cbe284df04c2e5bf7f2a6eaca2a58b6783bb011b5bbbf542728078445b9f5",
+  "zipfile_pyc_sha256": "0ed39475db15e3dd8fd0d17f150d6b6a0697835537f43f35b213e4e9b207283a",
+  "zipfile_source_sha256": "6278152bb420f29870d46c4d975f564a215fcd31f543157242dd9470faedba61"
+}
