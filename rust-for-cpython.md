@@ -320,11 +320,17 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   forms and request-path canonicalization. Against the prior fork build,
   five-pair wall/CPU medians improved by about 14% and 4–5% respectively;
   upstream comparisons had the same direction. All complete digests and the
-  200,000-byte fallback boundary passed. Request-path peak RSS was consistently
-  about 0.25–0.49 MB higher; its median was within self-noise, but one
-  upstream pair exceeded the candidate allowance. Fresh-import timing was too
-  noisy for a verdict. See
+  200,000-byte fallback boundary passed. Initial request-path peak RSS was
+  about 0.25–0.49 MB higher; one upstream pair exceeded the candidate noise
+  allowance. Fresh-import timing was too noisy for a verdict. See
   [`url-quote-breadth-comparison-20260924.md`](rust-cpython/experiments/url-quote-breadth-comparison-20260924.md).
+- A ten-pair request-path memory follow-up with byte-identical child checker
+  code had a −8,192-byte candidate/control median and did not reproduce that
+  RSS direction. The earlier checker difference is a likely confounder, not
+  proven causation. Fresh `urllib.parse` import used about 0.594 ms more
+  process CPU per run across batched fresh processes; wall time remained
+  inconclusive and peak RSS was within self-noise. See
+  [`url-quote-memory-followup-20260924.md`](rust-cpython/experiments/url-quote-memory-followup-20260924.md).
 
 ## Immediate work queue
 
@@ -350,11 +356,13 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   `unified_diff` path is a separate hypothesis whose snapshot and validation
   cost should be measured first; see
   [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
-- The guarded URL patch is speed-qualified on three complete tasks. Resolve
-  its fresh-import and request-path memory signals before accepting it as a
-  resource-neutral change. Unique/proportional memory and allocations remain
-  unqualified even when paired RSS medians fall within noise. Extend to
-  broader applications when compatible byte-pinned inputs exist.
+- The guarded URL patch is speed-qualified on three complete tasks. Test a
+  lazy private-extension import as a possible fix for its small fresh-import
+  CPU cost, while checking that public URL workload gains survive. The
+  request-path RSS increase did not repeat with identical checkers.
+  Unique/proportional memory and allocations remain unqualified even when
+  paired RSS medians fall within noise. Extend to broader applications when
+  compatible byte-pinned inputs exist.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops
