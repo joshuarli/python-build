@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## Optional URL unquote full build (base `cdc5387`)
+
+The native qualification lane uses
+`/private/tmp/python-build-exp-url-unquote-build-20260925a`, branch
+`exp/url-unquote-build-20260925a`. It owns only
+`experiments/url-unquote-build-20260925.md`, compact evidence under
+`experiments/data/`, and ignored generated work, stage, results, and logs in
+that worktree. It builds the digest-checked `--url-unquote` selection from a
+fresh verified source, checks intended source and installed identities, and
+records every attempted build with kernel CPU, peak RSS, and swap evidence.
+No timing comparison or other compiler runs concurrently. Budget: 1,200
+kernel CPU seconds and 4 GiB per-process RSS. The coordinator will inspect
+its report and integrate it before a separate installed workload comparison.
+This build does not resolve public semantic or upstream memory qualification.
+
 ## Optional URL unquote source patch (base `50737ef`)
 
 The source integration lane uses
