@@ -13,6 +13,13 @@ not a speed verdict. It is the only active profiler or timing lane. Budget:
 30 kernel-accounted CPU seconds and 512 MiB per-process RSS, with every
 attempt and its output digest retained. The coordinator will integrate its
 result before selecting any JSON implementation experiment.
+The accepted-control profile repeated the prior pinned-stage diagnostic:
+250 complete exports passed fixed digests, and sequential `dumps`/`loads`
+calls occupied about 82% of instrumented export time. The C encoder and
+scanner were active; an application encode/decode round trip caused many
+calls. Three measured commands used 2.84 kernel CPU seconds, at most 31.67
+MB RSS, and zero swaps. Defer a Rust JSON engine on this evidence; see
+`json-headroom-20260925.md` and `catalog-json-profile-20260924.md`.
 In parallel, the read-only URL unquote scout uses
 `/private/tmp/python-build-exp-url-unquote-scout-20260925a`, branch
 `exp/url-unquote-scout-20260925a` (base `a0e697e`), and owns only

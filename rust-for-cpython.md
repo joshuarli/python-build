@@ -310,6 +310,8 @@ as a separate baseline change.
   kernel pending evidence of C-level headroom. See
   [`catalog-json-workload-20260924.md`](rust-cpython/experiments/catalog-json-workload-20260924.md)
   and [`catalog-json-profile-20260924.md`](rust-cpython/experiments/catalog-json-profile-20260924.md).
+  A repeat profile on the accepted fork control reached the same conclusion;
+  see [`json-headroom-20260925.md`](rust-cpython/experiments/json-headroom-20260925.md).
 - A registered catalog URL workload now exercises the checked-in application's
   `normalize_url` and `stable_key` functions over 48 mixed records with fixed
   complete-output digests. A short profile identified `urllib.parse.quote`

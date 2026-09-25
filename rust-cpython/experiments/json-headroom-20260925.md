@@ -1,5 +1,11 @@
 # Complete catalog JSON export: accepted-control headroom
 
+This repeats the earlier pinned-stage diagnostic in
+[`catalog-json-profile-20260924.md`](catalog-json-profile-20260924.md)
+on the later accepted fork control. Both profiles locate the repeated
+application encode/decode round trip and reach the same deferral decision;
+their separate builds and profiles are not a paired speed comparison.
+
 ## Boundary and identity
 
 This diagnostic used the accepted fork control at
