@@ -648,7 +648,16 @@ as a separate baseline change.
   Its module adds 1.59 MB unstripped; see
   [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md)
   and [`zlib-oneshot-mixedblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-mixedblobs-20260925.md).
-  Revisit archive size only after the mixed-input regression is fixed.
+  A separate `--zlib-adaptive` trial selects Rust for compressed inputs of
+  at least 8 KiB and platform zlib below that cutoff. Matched-fork macOS
+  builds and complete output checks succeeded. Five loaded-host pairs showed
+  6.74% lower median CPU on combined 1 MiB direct decode and no median CPU
+  change on mixed SQLite BLOBs; the cutoff gives up Rust gains on highly
+  compressible inputs that remain small after compression. Keep it opt-in
+  until quiet-host speed, memory, and broad semantic qualification. Its
+  unstripped extension still costs about 1.59 MB. See
+  [`zlib-adaptive-oneshot-20260925.md`](rust-cpython/experiments/zlib-adaptive-oneshot-20260925.md).
+  Revisit archive size after the mixed-input tradeoff is qualified.
 - The optional TAR checksum source patch produced a repeatable macOS
   complete-archive speed and CPU gain with unchanged output. Its TAR-owned
   private extension now loads only when an eligible checksum is needed.

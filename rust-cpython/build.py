@@ -537,6 +537,7 @@ def _extract_fresh(destination: Path) -> Path:
 
 
 def _source_patch_inputs(*, url_unquote: bool = False,
+                         zlib_adaptive: bool = False,
                          tar_checksum: bool = False,
                          ipv4_scan: bool = False,
                          strptime_numeric: bool = False,
@@ -567,6 +568,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         "0008-rust-uuid-canonical.patch": "uuid-canonical",
         "0009-rust-shlex-split.patch": "shlex-split",
         "0010-rust-fraction-rational.patch": "fraction-rational",
+        "0011-zlib-adaptive-oneshot.patch": "zlib-adaptive",
     }
     optional_seen: set[str] = set()
     for entry in manifest["patches"]:
@@ -593,6 +595,8 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         if digest != entry["sha256"]:
             raise LaneError(f"source patch digest disagrees with manifest: {name}")
         if mode is None or (mode == "url-unquote" and url_unquote) or (
+            mode == "zlib-adaptive" and zlib_adaptive
+        ) or (
             mode == "tar-checksum" and tar_checksum
         ) or (
             mode == "ipv4-scan" and ipv4_scan
@@ -613,6 +617,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "source_commit": metadata["commit"],
         "url_unquote": url_unquote,
+        "zlib_adaptive": zlib_adaptive,
         "tar_checksum": tar_checksum,
         "ipv4_scan": ipv4_scan,
         "strptime_numeric": strptime_numeric,
@@ -624,6 +629,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
 
 
 def _apply_source_patches(source: Path, *, url_unquote: bool = False,
+                          zlib_adaptive: bool = False,
                           tar_checksum: bool = False,
                           ipv4_scan: bool = False,
                           strptime_numeric: bool = False,
@@ -632,6 +638,7 @@ def _apply_source_patches(source: Path, *, url_unquote: bool = False,
                           fraction_rational: bool = False) -> dict[str, Any]:
     """Apply authored patches only to the verified, pinned fresh source tree."""
     inputs = _source_patch_inputs(url_unquote=url_unquote,
+                                  zlib_adaptive=zlib_adaptive,
                                   tar_checksum=tar_checksum,
                                   ipv4_scan=ipv4_scan,
                                   strptime_numeric=strptime_numeric,
@@ -1072,7 +1079,8 @@ def _cargo_linker_variable() -> str:
 
 
 def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None,
-                   zlib_hybrid: bool = False, zlib_oneshot: bool = False) -> tuple[list[str], dict[str, str]]:
+                   zlib_hybrid: bool = False, zlib_oneshot: bool = False,
+                   zlib_adaptive: bool = False) -> tuple[list[str], dict[str, str]]:
     profile_task = _profile_task(jobs)
     platform_flags = _platform_flags(toolchain, target)
     args = [
@@ -1096,6 +1104,8 @@ def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = 
         env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_HYBRID=1"
     if zlib_oneshot:
         env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_ONESHOT=1"
+    if zlib_adaptive:
+        env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_ADAPTIVE=1"
     return args, env
 
 
@@ -1298,7 +1308,7 @@ print(json.dumps({
 
 
 def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False,
-                        oneshot: bool = False) -> dict[str, Any]:
+                        oneshot: bool = False, adaptive: bool = False) -> dict[str, Any]:
     """Prove the installed whole-build module uses the candidate C ABI."""
     code = (
         "import binascii,json,zlib; "
@@ -1385,7 +1395,8 @@ def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False,
         "static_backend_symbols": [symbol[len(SYMBOL_PREFIX):] for symbol in expected_symbols],
         **({"platform_inflate_references": [symbol[len(SYMBOL_PREFIX):] for symbol in platform_refs]}
            if oneshot else {}),
-        "python_wrapper": "one-shot inflate on prefixed Rust, streaming inflate on platform libz" if oneshot else
+        "python_wrapper": "one-shot inflate of at least 8192 compressed bytes on prefixed Rust; all other inflate on platform libz" if adaptive else
+                          "one-shot inflate on prefixed Rust, streaming inflate on platform libz" if oneshot else
                           "conditional inflate routing in pinned CPython Modules/zlibmodule.c" if hybrid else
                           "pinned CPython Modules/zlibmodule.c with inactive hybrid guard",
         "binascii": {
@@ -1460,7 +1471,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, zlib_adaptive: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -1474,6 +1485,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         zlib_archive=ZLIB_ARCHIVE if zlib_backend is not None else None,
         zlib_hybrid=zlib_hybrid,
         zlib_oneshot=zlib_oneshot,
+        zlib_adaptive=zlib_adaptive,
     )
     env.update({
         "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
@@ -1524,7 +1536,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     module = _module_report(STAGE, python, toolchain)
     if zlib_backend is not None:
         zlib_backend["installed_module"] = _zlib_module_report(python, toolchain, hybrid=zlib_hybrid,
-                                                                 oneshot=zlib_oneshot)
+                                                                 oneshot=zlib_oneshot, adaptive=zlib_adaptive)
     cargo_env = dict(source_date_env)
     cargo_env.update({
         "PYTHON_BUILD_DIR": str(BUILD),
@@ -1625,14 +1637,16 @@ def _unpatched_record() -> dict[str, Any]:
 
 
 def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
-          zlib_oneshot: bool = False, url_unquote: bool = False,
+          zlib_oneshot: bool = False, zlib_adaptive: bool = False,
+          url_unquote: bool = False,
           tar_checksum: bool = False, ipv4_scan: bool = False,
           strptime_numeric: bool = False,
           uuid_canonical: bool = False, shlex_split: bool = False,
           fraction_rational: bool = False,
           apply_patches: bool = True) -> int:
-    if sum((zlib_rs, zlib_hybrid, zlib_oneshot)) > 1:
+    if sum((zlib_rs, zlib_hybrid, zlib_oneshot, zlib_adaptive)) > 1:
         raise LaneError("select one zlib candidate mode")
+    oneshot_backend = zlib_oneshot or zlib_adaptive
     _require_host()
     doctor = doctor_report()
     if not doctor["ok"]:
@@ -1641,16 +1655,20 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     _cargo_wrapper(rustup)
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
-    sandbox = _sealed_sandbox() if (zlib_rs or zlib_hybrid or zlib_oneshot) else None
+    sandbox = _sealed_sandbox() if (zlib_rs or zlib_hybrid or oneshot_backend) else None
     zlib_backend = _build_zlib(toolchain, sandbox, hybrid=zlib_hybrid,
-                               oneshot=zlib_oneshot) if sandbox is not None else None
+                               oneshot=oneshot_backend) if sandbox is not None else None
+    if zlib_adaptive:
+        zlib_backend["kind"] = "adaptive-oneshot-inflate"
+        zlib_backend["minimum_compressed_bytes_for_rust"] = 8192
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
-    if (url_unquote or tar_checksum or ipv4_scan or strptime_numeric
+    if (zlib_adaptive or url_unquote or tar_checksum or ipv4_scan or strptime_numeric
             or uuid_canonical or shlex_split or fraction_rational) and not apply_patches:
         raise LaneError("optional source patches require source patches")
     patches = (_apply_source_patches(source, url_unquote=url_unquote,
+                                     zlib_adaptive=zlib_adaptive,
                                      tar_checksum=tar_checksum,
                                      ipv4_scan=ipv4_scan,
                                      strptime_numeric=strptime_numeric,
@@ -1673,7 +1691,8 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
         sandbox = _sealed_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
     report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend,
-                               zlib_hybrid=zlib_hybrid, zlib_oneshot=zlib_oneshot,
+                               zlib_hybrid=zlib_hybrid, zlib_oneshot=oneshot_backend,
+                               zlib_adaptive=zlib_adaptive,
                                tar_checksum=tar_checksum, ipv4_scan=ipv4_scan,
                                strptime_numeric=strptime_numeric,
                                uuid_canonical=uuid_canonical,
@@ -1714,6 +1733,7 @@ def test() -> int:
     recorded_patches = report["source"].get("patches")
     if (not isinstance(recorded_patches, dict)
             or type(recorded_patches.get("url_unquote")) is not bool
+            or type(recorded_patches.get("zlib_adaptive")) is not bool
             or type(recorded_patches.get("tar_checksum")) is not bool
             or type(recorded_patches.get("ipv4_scan")) is not bool
             or type(recorded_patches.get("strptime_numeric")) is not bool
@@ -1722,6 +1742,7 @@ def test() -> int:
             or type(recorded_patches.get("fraction_rational")) is not bool):
         raise LaneError("build report is missing optional source patch selections")
     url_unquote = recorded_patches["url_unquote"]
+    zlib_adaptive = recorded_patches["zlib_adaptive"]
     tar_checksum = recorded_patches["tar_checksum"]
     ipv4_scan = recorded_patches["ipv4_scan"]
     strptime_numeric = recorded_patches["strptime_numeric"]
@@ -1730,6 +1751,7 @@ def test() -> int:
     fraction_rational = recorded_patches["fraction_rational"]
     applied = bool(recorded_patches.get("patches"))
     patches = (_source_patch_inputs(url_unquote=url_unquote,
+                                    zlib_adaptive=zlib_adaptive,
                                     tar_checksum=tar_checksum,
                                     ipv4_scan=ipv4_scan,
                                     strptime_numeric=strptime_numeric,
@@ -1744,6 +1766,7 @@ def test() -> int:
         source = _extract_fresh(SOURCE)
         if applied:
             _apply_source_patches(source, url_unquote=url_unquote,
+                                  zlib_adaptive=zlib_adaptive,
                                   tar_checksum=tar_checksum,
                                   ipv4_scan=ipv4_scan,
                                   strptime_numeric=strptime_numeric,
@@ -1851,6 +1874,10 @@ def main(argv: list[str] | None = None) -> int:
                 "--zlib-oneshot", action="store_true",
                 help="use prefixed zlib-rs only for one-shot decompression",
             )
+            command_parser.add_argument(
+                "--zlib-adaptive", action="store_true",
+                help="use prefixed zlib-rs for one-shot streams of at least 8192 compressed bytes",
+            )
         if name in ("build", "test"):
             command_parser.add_argument(
                 "--variant", default="",
@@ -1894,12 +1921,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _select_variant(getattr(args, "variant", ""))
         if args.command in ("fetch", "build"):
-            if sum((args.zlib_rs, args.zlib_hybrid, args.zlib_oneshot)) > 1:
+            if sum((args.zlib_rs, args.zlib_hybrid, args.zlib_oneshot, args.zlib_adaptive)) > 1:
                 raise LaneError("select one zlib candidate mode")
             if args.command == "fetch":
-                return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot)
+                return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot or args.zlib_adaptive)
             return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid,
-                         zlib_oneshot=args.zlib_oneshot, url_unquote=args.url_unquote,
+                         zlib_oneshot=args.zlib_oneshot, zlib_adaptive=args.zlib_adaptive,
+                         url_unquote=args.url_unquote,
                          tar_checksum=args.tar_checksum, ipv4_scan=args.ipv4_scan,
                          strptime_numeric=args.strptime_numeric,
                          uuid_canonical=args.uuid_canonical,

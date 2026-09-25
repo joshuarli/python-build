@@ -35,6 +35,7 @@ python3 rust-cpython/build.py fetch --zlib-hybrid # cache the same pinned backen
 python3 rust-cpython/build.py build --zlib-hybrid # Rust inflate, platform deflate
 python3 rust-cpython/build.py fetch --zlib-oneshot # cache the same pinned backend
 python3 rust-cpython/build.py build --zlib-oneshot # Rust one-shot, platform streams
+python3 rust-cpython/build.py build --variant zlib-adaptive --zlib-adaptive # Rust one-shot for inputs >=8 KiB
 python3 rust-cpython/build.py build --url-unquote # optional guarded Rust percent decoder
 python3 rust-cpython/build.py build --variant tar-checksum --tar-checksum # optional TAR checksum scan
 python3 rust-cpython/build.py build --variant ipv4-guard --ipv4-scan # optional canonical IPv4 scan
@@ -148,6 +149,16 @@ deferred until that regression is resolved. See
 and [`experiments/zlib-oneshot-mixedblobs-20260925.md`](experiments/zlib-oneshot-mixedblobs-20260925.md);
 the size audit is in
 [`experiments/zlib-oneshot-size-feasibility-20260925.md`](experiments/zlib-oneshot-size-feasibility-20260925.md).
+`--zlib-adaptive` is a separate opt-in trial that routes compressed inputs
+of at least 8 KiB to the same one-shot Rust backend and smaller inputs to
+platform zlib. It gives up the Rust gain on highly compressible streams
+whose compressed form is small. Both matched-fork builds succeeded and the
+complete direct-decode, small-BLOB, and mixed-BLOB outputs matched. Loaded-host
+diagnostics showed 6.74% lower median CPU on the combined 1 MiB decode task
+and no median CPU change on mixed BLOBs; these are not quiet-host acceptance
+results. The extension still adds about 1.59 MB unstripped. Keep the mode
+opt-in pending quiet-host speed, memory, and semantic qualification. See
+[`experiments/zlib-adaptive-oneshot-20260925.md`](experiments/zlib-adaptive-oneshot-20260925.md).
 `--url-unquote` selects a digest-checked optional source patch after the
 ordinary quote patches. Its exact-ASCII-string and default UTF-8 replacement
 guard routes percent decoding through the existing private extension; other
@@ -257,7 +268,7 @@ The measured results, repeated runs, and limits are recorded in
 
 | Rank | Area: current implementation and CPython tests | Leverage and proposed Rust boundary | Hazards, prior art, and measurement gate |
 | ---: | --- | --- | --- |
-| 1 | **zlib** — `Modules/zlibmodule.c`; `test_zlib.py`, `test_gzip.py`, `test_binascii.py` | Compression and decompression sit under ZIP, gzip, wheels, and HTTP. Keep the CPython C/Python API and swap only the backend. | The whole-backend candidate changed 210 of 876 sampled compressed encodings. The inflate-only hybrid preserved those bytes and lowered CPU about 36% in sustained direct decode/gzip tasks, but raised CPU 10.81% in a checked public read of the locked CPython source `.tar.gz`. A one-shot split removed that tar regression and improved sustained decode CPU by 38.4%, but mixed-compressibility small BLOBs regressed 9.0% in CPU. The extension adds 1.59 MB unstripped. Neither route meets the breadth and resource gates; see [`experiments/zlib-oneshot-mixedblobs-20260925.md`](experiments/zlib-oneshot-mixedblobs-20260925.md). |
+| 1 | **zlib** — `Modules/zlibmodule.c`; `test_zlib.py`, `test_gzip.py`, `test_binascii.py` | Compression and decompression sit under ZIP, gzip, wheels, and HTTP. Keep the CPython C/Python API and swap only the backend. | The whole-backend candidate changed 210 of 876 sampled compressed encodings. The inflate-only hybrid lowered CPU about 36% in sustained direct decode/gzip tasks but raised CPU 10.81% in a source-tar read. A one-shot split removed that tar regression and cut sustained decode CPU 38.4%, but mixed small BLOBs regressed 9.0%. An 8 KiB adaptive cutoff built and matched all three checked workloads; loaded-host pairs showed 6.74% lower CPU on combined 1 MiB decode and no median mixed-BLOB change, with quiet-host timing and memory still open. The extension adds 1.59 MB unstripped. Keep all routes opt-in; see [`experiments/zlib-adaptive-oneshot-20260925.md`](experiments/zlib-adaptive-oneshot-20260925.md). |
 | 2 | **difflib (rejected routes)** — `Lib/difflib.py`; `test_difflib.py` | A substantial pure-Python matching and diff kernel was the initial hypothesis. | Stop the transparent public matcher and one-shot `unified_diff` routes: exposed mutable state, callbacks, and trace-mediated mutation change behavior under snapshot dispatch. The measured snapshot alone also added CPU. See [`experiments/difflib-one-shot-contract-20260924.md`](experiments/difflib-one-shot-contract-20260924.md). |
 | 3 | **tomllib (deferred)** — `Lib/tomllib/{_parser,_re,_types}.py`; `test_tomllib/{test_data,test_error,test_misc}.py` | A parser can take one document and return an ordinary Python tree, leaving `parse_float` callback policy at the Python boundary. | A pinned CPython build-tool command parses a real 72,592-byte manifest three times, and parser Python frames were 53.4% of its instrumented task time. Its direct process used only 0.07 CPU seconds, and approved inputs lack a substantial application metadata task. Pin and profile that task before a broad parser; preserve duplicate keys, datetime/error details, and callbacks. See [`experiments/tomllib-workload-scout-20260925.md`](experiments/tomllib-workload-scout-20260925.md). |
 | 4 | **ipaddress** — `Lib/ipaddress.py`; `test_ipaddress.py` | An optional exact canonical IPv4 string scanner now returns an integer beneath the existing `IPv4Address` class; network arithmetic and IPv6 stay in Python. | Five complete mixed routing-task pairs on macOS improved median wall by 9.77% and kernel CPU by 0.08 s over the prior fork, with matching output. The guard preserves ordinary `_parse_octet` replacements, but focused semantic coverage and Linux resource results remain open. A later complete-task profile put IPv4 integer formatting at no more than 4% of instrumented time; larger network costs use replaceable public properties, so defer a second narrow kernel. Keep `--ipv4-scan` opt-in; this is partial coverage, not a completed module port. See [`experiments/ipaddress-v4-scan-20260925.md`](experiments/ipaddress-v4-scan-20260925.md). |

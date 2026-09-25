@@ -107,6 +107,17 @@
       "reason": "Optionally scan bounded exact ASCII canonical rational strings in private no_std Rust while retaining Fraction allocation, normalization, errors, and other parsing in Python.",
       "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --fraction-rational; exact Fraction class and str input, default denominator, unchanged regex and int bindings, [-]?[0-9]+/[0-9]+ with at most 18 digits per component and nonzero denominator.",
       "reproducer": "Apply selected patches to fresh verified source for default, fraction-only, candidate stack, and all optional modes; check changed paths and reverse checks; build --variant fraction-rational --strptime-numeric --uuid-canonical --shlex-split --fraction-rational; compare complete rational ledger output and serial control/candidate resource pairs."
+    },
+    {
+      "file": "0011-zlib-adaptive-oneshot.patch",
+      "sha256": "b3c63c08a48305a62c8d34f51a26ef9405fec4391f15657fb402600321a9fca1",
+      "mode": "zlib-adaptive",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Modules/zlibmodule.c after the existing one-shot patch; authored on 2026-09-25 from checked-in zlib and SQLite workload categories",
+      "license": "PSF-2.0, matching the pinned CPython source",
+      "reason": "Limit optional Rust one-shot inflate to streams with at least 8192 compressed bytes, keeping the observed 1 MiB stored-stream win while routing all checked-in small SQLite BLOBs to platform zlib.",
+      "compatibility": "Applies after 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only by --zlib-adaptive with prefixed zlib-rs 0.6.7 and platform libz; the existing --zlib-oneshot mode is unchanged.",
+      "reproducer": "Apply selected patches to a fresh verified pinned source and verify Modules/zlibmodule.c changed plus forward and reverse checks; build --variant zlib-adaptive --zlib-adaptive; compare direct 1 MiB and both SQLite BLOB workloads against platform and unbounded one-shot controls on a quiet host."
     }
   ]
 }
