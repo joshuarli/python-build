@@ -1,0 +1,1289 @@
+{
+  "hypothesis": "short exact safe=b'/' dispatch cost dominates request path",
+  "rule": "after existing fast exit, exact safe bytes b'/' and 1 < input length < 32 use original Python route",
+  "accounting": "wait4 direct child; monotonic external wall; ru_maxrss and ru_nswap; workloads have no descendants; rustup launcher may spawn rustc and its wait4 CPU excludes that child",
+  "cache": "all overlays source-only, -B and PYTHONDONTWRITEBYTECODE=1; fresh copied urllib directory has no __pycache__",
+  "environment": "PYTHONPATH=SIDE:NATIVE:ROOT; PYTHONHASHSEED=1",
+  "host_initial": {
+    "load": [
+      2.5634765625,
+      3.099609375,
+      3.767578125
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985  18.0 7177200 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "14141  10.9  22080 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+      "826   9.0  34352 /Users/josh/.local/bin/mactop",
+      "53193   7.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                    76294.",
+      "Pages active:                                 789206.",
+      "Pages inactive:                               842543.",
+      "Pages speculative:                               657.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             167464.",
+      "Pages purgeable:                                1009."
+    ]
+  },
+  "attempts": [
+    {
+      "returncode": 0,
+      "wall_seconds": 0.41771933308336884,
+      "user_seconds": 0.052341,
+      "system_seconds": 0.104284,
+      "peak_rss_bytes": 101531648,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-0"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.24805595900397748,
+      "user_seconds": 0.051671999999999996,
+      "system_seconds": 0.064078,
+      "peak_rss_bytes": 54116352,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-1"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.13246629107743502,
+      "user_seconds": 0.083798,
+      "system_seconds": 0.048692,
+      "peak_rss_bytes": 35438592,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-2"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8979862499982119,
+      "user_seconds": 0.8516739999999999,
+      "system_seconds": 0.023572,
+      "peak_rss_bytes": 34291712,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-current-proposed-0-0",
+      "side": "current",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8807570839999244,
+      "user_seconds": 0.8432679999999999,
+      "system_seconds": 0.020302,
+      "peak_rss_bytes": 34308096,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-current-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8756293329643086,
+      "user_seconds": 0.844819,
+      "system_seconds": 0.020641,
+      "peak_rss_bytes": 34275328,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-current-proposed-1-0",
+      "side": "proposed",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8802333339117467,
+      "user_seconds": 0.847586,
+      "system_seconds": 0.020617,
+      "peak_rss_bytes": 34471936,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-current-proposed-1-1",
+      "side": "current",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9065014580264688,
+      "user_seconds": 0.8733719999999999,
+      "system_seconds": 0.020773999999999997,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-pure-proposed-0-0",
+      "side": "pure",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8905099590774626,
+      "user_seconds": 0.858211,
+      "system_seconds": 0.020534999999999998,
+      "peak_rss_bytes": 34439168,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-pure-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8758719589095563,
+      "user_seconds": 0.845328,
+      "system_seconds": 0.021155999999999998,
+      "peak_rss_bytes": 34013184,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-pure-proposed-1-0",
+      "side": "proposed",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9192819169256836,
+      "user_seconds": 0.8826269999999999,
+      "system_seconds": 0.021159,
+      "peak_rss_bytes": 34783232,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-pure-proposed-1-1",
+      "side": "pure",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8948328329715878,
+      "user_seconds": 0.862656,
+      "system_seconds": 0.021262,
+      "peak_rss_bytes": 34652160,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-current-current-0-0",
+      "side": "current",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8838199169840664,
+      "user_seconds": 0.849026,
+      "system_seconds": 0.02061,
+      "peak_rss_bytes": 34357248,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-current-current-0-1",
+      "side": "current",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8785153339849785,
+      "user_seconds": 0.8466819999999999,
+      "system_seconds": 0.020541999999999998,
+      "peak_rss_bytes": 34209792,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-proposed-proposed-0-0",
+      "side": "proposed",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.8952084169723094,
+      "user_seconds": 0.8561479999999999,
+      "system_seconds": 0.021169999999999998,
+      "peak_rss_bytes": 34226176,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_search_form-proposed-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_search_form",
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.27362733404152095,
+      "user_seconds": 0.24548299999999998,
+      "system_seconds": 0.019584,
+      "peak_rss_bytes": 34832384,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-current-proposed-0-0",
+      "side": "current",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.26245908404234797,
+      "user_seconds": 0.229465,
+      "system_seconds": 0.019396999999999998,
+      "peak_rss_bytes": 34258944,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-current-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.258994875010103,
+      "user_seconds": 0.22924599999999998,
+      "system_seconds": 0.019666,
+      "peak_rss_bytes": 34160640,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-current-proposed-1-0",
+      "side": "proposed",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.277193333953619,
+      "user_seconds": 0.247552,
+      "system_seconds": 0.019006,
+      "peak_rss_bytes": 34422784,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-current-proposed-1-1",
+      "side": "current",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.253218709025532,
+      "user_seconds": 0.223075,
+      "system_seconds": 0.019365999999999998,
+      "peak_rss_bytes": 33996800,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-pure-proposed-0-0",
+      "side": "pure",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.26257525000255555,
+      "user_seconds": 0.231343,
+      "system_seconds": 0.020107999999999997,
+      "peak_rss_bytes": 34357248,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-pure-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.2587731248931959,
+      "user_seconds": 0.228711,
+      "system_seconds": 0.019927,
+      "peak_rss_bytes": 34209792,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-pure-proposed-1-0",
+      "side": "proposed",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.25648158392868936,
+      "user_seconds": 0.223966,
+      "system_seconds": 0.019089,
+      "peak_rss_bytes": 34078720,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-pure-proposed-1-1",
+      "side": "pure",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.275558750028722,
+      "user_seconds": 0.24224199999999999,
+      "system_seconds": 0.019391,
+      "peak_rss_bytes": 34308096,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-current-current-0-0",
+      "side": "current",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.2775675420416519,
+      "user_seconds": 0.243924,
+      "system_seconds": 0.019351999999999998,
+      "peak_rss_bytes": 34209792,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-current-current-0-1",
+      "side": "current",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.25798150000628084,
+      "user_seconds": 0.22947299999999998,
+      "system_seconds": 0.019285,
+      "peak_rss_bytes": 34127872,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-proposed-proposed-0-0",
+      "side": "proposed",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.26063058292493224,
+      "user_seconds": 0.23004,
+      "system_seconds": 0.019726,
+      "peak_rss_bytes": 34275328,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_request_path-proposed-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_request_path",
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9391414999263361,
+      "user_seconds": 0.9155479999999999,
+      "system_seconds": 0.015227999999999998,
+      "peak_rss_bytes": 28753920,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-current-proposed-0-0",
+      "side": "current",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9390288330614567,
+      "user_seconds": 0.9151579999999999,
+      "system_seconds": 0.014995999999999999,
+      "peak_rss_bytes": 28524544,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-current-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9333954999456182,
+      "user_seconds": 0.9081699999999999,
+      "system_seconds": 0.015422,
+      "peak_rss_bytes": 28672000,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-current-proposed-1-0",
+      "side": "proposed",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9369812500663102,
+      "user_seconds": 0.9024719999999999,
+      "system_seconds": 0.022157,
+      "peak_rss_bytes": 28655616,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-current-proposed-1-1",
+      "side": "current",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9043363749515265,
+      "user_seconds": 0.881018,
+      "system_seconds": 0.014802,
+      "peak_rss_bytes": 28573696,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-pure-proposed-0-0",
+      "side": "pure",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9344022090081125,
+      "user_seconds": 0.909812,
+      "system_seconds": 0.015125,
+      "peak_rss_bytes": 28721152,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-pure-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9438348750118166,
+      "user_seconds": 0.918816,
+      "system_seconds": 0.015399999999999999,
+      "peak_rss_bytes": 28622848,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-pure-proposed-1-0",
+      "side": "proposed",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.90199387492612,
+      "user_seconds": 0.878362,
+      "system_seconds": 0.014587999999999999,
+      "peak_rss_bytes": 28229632,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-pure-proposed-1-1",
+      "side": "pure",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9330048329429701,
+      "user_seconds": 0.909065,
+      "system_seconds": 0.014926,
+      "peak_rss_bytes": 28524544,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-current-current-0-0",
+      "side": "current",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9260055830236524,
+      "user_seconds": 0.900585,
+      "system_seconds": 0.0152,
+      "peak_rss_bytes": 28524544,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-current-current-0-1",
+      "side": "current",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9441986660240218,
+      "user_seconds": 0.918871,
+      "system_seconds": 0.015368999999999999,
+      "peak_rss_bytes": 28639232,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-proposed-proposed-0-0",
+      "side": "proposed",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.9348839579615742,
+      "user_seconds": 0.9068109999999999,
+      "system_seconds": 0.014804,
+      "peak_rss_bytes": 28786688,
+      "swaps": 0,
+      "stderr_excerpt": "",
+      "id": "catalog_url_normalize-proposed-proposed-0-1",
+      "side": "proposed",
+      "task": "catalog_url_normalize",
+      "output_digest": "a6fedf33e0fd5e72b79af8d77499b9a7bb8e8d53491955f2e554570679e04941",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 2000,
+      "valid": true
+    },
+    {
+      "id": "build-direct-rustc-0",
+      "command": [
+        "/Users/josh/.rustup/toolchains/nightly-2026-09-15-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-type=staticlib",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "panic=abort",
+        "--target=aarch64-apple-darwin",
+        "/Users/josh/d/python-build-exp-url-quote-short-safe-20260925/rust-cpython/work/url-quote-short-safe-20260925/source/Modules/_rust_url_quote/quote.rs",
+        "-o",
+        "/Users/josh/d/python-build-exp-url-quote-short-safe-20260925/rust-cpython/work/url-quote-short-safe-20260925/native/libquote_ascii.a"
+      ],
+      "compiler_sha256": "edec7bb64507ef47b9ec91410a0c3f76f33fb2f41168a972cf722d6ded109d25",
+      "source_sha256": "bb9156522ea47140e52e309b501ee3222ed5466fb8b33a779a31566e184fad8c",
+      "prior_output_sha256": "4dd9aad19125f08be4454efd183e6a742e371378038bf14ca6f1ea0cbc89f051",
+      "output_sha256": "4dd9aad19125f08be4454efd183e6a742e371378038bf14ca6f1ea0cbc89f051",
+      "returncode": 0,
+      "wall_seconds": 0.07245670806150883,
+      "user_seconds": 0.043240999999999995,
+      "system_seconds": 0.018664999999999998,
+      "peak_rss_bytes": 101531648,
+      "swaps": 0,
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "accounting": "os.wait4 of direct rustc process; rustc has no known child for this one-file staticlib command"
+    }
+  ],
+  "groups": [
+    {
+      "id": "catalog_search_form-current-proposed-0",
+      "order": [
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          2.5634765625,
+          3.099609375,
+          3.767578125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  15.2 7179200 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   8.0  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "56471   1.8   1872 bash",
+          "89818   1.8   1888 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61226.",
+          "Pages active:                                 796611.",
+          "Pages inactive:                               846825.",
+          "Pages speculative:                              4051.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167482.",
+          "Pages purgeable:                                1007."
+        ]
+      }
+    },
+    {
+      "id": "catalog_search_form-current-proposed-1",
+      "order": [
+        "proposed",
+        "current"
+      ],
+      "host_before": {
+        "load": [
+          2.5634765625,
+          3.099609375,
+          3.767578125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  10.9 7198896 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.1  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.5   1888 bash",
+          "89843   1.4   1920 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61039.",
+          "Pages active:                                 796409.",
+          "Pages inactive:                               847378.",
+          "Pages speculative:                              3916.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167545.",
+          "Pages purgeable:                                1009."
+        ]
+      }
+    },
+    {
+      "id": "catalog_search_form-pure-proposed-0",
+      "order": [
+        "pure",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          2.59814453125,
+          3.09765625,
+          3.7626953125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  13.6 7212544 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.6   1888 bash",
+          "89843   1.5   1920 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    60880.",
+          "Pages active:                                 796464.",
+          "Pages inactive:                               847385.",
+          "Pages speculative:                              3922.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167385.",
+          "Pages purgeable:                                1137."
+        ]
+      }
+    },
+    {
+      "id": "catalog_search_form-pure-proposed-1",
+      "order": [
+        "proposed",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          2.59814453125,
+          3.09765625,
+          3.7626953125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  12.9 7230800 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.5   1888 bash",
+          "89843   1.5   1920 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61169.",
+          "Pages active:                                 796483.",
+          "Pages inactive:                               847181.",
+          "Pages speculative:                              3915.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167411.",
+          "Pages purgeable:                                1137."
+        ]
+      }
+    },
+    {
+      "id": "catalog_search_form-current-current-0",
+      "order": [
+        "current",
+        "current"
+      ],
+      "host_before": {
+        "load": [
+          2.59814453125,
+          3.09765625,
+          3.7626953125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  24.4 7041200 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.6   1888 bash",
+          "89843   1.6   1920 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61621.",
+          "Pages active:                                 796194.",
+          "Pages inactive:                               847403.",
+          "Pages speculative:                              3917.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             166983.",
+          "Pages purgeable:                                1007."
+        ]
+      }
+    },
+    {
+      "id": "catalog_search_form-proposed-proposed-0",
+      "order": [
+        "proposed",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.0302734375,
+          3.1787109375,
+          3.787109375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  15.9 7052480 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   4.1  34352 /Users/josh/.local/bin/mactop",
+          "407   2.9  51264 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61387.",
+          "Pages active:                                 796227.",
+          "Pages inactive:                               847425.",
+          "Pages speculative:                              3927.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167225.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_request_path-current-proposed-0",
+      "order": [
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.0302734375,
+          3.1787109375,
+          3.787109375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  12.6 7053568 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "585   1.6  42096 /System/Library/DriverExtensions/com.apple.DriverKit-AppleBCMWLAN.dext/com.apple.DriverKit-AppleBCMWLAN",
+          "89818   1.5   1888 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61333.",
+          "Pages active:                                 796255.",
+          "Pages inactive:                               847452.",
+          "Pages speculative:                              3924.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167240.",
+          "Pages purgeable:                                1007."
+        ]
+      }
+    },
+    {
+      "id": "catalog_request_path-current-proposed-1",
+      "order": [
+        "proposed",
+        "current"
+      ],
+      "host_before": {
+        "load": [
+          3.0302734375,
+          3.1787109375,
+          3.787109375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  14.8 7054160 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "12339   2.6 410000 codex",
+          "89818   1.8   1888 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61282.",
+          "Pages active:                                 796243.",
+          "Pages inactive:                               847461.",
+          "Pages speculative:                              3921.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167240.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_request_path-pure-proposed-0",
+      "order": [
+        "pure",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.0302734375,
+          3.1787109375,
+          3.787109375
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  20.3 7054368 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "16130  17.7  41984 /System/Library/PrivateFrameworks/UniversalAccess.framework/Versions/A/Resources/AXVisualSupportAgent.app/Contents/MacOS/AXVisualSupportAgent",
+          "53193   5.4  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "407   4.8  51296 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61089.",
+          "Pages active:                                 796332.",
+          "Pages inactive:                               847469.",
+          "Pages speculative:                              3919.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167239.",
+          "Pages purgeable:                                1009."
+        ]
+      }
+    },
+    {
+      "id": "catalog_request_path-pure-proposed-1",
+      "order": [
+        "proposed",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          2.86767578125,
+          3.14208984375,
+          3.7705078125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  11.7 7054672 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "16130   2.5  41984 /System/Library/PrivateFrameworks/UniversalAccess.framework/Versions/A/Resources/AXVisualSupportAgent.app/Contents/MacOS/AXVisualSupportAgent",
+          "407   2.1  51280 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61143.",
+          "Pages active:                                 796340.",
+          "Pages inactive:                               847469.",
+          "Pages speculative:                              3919.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167242.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_request_path-current-current-0",
+      "order": [
+        "current",
+        "current"
+      ],
+      "host_before": {
+        "load": [
+          2.86767578125,
+          3.14208984375,
+          3.7705078125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  20.1 7054720 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.0  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.8   1888 bash",
+          "12339   1.7 410000 codex"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61175.",
+          "Pages active:                                 796395.",
+          "Pages inactive:                               847477.",
+          "Pages speculative:                              3926.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167244.",
+          "Pages purgeable:                                1007."
+        ]
+      }
+    },
+    {
+      "id": "catalog_request_path-proposed-proposed-0",
+      "order": [
+        "proposed",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          2.86767578125,
+          3.14208984375,
+          3.7705078125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  14.7 7054736 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.7  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "56471   1.6   1872 bash",
+          "89818   1.5   1888 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61082.",
+          "Pages active:                                 796390.",
+          "Pages inactive:                               847477.",
+          "Pages speculative:                              3926.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167209.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_url_normalize-current-proposed-0",
+      "order": [
+        "current",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          2.86767578125,
+          3.14208984375,
+          3.7705078125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  14.9 7055168 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.6  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.6   1888 bash",
+          "89843   1.6   1920 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61152.",
+          "Pages active:                                 796385.",
+          "Pages inactive:                               847483.",
+          "Pages speculative:                              3927.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167209.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_url_normalize-current-proposed-1",
+      "order": [
+        "proposed",
+        "current"
+      ],
+      "host_before": {
+        "load": [
+          2.86767578125,
+          3.14208984375,
+          3.7705078125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  15.6 7056208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.3  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.5   1888 bash",
+          "56471   1.4   1872 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61200.",
+          "Pages active:                                 796417.",
+          "Pages inactive:                               847510.",
+          "Pages speculative:                              3916.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167209.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_url_normalize-pure-proposed-0",
+      "order": [
+        "pure",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.1181640625,
+          3.189453125,
+          3.783203125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  19.9 7057104 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.5  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "67332   2.7  25328 /usr/libexec/PerfPowerServices",
+          "56471   1.5   1872 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61272.",
+          "Pages active:                                 796260.",
+          "Pages inactive:                               847523.",
+          "Pages speculative:                              3924.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167206.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_url_normalize-pure-proposed-1",
+      "order": [
+        "proposed",
+        "pure"
+      ],
+      "host_before": {
+        "load": [
+          3.1181640625,
+          3.189453125,
+          3.783203125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  17.7 7057952 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.2  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "407   1.5  51280 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
+          "826   1.5  34352 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61267.",
+          "Pages active:                                 796161.",
+          "Pages inactive:                               847535.",
+          "Pages speculative:                              3924.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167198.",
+          "Pages purgeable:                                1007."
+        ]
+      }
+    },
+    {
+      "id": "catalog_url_normalize-current-current-0",
+      "order": [
+        "current",
+        "current"
+      ],
+      "host_before": {
+        "load": [
+          3.1181640625,
+          3.189453125,
+          3.783203125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  18.9 7072976 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "13173   2.6 144720 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/154.0.8037.57/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)",
+          "56471   1.5   1872 bash"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61221.",
+          "Pages active:                                 796170.",
+          "Pages inactive:                               847608.",
+          "Pages speculative:                              3920.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167314.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    },
+    {
+      "id": "catalog_url_normalize-proposed-proposed-0",
+      "order": [
+        "proposed",
+        "proposed"
+      ],
+      "host_before": {
+        "load": [
+          3.1083984375,
+          3.18603515625,
+          3.7783203125
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top": [
+          "76985  16.7 7077632 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   1.7  34352 /Users/josh/.local/bin/mactop",
+          "407   1.6  51280 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"
+        ],
+        "vm_stat": [
+          "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+          "Pages free:                                    61083.",
+          "Pages active:                                 796045.",
+          "Pages inactive:                               847713.",
+          "Pages speculative:                              3919.",
+          "Pages throttled:                                   0.",
+          "Pages wired down:                             167325.",
+          "Pages purgeable:                                1011."
+        ]
+      }
+    }
+  ],
+  "setup_history": [
+    {
+      "id": "setup-0",
+      "outcome": "source extraction bug: new files absent; stopped before build"
+    },
+    {
+      "id": "setup-1",
+      "outcome": "first complete search call succeeded and returned JSON; runner truncated stdout at 300 bytes before digest parse; stopped before second workload call"
+    },
+    {
+      "id": "diagnostic-0",
+      "outcome": "first full run used an earlier guard ordering; summary ratios were inspected, but raw records were overwritten by the corrected run",
+      "missing_raw_attempt_count": 36,
+      "total_lane_cpu_complete": false
+    }
+  ],
+  "identities": {
+    "patch": "8117e87d51a91dd362d5c315f3eae552ac1144b83f43dae1980423c320b618ad",
+    "python": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "stage_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "pure_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "current_parse": "f2949f2bfd61891f33a9e79168f1c188587b374985ebb3faa04a476202b280f2",
+    "proposed_parse": "5e4a28df5e7c8bf1f2f4571c98bf092296e9604db34e9e66f635a6ef5e74488e",
+    "module_c": "727e5b12a8a2e0b8a81be59b86ccb5252f88b1f66c64ca1cbc05ec71448f44df",
+    "quote_rs": "bb9156522ea47140e52e309b501ee3222ed5466fb8b33a779a31566e184fad8c",
+    "extension": "b1ab627f758d778087fb2c8e8e8df0835396e9b9c8d3db45550c7ca74710d617",
+    "experimental_patch": "6e6e9d224849eeb8cb33b12bca627f1798fc43f9d432fc9a5726f343b4c2b7e7"
+  },
+  "build_recipe": {
+    "rust": "rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin quote.rs -o libquote_ascii.a",
+    "c": "locked LLVM 23.1.2 clang -O3 -fPIC -mcpu=apple-m1 -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK -I stage/include/python3.16 -c module.c -o module.o",
+    "link": "locked LLVM clang -bundle -undefined dynamic_lookup -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK module.o libquote_ascii.a -o _rust_url_quote.cpython-316-darwin.so"
+  },
+  "host_final": {
+    "load": [
+      3.1083984375,
+      3.18603515625,
+      3.7783203125
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985  12.4 7078048 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "826   4.0  34352 /Users/josh/.local/bin/mactop",
+      "53193   4.0  27104 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "407   2.7  51280 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                    61253.",
+      "Pages active:                                 796108.",
+      "Pages inactive:                               847723.",
+      "Pages speculative:                              3916.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             167327.",
+      "Pages purgeable:                                1011."
+    ]
+  },
+  "total_lane_cpu_complete": false
+}

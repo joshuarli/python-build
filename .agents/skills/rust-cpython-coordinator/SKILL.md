@@ -92,8 +92,9 @@ parsing of Windows-style paths, without taking on Windows OS support.
   per attempt. For `benchmarks/bench.py` quick or standard native runs, pass
   `--evidence rust-cpython/experiments/data/<result>.json` to export one
   compact checked-in observation file without automatic baseline snapshots.
-  If a record is lost, state which attempt is missing and do not claim a
-  complete lane resource cost.
+  Checkpoint each attempt, and give each rerun a new output path or run ID:
+  never overwrite earlier raw attempts. If a record is lost, state which
+  attempts are missing and do not claim a complete lane resource cost.
 - For workload performance, wall time still measures user-visible latency;
   CPU time measures compute consumption. Report both per logical work unit.
   A faster wall time with more CPU work or more memory is a visible tradeoff.

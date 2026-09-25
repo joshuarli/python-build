@@ -532,12 +532,16 @@ as a separate baseline change.
   median paired CPU ratios were 0.959 for search and 1.083 for request path;
   the path increase exceeded measured same-side noise. This is a warning for
   the default route, while quiet-host installed-build speed and memory remain
-  open. Optional `unquote`
+  open. A separate short `safe=b'/'` fallback recovered 6.4% request-path CPU
+  versus the current guard but still cost 3.0% more than pure Python in two
+  direct pairs; it remains an overfit experimental route, not a default change.
+  Optional `unquote`
   changes public output if `_hextobyte` is edited and skips its lazy setup;
   the narrow in-loop Rust replacement was stopped. Earlier URL speed ratios
   describe pre-guard source. See the [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md),
   [cache cost](rust-cpython/experiments/url-quote-cache-cost-20260925.md),
   [revised-guard diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md),
+  [short-safe trial](rust-cpython/experiments/url-quote-short-safe-20260925.md),
   and [decoder decision](rust-cpython/experiments/url-unquote-contract-followup-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
   recipe. Its installed parser matches the selected source, its extension
@@ -786,7 +790,10 @@ as a separate baseline change.
   improved 4.1% while request-path CPU rose 8.3%, beyond local same-side
   variation. Resolve the request-path regression before a default performance
   claim; broad behavior and installed-build resource qualification remain open.
-  See the [bounded diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md).
+  A short-safe fallback recovered most but not all of the request-path cost;
+  it was not adopted because its narrow threshold needs broader evidence.
+  See the [bounded diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md)
+  and [fallback trial](rust-cpython/experiments/url-quote-short-safe-20260925.md).
   The ranked entries in `rust-cpython/README.md` remain hypotheses, not
   completed ports.
 - Establish the missing macOS unique/proportional memory and allocation
