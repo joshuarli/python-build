@@ -214,17 +214,17 @@ are atomically refreshed after successful measurements. A self-comparison is
 labeled `self_control_calibration`; it characterizes the runner and harness,
 but it does not substitute for a product-versus-upstream baseline.
 
-For a native Rust-for-CPython experiment, pass `--evidence` to `run` or
-`self-compare` with a new path under `rust-cpython/experiments/data/`:
+For a comparison that needs a compact export, pass `--evidence` to `run` or
+`self-compare` with a new path under `benchmarks/results/`:
 
 ```sh
 python3 benchmarks/bench.py run \
-  --baseline /path/to/control/python3.16 \
-  --candidate /path/to/candidate/python3.16 \
+  --baseline /path/to/control/python3.14 \
+  --candidate /path/to/candidate/python3.14 \
   --baseline-kind custom --candidate-kind custom \
   --suite realworld --profile standard --workload catalog_search_form \
-  --local --output rust-cpython/work/search-run \
-  --evidence rust-cpython/experiments/data/search-run.json
+  --local --output benchmarks/results/search-run \
+  --evidence benchmarks/results/search-run-evidence.json
 ```
 
 This writes one compact, Git-ready JSON file with every timing and memory

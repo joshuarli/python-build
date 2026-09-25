@@ -19,7 +19,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -66,57 +65,19 @@ TARGET = LINUX_TARGET if lane_linux.supported_host() else MACOS_TARGET
 IS_LINUX = TARGET == LINUX_TARGET
 # Mach-O prefixes C symbol names with an underscore; ELF does not.
 SYMBOL_PREFIX = "" if IS_LINUX else "_"
-PLATFORM_LIBZ = "libz.so.1" if IS_LINUX else "/usr/lib/libz.1.dylib"
-# zlib.ZLIB_RUNTIME_VERSION reported by the platform library each lane links.
-PLATFORM_ZLIB_VERSION = "1.3" if IS_LINUX else "1.2.12"
 RUST_CHANNEL = "nightly-2026-09-15"
 SOURCE_LOCK = LANE / "sources.lock.json"
-PATCH_MANIFEST = LANE / "patches" / "manifest.json"
-ZLIB_LOCK = LANE / "zlib-proof" / "sources.lock.json"
 BOOTSTRAP_LOCK = REPO / "bootstrap.lock.json"
 LINUX_TOOLCHAIN_LOCK = LANE / "linux-toolchain.lock.json"
 CACHE_ROOT = REPO / ".cache"
 CARGO_HOME = LANE / ".cargo-home"
 WORK = LANE / "work"
-ZLIB_SOURCE = WORK / "zlib-candidate-source"
-ZLIB_TARGET = WORK / "zlib-candidate-target"
-ZLIB_ARCHIVE = ZLIB_TARGET / "release" / "libz_rs.a"
-ZLIB_HYBRID_PREFIX = "python_build_rs_"
 BUILD = WORK / "build"
 SOURCE = WORK / "source"
 STAGE = LANE / "stage"
 LOGS = LANE / "logs"
 RESULTS = LANE / "results"
 BUILD_REPORT = RESULTS / "build.json"
-VARIANT = ""
-_VARIANT_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
-
-
-def _select_variant(name: str) -> None:
-    """Direct build outputs to a named variant beside the default candidate.
-
-    Each variant has its own source, build, stage, logs and report, so
-    controls such as the unpatched fork or the zlib candidate cannot
-    overwrite the default `stage/`. The empty name keeps the default paths.
-    """
-    global VARIANT, SOURCE, BUILD, STAGE, LOGS, BUILD_REPORT
-    global ZLIB_SOURCE, ZLIB_TARGET, ZLIB_ARCHIVE
-    if not name:
-        return
-    if _VARIANT_NAME.fullmatch(name) is None or name in {"no-rust"}:
-        raise LaneError(f"invalid build variant name {name!r}")
-    VARIANT = name
-    root = WORK / "variants" / name
-    SOURCE = root / "source"
-    BUILD = root / "build"
-    ZLIB_SOURCE = root / "zlib-candidate-source"
-    ZLIB_TARGET = root / "zlib-candidate-target"
-    ZLIB_ARCHIVE = ZLIB_TARGET / "release" / "libz_rs.a"
-    STAGE = LANE / f"stage-{name}"
-    LOGS = LANE / "logs" / "variants" / name
-    BUILD_REPORT = RESULTS / f"build-{name}.json"
-SOURCE_DATE_EPOCH = "1704067200"
-PROFILE_TASK = "-m test --pgo"
 
 
 class LaneError(Exception):
@@ -536,167 +497,34 @@ def _extract_fresh(destination: Path) -> Path:
     return _source_root(extraction)
 
 
-def _source_patch_inputs(*, url_unquote: bool = False,
-                         zlib_adaptive: bool = False,
-                         tar_checksum: bool = False,
-                         ipv4_scan: bool = False,
-                         strptime_numeric: bool = False,
-                         uuid_canonical: bool = False,
-                         shlex_split: bool = False,
-                         fraction_rational: bool = False,
-                         base64_lean: bool = False) -> dict[str, Any]:
-    """Validate the authored patch inputs without touching an extracted tree."""
-    metadata, _entry = _read_lock()
+def _apply_candidate_patch(source: Path, patch: Path) -> dict[str, str]:
+    if patch.is_symlink():
+        raise LaneError(f"candidate patch is a symlink: {patch}")
+    path = patch.resolve()
     try:
-        manifest_bytes = PATCH_MANIFEST.read_bytes()
-        manifest = json.loads(manifest_bytes)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise LaneError(f"cannot read source patch manifest: {error}") from error
-    if not isinstance(manifest, dict) or set(manifest) != {"source_commit", "patches"}:
-        raise LaneError("source patch manifest has an invalid schema")
-    if manifest["source_commit"] != metadata["commit"]:
-        raise LaneError("source patch manifest source commit disagrees with the source lock")
-    if not isinstance(manifest["patches"], list):
-        raise LaneError("source patch manifest patches must be a list")
-    records: list[dict[str, str]] = []
-    seen: set[str] = set()
-    required = {"file", "sha256", "author", "origin", "license", "reason", "compatibility", "reproducer"}
-    optional_patches = {
-        "0004-rust-url-unquote.patch": "url-unquote",
-        "0005-rust-tar-checksum.patch": "tar-checksum",
-        "0006-rust-ipv4-scan.patch": "ipv4-scan",
-        "0007-rust-strptime-numeric.patch": "strptime-numeric",
-        "0008-rust-uuid-canonical.patch": "uuid-canonical",
-        "0009-rust-shlex-split.patch": "shlex-split",
-        "0010-rust-fraction-rational.patch": "fraction-rational",
-        "0011-zlib-adaptive-oneshot.patch": "zlib-adaptive",
-        "0012-base64-lean.patch": "base64-lean",
-    }
-    optional_seen: set[str] = set()
-    for entry in manifest["patches"]:
-        if not isinstance(entry, dict) or set(entry) not in (required, required | {"mode"}):
-            raise LaneError("source patch manifest entry has an invalid schema")
-        if any(not isinstance(entry[key], str) or not entry[key].strip() for key in required):
-            raise LaneError("source patch manifest entry has an empty or invalid field")
-        name = entry["file"]
-        mode = entry.get("mode")
-        if mode != optional_patches.get(name):
-            raise LaneError(f"source patch mode is invalid: {name}")
-        if mode is not None:
-            optional_seen.add(name)
-        if Path(name).name != name or not name.endswith(".patch") or name in seen:
-            raise LaneError(f"source patch file name is unsafe or repeated: {name!r}")
-        if re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) is None:
-            raise LaneError(f"source patch digest is invalid: {name}")
-        seen.add(name)
-        patch_path = PATCH_MANIFEST.parent / name
-        if patch_path.is_symlink() or not patch_path.is_file():
-            raise LaneError(f"source patch is missing or is a symlink: {patch_path}")
-        patch_bytes = patch_path.read_bytes()
-        digest = hashlib.sha256(patch_bytes).hexdigest()
-        if digest != entry["sha256"]:
-            raise LaneError(f"source patch digest disagrees with manifest: {name}")
-        if mode is None or (mode == "url-unquote" and url_unquote) or (
-            mode == "zlib-adaptive" and zlib_adaptive
-        ) or (
-            mode == "tar-checksum" and tar_checksum
-        ) or (
-            mode == "ipv4-scan" and ipv4_scan
-        ) or (
-            mode == "strptime-numeric" and strptime_numeric
-        ) or (
-            mode == "uuid-canonical" and uuid_canonical
-        ) or (
-            mode == "shlex-split" and shlex_split
-        ) or (
-            mode == "fraction-rational" and fraction_rational
-        ) or (
-            mode == "base64-lean" and base64_lean
-        ):
-            records.append(dict(entry))
-    if optional_seen != set(optional_patches):
-        raise LaneError("source patch manifest is missing optional patches: "
-                        + ", ".join(sorted(set(optional_patches) - optional_seen)))
-    return {
-        "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
-        "source_commit": metadata["commit"],
-        "url_unquote": url_unquote,
-        "zlib_adaptive": zlib_adaptive,
-        "tar_checksum": tar_checksum,
-        "ipv4_scan": ipv4_scan,
-        "strptime_numeric": strptime_numeric,
-        "uuid_canonical": uuid_canonical,
-        "shlex_split": shlex_split,
-        "fraction_rational": fraction_rational,
-        "base64_lean": base64_lean,
-        "patches": records,
-    }
-
-
-def _apply_source_patches(source: Path, *, url_unquote: bool = False,
-                          zlib_adaptive: bool = False,
-                          tar_checksum: bool = False,
-                          ipv4_scan: bool = False,
-                          strptime_numeric: bool = False,
-                          uuid_canonical: bool = False,
-                          shlex_split: bool = False,
-                          fraction_rational: bool = False,
-                          base64_lean: bool = False) -> dict[str, Any]:
-    """Apply authored patches only to the verified, pinned fresh source tree."""
-    inputs = _source_patch_inputs(url_unquote=url_unquote,
-                                  zlib_adaptive=zlib_adaptive,
-                                  tar_checksum=tar_checksum,
-                                  ipv4_scan=ipv4_scan,
-                                  strptime_numeric=strptime_numeric,
-                                  uuid_canonical=uuid_canonical,
-                                  shlex_split=shlex_split,
-                                  fraction_rational=fraction_rational,
-                                  base64_lean=base64_lean)
-    metadata, _entry = _read_lock()
-    expected_lock = metadata["cargo_lock_sha256"]
-    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
-        raise LaneError("Cargo.lock digest disagrees with the source lock before patching")
-    # The extracted tree can live inside this repository's worktree. Without a
-    # ceiling, git apply treats that repository as its own and silently skips
-    # every path in a diff --git patch because of the source directory prefix.
+        relative = path.relative_to(REPO.resolve())
+    except ValueError as error:
+        raise LaneError("candidate patch must be in this Git worktree") from error
+    if not path.is_file() or path.suffix != ".patch":
+        raise LaneError(f"candidate patch is missing or invalid: {patch}")
     git_env = os.environ.copy()
     for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"):
         git_env.pop(key, None)
     git_env["GIT_CEILING_DIRECTORIES"] = str(source.parent.resolve())
-    for record in inputs["patches"]:
-        path = PATCH_MANIFEST.parent / record["file"]
-        # These optional scanners anchor insertions on a stable URL module
-        # line because other optional modules occupy both sides.
-        narrow_context = (["--unidiff-zero"]
-                          if record["file"] in {"0009-rust-shlex-split.patch",
-                                                "0010-rust-fraction-rational.patch"} else [])
-        for check_only in (True, False):
-            argv = ["git", "apply", "--whitespace=error", *narrow_context]
-            if check_only:
-                argv.append("--check")
-            argv.append(str(path))
-            result = subprocess.run(argv, cwd=source, env=git_env, capture_output=True, text=True)
-            if result.returncode != 0:
-                detail = (result.stderr or result.stdout).strip()
-                raise LaneError(f"source patch {record['file']} does not apply: {detail}")
-        # A zero exit status alone is insufficient: git apply may skip all
-        # paths and still report success. The applied patch must now reverse.
-        reverse = subprocess.run(
-            ["git", "apply", "--reverse", "--check", *narrow_context, str(path)],
+    for arguments in (("--check",), (), ("--reverse", "--check")):
+        result = subprocess.run(
+            ["git", "apply", "--whitespace=error", *arguments, str(path)],
             cwd=source, env=git_env, capture_output=True, text=True,
         )
-        if reverse.returncode != 0:
-            detail = (reverse.stderr or reverse.stdout).strip()
-            raise LaneError(f"source patch {record['file']} did not change the source: {detail}")
-        forward = subprocess.run(
-            ["git", "apply", "--check", *narrow_context, str(path)],
-            cwd=source, env=git_env, capture_output=True, text=True,
-        )
-        if forward.returncode == 0:
-            raise LaneError(f"source patch {record['file']} did not change the source")
-    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
-        raise LaneError("source patches changed the pinned Cargo.lock")
-    return inputs
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise LaneError(f"candidate patch {relative} does not apply: {detail}")
+    if subprocess.run(
+        ["git", "apply", "--check", str(path)], cwd=source, env=git_env,
+        capture_output=True, text=True,
+    ).returncode == 0:
+        raise LaneError(f"candidate patch {relative} did not change the source")
+    return {"file": str(relative), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
 def _llvm_layout():
@@ -794,8 +622,6 @@ def _environment(toolchain, *, offline: bool, build_dir: Path | None = None) -> 
         "RUST_SHARED_BUILD": "1",
         "LLVM_TARGET": TARGET,
         "BINDGEN_EXTRA_CLANG_ARGS": f"-resource-dir={toolchain.llvm_resource_dir}",
-        "SOURCE_DATE_EPOCH": SOURCE_DATE_EPOCH,
-        "PYTHONHASHSEED": SOURCE_DATE_EPOCH,
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONNOUSERSITE": "1",
         "PYTHONPYCACHEPREFIX": str(WORK / "pycache"),
@@ -809,8 +635,8 @@ def _test_environment(toolchain) -> dict[str, str]:
     """Let CPython's test runner populate its isolated bytecode cache."""
     env = _environment(toolchain, offline=True)
     env.pop("PYTHONDONTWRITEBYTECODE", None)
-    # A host egress proxy changes urllib/http.client test behavior; the
-    # regression suite runs against direct loopback servers only.
+    # A host egress proxy changes urllib/http.client test behavior; CPython's
+    # module suites use direct loopback servers.
     for name in tuple(env):
         if name.lower() in {"http_proxy", "https_proxy", "all_proxy", "no_proxy"}:
             env.pop(name)
@@ -849,7 +675,7 @@ def _require_command(
     return result
 
 
-def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
+def _fetch_cargo_dependencies(source: Path, toolchain, *, candidate: bool = False) -> None:
     env = _environment(toolchain, offline=False)
     env["PATH"] = f"{CARGO_HOME / 'bin'}:{env['PATH']}"
     command = [
@@ -863,140 +689,11 @@ def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
     )
     after = hashlib.sha256(cargo_lock.read_bytes()).hexdigest()
     metadata, _entry = _read_lock()
-    if before != metadata["cargo_lock_sha256"] or after != before:
+    if (not candidate and before != metadata["cargo_lock_sha256"]) or after != before:
         raise LaneError("cargo fetch changed the locked Cargo.lock")
 
 
-def _zlib_input() -> tuple[dict[str, str], Input]:
-    """Use the pinned zlib-rs source for the optional whole-build candidate."""
-    try:
-        metadata = json.loads(ZLIB_LOCK.read_text())["backend"]
-        entries = load_lock(ZLIB_LOCK)
-    except (OSError, ValueError, KeyError, TypeError, InputError) as error:
-        raise LaneError(f"cannot read pinned zlib-rs backend: {error}") from error
-    expected = {
-        "repository": "https://github.com/trifectatechfoundation/zlib-rs",
-        "crate": "libz-rs-sys-cdylib",
-        "version": "0.6.7",
-        "license": "Zlib",
-    }
-    if any(metadata.get(key) != value for key, value in expected.items()):
-        raise LaneError("zlib-rs metadata disagrees with the proven 0.6.7 pin")
-    if len(entries) != 1:
-        raise LaneError("zlib-rs lock must contain exactly one source archive")
-    entry = entries[0]
-    if (entry.name != metadata["crate"] or entry.version != metadata["version"]
-            or entry.role != "build-source" or entry.target not in LANE_TARGETS
-            or entry.license != metadata["license"]
-            or entry.url != "https://static.crates.io/crates/libz-rs-sys-cdylib/libz-rs-sys-cdylib-0.6.7.crate"):
-        raise LaneError("zlib-rs archive entry disagrees with backend metadata")
-    cargo_hash = metadata.get("cargo_lock_sha256")
-    if not isinstance(cargo_hash, str) or re.fullmatch(r"[0-9a-f]{64}", cargo_hash) is None:
-        raise LaneError("zlib-rs Cargo.lock pin is invalid")
-    return metadata, entry
-
-
-def _zlib_source(blob: Path) -> Path:
-    if ZLIB_SOURCE.exists():
-        shutil.rmtree(ZLIB_SOURCE)
-    extraction = safe_extract(blob, ZLIB_SOURCE)
-    roots = [path for path in extraction.iterdir() if path.is_dir()]
-    if len(roots) != 1:
-        raise LaneError("zlib-rs archive must contain exactly one crate root")
-    source = roots[0]
-    manifest = source / "Cargo.toml"
-    cargo_lock = source / "Cargo.lock"
-    if not manifest.is_file() or not cargo_lock.is_file():
-        raise LaneError("zlib-rs archive lacks Cargo.toml or Cargo.lock")
-    metadata, _entry = _zlib_input()
-    try:
-        manifest_data = tomllib.loads(manifest.read_text())
-        package = manifest_data["package"]
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        raise LaneError(f"cannot read pinned zlib-rs Cargo.toml: {error}") from error
-    if any(package.get(key) != metadata[value] for key, value in
-           (("name", "crate"), ("version", "version"), ("license", "license"))):
-        raise LaneError("zlib-rs Cargo.toml disagrees with the source pin")
-    if "staticlib" not in manifest_data.get("lib", {}).get("crate-type", []):
-        raise LaneError("zlib-rs crate does not declare a static library")
-    if hashlib.sha256(cargo_lock.read_bytes()).hexdigest() != metadata["cargo_lock_sha256"]:
-        raise LaneError("zlib-rs Cargo.lock digest disagrees with the source pin")
-    return source
-
-
-def _zlib_cargo_env(toolchain, *, offline: bool, hybrid: bool = False) -> dict[str, str]:
-    env = _environment(toolchain, offline=offline)
-    env["CARGO_TARGET_DIR"] = str(ZLIB_TARGET)
-    for key in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER"):
-        env.pop(key, None)
-    if hybrid:
-        env["LIBZ_RS_SYS_PREFIX"] = ZLIB_HYBRID_PREFIX
-    return env
-
-
-def _fetch_zlib(toolchain) -> None:
-    _metadata, entry = _zlib_input()
-    blob = Cache(CACHE_ROOT).fetch(entry)
-    source = _zlib_source(blob)
-    _require_command(
-        [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked",
-         "--manifest-path", str(source / "Cargo.toml")],
-        cwd=source, env=_zlib_cargo_env(toolchain, offline=False),
-        log=LOGS / "zlib-candidate-fetch.log",
-    )
-    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != _zlib_input()[0]["cargo_lock_sha256"]:
-        raise LaneError("zlib-rs Cargo.lock changed during fetch")
-
-
-def _build_zlib(toolchain, sandbox: SealedRun, *, hybrid: bool = False,
-                oneshot: bool = False) -> dict[str, Any]:
-    metadata, entry = _zlib_input()
-    blob = Cache(CACHE_ROOT).require(entry)
-    source = _zlib_source(blob)
-    command = [str(CARGO_HOME / "bin" / "cargo"), "build", "--release", "--locked",
-               "--offline", "--manifest-path", str(source / "Cargo.toml")]
-    if hybrid or oneshot:
-        command.extend(("--features", "custom-prefix"))
-    _require_command(
-        command,
-        cwd=source, env=sandbox.environment(_zlib_cargo_env(toolchain, offline=True, hybrid=hybrid or oneshot)),
-        log=LOGS / "zlib-candidate-build.log",
-        sealed=sandbox,
-    )
-    if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != metadata["cargo_lock_sha256"]:
-        raise LaneError("zlib-rs Cargo.lock changed during build")
-    if not ZLIB_ARCHIVE.is_file():
-        raise LaneError(f"zlib-rs did not produce {ZLIB_ARCHIVE}")
-    if hybrid or oneshot:
-        symbols = _command([str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
-                            "-g", "--defined-only", str(ZLIB_ARCHIVE)])
-        if symbols["returncode"] != 0:
-            raise LaneError(f"cannot inspect hybrid archive symbols: {symbols['output']}")
-        for symbol in ("inflate", "inflateInit2_", "inflateEnd", "inflateCopy", "inflateSetDictionary"):
-            if re.search(rf"(?m)\b{SYMBOL_PREFIX}{ZLIB_HYBRID_PREFIX}{symbol}$", symbols["output"]) is None:
-                raise LaneError(f"hybrid archive lacks prefixed {symbol}")
-        if re.search(rf"(?m)\b{SYMBOL_PREFIX}(?:deflate\w*|inflate\w*|zlibVersion)$",
-                     symbols["output"]):
-            raise LaneError("hybrid archive defines an unprefixed zlib entry point")
-    return {
-        "kind": "oneshot-inflate" if oneshot else "hybrid-inflate" if hybrid else "full-rust",
-        "symbol_prefix": ZLIB_HYBRID_PREFIX if hybrid or oneshot else "",
-        "source_lock": str(ZLIB_LOCK),
-        "source_lock_sha256": hashlib.sha256(ZLIB_LOCK.read_bytes()).hexdigest(),
-        "repository": metadata["repository"],
-        "crate": metadata["crate"],
-        "version": metadata["version"],
-        "source_archive_sha256": entry.sha256,
-        "source_archive_size": entry.size,
-        "cargo_lock_sha256": metadata["cargo_lock_sha256"],
-        "static_library": str(ZLIB_ARCHIVE),
-        "static_library_sha256": hashlib.sha256(ZLIB_ARCHIVE.read_bytes()).hexdigest(),
-        "static_library_size": ZLIB_ARCHIVE.stat().st_size,
-        "cargo_build_log": str(LOGS / "zlib-candidate-build.log"),
-    }
-
-
-def fetch(*, zlib_rs: bool = False) -> int:
+def fetch(*, patch: Path | None = None) -> int:
     _require_host()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -1012,20 +709,14 @@ def fetch(*, zlib_rs: bool = False) -> int:
     WORK.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="cargo-fetch-", dir=WORK) as temporary:
         source = _source_root(safe_extract(source_blob, Path(temporary) / "source"))
-        _fetch_cargo_dependencies(source, toolchain)
-    if zlib_rs:
-        _fetch_zlib(toolchain)
+        if patch is not None:
+            _apply_candidate_patch(source, patch)
+        _fetch_cargo_dependencies(source, toolchain, candidate=patch is not None)
     print(
         f"OK    Cargo dependencies cached under {CARGO_HOME}; "
         f"source pin {metadata['commit']}"
     )
     return 0
-
-
-def _profile_task(jobs: int) -> str:
-    if jobs < 1:
-        raise ValueError("profile task requires at least one worker")
-    return f"{PROFILE_TASK} -j {jobs}"
 
 
 def _test_jobs() -> int:
@@ -1058,7 +749,7 @@ def _platform_flags(toolchain, target, prefix: Path | None = None) -> dict[str, 
     if prefix is None:
         prefix = STAGE
     if IS_LINUX:
-        flags = " ".join(("-O3", target.cpu_baseline_cflag, "-fPIC"))
+        flags = " ".join(("-O0", "-g3", target.cpu_baseline_cflag, "-fPIC"))
         return {
             "CFLAGS": flags,
             "CXXFLAGS": flags,
@@ -1068,7 +759,7 @@ def _platform_flags(toolchain, target, prefix: Path | None = None) -> dict[str, 
             "PKG_CONFIG_PATH": "",
         }
     flags = " ".join((
-        "-O3", target.cpu_baseline_cflag, "-fPIC",
+        "-O0", "-g3", target.cpu_baseline_cflag, "-fPIC",
         f"-mmacosx-version-min={toolchain.deployment_target}",
     ))
     return {
@@ -1085,34 +776,18 @@ def _cargo_linker_variable() -> str:
     return f"CARGO_TARGET_{TARGET.upper().replace('-', '_')}_LINKER"
 
 
-def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None,
-                   zlib_hybrid: bool = False, zlib_oneshot: bool = False,
-                   zlib_adaptive: bool = False) -> tuple[list[str], dict[str, str]]:
-    profile_task = _profile_task(jobs)
+def _configuration(toolchain, target) -> tuple[list[str], dict[str, str]]:
     platform_flags = _platform_flags(toolchain, target)
     args = [
         f"--prefix={STAGE}",
         "--enable-shared",
-        "--with-lto=thin",
-        "--enable-optimizations",
         "--enable-experimental-jit=no",
         "--with-tail-call-interp=no",
         "--without-ensurepip",
     ]
+    args.append("--with-pydebug")
     env = _environment(toolchain, offline=True)
     env.update(platform_flags)
-    env.update({
-        "PROFILE_TASK": profile_task,
-        "LLVM_PROFDATA": str(toolchain.llvm_profdata),
-    })
-    if zlib_archive is not None:
-        env["ZLIB_LIBS"] = f"-lz {zlib_archive}" if zlib_hybrid or zlib_oneshot else str(zlib_archive)
-    if zlib_hybrid:
-        env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_HYBRID=1"
-    if zlib_oneshot:
-        env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_ONESHOT=1"
-    if zlib_adaptive:
-        env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_ADAPTIVE=1"
     return args, env
 
 
@@ -1314,241 +989,6 @@ print(json.dumps({
     return interpreter
 
 
-def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False,
-                        oneshot: bool = False, adaptive: bool = False,
-                        private_link: bool = False) -> dict[str, Any]:
-    """Prove the installed whole-build module uses the candidate C ABI."""
-    code = (
-        "import binascii,json,zlib; "
-        "payload=bytes(range(256))*4096; "
-        "assert zlib.decompress(zlib.compress(payload))==payload; "
-        "assert binascii.crc32(payload)==zlib.crc32(payload); "
-        "print(json.dumps({'path':zlib.__file__,"
-        "'binascii_path':binascii.__file__,"
-        "'header_version':zlib.ZLIB_VERSION,"
-        "'runtime_version':zlib.ZLIB_RUNTIME_VERSION}))"
-    )
-    result = subprocess.run(
-        [str(python), "-I", "-S", "-c", code],
-        cwd=STAGE, env=_environment(toolchain, offline=True),
-        capture_output=True, text=True, timeout=60,
-    )
-    if result.returncode != 0:
-        raise LaneError(f"installed zlib candidate smoke failed: {result.stderr.strip()}")
-    try:
-        identity = json.loads(result.stdout.strip().splitlines()[-1])
-    except (IndexError, json.JSONDecodeError) as error:
-        raise LaneError("installed zlib candidate did not report its identity") from error
-    expected_version = PLATFORM_ZLIB_VERSION if hybrid or oneshot else "1.3.0-zlib-rs-0.6.7"
-    if identity["runtime_version"] != expected_version:
-        raise LaneError(f"installed zlib runtime is not the pinned backend: {identity['runtime_version']!r}")
-    module = Path(identity["path"]).resolve()
-    try:
-        module.relative_to(STAGE.resolve())
-    except ValueError as error:
-        raise LaneError(f"zlib module was loaded outside the stage tree: {module}") from error
-    if not module.is_file():
-        raise LaneError(f"installed zlib module is missing: {module}")
-    dependencies = _binary_identity(module, toolchain)["dependencies"]
-    if (PLATFORM_LIBZ in dependencies) != (hybrid or oneshot):
-        raise LaneError("installed zlib module has the wrong platform libz dependency")
-    exported = _defined_symbols(module, toolchain)
-    if private_link:
-        local = _command([
-            str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
-            "--defined-only", str(module),
-        ])
-        if local["returncode"] != 0:
-            raise LaneError(f"cannot inspect private zlib symbols: {local['output']}")
-        defined = str(local["output"])
-        exported_names = [line.split()[-1] for line in exported.splitlines() if line.split()]
-        if exported_names != ["_PyInit_zlib"]:
-            raise LaneError(f"private zlib link exports unexpected symbols: {exported_names}")
-    else:
-        defined = exported
-    prefixed = ("inflateInit2_", "inflate", "inflateEnd") if oneshot else (
-        "inflateInit2_", "inflate", "inflateEnd", "inflateCopy", "inflateSetDictionary"
-    )
-    expected_symbols = (tuple(f"{SYMBOL_PREFIX}{ZLIB_HYBRID_PREFIX}{name}" for name in prefixed)
-                        if hybrid or oneshot else
-                        tuple(f"{SYMBOL_PREFIX}{name}" for name in
-                              ("zlibVersion", "deflateInit2_", "inflateInit2_")))
-    for symbol in expected_symbols:
-        if re.search(rf"(?m)\b{symbol}$", defined) is None:
-            raise LaneError(f"installed zlib module lacks static backend symbol {symbol}")
-    if (hybrid or oneshot) and re.search(
-        rf"(?m)\b{SYMBOL_PREFIX}(?:deflate\w*|inflate\w*|zlibVersion)$", defined
-    ):
-        raise LaneError("mixed zlib module defines platform zlib symbols")
-    platform_refs: list[str] = []
-    if oneshot:
-        undefined = _command([
-            str(toolchain.llvm_prefix / "bin" / "llvm-nm"), "-u", str(module),
-        ])
-        if undefined["returncode"] != 0:
-            raise LaneError(f"cannot inspect installed zlib references: {undefined['output']}")
-        platform_refs = [f"{SYMBOL_PREFIX}{name}" for name in
-                         ("inflateInit2_", "inflate", "inflateEnd", "inflateCopy",
-                          "inflateSetDictionary")]
-        for symbol in platform_refs:
-            if re.search(rf"(?m)\b{symbol}$", undefined["output"]) is None:
-                raise LaneError(f"one-shot zlib module lacks platform reference {symbol}")
-    binascii = Path(identity.pop("binascii_path")).resolve()
-    try:
-        binascii.relative_to(STAGE.resolve())
-    except ValueError as error:
-        raise LaneError(f"binascii module was loaded outside the stage tree: {binascii}") from error
-    if not binascii.is_file():
-        raise LaneError(f"installed binascii module is missing: {binascii}")
-    binascii_dependencies = _binary_identity(binascii, toolchain)["dependencies"]
-    if PLATFORM_LIBZ not in binascii_dependencies:
-        raise LaneError("installed binascii module does not use platform libz")
-    binascii_defined = _defined_symbols(binascii, toolchain)
-    for name in ("crc32", "adler32", "zlibVersion"):
-        if re.search(rf"(?m)\b{SYMBOL_PREFIX}{name}$", binascii_defined):
-            raise LaneError(f"installed binascii still defines static backend symbol {name}")
-    return {
-        **identity,
-        "path": str(module),
-        "sha256": hashlib.sha256(module.read_bytes()).hexdigest(),
-        "size": module.stat().st_size,
-        "dynamic_dependencies": dependencies,
-        "static_backend_symbols": [symbol[len(SYMBOL_PREFIX):] for symbol in expected_symbols],
-        **({"exported_symbols": ["PyInit_zlib"]} if private_link else {}),
-        **({"platform_inflate_references": [symbol[len(SYMBOL_PREFIX):] for symbol in platform_refs]}
-           if oneshot else {}),
-        "python_wrapper": "one-shot inflate of at least 8192 compressed bytes on prefixed Rust; all other inflate on platform libz" if adaptive else
-                          "one-shot inflate on prefixed Rust, streaming inflate on platform libz" if oneshot else
-                          "conditional inflate routing in pinned CPython Modules/zlibmodule.c" if hybrid else
-                          "pinned CPython Modules/zlibmodule.c with inactive hybrid guard",
-        "binascii": {
-            "path": str(binascii),
-            "sha256": hashlib.sha256(binascii.read_bytes()).hexdigest(),
-            "size": binascii.stat().st_size,
-            "dynamic_dependencies": binascii_dependencies,
-            "backend": "platform libz",
-            "static_backend_symbols": [],
-        },
-    }
-
-
-def _select_platform_binascii(makefile: Path, *, hybrid: bool = False) -> dict[str, str]:
-    """Narrow configure's shared zlib input to the zlib extension alone.
-
-    The pinned CPython configure derives BINASCII_LIBS from ZLIB_LIBS. Rewrite
-    only the generated binascii link variable after checking both module
-    variables, and retain the before/after Makefile digests as recipe evidence.
-    """
-    if _make_value(makefile, "MODULE_ZLIB_STATE") != "yes":
-        raise LaneError("configure did not enable the zlib extension")
-    if _make_value(makefile, "MODULE_BINASCII_STATE") != "yes":
-        raise LaneError("configure did not enable the binascii extension")
-    zlib_flags = f"-lz {ZLIB_ARCHIVE}" if hybrid else str(ZLIB_ARCHIVE)
-    for name in ("MODULE_ZLIB_LDFLAGS", "MODULE_BINASCII_LDFLAGS"):
-        found = _make_value(makefile, name)
-        if found != zlib_flags:
-            raise LaneError(f"configure did not preserve the pinned zlib archive in {name}: {found!r}")
-    original = makefile.read_bytes()
-    needle = f"MODULE_BINASCII_LDFLAGS={zlib_flags}\n".encode()
-    if original.count(needle) != 1:
-        raise LaneError("cannot locate one exact binascii link variable in generated Makefile")
-    modified = original.replace(needle, b"MODULE_BINASCII_LDFLAGS=-lz\n")
-    makefile.write_bytes(modified)
-    if (_make_value(makefile, "MODULE_ZLIB_LDFLAGS") != zlib_flags
-            or _make_value(makefile, "MODULE_BINASCII_LDFLAGS") != "-lz"):
-        raise LaneError("generated Makefile did not retain the distinct zlib/binascii link inputs")
-    return {
-        "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
-        "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
-        "zlib_ldflags": zlib_flags,
-        "binascii_ldflags": "-lz",
-    }
-
-
-def _select_zlib_small_link(makefile: Path) -> dict[str, str]:
-    """Keep only the module entry point and link-reachable code in macOS zlib."""
-    if IS_LINUX:
-        raise LaneError("the small zlib link is implemented only for macOS arm64")
-    if _make_value(makefile, "MODULE_BINASCII_LDFLAGS") != "-lz":
-        raise LaneError("binascii must retain its platform-only zlib link")
-    if _make_value(makefile, "MODULE_ZLIB_LDFLAGS") != f"-lz {ZLIB_ARCHIVE}":
-        raise LaneError("zlib link inputs changed before the small link selection")
-    original = makefile.read_bytes()
-    old = (b"$(BLDSHARED_EXE) $(BLDSHARED_ARGS)  Modules/zlibmodule.o "
-           b"$(MODULE_ZLIB_LDFLAGS) $(LIBPYTHON) -o Modules/zlib$(EXT_SUFFIX)")
-    new = (b"$(BLDSHARED_EXE) $(BLDSHARED_ARGS) "
-           b"-Wl,-dead_strip -Wl,-exported_symbol,_PyInit_zlib "
-           b"Modules/zlibmodule.o $(MODULE_ZLIB_LDFLAGS) $(LIBPYTHON) "
-           b"-o Modules/zlib$(EXT_SUFFIX)")
-    if original.count(old) != 1:
-        raise LaneError("cannot locate one exact generated zlib link rule")
-    modified = original.replace(old, new)
-    makefile.write_bytes(modified)
-    if makefile.read_bytes().count(new) != 1:
-        raise LaneError("generated Makefile did not retain the private zlib link")
-    return {
-        "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
-        "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
-        "zlib_link_rule": new.decode(),
-    }
-
-
-def _build_base64_lean(source: Path, rustup: str, env: dict[str, str], sandbox: SealedRun) -> dict[str, Any]:
-    """Compile the optional AArch64 encoder from the verified source tree."""
-    c_source = source / "Modules" / "binascii.c"
-    rust_source = source / "Modules" / "_base64" / "src" / "lean_route.rs"
-    expected = {
-        c_source: "e2653c0d14867d5e6340f1845e59f7d9a072e0a3b00c8a9e02aaa2f0b3a4dae1",
-        rust_source: "0a9b3b5e7a823b8a2df94025fe91ef6f7cbfd8ab808b3921b744aa32213e1355",
-    }
-    for path, digest in expected.items():
-        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
-            raise LaneError(f"optional Base64 source identity disagrees with the pinned route: {path}")
-    archive = SOURCE.parent / "base64-lean" / "liblean_route.a"
-    archive.parent.mkdir(parents=True, exist_ok=True)
-    command = [rustup, "run", RUST_CHANNEL, "rustc",
-               "--crate-type", "staticlib", "-O", "-C", "target-cpu=apple-m1",
-               "-C", "panic=abort", str(rust_source), "-o", str(archive)]
-    _require_command(command, cwd=BUILD, env=env,
-                     log=LOGS / "base64-lean-rustc.log", sealed=sandbox)
-    if not archive.is_file():
-        raise LaneError("pinned Rust compiler did not produce the lean Base64 archive")
-    return {
-        "source_sha256": {str(path.relative_to(source)): digest for path, digest in expected.items()},
-        "rustc_command": command,
-        "archive_path": str(archive),
-        "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
-        "archive_size": archive.stat().st_size,
-    }
-
-
-def _select_base64_lean_link(makefile: Path, archive: Path) -> dict[str, str]:
-    """Link the private Rust archive into only the generated binascii module."""
-    if _make_value(makefile, "MODULE_BINASCII_STATE") != "yes":
-        raise LaneError("configure did not enable the binascii extension")
-    original = makefile.read_bytes()
-    old = (b"Modules/binascii$(EXT_SUFFIX):  Modules/binascii.o $(MODULE_BINASCII_LDEPS); "
-           b"$(BLDSHARED_EXE) $(BLDSHARED_ARGS)  Modules/binascii.o "
-           b"$(MODULE_BINASCII_LDFLAGS) $(LIBPYTHON) -o Modules/binascii$(EXT_SUFFIX)")
-    archive_bytes = str(archive).encode()
-    new = (b"Modules/binascii$(EXT_SUFFIX):  Modules/binascii.o " + archive_bytes +
-           b" $(MODULE_BINASCII_LDEPS); $(BLDSHARED_EXE) $(BLDSHARED_ARGS) "
-           b"-Wl,-dead_strip -Wl,-exported_symbol,_PyInit_binascii "
-           b"Modules/binascii.o " + archive_bytes +
-           b" $(MODULE_BINASCII_LDFLAGS) $(LIBPYTHON) -o Modules/binascii$(EXT_SUFFIX)")
-    if original.count(old) != 1:
-        raise LaneError("cannot locate one exact generated binascii link rule")
-    modified = original.replace(old, new)
-    makefile.write_bytes(modified)
-    if makefile.read_bytes().count(new) != 1:
-        raise LaneError("generated Makefile did not retain the lean Base64 link rule")
-    return {
-        "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
-        "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
-        "binascii_link_rule": new.decode(),
-    }
-
-
 def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     command = [
         str(CARGO_HOME / "bin" / "cargo"), "metadata", "--locked", "--offline",
@@ -1577,22 +1017,15 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, zlib_adaptive: bool = False, zlib_adaptive_small: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False, base64_lean: bool = False) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int,
+                      sandbox: SealedRun, candidate_patch: dict[str, str] | None) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
-    if BUILD.exists():
-        shutil.rmtree(BUILD)
-    if STAGE.exists():
-        shutil.rmtree(STAGE)
-    BUILD.mkdir(parents=True)
-    STAGE.mkdir(parents=True)
-    args, env = _configuration(
-        toolchain, target, jobs,
-        zlib_archive=ZLIB_ARCHIVE if zlib_backend is not None else None,
-        zlib_hybrid=zlib_hybrid,
-        zlib_oneshot=zlib_oneshot,
-        zlib_adaptive=zlib_adaptive,
-    )
+    for path in (BUILD, STAGE):
+        if path.exists():
+            shutil.rmtree(path)
+        path.mkdir(parents=True)
+    args, env = _configuration(toolchain, target)
     env.update({
         "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
         "PY_CPPFLAGS": env["CPPFLAGS"],
@@ -1602,133 +1035,49 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "IPHONEOS_DEPLOYMENT_TARGET": "",
     })
     env = sandbox.environment(env)
-    source_date_env = dict(env)
     configure = [str(source / "configure"), *args]
-    _require_command(
-        configure, cwd=BUILD, env=source_date_env,
-        log=LOGS / "cpython-configure.log", sealed=sandbox,
-    )
-    if zlib_backend is not None:
-        zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile", hybrid=zlib_hybrid or zlib_oneshot)
-        if zlib_adaptive_small:
-            zlib_backend["small_link_recipe"] = _select_zlib_small_link(BUILD / "Makefile")
-    base64_backend = None
-    if base64_lean:
-        base64_backend = _build_base64_lean(source, rustup, source_date_env, sandbox)
-        base64_backend["module_link_recipe"] = _select_base64_lean_link(
-            BUILD / "Makefile", SOURCE.parent / "base64-lean" / "liblean_route.a"
-        )
-    (BUILD / "Modules" / "_rust_url_quote").mkdir(parents=True, exist_ok=True)
-    if tar_checksum:
-        (BUILD / "Modules" / "_rust_tar_checksum").mkdir(parents=True, exist_ok=True)
-    if ipv4_scan:
-        (BUILD / "Modules" / "_rust_ipv4_scan").mkdir(parents=True, exist_ok=True)
-    if strptime_numeric:
-        (BUILD / "Modules" / "_rust_strptime_numeric").mkdir(parents=True, exist_ok=True)
-    if uuid_canonical:
-        (BUILD / "Modules" / "_rust_uuid_canonical").mkdir(parents=True, exist_ok=True)
-    if shlex_split:
-        (BUILD / "Modules" / "_rust_shlex_split").mkdir(parents=True, exist_ok=True)
-    if fraction_rational:
-        (BUILD / "Modules" / "_rust_fraction_rational").mkdir(parents=True, exist_ok=True)
+    _require_command(configure, cwd=BUILD, env=env,
+                     log=LOGS / "cpython-configure.log", sealed=sandbox)
     make = [str(toolchain.make), f"-j{jobs}"]
-    _require_command(
-        make, cwd=BUILD, env=source_date_env,
-        log=LOGS / "cpython-build.log", sealed=sandbox,
-    )
-    if zlib_backend is not None and _make_value(BUILD / "Makefile", "MODULE_BINASCII_LDFLAGS") != "-lz":
-        raise LaneError("CPython build regenerated the binascii platform link setting")
-    _require_command(
-        [str(toolchain.make), "install"], cwd=BUILD, env=source_date_env,
-        log=LOGS / "cpython-install.log", sealed=sandbox,
-    )
-    if zlib_backend is not None and _make_value(BUILD / "Makefile", "MODULE_BINASCII_LDFLAGS") != "-lz":
-        raise LaneError("CPython install regenerated the binascii platform link setting")
-    python = STAGE / "bin" / "python3.16"
+    _require_command(make, cwd=BUILD, env=env,
+                     log=LOGS / "cpython-build.log", sealed=sandbox)
+    _require_command([str(toolchain.make), "install"], cwd=BUILD, env=env,
+                     log=LOGS / "cpython-install.log", sealed=sandbox)
+    python = STAGE / "bin" / "python3.16d"
     if not python.is_file():
-        raise LaneError(f"CPython install did not produce {python}")
+        raise LaneError(f"CPython debug install did not produce {python}")
     module = _module_report(STAGE, python, toolchain)
-    if zlib_backend is not None:
-        zlib_backend["installed_module"] = _zlib_module_report(python, toolchain, hybrid=zlib_hybrid,
-                                                                 oneshot=zlib_oneshot, adaptive=zlib_adaptive,
-                                                                 private_link=zlib_adaptive_small)
-    cargo_env = dict(source_date_env)
+    makefile = BUILD / "Makefile"
+    cargo_profile = _make_value(makefile, "CARGO_PROFILE")
+    if cargo_profile != "dev":
+        raise LaneError(f"debug CPython configured Cargo profile {cargo_profile!r}; expected 'dev'")
+    cargo_env = dict(env)
     cargo_env.update({
-        "PYTHON_BUILD_DIR": str(BUILD),
-        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
-        "PY_CPPFLAGS": source_date_env["CPPFLAGS"],
-        "PY_CFLAGS": source_date_env["CFLAGS"],
         "CARGO_TARGET_DIR": str(BUILD / "target"),
         "LLVM_TARGET": TARGET,
         "RUST_SHARED_BUILD": "1",
-        _cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
     })
-    cargo_lock_hash = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
+    built_members = _built_workspace_members(source, cargo_env)
+    missing = {"_base64", "cpython-sys"} - set(built_members)
+    if missing:
+        raise LaneError("CPython build did not compile Rust members: " + ", ".join(sorted(missing)))
     metadata, source_input = _read_lock()
-    source_hash = Cache(CACHE_ROOT).require(source_input)
-    makefile = BUILD / "Makefile"
-    cargo_profile = _make_value(makefile, "CARGO_PROFILE")
-    if cargo_profile != "release":
-        raise LaneError(
-            f"optimized CPython configured Cargo profile {cargo_profile!r}; expected 'release'"
-        )
-    workspace_members = _workspace_members(source, cargo_env)
-    built_workspace_members = _built_workspace_members(source, cargo_env)
-    required_rust_members = {"_base64", "cpython-sys"}
-    missing_rust_members = sorted(required_rust_members - set(built_workspace_members))
-    if missing_rust_members:
-        raise LaneError(
-            "CPython build did not compile required Rust workspace members: "
-            + ", ".join(missing_rust_members)
-        )
     report = {
         "status": "built",
-        "source": {
-            "repository": metadata["repository"],
-            "branch": metadata["branch"],
-            "commit": metadata["commit"],
-            "version": metadata["version"],
-            "archive_sha256": source_input.sha256,
-            "archive_size": source_input.size,
-            "cargo_lock_sha256": cargo_lock_hash,
-            "source_archive_path": str(source_hash),
-            "patches": patches,
-        },
+        "build_mode": "debug",
+        "target": TARGET,
+        "source_commit": metadata["commit"],
+        "source_archive_sha256": source_input.sha256,
+        "candidate_patch": candidate_patch,
+        "cargo_lock_sha256": hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest(),
+        "configure_arguments": configure,
+        "cflags": env["CFLAGS"],
+        "cargo_profile": cargo_profile,
         "interpreter": module,
         "build_interpreter": str(_build_python()),
         "rust": _rust_identity(rustup),
         "c_toolchain": toolchain.identity(),
         "sdk": _platform_sdk_report(toolchain),
-        "configure_arguments": configure,
-        "configure_environment": {
-            key: env.get(key, "")
-            for key in (
-                "CC", "CXX", "AR", "RANLIB", "CFLAGS", "CXXFLAGS", "LDFLAGS",
-                "CPPFLAGS", "PY_CPPFLAGS", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET", "LLVM_PROFDATA",
-                "PROFILE_TASK", "BINDGEN_EXTRA_CLANG_ARGS", "SOURCE_DATE_EPOCH", "PYTHONHASHSEED",
-                "PKG_CONFIG", "PKG_CONFIG_PATH", "ZLIB_LIBS",
-            )
-        },
-        "pgo_task": env["PROFILE_TASK"],
-        "lto_mode": "thin",
-        "cargo_profile": cargo_profile,
-        "cargo_home": str(CARGO_HOME),
-        "cargo_target_dir": str(BUILD / "target"),
-        "cargo_workspace_members": workspace_members,
-        "built_rust_workspace_members": built_workspace_members,
-        "zlib_backend": zlib_backend if zlib_backend is not None else {"kind": "platform"},
-        "base64_backend": base64_backend if base64_backend is not None else {"kind": "platform"},
-        "offline_boundary": {
-            "mechanism": (lane_linux.describe()["mechanism"] if IS_LINUX
-                          else "sandbox-exec with deny network*"),
-            "network_self_test": "passed",
-            "cargo_net_offline": env["CARGO_NET_OFFLINE"],
-        },
-        "logs": {
-            "configure": str(LOGS / "cpython-configure.log"),
-            "build": str(LOGS / "cpython-build.log"),
-            "install": str(LOGS / "cpython-install.log"),
-        },
         "tests": {},
     }
     _write_json(BUILD_REPORT, report)
@@ -1746,91 +1095,24 @@ def _platform_sdk_report(toolchain) -> dict[str, Any]:
     }
 
 
-def _unpatched_record() -> dict[str, Any]:
-    inputs = _source_patch_inputs()
-    return {**inputs, "patches": [], "skipped_manifest_patches": [
-        record["file"] for record in inputs["patches"]]}
-
-
-def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
-          zlib_oneshot: bool = False, zlib_adaptive: bool = False,
-          zlib_adaptive_small: bool = False,
-          url_unquote: bool = False,
-          tar_checksum: bool = False, ipv4_scan: bool = False,
-          strptime_numeric: bool = False,
-          uuid_canonical: bool = False, shlex_split: bool = False,
-          fraction_rational: bool = False, base64_lean: bool = False,
-          apply_patches: bool = True) -> int:
-    if sum((zlib_rs, zlib_hybrid, zlib_oneshot, zlib_adaptive,
-            zlib_adaptive_small)) > 1:
-        raise LaneError("select one zlib candidate mode")
-    if zlib_adaptive_small and IS_LINUX:
-        raise LaneError("the small zlib link is implemented only for macOS arm64")
-    if base64_lean and (IS_LINUX or not _supported_host()):
-        raise LaneError("the lean Base64 route is implemented only for native macOS arm64")
-    if base64_lean and (zlib_rs or zlib_hybrid or zlib_oneshot or zlib_adaptive or zlib_adaptive_small):
-        raise LaneError("the lean Base64 route cannot be combined with a zlib candidate")
-    zlib_adaptive = zlib_adaptive or zlib_adaptive_small
-    oneshot_backend = zlib_oneshot or zlib_adaptive
+def build(*, patch: Path | None = None) -> int:
     _require_host()
-    doctor = doctor_report()
-    if not doctor["ok"]:
+    if not doctor_report()["ok"]:
         raise LaneError("doctor found prerequisites missing; run doctor for details")
-    rustup = _require_nightly()
-    _cargo_wrapper(rustup)
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
-    sandbox = _sealed_sandbox() if (zlib_rs or zlib_hybrid or oneshot_backend) else None
-    zlib_backend = _build_zlib(toolchain, sandbox, hybrid=zlib_hybrid,
-                               oneshot=oneshot_backend) if sandbox is not None else None
-    if zlib_adaptive:
-        zlib_backend["kind"] = "adaptive-oneshot-inflate"
-        zlib_backend["minimum_compressed_bytes_for_rust"] = 8192
-        if zlib_adaptive_small:
-            zlib_backend["link_strategy"] = "private-PyInit-zlib-dead-strip"
     source = _extract_fresh(SOURCE)
-    wrapper = source / "Modules" / "zlibmodule.c"
-    wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
-    if (zlib_adaptive or url_unquote or tar_checksum or ipv4_scan or strptime_numeric
-            or uuid_canonical or shlex_split or fraction_rational or base64_lean) and not apply_patches:
-        raise LaneError("optional source patches require source patches")
-    patches = (_apply_source_patches(source, url_unquote=url_unquote,
-                                     zlib_adaptive=zlib_adaptive,
-                                     tar_checksum=tar_checksum,
-                                     ipv4_scan=ipv4_scan,
-                                     strptime_numeric=strptime_numeric,
-                                     uuid_canonical=uuid_canonical,
-                                     shlex_split=shlex_split,
-                                     fraction_rational=fraction_rational,
-                                     base64_lean=base64_lean)
-               if apply_patches else _unpatched_record())
-    if zlib_backend is not None:
-        zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
-        zlib_backend["cpython_zlibmodule_sha256"] = hashlib.sha256(wrapper.read_bytes()).hexdigest()
-        if zlib_backend["cpython_zlibmodule_sha256"] == wrapper_sha256:
-            raise LaneError("candidate source patch did not change Modules/zlibmodule.c")
+    candidate_patch = _apply_candidate_patch(source, patch) if patch is not None else None
     env = _environment(toolchain, offline=True)
     _require_command(
         [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
          "--manifest-path", str(source / "Cargo.toml")],
         cwd=source, env=env, log=LOGS / "cargo-offline-check.log",
     )
-    if sandbox is None:
-        sandbox = _sealed_sandbox()
+    sandbox = _sealed_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
-    report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend,
-                               zlib_hybrid=zlib_hybrid, zlib_oneshot=oneshot_backend,
-                               zlib_adaptive=zlib_adaptive,
-                               zlib_adaptive_small=zlib_adaptive_small,
-                               tar_checksum=tar_checksum, ipv4_scan=ipv4_scan,
-                               strptime_numeric=strptime_numeric,
-                               uuid_canonical=uuid_canonical,
-                               shlex_split=shlex_split,
-                               fraction_rational=fraction_rational,
-                               base64_lean=base64_lean)
-    print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
-    print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
-    _write_json(BUILD_REPORT, report)
+    report = _configure_source(source, toolchain, target, jobs, sandbox, candidate_patch)
+    print(f"OK    debug CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     return 0
 
 
@@ -1853,116 +1135,38 @@ def _run_python_test(
     return _test_record(result.returncode, log, summary)
 
 
-def test() -> int:
+def test(suites: list[str]) -> int:
     _require_host()
+    if not suites:
+        raise LaneError("name at least one complete CPython suite with --suite")
+    if any(re.fullmatch(r"test_[a-z0-9_]+", suite) is None for suite in suites):
+        raise LaneError("suite names must be CPython test modules or packages named test_*")
     if not BUILD_REPORT.is_file() or not _build_python().is_file():
-        raise LaneError("no completed Rust-for-CPython build; run build first")
+        raise LaneError("no completed Rust-for-CPython debug build; run build first")
     report = json.loads(BUILD_REPORT.read_text())
-    if report.get("status") not in {"built", "tests-failed", "complete"}:
+    if report.get("status") not in {"built", "suite-failed", "suite-passed"}:
         raise LaneError("build report does not describe a completed build; run build first")
-    recorded_patches = report["source"].get("patches")
-    if (not isinstance(recorded_patches, dict)
-            or type(recorded_patches.get("url_unquote")) is not bool
-            or type(recorded_patches.get("zlib_adaptive")) is not bool
-            or type(recorded_patches.get("tar_checksum")) is not bool
-            or type(recorded_patches.get("ipv4_scan")) is not bool
-            or type(recorded_patches.get("strptime_numeric")) is not bool
-            or type(recorded_patches.get("uuid_canonical")) is not bool
-            or type(recorded_patches.get("shlex_split")) is not bool
-            or type(recorded_patches.get("fraction_rational")) is not bool
-            or type(recorded_patches.get("base64_lean", False)) is not bool):
-        raise LaneError("build report is missing optional source patch selections")
-    url_unquote = recorded_patches["url_unquote"]
-    zlib_adaptive = recorded_patches["zlib_adaptive"]
-    tar_checksum = recorded_patches["tar_checksum"]
-    ipv4_scan = recorded_patches["ipv4_scan"]
-    strptime_numeric = recorded_patches["strptime_numeric"]
-    uuid_canonical = recorded_patches["uuid_canonical"]
-    shlex_split = recorded_patches["shlex_split"]
-    fraction_rational = recorded_patches["fraction_rational"]
-    base64_lean = recorded_patches.get("base64_lean", False)
-    applied = bool(recorded_patches.get("patches"))
-    patches = (_source_patch_inputs(url_unquote=url_unquote,
-                                    zlib_adaptive=zlib_adaptive,
-                                    tar_checksum=tar_checksum,
-                                    ipv4_scan=ipv4_scan,
-                                    strptime_numeric=strptime_numeric,
-                                    uuid_canonical=uuid_canonical,
-                                    shlex_split=shlex_split,
-                                    fraction_rational=fraction_rational,
-                                    base64_lean=base64_lean)
-               if applied else _unpatched_record())
-    if report["source"].get("patches") != patches:
-        raise LaneError("current source patches disagree with the completed build report")
-    source = SOURCE
-    if not (source / "Cargo.toml").is_file():
-        source = _extract_fresh(SOURCE)
-        if applied:
-            _apply_source_patches(source, url_unquote=url_unquote,
-                                  zlib_adaptive=zlib_adaptive,
-                                  tar_checksum=tar_checksum,
-                                  ipv4_scan=ipv4_scan,
-                                  strptime_numeric=strptime_numeric,
-                                  uuid_canonical=uuid_canonical,
-                                  shlex_split=shlex_split,
-                                  fraction_rational=fraction_rational,
-                                  base64_lean=base64_lean)
+    if report.get("build_mode") != "debug":
+        raise LaneError("coverage suites require a debug build without PGO")
     toolchain, _target = _toolchain()
-    rustup = _require_nightly()
-    _cargo_wrapper(rustup)
     env = _test_environment(toolchain)
-    env.update({
-        "PYTHON_BUILD_DIR": str(BUILD),
-        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
-        "PY_CPPFLAGS": _platform_flags(toolchain, _target)["PY_CPPFLAGS"],
-        "PY_CFLAGS": env.get("CFLAGS", ""),
-        "CARGO_TARGET_DIR": str(BUILD / "target"),
-        "LLVM_TARGET": TARGET,
-        "RUST_SHARED_BUILD": "1",
-        _cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
-    })
     build_python = _build_python()
-    report["build_interpreter"] = str(build_python)
-    results: dict[str, Any] = {}
-    _write_json(BUILD_REPORT, report)
-    cargo = _run_python_test(
-        [str(CARGO_HOME / "bin" / "cargo"), "test", "--locked", "--offline", "--workspace", "--manifest-path", str(source / "Cargo.toml")],
-        cwd=source, env=env, log=LOGS / "cargo-test.log",
+    log = LOGS / f"cpython-{'-'.join(suites)}.log"
+    result = _run_python_test(
+        [str(build_python), "-m", "test", "-j", str(_test_jobs()), *suites],
+        cwd=BUILD, env=env, log=log,
     )
-    results["cargo_workspace"] = cargo
-    report["tests"] = results
+    report["tests"] = {"suites": suites, **result}
+    report["status"] = "suite-passed" if result["returncode"] == 0 else "suite-failed"
     _write_json(BUILD_REPORT, report)
-    if cargo["returncode"] != 0:
-        raise LaneError(f"Cargo workspace tests failed; inspect {cargo['log']}")
-
-    targeted = _run_python_test(
-        [str(build_python), "-m", "test", "-j", str(_test_jobs()),
-         "test_base64", "test_binascii", "test_import", "test_importlib",
-         "test_sysconfig", "test_capi", "test_embed"],
-        cwd=BUILD, env=env, log=LOGS / "cpython-targeted-tests.log",
-    )
-    results["targeted_cpython"] = targeted
-    report["tests"] = results
-    _write_json(BUILD_REPORT, report)
-    if targeted["returncode"] != 0:
-        raise LaneError(f"targeted CPython tests failed; inspect {targeted['log']}")
-
-    regression = _run_python_test(
-        [str(build_python), "-m", "test", "-j", str(_test_jobs())],
-        cwd=BUILD, env=env, log=LOGS / "cpython-regression-tests.log",
-    )
-    results["cpython_regression"] = regression
-    report["tests"] = results
-    report["status"] = "complete" if regression["returncode"] == 0 else "tests-failed"
-    _write_json(BUILD_REPORT, report)
-    if regression["returncode"] != 0:
-        raise LaneError(f"CPython regression suite failed; inspect {regression['log']}")
-    print("OK    Cargo workspace, targeted CPython tests, and broad regression suite")
+    if result["returncode"] != 0:
+        raise LaneError(f"CPython suite failed; inspect {log}")
+    print(f"OK    CPython suites: {', '.join(suites)}")
     return 0
 
 
 def clean() -> int:
-    for path in (WORK, STAGE, LOGS, RESULTS, LANE / ".home", *LANE.glob("stage-*")):
+    for path in (WORK, STAGE, LOGS, RESULTS, LANE / ".home"):
         if path.exists():
             shutil.rmtree(path)
     print(f"OK    removed work, stage, logs, and results; kept private Cargo registry at {CARGO_HOME}")
@@ -1970,13 +1174,7 @@ def clean() -> int:
 
 
 def restore_default_signals() -> None:
-    """Undo an inherited ignored SIGINT/SIGQUIT before running build commands.
-
-    A shell starts background jobs with SIGINT and SIGQUIT ignored, and
-    ignored dispositions survive exec. CPython then leaves SIGINT ignored, so
-    the PGO task's signal tests fail and the recorded profile would depend on
-    how the builder was launched. Handlers reset to default across exec.
-    """
+    """Ensure child CPython processes receive interrupts from the terminal."""
     if signal.getsignal(signal.SIGINT) == signal.SIG_IGN:
         signal.signal(signal.SIGINT, signal.default_int_handler)
     if signal.getsignal(signal.SIGQUIT) == signal.SIG_IGN:
@@ -1985,104 +1183,29 @@ def restore_default_signals() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     restore_default_signals()
-    parser = argparse.ArgumentParser(description="Isolated Rust-for-CPython 3.16 experiment")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    for name, help_text in (
-        ("doctor", "report host, source, and toolchain readiness"),
-        ("fetch", "fetch locked sources and Cargo dependencies"),
-        ("build", "build and validate the native interpreter offline"),
-        ("test", "run Rust and CPython tests"),
-        ("clean", "remove build outputs while keeping the private Cargo cache"),
-    ):
-        command_parser = subparsers.add_parser(name, help=help_text)
-        if name in ("fetch", "build"):
-            command_parser.add_argument(
-                "--zlib-rs", action="store_true",
-                help="include pinned zlib-rs 0.6.7 in this optional candidate build",
-            )
-            command_parser.add_argument(
-                "--zlib-hybrid", action="store_true",
-                help="use prefixed zlib-rs inflate with platform zlib compression",
-            )
-            command_parser.add_argument(
-                "--zlib-oneshot", action="store_true",
-                help="use prefixed zlib-rs only for one-shot decompression",
-            )
-            command_parser.add_argument(
-                "--zlib-adaptive", action="store_true",
-                help="use prefixed zlib-rs for one-shot streams of at least 8192 compressed bytes",
-            )
-            command_parser.add_argument(
-                "--zlib-adaptive-small", action="store_true",
-                help="use the adaptive zlib route with a private, dead-stripped macOS link",
-            )
-        if name in ("build", "test"):
-            command_parser.add_argument(
-                "--variant", default="",
-                help="build into work/variants/NAME and stage-NAME instead of stage/",
-            )
-        if name == "build":
-            command_parser.add_argument(
-                "--no-patches", action="store_true",
-                help="build the pinned fork without the manifest source patches",
-            )
-            command_parser.add_argument(
-                "--url-unquote", action="store_true",
-                help="include the optional Rust URL percent decoder",
-            )
-            command_parser.add_argument(
-                "--tar-checksum", action="store_true",
-                help="include the optional Rust exact TAR header checksum scan",
-            )
-            command_parser.add_argument(
-                "--ipv4-scan", action="store_true",
-                help="include the optional Rust canonical IPv4 literal scan",
-            )
-            command_parser.add_argument(
-                "--strptime-numeric", action="store_true",
-                help="include the optional Rust fixed-width numeric timestamp scan",
-            )
-            command_parser.add_argument(
-                "--uuid-canonical", action="store_true",
-                help="include the optional Rust canonical UUID text scanner",
-            )
-            command_parser.add_argument(
-                "--shlex-split", action="store_true",
-                help="include the optional Rust POSIX shlex split scanner",
-            )
-            command_parser.add_argument(
-                "--fraction-rational", action="store_true",
-                help="include the optional Rust canonical rational text scanner",
-            )
-            command_parser.add_argument(
-                "--base64-lean", action="store_true",
-                help="link the optional no_std AArch64 Base64 encoder into binascii",
-            )
+    parser = argparse.ArgumentParser(description="Rust-for-CPython 3.16 coverage builder")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("doctor", help="report host and locked input readiness")
+    fetch_parser = commands.add_parser("fetch", help="fetch source, toolchain, and locked Cargo dependencies")
+    build_parser = commands.add_parser("build", help="build native debug CPython offline")
+    test_parser = commands.add_parser("test", help="run complete named CPython Python suites")
+    commands.add_parser("clean", help="remove generated outputs")
+    for selected in (fetch_parser, build_parser):
+        selected.add_argument("--patch", type=Path,
+                              help="candidate source patch in this Git worktree")
+    test_parser.add_argument("--suite", action="append", default=[], metavar="TEST_NAME",
+                             help="complete CPython test module or package; repeatable")
     args = parser.parse_args(argv)
-    commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
-        _select_variant(getattr(args, "variant", ""))
-        if args.command in ("fetch", "build"):
-            if sum((args.zlib_rs, args.zlib_hybrid, args.zlib_oneshot,
-                    args.zlib_adaptive, args.zlib_adaptive_small)) > 1:
-                raise LaneError("select one zlib candidate mode")
-            if args.zlib_adaptive_small and IS_LINUX:
-                raise LaneError("the small zlib link is implemented only for macOS arm64")
-            if args.command == "fetch":
-                return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot
-                             or args.zlib_adaptive or args.zlib_adaptive_small)
-            return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid,
-                         zlib_oneshot=args.zlib_oneshot, zlib_adaptive=args.zlib_adaptive,
-                         zlib_adaptive_small=args.zlib_adaptive_small,
-                         url_unquote=args.url_unquote,
-                         tar_checksum=args.tar_checksum, ipv4_scan=args.ipv4_scan,
-                         strptime_numeric=args.strptime_numeric,
-                         uuid_canonical=args.uuid_canonical,
-                         shlex_split=args.shlex_split,
-                         fraction_rational=args.fraction_rational,
-                         base64_lean=args.base64_lean,
-                         apply_patches=not args.no_patches)
-        return commands[args.command]()
+        if args.command == "doctor":
+            return doctor()
+        if args.command == "fetch":
+            return fetch(patch=args.patch)
+        if args.command == "build":
+            return build(patch=args.patch)
+        if args.command == "test":
+            return test(args.suite)
+        return clean()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
         print(f"FAIL  {error}", file=sys.stderr)
         return 1

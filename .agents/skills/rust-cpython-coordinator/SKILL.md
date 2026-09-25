@@ -1,136 +1,49 @@
 ---
 name: rust-cpython-coordinator
-description: Coordinate parallel Rust-for-CPython stdlib experiments in this repository, with isolated worktrees, resource accounting, and evidence-based integration. Use for work under rust-cpython/ or rust-for-cpython.md that delegates experiments to subagents.
+description: Coordinate parallel Rust-for-CPython stdlib coverage ports using isolated worktrees and complete CPython Python-level test suites. Use for delegated work under rust-cpython/ or rust-for-cpython.md.
 ---
 
-# Rust-for-CPython experiment coordination
+# Rust-for-CPython coverage coordination
 
-This skill supersedes the general `orchestrate` skill for Rust-for-CPython
-experiments in this repository. The root agent is the coordinator and owns
-the shared objective in `rust-for-cpython.md`, experiment selection,
-worktree assignment, integration, and the final verdict. Child agents own
-bounded experiments. Keep the production CPython 3.14.6 build and frozen
-Linux recipes outside these lanes.
+This skill supersedes the general `orchestrate` skill for this lane. The root
+agent owns the coverage checklist, worktree assignment, integration, and the
+final coverage verdict. Keep the production CPython 3.14.6 build outside the
+lane. Follow `rust-for-cpython.md`; the performance phase is deferred until
+its checklist is complete.
 
-Limit platform work to native macOS arm64 and Linux x86-64/arm64. Windows,
-Intel macOS, other Linux architectures, and every other platform are
-unsupported. The Rust lane currently builds on macOS arm64 and Linux x86-64;
-Linux arm64 remains in scope for future implementation and qualification.
-Preserve public API behavior exposed on supported hosts, including lexical
-parsing of Windows-style paths, without taking on Windows OS support.
+## Assign independent modules
 
-## Fan-out and ownership
+- Use the smallest useful fan-out, at most **six active experiment agents**.
+  Prefer `gpt-6-sol` at `medium` reasoning. Give each agent a self-contained
+  module brief with owned paths and complete CPython Python test suites.
+- Create a unique Git worktree and branch before an editing agent starts.
+  The agent runs every file command there and commits candidate source on
+  that branch. Do not assign overlapping source or docs. Keep build outputs
+  in that worktree; never put the only source copy under `/private/tmp` or
+  an ignored directory.
+- The root agent inspects and integrates one completed lane at a time. Resolve
+  interactions and rerun affected complete Python suites after integration.
+  Do not commit assignments, scout status, handoffs, or repeated ledgers.
+  Never push without explicit user instruction.
 
-- Use the smallest useful fan-out, with at most **six active experiment
-  subagents**. Prefer `gpt-6-sol` at `medium` reasoning for every experiment.
-  Spawn with `fork_turns: "none"` and a self-contained brief. Do not let
-  children delegate further unless the coordinator explicitly assigns a
-  nested budget within the same six-agent cap.
-- Before spawning an editing agent, the coordinator creates a unique Git
-  worktree outside the primary checkout and assigns it an absolute path and
-  branch. An agent runs every file command with that worktree as `workdir`.
-  Give each lane exact owned paths, its deliverable, checks, and stop condition.
-  No two agents edit the same source or docs. Read-only scouting can share a
-  checkout, but may not mutate it.
-- Keep generated `rust-cpython/work/`, `stage/`, `.cargo-home/`, and transient
-  logs inside the lane's own worktree. Do not share writable
-  build outputs or use the primary checkout as scratch. A common verified
-  input cache is acceptable only if its publication and reads are atomic and
-  content checked; otherwise copy inputs into the lane.
-- Before an expensive build with an authored source patch, check that every
-  intended path actually changed in a fresh extracted tree. A successful
-  `git apply` exit status can still mean zero files were patched when Git
-  discovers the enclosing worktree. Verify source hashes and installed
-  identities again after the build.
-- Track active ownership, worktree, budget, and merge order in the coordinator's
-  working context or an ignored local note. **Do not commit lane assignments,
-  status updates, or scout bookkeeping.** Reassign a path only after its prior
-  owner stops. Inspect a lane's diff and evidence before integrating; apply
-  one lane at a time and resolve interactions against the current mainline.
-  Rebuild or remeasure after integration when changes can interact. Do not
-  push without explicit user instruction.
+## Coverage verdict
 
-## Commit discipline
-
-- Keep coordination lightweight. A read-only scout can report its verdict in
-  a message; it needs no report file or commit merely to say that an idea was
-  deferred. Commit a scout result only when it adds reusable, decision-changing
-  evidence that future experiments need to reproduce.
-- Prefer one coherent commit for an implementation and its decisive evidence.
-  A standalone evidence commit is appropriate for a substantial benchmark or
-  qualification result. Do not make separate assignment, status, handoff, and
-  documentation-sync commits around the same experiment. Update the main plan
-  and candidate map when a decision changes, grouping those edits with the
-  relevant result when practical.
-- An experiment is not finished until its source or patch, exact build and
-  workload recipe, all numerical observations, and relevant failure excerpts
-  are committed. Store compact data and one short verdict beside the source.
-  Stage trees and compiler output can be rebuilt; they do not belong in Git.
-  Do not leave the only copy of a result under `/private/tmp`, an ignored
-  directory, or a discarded worktree. Preserve rejected findings concisely
-  in the next substantive decision record. Do not integrate a negative
-  scout's branch solely to archive ceremony.
-
-## Resource and measurement discipline
-
-- The six-agent limit is a ceiling, not a build concurrency target. Check
-  free memory, swap pressure, CPU load, and running builds before launching
-  work. Do not run published timing comparisons concurrently with another
-  benchmark, compiler, PGO job, or other CPU-heavy lane on the same host.
-  Queue heavy builds and benchmarks when they would interfere. After one
-  bounded loaded-host diagnostic, stop scheduling timing lanes when same-side
-  drift approaches the expected gain; use the interval for source or behavior
-  work and resume timing when the host is quieter.
-- For substantial build or benchmark commands, record **kernel-accounted
-  user and system CPU seconds** for the command's process tree, separately
-  from elapsed time. Record peak resident and, where available, unique or
-  proportional memory, plus swap and process count. Note the measurement
-  method and coverage of short-lived children. Never infer CPU consumption
-  from wall time or treat missing memory as zero.
-- Give every attempt, including failed and discarded calibrations, a unique
-  ID in checked-in compact data. Keep outcome, paired order, output identity,
-  wall and kernel CPU, memory, swap, and relevant failure text directly in
-  the record. Put the shared command and environment once in the recipe;
-  do not repeat absolute worktree paths or `stdout_path`/`stderr_path` fields
-  per attempt. For `benchmarks/bench.py` quick or standard native runs, pass
-  `--evidence rust-cpython/experiments/data/<result>.json` to export one
-  compact checked-in observation file without automatic baseline snapshots.
-  Checkpoint each attempt, and give each rerun a new output path or run ID:
-  never overwrite earlier raw attempts. If a record is lost, state which
-  attempts are missing and do not claim a complete lane resource cost.
-  Recent experiment runners use `experiments/evidence_checkpoint.py` for
-  exclusive reservation and atomic checkpoints; pass a fresh `--evidence`
-  path or run ID when replaying them.
-- For workload performance, wall time still measures user-visible latency;
-  CPU time measures compute consumption. Report both per logical work unit.
-  A faster wall time with more CPU work or more memory is a visible tradeoff.
-  Use separate uninstrumented timing, external memory, and allocation passes
-  as specified in `rust-for-cpython.md`. Pair equivalent control/candidate
-  work on the same quiet host and retain raw observations and noise bounds.
-- When a candidate changes installed Python source, verify the source and
-  bytecode-cache state on both sides before measuring. A stale checked-hash
-  `.pyc` in a no-write environment forces source compilation at every fresh
-  import and can dominate startup RSS. Regenerate valid caches for both sides
-  outside measured processes, or make both sides run from source; record the
-  policy and cache identities with the result. `PYTHONDONTWRITEBYTECODE=1`
-  prevents writes but does not prevent existing `.pyc` reads; audit actual
-  imports before claiming a source-only comparison.
-- `~/d/rustybench` can inform a focused Rust kernel experiment. Its current
-  `AllocProfiler` wraps `GlobalAlloc` and Rust 1.100's `Allocator`, so it can
-  count global or collection-local Rust allocation requests in a separate
-  diagnostic. Use the same toolchain and allocator in both arms, and keep its
-  instrumented elapsed time out of speed verdicts. It currently reports Linux
-  process CPU/resource fields and marks the macOS resource extension
-  unsupported. It cannot count CPython C allocations or replace end-to-end
-  Python workload qualification. The experiment lane pins an earlier nightly;
-  do not silently change that pin or add rustybench as a dependency.
-
-## Experiment handoff
-
-Brief each agent with the hypothesis, existing baseline, exact owned files,
-worktree, allowed build activity, correctness checks, benchmark workload,
-CPU/memory evidence to collect, and the condition for stopping or reverting.
-Have the agent report commit or diff identity, raw results, semantic failures,
-resource limits, and an explicit keep/reject/inconclusive recommendation.
-The coordinator reconciles conflicting results and decides what enters the
-integrated branch. Preserve rejected findings in the experiment record.
+- Choose important modules with tractable full suites. Identify all relevant
+  unchanged CPython test modules or packages before implementation. Run the
+  baseline once to identify existing platform failures and expected skips.
+- Prefer a maintained Rust library for the algorithm or format. Check
+  compatibility, maintenance, license, and dependency closure. Consult the
+  user before adding a dependency. Keep Python-visible objects, exceptions,
+  callbacks, and state behavior correct.
+- Use the default debug build: no PGO, no LTO, Cargo `dev`. Run only complete
+  named CPython Python suites with `build.py test --suite test_NAME`. Do not
+  write or run Rust tests. Do not run pyperformance, benchmarks, profiles, or
+  CPU/memory comparisons during this phase.
+- Count a module only when its named public behavior reaches Rust and every
+  relevant Python suite passes fully on a supported native host. Ordinary
+  platform skips are acceptable; feature-gap skips are not. Commit source,
+  exact build/suite command, target and candidate identity, pass/skip counts,
+  and a short verdict together. No per-attempt report files are needed.
+- A partial or failed route remains unchecked. Keep a concise finding when
+  it changes the next decision; remove abandoned scaffolding. Stage trees,
+  raw compiler logs, and test logs are rebuildable and stay outside Git.

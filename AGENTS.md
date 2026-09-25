@@ -6,7 +6,7 @@ dynamically linked installation. Astral's python-build-standalone (PBS) is a
 technical reference and comparison target only: never fork, vendor, import,
 or execute its build engine, and never copy its binaries into the product.
 
-`rust-cpython/` is an isolated CPython 3.16 Rust-for-CPython experiment
+`rust-cpython/` is an isolated CPython 3.16 Rust-for-CPython coverage lane
 (native Apple Silicon macOS and x86_64 glibc Linux hosts);
 its source pin is scoped there and does not change the product's exact 3.14.6
 contract or participate in production targets and packaging.
@@ -15,10 +15,12 @@ Windows, Intel macOS, other Linux architectures, and every other platform
 are unsupported. The Rust lane has not yet implemented Linux arm64; do not
 describe that experimental target as built until it is qualified.
 
-For delegated work on that experiment, use the repo-local
+For delegated work on that lane, use the repo-local
 `.agents/skills/rust-cpython-coordinator/SKILL.md` in place of the general
 `orchestrate` skill. The root agent coordinates isolated worktrees and
-integration; no more than six experiment subagents run concurrently.
+integration; no more than six coverage subagents run concurrently. The
+active loop uses debug builds and complete Python-level module suites;
+performance work waits until `rust-for-cpython.md` is complete.
 
 ## Product targets (`buildsys/targets.py` owns production target branching)
 
