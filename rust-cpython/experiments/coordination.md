@@ -12,6 +12,11 @@ optional URL decoder in an application task. It runs no benchmark, test,
 compiler, or network command during the native build. Budget: 20 kernel CPU
 seconds and 512 MiB per-process RSS; the coordinator will review the proposed
 fixture and decide whether to implement it after the build.
+The scout found that the existing view never reads `request.GET`; empty query
+strings do not exercise the decoder. It proposes a fixed four-value warm WSGI
+query request for correctness breadth, while deferring it as a performance
+gate because its small decode count is likely hidden by ORM and JSON work.
+See `django-query-breadth-scout-20260925.md`. No benchmark or test ran.
 
 ## Optional URL unquote full build (base `cdc5387`)
 
