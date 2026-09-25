@@ -77,7 +77,10 @@ parsing of Windows-style paths, without taking on Windows OS support.
   free memory, swap pressure, CPU load, and running builds before launching
   work. Do not run published timing comparisons concurrently with another
   benchmark, compiler, PGO job, or other CPU-heavy lane on the same host.
-  Queue heavy builds and benchmarks when they would interfere.
+  Queue heavy builds and benchmarks when they would interfere. After one
+  bounded loaded-host diagnostic, stop scheduling timing lanes when same-side
+  drift approaches the expected gain; use the interval for source or behavior
+  work and resume timing when the host is quieter.
 - For substantial build or benchmark commands, record **kernel-accounted
   user and system CPU seconds** for the command's process tree, separately
   from elapsed time. Record peak resident and, where available, unique or

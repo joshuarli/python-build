@@ -804,9 +804,14 @@ as a separate baseline change.
   speed, memory, broad semantics, and Linux qualification remain open. See
   [`fraction-rational-20260925.md`](rust-cpython/experiments/fraction-rational-20260925.md).
   A later guard preserves observed import, type, and private-module behavior
-  using the unchanged native extension. The 0.927/0.929 loaded-host ratios
-  describe pre-revision source; see the
-  [contract audit](rust-cpython/experiments/fraction-rational-contract-20260925.md).
+  using the unchanged native extension. A same-executable ledger diagnostic
+  of the current guard matched all 12 complete outputs and reduced CPU in
+  three cross-side pairs, but host load reached 14–16 and same-side wall
+  drift reached 10.7%. Performance and memory remain unqualified; retain the
+  scanner for partial coverage with its cost still to measure. The
+  0.927/0.929 ratios describe pre-revision source; see the
+  [contract audit](rust-cpython/experiments/fraction-rational-contract-20260925.md)
+  and [current-guard diagnostic](rust-cpython/experiments/fraction-current-guard-measure-20260925.md).
 - Earlier URL patches had targeted gains across three complete tasks. The
   revised quote guard has a loaded-host source-overlay result: search CPU
   improved 4.1% while request-path CPU rose 8.3%, beyond local same-side
