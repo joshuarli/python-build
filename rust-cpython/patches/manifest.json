@@ -96,6 +96,17 @@
       "reason": "Optionally scan exact ASCII POSIX shell command strings through a private no_std Rust extension while retaining public token construction and Python fallback.",
       "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --shlex-split; exact str, default comments=False and posix=True, unchanged shlex class and core methods, valid ASCII text at most 4,096 characters only.",
       "reproducer": "Apply selected patches to fresh verified pinned source for default, shlex-only, strptime plus UUID plus shlex, and all optional modes; verify intended changed paths and reverse checks; build --variant shlex-split --strptime-numeric --uuid-canonical --shlex-split and compare complete command processing against the strptime plus UUID control."
+    },
+    {
+      "file": "0010-rust-fraction-rational.patch",
+      "sha256": "5422ae051ff4930638d5eab58bb1bf173ee209ee010f48affdf7acd457455074",
+      "mode": "fraction-rational",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Lib/fractions.py and CPython extension interfaces; authored on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython fork",
+      "reason": "Optionally scan bounded exact ASCII canonical rational strings in private no_std Rust while retaining Fraction allocation, normalization, errors, and other parsing in Python.",
+      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --fraction-rational; exact Fraction class and str input, default denominator, unchanged regex and int bindings, [-]?[0-9]+/[0-9]+ with at most 18 digits per component and nonzero denominator.",
+      "reproducer": "Apply selected patches to fresh verified source for default, fraction-only, candidate stack, and all optional modes; check changed paths and reverse checks; build --variant fraction-rational --strptime-numeric --uuid-canonical --shlex-split --fraction-rational; compare complete rational ledger output and serial control/candidate resource pairs."
     }
   ]
 }

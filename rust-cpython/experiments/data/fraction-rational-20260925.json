@@ -1,0 +1,847 @@
+{
+  "source_commit": "b812b4a7b9efaca46b98544a8633b7d7e454166b",
+  "workload": {
+    "file": "fraction_rational_workload.py",
+    "sha256": "4286384cc1bdefe6f20f58c1fe33f9911c6749b77bb847b9e4a5ff2e8ab4feed",
+    "profile_command": "/Users/josh/d/python-build-exp-shlex-split-20260925/rust-cpython/stage-shlex-split/bin/python3.16 -B -m cProfile -o rust-cpython/work/fraction-rational-control.prof rust-cpython/experiments/fraction_rational_workload.py --count 20000 --rounds 2",
+    "profile_output": {
+      "accounts": 16,
+      "canonical_records": 32000,
+      "count": 20000,
+      "records": 40000,
+      "rounds": 2,
+      "digest": "223d04b46a99a5f27cf9adbd0c7afa74f10c72f7d1576c55f0162c7655dcc985"
+    },
+    "profile_seconds": {
+      "complete": 0.236880291,
+      "regex_match_self": 0.016023384,
+      "match_group_self": 0.014539078,
+      "fraction_new_self": 0.060400455,
+      "fraction_new_cumulative": 0.109395024
+    },
+    "timing_command": "fraction_rational_workload.py --count 100000 --rounds 2",
+    "canonical_records_interpretation": "Nominal 16 canonical templates per 20 rows; small magnitudes in the underscore template emit no underscore and may also take the fast route."
+  },
+  "patch": {
+    "sha256": "5422ae051ff4930638d5eab58bb1bf173ee209ee010f48affdf7acd457455074",
+    "selections_changed_paths": {
+      "default": 8,
+      "fraction_only": 11,
+      "candidate_stack": 20,
+      "all_optional": 26
+    },
+    "reverse_and_forward_checks": "passed",
+    "source_fractions_sha256": "f493e8a7cb4af622534e6e2b4fcfc0dd4af711c3ad63cf9c09c05e2c028c9d7c",
+    "installed_fractions_sha256": "f493e8a7cb4af622534e6e2b4fcfc0dd4af711c3ad63cf9c09c05e2c028c9d7c",
+    "control_fractions_sha256": "bf61790248594add2b9e78c4671af35471313552cf8d3e98899a5327e55fd395"
+  },
+  "build": {
+    "command": "python3 rust-cpython/build.py build --variant fraction-rational --strptime-numeric --uuid-canonical --shlex-split --fraction-rational",
+    "target": "aarch64-apple-darwin",
+    "recipe": {
+      "llvm": "23.1.2 locked official archive",
+      "rust": "nightly-2026-09-15",
+      "optimization": "-O3, ThinLTO, CPython PGO -m test --pgo -j 9",
+      "source_patch_manifest_sha256": "631eb8c4336a222115178808c8a25e639a7a0fd874bc3ac99bd2bb2aee9e4ae5",
+      "source_archive_sha256": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+      "cargo_lock_sha256": "55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023",
+      "patches": [
+        {
+          "file": "0001-rust-url-quote.patch",
+          "sha256": "38a12dea211c4cd879069cccf7e3b5b47668b20a2bd7b4f0f103e4db8cfa2cc0"
+        },
+        {
+          "file": "0002-zlib-hybrid-inflate.patch",
+          "sha256": "8882e0b3e1704e4d7c1d5479af37c8fe1d774dcb6a31b61359947f5f87be3528"
+        },
+        {
+          "file": "0003-zlib-oneshot-inflate.patch",
+          "sha256": "5b6c108d95777043d37fb59671d75da044d64c5757e3f37ba276da37dbaa5d07"
+        },
+        {
+          "file": "0007-rust-strptime-numeric.patch",
+          "sha256": "dca0d09d88038a1ef78c97e34cac3fe1091260a5d8a64c143f8a6f164ccedb1d"
+        },
+        {
+          "file": "0008-rust-uuid-canonical.patch",
+          "sha256": "939dd73e59400cd19a06148805d8c9935fd84e84f41070a48aa87806b138f61b"
+        },
+        {
+          "file": "0009-rust-shlex-split.patch",
+          "sha256": "dfb8bfd3fd9312a9ed403d88f9864f8951c71ee11d1a431a83dfa17dbf4f8b85"
+        },
+        {
+          "file": "0010-rust-fraction-rational.patch",
+          "sha256": "5422ae051ff4930638d5eab58bb1bf173ee209ee010f48affdf7acd457455074"
+        }
+      ],
+      "llvm_archive_sha256": "d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1",
+      "xcode_version": "26.6",
+      "sdk_version": "26.5",
+      "configure_arguments": [
+        "--prefix=/Users/josh/d/python-build-exp-fractions-rational-20260925/rust-cpython/stage-fraction-rational",
+        "--enable-shared",
+        "--with-lto=thin",
+        "--enable-optimizations",
+        "--enable-experimental-jit=no",
+        "--with-tail-call-interp=no",
+        "--without-ensurepip"
+      ],
+      "cflags": "-O3 -mcpu=apple-m1 -fPIC -mmacosx-version-min=26.0",
+      "pgo_task": "-m test --pgo -j 9",
+      "pythonhashseed": "1704067200"
+    },
+    "attempts": [
+      {
+        "id": "initial",
+        "outcome": "failed_install",
+        "wall_seconds": 264.13,
+        "user_seconds": 702.62,
+        "system_seconds": 108.89,
+        "peak_rss_bytes": 1794981888,
+        "swaps": 0,
+        "failure": "[ERROR] _rust_fraction_rational failed to import: symbol not found in flat namespace '_rust_eh_personality'; ginstall: cannot stat Modules/_rust_fraction_rational.cpython-316-darwin.so"
+      },
+      {
+        "id": "checked_slice_rebuild",
+        "outcome": "success",
+        "wall_seconds": 300.8,
+        "user_seconds": 703.76,
+        "system_seconds": 114.3,
+        "peak_rss_bytes": 1757921280,
+        "swaps": 0
+      }
+    ],
+    "installed_extension_sha256": "15e51ff2800c6daa2f015023be664d1e1e960ce4025cc17b356322806b1aacbe",
+    "installed_extension_bytes": 51168,
+    "installed_native_bytes": {
+      "control": 17180769,
+      "candidate": 17224798
+    },
+    "symbol_check": "exports _fraction_rational_scan and _PyInit__rust_fraction_rational; no unresolved _rust_eh_personality",
+    "repair_diagnostics": [
+      {
+        "step": "draft patch validation",
+        "failure": "git apply: corrupt patch at line 224 after draft hunk-count edit",
+        "resolution": "recomputed new-file hunk lengths; all four fresh selections and reverse checks passed"
+      },
+      {
+        "step": "incremental native extension link outside sealed build environment",
+        "failure": "ld: library 'System' not found",
+        "resolution": "set SDKROOT to the locked Xcode SDK for the link; resulting extension had no unresolved _rust_eh_personality before full rebuild"
+      }
+    ]
+  },
+  "measurements": {
+    "status": "loaded-host nonpublication; quiet-host requalification pending",
+    "recipe": {
+      "workload": "fraction_rational_workload.py --count 100000 --rounds 2",
+      "workload_sha256": "4286384cc1bdefe6f20f58c1fe33f9911c6749b77bb847b9e4a5ff2e8ab4feed",
+      "control_interpreter_sha256": "e898fd4f6b44d3eeec84bc63b60ef0f2cbf9b63ca6df1b18c9ae7fa183d540ad",
+      "candidate_interpreter_sha256": "1c610e6be3db48adfae366125252549b8b0ef00d677c73760ae218f51c376338",
+      "control_fractions_sha256": "bf61790248594add2b9e78c4671af35471313552cf8d3e98899a5327e55fd395",
+      "candidate_fractions_sha256": "f493e8a7cb4af622534e6e2b4fcfc0dd4af711c3ad63cf9c09c05e2c028c9d7c",
+      "candidate_extension_sha256": "15e51ff2800c6daa2f015023be664d1e1e960ce4025cc17b356322806b1aacbe",
+      "measurement": "/usr/bin/time -l -p around direct Python child, with parent perf_counter wall; Darwin wait4 kernel child usage",
+      "cache_policy": "empty PYTHONPYCACHEPREFIX, PYTHONDONTWRITEBYTECODE=1, -B; both sides compile source",
+      "environment": {
+        "PYTHONHASHSEED": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "order": "three self pairs and five alternating candidate pairs under host load"
+    },
+    "host_load_before": "2:43  up 10 days, 14:49, 2 users, load averages: 10.22 10.57 8.41",
+    "host_load_after": "2:43  up 10 days, 14:49, 2 users, load averages: 9.80 10.48 8.39",
+    "host_swap_before": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "host_swap_after": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "attempts": [
+      {
+        "id": "self-01-01-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6190452090231702,
+        "kernel_real_seconds": 0.61,
+        "user_seconds": 0.55,
+        "system_seconds": 0.02,
+        "peak_rss_bytes": 44253184,
+        "peak_footprint_bytes": 31605216,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-01-02-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5802215830190107,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44400640,
+        "peak_footprint_bytes": 31769080,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-02-01-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 2,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5887524159625173,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44498944,
+        "peak_footprint_bytes": 31867384,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-02-02-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 2,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5854734580498189,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44482560,
+        "peak_footprint_bytes": 31851000,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-03-01-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 3,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.582857207977213,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44400640,
+        "peak_footprint_bytes": 31769080,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-03-02-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 3,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5858365830499679,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45170688,
+        "peak_footprint_bytes": 32539128,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-01-01-control",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5848646661033854,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44892160,
+        "peak_footprint_bytes": 32260600,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-01-02-candidate",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 2,
+        "side": "candidate",
+        "returncode": 0,
+        "wall_seconds": 0.5765530409989879,
+        "kernel_real_seconds": 0.56,
+        "user_seconds": 0.51,
+        "system_seconds": 0.02,
+        "peak_rss_bytes": 44646400,
+        "peak_footprint_bytes": 31982072,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-02-01-candidate",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 2,
+        "position": 1,
+        "side": "candidate",
+        "returncode": 0,
+        "wall_seconds": 0.5458795831073076,
+        "kernel_real_seconds": 0.53,
+        "user_seconds": 0.51,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44417024,
+        "peak_footprint_bytes": 31736288,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-02-02-control",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 2,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5922416660469025,
+        "kernel_real_seconds": 0.58,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45219840,
+        "peak_footprint_bytes": 32588280,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-03-01-control",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 3,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5881839579669759,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44924928,
+        "peak_footprint_bytes": 32293368,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-03-02-candidate",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 3,
+        "position": 2,
+        "side": "candidate",
+        "returncode": 0,
+        "wall_seconds": 0.5399589169537649,
+        "kernel_real_seconds": 0.53,
+        "user_seconds": 0.5,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45219840,
+        "peak_footprint_bytes": 32555512,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-04-01-candidate",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 4,
+        "position": 1,
+        "side": "candidate",
+        "returncode": 0,
+        "wall_seconds": 0.5426270409952849,
+        "kernel_real_seconds": 0.53,
+        "user_seconds": 0.5,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44826624,
+        "peak_footprint_bytes": 32145888,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-04-02-control",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 4,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5852058749878779,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44417024,
+        "peak_footprint_bytes": 31785464,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-05-01-control",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 5,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5847404999658465,
+        "kernel_real_seconds": 0.57,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45236224,
+        "peak_footprint_bytes": 32588256,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-05-02-candidate",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 5,
+        "position": 2,
+        "side": "candidate",
+        "returncode": 0,
+        "wall_seconds": 0.5441631251014769,
+        "kernel_real_seconds": 0.53,
+        "user_seconds": 0.51,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45137920,
+        "peak_footprint_bytes": 32457184,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      }
+    ],
+    "summary": {
+      "self_second_over_first_wall_ratios": [
+        0.9372846676813449,
+        0.9944306675882802,
+        1.0051116723478375
+      ],
+      "self_second_over_first_cpu_ratios": [
+        0.9824561403508771,
+        1.0,
+        1.0
+      ],
+      "candidate_over_control_median_wall_ratio": 0.9272412738619977,
+      "candidate_over_control_wall_ratio_range": [
+        0.9180102749148445,
+        0.9857888062211502
+      ],
+      "candidate_over_control_median_cpu_ratio": 0.9285714285714285,
+      "candidate_over_control_cpu_ratio_range": [
+        0.9107142857142857,
+        0.9464285714285714
+      ],
+      "candidate_minus_control_median_peak_rss_bytes": -98304,
+      "candidate_minus_control_median_peak_footprint_bytes": -131072
+    }
+  },
+  "limits": [
+    "No separate semantic probes or tests were requested.",
+    "Build wall time overlapped unrelated host activity.",
+    "Loaded-host comparison coincided with external OrbStack CPU use and a 6.3% first self-pair wall drift; ratios are diagnostic only. Quiet-host process performance and memory requalification remain open."
+  ],
+  "diagnostic_load_calibration": {
+    "status": "nonpublication; OrbStack Helper around 400% CPU",
+    "recipe": {
+      "workload": "fraction_rational_workload.py --count 100000 --rounds 2",
+      "workload_sha256": "4286384cc1bdefe6f20f58c1fe33f9911c6749b77bb847b9e4a5ff2e8ab4feed",
+      "control_interpreter_sha256": "e898fd4f6b44d3eeec84bc63b60ef0f2cbf9b63ca6df1b18c9ae7fa183d540ad",
+      "candidate_interpreter_sha256": "1c610e6be3db48adfae366125252549b8b0ef00d677c73760ae218f51c376338",
+      "control_fractions_sha256": "bf61790248594add2b9e78c4671af35471313552cf8d3e98899a5327e55fd395",
+      "candidate_fractions_sha256": "f493e8a7cb4af622534e6e2b4fcfc0dd4af711c3ad63cf9c09c05e2c028c9d7c",
+      "candidate_extension_sha256": "15e51ff2800c6daa2f015023be664d1e1e960ce4025cc17b356322806b1aacbe",
+      "measurement": "/usr/bin/time -l -p around direct Python child, with parent perf_counter wall; Darwin wait4 kernel child usage",
+      "cache_policy": "empty PYTHONPYCACHEPREFIX, PYTHONDONTWRITEBYTECODE=1, -B; both sides compile source",
+      "environment": {
+        "PYTHONHASHSEED": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "order": "three control/control pairs under host load"
+    },
+    "host_load_before": "2:27  up 10 days, 14:33, 2 users, load averages: 7.33 8.76 7.33",
+    "host_load_after": "2:27  up 10 days, 14:33, 2 users, load averages: 7.33 8.76 7.33",
+    "host_swap_before": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "host_swap_after": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "attempts": [
+      {
+        "id": "self-01-01-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6005121669732034,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44777472,
+        "peak_footprint_bytes": 32145912,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-01-02-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5961454580537975,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.56,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44711936,
+        "peak_footprint_bytes": 32080376,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-02-01-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 2,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5968804999720305,
+        "kernel_real_seconds": 0.58,
+        "user_seconds": 0.56,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44974080,
+        "peak_footprint_bytes": 32326112,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-02-02-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 2,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5946789160370827,
+        "kernel_real_seconds": 0.58,
+        "user_seconds": 0.56,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44498944,
+        "peak_footprint_bytes": 31867384,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-03-01-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 3,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5916634170571342,
+        "kernel_real_seconds": 0.58,
+        "user_seconds": 0.55,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 44400640,
+        "peak_footprint_bytes": 31769080,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "self-03-02-control",
+        "family": "self",
+        "kind": "rational-ledger",
+        "pair": 3,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5980104999616742,
+        "kernel_real_seconds": 0.58,
+        "user_seconds": 0.56,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45137920,
+        "peak_footprint_bytes": 32489952,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      }
+    ],
+    "setup_failure": "An initial calibration invocation passed the control stage as both control and candidate; recipe collection could not find a candidate extension and raised StopIteration before any timed process. The corrected invocation used the candidate stage for metadata only."
+  },
+  "candidate_route_profile": {
+    "status": "nonpublication cProfile diagnostic under unrelated host load",
+    "command": "rust-cpython/stage-fraction-rational/bin/python3.16 -B -m cProfile -o rust-cpython/work/fraction-rational-candidate.prof rust-cpython/experiments/fraction_rational_workload.py --count 20000 --rounds 2",
+    "output": {
+      "accounts": 16,
+      "canonical_records": 32000,
+      "count": 20000,
+      "records": 40000,
+      "rounds": 2,
+      "digest": "223d04b46a99a5f27cf9adbd0c7afa74f10c72f7d1576c55f0162c7655dcc985"
+    },
+    "seconds": {
+      "complete": 0.228188292,
+      "regex_match_self": 0.004367587,
+      "match_group_self": 0.003986538,
+      "scanner_self": 0.004235961,
+      "fraction_new_self": 0.054290548,
+      "fraction_new_cumulative": 0.087208819,
+      "builtins_import_self": 1.0001e-05
+    },
+    "calls": {
+      "regex_match": 7964,
+      "match_group": 31882,
+      "scanner": 40000,
+      "builtins_import": 6
+    },
+    "scanner_successes_inferred_from_regex_fallback_calls": 32036
+  },
+  "diagnostic_load_pair": {
+    "status": "nonpublication; unrelated OrbStack container active",
+    "recipe": {
+      "workload": "fraction_rational_workload.py --count 100000 --rounds 2",
+      "workload_sha256": "4286384cc1bdefe6f20f58c1fe33f9911c6749b77bb847b9e4a5ff2e8ab4feed",
+      "control_interpreter_sha256": "e898fd4f6b44d3eeec84bc63b60ef0f2cbf9b63ca6df1b18c9ae7fa183d540ad",
+      "candidate_interpreter_sha256": "1c610e6be3db48adfae366125252549b8b0ef00d677c73760ae218f51c376338",
+      "control_fractions_sha256": "bf61790248594add2b9e78c4671af35471313552cf8d3e98899a5327e55fd395",
+      "candidate_fractions_sha256": "f493e8a7cb4af622534e6e2b4fcfc0dd4af711c3ad63cf9c09c05e2c028c9d7c",
+      "candidate_extension_sha256": "15e51ff2800c6daa2f015023be664d1e1e960ce4025cc17b356322806b1aacbe",
+      "measurement": "/usr/bin/time -l -p around direct Python child, with parent perf_counter wall; Darwin wait4 kernel child usage",
+      "cache_policy": "empty PYTHONPYCACHEPREFIX, PYTHONDONTWRITEBYTECODE=1, -B; both sides compile source",
+      "environment": {
+        "PYTHONHASHSEED": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "order": "one candidate/control diagnostic pair under host load"
+    },
+    "host_load_before": "2:36  up 10 days, 14:42, 2 users, load averages: 5.12 5.39 6.03",
+    "host_load_after": "2:36  up 10 days, 14:42, 2 users, load averages: 5.12 5.39 6.03",
+    "host_swap_before": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "host_swap_after": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "attempts": [
+      {
+        "id": "candidate-01-01-control",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6205499169882387,
+        "kernel_real_seconds": 0.61,
+        "user_seconds": 0.55,
+        "system_seconds": 0.02,
+        "peak_rss_bytes": 43991040,
+        "peak_footprint_bytes": 31359480,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      },
+      {
+        "id": "candidate-01-02-candidate",
+        "family": "candidate",
+        "kind": "rational-ledger",
+        "pair": 1,
+        "position": 2,
+        "side": "candidate",
+        "returncode": 0,
+        "wall_seconds": 0.5507254169788212,
+        "kernel_real_seconds": 0.54,
+        "user_seconds": 0.51,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 45187072,
+        "peak_footprint_bytes": 32522744,
+        "swaps": 0,
+        "output": {
+          "accounts": 16,
+          "canonical_records": 160000,
+          "count": 100000,
+          "digest": "356356bd5c02a8e41cfb64a19ec168f35a6a752ed9c5e1c7b3b15b2635d284e9",
+          "records": 200000,
+          "rounds": 2
+        }
+      }
+    ]
+  }
+}

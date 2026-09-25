@@ -695,6 +695,15 @@ as a separate baseline change.
   cap bounds temporary storage; larger and nondefault calls use Python.
   This is partial priority-1 coverage, not a completed `shlex` port. See
   [`shlex-split-20260925.md`](rust-cpython/experiments/shlex-split-20260925.md).
+- The optional `fractions.Fraction` scanner reaches public parsing of short
+  canonical ASCII rational strings; Python still constructs and normalizes
+  the value and handles all other inputs. A complete 200,000-record ledger
+  matched control output. Five alternating pairs under unrelated heavy host
+  load had median candidate/control wall and kernel CPU ratios of 0.927 and
+  0.929, but nearby control drift reached 6.3% in wall time. Retain
+  `--fraction-rational` for partial priority-1 coverage only. Clean-host
+  speed, memory, broad semantics, and Linux qualification remain open. See
+  [`fraction-rational-20260925.md`](rust-cpython/experiments/fraction-rational-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
@@ -755,8 +764,8 @@ order within each priority.
 
 The current `_base64` integration proof does not cover public `base64`; the
 guarded URL quote route is a partial `urllib.parse` port pending broad
-qualification; zlib, TAR, IPv4, numeric timestamp, UUID, and `shlex` Rust
-proofs remain partial. No item below is yet marked complete.
+qualification; zlib, TAR, IPv4, numeric timestamp, UUID, `shlex`, and
+`fractions` Rust proofs remain partial. No item below is yet marked complete.
 
 ### Priority 0: common application paths
 
