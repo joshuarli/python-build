@@ -222,6 +222,7 @@ exercise recognizable application paths. Its initial workloads cover:
 | Workload | What it exercises |
 | --- | --- |
 | `django_wsgi_request` | Django's WSGI handler, middleware, routing, ORM-backed view, and response construction |
+| `django_wsgi_first_request` | One fresh interpreter through Django setup, handler construction, first SQLite open, and one validated WSGI response |
 | `django_asgi_request` | The corresponding Django ASGI request path |
 | `django_orm_10k` | Materializing and processing a deterministic 10,000-row ORM dataset |
 | `django_template_realistic` | Rendering a template with loops, nested values, escaping, and formatting |
@@ -240,9 +241,12 @@ exercise recognizable application paths. Its initial workloads cover:
 
 The Django requests go through framework handlers rather than timing a
 standalone template call. Schema setup and fixture creation happen outside the
-timed operation. Each workload checks a result invariant or digest so a
-regression cannot appear faster by silently skipping work. Operation counts
-allow timing, memory, and allocation results to be normalized per request,
+timed operation. The first-request workload prepares and hashes a read-only
+SQLite fixture before each paired run; its timing spans process launch through
+exit, including exactly one request and the first database open. Warm requests
+retain their internal timing boundary. Each workload checks a result invariant
+or digest so a regression cannot appear faster by silently skipping work.
+Operation counts allow timing, memory, and allocation results per request,
 row, file, import process, or other unit of work.
 
 The `pyperformance` suite remains the standardized layer. Its timing and
@@ -267,6 +271,11 @@ payload remains pinned at 3.2.4 and may still fail on some CPython 3.14
 workloads. The repository-owned Django macros use Django 6.1.1 and should be
 read as a distinct workload version. The `full` suite combines pyperformance
 with the repository-owned macro suite.
+
+The separate macOS CPython 3.16 lock in
+[`inputs.macos-cp316.lock.json`](inputs.macos-cp316.lock.json) pins compatible
+Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 wheel artifacts for the
+experimental interpreter. These inputs do not replace the Linux lock.
 
 The shared FastAPI payload uses Pydantic 2.13.5, `pydantic-core` 2.46.5, and
 their locked transitive dependencies. `pydantic-core` is pinned to its

@@ -80,9 +80,12 @@ whole-build and public-workload evidence is in
 symbols while retaining platform zlib for compression, checksums, public
 version identity, and `binascii`. Its digest-checked source patch is inert in
 the ordinary and full-backend modes. The hybrid matched all 876 sampled
-compressed byte outputs and passed focused CPython consumers; workload speed
-and resource parity are still open. See
-[`experiments/zlib-hybrid-proof-20260924.md`](experiments/zlib-hybrid-proof-20260924.md).
+compressed byte outputs and passed focused CPython consumers. Seven paired
+sustained public decode and gzip jobs then used about 36% less process CPU;
+sampled memory direction, broader application value, and upstream resource
+parity remain open. See
+[`experiments/zlib-hybrid-proof-20260924.md`](experiments/zlib-hybrid-proof-20260924.md)
+and [`experiments/zlib-sustained-20260925.md`](experiments/zlib-sustained-20260925.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under
 that unchanged CPython wrapper and runs CPython's zlib and compression-consumer

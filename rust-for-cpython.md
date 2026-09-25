@@ -239,9 +239,15 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   both ways, and passed 1,892 focused CPython tests with 39 skips. The first
   full build command failed only at a post-install symbol check that matched
   part of a prefixed name; corrected exact symbol validation passed on the
-  installed bytes without rebuilding. Speed, installed size after stripping,
-  and memory/allocation parity remain unmeasured. See
+  installed bytes without rebuilding. See
   [`zlib-hybrid-proof-20260924.md`](rust-cpython/experiments/zlib-hybrid-proof-20260924.md).
+- A longer seven-pair public decode/gzip pass found about 35% lower complete
+  process wall time and 36% lower kernel CPU for that hybrid, beyond control
+  self-noise. All 118 checked attempts matched decoded digests. Sampled memory
+  differences changed sign, and equal debug stripping left a 1.45 MB
+  extension-size cost. It remains a speed candidate pending broader
+  application, upstream resource, allocation, and size evidence; see
+  [`zlib-sustained-20260925.md`](rust-cpython/experiments/zlib-sustained-20260925.md).
 - Cold ZIP import now records directly reaped child CPU separately from the
   root's `wait4` usage. Earlier cold-import CPU data remain root-only; see
   [`child-cpu-accounting-20260924.md`](rust-cpython/experiments/child-cpu-accounting-20260924.md).
@@ -381,14 +387,15 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   The ordinary lane build still links `Modules/zlibmodule.c` to platform zlib.
   The decompression-only hybrid matched compressed bytes and focused tests.
   Against the closest platform-zlib fork control, short complete tasks had no
-  established wall or process-CPU gain; ZIP RSS differences changed sign, and
-  the extension added 1.45 MB after equal debug stripping. Internal decode
-  and gzip timers improved about 45% and 40%. See
+  established wall or process-CPU gain, while the longer public decode/gzip
+  jobs now show roughly 35% lower wall and 36% lower CPU beyond self-noise.
+  ZIP and sustained-job memory differences changed sign, and the extension
+  added 1.45 MB after equal debug stripping. See
   [`zlib-hybrid-qualification-20260924.md`](rust-cpython/experiments/zlib-hybrid-qualification-20260924.md).
-  A baseline-sized sustained public decode/gzip pass is the next decision
-  gate; it was prepared but not run because another host process occupied
-  several cores. If complete-task CPU still does not improve beyond noise,
-  remove the optional hybrid path while preserving its experiment record.
+  The sustained measurements are in
+  [`zlib-sustained-20260925.md`](rust-cpython/experiments/zlib-sustained-20260925.md).
+  Next test application breadth, upstream resource use, and installed-size
+  policy before promoting it.
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
@@ -416,9 +423,10 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 without changing the
   product or Linux lock. See
   [`mac-cp316-django-inputs-20260924.md`](rust-cpython/experiments/mac-cp316-django-inputs-20260924.md).
-  Next add a true cold first-request workload with a fixed SQLite fixture and
-  process-boundary timing as designed in
-  [`mac-input-audit-20260924.md`](rust-cpython/experiments/mac-input-audit-20260924.md).
-  Then compare existing warm Django tasks and the new cold task on matched
-  interpreters before claiming broader gains. Add baseline-derived loops for
+  A true cold first-request workload now uses a fixed, byte-hashed SQLite
+  fixture and spawn-to-exit timing; its same-interpreter correctness smoke
+  passed. See
+  [`django-cold-first-20260925.md`](rust-cpython/experiments/django-cold-first-20260925.md).
+  Compare the warm and cold Django tasks on matched interpreters before
+  claiming broader gains. Add baseline-derived loops for
   pyperformance and selected Pyston macros only with separately pinned inputs.
