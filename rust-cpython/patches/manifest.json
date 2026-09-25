@@ -10,6 +10,16 @@
       "reason": "Evaluate guarded exact-bytes URL percent quotation through a CPython-owned C extension and private no_std Rust kernel in the source build.",
       "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b with Cargo.lock SHA-256 55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023; preserves the original urllib.parse guards and fallback, targets the pinned macOS Rust lane and nightly-2026-09-15.",
       "reproducer": "Apply to the locked archive with git apply --check, build the pinned Rust candidate, then run the 2,177 public differential cases from rust-cpython/experiments/url-quote-lean-proof/check.py adapted to compare installed candidate and control, plus python3.16 -m test test_urlparse test_urllib -j1."
+    },
+    {
+      "file": "0002-zlib-hybrid-inflate.patch",
+      "sha256": "8882e0b3e1704e4d7c1d5479af37c8fe1d774dcb6a31b61359947f5f87be3528",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Modules/zlibmodule.c and libz-rs-sys-cdylib 0.6.7 custom-prefix feature; authored for this experiment on 2026-09-24",
+      "license": "PSF-2.0, matching the pinned CPython source",
+      "reason": "Route every CPython inflate stream operation to prefixed zlib-rs symbols while preserving platform zlib for deflate, checksums, and version identity.",
+      "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; guarded by PYTHON_BUILD_ZLIB_HYBRID and requires libz-rs-sys-cdylib 0.6.7 custom-prefix with LIBZ_RS_SYS_PREFIX=python_build_rs_.",
+      "reproducer": "Apply to a fresh extracted pinned source with rust-cpython/build.py source patch checks, inspect the prefixed archive symbols, build --zlib-hybrid, compare 876 encoded bytes with the platform control, and run focused CPython zlib consumer tests."
     }
   ]
 }

@@ -60,6 +60,7 @@ WORK = LANE / "work"
 ZLIB_SOURCE = WORK / "zlib-candidate-source"
 ZLIB_TARGET = WORK / "zlib-candidate-target"
 ZLIB_ARCHIVE = ZLIB_TARGET / "release" / "libz_rs.a"
+ZLIB_HYBRID_PREFIX = "python_build_rs_"
 BUILD = WORK / "build"
 SOURCE = WORK / "source"
 STAGE = LANE / "stage"
@@ -684,11 +685,13 @@ def _zlib_source(blob: Path) -> Path:
     return source
 
 
-def _zlib_cargo_env(toolchain, *, offline: bool) -> dict[str, str]:
+def _zlib_cargo_env(toolchain, *, offline: bool, hybrid: bool = False) -> dict[str, str]:
     env = _environment(toolchain, offline=offline)
     env["CARGO_TARGET_DIR"] = str(ZLIB_TARGET)
     for key in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER"):
         env.pop(key, None)
+    if hybrid:
+        env["LIBZ_RS_SYS_PREFIX"] = ZLIB_HYBRID_PREFIX
     return env
 
 
@@ -706,14 +709,17 @@ def _fetch_zlib(toolchain) -> None:
         raise LaneError("zlib-rs Cargo.lock changed during fetch")
 
 
-def _build_zlib(toolchain, sandbox: SealedRun) -> dict[str, Any]:
+def _build_zlib(toolchain, sandbox: SealedRun, *, hybrid: bool = False) -> dict[str, Any]:
     metadata, entry = _zlib_input()
     blob = Cache(CACHE_ROOT).require(entry)
     source = _zlib_source(blob)
+    command = [str(CARGO_HOME / "bin" / "cargo"), "build", "--release", "--locked",
+               "--offline", "--manifest-path", str(source / "Cargo.toml")]
+    if hybrid:
+        command.extend(("--features", "custom-prefix"))
     _require_command(
-        [str(CARGO_HOME / "bin" / "cargo"), "build", "--release", "--locked",
-         "--offline", "--manifest-path", str(source / "Cargo.toml")],
-        cwd=source, env=sandbox.environment(_zlib_cargo_env(toolchain, offline=True)),
+        command,
+        cwd=source, env=sandbox.environment(_zlib_cargo_env(toolchain, offline=True, hybrid=hybrid)),
         log=LOGS / "zlib-candidate-build.log",
         sealed=sandbox,
     )
@@ -721,7 +727,19 @@ def _build_zlib(toolchain, sandbox: SealedRun) -> dict[str, Any]:
         raise LaneError("zlib-rs Cargo.lock changed during build")
     if not ZLIB_ARCHIVE.is_file():
         raise LaneError(f"zlib-rs did not produce {ZLIB_ARCHIVE}")
+    if hybrid:
+        symbols = _command([str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
+                            "-g", "--defined-only", str(ZLIB_ARCHIVE)])
+        if symbols["returncode"] != 0:
+            raise LaneError(f"cannot inspect hybrid archive symbols: {symbols['output']}")
+        for symbol in ("inflate", "inflateInit2_", "inflateEnd", "inflateCopy", "inflateSetDictionary"):
+            if re.search(rf"(?m)\b_{ZLIB_HYBRID_PREFIX}{symbol}$", symbols["output"]) is None:
+                raise LaneError(f"hybrid archive lacks prefixed {symbol}")
+        if re.search(r"(?m)\b_(?:deflate\w*|inflate\w*|zlibVersion)$", symbols["output"]):
+            raise LaneError("hybrid archive defines an unprefixed zlib entry point")
     return {
+        "kind": "hybrid-inflate" if hybrid else "full-rust",
+        "symbol_prefix": ZLIB_HYBRID_PREFIX if hybrid else "",
         "source_lock": str(ZLIB_LOCK),
         "source_lock_sha256": hashlib.sha256(ZLIB_LOCK.read_bytes()).hexdigest(),
         "repository": metadata["repository"],
@@ -788,7 +806,8 @@ def _brew_pkg_config_path() -> str:
     return ":".join(dict.fromkeys(found))
 
 
-def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None) -> tuple[list[str], dict[str, str]]:
+def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None,
+                   zlib_hybrid: bool = False) -> tuple[list[str], dict[str, str]]:
     profile_task = _profile_task(jobs)
     flags = " ".join((
         "-O3", target.cpu_baseline_cflag, "-fPIC",
@@ -816,7 +835,9 @@ def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = 
         "PKG_CONFIG_PATH": _brew_pkg_config_path(),
     })
     if zlib_archive is not None:
-        env["ZLIB_LIBS"] = str(zlib_archive)
+        env["ZLIB_LIBS"] = f"-lz {zlib_archive}" if zlib_hybrid else str(zlib_archive)
+    if zlib_hybrid:
+        env["CFLAGS"] += " -DPYTHON_BUILD_ZLIB_HYBRID=1"
     return args, env
 
 
@@ -957,7 +978,7 @@ print(json.dumps({
     return interpreter
 
 
-def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
+def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False) -> dict[str, Any]:
     """Prove the installed whole-build module uses the candidate C ABI."""
     code = (
         "import binascii,json,zlib; "
@@ -980,7 +1001,8 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
         identity = json.loads(result.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError) as error:
         raise LaneError("installed zlib candidate did not report its identity") from error
-    if identity["runtime_version"] != "1.3.0-zlib-rs-0.6.7":
+    expected_version = "1.2.12" if hybrid else "1.3.0-zlib-rs-0.6.7"
+    if identity["runtime_version"] != expected_version:
         raise LaneError(f"installed zlib runtime is not the pinned backend: {identity['runtime_version']!r}")
     module = Path(identity["path"]).resolve()
     try:
@@ -990,17 +1012,25 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
     if not module.is_file():
         raise LaneError(f"installed zlib module is missing: {module}")
     dependencies = macho.dependencies(module)
-    if any("libz" in dependency.lower() for dependency in dependencies):
-        raise LaneError("installed zlib module retains a dynamic libz dependency")
+    platform_zlib = "/usr/lib/libz.1.dylib"
+    if (platform_zlib in dependencies) != hybrid:
+        raise LaneError("installed zlib module has the wrong platform libz dependency")
     symbols = _command([
         str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
         "-g", "--defined-only", str(module),
     ])
     if symbols["returncode"] != 0:
         raise LaneError(f"cannot inspect installed zlib module symbols: {symbols['output']}")
-    for symbol in ("_zlibVersion", "_deflateInit2_", "_inflateInit2_"):
-        if symbol not in symbols["output"]:
+    expected_symbols = (tuple(f"_{ZLIB_HYBRID_PREFIX}{name}" for name in
+                              ("inflateInit2_", "inflate", "inflateEnd", "inflateCopy",
+                               "inflateSetDictionary")) if hybrid else
+                        ("_zlibVersion", "_deflateInit2_", "_inflateInit2_"))
+    for symbol in expected_symbols:
+        if re.search(rf"(?m)\b{symbol}$", symbols["output"]) is None:
             raise LaneError(f"installed zlib module lacks static backend symbol {symbol}")
+    if hybrid and re.search(r"(?m)\b_(?:deflate\w*|inflate\w*|zlibVersion)$",
+                            symbols["output"]):
+        raise LaneError("hybrid zlib module defines platform zlib symbols")
     binascii = Path(identity.pop("binascii_path")).resolve()
     try:
         binascii.relative_to(STAGE.resolve())
@@ -1026,8 +1056,9 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
         "sha256": hashlib.sha256(module.read_bytes()).hexdigest(),
         "size": module.stat().st_size,
         "dynamic_dependencies": dependencies,
-        "static_backend_symbols": ["zlibVersion", "deflateInit2_", "inflateInit2_"],
-        "python_wrapper": "unchanged pinned CPython Modules/zlibmodule.c",
+        "static_backend_symbols": [symbol[1:] for symbol in expected_symbols],
+        "python_wrapper": "conditional inflate routing in pinned CPython Modules/zlibmodule.c" if hybrid else
+                          "pinned CPython Modules/zlibmodule.c with inactive hybrid guard",
         "binascii": {
             "path": str(binascii),
             "sha256": hashlib.sha256(binascii.read_bytes()).hexdigest(),
@@ -1039,7 +1070,7 @@ def _zlib_module_report(python: Path, toolchain) -> dict[str, Any]:
     }
 
 
-def _select_platform_binascii(makefile: Path) -> dict[str, str]:
+def _select_platform_binascii(makefile: Path, *, hybrid: bool = False) -> dict[str, str]:
     """Narrow configure's shared zlib input to the zlib extension alone.
 
     The pinned CPython configure derives BINASCII_LIBS from ZLIB_LIBS. Rewrite
@@ -1050,23 +1081,24 @@ def _select_platform_binascii(makefile: Path) -> dict[str, str]:
         raise LaneError("configure did not enable the zlib extension")
     if _make_value(makefile, "MODULE_BINASCII_STATE") != "yes":
         raise LaneError("configure did not enable the binascii extension")
+    zlib_flags = f"-lz {ZLIB_ARCHIVE}" if hybrid else str(ZLIB_ARCHIVE)
     for name in ("MODULE_ZLIB_LDFLAGS", "MODULE_BINASCII_LDFLAGS"):
         found = _make_value(makefile, name)
-        if found != str(ZLIB_ARCHIVE):
+        if found != zlib_flags:
             raise LaneError(f"configure did not preserve the pinned zlib archive in {name}: {found!r}")
     original = makefile.read_bytes()
-    needle = f"MODULE_BINASCII_LDFLAGS={ZLIB_ARCHIVE}\n".encode()
+    needle = f"MODULE_BINASCII_LDFLAGS={zlib_flags}\n".encode()
     if original.count(needle) != 1:
         raise LaneError("cannot locate one exact binascii link variable in generated Makefile")
     modified = original.replace(needle, b"MODULE_BINASCII_LDFLAGS=-lz\n")
     makefile.write_bytes(modified)
-    if (_make_value(makefile, "MODULE_ZLIB_LDFLAGS") != str(ZLIB_ARCHIVE)
+    if (_make_value(makefile, "MODULE_ZLIB_LDFLAGS") != zlib_flags
             or _make_value(makefile, "MODULE_BINASCII_LDFLAGS") != "-lz"):
         raise LaneError("generated Makefile did not retain the distinct zlib/binascii link inputs")
     return {
         "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
         "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
-        "zlib_ldflags": str(ZLIB_ARCHIVE),
+        "zlib_ldflags": zlib_flags,
         "binascii_ldflags": "-lz",
     }
 
@@ -1099,7 +1131,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -1111,6 +1143,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     args, env = _configuration(
         toolchain, target, jobs,
         zlib_archive=ZLIB_ARCHIVE if zlib_backend is not None else None,
+        zlib_hybrid=zlib_hybrid,
     )
     env.update({
         "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
@@ -1128,7 +1161,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         log=LOGS / "cpython-configure.log", sealed=sandbox,
     )
     if zlib_backend is not None:
-        zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile")
+        zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile", hybrid=zlib_hybrid)
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(
         make, cwd=BUILD, env=source_date_env,
@@ -1147,7 +1180,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         raise LaneError(f"CPython install did not produce {python}")
     module = _module_report(STAGE, python, toolchain)
     if zlib_backend is not None:
-        zlib_backend["installed_module"] = _zlib_module_report(python, toolchain)
+        zlib_backend["installed_module"] = _zlib_module_report(python, toolchain, hybrid=zlib_hybrid)
     cargo_env = dict(source_date_env)
     cargo_env.update({
         "PYTHON_BUILD_DIR": str(BUILD),
@@ -1233,7 +1266,9 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     return report
 
 
-def build(*, zlib_rs: bool = False) -> int:
+def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False) -> int:
+    if zlib_rs and zlib_hybrid:
+        raise LaneError("select one zlib candidate mode")
     _require_host()
     doctor = doctor_report()
     if not doctor["ok"]:
@@ -1242,16 +1277,17 @@ def build(*, zlib_rs: bool = False) -> int:
     _cargo_wrapper(rustup)
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
-    sandbox = _macos_sandbox() if zlib_rs else None
-    zlib_backend = _build_zlib(toolchain, sandbox) if sandbox is not None else None
+    sandbox = _macos_sandbox() if (zlib_rs or zlib_hybrid) else None
+    zlib_backend = _build_zlib(toolchain, sandbox, hybrid=zlib_hybrid) if sandbox is not None else None
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
-    wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_rs else None
+    wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
     patches = _apply_source_patches(source)
     if zlib_backend is not None:
-        if hashlib.sha256(wrapper.read_bytes()).hexdigest() != wrapper_sha256:
-            raise LaneError("candidate patches changed pinned Modules/zlibmodule.c")
-        zlib_backend["cpython_zlibmodule_sha256"] = wrapper_sha256
+        zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
+        zlib_backend["cpython_zlibmodule_sha256"] = hashlib.sha256(wrapper.read_bytes()).hexdigest()
+        if zlib_backend["cpython_zlibmodule_sha256"] == wrapper_sha256:
+            raise LaneError("candidate source patch did not change Modules/zlibmodule.c")
     env = _environment(toolchain, offline=True)
     _require_command(
         [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
@@ -1261,7 +1297,8 @@ def build(*, zlib_rs: bool = False) -> int:
     if sandbox is None:
         sandbox = _macos_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
-    report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend)
+    report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend,
+                               zlib_hybrid=zlib_hybrid)
     print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
     _write_json(BUILD_REPORT, report)
@@ -1379,11 +1416,17 @@ def main(argv: list[str] | None = None) -> int:
                 "--zlib-rs", action="store_true",
                 help="include pinned zlib-rs 0.6.7 in this optional candidate build",
             )
+            command_parser.add_argument(
+                "--zlib-hybrid", action="store_true",
+                help="use prefixed zlib-rs inflate with platform zlib compression",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
         if args.command in ("fetch", "build"):
-            return commands[args.command](zlib_rs=args.zlib_rs)
+            if args.command == "fetch":
+                return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid)
+            return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
         print(f"FAIL  {error}", file=sys.stderr)
