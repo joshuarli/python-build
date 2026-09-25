@@ -453,6 +453,12 @@ as a separate baseline change.
   same complete digests. This is an installed-artifact improvement; differing
   fork ancestry and PGO profiles limit attribution to the decoder. See
   [`url-unquote-upstream-speed-20260925.md`](rust-cpython/experiments/url-unquote-upstream-speed-20260925.md).
+- On the new decoder build, complete search and normalization profiles found
+  no convincing further URL kernel. The largest remaining individual parser
+  self-time row was `quote_from_bytes` at 7.5% and 8.6% of instrumented time,
+  including existing native calls and fast exits. Defer another URL port and
+  find a representative `tomllib` application task before implementation;
+  see [`url-residual-profile-20260925.md`](rust-cpython/experiments/url-residual-profile-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and

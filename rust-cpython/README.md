@@ -133,6 +133,10 @@ under the exact guard, while public differential behavior remains to check. See
 [`experiments/url-unquote-upstream-memory-20260925.md`](experiments/url-unquote-upstream-memory-20260925.md),
 [`experiments/url-unquote-upstream-speed-20260925.md`](experiments/url-unquote-upstream-speed-20260925.md),
 and [`experiments/url-unquote-contract-audit-20260925.md`](experiments/url-unquote-contract-audit-20260925.md).
+The post-change catalog profiles found no compelling next URL kernel: the
+largest remaining individual parser self-time row was under 9% of either
+instrumented complete task and included the existing native route. See
+[`experiments/url-residual-profile-20260925.md`](experiments/url-residual-profile-20260925.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under
 that unchanged CPython wrapper and runs CPython's zlib and compression-consumer
