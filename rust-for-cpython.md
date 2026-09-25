@@ -337,6 +337,12 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   runs. The overlay also delays a missing-extension failure until first use.
   Keep the eager source patch; see
   [`url-quote-lazy-import-20260924.md`](rust-cpython/experiments/url-quote-lazy-import-20260924.md).
+- A one-shot `difflib.unified_diff` snapshot and exact-string scan proxy added
+  4.7% root CPU per mostly-equal complete diff and 9.6% per reordered diff.
+  Its peak-RSS deltas were within measured self-noise after equalizing child
+  entry points. This cost alone does not rule out a native kernel; public
+  monkeypatch, generator, and reentrancy behavior still need a sound route.
+  See [`difflib-snapshot-cost-20260924.md`](rust-cpython/experiments/difflib-snapshot-cost-20260924.md).
 
 ## Immediate work queue
 
@@ -345,9 +351,9 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   Repeat ZIP and memory measurements on a quieter host, including cold import
   with the corrected direct-child CPU ledger, and decide whether the compressed-byte differences
   and installed-size cost fit the desired contract before promotion.
-- No public stdlib API in the experiment has yet been shown to improve
-  broadly in Rust. The ranked entries in `rust-cpython/README.md` remain
-  candidates, not completed work.
+- The URL patch has targeted gains across three complete tasks, but no broad
+  application-suite or upstream resource acceptance yet. The ranked entries
+  in `rust-cpython/README.md` remain hypotheses, not completed ports.
 - Establish the missing macOS unique/proportional memory and allocation
   measurements and matched upstream control comparison. The simple libproc
   region probe failed; any further USS/PSS work needs a different interface
@@ -359,8 +365,9 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   quiet-host and memory qualification.
   A native kernel on arbitrary public `difflib.SequenceMatcher` instances has
   no cheap sound guard for their mutable state; stop that route. A one-shot
-  `unified_diff` path is a separate hypothesis whose snapshot and validation
-  cost should be measured first; see
+  `unified_diff` path survived the snapshot-cost gate. Specify its exact
+  monkeypatch, lazy-generator, and reentrancy contract before a bounded native
+  kernel proof; see
   [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
 - The guarded URL patch is speed-qualified on three complete tasks. Its small
   fresh-import CPU cost remains visible; the tested lazy variant did not show
