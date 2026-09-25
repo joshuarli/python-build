@@ -657,7 +657,14 @@ as a separate baseline change.
   until quiet-host speed, memory, and broad semantic qualification. Its
   unstripped extension still costs about 1.59 MB. See
   [`zlib-adaptive-oneshot-20260925.md`](rust-cpython/experiments/zlib-adaptive-oneshot-20260925.md).
-  Revisit archive size after the mixed-input tradeoff is qualified.
+  A separate macOS-only `--zlib-adaptive-small` build kept the same adaptive
+  source and Rust feature recipe while limiting the extension's exported
+  symbols and stripping unreachable code at link time. The installed module
+  passed the builder's import and round-trip checks. After equal stripping
+  and signing, its size fell from 1,538,000 to 483,264 bytes, with a real
+  code-section reduction. This is a size result, not quiet-host speed or
+  memory qualification; the adaptive workload tradeoff remains open. See
+  [`zlib-adaptive-small-link-20260925.md`](rust-cpython/experiments/zlib-adaptive-small-link-20260925.md).
 - The optional TAR checksum source patch produced a repeatable macOS
   complete-archive speed and CPU gain with unchanged output. Its TAR-owned
   private extension now loads only when an eligible checksum is needed.

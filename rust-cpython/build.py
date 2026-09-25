@@ -1308,7 +1308,8 @@ print(json.dumps({
 
 
 def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False,
-                        oneshot: bool = False, adaptive: bool = False) -> dict[str, Any]:
+                        oneshot: bool = False, adaptive: bool = False,
+                        private_link: bool = False) -> dict[str, Any]:
     """Prove the installed whole-build module uses the candidate C ABI."""
     code = (
         "import binascii,json,zlib; "
@@ -1344,7 +1345,20 @@ def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False,
     dependencies = _binary_identity(module, toolchain)["dependencies"]
     if (PLATFORM_LIBZ in dependencies) != (hybrid or oneshot):
         raise LaneError("installed zlib module has the wrong platform libz dependency")
-    defined = _defined_symbols(module, toolchain)
+    exported = _defined_symbols(module, toolchain)
+    if private_link:
+        local = _command([
+            str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
+            "--defined-only", str(module),
+        ])
+        if local["returncode"] != 0:
+            raise LaneError(f"cannot inspect private zlib symbols: {local['output']}")
+        defined = str(local["output"])
+        exported_names = [line.split()[-1] for line in exported.splitlines() if line.split()]
+        if exported_names != ["_PyInit_zlib"]:
+            raise LaneError(f"private zlib link exports unexpected symbols: {exported_names}")
+    else:
+        defined = exported
     prefixed = ("inflateInit2_", "inflate", "inflateEnd") if oneshot else (
         "inflateInit2_", "inflate", "inflateEnd", "inflateCopy", "inflateSetDictionary"
     )
@@ -1393,6 +1407,7 @@ def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False,
         "size": module.stat().st_size,
         "dynamic_dependencies": dependencies,
         "static_backend_symbols": [symbol[len(SYMBOL_PREFIX):] for symbol in expected_symbols],
+        **({"exported_symbols": ["PyInit_zlib"]} if private_link else {}),
         **({"platform_inflate_references": [symbol[len(SYMBOL_PREFIX):] for symbol in platform_refs]}
            if oneshot else {}),
         "python_wrapper": "one-shot inflate of at least 8192 compressed bytes on prefixed Rust; all other inflate on platform libz" if adaptive else
@@ -1443,6 +1458,34 @@ def _select_platform_binascii(makefile: Path, *, hybrid: bool = False) -> dict[s
     }
 
 
+def _select_zlib_small_link(makefile: Path) -> dict[str, str]:
+    """Keep only the module entry point and link-reachable code in macOS zlib."""
+    if IS_LINUX:
+        raise LaneError("the small zlib link is implemented only for macOS arm64")
+    if _make_value(makefile, "MODULE_BINASCII_LDFLAGS") != "-lz":
+        raise LaneError("binascii must retain its platform-only zlib link")
+    if _make_value(makefile, "MODULE_ZLIB_LDFLAGS") != f"-lz {ZLIB_ARCHIVE}":
+        raise LaneError("zlib link inputs changed before the small link selection")
+    original = makefile.read_bytes()
+    old = (b"$(BLDSHARED_EXE) $(BLDSHARED_ARGS)  Modules/zlibmodule.o "
+           b"$(MODULE_ZLIB_LDFLAGS) $(LIBPYTHON) -o Modules/zlib$(EXT_SUFFIX)")
+    new = (b"$(BLDSHARED_EXE) $(BLDSHARED_ARGS) "
+           b"-Wl,-dead_strip -Wl,-exported_symbol,_PyInit_zlib "
+           b"Modules/zlibmodule.o $(MODULE_ZLIB_LDFLAGS) $(LIBPYTHON) "
+           b"-o Modules/zlib$(EXT_SUFFIX)")
+    if original.count(old) != 1:
+        raise LaneError("cannot locate one exact generated zlib link rule")
+    modified = original.replace(old, new)
+    makefile.write_bytes(modified)
+    if makefile.read_bytes().count(new) != 1:
+        raise LaneError("generated Makefile did not retain the private zlib link")
+    return {
+        "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
+        "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
+        "zlib_link_rule": new.decode(),
+    }
+
+
 def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     command = [
         str(CARGO_HOME / "bin" / "cargo"), "metadata", "--locked", "--offline",
@@ -1471,7 +1514,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, zlib_adaptive: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, zlib_adaptive: bool = False, zlib_adaptive_small: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -1504,6 +1547,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     )
     if zlib_backend is not None:
         zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile", hybrid=zlib_hybrid or zlib_oneshot)
+        if zlib_adaptive_small:
+            zlib_backend["small_link_recipe"] = _select_zlib_small_link(BUILD / "Makefile")
     (BUILD / "Modules" / "_rust_url_quote").mkdir(parents=True, exist_ok=True)
     if tar_checksum:
         (BUILD / "Modules" / "_rust_tar_checksum").mkdir(parents=True, exist_ok=True)
@@ -1536,7 +1581,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     module = _module_report(STAGE, python, toolchain)
     if zlib_backend is not None:
         zlib_backend["installed_module"] = _zlib_module_report(python, toolchain, hybrid=zlib_hybrid,
-                                                                 oneshot=zlib_oneshot, adaptive=zlib_adaptive)
+                                                                 oneshot=zlib_oneshot, adaptive=zlib_adaptive,
+                                                                 private_link=zlib_adaptive_small)
     cargo_env = dict(source_date_env)
     cargo_env.update({
         "PYTHON_BUILD_DIR": str(BUILD),
@@ -1638,14 +1684,19 @@ def _unpatched_record() -> dict[str, Any]:
 
 def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
           zlib_oneshot: bool = False, zlib_adaptive: bool = False,
+          zlib_adaptive_small: bool = False,
           url_unquote: bool = False,
           tar_checksum: bool = False, ipv4_scan: bool = False,
           strptime_numeric: bool = False,
           uuid_canonical: bool = False, shlex_split: bool = False,
           fraction_rational: bool = False,
           apply_patches: bool = True) -> int:
-    if sum((zlib_rs, zlib_hybrid, zlib_oneshot, zlib_adaptive)) > 1:
+    if sum((zlib_rs, zlib_hybrid, zlib_oneshot, zlib_adaptive,
+            zlib_adaptive_small)) > 1:
         raise LaneError("select one zlib candidate mode")
+    if zlib_adaptive_small and IS_LINUX:
+        raise LaneError("the small zlib link is implemented only for macOS arm64")
+    zlib_adaptive = zlib_adaptive or zlib_adaptive_small
     oneshot_backend = zlib_oneshot or zlib_adaptive
     _require_host()
     doctor = doctor_report()
@@ -1661,6 +1712,8 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     if zlib_adaptive:
         zlib_backend["kind"] = "adaptive-oneshot-inflate"
         zlib_backend["minimum_compressed_bytes_for_rust"] = 8192
+        if zlib_adaptive_small:
+            zlib_backend["link_strategy"] = "private-PyInit-zlib-dead-strip"
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
@@ -1693,6 +1746,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend,
                                zlib_hybrid=zlib_hybrid, zlib_oneshot=oneshot_backend,
                                zlib_adaptive=zlib_adaptive,
+                               zlib_adaptive_small=zlib_adaptive_small,
                                tar_checksum=tar_checksum, ipv4_scan=ipv4_scan,
                                strptime_numeric=strptime_numeric,
                                uuid_canonical=uuid_canonical,
@@ -1878,6 +1932,10 @@ def main(argv: list[str] | None = None) -> int:
                 "--zlib-adaptive", action="store_true",
                 help="use prefixed zlib-rs for one-shot streams of at least 8192 compressed bytes",
             )
+            command_parser.add_argument(
+                "--zlib-adaptive-small", action="store_true",
+                help="use the adaptive zlib route with a private, dead-stripped macOS link",
+            )
         if name in ("build", "test"):
             command_parser.add_argument(
                 "--variant", default="",
@@ -1921,12 +1979,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _select_variant(getattr(args, "variant", ""))
         if args.command in ("fetch", "build"):
-            if sum((args.zlib_rs, args.zlib_hybrid, args.zlib_oneshot, args.zlib_adaptive)) > 1:
+            if sum((args.zlib_rs, args.zlib_hybrid, args.zlib_oneshot,
+                    args.zlib_adaptive, args.zlib_adaptive_small)) > 1:
                 raise LaneError("select one zlib candidate mode")
+            if args.zlib_adaptive_small and IS_LINUX:
+                raise LaneError("the small zlib link is implemented only for macOS arm64")
             if args.command == "fetch":
-                return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot or args.zlib_adaptive)
+                return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot
+                             or args.zlib_adaptive or args.zlib_adaptive_small)
             return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid,
                          zlib_oneshot=args.zlib_oneshot, zlib_adaptive=args.zlib_adaptive,
+                         zlib_adaptive_small=args.zlib_adaptive_small,
                          url_unquote=args.url_unquote,
                          tar_checksum=args.tar_checksum, ipv4_scan=args.ipv4_scan,
                          strptime_numeric=args.strptime_numeric,

@@ -36,6 +36,7 @@ python3 rust-cpython/build.py build --zlib-hybrid # Rust inflate, platform defla
 python3 rust-cpython/build.py fetch --zlib-oneshot # cache the same pinned backend
 python3 rust-cpython/build.py build --zlib-oneshot # Rust one-shot, platform streams
 python3 rust-cpython/build.py build --variant zlib-adaptive --zlib-adaptive # Rust one-shot for inputs >=8 KiB
+python3 rust-cpython/build.py build --variant zlib-adaptive-small --zlib-adaptive-small # same route, private dead-stripped macOS link
 python3 rust-cpython/build.py build --url-unquote # optional guarded Rust percent decoder
 python3 rust-cpython/build.py build --variant tar-checksum --tar-checksum # optional TAR checksum scan
 python3 rust-cpython/build.py build --variant ipv4-guard --ipv4-scan # optional canonical IPv4 scan
@@ -159,6 +160,12 @@ and no median CPU change on mixed BLOBs; these are not quiet-host acceptance
 results. The extension still adds about 1.59 MB unstripped. Keep the mode
 opt-in pending quiet-host speed, memory, and semantic qualification. See
 [`experiments/zlib-adaptive-oneshot-20260925.md`](experiments/zlib-adaptive-oneshot-20260925.md).
+`--zlib-adaptive-small` keeps that route and changes only the macOS zlib
+extension link to export `_PyInit_zlib` and strip unreachable code. A link-only
+proof and a fresh full build reduced the signed, stripped extension from
+1,538,000 to 483,264 bytes. Its built-in installed-module check passed;
+broad semantic and quiet-host performance qualification remain. See
+[`experiments/zlib-adaptive-small-link-20260925.md`](experiments/zlib-adaptive-small-link-20260925.md).
 `--url-unquote` selects a digest-checked optional source patch after the
 ordinary quote patches. Its exact-ASCII-string and default UTF-8 replacement
 guard routes percent decoding through the existing private extension; other
