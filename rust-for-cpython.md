@@ -65,6 +65,14 @@ and the optional zlib-rs recipe has completed a full candidate build. Do not
 add a dependency, change a source/toolchain pin, or expand product scope
 without an explicit scope decision.
 
+Only macOS arm64 and Linux x86-64/arm64 are in scope. Windows, Intel macOS,
+other Linux architectures, and all other platforms are explicitly
+unsupported; do not spend coverage effort on their platform branches. The
+product already builds both Linux architectures. The Rust experiment currently
+builds macOS arm64 and Linux x86-64; Linux arm64 remains an unimplemented
+experimental target. Public APIs available on supported hosts, including
+lexical `PureWindowsPath` parsing, still need their normal behavior preserved.
+
 Use distinct controls. The immediate control for each change is the last
 accepted fork build without that change; it isolates the proposed module
 patch. `rust-cpython/build_no_rust.py` builds the pinned fork with Cargo
@@ -690,6 +698,7 @@ yet marked complete.
 - [ ] `logging` — record creation, formatting, and handler dispatch.
 - [ ] `asyncio` — task scheduling and event-loop operations on public APIs.
 - [ ] `http.client` — parse and send HTTP messages through public connections.
+- [ ] `ipaddress` — parse addresses and calculate network ranges.
 - [ ] `socket` — public address conversion and I/O operations.
 - [ ] `ssl` — public TLS context and stream operations.
 - [ ] `subprocess` — command launch and communication.
@@ -727,6 +736,10 @@ yet marked complete.
 - [ ] `inspect` — signatures and object inspection.
 - [ ] `ast` — parse-tree walking and transformation helpers.
 - [ ] `argparse` — argument parsing and help generation.
+- [ ] `tokenize` — token generation from Python source.
+- [ ] `_strptime` — directive parsing used by public date/time calls.
+- [ ] `shlex` — POSIX and non-POSIX token splitting.
+- [ ] `textwrap` — paragraph wrapping and shortening.
 - [ ] `threading` — public thread coordination and synchronization.
 - [ ] `typing` — runtime annotation and generic operations.
 - [ ] `warnings` — warning filtering and display.

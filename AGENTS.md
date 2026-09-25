@@ -10,13 +10,17 @@ or execute its build engine, and never copy its binaries into the product.
 (native Apple Silicon macOS and x86_64 glibc Linux hosts);
 its source pin is scoped there and does not change the product's exact 3.14.6
 contract or participate in production targets and packaging.
+The only in-scope platform families are macOS arm64 and Linux x86-64/arm64.
+Windows, Intel macOS, other Linux architectures, and every other platform
+are unsupported. The Rust lane has not yet implemented Linux arm64; do not
+describe that experimental target as built until it is qualified.
 
 For delegated work on that experiment, use the repo-local
 `.agents/skills/rust-cpython-coordinator/SKILL.md` in place of the general
 `orchestrate` skill. The root agent coordinates isolated worktrees and
 integration; no more than six experiment subagents run concurrently.
 
-## Targets (`buildsys/targets.py` is the only file that branches on target)
+## Product targets (`buildsys/targets.py` owns production target branching)
 
 | Triple | Family | Toolchain | Notes |
 | --- | --- | --- | --- |
