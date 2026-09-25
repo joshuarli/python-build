@@ -12,6 +12,14 @@ source route, and verify actual file changes in a fresh pinned extraction.
 No full build or performance run is concurrent. Budget: 90 kernel CPU
 seconds and 1 GiB per-process RSS, including failed attempts. The
 coordinator owns the later serial native build and installed comparison.
+An independent static contract audit uses
+`/private/tmp/python-build-exp-url-unquote-contract-audit-20260925a`, branch
+`exp/url-unquote-contract-audit-20260925a` (base `a5244b0`). It owns only
+`experiments/url-unquote-contract-audit-20260925.md` and reviews the proof
+against pinned public `unquote`, query parsing, C ownership, Rust bounds,
+and subinterpreter behavior. It runs no tests, benchmark, or build. The
+coordinator will reconcile findings with the source-patch lane before a
+full native build.
 
 ## URL unquote native proof (base `70b57b2`)
 
