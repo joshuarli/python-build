@@ -1,5 +1,19 @@
 # Rust-for-CPython experiment lanes
 
+## URL unquote headroom (base `0b0ebc4`)
+
+The diagnostic uses
+`/private/tmp/python-build-exp-url-unquote-headroom-20260925a`, branch
+`exp/url-unquote-headroom-20260925a`. It owns only
+`experiments/url-unquote-headroom-20260925.md`, optional uniquely named
+diagnostic code/data, and ignored raw logs. On the installed guarded quote
+candidate, it profiles the complete catalog URL normalization and search
+form tasks, counts eligible public `unquote` calls outside timing, and
+checks all workload digests. No other heavy lane is active. Budget: 45
+kernel-accounted CPU seconds, 512 MiB per-process RSS. The coordinator
+will compare projected headroom with existing self-noise before authorizing
+decoder source work.
+
 ## JSON headroom scout (base `8c9f92c`)
 
 The next-target diagnostic uses
@@ -27,6 +41,10 @@ In parallel, the read-only URL unquote scout uses
 unquote behavior, existing catalog caller, and a guarded native boundary.
 It runs no profiler, benchmark, or build while JSON timing is active. The
 coordinator will reconcile both scouts before choosing a source-patch lane.
+The URL scout found an exact-ASCII-string/default-decoder guard and warned
+that the older `unquote` profile predates the installed quote patch. It ran
+no build, benchmark, or substantial command; see
+`url-unquote-boundary-20260925.md`.
 
 ## Mixed-input follow-up (base `0da49c3`)
 
