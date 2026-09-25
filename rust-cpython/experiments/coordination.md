@@ -29,6 +29,13 @@ observations, output digests, valid bytecode cache policy, and self-noise.
 Budget: 150 kernel CPU seconds and 1 GiB per-process RSS. It must not claim
 that separately generated PGO profiles are a same-executable isolation or
 that missing unique/proportional memory is parity.
+The installed comparison completed 60 serial child attempts with exact
+digests. Five search-form pairs gave median candidate/control wall ratio
+0.571 and kernel CPU ratio 0.560; control self-variation reached 2.6% in
+wall time. Normalization's 0.974 wall ratio remains a small, PGO-confounded
+observation. Timed commands consumed 40.47 kernel CPU seconds, at most
+30,998,528 bytes reported process RSS, and zero swaps. See
+`url-unquote-installed-comparison-20260925.md`.
 
 ## Django query breadth scout (base `e37da3f`)
 

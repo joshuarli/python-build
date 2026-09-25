@@ -433,6 +433,13 @@ as a separate baseline change.
   reported process RSS with no swaps. A separate serial installed-tree
   performance comparison and broad semantic qualification remain open. See
   [`url-unquote-build-20260925.md`](rust-cpython/experiments/url-unquote-build-20260925.md).
+- Five serial installed-tree search-form pairs then showed 42.9% lower
+  complete-process wall time and 44.0% lower kernel CPU with exact output
+  digests. The control/control wall variation reached 2.6%. The normalization
+  task's 2.6% wall change is too small to attribute across different PGO
+  builds. The same-executable decoder proof remains the cleaner attribution;
+  this comparison shows the gain survives the reproducible opt-in build. See
+  [`url-unquote-installed-comparison-20260925.md`](rust-cpython/experiments/url-unquote-installed-comparison-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and
@@ -523,8 +530,9 @@ as a separate baseline change.
   Unique/proportional memory and allocations remain unqualified even when
   paired RSS medians fall within noise. Extend to broader applications when
   compatible byte-pinned inputs exist. The separate `unquote` proof has a
-  large search-form gain and a built opt-in source patch; serial installed
-  comparison and broad public semantic qualification remain open.
+  large search-form gain and a built opt-in source patch. Its fresh installed
+  comparison repeated the gain; broad public semantic and upstream resource
+  qualification remain open.
 - The approved macOS CPython 3.16 Django benchmark lock now pins and verifies
   Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 without changing the
   product or Linux lock. See
