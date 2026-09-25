@@ -251,9 +251,17 @@ as a separate baseline change.
   process wall time and 36% lower kernel CPU for that hybrid, beyond control
   self-noise. All 118 checked attempts matched decoded digests. Sampled memory
   differences changed sign, and equal debug stripping left a 1.45 MB
-  extension-size cost. It remains a speed candidate pending broader
-  application, upstream resource, allocation, and size evidence; see
+  extension-size cost. That result established a decode-heavy speed candidate,
+  subject to broader application and resource evidence; see
   [`zlib-sustained-20260925.md`](rust-cpython/experiments/zlib-sustained-20260925.md).
+- A synthetic public `tarfile` extraction task showed no hybrid speed gain.
+  A second task read all 6,031 regular files from the locked CPython source
+  `.tar.gz`; every output digest matched, but all seven hybrid pairs were
+  slower. Median full-process CPU rose 10.81%, far beyond control self-noise,
+  and three memory pairs had a +688 KB peak-RSS median. This blocks promotion
+  of the current hybrid until the regression is understood and removed; see
+  [`tarfile-hybrid-breadth-20260925.md`](rust-cpython/experiments/tarfile-hybrid-breadth-20260925.md)
+  and [`source-tar-hybrid-20260925.md`](rust-cpython/experiments/source-tar-hybrid-20260925.md).
 - Cold ZIP import now records directly reaped child CPU separately from the
   root's `wait4` usage. Earlier cold-import CPU data remain root-only; see
   [`child-cpu-accounting-20260924.md`](rust-cpython/experiments/child-cpu-accounting-20260924.md).
@@ -421,8 +429,11 @@ as a separate baseline change.
   [`zlib-hybrid-qualification-20260924.md`](rust-cpython/experiments/zlib-hybrid-qualification-20260924.md).
   The sustained measurements are in
   [`zlib-sustained-20260925.md`](rust-cpython/experiments/zlib-sustained-20260925.md).
-  Next test application breadth, upstream resource use, and installed-size
-  policy before promoting it.
+  Application breadth exposed a 10.81% CPU regression on the pinned CPython
+  source `.tar.gz` public `tarfile` read. The current hybrid fails the
+  important-workload gate; investigate that path before further promotion
+  work. See
+  [`source-tar-hybrid-20260925.md`](rust-cpython/experiments/source-tar-hybrid-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
