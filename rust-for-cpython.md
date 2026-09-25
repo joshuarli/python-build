@@ -379,11 +379,16 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
 
 - **The optional zlib-rs build is an experiment, not a production migration.**
   The ordinary lane build still links `Modules/zlibmodule.c` to platform zlib.
-  The quiet ZIP repeat did not reproduce a memory increase, but installed-cache
-  behavior and upstream resource parity remain open. The decompression-only
-  hybrid now has its first semantic proof; measure complete zlib, gzip, ZIP,
-  and cold-import tasks with separate CPU/timing and memory passes, then check
-  installed size after stripping. Keep the full-backend candidate separate.
+  The decompression-only hybrid matched compressed bytes and focused tests.
+  Against the closest platform-zlib fork control, short complete tasks had no
+  established wall or process-CPU gain; ZIP RSS differences changed sign, and
+  the extension added 1.45 MB after equal debug stripping. Internal decode
+  and gzip timers improved about 45% and 40%. See
+  [`zlib-hybrid-qualification-20260924.md`](rust-cpython/experiments/zlib-hybrid-qualification-20260924.md).
+  A baseline-sized sustained public decode/gzip pass is the next decision
+  gate; it was prepared but not run because another host process occupied
+  several cores. If complete-task CPU still does not improve beyond noise,
+  remove the optional hybrid path while preserving its experiment record.
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
@@ -394,8 +399,6 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   requested-byte and child-attribution gates. The bounded malloc interposer
   is promising for diagnostics but needs API and process coverage before it
   can support an allocation verdict.
-  Continue zlib's
-  quiet-host and memory qualification.
   Stop both the arbitrary public `difflib.SequenceMatcher` kernel and the
   one-shot `unified_diff` snapshot route under the unchanged behavior
   contract. The former exposes mutable matcher state; the latter changes
@@ -409,7 +412,13 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   Unique/proportional memory and allocations remain unqualified even when
   paired RSS medians fall within noise. Extend to broader applications when
   compatible byte-pinned inputs exist.
-- Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
-  including a true cold Django request. Extend the primary public-workload
-  suite before claiming broad stdlib gains; then add baseline-derived loops
-  for pyperformance and document which selected Pyston macros can run.
+- The approved macOS CPython 3.16 Django benchmark lock now pins and verifies
+  Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 without changing the
+  product or Linux lock. See
+  [`mac-cp316-django-inputs-20260924.md`](rust-cpython/experiments/mac-cp316-django-inputs-20260924.md).
+  Next add a true cold first-request workload with a fixed SQLite fixture and
+  process-boundary timing as designed in
+  [`mac-input-audit-20260924.md`](rust-cpython/experiments/mac-input-audit-20260924.md).
+  Then compare existing warm Django tasks and the new cold task on matched
+  interpreters before claiming broader gains. Add baseline-derived loops for
+  pyperformance and selected Pyston macros only with separately pinned inputs.
