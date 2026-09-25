@@ -39,11 +39,11 @@ def _requires_macro_inputs(workloads: list[Workload]) -> bool:
 
 
 def _macos_django_inputs(workloads: list[Workload]) -> bool:
-    """The experimental macOS lock covers Django workloads only."""
+    """The experimental CPython 3.16 locks cover Django workloads only."""
     packaged = [workload for workload in workloads if workload.packages]
     unsupported = [workload.name for workload in packaged if workload.packages != ("Django",)]
     if unsupported:
-        raise ValueError(f"macOS CPython 3.16 has no approved inputs for: {', '.join(unsupported)}")
+        raise ValueError(f"CPython 3.16 has no approved inputs for: {', '.join(unsupported)}")
     return bool(packaged)
 
 
@@ -157,8 +157,8 @@ def _run_internal(args: argparse.Namespace) -> Path:
         raise RuntimeError(
             "measurements require Linux amd64, or native Apple Silicon with --local"
         )
-    if args.timing_only and not macos_arm64_local:
-        raise ValueError("--timing-only is currently supported only for local Apple Silicon runs")
+    if args.timing_only and not args.local:
+        raise ValueError("--timing-only is supported only for local runs")
     if macos_arm64_local and args.profile == "rigorous":
         raise ValueError("macOS allocation profiling is unsupported; use quick or standard")
     if macos_arm64_local and args.suite in {"pyperformance", "full"}:
@@ -178,8 +178,6 @@ def _run_internal(args: argparse.Namespace) -> Path:
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     lock_snapshot = output / "inputs.lock.json"
-    input_lock_name = "inputs.macos-cp316.lock.json" if macos_arm64_local else "inputs.lock.json"
-    shutil.copyfile(BENCH / input_lock_name, lock_snapshot)
     with tempfile.TemporaryDirectory(prefix="bench-interpreters-") as temp:
         scratch = Path(temp)
         baseline, baseline_source = _extract_interpreter(args.baseline, scratch / "baseline")
@@ -189,6 +187,16 @@ def _run_internal(args: argparse.Namespace) -> Path:
         base_identity["input_descriptor"] = os.environ.get("BENCH_BASELINE_HOST_INPUT", args.baseline)
         cand_identity["input_descriptor"] = os.environ.get("BENCH_CANDIDATE_HOST_INPUT", args.candidate)
         _check_versions(base_identity, cand_identity, args.allow_cross_version)
+        # Local Linux CPython 3.16 lane interpreters use their own pure-wheel
+        # Django lock; the default Linux lock targets the 3.14 musl product.
+        linux_cp316_local = linux_amd64 and args.local and all(
+            identity["version"][:2] == [3, 16] for identity in (base_identity, cand_identity)
+        )
+        cp316_django = macos_arm64_local or linux_cp316_local
+        input_lock_name = ("inputs.macos-cp316.lock.json" if macos_arm64_local
+                           else "inputs.linux-cp316.lock.json" if linux_cp316_local
+                           else "inputs.lock.json")
+        shutil.copyfile(BENCH / input_lock_name, lock_snapshot)
         cross_version = base_identity["version"][:2] != cand_identity["version"][:2]
         workload_specs = select_workloads(args.suite, args.profile, args.workload, args.category)
         wheelhouse = args.wheelhouse or BENCH / ".cache" / "wheelhouse"
@@ -201,13 +209,14 @@ def _run_internal(args: argparse.Namespace) -> Path:
             from benchmarks.harness.inputs import load_lock, prepare_site
 
             lock = load_lock(lock_snapshot)
-        needs_inputs = _macos_django_inputs(workload_specs) if macos_arm64_local else _requires_macro_inputs(workload_specs)
+        needs_inputs = _macos_django_inputs(workload_specs) if cp316_django else _requires_macro_inputs(workload_specs)
         if needs_inputs:
-            if macos_arm64_local:
+            platform_prefix = "macosx-" if macos_arm64_local else "linux-x86_64"
+            if cp316_django:
                 for identity in (base_identity, cand_identity):
-                    if identity["version"][:2] != [3, 16] or identity["implementation"] != "CPython" or not identity["platform"].startswith("macosx-"):
-                        raise ValueError("macOS Django inputs require two native CPython 3.16 interpreters")
-            group = "django" if macos_arm64_local else "macros"
+                    if identity["version"][:2] != [3, 16] or identity["implementation"] != "CPython" or not identity["platform"].startswith(platform_prefix):
+                        raise ValueError("CPython 3.16 Django inputs require two native CPython 3.16 interpreters")
+            group = "django" if cp316_django else "macros"
             used_input_groups.add(group)
             macro_site = prepare_site(baseline, scratch / "macro-site", wheelhouse=wheelhouse,
                                       groups={group}, lock=lock)

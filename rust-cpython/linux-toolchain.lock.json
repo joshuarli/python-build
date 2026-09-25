@@ -77,5 +77,5 @@
     "libgdbm-compat-dev=1.23-5.1build1",
     "libexpat1-dev=2.6.1-2ubuntu0.4"
   ],
-  "system_packages_note": "Mirrors the macOS lane's platform/Homebrew dependency set (OpenSSL 3, SQLite, libffi, xz, bzip2, zstd, zlib, readline/ncurses, uuid, dbm). libzstd-dev is not in the default image and is installed with apt-get install libzstd-dev. No system libmpdec package is installed, so configure falls back to CPython's bundled copy; the build report records the effective choice."
+  "system_packages_note": "Mirrors the macOS lane's platform/Homebrew dependency set (OpenSSL 3, SQLite, libffi, xz, bzip2, zstd, zlib, readline/ncurses, uuid, dbm). libzstd-dev is not in the default image and is installed with apt-get install libzstd-dev. The pinned 3.16 sources no longer bundle libmpdec and Ubuntu 24.04 main has no libmpdec-dev (the only candidate on this image is a third-party PPA), so every Linux lane build, including the no-Rust and upstream controls, is configured with _decimal missing and decimal falls back to _pydecimal. Decimal-heavy timings are therefore not comparable with a build that has _decimal."
 }

@@ -87,6 +87,33 @@ STAGE = LANE / "stage"
 LOGS = LANE / "logs"
 RESULTS = LANE / "results"
 BUILD_REPORT = RESULTS / "build.json"
+VARIANT = ""
+_VARIANT_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
+
+
+def _select_variant(name: str) -> None:
+    """Direct build outputs to a named variant beside the default candidate.
+
+    Each variant has its own source, build, stage, logs and report, so
+    controls such as the unpatched fork or the zlib candidate cannot
+    overwrite the default `stage/`. The empty name keeps the default paths.
+    """
+    global VARIANT, SOURCE, BUILD, STAGE, LOGS, BUILD_REPORT
+    global ZLIB_SOURCE, ZLIB_TARGET, ZLIB_ARCHIVE
+    if not name:
+        return
+    if _VARIANT_NAME.fullmatch(name) is None or name in {"no-rust"}:
+        raise LaneError(f"invalid build variant name {name!r}")
+    VARIANT = name
+    root = WORK / "variants" / name
+    SOURCE = root / "source"
+    BUILD = root / "build"
+    ZLIB_SOURCE = root / "zlib-candidate-source"
+    ZLIB_TARGET = root / "zlib-candidate-target"
+    ZLIB_ARCHIVE = ZLIB_TARGET / "release" / "libz_rs.a"
+    STAGE = LANE / f"stage-{name}"
+    LOGS = LANE / "logs" / "variants" / name
+    BUILD_REPORT = RESULTS / f"build-{name}.json"
 SOURCE_DATE_EPOCH = "1704067200"
 PROFILE_TASK = "-m test --pgo"
 
@@ -664,7 +691,9 @@ def _fetch_llvm_archive(toolchain, llvm_cache: Cache) -> Path:
         raise LaneError(f"cannot provision the locked LLVM toolchain: {error}") from error
 
 
-def _environment(toolchain, *, offline: bool, build_dir: Path = BUILD) -> dict[str, str]:
+def _environment(toolchain, *, offline: bool, build_dir: Path | None = None) -> dict[str, str]:
+    if build_dir is None:
+        build_dir = BUILD
     rustup = shutil.which("rustup")
     rustup_directory = str(Path(rustup).parent) if rustup else "/usr/bin"
     cargo_bin = CARGO_HOME / "bin"
@@ -1471,7 +1500,14 @@ def _platform_sdk_report(toolchain) -> dict[str, Any]:
     }
 
 
-def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False) -> int:
+def _unpatched_record() -> dict[str, Any]:
+    inputs = _source_patch_inputs()
+    return {**inputs, "patches": [], "skipped_manifest_patches": [
+        record["file"] for record in inputs["patches"]]}
+
+
+def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
+          apply_patches: bool = True) -> int:
     if zlib_rs and zlib_hybrid:
         raise LaneError("select one zlib candidate mode")
     _require_host()
@@ -1487,7 +1523,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False) -> int:
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
-    patches = _apply_source_patches(source)
+    patches = _apply_source_patches(source) if apply_patches else _unpatched_record()
     if zlib_backend is not None:
         zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
         zlib_backend["cpython_zlibmodule_sha256"] = hashlib.sha256(wrapper.read_bytes()).hexdigest()
@@ -1536,13 +1572,15 @@ def test() -> int:
     report = json.loads(BUILD_REPORT.read_text())
     if report.get("status") not in {"built", "tests-failed", "complete"}:
         raise LaneError("build report does not describe a completed build; run build first")
-    patches = _source_patch_inputs()
+    applied = bool(report["source"].get("patches", {}).get("patches"))
+    patches = _source_patch_inputs() if applied else _unpatched_record()
     if report["source"].get("patches") != patches:
         raise LaneError("current source patches disagree with the completed build report")
     source = SOURCE
     if not (source / "Cargo.toml").is_file():
         source = _extract_fresh(SOURCE)
-        _apply_source_patches(source)
+        if applied:
+            _apply_source_patches(source)
     toolchain, _target = _toolchain()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -1598,7 +1636,7 @@ def test() -> int:
 
 
 def clean() -> int:
-    for path in (WORK, STAGE, LOGS, RESULTS, LANE / ".home"):
+    for path in (WORK, STAGE, LOGS, RESULTS, LANE / ".home", *LANE.glob("stage-*")):
         if path.exists():
             shutil.rmtree(path)
     print(f"OK    removed work, stage, logs, and results; kept private Cargo registry at {CARGO_HOME}")
@@ -1625,13 +1663,25 @@ def main(argv: list[str] | None = None) -> int:
                 "--zlib-hybrid", action="store_true",
                 help="use prefixed zlib-rs inflate with platform zlib compression",
             )
+        if name in ("build", "test"):
+            command_parser.add_argument(
+                "--variant", default="",
+                help="build into work/variants/NAME and stage-NAME instead of stage/",
+            )
+        if name == "build":
+            command_parser.add_argument(
+                "--no-patches", action="store_true",
+                help="build the pinned fork without the manifest source patches",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
+        _select_variant(getattr(args, "variant", ""))
         if args.command in ("fetch", "build"):
             if args.command == "fetch":
                 return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid)
-            return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid)
+            return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid,
+                         apply_patches=not args.no_patches)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
         print(f"FAIL  {error}", file=sys.stderr)

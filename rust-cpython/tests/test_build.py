@@ -240,6 +240,28 @@ class ToolchainIsolationTests(unittest.TestCase):
         self.assertEqual(env["CARGO_NET_OFFLINE"], "true")
 
 
+class VariantTests(unittest.TestCase):
+    def test_variant_outputs_do_not_overlap_the_default_candidate(self) -> None:
+        names = ("VARIANT", "SOURCE", "BUILD", "STAGE", "LOGS", "BUILD_REPORT",
+                 "ZLIB_SOURCE", "ZLIB_TARGET", "ZLIB_ARCHIVE")
+        saved = {name: getattr(build, name) for name in names}
+        try:
+            build._select_variant("prior-fork")
+            self.assertEqual(build.STAGE, build.LANE / "stage-prior-fork")
+            self.assertEqual(build.BUILD, build.WORK / "variants" / "prior-fork" / "build")
+            self.assertEqual(build.BUILD_REPORT, build.RESULTS / "build-prior-fork.json")
+            for name in names[1:]:
+                self.assertNotEqual(getattr(build, name), saved[name])
+        finally:
+            for name, value in saved.items():
+                setattr(build, name, value)
+
+    def test_variant_names_are_restricted(self) -> None:
+        for name in ("../x", "Upper", "no-rust", "a" * 41):
+            with self.assertRaises(build.LaneError):
+                build._select_variant(name)
+
+
 class BuildConfigurationTests(unittest.TestCase):
     def test_pgo_and_thinlto_configuration_matches_the_python_build_policy(self) -> None:
         toolchain, target = build._toolchain()

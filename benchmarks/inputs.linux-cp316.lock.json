@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "target": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "python": "CPython 3.16",
+    "wheel_platform": "manylinux_x86_64"
+  },
+  "groups": {
+    "core": {
+      "include_groups": [],
+      "packages": []
+    },
+    "django": {
+      "include_groups": [
+        "core"
+      ],
+      "packages": [
+        "Django==6.1.1"
+      ]
+    }
+  },
+  "notes": [
+    "Experimental x86_64 glibc Linux CPython 3.16 Django-only inputs for the Rust-for-CPython lane; independent of the CPython 3.14.6 product.",
+    "The same Django, asgiref, and sqlparse py3-none-any wheel bytes as the macOS CPython 3.16 lock and the Linux benchmark lock; the default Linux lock targets the 3.14 musl product and is not reused for 3.16."
+  ],
+  "inputs": [
+    {
+      "name": "asgiref",
+      "version": "3.12.1",
+      "url": "https://files.pythonhosted.org/packages/c0/1b/54f4ad77cd8a584fa70746c47df988e002cf1ee1eba43364d46f87803647/asgiref-3.12.1-py3-none-any.whl",
+      "sha256": "fe386d1c2bff7259ea95929266d12a8cf9a8b5a1c2598402967d8792e7a7c094",
+      "size": 25478,
+      "license": "BSD-3-Clause",
+      "purpose": "Approved Django 6.1.1 application benchmark runtime input for macOS CPython 3.16.",
+      "filename": "asgiref-3.12.1-py3-none-any.whl",
+      "kind": "wheel",
+      "wheel_tags": [
+        "py3-none-any"
+      ],
+      "groups": [
+        "django"
+      ]
+    },
+    {
+      "name": "django",
+      "version": "6.1.1",
+      "url": "https://files.pythonhosted.org/packages/8d/ca/c1040a4fd15754ede7df15fd72fc2e123045b473b253ab5f5284e11c651e/django-6.1.1-py3-none-any.whl",
+      "sha256": "585fb82bf15053c42cf52e67c2f1b54a032dca384759315fd6678ab1870d1d72",
+      "size": 8419512,
+      "license": "BSD-3-Clause",
+      "purpose": "Approved Django 6.1.1 application benchmark runtime input for macOS CPython 3.16.",
+      "filename": "django-6.1.1-py3-none-any.whl",
+      "kind": "wheel",
+      "wheel_tags": [
+        "py3-none-any"
+      ],
+      "groups": [
+        "django"
+      ]
+    },
+    {
+      "name": "sqlparse",
+      "version": "0.6.0",
+      "url": "https://files.pythonhosted.org/packages/d9/50/f00935da0ec7cbf325f8dc4f772ae46fbc7b672dd62876e73f0a94adda57/sqlparse-0.6.0-py3-none-any.whl",
+      "sha256": "b861c0288ce2fa56209a9a6412d2e066ac664b3873b89c26c9d8415e8e32996f",
+      "size": 50070,
+      "license": "BSD License",
+      "purpose": "Approved Django 6.1.1 application benchmark runtime input for macOS CPython 3.16.",
+      "filename": "sqlparse-0.6.0-py3-none-any.whl",
+      "kind": "wheel",
+      "wheel_tags": [
+        "py3-none-any"
+      ],
+      "groups": [
+        "django"
+      ]
+    }
+  ]
+}

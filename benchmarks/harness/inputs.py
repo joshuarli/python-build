@@ -190,7 +190,13 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     target = raw.get("target")
     if not isinstance(target, dict):
         raise InputError("benchmark lock needs a target descriptor")
-    linux = target.get("os") == "linux" and target.get("architecture") == "x86_64"
+    linux_cp316 = target == {
+        "os": "linux", "architecture": "x86_64", "python": "CPython 3.16",
+        "wheel_platform": "manylinux_x86_64",
+    }
+    linux = target.get("os") == "linux" and target.get("architecture") == "x86_64" and (
+        linux_cp316 or target.get("python") != "CPython 3.16"
+    )
     macos = target == {
         "os": "macos", "architecture": "arm64", "python": "CPython 3.16",
         "wheel_platform": "macosx_arm64",
@@ -223,15 +229,15 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     if not isinstance(raw_inputs, list):
         raise InputError("benchmark lock must contain an inputs list")
     inputs = tuple(_parse_input(item) for item in raw_inputs)
-    if macos:
+    if macos or linux_cp316:
         approved = {"django": "6.1.1", "asgiref": "3.12.1", "sqlparse": "0.6.0"}
         if set(groups) != {"core", "django"} or groups["core"]["packages"] or groups["django"]["packages"] != ("Django==6.1.1",):
-            raise InputError("macOS CPython 3.16 lock must contain only the approved Django group")
+            raise InputError("CPython 3.16 lock must contain only the approved Django group")
         if {(_normal_name(item.name), item.version) for item in inputs} != set(approved.items()):
-            raise InputError("macOS CPython 3.16 lock has an incomplete or unapproved Django closure")
+            raise InputError("CPython 3.16 lock has an incomplete or unapproved Django closure")
         for item in inputs:
             if item.kind != "wheel" or item.wheel_tags != ("py3-none-any",) or item.groups != ("django",):
-                raise InputError(f"macOS CPython 3.16 requires a compatible pure wheel: {item.filename}")
+                raise InputError(f"CPython 3.16 requires a compatible pure wheel: {item.filename}")
     names: set[tuple[str, str]] = set()
     filenames: dict[str, str] = {}
     for item in inputs:
