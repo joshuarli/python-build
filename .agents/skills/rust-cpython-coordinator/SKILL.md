@@ -12,6 +12,13 @@ worktree assignment, integration, and the final verdict. Child agents own
 bounded experiments. Keep the production CPython 3.14.6 build and frozen
 Linux recipes outside these lanes.
 
+Limit platform work to native macOS arm64 and Linux x86-64/arm64. Windows,
+Intel macOS, other Linux architectures, and every other platform are
+unsupported. The Rust lane currently builds on macOS arm64 and Linux x86-64;
+Linux arm64 remains in scope for future implementation and qualification.
+Preserve public API behavior exposed on supported hosts, including lexical
+parsing of Windows-style paths, without taking on Windows OS support.
+
 ## Fan-out and ownership
 
 - Use the smallest useful fan-out, with at most **six active experiment

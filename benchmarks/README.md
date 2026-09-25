@@ -5,6 +5,11 @@ benchmarks and repository-owned application workloads. The result is a set of
 separate timing, resident-memory, and allocation measurements, plus a report
 that shows which workloads improved and which resource gates passed.
 
+The project supports macOS arm64 and Linux x86-64/arm64 only. Windows, Intel
+macOS, other Linux architectures, and every other platform are unsupported.
+This harness currently runs its full Linux profile on x86-64 and its native
+macOS profile on arm64; Linux arm64 benchmark support has not been implemented.
+
 The full timing, process-memory, and allocation profiles run on Linux amd64,
 including the `x86_64-unknown-linux-musl` python-build artifact. Native Apple
 Silicon macOS supports paired timing and external process-tree RSS and sampled
