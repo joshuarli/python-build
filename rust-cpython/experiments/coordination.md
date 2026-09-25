@@ -1,5 +1,18 @@
 # Rust-for-CPython experiment lanes
 
+## tomllib application-workload scout (base `a7be46a`)
+
+The next target scout uses
+`/private/tmp/python-build-exp-tomllib-workload-scout-20260925a`, branch
+`exp/tomllib-workload-scout-20260925a`. It owns only
+`experiments/tomllib-workload-scout-20260925.md`, optional compact diagnostic
+data, and ignored logs within its worktree. It searches already pinned local
+project metadata and existing benchmark tasks for a representative public
+`tomllib.load`/`loads` workload, then profiles it on the installed 3.16 fork
+only if a real complete task exists. No new package or source pin is added.
+Budget: 30 kernel CPU seconds and 512 MiB per-process RSS. It must defer a
+Rust parser if the task is small, synthetic, or lacks measured headroom.
+
 ## Residual URL workload profile (base `6fe484d`)
 
 The next-target diagnostic uses
@@ -13,6 +26,12 @@ and reports conservative instrumented headroom for one next public boundary.
 No other benchmark or compiler runs concurrently. Budget: 30 kernel CPU
 seconds and 512 MiB per-process RSS. The profile is diagnostic, not a
 performance verdict; the coordinator chooses whether any prototype follows.
+Both complete catalog tasks returned registered digests. The largest remaining
+individual URL self-time row, `quote_from_bytes`, was 7.5% of instrumented
+search and 8.6% of normalization, including already-native calls and fast
+exits. No coarse unaccelerated URL boundary justified a new prototype. Four
+attempts used 1.89 kernel CPU seconds and at most 32,112,640 bytes RSS,
+with zero swaps. See `url-residual-profile-20260925.md`.
 
 ## URL decoder upstream speed comparison (base `dee6771`)
 
