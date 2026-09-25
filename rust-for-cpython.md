@@ -466,6 +466,12 @@ as a separate baseline change.
   application metadata task, so defer a broad Rust TOML parser until one is
   pinned and profiled. See
   [`tomllib-workload-scout-20260925.md`](rust-cpython/experiments/tomllib-workload-scout-20260925.md).
+- The real pinned CPython source `.tar.gz` read spends 43.23–43.27 ms of a
+  581 ms instrumented task in two TAR header checksum conventions across
+  6,540 calls. An exact 512-byte Rust checksum scan is a plausible narrow
+  proof with a 7.4% instrumented upper bound; full header/PAX replacement is
+  deferred. See
+  [`tarfile-boundary-scout-20260925.md`](rust-cpython/experiments/tarfile-boundary-scout-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and
