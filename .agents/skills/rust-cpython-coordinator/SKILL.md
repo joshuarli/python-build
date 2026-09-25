@@ -71,7 +71,9 @@ Linux recipes outside these lanes.
   `.pyc` in a no-write environment forces source compilation at every fresh
   import and can dominate startup RSS. Regenerate valid caches for both sides
   outside measured processes, or make both sides run from source; record the
-  policy and cache identities with the result.
+  policy and cache identities with the result. `PYTHONDONTWRITEBYTECODE=1`
+  prevents writes but does not prevent existing `.pyc` reads; audit actual
+  imports before claiming a source-only comparison.
 - `~/d/rustybench` can inform a focused Rust kernel experiment. Its current
   `AllocProfiler` wraps `GlobalAlloc` and Rust 1.100's `Allocator`, so it can
   count global or collection-local Rust allocation requests in a separate

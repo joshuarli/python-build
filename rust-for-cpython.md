@@ -135,6 +135,9 @@ measured processes and record their hashes and invalidation mode. A stale
 candidate cache under `PYTHONDONTWRITEBYTECODE=1` made the URL overlay appear
 roughly 3 MB heavier at import; see the
 [`cache-attribution experiment`](rust-cpython/experiments/url-quote-memory-attribution-20260924.md).
+`PYTHONDONTWRITEBYTECODE=1` blocks cache writes but still permits reads from
+existing installed `.pyc` files; an absent `PYTHONPYCACHEPREFIX` does not
+change that. An import audit is needed before describing a run as source-only.
 Calibrate both control against itself and candidate against itself before
 accepting a close result. Use baseline-derived fixed loop counts for
 pyperformance where its interface supports them; that path is still open in
