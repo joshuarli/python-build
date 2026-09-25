@@ -1420,7 +1420,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, tar_checksum: bool = False) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -1453,6 +1453,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     if zlib_backend is not None:
         zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile", hybrid=zlib_hybrid or zlib_oneshot)
     (BUILD / "Modules" / "_rust_url_quote").mkdir(parents=True, exist_ok=True)
+    if tar_checksum:
+        (BUILD / "Modules" / "_rust_tar_checksum").mkdir(parents=True, exist_ok=True)
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(
         make, cwd=BUILD, env=source_date_env,
@@ -1612,7 +1614,8 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
         sandbox = _sealed_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
     report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend,
-                               zlib_hybrid=zlib_hybrid, zlib_oneshot=zlib_oneshot)
+                               zlib_hybrid=zlib_hybrid, zlib_oneshot=zlib_oneshot,
+                               tar_checksum=tar_checksum)
     print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
     _write_json(BUILD_REPORT, report)

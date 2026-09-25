@@ -1,38 +1,175 @@
 diff --git a/Lib/tarfile.py b/Lib/tarfile.py
 --- a/Lib/tarfile.py
 +++ b/Lib/tarfile.py
-@@ -42,6 +42,7 @@
- import stat
- import time
- import struct
-+import _rust_url_quote
- import copy
- import re
+@@ -218,6 +218,10 @@
  
-@@ -227,6 +228,8 @@
+     return s
+ 
++# Keep the ordinary checksum helpers replaceable by callers.
++_ORIGINAL_UNPACK_FROM = struct.unpack_from
++_ORIGINAL_SUM = sum
++
+ def calc_chksums(buf):
+     """Calculate the checksum for a member's header by summing up all
+        characters except for the chksum field which is treated as if
+@@ -227,6 +231,11 @@
         the high bit set. So we calculate two checksums, unsigned and
         signed.
      """
-+    if type(buf) is bytes and len(buf) == 512:
-+        return _rust_url_quote.tar_checksum(buf)
++    if (type(buf) is bytes and len(buf) == 512 and
++            struct.unpack_from is _ORIGINAL_UNPACK_FROM and
++            sum is _ORIGINAL_SUM):
++        from _rust_tar_checksum import scan
++        return scan(buf)
      unsigned_chksum = 256 + sum(struct.unpack_from("148B8x356B", buf))
      signed_chksum = 256 + sum(struct.unpack_from("148b8x356b", buf))
      return unsigned_chksum, signed_chksum
-diff --git a/Modules/_rust_url_quote/module.c b/Modules/_rust_url_quote/module.c
---- a/Modules/_rust_url_quote/module.c
-+++ b/Modules/_rust_url_quote/module.c
-@@ -40,3 +40,22 @@
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -3471,6 +3471,15 @@
+ 	mkdir -p Modules/_rust_url_quote
+ 	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
  
-+/* CPython retains the exact header while Rust scans its 512 bytes. */
++# Private no_std TAR header scanner, linked only into its own extension.
++RUST_TAR_CHECKSUM_A=Modules/_rust_tar_checksum/libtar_checksum.a
++MODULE__RUST_TAR_CHECKSUM_LDEPS=$(RUST_TAR_CHECKSUM_A)
++MODULE__RUST_TAR_CHECKSUM_LDFLAGS=$(RUST_TAR_CHECKSUM_A)
++
++$(RUST_TAR_CHECKSUM_A): $(srcdir)/Modules/_rust_tar_checksum/checksum.rs
++	mkdir -p Modules/_rust_tar_checksum
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
++
+ RUST_STATICLIB_A= target/$(if $(CARGO_TARGET),$(CARGO_TARGET)/$(CARGO_TARGET_DIR),$(CARGO_TARGET_DIR))/libcpython_rust_staticlib.a
+ 
+ cpython-rust-staticlib: cpython-sys
+diff --git a/Modules/Setup.stdlib.in b/Modules/Setup.stdlib.in
+--- a/Modules/Setup.stdlib.in
++++ b/Modules/Setup.stdlib.in
+@@ -120,6 +120,7 @@
+ #
+ @MODULE__BASE64_TRUE@_base64 _base64/Cargo.toml _base64/src/lib.rs
+ @MODULE__RUST_URL_QUOTE_TRUE@_rust_url_quote _rust_url_quote/module.c
++@MODULE__RUST_TAR_CHECKSUM_TRUE@_rust_tar_checksum _rust_tar_checksum/module.c
+ 
+ ############################################################################
+ # Modules with some UNIX dependencies
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -7578,6 +7578,7 @@
+   Modules/_testlimitedcapi \
+   Modules/_xxtestfuzz \
+   Modules/_rust_url_quote \
++  Modules/_rust_tar_checksum \
+   Modules/_zstd \
+   Modules/cjkcodecs \
+   Modules/expat \
+@@ -8617,6 +8618,9 @@
+ PY_STDLIB_MOD([_rust_url_quote],
+   [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
+   [], [])
++PY_STDLIB_MOD([_rust_tar_checksum],
++  [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
++  [], [])
+ 
+ dnl compression libs
+ PY_STDLIB_MOD([zlib], [], [test "$have_zlib" = yes],
+diff --git a/configure b/configure
+--- a/configure
++++ b/configure
+@@ -696,6 +696,8 @@
+ MODULE__BASE64_TRUE
+ MODULE__RUST_URL_QUOTE_FALSE
+ MODULE__RUST_URL_QUOTE_TRUE
++MODULE__RUST_TAR_CHECKSUM_FALSE
++MODULE__RUST_TAR_CHECKSUM_TRUE
+ MODULE__UUID_FALSE
+ MODULE__UUID_TRUE
+ MODULE__TKINTER_FALSE
+@@ -32096,6 +32098,7 @@
+   Modules/_testlimitedcapi \
+   Modules/_xxtestfuzz \
+   Modules/_rust_url_quote \
++  Modules/_rust_tar_checksum \
+   Modules/_zstd \
+   Modules/cjkcodecs \
+   Modules/expat \
+@@ -35766,6 +35769,45 @@
+ 
+   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_url_quote" >&5
+ printf "%s\n" "$py_cv_module__rust_url_quote" >&6; }
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_tar_checksum" >&5
++printf %s "checking for stdlib extension module _rust_tar_checksum... " >&6; }
++        if test "$py_cv_module__rust_tar_checksum" != "n/a"
++then :
++
++    if test "$HAVE_CARGO" = yes
++then :
++  if test "$HAVE_CARGO" = yes
++then :
++  py_cv_module__rust_tar_checksum=yes
++else case e in #(
++  e) py_cv_module__rust_tar_checksum=missing ;;
++esac
++fi
++else case e in #(
++  e) py_cv_module__rust_tar_checksum=disabled ;;
++esac
++fi
++
++fi
++  as_fn_append MODULE_BLOCK "MODULE__RUST_TAR_CHECKSUM_STATE=$py_cv_module__rust_tar_checksum$as_nl"
++  if test "x$py_cv_module__rust_tar_checksum" = xyes
++then :
++
++
++
++
++fi
++   if test "$py_cv_module__rust_tar_checksum" = yes; then
++  MODULE__RUST_TAR_CHECKSUM_TRUE=
++  MODULE__RUST_TAR_CHECKSUM_FALSE='#'
++else
++  MODULE__RUST_TAR_CHECKSUM_TRUE='#'
++  MODULE__RUST_TAR_CHECKSUM_FALSE=
++fi
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_tar_checksum" >&5
++printf "%s\n" "$py_cv_module__rust_tar_checksum" >&6; }
+ 
+ 
+ 
+@@ -37078,6 +37120,10 @@
+ fi
+ if test -z "${MODULE__RUST_URL_QUOTE_TRUE}" && test -z "${MODULE__RUST_URL_QUOTE_FALSE}"; then
+   as_fn_error $? "conditional \"MODULE__RUST_URL_QUOTE\" was never defined.
++Usually this means the macro was only invoked conditionally." "$LINENO" 5
++fi
++if test -z "${MODULE__RUST_TAR_CHECKSUM_TRUE}" && test -z "${MODULE__RUST_TAR_CHECKSUM_FALSE}"; then
++  as_fn_error $? "conditional \"MODULE__RUST_TAR_CHECKSUM\" was never defined.
+ Usually this means the macro was only invoked conditionally." "$LINENO" 5
+ fi
+ if test -z "${MODULE_ZLIB_TRUE}" && test -z "${MODULE_ZLIB_FALSE}"; then
+diff --git a/Modules/_rust_tar_checksum/module.c b/Modules/_rust_tar_checksum/module.c
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_tar_checksum/module.c
+@@ -0,0 +1,42 @@
++/* CPython owns the exact TAR header while Rust scans its 512 bytes. */
++#define PY_SSIZE_T_CLEAN
++#include <Python.h>
++
 +extern void tar_checksum_scan(const unsigned char *, int *, int *);
 +
-+static PyObject *tar_checksum(PyObject *self, PyObject *arg)
++static PyObject *scan(PyObject *self, PyObject *arg)
 +{
 +    int unsigned_sum;
 +    int signed_sum;
 +    (void)self;
 +    if (!PyBytes_CheckExact(arg) || PyBytes_GET_SIZE(arg) != 512) {
-+        PyErr_SetString(PyExc_TypeError, "tar_checksum requires exact bytes of length 512");
++        PyErr_SetString(PyExc_TypeError, "scan requires exact bytes of length 512");
 +        return NULL;
 +    }
 +    tar_checksum_scan((const unsigned char *)PyBytes_AS_STRING(arg),
@@ -40,19 +177,48 @@ diff --git a/Modules/_rust_url_quote/module.c b/Modules/_rust_url_quote/module.c
 +    return Py_BuildValue("(ii)", unsigned_sum, signed_sum);
 +}
 +
- static PyMethodDef methods[] = {
-+    {"tar_checksum", tar_checksum, METH_O,
-+     "Return unsigned and signed checksums of an exact TAR header."},
-     {"quote_bytes", (PyCFunction)(void (*)(void))quote_bytes, METH_FASTCALL,
-diff --git a/Modules/_rust_url_quote/quote.rs b/Modules/_rust_url_quote/quote.rs
---- a/Modules/_rust_url_quote/quote.rs
-+++ b/Modules/_rust_url_quote/quote.rs
-@@ -73,3 +73,27 @@
-     }
-     written as isize
- }
++static PyMethodDef methods[] = {
++    {"scan", scan, METH_O, "Return unsigned and signed checksums of an exact TAR header."},
++    {NULL, NULL, 0, NULL}
++};
 +
-+// The C caller holds one exact 512-byte header and two writable C integers.
++static PyModuleDef_Slot slots[] = {
++    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
++    {0, NULL}
++};
++
++static struct PyModuleDef module = {
++    PyModuleDef_HEAD_INIT,
++    .m_name = "_rust_tar_checksum",
++    .m_size = 0,
++    .m_methods = methods,
++    .m_slots = slots,
++};
++
++PyMODINIT_FUNC PyInit__rust_tar_checksum(void)
++{
++    return PyModuleDef_Init(&module);
++}
+diff --git a/Modules/_rust_tar_checksum/checksum.rs b/Modules/_rust_tar_checksum/checksum.rs
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_tar_checksum/checksum.rs
+@@ -0,0 +1,37 @@
++//! Scan one exact TAR header while CPython retains its bytes object.
++#![no_std]
++
++use core::panic::PanicInfo;
++
++unsafe extern "C" {
++    fn abort() -> !;
++}
++
++#[panic_handler]
++fn panic(_info: &PanicInfo<'_>) -> ! {
++    unsafe { abort() }
++}
++
++// The C caller supplies a live 512-byte header and two writable C integers.
 +#[unsafe(no_mangle)]
 +pub unsafe extern "C" fn tar_checksum_scan(
 +    buf: *const u8,

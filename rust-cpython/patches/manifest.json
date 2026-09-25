@@ -44,14 +44,14 @@
     },
     {
       "file": "0005-rust-tar-checksum.patch",
-      "sha256": "0a2acdf8bf77ba2be44212310fa790f8c4033c94e508c551013b0ec3cdd43a71",
+      "sha256": "7688c78e608213031e4d4bac3e278f81f7dae4e2e58338de96d8b7778fdf0c8c",
       "mode": "tar-checksum",
       "author": "OpenAI Codex, integrating the repository TAR checksum proof",
-      "origin": "rust-cpython/experiments/tar-checksum-proof/{checksum.rs,checksum_module.c,probe.py} and pinned Rust-for-CPython tarfile.py; authored on 2026-09-25",
+      "origin": "Pinned Rust-for-CPython tarfile.py and repository TAR checksum proof; authored on 2026-09-25",
       "license": "PSF-2.0, matching the pinned CPython fork and repository proof",
-      "reason": "Optionally route exact 512-byte TAR header checksums to the private no_std Rust scanner while retaining the Python fallback for all other inputs.",
-      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; pinned nightly-2026-09-15.",
-      "reproducer": "Apply the selected patches to a fresh verified source and check reverse applicability; build --tar-checksum; compare calc_chksums values and exception behavior for exact and non-exact inputs against quote-only; read every member and regular file in the locked source archive."
+      "reason": "Optionally route exact 512-byte TAR header checksums to a TAR-owned private no_std Rust extension after preserving replaceable checksum helper behavior.",
+      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; lazy import on first eligible checksum; pinned nightly-2026-09-15.",
+      "reproducer": "Apply selected patches to fresh verified source and check changed paths; build --tar-checksum; compare complete locked source TAR workload and cold import tarfile with quote-only control; audit helper replacement and non-exact fallback."
     }
   ]
 }
