@@ -26,6 +26,8 @@ python3 rust-cpython/build.py fetch --zlib-rs  # also cache pinned optional back
 python3 rust-cpython/build.py build --zlib-rs  # isolated optional zlib candidate
 python3 rust-cpython/build.py fetch --zlib-hybrid # cache the same pinned backend
 python3 rust-cpython/build.py build --zlib-hybrid # Rust inflate, platform deflate
+python3 rust-cpython/build.py fetch --zlib-oneshot # cache the same pinned backend
+python3 rust-cpython/build.py build --zlib-oneshot # Rust one-shot, platform streams
 python3 rust-cpython/build.py test    # Cargo, focused CPython, then broad regression
 python3 rust-cpython/build_no_rust.py # matched same-source benchmark control
 python3 rust-cpython/build.py clean   # remove generated outputs; retain private Cargo cache
@@ -82,10 +84,15 @@ version identity, and `binascii`. Its digest-checked source patch is inert in
 the ordinary and full-backend modes. The hybrid matched all 876 sampled
 compressed byte outputs and passed focused CPython consumers. Seven paired
 sustained public decode and gzip jobs then used about 36% less process CPU;
-sampled memory direction, broader application value, and upstream resource
-parity remain open. See
+the real pinned source-tar read instead used 10.81% more process CPU. The
+current all-stream hybrid cannot be promoted. See
 [`experiments/zlib-hybrid-proof-20260924.md`](experiments/zlib-hybrid-proof-20260924.md)
-and [`experiments/zlib-sustained-20260925.md`](experiments/zlib-sustained-20260925.md).
+and [`experiments/source-tar-hybrid-20260925.md`](experiments/source-tar-hybrid-20260925.md).
+`--zlib-oneshot` is a separate built experiment that routes only public
+`zlib.decompress` to prefixed Rust inflate, keeping persistent streaming
+decompressors on platform zlib. Its installed symbol route passed inspection;
+speed, memory, and edge behavior still need qualification. See
+[`experiments/zlib-oneshot-build-20260925.md`](experiments/zlib-oneshot-build-20260925.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under
 that unchanged CPython wrapper and runs CPython's zlib and compression-consumer
