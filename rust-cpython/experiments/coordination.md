@@ -1,5 +1,36 @@
 # Rust-for-CPython experiment lanes
 
+## Current cycle (bases `1b0507a` and `c2baee4`)
+
+The one-shot zlib small-BLOB application comparison uses
+`/private/tmp/python-build-exp-zlib-oneshot-smallblobs-20260925a`, branch
+`exp/zlib-oneshot-smallblobs-20260925a` (base `1b0507a`). It owns only its
+new workload, report, compact raw data, and ignored lane scratch. Its question
+is whether the optional public `zlib.decompress` Rust route helps a complete
+SQLite compressed-BLOB task with many 1–4 KiB values. It uses the already
+built fork control and one-shot candidate, with seven self pairs and seven
+counterbalanced cross pairs if host conditions permit. It is the only active
+timing lane. Budget: 180 kernel-accounted controller CPU seconds and 1 GiB
+maximum reported RSS; every attempt retains a unique resource record.
+
+The static `tomllib` boundary scout uses
+`/private/tmp/python-build-exp-tomllib-boundary-20260925a`, branch
+`exp/tomllib-boundary-20260925a` (base `1b0507a`). It owns only
+`experiments/tomllib-boundary-20260925.md`; it examines the pinned parser,
+public callers, semantic limits, and a real metadata workload before any
+prototype. It may not compile or benchmark while the zlib lane is timing.
+
+The static macOS memory-method scout uses
+`/private/tmp/python-build-exp-mac-memory-scout-20260925a`, branch
+`exp/mac-memory-scout-20260925a` (base `c2baee4`). It owns only
+`experiments/mac-memory-next-method-20260925.md`; it examines a bounded
+route to unique or proportional child-process memory evidence after the
+earlier region traversal failed. It may not compile or benchmark while the
+zlib lane is timing. Both static scouts have no substantial-command budget;
+the coordinator must authorize a separately measured probe before running
+one. Integration order is the zlib result, then the nonoverlapping scouts,
+followed by updates to the shared objective and ranked map.
+
 ## Fifteenth cycle (base `53364e2`)
 
 The full URL source-patch qualification uses
