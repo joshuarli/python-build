@@ -665,7 +665,18 @@ as a separate baseline change.
   behind `--ipv4-scan` while focused behavior, other important workloads,
   and Linux/memory qualification are open. It does not complete the broader
   `ipaddress` coverage item, which also includes network-range operations.
+  A follow-up complete-task profile put IPv4 integer formatting at no more
+  than 4% of instrumented time. Larger network costs depend on replaceable
+  public properties, so defer a second narrow network kernel.
   See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md).
+- The optional fixed-width numeric `datetime.strptime` path matched the
+  complete 60,000-record log-ingest output in five macOS pairs. Median
+  candidate/control wall and kernel CPU ratios were 0.641 and 0.613; median
+  paired peak RSS changed by +32 KiB. Cold import was neutral. Keep
+  `--strptime-numeric` opt-in because eligible calls bypass `_strptime` locale
+  checks and regex-cache side effects. Broader semantic, memory, and Linux
+  qualification remain open. See
+  [`strptime-numeric-20260925.md`](rust-cpython/experiments/strptime-numeric-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
@@ -726,8 +737,8 @@ order within each priority.
 
 The current `_base64` integration proof does not cover public `base64`; the
 guarded URL quote route is a partial `urllib.parse` port pending broad
-qualification; zlib and TAR Rust proofs remain partial. No item below is
-yet marked complete.
+qualification; zlib, TAR, IPv4, and numeric timestamp Rust proofs remain
+partial. No item below is yet marked complete.
 
 ### Priority 0: common application paths
 

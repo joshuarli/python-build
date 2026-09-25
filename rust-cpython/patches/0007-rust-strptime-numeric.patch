@@ -1,0 +1,227 @@
+diff --git a/Lib/_strptime.py b/Lib/_strptime.py
+--- a/Lib/_strptime.py
++++ b/Lib/_strptime.py
+@@ -22,2 +22,3 @@
+ from datetime import (date as datetime_date,
++                      datetime as datetime_datetime,
+                       timedelta as datetime_timedelta,
+@@ -843,2 +844,9 @@
+     format string."""
++    if (cls is datetime_datetime and type(data_string) is str and
++            type(format) is str and format == "%Y/%m/%d %H:%M:%S" and
++            _strptime is _ORIGINAL_STRPTIME):
++        from _rust_strptime_numeric import scan
++        fields = scan(data_string)
++        if fields is not None:
++            return cls(*fields)
+     tt, fraction, gmtoff_fraction = _strptime(data_string, format)
+@@ -851 +859,3 @@
+         return cls(*args, tz)
++
++_ORIGINAL_STRPTIME = _strptime
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -3466 +3466,10 @@
++# Private no_std fixed-width timestamp scanner.
++RUST_STRPTIME_NUMERIC_A=Modules/_rust_strptime_numeric/libstrptime_numeric.a
++MODULE__RUST_STRPTIME_NUMERIC_LDEPS=$(RUST_STRPTIME_NUMERIC_A)
++MODULE__RUST_STRPTIME_NUMERIC_LDFLAGS=$(RUST_STRPTIME_NUMERIC_A)
++
++$(RUST_STRPTIME_NUMERIC_A): $(srcdir)/Modules/_rust_strptime_numeric/scan.rs
++	mkdir -p Modules/_rust_strptime_numeric
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
++
+ RUST_URL_QUOTE_A=Modules/_rust_url_quote/libquote_ascii.a
+diff --git a/Modules/Setup.stdlib.in b/Modules/Setup.stdlib.in
+--- a/Modules/Setup.stdlib.in
++++ b/Modules/Setup.stdlib.in
+@@ -122 +122,2 @@
++@MODULE__RUST_STRPTIME_NUMERIC_TRUE@_rust_strptime_numeric _rust_strptime_numeric/module.c
+ @MODULE__RUST_URL_QUOTE_TRUE@_rust_url_quote _rust_url_quote/module.c
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -7580 +7580,2 @@
++  Modules/_rust_strptime_numeric \
+   Modules/_rust_url_quote \
+@@ -8617 +8618,4 @@
++PY_STDLIB_MOD([_rust_strptime_numeric],
++  [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
++  [], [])
+ PY_STDLIB_MOD([_rust_url_quote],
+diff --git a/configure b/configure
+--- a/configure
++++ b/configure
+@@ -697 +697,3 @@
++MODULE__RUST_STRPTIME_NUMERIC_FALSE
++MODULE__RUST_STRPTIME_NUMERIC_TRUE
+ MODULE__RUST_URL_QUOTE_FALSE
+@@ -32098 +32100,2 @@
++  Modules/_rust_strptime_numeric \
+   Modules/_rust_url_quote \
+@@ -35731 +35734,42 @@
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_strptime_numeric" >&5
++printf %s "checking for stdlib extension module _rust_strptime_numeric... " >&6; }
++        if test "$py_cv_module__rust_strptime_numeric" != "n/a"
++then :
++
++    if test "$HAVE_CARGO" = yes
++then :
++  if test "$HAVE_CARGO" = yes
++then :
++  py_cv_module__rust_strptime_numeric=yes
++else case e in #(
++  e) py_cv_module__rust_strptime_numeric=missing ;;
++esac
++fi
++else case e in #(
++  e) py_cv_module__rust_strptime_numeric=disabled ;;
++esac
++fi
++
++fi
++  as_fn_append MODULE_BLOCK "MODULE__RUST_STRPTIME_NUMERIC_STATE=$py_cv_module__rust_strptime_numeric$as_nl"
++  if test "x$py_cv_module__rust_strptime_numeric" = xyes
++then :
++
++
++
++
++fi
++   if test "$py_cv_module__rust_strptime_numeric" = yes; then
++  MODULE__RUST_STRPTIME_NUMERIC_TRUE=
++  MODULE__RUST_STRPTIME_NUMERIC_FALSE='#'
++else
++  MODULE__RUST_STRPTIME_NUMERIC_TRUE='#'
++  MODULE__RUST_STRPTIME_NUMERIC_FALSE=
++fi
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_strptime_numeric" >&5
++printf "%s\n" "$py_cv_module__rust_strptime_numeric" >&6; }
++
++
+   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_url_quote" >&5
+@@ -37079 +37123,5 @@
++if test -z "${MODULE__RUST_STRPTIME_NUMERIC_TRUE}" && test -z "${MODULE__RUST_STRPTIME_NUMERIC_FALSE}"; then
++  as_fn_error $? "conditional \"MODULE__RUST_STRPTIME_NUMERIC\" was never defined.
++Usually this means the macro was only invoked conditionally." "$LINENO" 5
++fi
+ if test -z "${MODULE__RUST_URL_QUOTE_TRUE}" && test -z "${MODULE__RUST_URL_QUOTE_FALSE}"; then
+diff --git a/Modules/_rust_strptime_numeric/module.c b/Modules/_rust_strptime_numeric/module.c
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_strptime_numeric/module.c
+@@ -0,0 +1,46 @@
++/* CPython owns the exact Unicode input; Rust only scans fixed ASCII fields. */
++#define PY_SSIZE_T_CLEAN
++#include <Python.h>
++#include <stdint.h>
++
++extern int strptime_numeric_scan(const unsigned char *, Py_ssize_t, uint16_t *);
++
++static PyObject *scan(PyObject *self, PyObject *arg)
++{
++    uint16_t fields[6];
++    (void)self;
++    if (!PyUnicode_CheckExact(arg)) {
++        PyErr_SetString(PyExc_TypeError, "scan requires exact str");
++        return NULL;
++    }
++    if (!PyUnicode_IS_ASCII(arg) ||
++        !strptime_numeric_scan((const unsigned char *)PyUnicode_1BYTE_DATA(arg),
++                               PyUnicode_GET_LENGTH(arg), fields)) {
++        Py_RETURN_NONE;
++    }
++    return Py_BuildValue("(iiiiii)", fields[0], fields[1], fields[2],
++                         fields[3], fields[4], fields[5]);
++}
++
++static PyMethodDef methods[] = {
++    {"scan", scan, METH_O, "Return six fixed-width numeric fields or None."},
++    {NULL, NULL, 0, NULL}
++};
++
++static PyModuleDef_Slot slots[] = {
++    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
++    {0, NULL}
++};
++
++static struct PyModuleDef module = {
++    PyModuleDef_HEAD_INIT,
++    .m_name = "_rust_strptime_numeric",
++    .m_size = 0,
++    .m_methods = methods,
++    .m_slots = slots,
++};
++
++PyMODINIT_FUNC PyInit__rust_strptime_numeric(void)
++{
++    return PyModuleDef_Init(&module);
++}
+diff --git a/Modules/_rust_strptime_numeric/scan.rs b/Modules/_rust_strptime_numeric/scan.rs
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_strptime_numeric/scan.rs
+@@ -0,0 +1,60 @@
++#![no_std]
++
++use core::panic::PanicInfo;
++
++unsafe extern "C" {
++    fn abort() -> !;
++}
++
++#[panic_handler]
++fn panic(_info: &PanicInfo<'_>) -> ! {
++    unsafe { abort() }
++}
++
++fn digits(bytes: &[u8], start: usize, length: usize) -> Option<u16> {
++    let mut value = 0u16;
++    for &byte in &bytes[start..start + length] {
++        if !byte.is_ascii_digit() {
++            return None;
++        }
++        value = value * 10 + u16::from(byte - b'0');
++    }
++    Some(value)
++}
++
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn strptime_numeric_scan(
++    input: *const u8,
++    length: isize,
++    output: *mut u16,
++) -> i32 {
++    if input.is_null() || output.is_null() || length != 19 {
++        return 0;
++    }
++    let bytes = unsafe { core::slice::from_raw_parts(input, 19) };
++    if bytes[4] != b'/' || bytes[7] != b'/' || bytes[10] != b' '
++        || bytes[13] != b':' || bytes[16] != b':' {
++        return 0;
++    }
++    let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second)) = (
++        digits(bytes, 0, 4), digits(bytes, 5, 2), digits(bytes, 8, 2),
++        digits(bytes, 11, 2), digits(bytes, 14, 2), digits(bytes, 17, 2),
++    ) else {
++        return 0;
++    };
++    if year == 0 || month == 0 || month > 12 || hour > 23 || minute > 59 || second > 59 {
++        return 0;
++    }
++    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
++    let month_days = match month {
++        2 => 28 + u16::from(leap),
++        4 | 6 | 9 | 11 => 30,
++        _ => 31,
++    };
++    if day == 0 || day > month_days {
++        return 0;
++    }
++    let fields = [year, month, day, hour, minute, second];
++    unsafe { core::ptr::copy_nonoverlapping(fields.as_ptr(), output, 6) };
++    1
++}

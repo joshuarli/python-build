@@ -63,6 +63,17 @@
       "reason": "Optionally scan exact canonical dotted-decimal IPv4 literals through a private no_std Rust extension only while the original inherited octet parser remains installed; retain all other Python parsing, errors, and subclass paths.",
       "compatibility": "Applies after default source patches to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only with --ipv4-scan; built and measured on native macOS arm64, Linux unbuilt; exact str, cls is IPv4Address, the original _BaseV4._parse_octet descriptor, and no IPv4Address override are required.",
       "reproducer": "Apply selected patches to fresh verified source for default, TAR, URL unquote, and all optional modes; check seven changed paths each time; build --variant ipv4-guard --ipv4-scan; compare serial mixed routing and cold-import workloads with the prior candidate and TAR-guard control."
+    },
+    {
+      "file": "0007-rust-strptime-numeric.patch",
+      "sha256": "dca0d09d88038a1ef78c97e34cac3fe1091260a5d8a64c143f8a6f164ccedb1d",
+      "mode": "strptime-numeric",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Lib/_strptime.py and CPython extension interfaces; authored on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython fork",
+      "reason": "Optionally scan a fixed-width numeric slash timestamp in private no_std Rust while leaving datetime construction and all other inputs on the Python path.",
+      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --strptime-numeric; exact datetime class, exact input and format strings, original _strptime binding, and valid 19-byte ASCII fields only.",
+      "reproducer": "Apply selected patches to fresh verified pinned source, verify seven changed paths and reverse checks, build --variant strptime-numeric --strptime-numeric, then compare complete public numeric-slash log-ingest output and serial control/candidate resource pairs."
     }
   ]
 }
