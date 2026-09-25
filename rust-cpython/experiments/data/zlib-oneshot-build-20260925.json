@@ -1,0 +1,118 @@
+{
+  "lane": "zlib-oneshot-build-20260925a",
+  "worktree": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a",
+  "base_commit": "1eb1e54",
+  "source_commit": "b812b4a7b9efaca46b98544a8633b7d7e454166b",
+  "locked_inputs_sha256": {
+    "cpython_archive": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+    "zlib_rs_archive": "09ab8373154ca2cd2ba61b44dcf28bcb91733f1f7652ce96a502c5ae3b7ca702",
+    "llvm_archive": "d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1",
+    "llvm_attestation": "6c07293849e05e3cfae150a6f0ec7d2153af40f570c36a48801a82b87f74e7cb"
+  },
+  "inputs": {
+    "method": "Cloned immutable source/bootstrap blobs, verified SHA-256 against locks; copied Cargo registry and LLVM prefix into this worktree; no network fetch or shared writable build output",
+    "doctor_ok": true,
+    "fetch_command_run": false
+  },
+  "fresh_source_preflight": {
+    "path": "rust-cpython/work/preflight-source/cpython-b812b4a7b9efaca46b98544a8633b7d7e454166b",
+    "intended_path": "Modules/zlibmodule.c",
+    "before_sha256": "36390fc1b0bdaf7da332d732c67cbe9669bd3f6e923a3e5810b4662159a0e20c",
+    "after_sha256": "34aeebe0492cf4ff6570f7b1a59f6cd53862383f98c73990ae3d340bcc2bca9f",
+    "manifest_sha256": "b806f42e6a54bb453cc3c99a338afcc1803beaf0cf8e604c1bb62ba820c5619b",
+    "oneshot_patch_sha256": "5b6c108d95777043d37fb59671d75da044d64c5757e3f37ba276da37dbaa5d07",
+    "patch_apply": "forward and reverse checks passed; source hash changed",
+    "preprocessor_route": "one-shot init/inflate/end expanded to python_build_rs_ names; persistent init/inflate/end/copy/dictionary stayed on platform names"
+  },
+  "resource_method": {
+    "command": "/usr/bin/time -l",
+    "cpu_coverage": "Kernel child resource accounting for waited command and reaped descendants, including short-lived compiler children",
+    "rss_coverage": "Largest resident process reported by time, not simultaneous process-tree RSS",
+    "process_count": null,
+    "unique_or_proportional_memory": null,
+    "host_swap_used_mib_before": 243.88,
+    "host_swap_used_mib_after": 243.88
+  },
+  "attempts": [
+    {
+      "name": "inputs-copy-01",
+      "command": "cp -c -R of locked inputs and Cargo registry",
+      "status": "completed",
+      "elapsed_s": 0.87,
+      "user_cpu_s": 0.01,
+      "system_cpu_s": 0.71,
+      "max_process_rss_bytes": 2048000,
+      "swaps": 0,
+      "raw_log": "rust-cpython/work/resource-logs/inputs-copy-01.log"
+    },
+    {
+      "name": "preflight-01",
+      "command": "python3 rust-cpython/work/resource-logs/preflight.py",
+      "status": "failed: preflight harness omitted closing #endif in synthetic C snippet",
+      "elapsed_s": 2.92,
+      "user_cpu_s": 1.04,
+      "system_cpu_s": 1.52,
+      "max_process_rss_bytes": 43810816,
+      "swaps": 0,
+      "raw_log": "rust-cpython/work/resource-logs/preflight-01.log"
+    },
+    {
+      "name": "preflight-02",
+      "command": "python3 rust-cpython/work/resource-logs/preflight.py",
+      "status": "passed",
+      "elapsed_s": 3.45,
+      "user_cpu_s": 1.05,
+      "system_cpu_s": 2.00,
+      "max_process_rss_bytes": 40534016,
+      "swaps": 0,
+      "raw_log": "rust-cpython/work/resource-logs/preflight-02.log"
+    },
+    {
+      "name": "build-01",
+      "command": "python3 rust-cpython/build.py build --zlib-oneshot",
+      "status": "failed: parallel make compiled URL module object before its output directory existed",
+      "elapsed_s": 129.41,
+      "user_cpu_s": 113.78,
+      "system_cpu_s": 44.95,
+      "max_process_rss_bytes": 449249280,
+      "swaps": 0,
+      "raw_log": "rust-cpython/work/resource-logs/build-01.log",
+      "phase_logs": "rust-cpython/work/resource-logs/attempt-01"
+    },
+    {
+      "name": "build-02",
+      "command": "python3 rust-cpython/build.py build --zlib-oneshot",
+      "status": "completed",
+      "elapsed_s": 257.38,
+      "user_cpu_s": 700.52,
+      "system_cpu_s": 104.41,
+      "max_process_rss_bytes": 1819181056,
+      "swaps": 0,
+      "raw_log": "rust-cpython/work/resource-logs/build-02.log",
+      "phase_logs": "rust-cpython/logs"
+    }
+  ],
+  "timed_command_cpu_s": 969.99,
+  "untimed_commands": "Initial SHA-256 verification and doctor (6.36 elapsed seconds combined), read-only symbol/size inspection, and report generation were not wrapped in time -l; timed total is not exact total lane CPU",
+  "limit_cpu_s": 1200,
+  "limit_per_process_rss_bytes": 3000000000,
+  "stage": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage",
+  "installed": {
+    "build_report": "rust-cpython/results/build.json",
+    "build_status": "built",
+    "zlib_backend_kind": "oneshot-inflate",
+    "zlib_sha256": "e2f9a02bffe3f7277e5766d29adfbb6ef316d3f412422918325baabecfd11a38",
+    "zlib_bytes_unstripped": 1676056,
+    "binascii_bytes_unstripped": 93216,
+    "combined_bytes_unstripped": 1769272,
+    "platform_control_combined_bytes_unstripped": 175816,
+    "all_stream_hybrid_combined_bytes_unstripped": 1768904,
+    "zlib_runtime_version": "1.2.12",
+    "defined_prefixed_oneshot": ["python_build_rs_inflateInit2_", "python_build_rs_inflate", "python_build_rs_inflateEnd"],
+    "undefined_platform_stream": ["inflateInit2_", "inflate", "inflateEnd", "inflateCopy", "inflateSetDictionary"],
+    "zlib_and_binascii_load_platform_libz": true,
+    "raw_symbol_log": "rust-cpython/work/resource-logs/installed-symbols-01.log"
+  },
+  "cpython_test_suite_run": false,
+  "performance_benchmark_run": false
+}

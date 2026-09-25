@@ -1184,6 +1184,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     )
     if zlib_backend is not None:
         zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile", hybrid=zlib_hybrid or zlib_oneshot)
+    (BUILD / "Modules" / "_rust_url_quote").mkdir(parents=True, exist_ok=True)
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(
         make, cwd=BUILD, env=source_date_env,
