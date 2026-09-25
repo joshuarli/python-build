@@ -525,8 +525,10 @@ as a separate baseline change.
   and active tracing or profiling use Python. The revised route has no
   installed-build or speed verdict, and exact event-stream parity remains
   open. Optional `unquote` changes public output if `_hextobyte` is edited in
-  place and skips its lazy initialization. The earlier URL speed ratios
-  describe pre-guard quote source. See the [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md)
+  place and skips its lazy initialization. A narrow in-loop Rust replacement
+  was stopped because it leaves the mapping and append work in Python. The
+  earlier URL speed ratios describe pre-guard quote source. See the
+  [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md),
   [cache revision](rust-cpython/experiments/url-quote-cache-contract-20260925.md),
   and [decoder decision](rust-cpython/experiments/url-unquote-contract-followup-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO

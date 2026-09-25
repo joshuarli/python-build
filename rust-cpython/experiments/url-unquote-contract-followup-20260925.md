@@ -45,20 +45,20 @@ pinned `Lib/urllib/parse.py` above. The unpatched source file SHA-256 was
 `178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825`;
 patch 0004 was `27c0e4c21be013830d253215db25a1f3f04566755a2d5e19e879977ceae033a7`.
 
-## Contract-preserving route to investigate
+## Narrow implementation verdict
 
-Put any native byte scan inside `_unquote_impl`, after its normal lazy table
-initialization. Keep public `unquote`, `_generate_unquoted_parts`, and the
-regex traversal intact, so their Python calls and replacements remain
-observable. The native helper must use the current mapping for every percent
-segment, including malformed and incomplete escapes, and preserve
-`bytearray.extend` behavior for unusual mapping values or fall back before
-mutating an output buffer. A helper that hard-codes hexadecimal decoding
-cannot meet that contract. Rebinding `_unquote_impl` must still intercept the
-call from `_generate_unquoted_parts`; tracing and profiling also see the
-original Python call boundaries with this placement.
-
-This route requires a new C/Python boundary and a fresh same-workload speed
-assessment. No source build, test suite, benchmark, formatter, linter, or hook
-was run for this decision. The present audit only establishes the mismatch
-and the necessary placement of a compatible route.
+Any compatible scan must run inside `_unquote_impl` after lazy table setup,
+while public `unquote` and `_generate_unquoted_parts` keep their Python call
+boundaries. Every percent segment must consult the current global mapping,
+including malformed and incomplete escapes; arbitrary mapping values can
+raise or rebind that global, and `bytearray.extend` may raise `KeyError` that
+the original loop catches. A Rust call for each segment leaves that work in
+Python. Moving the loop to C duplicates its mapping, extension, and exception
+behavior while leaving only short byte copies for Rust. Of 182 eligible
+escaped `catalog_search_form` calls per batch, 176 have input length at most
+104 characters, so repeated native crossings are unlikely to repay their
+cost. A canonical-dict shortcut would require per-interpreter mutation
+watching of both keys and values, with sound lifetime and tracing behavior.
+Stop this narrow redesign; retain 0004 only as an opt-in, behavior-unqualified
+experiment. No replacement patch, build, test suite, benchmark, formatter,
+linter, or hook was run for this decision.
