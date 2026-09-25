@@ -1,0 +1,1150 @@
+{
+  "attempts": [
+    {
+      "id": "probe-pure",
+      "kind": "probe",
+      "output": "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/pure/ipaddress.py\nabsent",
+      "peak_rss_bytes": 23003136,
+      "process_count": 1,
+      "returncode": 0,
+      "swaps": 0,
+      "system_seconds": 0.013333,
+      "user_seconds": 0.032566,
+      "wall_seconds": 0.06650437496136874
+    },
+    {
+      "id": "probe-guard",
+      "kind": "probe",
+      "output": "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/guard/ipaddress.py\n/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/guard/_rust_ipv4_scan.cpython-316-darwin.so",
+      "peak_rss_bytes": 22757376,
+      "process_count": 1,
+      "returncode": 0,
+      "swaps": 0,
+      "system_seconds": 0.0058649999999999996,
+      "user_seconds": 0.032008999999999996,
+      "wall_seconds": 0.044597000000067055
+    },
+    {
+      "cpu_seconds": 0.792566,
+      "id": "pure-self-01-01-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38420480,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.016571,
+      "user_seconds": 0.775995,
+      "wall_seconds": 0.8129398330347613
+    },
+    {
+      "cpu_seconds": 0.7960929999999999,
+      "id": "pure-self-01-02-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38420480,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.01334,
+      "user_seconds": 0.7827529999999999,
+      "wall_seconds": 0.8122343340655789
+    },
+    {
+      "cpu_seconds": 0.7874289999999999,
+      "id": "pure-self-02-01-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38584320,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.01398,
+      "user_seconds": 0.7734489999999999,
+      "wall_seconds": 0.7969898749142885
+    },
+    {
+      "cpu_seconds": 0.7897019999999999,
+      "id": "pure-self-02-02-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38567936,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.013338,
+      "user_seconds": 0.7763639999999999,
+      "wall_seconds": 0.8038578749401495
+    },
+    {
+      "cpu_seconds": 0.7295059999999999,
+      "id": "guard-self-01-01-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38371328,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.014603999999999999,
+      "user_seconds": 0.7149019999999999,
+      "wall_seconds": 0.7399707920849323
+    },
+    {
+      "cpu_seconds": 0.7293339999999999,
+      "id": "guard-self-01-02-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38551552,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.013288,
+      "user_seconds": 0.716046,
+      "wall_seconds": 0.7439674169290811
+    },
+    {
+      "cpu_seconds": 0.735866,
+      "id": "guard-self-02-01-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38404096,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.013854,
+      "user_seconds": 0.722012,
+      "wall_seconds": 0.7472837909590453
+    },
+    {
+      "cpu_seconds": 0.72852,
+      "id": "guard-self-02-02-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38649856,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.014532999999999999,
+      "user_seconds": 0.7139869999999999,
+      "wall_seconds": 0.7458021249622107
+    },
+    {
+      "cpu_seconds": 0.7940909999999999,
+      "id": "comparison-01-01-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38092800,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.014828,
+      "user_seconds": 0.7792629999999999,
+      "wall_seconds": 0.8049126669066027
+    },
+    {
+      "cpu_seconds": 0.732231,
+      "id": "comparison-01-02-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38682624,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.014478999999999999,
+      "user_seconds": 0.717752,
+      "wall_seconds": 0.7419203330064192
+    },
+    {
+      "cpu_seconds": 0.731528,
+      "id": "comparison-02-01-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38453248,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.014523,
+      "user_seconds": 0.717005,
+      "wall_seconds": 0.7413496250519529
+    },
+    {
+      "cpu_seconds": 0.796315,
+      "id": "comparison-02-02-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38486016,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.015451,
+      "user_seconds": 0.780864,
+      "wall_seconds": 0.8089150000596419
+    },
+    {
+      "cpu_seconds": 0.799842,
+      "id": "comparison-03-01-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38666240,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.014835,
+      "user_seconds": 0.785007,
+      "wall_seconds": 0.826208290993236
+    },
+    {
+      "cpu_seconds": 0.7467029999999999,
+      "id": "comparison-03-02-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38666240,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.016345,
+      "user_seconds": 0.730358,
+      "wall_seconds": 0.7577045829966664
+    },
+    {
+      "cpu_seconds": 0.740993,
+      "id": "comparison-04-01-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38830080,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.01415,
+      "user_seconds": 0.726843,
+      "wall_seconds": 0.7540669579757378
+    },
+    {
+      "cpu_seconds": 0.7942089999999999,
+      "id": "comparison-04-02-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38551552,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.013907,
+      "user_seconds": 0.7803019999999999,
+      "wall_seconds": 0.8054143340559676
+    },
+    {
+      "cpu_seconds": 0.7960889999999999,
+      "id": "comparison-05-01-pure",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38567936,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "pure",
+      "swaps": 0,
+      "system_seconds": 0.014221999999999999,
+      "user_seconds": 0.781867,
+      "wall_seconds": 0.8077397081069648
+    },
+    {
+      "cpu_seconds": 0.728232,
+      "id": "comparison-05-02-guard",
+      "kind": "workload",
+      "output": {
+        "contained": 53392,
+        "count": 30000,
+        "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+        "ipv4_fraction": "4/5",
+        "rounds": 2,
+        "subnets": 60000
+      },
+      "peak_rss_bytes": 38731776,
+      "process_count": 1,
+      "returncode": 0,
+      "side": "guard",
+      "swaps": 0,
+      "system_seconds": 0.013547,
+      "user_seconds": 0.714685,
+      "wall_seconds": 0.7384849999798462
+    }
+  ],
+  "build": {
+    "step_1": {
+      "id": "build-01",
+      "kind": "build",
+      "peak_rss_bytes": 98074624,
+      "process_count": 1,
+      "returncode": 0,
+      "swaps": 0,
+      "system_seconds": 0.104533,
+      "user_seconds": 0.038536,
+      "wall_seconds": 0.40289141703397036
+    },
+    "step_2": {
+      "id": "build-02",
+      "kind": "build",
+      "peak_rss_bytes": 52723712,
+      "process_count": 1,
+      "returncode": 0,
+      "swaps": 0,
+      "system_seconds": 0.120461,
+      "user_seconds": 0.124885,
+      "wall_seconds": 0.4573372919112444
+    }
+  },
+  "followup": {
+    "attempts": [
+      {
+        "id": "compiler-tree-01",
+        "output": "",
+        "peak_footprint_bytes": 23741112,
+        "peak_rss_bytes": 98074624,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "swaps": 0,
+        "system_seconds": 0.02,
+        "user_seconds": 0.03,
+        "wall_seconds": 0.07891000004019588,
+        "wrapper_peak_rss_bytes": 98074624,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.025342,
+        "wrapper_user_seconds": 0.036053999999999996
+      },
+      {
+        "id": "compiler-tree-02",
+        "output": "",
+        "peak_footprint_bytes": 3015160,
+        "peak_rss_bytes": 52723712,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "swaps": 0,
+        "system_seconds": 0.06,
+        "user_seconds": 0.13,
+        "wall_seconds": 0.23409604199696332,
+        "wrapper_peak_rss_bytes": 52723712,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.06676599999999999,
+        "wrapper_user_seconds": 0.132416
+      },
+      {
+        "id": "extension-use-pure",
+        "output": "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/pure/ipaddress.py\nabsent",
+        "peak_footprint_bytes": 12796360,
+        "peak_rss_bytes": 22839296,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "swaps": 0,
+        "system_seconds": 0.0,
+        "user_seconds": 0.03,
+        "wall_seconds": 0.047758791013620794,
+        "wrapper_peak_rss_bytes": 22839296,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.006973,
+        "wrapper_user_seconds": 0.031814999999999996
+      },
+      {
+        "id": "extension-use-guard",
+        "output": "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/guard/ipaddress.py\n/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/guard/_rust_ipv4_scan.cpython-316-darwin.so",
+        "peak_footprint_bytes": 12960200,
+        "peak_rss_bytes": 23019520,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "swaps": 0,
+        "system_seconds": 0.0,
+        "user_seconds": 0.03,
+        "wall_seconds": 0.04766533395741135,
+        "wrapper_peak_rss_bytes": 23019520,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.007339999999999999,
+        "wrapper_user_seconds": 0.031708
+      },
+      {
+        "id": "memory-01-01-pure",
+        "output": {
+          "contained": 53392,
+          "count": 30000,
+          "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+          "ipv4_fraction": "4/5",
+          "rounds": 2,
+          "subnets": 60000
+        },
+        "peak_footprint_bytes": 25395704,
+        "peak_rss_bytes": 37912576,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "side": "pure",
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.75,
+        "wall_seconds": 0.785390125005506,
+        "wrapper_peak_rss_bytes": 37912576,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.015709,
+        "wrapper_user_seconds": 0.758973
+      },
+      {
+        "id": "memory-01-02-guard",
+        "output": {
+          "contained": 53392,
+          "count": 30000,
+          "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+          "ipv4_fraction": "4/5",
+          "rounds": 2,
+          "subnets": 60000
+        },
+        "peak_footprint_bytes": 26051064,
+        "peak_rss_bytes": 38600704,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "side": "guard",
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.69,
+        "wall_seconds": 0.7252149999840185,
+        "wrapper_peak_rss_bytes": 38600704,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.015761,
+        "wrapper_user_seconds": 0.695826
+      },
+      {
+        "id": "memory-02-01-guard",
+        "output": {
+          "contained": 53392,
+          "count": 30000,
+          "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+          "ipv4_fraction": "4/5",
+          "rounds": 2,
+          "subnets": 60000
+        },
+        "peak_footprint_bytes": 25887200,
+        "peak_rss_bytes": 38453248,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "side": "guard",
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.69,
+        "wall_seconds": 0.7234267080202699,
+        "wrapper_peak_rss_bytes": 38453248,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.014412999999999999,
+        "wrapper_user_seconds": 0.69534
+      },
+      {
+        "id": "memory-02-02-pure",
+        "output": {
+          "contained": 53392,
+          "count": 30000,
+          "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+          "ipv4_fraction": "4/5",
+          "rounds": 2,
+          "subnets": 60000
+        },
+        "peak_footprint_bytes": 25444856,
+        "peak_rss_bytes": 37961728,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "side": "pure",
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.75,
+        "wall_seconds": 0.7857035000342876,
+        "wrapper_peak_rss_bytes": 37961728,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.013444999999999999,
+        "wrapper_user_seconds": 0.753518
+      },
+      {
+        "id": "memory-03-01-pure",
+        "output": {
+          "contained": 53392,
+          "count": 30000,
+          "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+          "ipv4_fraction": "4/5",
+          "rounds": 2,
+          "subnets": 60000
+        },
+        "peak_footprint_bytes": 25657848,
+        "peak_rss_bytes": 38174720,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "side": "pure",
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.74,
+        "wall_seconds": 0.7803467090707272,
+        "wrapper_peak_rss_bytes": 38174720,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.014289999999999999,
+        "wrapper_user_seconds": 0.7507499999999999
+      },
+      {
+        "id": "memory-03-02-guard",
+        "output": {
+          "contained": 53392,
+          "count": 30000,
+          "digest": "71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180",
+          "ipv4_fraction": "4/5",
+          "rounds": 2,
+          "subnets": 60000
+        },
+        "peak_footprint_bytes": 25952760,
+        "peak_rss_bytes": 38502400,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "side": "guard",
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.69,
+        "wall_seconds": 0.7286215840140358,
+        "wrapper_peak_rss_bytes": 38502400,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.01465,
+        "wrapper_user_seconds": 0.695222
+      },
+      {
+        "id": "compiler-direct-01",
+        "output": "",
+        "peak_footprint_bytes": 23724728,
+        "peak_rss_bytes": 98041856,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "swaps": 0,
+        "system_seconds": 0.01,
+        "user_seconds": 0.02,
+        "wall_seconds": 0.05570145894307643,
+        "wrapper_peak_rss_bytes": 98041856,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.017803,
+        "wrapper_user_seconds": 0.028522
+      },
+      {
+        "id": "compiler-direct-02",
+        "output": "",
+        "peak_footprint_bytes": 2966008,
+        "peak_rss_bytes": 52543488,
+        "process_count": "one direct child; compiler subprocesses included by time",
+        "returncode": 0,
+        "swaps": 0,
+        "system_seconds": 0.06,
+        "user_seconds": 0.11,
+        "wall_seconds": 0.23032087506726384,
+        "wrapper_peak_rss_bytes": 52543488,
+        "wrapper_swaps": 0,
+        "wrapper_system_seconds": 0.068467,
+        "wrapper_user_seconds": 0.120045
+      }
+    ],
+    "direct_archive_sha256": "d903a3d8febbaf9ab2fbfd62e7d37af29553daf69d1f3a5e45661210689edfb0",
+    "direct_compiler_commands": [
+      [
+        "/Users/josh/.rustup/toolchains/nightly-2026-09-15-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-type=staticlib",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "panic=abort",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/scan.rs",
+        "-o",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/libipv4_scan-direct.a"
+      ],
+      [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-O3",
+        "-mcpu=apple-m1",
+        "-fPIC",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "-I",
+        "/Users/josh/d/python-build/rust-cpython/stage/include/python3.16",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/module.c",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/libipv4_scan-direct.a",
+        "-o",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/_rust_ipv4_scan-direct.so"
+      ]
+    ],
+    "direct_extension_sha256": "97cdd2b533faa15422e786a57b50a85d706387c69c904aed16534fa587265b49",
+    "footprint_delta_bytes": [
+      655360,
+      442344,
+      294912
+    ],
+    "host_after": {
+      "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+      "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+    },
+    "host_before": {
+      "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+      "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.80 7.60 6.21"
+    },
+    "measurement": "/usr/bin/time -l -p child resource fields for compiler process trees and workload physical footprint",
+    "median_footprint_delta_bytes": 442344,
+    "memory_pairs": [
+      {
+        "attempts": [
+          "memory-01-01-pure",
+          "memory-01-02-guard"
+        ],
+        "host_after": {
+          "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+          "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+        },
+        "host_before": {
+          "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+          "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+        },
+        "order": [
+          "pure",
+          "guard"
+        ],
+        "pair": 1
+      },
+      {
+        "attempts": [
+          "memory-02-01-guard",
+          "memory-02-02-pure"
+        ],
+        "host_after": {
+          "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+          "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+        },
+        "host_before": {
+          "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+          "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+        },
+        "order": [
+          "guard",
+          "pure"
+        ],
+        "pair": 2
+      },
+      {
+        "attempts": [
+          "memory-03-01-pure",
+          "memory-03-02-guard"
+        ],
+        "host_after": {
+          "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+          "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+        },
+        "host_before": {
+          "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+          "uptime": "7:08  up 10 days, 19:14, 2 users, load averages: 4.66 7.52 6.19"
+        },
+        "order": [
+          "pure",
+          "guard"
+        ],
+        "pair": 3
+      }
+    ],
+    "timed_archive_sha256": "fdb3c26fe2a8753a2a67881f3057b7401a1d0c00b36d802d3b16b3e6588efc6c",
+    "timed_compiler_commands": [
+      [
+        "rustup",
+        "run",
+        "nightly-2026-09-15",
+        "rustc",
+        "--edition=2024",
+        "--crate-type=staticlib",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "panic=abort",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/scan.rs",
+        "-o",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/libipv4_scan-timed.a"
+      ],
+      [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-O3",
+        "-mcpu=apple-m1",
+        "-fPIC",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "-I",
+        "/Users/josh/d/python-build/rust-cpython/stage/include/python3.16",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/module.c",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/libipv4_scan-timed.a",
+        "-o",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/_rust_ipv4_scan-timed.so"
+      ]
+    ],
+    "timed_extension_sha256": "bfe64612d3acb0e3b6c2b5d7a2f011b6e5a260fc2bc1dff938df290313acf679"
+  },
+  "host_after": {
+    "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.55 8.36 6.35"
+  },
+  "host_before": {
+    "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.65 8.48 6.36"
+  },
+  "pairs": [
+    {
+      "attempts": [
+        "pure-self-01-01-pure",
+        "pure-self-01-02-pure"
+      ],
+      "family": "pure-self",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.44 8.40 6.35"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.44 8.40 6.35"
+      },
+      "order": [
+        "pure",
+        "pure"
+      ],
+      "pair": 1
+    },
+    {
+      "attempts": [
+        "pure-self-02-01-pure",
+        "pure-self-02-02-pure"
+      ],
+      "family": "pure-self",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.44 8.40 6.35"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.44 8.40 6.35"
+      },
+      "order": [
+        "pure",
+        "pure"
+      ],
+      "pair": 2
+    },
+    {
+      "attempts": [
+        "guard-self-01-01-guard",
+        "guard-self-01-02-guard"
+      ],
+      "family": "guard-self",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.44 8.40 6.35"
+      },
+      "order": [
+        "guard",
+        "guard"
+      ],
+      "pair": 1
+    },
+    {
+      "attempts": [
+        "guard-self-02-01-guard",
+        "guard-self-02-02-guard"
+      ],
+      "family": "guard-self",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "order": [
+        "guard",
+        "guard"
+      ],
+      "pair": 2
+    },
+    {
+      "attempts": [
+        "comparison-01-01-pure",
+        "comparison-01-02-guard"
+      ],
+      "family": "comparison",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "order": [
+        "pure",
+        "guard"
+      ],
+      "pair": 1
+    },
+    {
+      "attempts": [
+        "comparison-02-01-guard",
+        "comparison-02-02-pure"
+      ],
+      "family": "comparison",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "order": [
+        "guard",
+        "pure"
+      ],
+      "pair": 2
+    },
+    {
+      "attempts": [
+        "comparison-03-01-pure",
+        "comparison-03-02-guard"
+      ],
+      "family": "comparison",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.55 8.36 6.35"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.17 8.31 6.33"
+      },
+      "order": [
+        "pure",
+        "guard"
+      ],
+      "pair": 3
+    },
+    {
+      "attempts": [
+        "comparison-04-01-guard",
+        "comparison-04-02-pure"
+      ],
+      "family": "comparison",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.55 8.36 6.35"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.55 8.36 6.35"
+      },
+      "order": [
+        "guard",
+        "pure"
+      ],
+      "pair": 4
+    },
+    {
+      "attempts": [
+        "comparison-05-01-pure",
+        "comparison-05-02-guard"
+      ],
+      "family": "comparison",
+      "host_after": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.55 8.36 6.35"
+      },
+      "host_before": {
+        "swap": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "uptime": "7:07  up 10 days, 19:13, 2 users, load averages: 6.55 8.36 6.35"
+      },
+      "order": [
+        "pure",
+        "guard"
+      ],
+      "pair": 5
+    }
+  ],
+  "recipe": {
+    "archive_sha256": "e9cedc6bf4eff69ba8686c9ae461c7dc2bd7b8b668db162cf617330e632c6058",
+    "cache_policy": "empty PYTHONPYCACHEPREFIX; -B and PYTHONDONTWRITEBYTECODE=1; both compile source",
+    "compiler_commands": [
+      [
+        "rustup",
+        "run",
+        "nightly-2026-09-15",
+        "rustc",
+        "--edition=2024",
+        "--crate-type=staticlib",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "panic=abort",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/scan.rs",
+        "-o",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/libipv4_scan.a"
+      ],
+      [
+        "/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang",
+        "-O3",
+        "-mcpu=apple-m1",
+        "-fPIC",
+        "-mmacosx-version-min=26.0",
+        "-isysroot",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-bundle",
+        "-undefined",
+        "dynamic_lookup",
+        "-I",
+        "/Users/josh/d/python-build/rust-cpython/stage/include/python3.16",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/module.c",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/native/libipv4_scan.a",
+        "-o",
+        "/Users/josh/d/python-build-exp-ipv4-current-guard-measure-20260925/rust-cpython/work/ipv4-current-guard-measure-20260925/guard/_rust_ipv4_scan.cpython-316-darwin.so"
+      ]
+    ],
+    "environment": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONHASHSEED": "1",
+      "PYTHONNOUSERSITE": "1"
+    },
+    "extension_sha256": "055b0d45bdf1046aa899406a5b97766df5e637f0d093f0afc7d8c2f577ee62b8",
+    "guard_parser_sha256": "0fb3286efaef72a5808dff5e3583075f5f2c2692508db0d727a8aa32220c8607",
+    "interpreter_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "measurement": "direct os.wait4 per single process, perf_counter for wall; wait4 maximum RSS and swaps",
+    "native_source_sha256": {
+      "module.c": "842602bace46b5ae4a1680079e0418327915c8eb2aa6768883f71329dd5c837b",
+      "scan.rs": "4355b80a1901cd7a2ddfcd66649655e16f65b46a1abb878b692c6cea3ca2794b"
+    },
+    "order": "2 pure/pure, 2 guard/guard, 5 counterbalanced pure/guard pairs",
+    "patch_sha256": "83d6529503188ce9144b90f853b684187867d07ee1a23ff29af678d142fbce70",
+    "pinned_cpython_commit": "b812b4a7b9efaca46b98544a8633b7d7e454166b",
+    "pinned_parser_source_check": "fetched immutable commit path, SHA-256 equal to accepted installed parser and PURE_SHA in runner",
+    "pinned_parser_source_url": "https://raw.githubusercontent.com/Rust-for-CPython/cpython/b812b4a7b9efaca46b98544a8633b7d7e454166b/Lib/ipaddress.py",
+    "pure_parser_sha256": "6e800cb5727ac9ea045d406873a7dfb37f1be01ef5a8a1df52d6399635995a79",
+    "sdk": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+    "timing_command": "same accepted python3.16 -S -B ipaddress_v4_workload.py --count 30000 --rounds 2; PYTHONPATH selects overlay",
+    "workload_sha256": "995df51b4fd4ed6cf34d02517f28c7660941f804c5ba1af047561b2a00cd2a48"
+  },
+  "summary": {
+    "comparison": {
+      "cpu_seconds": {
+        "median": 0.9220996082312986,
+        "range": [
+          0.9147620429374104,
+          0.9335631287179216
+        ],
+        "ratios": [
+          0.9220996082312986,
+          0.9186414923742489,
+          0.9335631287179216,
+          0.9329949673196855,
+          0.9147620429374104
+        ]
+      },
+      "wall_seconds": {
+        "median": 0.9170866369372582,
+        "range": [
+          0.9142611073443134,
+          0.9362472532346788
+        ],
+        "ratios": [
+          0.9217401632623422,
+          0.9164740732923641,
+          0.9170866369372582,
+          0.9362472532346788,
+          0.9142611073443134
+        ]
+      }
+    },
+    "guard-self": {
+      "cpu_seconds": {
+        "median": 0.9948907141141852,
+        "range": [
+          0.9900172042192463,
+          0.999764224009124
+        ],
+        "ratios": [
+          0.999764224009124,
+          0.9900172042192463
+        ]
+      },
+      "wall_seconds": {
+        "median": 1.0017091611019184,
+        "range": [
+          0.9980172646392703,
+          1.0054010575645667
+        ],
+        "ratios": [
+          1.0054010575645667,
+          0.9980172646392703
+        ]
+      }
+    },
+    "pure-self": {
+      "cpu_seconds": {
+        "median": 1.0036683560188002,
+        "range": [
+          1.0028866094593925,
+          1.004450102578208
+        ],
+        "ratios": [
+          1.004450102578208,
+          1.0028866094593925
+        ]
+      },
+      "wall_seconds": {
+        "median": 1.0038747939020725,
+        "range": [
+          0.9991321633649705,
+          1.0086174244391743
+        ],
+        "ratios": [
+          0.9991321633649705,
+          1.0086174244391743
+        ]
+      }
+    }
+  }
+}

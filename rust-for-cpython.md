@@ -736,7 +736,14 @@ as a separate baseline change.
   See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md)
   and the [follow-up profile](rust-cpython/experiments/ipaddress-next-kernel-profile-20260925.md).
   A later binding guard has source-only differential evidence; its native
-  build and speed still need checking.
+  source overlay and private extension have now been built for a bounded
+  same-executable comparison. Five complete routing pairs matched output and
+  had median guarded/pure wall and CPU ratios of 0.917 and 0.922, beyond
+  local same-side timing variation. Host load was high, and a separate
+  three-pair footprint pass leaned +442,344 bytes without self-noise
+  calibration. Keep the route opt-in pending quiet-host speed, memory,
+  broader behavior, and Linux qualification; see the
+  [current-guard diagnostic](rust-cpython/experiments/ipv4-current-guard-measure-20260925.md).
 - The optional fixed-width numeric `datetime.strptime` path matched the
   complete 60,000-record log-ingest output in five macOS pairs. The first
   unguarded version had median wall and CPU ratios of 0.641 and 0.613, but
