@@ -12,6 +12,13 @@ project metadata and existing benchmark tasks for a representative public
 only if a real complete task exists. No new package or source pin is added.
 Budget: 30 kernel CPU seconds and 512 MiB per-process RSS. It must defer a
 Rust parser if the task is small, synthetic, or lacks measured headroom.
+The scout found a real pinned CPython build-tool command that parses a
+72,592-byte stable ABI manifest three times. `tomllib` Python frames were
+53.4% of its complete instrumented self time; direct command CPU was 0.07 s.
+The current approved inputs still lack a substantial application metadata
+task, so the broad Rust parser remains deferred. Three substantive commands
+used 0.21 kernel CPU seconds and at most 28,508,160 bytes RSS, with zero
+swaps. See `tomllib-workload-scout-20260925.md`.
 
 ## Residual URL workload profile (base `6fe484d`)
 

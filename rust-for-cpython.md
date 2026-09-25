@@ -459,6 +459,13 @@ as a separate baseline change.
   including existing native calls and fast exits. Defer another URL port and
   find a representative `tomllib` application task before implementation;
   see [`url-residual-profile-20260925.md`](rust-cpython/experiments/url-residual-profile-20260925.md).
+- The pinned CPython `stable_abi.py --dump` tooling command reads a real
+  72,592-byte TOML manifest three times. `tomllib` Python frames occupied
+  53.4% of its instrumented complete-task self time, but the direct command
+  used only 0.07 kernel CPU seconds. Current approved inputs lack a substantial
+  application metadata task, so defer a broad Rust TOML parser until one is
+  pinned and profiled. See
+  [`tomllib-workload-scout-20260925.md`](rust-cpython/experiments/tomllib-workload-scout-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and
