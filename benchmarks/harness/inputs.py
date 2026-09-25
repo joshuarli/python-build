@@ -8,6 +8,7 @@ to install packages and never needs pip or venv.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from email.parser import Parser
 import hashlib
 import json
 import os
@@ -27,6 +28,7 @@ REPOSITORY = BENCHMARKS.parent
 DEFAULT_WHEELHOUSE = BENCHMARKS / ".cache" / "wheelhouse"
 DEFAULT_REFERENCE_CACHE = BENCHMARKS / ".cache" / "references"
 LOCK_PATH = BENCHMARKS / "inputs.lock.json"
+MACOS_CP316_LOCK_PATH = BENCHMARKS / "inputs.macos-cp316.lock.json"
 SOURCES_LOCK_PATH = REPOSITORY / "sources.lock.json"
 
 
@@ -176,7 +178,7 @@ def _parse_input(raw: Mapping[str, Any]) -> LockedInput:
 
 
 def load_lock(path: Path | str | None = None) -> BenchmarkLock:
-    """Load and validate the locked Linux amd64 benchmark input manifest."""
+    """Load an explicitly supported benchmark target's input manifest."""
     lock_path = Path(path) if path is not None else LOCK_PATH
     raw_bytes = lock_path.read_bytes()
     try:
@@ -186,8 +188,15 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     if raw.get("schema_version") != 1:
         raise InputError(f"unsupported benchmark lock schema: {raw.get('schema_version')!r}")
     target = raw.get("target")
-    if not isinstance(target, dict) or target.get("os") != "linux" or target.get("architecture") != "x86_64":
-        raise InputError("benchmark lock must target Linux x86_64")
+    if not isinstance(target, dict):
+        raise InputError("benchmark lock needs a target descriptor")
+    linux = target.get("os") == "linux" and target.get("architecture") == "x86_64"
+    macos = target == {
+        "os": "macos", "architecture": "arm64", "python": "CPython 3.16",
+        "wheel_platform": "macosx_arm64",
+    }
+    if not linux and not macos:
+        raise InputError("unsupported benchmark lock target")
     raw_groups = raw.get("groups")
     if not isinstance(raw_groups, dict) or "core" not in raw_groups:
         raise InputError("benchmark lock must define the core input group")
@@ -214,6 +223,15 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     if not isinstance(raw_inputs, list):
         raise InputError("benchmark lock must contain an inputs list")
     inputs = tuple(_parse_input(item) for item in raw_inputs)
+    if macos:
+        approved = {"django": "6.1.1", "asgiref": "3.12.1", "sqlparse": "0.6.0"}
+        if set(groups) != {"core", "django"} or groups["core"]["packages"] or groups["django"]["packages"] != ("Django==6.1.1",):
+            raise InputError("macOS CPython 3.16 lock must contain only the approved Django group")
+        if {(_normal_name(item.name), item.version) for item in inputs} != set(approved.items()):
+            raise InputError("macOS CPython 3.16 lock has an incomplete or unapproved Django closure")
+        for item in inputs:
+            if item.kind != "wheel" or item.wheel_tags != ("py3-none-any",) or item.groups != ("django",):
+                raise InputError(f"macOS CPython 3.16 requires a compatible pure wheel: {item.filename}")
     names: set[tuple[str, str]] = set()
     filenames: dict[str, str] = {}
     for item in inputs:
@@ -397,6 +415,30 @@ def _extract_wheel(wheel_path: Path, site_packages: Path) -> None:
                 shutil.copyfileobj(source, output)
 
 
+def _check_macos_django_metadata(wheel_path: Path, item: LockedInput) -> None:
+    """Verify the approved wheel identity and its active 3.16 dependency closure."""
+    with zipfile.ZipFile(wheel_path) as archive:
+        metadata_paths = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+        if len(metadata_paths) != 1:
+            raise InputError(f"wheel needs one distribution metadata file: {item.filename}")
+        metadata = Parser().parsestr(archive.read(metadata_paths[0]).decode("utf-8"))
+    if _normal_name(metadata.get("Name", "")) != _normal_name(item.name) or metadata.get("Version") != item.version:
+        raise InputError(f"wheel metadata identity differs from lock: {item.filename}")
+    required_python = {"django": ">=3.12", "asgiref": ">=3.10", "sqlparse": ">=3.10"}
+    expected_requirements = {
+        "django": {"asgiref>=3.9.1", "sqlparse>=0.5.0", "tzdata; sys_platform == \"win32\"",
+                   "argon2-cffi>=23.1.0; extra == \"argon2\"", "bcrypt>=4.1.1; extra == \"bcrypt\""},
+        "asgiref": {"typing_extensions>=4; python_version < \"3.11\"", "pytest; extra == \"tests\"",
+                    "pytest-asyncio; extra == \"tests\"", "mypy>=1.14.0; extra == \"mypy\""},
+        "sqlparse": {"build; extra == 'dev'", "furo; extra == 'doc'", "sphinx; extra == 'doc'"},
+    }
+    name = _normal_name(item.name)
+    if metadata.get("Requires-Python") != required_python[name]:
+        raise InputError(f"wheel Python requirement changed: {item.filename}")
+    if set(metadata.get_all("Requires-Dist", [])) != expected_requirements[name]:
+        raise InputError(f"wheel dependency closure changed: {item.filename}")
+
+
 def _extract_sdist(item: LockedInput, archive_path: Path, site_packages: Path) -> None:
     if not item.module_paths:
         raise InputError(f"source archive has no declared import paths: {item.filename}")
@@ -449,6 +491,15 @@ def prepare_site(
     else:
         destination = Path(site_dir)
     manifest = lock or load_lock()
+    if manifest.target.get("os") == "macos" and site_dir is not None:
+        import subprocess
+
+        result = subprocess.run(
+            [str(interpreter_or_site), "-c", "import platform,sys; print(platform.python_implementation(), *sys.version_info[:2])"],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+        if result.stdout.strip() != "CPython 3 16":
+            raise InputError("macOS Django inputs require a CPython 3.16 interpreter")
     selected_groups = _select_groups(manifest, groups)
     requested_groups = _requested_groups(manifest, groups)
     selected_inputs = _selected_inputs(manifest, selected_groups)
@@ -467,6 +518,8 @@ def prepare_site(
             artifact = source_dir / item.filename
             _verify_file(artifact, item)
             if item.kind == "wheel":
+                if manifest.target.get("os") == "macos":
+                    _check_macos_django_metadata(artifact, item)
                 _extract_wheel(artifact, site_packages)
             else:
                 _extract_sdist(item, artifact, site_packages)

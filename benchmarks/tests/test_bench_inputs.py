@@ -29,6 +29,15 @@ class SelectedInputTests(unittest.TestCase):
                 workloads = select_workloads("realworld", "standard", name, None)
                 self.assertTrue(bench._requires_macro_inputs(workloads))
 
+    def test_macos_uses_django_inputs_only_for_django_workloads(self):
+        django = select_workloads("realworld", "standard", "django_wsgi_request", None)
+        stdlib = select_workloads("realworld", "standard", "zlib_decode_1m", None)
+        other = select_workloads("realworld", "standard", "pycparser_source", None)
+        self.assertTrue(bench._macos_django_inputs(django))
+        self.assertFalse(bench._macos_django_inputs(stdlib))
+        with self.assertRaisesRegex(ValueError, "no approved inputs"):
+            bench._macos_django_inputs(other)
+
 
 if __name__ == "__main__":
     unittest.main()

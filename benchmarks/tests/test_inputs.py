@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from benchmarks.harness.inputs import InputError, fetch_inputs, load_lock, prepare_site, resolve_pbs
+from benchmarks.harness.inputs import InputError, MACOS_CP316_LOCK_PATH, fetch_inputs, load_lock, prepare_site, resolve_pbs
 
 
 def _make_wheel(path: Path, package: str, version: str, source: str) -> bytes:
@@ -41,6 +41,29 @@ def _lock_record(package: str, version: str, filename: str, data: bytes, groups:
 
 
 class BenchmarkInputTests(unittest.TestCase):
+    def test_macos_cp316_lock_is_the_approved_pure_django_closure(self) -> None:
+        lock = load_lock(MACOS_CP316_LOCK_PATH)
+        self.assertEqual(lock.target["python"], "CPython 3.16")
+        self.assertEqual(set(lock.groups), {"core", "django"})
+        self.assertEqual({(item.name, item.version) for item in lock.inputs}, {
+            ("django", "6.1.1"), ("asgiref", "3.12.1"), ("sqlparse", "0.6.0"),
+        })
+        self.assertTrue(all(item.wheel_tags == ("py3-none-any",) for item in lock.inputs))
+
+    def test_macos_cp316_lock_rejects_wrong_target_or_native_wheel(self) -> None:
+        raw = json.loads(MACOS_CP316_LOCK_PATH.read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "lock.json"
+            raw["target"]["python"] = "CPython 3.14"
+            path.write_text(json.dumps(raw))
+            with self.assertRaises(InputError):
+                load_lock(path)
+            raw["target"]["python"] = "CPython 3.16"
+            raw["inputs"][0]["wheel_tags"] = ["cp316-cp316-macosx_26_0_arm64"]
+            path.write_text(json.dumps(raw))
+            with self.assertRaises(InputError):
+                load_lock(path)
+
     def test_repository_lock_has_complete_linux_amd64_wheel_identity(self) -> None:
         lock = load_lock()
 
