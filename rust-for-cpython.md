@@ -311,6 +311,15 @@ totals for spawned children; it is diagnostic only. See
   PSS, and allocations remain unavailable. Keep the patch speed-qualified,
   with resource acceptance open; see
   [`url-quote-upstream-comparison-20260924.md`](rust-cpython/experiments/url-quote-upstream-comparison-20260924.md).
+- Two further complete URL tasks reuse the catalog inputs: outbound search
+  forms and request-path canonicalization. Against the prior fork build,
+  five-pair wall/CPU medians improved by about 14% and 4–5% respectively;
+  upstream comparisons had the same direction. All complete digests and the
+  200,000-byte fallback boundary passed. Request-path peak RSS was consistently
+  about 0.25–0.49 MB higher; its median was within self-noise, but one
+  upstream pair exceeded the candidate allowance. Fresh-import timing was too
+  noisy for a verdict. See
+  [`url-quote-breadth-comparison-20260924.md`](rust-cpython/experiments/url-quote-breadth-comparison-20260924.md).
 
 ## Immediate work queue
 
@@ -336,12 +345,11 @@ totals for spawned children; it is diagnostic only. See
   `unified_diff` path is a separate hypothesis whose snapshot and validation
   cost should be measured first; see
   [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
-- Add and measure the two package-free URL breadth tasks proposed in
-  [`url-quote-breadth-audit-20260924.md`](rust-cpython/experiments/url-quote-breadth-audit-20260924.md),
-  plus fresh-import and long-input sentinels. The patched URL candidate has a
-  repeatable catalog speed gain, but resource acceptance and breadth remain
-  open. Unique/proportional memory and allocations are unqualified even when
-  paired RSS medians fall within noise.
+- The guarded URL patch is speed-qualified on three complete tasks. Resolve
+  its fresh-import and request-path memory signals before accepting it as a
+  resource-neutral change. Unique/proportional memory and allocations remain
+  unqualified even when paired RSS medians fall within noise. Extend to
+  broader applications when compatible byte-pinned inputs exist.
 - Prepare byte-pinned application inputs compatible with the 3.16 macOS lane,
   including a true cold Django request. Extend the primary public-workload
   suite before claiming broad stdlib gains; then add baseline-derived loops
