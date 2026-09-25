@@ -52,6 +52,17 @@
       "reason": "Optionally route exact 512-byte TAR header checksums to a TAR-owned private no_std Rust extension only when the captured native helpers have their expected type, module, and name and remain unchanged.",
       "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; ordinary Python helper replacements before or after tarfile import use the Python path; lazy import on first eligible checksum; pinned nightly-2026-09-15.",
       "reproducer": "Apply selected patches to fresh verified source and check changed paths for default, TAR-only, and URL+TAR; build --tar-checksum; compare complete locked source TAR workload and cold import tarfile with the prior TAR-owned candidate; inspect helper replacement and non-exact fallback boundaries."
+    },
+    {
+      "file": "0006-rust-ipv4-scan.patch",
+      "sha256": "a592ce81d8455242bfdabd0daac7c71ab42a2e989aab61946c9297ff0e118f36",
+      "mode": "ipv4-scan",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Lib/ipaddress.py and its public IPv4 address behavior; authored on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython fork",
+      "reason": "Optionally scan exact canonical dotted-decimal IPv4 literals through a private no_std Rust extension only while the original inherited octet parser remains installed; retain all other Python parsing, errors, and subclass paths.",
+      "compatibility": "Applies after default source patches to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only with --ipv4-scan; built and measured on native macOS arm64, Linux unbuilt; exact str, cls is IPv4Address, the original _BaseV4._parse_octet descriptor, and no IPv4Address override are required.",
+      "reproducer": "Apply selected patches to fresh verified source for default, TAR, URL unquote, and all optional modes; check seven changed paths each time; build --variant ipv4-guard --ipv4-scan; compare serial mixed routing and cold-import workloads with the prior candidate and TAR-guard control."
     }
   ]
 }

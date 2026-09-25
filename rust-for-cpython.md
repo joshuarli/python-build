@@ -339,6 +339,14 @@ as a separate baseline change.
   outside the established behavior boundary; no separate semantic probe or
   CPython suite ran. See
   [`tar-helper-guard-20260925.md`](rust-cpython/experiments/tar-helper-guard-20260925.md).
+- An optional canonical IPv4 Rust scan under public `ipaddress` calls improved
+  five complete mixed IPv4/IPv6 routing-task pairs by a median 9.77% wall and
+  0.08 s kernel CPU per process on macOS. All output digests matched; paired
+  peak RSS and footprint changed in both directions. The guard preserves
+  ordinary `_parse_octet` descriptor replacements and sends malformed inputs
+  through Python. Focused semantic checks and Linux measurements remain open,
+  so keep `--ipv4-scan` opt-in and count it as partial coverage. See
+  [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md).
 - An optional one-shot split routes only public `zlib.decompress` to Rust.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
@@ -652,6 +660,12 @@ as a separate baseline change.
   coverage progress but does not yet complete the `tarfile` checklist item.
   See [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md)
   and [`tar-helper-guard-20260925.md`](rust-cpython/experiments/tar-helper-guard-20260925.md).
+- The optional `ipaddress` IPv4 parser improved a complete mixed routing task
+  beyond its local self-comparison, with matching public output. Keep it
+  behind `--ipv4-scan` while focused behavior, other important workloads,
+  and Linux/memory qualification are open. It does not complete the broader
+  `ipaddress` coverage item, which also includes network-range operations.
+  See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.

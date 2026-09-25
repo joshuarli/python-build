@@ -1,0 +1,235 @@
+diff --git a/Lib/ipaddress.py b/Lib/ipaddress.py
+--- a/Lib/ipaddress.py
++++ b/Lib/ipaddress.py
+@@ -1233,2 +1233,11 @@
+         """
++        if (cls is IPv4Address and type(ip_str) is str and
++                7 <= len(ip_str) <= 15 and
++                _BaseV4.__dict__.get('_parse_octet') is _ORIGINAL_V4_PARSE_OCTET and
++                '_parse_octet' not in IPv4Address.__dict__):
++            from _rust_ipv4_scan import scan
++            scanned = scan(ip_str)
++            if scanned is not None:
++                return scanned
++
+         if not ip_str:
+@@ -1302,2 +1311,5 @@
+         return '.'.join(reverse_octets) + '.in-addr.arpa'
++
++# The native scan is valid only while the original octet parser is inherited.
++_ORIGINAL_V4_PARSE_OCTET = _BaseV4.__dict__['_parse_octet']
+ 
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -3465,2 +3465,11 @@
+ # build driver pins RUSTUP_TOOLCHAIN; rustup run also names that pin explicitly.
++# Private no_std canonical IPv4 scan, linked only into its own extension.
++RUST_IPV4_SCAN_A=Modules/_rust_ipv4_scan/libipv4_scan.a
++MODULE__RUST_IPV4_SCAN_LDEPS=$(RUST_IPV4_SCAN_A)
++MODULE__RUST_IPV4_SCAN_LDFLAGS=$(RUST_IPV4_SCAN_A)
++
++$(RUST_IPV4_SCAN_A): $(srcdir)/Modules/_rust_ipv4_scan/scan.rs
++	mkdir -p Modules/_rust_ipv4_scan
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
++
+ RUST_URL_QUOTE_A=Modules/_rust_url_quote/libquote_ascii.a
+diff --git a/Modules/Setup.stdlib.in b/Modules/Setup.stdlib.in
+--- a/Modules/Setup.stdlib.in
++++ b/Modules/Setup.stdlib.in
+@@ -121,2 +121,3 @@
+ @MODULE__BASE64_TRUE@_base64 _base64/Cargo.toml _base64/src/lib.rs
++@MODULE__RUST_IPV4_SCAN_TRUE@_rust_ipv4_scan _rust_ipv4_scan/module.c
+ @MODULE__RUST_URL_QUOTE_TRUE@_rust_url_quote _rust_url_quote/module.c
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -7579,2 +7579,3 @@
+   Modules/_xxtestfuzz \
++  Modules/_rust_ipv4_scan \
+   Modules/_rust_url_quote \
+@@ -8616,2 +8617,5 @@
+   [], [])
++PY_STDLIB_MOD([_rust_ipv4_scan],
++  [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
++  [], [])
+ PY_STDLIB_MOD([_rust_url_quote],
+diff --git a/configure b/configure
+--- a/configure
++++ b/configure
+@@ -696,2 +696,4 @@
+ MODULE__BASE64_TRUE
++MODULE__RUST_IPV4_SCAN_FALSE
++MODULE__RUST_IPV4_SCAN_TRUE
+ MODULE__RUST_URL_QUOTE_FALSE
+@@ -32097,2 +32099,3 @@
+   Modules/_xxtestfuzz \
++  Modules/_rust_ipv4_scan \
+   Modules/_rust_url_quote \
+@@ -35729,2 +35732,41 @@
+ printf "%s\n" "$py_cv_module__base64" >&6; }
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_ipv4_scan" >&5
++printf %s "checking for stdlib extension module _rust_ipv4_scan... " >&6; }
++        if test "$py_cv_module__rust_ipv4_scan" != "n/a"
++then :
++
++    if test "$HAVE_CARGO" = yes
++then :
++  if test "$HAVE_CARGO" = yes
++then :
++  py_cv_module__rust_ipv4_scan=yes
++else case e in #(
++  e) py_cv_module__rust_ipv4_scan=missing ;;
++esac
++fi
++else case e in #(
++  e) py_cv_module__rust_ipv4_scan=disabled ;;
++esac
++fi
++
++fi
++  as_fn_append MODULE_BLOCK "MODULE__RUST_IPV4_SCAN_STATE=$py_cv_module__rust_ipv4_scan$as_nl"
++  if test "x$py_cv_module__rust_ipv4_scan" = xyes
++then :
++
++
++
++
++fi
++   if test "$py_cv_module__rust_ipv4_scan" = yes; then
++  MODULE__RUST_IPV4_SCAN_TRUE=
++  MODULE__RUST_IPV4_SCAN_FALSE='#'
++else
++  MODULE__RUST_IPV4_SCAN_TRUE='#'
++  MODULE__RUST_IPV4_SCAN_FALSE=
++fi
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_ipv4_scan" >&5
++printf "%s\n" "$py_cv_module__rust_ipv4_scan" >&6; }
+ 
+@@ -37076,2 +37118,6 @@
+   as_fn_error $? "conditional \"MODULE__BASE64\" was never defined.
++Usually this means the macro was only invoked conditionally." "$LINENO" 5
++fi
++if test -z "${MODULE__RUST_IPV4_SCAN_TRUE}" && test -z "${MODULE__RUST_IPV4_SCAN_FALSE}"; then
++  as_fn_error $? "conditional \"MODULE__RUST_IPV4_SCAN\" was never defined.
+ Usually this means the macro was only invoked conditionally." "$LINENO" 5
+diff --git a/Modules/_rust_ipv4_scan/module.c b/Modules/_rust_ipv4_scan/module.c
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_ipv4_scan/module.c
+@@ -0,0 +1,48 @@
++/* CPython owns the Unicode object while Rust scans its ASCII storage. */
++#define PY_SSIZE_T_CLEAN
++#include <Python.h>
++#include <stdint.h>
++
++extern int64_t ipv4_scan(const unsigned char *, Py_ssize_t);
++
++static PyObject *scan(PyObject *self, PyObject *arg)
++{
++    int64_t value;
++    (void)self;
++    if (!PyUnicode_CheckExact(arg)) {
++        PyErr_SetString(PyExc_TypeError, "scan requires exact str");
++        return NULL;
++    }
++    if (!PyUnicode_IS_ASCII(arg)) {
++        Py_RETURN_NONE;
++    }
++    value = ipv4_scan((const unsigned char *)PyUnicode_1BYTE_DATA(arg),
++                      PyUnicode_GET_LENGTH(arg));
++    if (value < 0) {
++        Py_RETURN_NONE;
++    }
++    return PyLong_FromUnsignedLong((unsigned long)value);
++}
++
++static PyMethodDef methods[] = {
++    {"scan", scan, METH_O, "Scan a canonical IPv4 literal or return None."},
++    {NULL, NULL, 0, NULL}
++};
++
++static PyModuleDef_Slot slots[] = {
++    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
++    {0, NULL}
++};
++
++static struct PyModuleDef module = {
++    PyModuleDef_HEAD_INIT,
++    .m_name = "_rust_ipv4_scan",
++    .m_size = 0,
++    .m_methods = methods,
++    .m_slots = slots,
++};
++
++PyMODINIT_FUNC PyInit__rust_ipv4_scan(void)
++{
++    return PyModuleDef_Init(&module);
++}
+diff --git a/Modules/_rust_ipv4_scan/scan.rs b/Modules/_rust_ipv4_scan/scan.rs
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_ipv4_scan/scan.rs
+@@ -0,0 +1,60 @@
++//! Scan canonical dotted decimal IPv4 without allocating.
++#![no_std]
++
++use core::panic::PanicInfo;
++
++unsafe extern "C" {
++    fn abort() -> !;
++}
++
++#[panic_handler]
++fn panic(_info: &PanicInfo<'_>) -> ! {
++    unsafe { abort() }
++}
++
++// The C caller holds a live ASCII Unicode object for the full scan.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn ipv4_scan(input: *const u8, length: isize) -> i64 {
++    if !(7..=15).contains(&length) {
++        return -1;
++    }
++    let mut value = 0u32;
++    let mut octets = 0u8;
++    let mut current = 0u16;
++    let mut digits = 0u8;
++    let mut first = 0u8;
++    let mut index = 0;
++    while index < length {
++        let byte = unsafe { *input.offset(index) };
++        if byte == b'.' {
++            if digits == 0 || octets == 3 {
++                return -1;
++            }
++            value = (value << 8) | u32::from(current);
++            octets += 1;
++            current = 0;
++            digits = 0;
++        } else if byte.is_ascii_digit() {
++            if digits == 0 {
++                first = byte;
++            } else if first == b'0' {
++                return -1;
++            }
++            digits += 1;
++            if digits > 3 {
++                return -1;
++            }
++            current = current * 10 + u16::from(byte - b'0');
++            if current > 255 {
++                return -1;
++            }
++        } else {
++            return -1;
++        }
++        index += 1;
++    }
++    if octets != 3 || digits == 0 {
++        return -1;
++    }
++    i64::from((value << 8) | u32::from(current))
++}
