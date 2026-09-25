@@ -1,4 +1,4 @@
-"""Package a validated staged install into dist/ (plan Section 9).
+"""Package a validated staged install into dist/.
 
 Packaging is intentionally separate from compilation: it operates on the
 already-built `build/stage/cpython-staged/install` tree so a validated
@@ -63,9 +63,9 @@ ARCHIVE_NAME = f"cpython-3.14.6-{TARGET}-{REVISION}.tar.gz"
 SOURCE_DATE_EPOCH = 1704067200
 
 # Non-platform native dependencies actually bundled into the product
-# (plan 4/9); Tcl/Tk and the X11 closure are excluded by scope and must never
+# Tcl/Tk and the X11 closure are excluded by scope and must never
 # appear here even if a stale build/prefix has them. The two families bundle
-# different sets because macOS supplies several of these itself (plan 5.2),
+# different sets because macOS supplies several of these itself,
 # and `pip` is not a component on either — it is deliberately not shipped
 # (2026-09-18 scope decision), so listing it would make the manifest claim
 # something the tree does not contain.
@@ -127,9 +127,7 @@ def strip_tree(install: Path, *, strip: str = "llvm-strip") -> list[Path]:
     """Strip debug info from shipped ELFs, keeping the dynamic symbol table.
 
     --strip-unneeded removes local/debug symbols but keeps .dynsym, which
-    is what extension modules and embedders resolve PyXxx symbols against
-    (plan Section 9: "Stripping must preserve required exported symbols and
-    extension-loading behavior").
+    is what extension modules and embedders resolve PyXxx symbols against.
     """
     stripped = []
     for elf in find_elfs(install):
@@ -152,7 +150,7 @@ def _reset_metadata(info: tarfile.TarInfo) -> tarfile.TarInfo:
 
 
 def build_archive(install: Path, dist: Path) -> Path:
-    """Deterministic tar.gz: sorted entries, fixed epoch/owner/mode (plan 9)."""
+    """Deterministic tar.gz: sorted entries, fixed epoch/owner/mode."""
     archive_path = dist / ARCHIVE_NAME
     tmp_path = archive_path.with_suffix(".tmp")
     entries = sorted(install.rglob("*"))
@@ -409,8 +407,8 @@ def compute_parity(install: Path, reference_root: Path | None) -> dict:
         "module_build_layout", "intentional_difference",
         "This build ships most extension modules as separate shared "
         ".so files (configure default); the reference statically links "
-        "most modules into the interpreter/libpython (plan 2.3 permits "
-        "this as a documented difference).",
+        "most modules into the interpreter/libpython as a documented "
+        "difference.",
     )
 
     ref_python = reference_binary(reference_root)
@@ -481,7 +479,7 @@ def _time_runs(python: Path, code: str, runs: int = 7, *,
 
 
 def compute_benchmarks(python: Path, reference_root: Path | None) -> dict:
-    """Lightweight, honestly-labeled timing comparison (plan 8.3).
+    """Lightweight, honestly-labeled timing comparison.
 
     This is a handful of wall-clock samples on shared, possibly noisy CI/dev
     hardware, not a controlled pyperf benchmark suite; it is reported as
@@ -536,7 +534,7 @@ def extract_reference(
 
 
 # --------------------------------------------------------------------------
-# macOS packaging path (plan Sections 6, 8, 9)
+# macOS packaging path
 #
 # The pipeline above is shared; only three things are format- or
 # platform-specific: how a binary is stripped (and re-signed), what the
@@ -551,7 +549,7 @@ def strip_tree_macos(install: Path) -> list[Path]:
     so exported `PyInit_*` and `Py*` symbols survive and extension loading is
     unaffected. On Apple Silicon any edit invalidates the code signature and
     an unsigned Mach-O will not launch, so re-signing is part of stripping
-    rather than a separate step someone has to remember (plan Section 9).
+    rather than a separate step someone has to remember.
     """
     locked = load_macos_toolchain(REPO / "bootstrap.lock.json")
     strip = locked.llvm_prefix / "bin" / "llvm-strip"
@@ -587,8 +585,7 @@ def _probe(python: Path, code: str, *, sandboxed: bool = False, workdir: Path | 
     """Run a probe, optionally under the sealed profile.
 
     Reference binaries are third-party executable inputs, so they are run
-    with the network denied and a scratch HOME rather than on the bare host
-    (plan Section 8.2).
+    with the network denied and a scratch HOME rather than on the bare host.
     """
     if not sandboxed or workdir is None:
         return subprocess.run([str(python), "-c", code], capture_output=True, text=True)
@@ -608,7 +605,7 @@ VERSION_PROBES = {
 
 
 def compute_parity_macos(install: Path, reference_root: Path | None, workdir: Path) -> dict:
-    """Classify this build against the pinned reference (plan Section 2.3)."""
+    """Classify this build against the pinned reference."""
     rows: list[dict] = []
 
     def row(area: str, status: str, evidence: str) -> None:
@@ -648,7 +645,7 @@ def compute_parity_macos(install: Path, reference_root: Path | None, workdir: Pa
             )
     row("deployment_floor", "intentional_difference",
         "Reference LC_BUILD_VERSION minos is 11.0; this build declares 26.0 "
-        "(plan scope decision 2026-09-18) and will not load on older macOS.")
+        "(scope decision 2026-09-18) and will not load on older macOS.")
     row("package_manager", "intentional_difference",
         "The reference ships pip. This distribution removes pip, ensurepip (with its "
         "bundled wheel) and venv by the 2026-09-18 scope decision; `python -m venv` "
@@ -669,7 +666,7 @@ def compute_parity_macos(install: Path, reference_root: Path | None, workdir: Pa
         "LLVM's Darwin assembler. See sources.lock.json for the recorded reason.")
     row("module_build_layout", "intentional_difference",
         "This build ships extension modules as separate .so files (configure "
-        "default); the reference's layout differs (plan Section 2.3 permits this).")
+        "default); the reference's layout differs.")
 
     if ref_python is None:
         row("reference_binary_comparison", "untested",

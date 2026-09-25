@@ -1,4 +1,4 @@
-"""Two independent, cache-busted sealed builds compared file-by-file (plan 8.3).
+"""Two independent, cache-busted sealed builds compared file-by-file.
 
 Both builds are clean — the Linux targets use `docker build --no-cache` on
 the `sealed` stage, macOS runs `build/sealed.py` from a cleared work tree —

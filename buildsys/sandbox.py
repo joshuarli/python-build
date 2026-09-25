@@ -1,4 +1,4 @@
-"""Sealed execution on macOS via `sandbox-exec` (plan Section 7).
+"""Sealed execution on macOS via `sandbox-exec`.
 
 Linux containment here is a container network namespace; macOS has no such
 thing for Mach-O builds, so the boundary is a `sandbox-exec` profile. Two

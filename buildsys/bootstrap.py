@@ -1,4 +1,4 @@
-"""Toolchain and trust roots for the macOS target (plan Section 4).
+"""Toolchain and trust roots for the macOS target.
 
 LLVM is fetched from the official release archive, whose bytes, license, and
 Sigstore provenance metadata are pinned in `bootstrap.lock.json`. A bounded
@@ -22,7 +22,7 @@ Three things are deliberately *not* pinned here:
 - **Anything in Homebrew's prefix that could be linked into the payload.**
   HOME is scrubbed and `PKG_CONFIG_LIBDIR` is narrowed so the private
   dependency prefix is the only search root; no Homebrew library may appear
-  in the shipped Mach-O load commands (plan Section 1.5).
+  in the shipped Mach-O load commands.
 """
 
 from __future__ import annotations

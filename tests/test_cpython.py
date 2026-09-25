@@ -20,7 +20,7 @@ class CPythonTests(unittest.TestCase):
         self.assertNotIn('--enable-optimizations', args)
         self.assertNotIn('PROFILE_TASK', env)
         self.assertIn('--enable-experimental-jit=no', args)
-        # Tcl/Tk is out of scope (plan "Current scope decision"); configure
+        # Tcl/Tk is out of scope; configure
         # has no knob to mark _tkinter "disabled" rather than "missing" when
         # Tcl/Tk isn't built, so exclusion is enforced by never building or
         # pinning Tcl/Tk, not by a module-state override.
@@ -75,7 +75,7 @@ class CPythonTests(unittest.TestCase):
 
 
 class MacOSCPythonTests(unittest.TestCase):
-    """macOS policy (plan 5.3): same product policy, different platform facts."""
+    """macOS policy: same product policy, different platform facts."""
 
     def setUp(self):
         self.args, self.env = configuration(
@@ -118,7 +118,7 @@ class MacOSCPythonTests(unittest.TestCase):
         self.assertNotIn('bdb', ' '.join(self.args))
 
     def test_platform_libraries_are_not_shadowed_by_private_copies(self):
-        # zlib, Expat and libedit come from the SDK on macOS (plan 5.2), so
+        # zlib, Expat and libedit come from the SDK on macOS, so
         # the private prefix must not be offered for them.
         for key in ('ZLIB_CFLAGS', 'ZLIB_LIBS', 'LIBUUID_CFLAGS', 'DBM_CFLAGS'):
             self.assertNotIn(key, self.env)

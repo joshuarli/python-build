@@ -2,7 +2,7 @@
 
 The CLI validates arguments and delegates to buildsys; heavy work lives in
 buildsys and per-phase drivers. Unsupported targets fail closed: no artifacts
-are created for a target that has no implemented native executor (plan 3).
+are created for a target that has no implemented native executor.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ except UnsupportedTargetError:
 DEFAULT_TARGET = _NATIVE.triple if _NATIVE else "x86_64-unknown-linux-musl"
 
 # Commands that run compiled recipes/the interpreter itself: these are never
-# cross-compiled (plan Section 12), so the requested --target must be the
+# cross-compiled, so the requested --target must be the
 # architecture this process is actually running as right now.
 NATIVE_EXECUTION_COMMANDS = {"build", "test", "compare-reference", "package"}
 
@@ -80,7 +80,7 @@ def _qualification_available(target=None) -> bool:
 
     Linux targets use Dockerfile-defined BuildKit stages; macOS cannot build
     or run Mach-O binaries in a Linux container, so it uses a `sandbox-exec`
-    profile with `(deny network*)` instead (plan Section 7). Neither is
+    profile with `(deny network*)` instead. Neither is
     assumed to work — each is probed.
     """
     target = target or _NATIVE
@@ -95,7 +95,7 @@ def _qualification_available(target=None) -> bool:
 
 
 def _macos_report(report: dict) -> None:
-    """Host, SDK, and toolchain facts the macOS build depends on (plan 3, 5.1)."""
+    """Host, SDK, and toolchain facts the macOS build depends on."""
     import plistlib
 
     from buildsys.bootstrap import (

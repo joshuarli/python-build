@@ -1,4 +1,4 @@
-"""Mach-O parsing, exercised against synthetic images (plan Section 8.1).
+"""Mach-O parsing, exercised against synthetic images.
 
 The load commands are built here by hand rather than scraped from a tool so
 the assertions pin the *format*, not a tool's current output. The dylib-name
@@ -113,7 +113,7 @@ class HeaderTests(unittest.TestCase):
 
     def test_fat_image_is_rejected_not_silently_accepted(self) -> None:
         # A universal binary would mean an Intel slice this project excludes
-        # (plan Section 1.4), so it must fail loudly rather than parse as one
+        # It must fail loudly rather than parse as one
         # arbitrary slice.
         fat = b"\xca\xfe\xba\xbe" + b"\x00" * 60
         with TempImage(fat) as path:

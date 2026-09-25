@@ -1,4 +1,4 @@
-"""Classification of regression-suite failures (plan Section 8.2).
+"""Classification of regression-suite failures.
 
 The register exists so that a *new* failure cannot hide behind a known one.
 These tests pin that behaviour: anything not registered must surface.

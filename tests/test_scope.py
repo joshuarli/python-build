@@ -14,12 +14,12 @@ from buildsys.scope import (
 )
 
 # Tcl/Tk and everything that exists solely to serve its GUI are outside the
-# product on every family (plan scope decision).
+# product on every family.
 GUI_CLOSURE = {"tcl", "tk", "libx11", "libxau", "libxcb", "xcb-proto",
                "xorgproto", "xtrans", "util-macros", "libpthread-stubs"}
 
 # Libraries macOS supplies itself; bundling a second copy would shadow the
-# platform's and make the artifact less portable, not more (plan Section 5.2).
+# platform's and make the artifact less portable, not more.
 # Derived from the pinned reference's own Mach-O load commands, which show
 # /usr/lib/libz.1.dylib, /usr/lib/libedit.3.dylib, /usr/lib/libncurses.5.4.dylib
 # and /usr/lib/libpanel.5.4.dylib and no libexpat — so Expat is bundled from

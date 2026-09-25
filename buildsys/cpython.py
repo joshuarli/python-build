@@ -1,4 +1,4 @@
-"""CPython 3.14.6 configuration policy (plan 5.3).
+"""CPython 3.14.6 configuration policy.
 
 Values derive from the verified 3.14.6 `configure --help` output, not memory:
 LTO is explicit ThinLTO; macOS uses CPython's instrumented PGO build with
@@ -201,7 +201,7 @@ def _macos_configuration(
             f"-L{prefix}/lib -mmacosx-version-min={target.deployment_target} "
             # install_name_tool must rewrite libpython's id and the
             # interpreter's dependency on it, and adding an LC_RPATH needs
-            # room the default header layout does not leave (plan Section 6).
+            # room the default header layout does not leave.
             "-Wl,-headerpad_max_install_names"
         ),
         # The pinned PBS macOS build omits frame pointers. Keep that compiler
@@ -229,7 +229,7 @@ def _macos_configuration(
         "--with-openssl=" + str(prefix),
         "--with-openssl-rpath=no",
         # Darwin's _uuid uses platform facilities and dbm uses ndbm; neither
-        # libuuid nor Berkeley DB is built or shipped (plan Section 5.2).
+        # libuuid nor Berkeley DB is built or shipped.
         "--with-dbmliborder=ndbm",
         "--with-readline=editline",
     ]

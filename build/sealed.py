@@ -1,4 +1,4 @@
-"""Sealed offline build for macOS (plan Section 7, M1c).
+"""Sealed offline build for macOS.
 
 Qualification evidence has to come from a run whose inputs were declared and
 whose network boundary was enforced. This driver does that: it verifies the

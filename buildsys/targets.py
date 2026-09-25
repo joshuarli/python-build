@@ -10,10 +10,10 @@ trusting an external flag that could disagree with reality.
 
 Two families are implemented, and they are deliberately different shapes:
 
-  linux-musl  Alpine userspace in a Dockerfile-defined container (plan
-              Section 1.2). ELF, musl loader, Alpine apk toolchain.
+  linux-musl  Alpine userspace in a Dockerfile-defined container. ELF,
+              musl loader, Alpine apk toolchain.
               Completed and frozen at commit 6750ae2.
-  macos       Native Apple Silicon macOS 26.0+ (plan Section 1.5). Mach-O,
+  macos       Native Apple Silicon macOS 26.0+. Mach-O,
               Apple libSystem, the locked official LLVM archive, and the Xcode SDK.
 
 `family` selects the toolchain, relocation module, and binary-format checks.
@@ -41,7 +41,7 @@ class Target:
     triple: str
     machine: str  # platform.machine() spelling
     family: str  # linux-musl | macos
-    cpu_baseline_cflag: str  # explicit, recorded ISA floor (plan 5.1/7)
+    cpu_baseline_cflag: str  # explicit, recorded ISA floor
     openssl_configure_target: str  # `Configure <target>` string
 
     # linux-musl only

@@ -1,4 +1,4 @@
-"""Toolchain lock and macOS toolchain construction (plan Section 4).
+"""Toolchain lock and macOS toolchain construction.
 
 A lock that is never checked against the machine is a comment, so these tests
 cover both halves: the lock parses, and a lock that disagrees with the host is
@@ -81,12 +81,12 @@ class ToolchainConstructionTests(unittest.TestCase):
 
     def test_linker_is_left_to_the_clang_driver(self) -> None:
         # Naming LD is how a mismatched LLD gets paired with LLVM 23 bitcode
-        # and rejected at link time (plan Section 5.1).
+        # and rejected at link time.
         self.assertNotIn("LD", self.locked.toolchain().env())
 
     def test_ambient_dyld_variables_are_scrubbed(self) -> None:
         # An inherited DYLD_* variable would substitute a different library
-        # at link or run time without any change to the recipe (plan 7).
+        # at link or run time without any change to the recipe.
         import os
         os.environ["DYLD_INSERT_LIBRARIES"] = "/tmp/evil.dylib"
         os.environ["DYLD_LIBRARY_PATH"] = "/tmp/evil"

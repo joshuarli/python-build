@@ -1,4 +1,4 @@
-"""Build all locked dependencies into the private prefix (plan 5.2).
+"""Build all locked dependencies into the private prefix.
 
 One driver serves both families. What differs per family is data — the
 dependency set, the toolchain, and a handful of configure arguments — not
@@ -63,7 +63,7 @@ def configure_args(name: str, prefix: Path | None = None, target: Target | None 
     if name not in dependency_order(target):
         raise BuildError(f"{name} is not a {target.family} build input")
     # Static PIC libraries keep downstream linkage simple on both families
-    # (plan 5.2); neither family has a use for shared dependency libraries.
+    # Neither family has a use for shared dependency libraries.
     if name == "openssl":
         return ()  # the Configure target string carries the platform choice
     if target.is_macos:
@@ -206,7 +206,7 @@ def main() -> int:
         return 1
 
     if target.is_macos:
-        # The LTO gate runs before anything large is compiled (plan 5.1):
+        # The LTO gate runs before anything large is compiled:
         # a compiler/linker generation mismatch is cheap to detect here and
         # expensive to discover after an hour of OpenSSL.
         try:

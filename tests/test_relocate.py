@@ -1,4 +1,4 @@
-"""Structured post-install relocation edits (plan 6): rpaths and sysconfigdata."""
+"""Structured post-install relocation edits: rpaths and sysconfigdata."""
 from __future__ import annotations
 
 import shutil

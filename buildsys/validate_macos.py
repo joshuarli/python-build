@@ -1,4 +1,4 @@
-"""Runtime, ABI, and capability validation for the macOS distribution (plan 8).
+"""Runtime, ABI, and capability validation for the macOS distribution.
 
 Every check here runs against the *installed* tree, not the build tree, and
 exercises real behaviour rather than asserting a filename exists. The bias is
@@ -28,7 +28,7 @@ from .scope import probe_in_process, verify_exclusions
 
 # Load commands the payload may have, by prefix. Anything else is a leak:
 # either a build-machine path, or a library this project did not bundle and
-# the platform does not provide (plan Sections 1.5, 6).
+# the platform does not provide.
 PLATFORM_DEPENDENCY_PREFIXES = (
     "/usr/lib/",
     "/System/Library/",
@@ -72,7 +72,7 @@ def _python_code(python: Path, code: str) -> subprocess.CompletedProcess:
 
 
 def macho_checks(install: Path) -> dict:
-    """Inspect every shipped Mach-O (plan Section 8.1)."""
+    """Inspect every shipped Mach-O."""
     images = macho.find_machos(install)
     bad_arch, bad_deps, bad_signature, missing_version = [], [], [], []
     for image in images:
@@ -100,7 +100,7 @@ def macho_checks(install: Path) -> dict:
 
 
 def version_and_abi(python: Path, target) -> dict:
-    """The exact version, ABI, and package tags (plan Section 8.1)."""
+    """The exact version, ABI, and package tags."""
     code = """
         import json, sys, sysconfig, platform
         print(json.dumps({
@@ -152,7 +152,7 @@ def version_and_abi(python: Path, target) -> dict:
 
 
 def module_inventory(python: Path) -> dict:
-    """What imports, what does not, and what must not (plan Section 8.2)."""
+    """What imports, what does not, and what must not."""
     code = f"""
         import importlib, importlib.util, json
         required = {list(REQUIRED_MODULES)!r}
@@ -230,7 +230,7 @@ def capability_checks(python: Path) -> dict:
 
 
 def multiprocessing_checks(python: Path) -> dict:
-    """Real worker processes, not just `import multiprocessing` (plan 8.2).
+    """Real worker processes, not just `import multiprocessing`.
 
     `SemLock` is absent when POSIX semaphores are disabled at configure time,
     which happens silently if the probe cannot run — so this exercises a queue
@@ -270,7 +270,7 @@ def multiprocessing_checks(python: Path) -> dict:
 
 
 def terminal_checks(python: Path, install: Path) -> dict:
-    """Curses, panel, readline and terminfo after relocation (plan 8.2)."""
+    """Curses, panel, readline and terminfo after relocation."""
     code = """
         import json, os, sys
         out = {}
@@ -316,7 +316,7 @@ def terminal_checks(python: Path, install: Path) -> dict:
 
 
 def ctypes_checks(python: Path, workdir: Path) -> dict:
-    """ctypes in both directions, with no build tooling present (plan 8.1)."""
+    """ctypes in both directions, with no build tooling present."""
     helper_c = workdir / "helper.c"
     helper_dylib = workdir / "libfixture_helper.dylib"
     helper_c.write_text("int helper_answer(void) { return 7; }\n")
@@ -370,7 +370,7 @@ def ctypes_checks(python: Path, workdir: Path) -> dict:
 
 
 def tls_checks(python: Path, workdir: Path) -> dict:
-    """TLS verification in both directions against local fixtures (plan 6/8.2).
+    """TLS verification in both directions against local fixtures.
 
     Verification is never disabled to make a test pass: the success case
     establishes a *narrow* trust anchor containing exactly the fixture's own
@@ -475,7 +475,7 @@ def tls_checks(python: Path, workdir: Path) -> dict:
 
 
 def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
-    """Build and load a native extension with no installer present (plan 6/8.2).
+    """Build and load a native extension with no installer present.
 
     Flags come from the interpreter's own advertised configuration
     (`python3.14-config`), which is the contract a consumer actually uses —
@@ -546,7 +546,7 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
 
 
 def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
-    """A limited-API extension, which is the ABI-stability fixture (plan 8.1)."""
+    """A limited-API extension, which is the ABI-stability fixture."""
     config = install / "bin" / "python3.14-config"
     cflags = _run([str(config), "--cflags"])
     source = workdir / "abi3_ext.c"
@@ -591,7 +591,7 @@ def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
 
 
 def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
-    """Link and run a C embedder against the shipped libpython (plan 8.1)."""
+    """Link and run a C embedder against the shipped libpython."""
     config = install / "bin" / "python3.14-config"
     if not config.is_file():
         return {"ok": False, "error": "python3.14-config not installed"}

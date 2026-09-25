@@ -1,4 +1,4 @@
-"""Run the CPython regression suite and reconcile its failures (plan 8.2).
+"""Run the CPython regression suite and reconcile its failures.
 
 "Record narrow exclusions with observed causes. Do not carry over Alpine or
 PBS skip lists wholesale." So this module does not hand the suite a skip
@@ -65,7 +65,7 @@ CASE_EXCLUSIONS = (
                "the stdlib by compiled-in path and is unaffected",
         consequence="setting PYTHONEXECUTABLE to a non-existent path prevents "
                     "this interpreter from starting. Recorded as an envelope "
-                    "limitation of the relocatable layout (plan Section 6)",
+                    "limitation of the relocatable layout",
     ),
 )
 

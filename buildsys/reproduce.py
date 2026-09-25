@@ -1,4 +1,4 @@
-"""Compare two clean-build install trees for internal reproducibility (plan 8.3).
+"""Compare two clean-build install trees for internal reproducibility.
 
 Sharing immutable downloaded inputs is fine; this compares *build outputs*
 from two independent, cache-busted sealed builds, so any prior-object reuse

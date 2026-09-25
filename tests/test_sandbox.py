@@ -1,4 +1,4 @@
-"""Sealed-execution profile and environment (plan Section 7)."""
+"""Sealed-execution profile and environment."""
 from __future__ import annotations
 
 import sys

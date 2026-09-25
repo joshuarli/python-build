@@ -21,8 +21,8 @@ class CLITests(unittest.TestCase):
 
     def test_cross_arch_target_is_rejected_not_cross_compiled(self):
         # Every SUPPORTED target other than the one this test process is
-        # actually running as (plan Section 12: never cross-compile) must
-        # be rejected clearly rather than silently building/mislabeling the
+        # actual architecture must be rejected clearly rather than silently
+        # building/mislabeling the
         # wrong architecture. Picked dynamically so this test is correct
         # under QEMU-emulated aarch64 runs too, not just on an x86_64 host.
         foreign = next(t for t in TARGETS if t != native_target().triple)

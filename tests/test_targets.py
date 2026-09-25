@@ -1,4 +1,4 @@
-"""Target description registry (plan Section 12)."""
+"""Target description registry."""
 from __future__ import annotations
 
 import unittest

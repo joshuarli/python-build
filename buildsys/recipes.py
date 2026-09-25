@@ -1,7 +1,7 @@
 """Dependency recipes, shared by the Linux/musl and macOS targets.
 
 Each recipe builds into its own scratch directory and installs into a shared
-private prefix (plan 5.2). Static PIC libraries keep downstream linkage simple;
+private prefix. Static PIC libraries keep downstream linkage simple;
 the dependency closure is small enough that a plain list beats a scheduler.
 
 The build systems invoked here are the components' own — autotools, plain
@@ -37,7 +37,7 @@ class Toolchain:
     resolves and pins its linker explicitly, while the macOS toolchain is
     addressed by absolute paths in the verified LLVM prefix and deliberately
     leaves the linker to the clang driver, which supplies the libLTO matching the compiler's own
-    bitcode generation (plan Section 5.1).
+    bitcode generation.
     """
 
     cc: str = "clang"
@@ -62,7 +62,7 @@ class Toolchain:
 
     def env(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         env = dict(os.environ)
-        # Scrub influences that could contaminate the build (plan 7). The
+        # Scrub influences that could contaminate the build. The
         # DYLD_* family is macOS's equivalent of LD_PRELOAD/LD_LIBRARY_PATH:
         # an inherited value would substitute a different library at link or
         # run time without any change to the recipe.
@@ -99,7 +99,7 @@ class Toolchain:
             env["LD"] = self.ld
         if self.pkg_config_path:
             # Dependency detection must not find unrelated host packages
-            # (plan 5.2): the private prefix is the only search root.
+            # The private prefix is the only search root.
             env["PKG_CONFIG_PATH"] = self.pkg_config_path
             env["PKG_CONFIG_SYSROOT_DIR"] = ""
             if self.is_macos:

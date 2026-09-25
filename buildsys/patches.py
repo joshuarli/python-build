@@ -1,4 +1,4 @@
-"""Apply the project's small selected patch set (plan 5.4).
+"""Apply the project's small selected patch set.
 
 Every patch here carries a sibling `.md` provenance file: upstream source
 and version, origin/license, explanation, scope, and regression test.

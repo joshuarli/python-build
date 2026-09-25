@@ -1,4 +1,4 @@
-"""Build the locked CPython release against the private prefix (plan 5.3).
+"""Build the locked CPython release against the private prefix.
 
 The staged installation lands in build/stage; the relocation decision
 (destining a neutral prefix rather than the checkout) belongs to packaging.
@@ -43,7 +43,7 @@ JOBS = str(resolve_build_jobs())
 
 
 def verify_deployment_floor(install: Path, target: Target) -> dict:
-    """Every shipped image must declare the target's macOS floor (plan 5.1).
+    """Every shipped image must declare the target's macOS floor.
 
     An unset `-mmacosx-version-min` silently inherits the SDK's version, which
     is newer than the declared floor and would make the artifact refuse to run

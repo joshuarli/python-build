@@ -1,7 +1,7 @@
 """Order the dependency build, honoring inter-library configure needs.
 
 The two families build genuinely different sets, because macOS supplies
-several of these libraries as part of the platform (plan Section 5.2) rather
+several of these libraries as part of the platform rather
 than bundling them:
 
   linux-musl  builds all thirteen; the Alpine container has no equivalent
@@ -43,8 +43,8 @@ LINUX_DEPENDENCY_ORDER: tuple[str, ...] = (
 # first) with the slowest — OpenSSL — last.
 #
 # The set is not the Linux one minus exclusions; it was derived from the
-# pinned reference's own Mach-O load commands (plan 5.2 requires confirming
-# the split against the artifact rather than trusting the summary table). The
+# pinned reference's own Mach-O load commands; the split is confirmed against
+# the artifact rather than trusting the summary table. The
 # reference links `/usr/lib/libncurses.5.4.dylib`, `/usr/lib/libpanel.5.4.dylib`,
 # `/usr/lib/libz.1.dylib` and `/usr/lib/libedit.3.dylib`, and shows no
 # libexpat load command — so ncurses and zlib and libedit are the platform's,

@@ -1,4 +1,4 @@
-"""Two-clean-build comparison logic (plan 8.3)."""
+"""Two-clean-build comparison logic."""
 from __future__ import annotations
 
 import tempfile

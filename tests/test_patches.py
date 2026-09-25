@@ -1,4 +1,4 @@
-"""Patch discipline (plan 5.4): provenance, applicability, and effect."""
+"""Patch discipline: provenance, applicability, and effect."""
 from __future__ import annotations
 
 import shutil

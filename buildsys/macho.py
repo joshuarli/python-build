@@ -1,4 +1,4 @@
-"""Mach-O inspection for the macOS target (plan Sections 6, 8.1).
+"""Mach-O inspection for the macOS target.
 
 Everything the macOS build asserts about a shipped binary has to come from
 its Mach-O header and load commands, not from a compiler banner or a string
@@ -145,7 +145,7 @@ def _magic_of(path: Path) -> bytes:
     if magic in _FAT_MAGIC:
         raise MachOError(
             f"{path}: fat/universal Mach-O is out of scope; this project ships "
-            f"a single arm64 slice (plan Section 1.4)"
+            f"a single arm64 slice"
         )
     return magic
 
@@ -291,7 +291,7 @@ def inspect(path: Path) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Load-command edits (plan Section 6).
+# Load-command edits.
 #
 # Every edit here invalidates the binary's code signature. On Apple Silicon a
 # Mach-O without a valid signature does not launch at all, so `sign_adhoc`

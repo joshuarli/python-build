@@ -3,7 +3,7 @@
 #
 # No --platform is pinned here: `docker build --platform linux/amd64|linux/arm64`
 # selects which verified child image this resolves to out of the single
-# pinned manifest-list digest below (plan Section 12 — same recipes, same
+# pinned manifest-list digest below — same recipes, same
 # dependency graph, only target/toolchain data changes per architecture).
 # Defaults to the daemon's native platform when --platform is omitted.
 FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS toolchain
@@ -45,7 +45,7 @@ WORKDIR /work
 # Executed during image construction, using only image toolchain and musl.
 # The ISA baseline is chosen from `uname -m` (i.e. from the --platform this
 # stage actually resolved to), not assumed: x86_64 gets an explicit -march,
-# aarch64 uses Alpine's own armv8-a baseline (plan Section 12).
+# aarch64 uses Alpine's own armv8-a baseline.
 RUN case "$(uname -m)" in \
         x86_64) MARCH="-march=x86-64" ;; \
         aarch64) MARCH="-march=armv8-a" ;; \
@@ -64,7 +64,7 @@ RUN case "$(uname -m)" in \
     && python3 --version \
     && rm /tmp/lto-library.c /tmp/lto-main.c /tmp/lto-library.o /tmp/liblto.a /tmp/lto-smoke
 
-# NON-HERMETIC: convenience stage for rapid iteration (plan 7). It has no
+# NON-HERMETIC: convenience stage for rapid iteration. It has no
 # network restriction of its own; a `docker run --network none` container
 # from this image is a dev-loop shortcut, not qualification evidence. Only
 # the `sealed` stage below (built entirely inside RUN --network=none) is.
@@ -77,7 +77,7 @@ COPY --chown=builder:builder tests/ /work/tests/
 COPY --chown=builder:builder sources.lock.json /work/sources.lock.json
 CMD ["python3", "-m", "unittest", "discover", "-s", "tests"]
 
-# SEALED qualification (plan 7, M1c): the dependency and interpreter build
+# SEALED qualification: the dependency and interpreter build
 # runs entirely inside one BuildKit RUN with no network access at all,
 # using only inputs already verified against sources.lock.json by a prior
 # `python3 build.py fetch` (acquisition is a separate, online process over
@@ -98,7 +98,7 @@ COPY --chown=builder:builder .cache/objects/ /work/.cache/objects/
 RUN --network=none python3 build/deps.py \
  && python3 build/cpython.py
 
-# Minimal runtime (plan 8.2): only the relocated install tree, no compiler
+# Minimal runtime: only the relocated install tree, no compiler
 # or dev packages, so accidental reliance on build-root tooling cannot pass
 # here. The smoke import below runs during the image build itself, so a
 # regression fails `docker build`, not just a separately-remembered test.

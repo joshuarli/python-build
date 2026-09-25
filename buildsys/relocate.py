@@ -1,11 +1,9 @@
-"""Post-install relocation fixups for the staged CPython tree (plan 6).
+"""Post-install relocation fixups for the staged CPython tree.
 
 CPython's own install produces two things that cannot survive into a
 relocatable artifact: ELF binaries with no runtime search path to their
 sibling libpython, and a sysconfigdata module whose LDFLAGS/CFLAGS/LDSHARED
-still name the private builder-only dependency prefix (plan Section 6:
-"Consumer compiler settings must not refer to the private dependency
-prefix ... that only existed inside the builder"). Both are fixed here as
+still name the private builder-only dependency prefix. Both are fixed here as
 structured edits over the installed tree.
 
 $ORIGIN rpaths are set with patchelf rather than through configure's
@@ -526,7 +524,7 @@ def relocate(
 
 
 # --------------------------------------------------------------------------
-# macOS relocation (plan Section 6).
+# macOS relocation.
 #
 # The problem is the same — the interpreter must find its sibling libpython
 # after the tree moves — but Mach-O records it differently. There is no
