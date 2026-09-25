@@ -13,6 +13,13 @@
       "status": "success",
       "stdout_sha256": "74f5e5cd2687c2626657790cc6ed46815523183e1c987f6b4996d6b6659fcdda",
       "time_log": "        0.08 real         0.05 user         0.01 sys\n            39960576  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3106  page reclaims\n                   4  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   3  voluntary context switches\n                 323  involuntary context switches\n           548704978  instructions retired\n           239103174  cycles elapsed\n            26853880  peak memory footprint\n"
+    },
+    {
+      "command": "PYTHONPATH=/private/tmp/python-build-exp-zipfile-profile-20260925a /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -B rust-cpython/work/zipfile-profile-20260925a/warm-profile.py rust-cpython/work/zipfile-profile-20260925a/attempt-003.prof",
+      "id": "003",
+      "status": "success; one warm complete task before four profiled iterations",
+      "stdout_sha256": "2f55dd11e93b416d3031a4a473bcdddfd685eabb20e6534ab310f0b5d1a58182",
+      "time_log": "        0.09 real         0.06 user         0.02 sys\n            43450368  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3322  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 360  involuntary context switches\n           614614078  instructions retired\n           252840201  cycles elapsed\n            30343672  peak memory footprint\n"
     }
   ],
   "base_commit": "f8996445bb5f86cfba6f70e54d57ae3a385b40f6",
@@ -28,7 +35,11 @@
       4.04,
       4.66
     ],
-    "pre_run_swap": "total = 1024.00M used = 243.88M free = 780.12M (encrypted)"
+    "pre_run_swap": "total = 1024.00M used = 243.88M free = 780.12M (encrypted)",
+    "warm_post_run_swap": "total = 1024.00M used = 243.88M free = 780.12M (encrypted)",
+    "warm_pre_run_free_pages": 159183,
+    "warm_pre_run_heavy_benchmark_or_compiler_processes": 0,
+    "warm_pre_run_swap": "total = 1024.00M used = 243.88M free = 780.12M (encrypted)"
   },
   "interpreter_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
   "profile": {
@@ -1944,6 +1955,840 @@
   },
   "profiled_interpreter": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
   "resource_method": "/usr/bin/time -l around one direct Python child per attempt; no subprocesses in the selected workload; user and system CPU cover its command tree. peak RSS and swaps are kernel-reported for that child; process count is 1 by workload and command inspection, not a sampled peak.",
+  "warm_profile": {
+    "all_rows": [
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.01366875,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "zip_read_wheel",
+        "line": 196,
+        "primitive_calls": 1,
+        "self_seconds": 0.00044120400000000005
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.006563378000000001,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "read",
+        "line": 2162,
+        "primitive_calls": 268,
+        "self_seconds": 0.00021686100000000002
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.003755417,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_wheel_archive",
+        "line": 182,
+        "primitive_calls": 1,
+        "self_seconds": 3.2627000000000005e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.0033330950000000003,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "read",
+        "line": 1095,
+        "primitive_calls": 268,
+        "self_seconds": 0.00011687600000000001
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.003216219,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_read1",
+        "line": 1177,
+        "primitive_calls": 268,
+        "self_seconds": 0.00045120500000000004
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.0025772060000000003,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "open",
+        "line": 2168,
+        "primitive_calls": 268,
+        "self_seconds": 0.000529919
+      },
+      {
+        "calls": 2,
+        "cumulative_seconds": 0.002457042,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_payload",
+        "line": 38,
+        "primitive_calls": 2,
+        "self_seconds": 1.7e-05
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.002423792,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/random.py",
+        "function": "randbytes",
+        "line": 287,
+        "primitive_calls": 1,
+        "self_seconds": 8.584000000000001e-06
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.001430501,
+        "file": "~",
+        "function": "<method 'decompress' of 'zlib.Decompress' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 0.001430501
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 0.001406041,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__init__",
+        "line": 1898,
+        "primitive_calls": 4,
+        "self_seconds": 2.0999e-05
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.001401083,
+        "file": "~",
+        "function": "<method 'getrandbits' of '_random.Random' objects>",
+        "line": 0,
+        "primitive_calls": 1,
+        "self_seconds": 0.001401083
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 0.0013657510000000001,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_RealGetContents",
+        "line": 2014,
+        "primitive_calls": 4,
+        "self_seconds": 0.000576839
+      },
+      {
+        "calls": 804,
+        "cumulative_seconds": 0.0012711830000000002,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "read",
+        "line": 932,
+        "primitive_calls": 804,
+        "self_seconds": 0.000702021
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.001225458,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_fixed_zip",
+        "line": 84,
+        "primitive_calls": 1,
+        "self_seconds": 0.000439511
+      },
+      {
+        "calls": 135,
+        "cumulative_seconds": 0.001027885,
+        "file": "~",
+        "function": "<method 'to_bytes' of 'int' objects>",
+        "line": 0,
+        "primitive_calls": 135,
+        "self_seconds": 0.001027885
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.000969792,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_digest",
+        "line": 66,
+        "primitive_calls": 1,
+        "self_seconds": 6.2338e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.0008759050000000001,
+        "file": "~",
+        "function": "<method 'update' of '_hashlib.HASH' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 0.0008759050000000001
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.0007809620000000001,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_read2",
+        "line": 1213,
+        "primitive_calls": 268,
+        "self_seconds": 0.000199676
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.000671558,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__init__",
+        "line": 984,
+        "primitive_calls": 268,
+        "self_seconds": 0.000400536
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.000587363,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_read_local_file_header",
+        "line": 421,
+        "primitive_calls": 268,
+        "self_seconds": 0.000130483
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 0.000497375,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_fixed_input_digest",
+        "line": 76,
+        "primitive_calls": 1,
+        "self_seconds": 6.542e-06
+      },
+      {
+        "calls": 66,
+        "cumulative_seconds": 0.000490038,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_stored_zlib_stream",
+        "line": 44,
+        "primitive_calls": 66,
+        "self_seconds": 0.00027816
+      },
+      {
+        "calls": 2,
+        "cumulative_seconds": 0.00048591700000000004,
+        "file": "~",
+        "function": "<built-in method _hashlib.openssl_sha256>",
+        "line": 0,
+        "primitive_calls": 2,
+        "self_seconds": 0.00048591700000000004
+      },
+      {
+        "calls": 871,
+        "cumulative_seconds": 0.000480235,
+        "file": "~",
+        "function": "<built-in method zlib.crc32>",
+        "line": 0,
+        "primitive_calls": 871,
+        "self_seconds": 0.000480235
+      },
+      {
+        "calls": 536,
+        "cumulative_seconds": 0.000426852,
+        "file": "~",
+        "function": "<method 'decode' of 'bytes' objects>",
+        "line": 0,
+        "primitive_calls": 536,
+        "self_seconds": 0.000240587
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.00040014,
+        "file": "~",
+        "function": "<method '__exit__' of '_io._IOBase' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 9.647e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.000397558,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_update_crc",
+        "line": 1130,
+        "primitive_calls": 268,
+        "self_seconds": 7.927100000000001e-05
+      },
+      {
+        "calls": 1888,
+        "cumulative_seconds": 0.00031403800000000004,
+        "file": "~",
+        "function": "<method 'read' of '_io.BytesIO' objects>",
+        "line": 0,
+        "primitive_calls": 1888,
+        "self_seconds": 0.00031403800000000004
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.00030367,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "close",
+        "line": 1229,
+        "primitive_calls": 268,
+        "self_seconds": 0.00016199400000000002
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.00020752700000000002,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__init__",
+        "line": 458,
+        "primitive_calls": 268,
+        "self_seconds": 7.5807e-05
+      },
+      {
+        "calls": 567,
+        "cumulative_seconds": 0.000205293,
+        "file": "~",
+        "function": "<method 'extend' of 'bytearray' objects>",
+        "line": 0,
+        "primitive_calls": 567,
+        "self_seconds": 0.000205293
+      },
+      {
+        "calls": 3083,
+        "cumulative_seconds": 0.000199759,
+        "file": "~",
+        "function": "<built-in method builtins.len>",
+        "line": 0,
+        "primitive_calls": 3083,
+        "self_seconds": 0.000199759
+      },
+      {
+        "calls": 536,
+        "cumulative_seconds": 0.00018626500000000002,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/encodings/cp437.py",
+        "function": "decode",
+        "line": 14,
+        "primitive_calls": 536,
+        "self_seconds": 9.7683e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.000176008,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_get_decompressor",
+        "line": 887,
+        "primitive_calls": 268,
+        "self_seconds": 9.5538e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 0.00013172000000000002,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_sanitize_filename",
+        "line": 403,
+        "primitive_calls": 268,
+        "self_seconds": 8.6141e-05
+      },
+      {
+        "calls": 544,
+        "cumulative_seconds": 0.00010512600000000001,
+        "file": "~",
+        "function": "<built-in method _struct.unpack>",
+        "line": 0,
+        "primitive_calls": 544,
+        "self_seconds": 0.00010512600000000001
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 9.907400000000001e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "getinfo",
+        "line": 2126,
+        "primitive_calls": 268,
+        "self_seconds": 6.2445e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 9.8238e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "close",
+        "line": 943,
+        "primitive_calls": 268,
+        "self_seconds": 7.1106e-05
+      },
+      {
+        "calls": 536,
+        "cumulative_seconds": 8.8582e-05,
+        "file": "~",
+        "function": "<built-in method _codecs.charmap_decode>",
+        "line": 0,
+        "primitive_calls": 536,
+        "self_seconds": 8.8582e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 7.8281e-05,
+        "file": "~",
+        "function": "<method 'flush' of 'zlib.Decompress' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 7.8281e-05
+      },
+      {
+        "calls": 804,
+        "cumulative_seconds": 7.705300000000001e-05,
+        "file": "~",
+        "function": "<method '__enter__' of '_thread.RLock' objects>",
+        "line": 0,
+        "primitive_calls": 804,
+        "self_seconds": 7.705300000000001e-05
+      },
+      {
+        "calls": 820,
+        "cumulative_seconds": 7.5509e-05,
+        "file": "~",
+        "function": "<method 'seek' of '_io.BytesIO' objects>",
+        "line": 0,
+        "primitive_calls": 820,
+        "self_seconds": 7.5509e-05
+      },
+      {
+        "calls": 808,
+        "cumulative_seconds": 7.532900000000001e-05,
+        "file": "~",
+        "function": "<method 'tell' of '_io.BytesIO' objects>",
+        "line": 0,
+        "primitive_calls": 808,
+        "self_seconds": 7.532900000000001e-05
+      },
+      {
+        "calls": 66,
+        "cumulative_seconds": 7.420900000000001e-05,
+        "file": "~",
+        "function": "<built-in method zlib.adler32>",
+        "line": 0,
+        "primitive_calls": 66,
+        "self_seconds": 7.420900000000001e-05
+      },
+      {
+        "calls": 804,
+        "cumulative_seconds": 6.992000000000001e-05,
+        "file": "~",
+        "function": "<method '__exit__' of '_thread.RLock' objects>",
+        "line": 0,
+        "primitive_calls": 804,
+        "self_seconds": 6.992000000000001e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 6.164e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_decodeExtra",
+        "line": 586,
+        "primitive_calls": 268,
+        "self_seconds": 4.4729000000000005e-05
+      },
+      {
+        "calls": 804,
+        "cumulative_seconds": 5.7849e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "<lambda>",
+        "line": 2215,
+        "primitive_calls": 804,
+        "self_seconds": 5.7849e-05
+      },
+      {
+        "calls": 283,
+        "cumulative_seconds": 5.1839e-05,
+        "file": "~",
+        "function": "<built-in method _struct.pack>",
+        "line": 0,
+        "primitive_calls": 283,
+        "self_seconds": 5.1839e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 5.1288e-05,
+        "file": "~",
+        "function": "<built-in method zlib.decompressobj>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 5.1288e-05
+      },
+      {
+        "calls": 536,
+        "cumulative_seconds": 4.7997e-05,
+        "file": "~",
+        "function": "<built-in method builtins.max>",
+        "line": 0,
+        "primitive_calls": 536,
+        "self_seconds": 4.7997e-05
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 4.725e-05,
+        "file": "~",
+        "function": "<built-in method builtins.sorted>",
+        "line": 0,
+        "primitive_calls": 4,
+        "self_seconds": 3.3480000000000005e-05
+      },
+      {
+        "calls": 278,
+        "cumulative_seconds": 4.5023000000000006e-05,
+        "file": "~",
+        "function": "<built-in method builtins.isinstance>",
+        "line": 0,
+        "primitive_calls": 278,
+        "self_seconds": 3.7482000000000005e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 4.3438e-05,
+        "file": "~",
+        "function": "<function ZipExtFile.close at 0x109a592d0>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 4.3438e-05
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 4.0291000000000004e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_EndRecData",
+        "line": 344,
+        "primitive_calls": 4,
+        "self_seconds": 2.6497e-05
+      },
+      {
+        "calls": 64,
+        "cumulative_seconds": 4.029e-05,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "module_source",
+        "line": 184,
+        "primitive_calls": 64,
+        "self_seconds": 3.0586e-05
+      },
+      {
+        "calls": 536,
+        "cumulative_seconds": 3.9848e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "tell",
+        "line": 916,
+        "primitive_calls": 536,
+        "self_seconds": 3.9848e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 3.6629000000000005e-05,
+        "file": "~",
+        "function": "<method 'get' of 'dict' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 3.6629000000000005e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 3.6076000000000005e-05,
+        "file": "~",
+        "function": "<method '__enter__' of '_io._IOBase' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 3.6076000000000005e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 3.5246e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__init__",
+        "line": 908,
+        "primitive_calls": 268,
+        "self_seconds": 3.5246e-05
+      },
+      {
+        "calls": 276,
+        "cumulative_seconds": 3.3981000000000006e-05,
+        "file": "~",
+        "function": "<method 'append' of 'list' objects>",
+        "line": 0,
+        "primitive_calls": 276,
+        "self_seconds": 3.3981000000000006e-05
+      },
+      {
+        "calls": 272,
+        "cumulative_seconds": 2.9724000000000002e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_check_compression",
+        "line": 846,
+        "primitive_calls": 272,
+        "self_seconds": 2.9724000000000002e-05
+      },
+      {
+        "calls": 272,
+        "cumulative_seconds": 2.784e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_fpclose",
+        "line": 2739,
+        "primitive_calls": 272,
+        "self_seconds": 2.784e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 2.7458e-05,
+        "file": "~",
+        "function": "<built-in method builtins.hasattr>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 2.7458e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 2.6872000000000003e-05,
+        "file": "~",
+        "function": "<built-in method builtins.min>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 2.6872000000000003e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 2.6088e-05,
+        "file": "~",
+        "function": "<method 'find' of 'str' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 2.6088e-05
+      },
+      {
+        "calls": 198,
+        "cumulative_seconds": 2.4051e-05,
+        "file": "~",
+        "function": "<method 'encode' of 'str' objects>",
+        "line": 0,
+        "primitive_calls": 198,
+        "self_seconds": 2.4051e-05
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 2.2203e-05,
+        "file": "~",
+        "function": "<method 'seekable' of '_io.BytesIO' objects>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 2.2203e-05
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 1.9917000000000003e-05,
+        "file": "~",
+        "function": "<built-in method builtins.sum>",
+        "line": 0,
+        "primitive_calls": 1,
+        "self_seconds": 7.039000000000001e-06
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 1.9491e-05,
+        "file": "~",
+        "function": "<built-in method builtins.chr>",
+        "line": 0,
+        "primitive_calls": 268,
+        "self_seconds": 1.9491e-05
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 1.6250000000000002e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/random.py",
+        "function": "__init__",
+        "line": 119,
+        "primitive_calls": 1,
+        "self_seconds": 2.542e-06
+      },
+      {
+        "calls": 268,
+        "cumulative_seconds": 1.377e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "<lambda>",
+        "line": 2088,
+        "primitive_calls": 268,
+        "self_seconds": 1.377e-05
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 1.3708000000000002e-05,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/random.py",
+        "function": "seed",
+        "line": 128,
+        "primitive_calls": 1,
+        "self_seconds": 6.1230000000000005e-06
+      },
+      {
+        "calls": 68,
+        "cumulative_seconds": 1.2878000000000001e-05,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "<genexpr>",
+        "line": 211,
+        "primitive_calls": 68,
+        "self_seconds": 9.669e-06
+      },
+      {
+        "calls": 82,
+        "cumulative_seconds": 9.952e-06,
+        "file": "~",
+        "function": "<method 'append' of 'bytearray' objects>",
+        "line": 0,
+        "primitive_calls": 82,
+        "self_seconds": 9.952e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 8.125000000000001e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__exit__",
+        "line": 1997,
+        "primitive_calls": 4,
+        "self_seconds": 3.1670000000000003e-06
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 8.000000000000001e-06,
+        "file": "~",
+        "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+        "line": 0,
+        "primitive_calls": 1,
+        "self_seconds": 8.000000000000001e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 7.541e-06,
+        "file": "<frozen abc>",
+        "function": "__instancecheck__",
+        "line": 138,
+        "primitive_calls": 4,
+        "self_seconds": 2.3310000000000002e-06
+      },
+      {
+        "calls": 2,
+        "cumulative_seconds": 7.5e-06,
+        "file": "~",
+        "function": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+        "line": 0,
+        "primitive_calls": 2,
+        "self_seconds": 7.5e-06
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 7.209000000000001e-06,
+        "file": "~",
+        "function": "<function Random.seed at 0x10991c880>",
+        "line": 0,
+        "primitive_calls": 1,
+        "self_seconds": 7.209000000000001e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 6.9570000000000005e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_EndRecData64",
+        "line": 284,
+        "primitive_calls": 4,
+        "self_seconds": 4.456e-06
+      },
+      {
+        "calls": 8,
+        "cumulative_seconds": 5.3330000000000004e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "close",
+        "line": 2621,
+        "primitive_calls": 8,
+        "self_seconds": 4.625000000000001e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 5.21e-06,
+        "file": "~",
+        "function": "<built-in method _abc._abc_instancecheck>",
+        "line": 0,
+        "primitive_calls": 4,
+        "self_seconds": 5.21e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 5.083e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "namelist",
+        "line": 2092,
+        "primitive_calls": 4,
+        "self_seconds": 5.083e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 2.0000000000000003e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/threading.py",
+        "function": "RLock",
+        "line": 127,
+        "primitive_calls": 4,
+        "self_seconds": 2.0000000000000003e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 1.666e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__del__",
+        "line": 2617,
+        "primitive_calls": 4,
+        "self_seconds": 1.291e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 1.3750000000000002e-06,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "_handle_prepended_data",
+        "line": 271,
+        "primitive_calls": 4,
+        "self_seconds": 1.3750000000000002e-06
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 9.160000000000001e-07,
+        "file": "~",
+        "function": "<built-in method builtins.getattr>",
+        "line": 0,
+        "primitive_calls": 4,
+        "self_seconds": 9.160000000000001e-07
+      },
+      {
+        "calls": 1,
+        "cumulative_seconds": 5.84e-07,
+        "file": "/private/tmp/python-build-exp-zipfile-profile-20260925a/benchmarks/workloads/zlib.py",
+        "function": "_result",
+        "line": 115,
+        "primitive_calls": 1,
+        "self_seconds": 5.84e-07
+      },
+      {
+        "calls": 2,
+        "cumulative_seconds": 2.9300000000000004e-07,
+        "file": "~",
+        "function": "<built-in method time.perf_counter>",
+        "line": 0,
+        "primitive_calls": 2,
+        "self_seconds": 2.9300000000000004e-07
+      },
+      {
+        "calls": 4,
+        "cumulative_seconds": 2.5000000000000004e-07,
+        "file": "/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/zipfile/__init__.py",
+        "function": "__enter__",
+        "line": 1994,
+        "primitive_calls": 4,
+        "self_seconds": 2.5000000000000004e-07
+      }
+    ],
+    "directory_cumulative_fraction_of_root": 0.09991776863283036,
+    "directory_self_fraction_of_root": 0.04220129858253315,
+    "local_binary_profile": "rust-cpython/work/zipfile-profile-20260925a/attempt-003.prof",
+    "local_binary_profile_sha256": "1b5f7e371b05cb7ba167e0b3c8e1994a48f4a944ac03f982e34b86cda6776e3c",
+    "local_runner_sha256": "0dfc4feb65f642369b17c91cce2b2b029bd8fddcdb94682b63cf1cbad908872b",
+    "profiled_result": {
+      "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+      "elapsed_seconds": 0.008411207934841514,
+      "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+      "operation_count": 8413264
+    },
+    "root_cumulative_seconds": 0.01366875,
+    "scope": "one complete zip_read_wheel(1) call with fixed input and output checks before enabling cProfile, then the unchanged registered zip_read_wheel(4) call profiled with the same checks",
+    "total_self_seconds": 0.013677125000000002,
+    "warm_result": {
+      "digest": "e1b97843b19af113cbb090fc676658ff5620f4896a5c1bb8f424ff75ac186071",
+      "elapsed_seconds": 0.001951041049323976,
+      "input_digest": "216b735da6639be9f3f2b60e2973ca8f41539161648b74d5547d68877a713df7",
+      "operation_count": 2103316
+    }
+  },
   "workload": {
     "iterations": 4,
     "name": "zip_read_wheel",
