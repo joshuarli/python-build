@@ -193,6 +193,9 @@ child, and threaded `malloc` requests with exact sizes. It still lacks broad
 allocator-API, abnormal-exit, phase-boundary, and complete process-tree
 coverage, so it is a diagnostic rather than an allocation benchmark gate;
 see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/mac-malloc-interpose-feasibility-20260924.md).
+The Mach per-page object reference count also cannot establish USS or PSS;
+the bounded diagnostic route and stop conditions are in
+[`mac-memory-next-method-20260925.md`](rust-cpython/experiments/mac-memory-next-method-20260925.md).
 The local `rustybench` now offers a Rust `Allocator`/`GlobalAlloc` profiler
 under its Rust 1.100 toolchain. It may explain allocation changes inside a
 focused Rust kernel, but cannot count CPython's C allocator activity or
@@ -265,6 +268,14 @@ as a separate baseline change.
   of the current hybrid until the regression is understood and removed; see
   [`tarfile-hybrid-breadth-20260925.md`](rust-cpython/experiments/tarfile-hybrid-breadth-20260925.md)
   and [`source-tar-hybrid-20260925.md`](rust-cpython/experiments/source-tar-hybrid-20260925.md).
+- An optional one-shot split routes only public `zlib.decompress` to Rust.
+  Five complete-process pairs reduced sustained direct decode wall/CPU by
+  36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
+  Seven further pairs on a synthetic SQLite task with many small, highly
+  compressible BLOBs reduced wall/CPU by 10.8%/10.9%. The extension adds
+  1.59 MB unstripped, and memory readings do not establish parity. See
+  [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md)
+  and [`zlib-oneshot-smallblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-smallblobs-20260925.md).
 - Cold ZIP import now records directly reaped child CPU separately from the
   root's `wait4` usage. Earlier cold-import CPU data remain root-only; see
   [`child-cpu-accounting-20260924.md`](rust-cpython/experiments/child-cpu-accounting-20260924.md).
@@ -281,8 +292,9 @@ as a separate baseline change.
   [`difflib-kernel-probe.md`](rust-cpython/experiments/difflib-kernel-probe.md).
 - `tomllib` remains a possible whole-document target, but a short profile of
   small local files does not establish an application bottleneck. The
-  [`tomllib-target.md`](rust-cpython/experiments/tomllib-target.md) report
-  defers a native parser until complete public workloads justify its cost.
+  [`tomllib-boundary-20260925.md`](rust-cpython/experiments/tomllib-boundary-20260925.md)
+  report narrows a possible guarded boundary and defers a native parser until
+  a representative complete metadata task justifies its cost.
 - A package-free catalog export workload now checks one complete 512-record,
   259,349-byte JSON document per operation. The pinned interpreter completed
   300 exports in 1.33 process CPU seconds. A separate instrumented profile
@@ -444,9 +456,12 @@ as a separate baseline change.
   sustained one-shot decode. Gzip, the real source-tar read, and streaming
   remained within self-noise. The unstripped zlib module is 1.59 MB larger
   than platform control, and the three-pair memory readings changed sign.
-  Keep the split experimental while checking small-call application breadth,
+  A separate synthetic SQLite workload with many small, highly compressible
+  BLOBs improved complete-process wall/CPU by 10.8%/10.9% across seven pairs.
+  Keep the split experimental while checking less compressible inputs,
   semantic edges, and upstream-matched memory; see
-  [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md).
+  [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md)
+  and [`zlib-oneshot-smallblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-smallblobs-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.

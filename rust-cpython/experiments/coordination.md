@@ -1,5 +1,17 @@
 # Rust-for-CPython experiment lanes
 
+## Mixed-input follow-up (base `0da49c3`)
+
+The one-shot zlib mixed-BLOB comparison uses
+`/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a`, branch
+`exp/zlib-oneshot-mixedblobs-20260925a`. It owns only a new workload,
+report, compact raw data, and ignored scratch. Its question is whether the
+small-BLOB gain survives a fixture spanning highly compressible, modestly
+compressible, and nearly incompressible 1–4 KiB values. It is the only active
+timing lane, with a 120-second kernel CPU and 1 GiB per-process RSS cap.
+The coordinator will review its input distribution and self-noise before
+deciding whether the one-shot route earns further size and memory work.
+
 ## Current cycle (bases `1b0507a` and `c2baee4`)
 
 The one-shot zlib small-BLOB application comparison uses
@@ -30,6 +42,22 @@ zlib lane is timing. Both static scouts have no substantial-command budget;
 the coordinator must authorize a separately measured probe before running
 one. Integration order is the zlib result, then the nonoverlapping scouts,
 followed by updates to the shared objective and ranked map.
+
+The zlib lane completed seven self and seven candidate pairs. Its synthetic,
+highly compressible 1–4 KiB SQLite BLOB task improved complete-process
+wall/CPU by 10.83%/10.89%, beyond self-noise; memory remained inconclusive.
+All 39 successful child attempts had matching output digests. The two
+controllers, including a retained failed calibration guard, used 35.10
+kernel CPU seconds, at most 35.1 MB per-process RSS, and zero swaps. See
+`zlib-oneshot-smallblobs-20260925.md`.
+
+The `tomllib` scout found a plausible single-call boundary for exact `str`
+and default `float`, but the available metadata corpus is too small to
+justify a parser. It ran no substantial commands; see
+`tomllib-boundary-20260925.md`. The memory scout rejected Mach per-page
+object reference counts as USS/PSS evidence and specified a diagnostic-only
+submap probe. It also ran no substantial commands; see
+`mac-memory-next-method-20260925.md`.
 
 ## Fifteenth cycle (base `53364e2`)
 
