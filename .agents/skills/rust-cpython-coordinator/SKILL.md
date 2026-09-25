@@ -34,9 +34,12 @@ are complete.
   When branches add crates, merge their exact manifest constraints and
   regenerate one lockfile for the combined source; inspect the changed
   package set before the integrated fetch and build.
-- Share only verified immutable input cache bytes, for example by linking
-  each worktree's ignored `.cache` to the warmed primary cache. Keep build,
-  stage, Cargo target, logs, and test output private to each worktree.
+- Share the verified source blobs by linking each worktree's ignored
+  `.cache/objects` to the warmed primary cache. Copy the verified LLVM
+  toolchain into each worktree's `.cache/llvm`: the doctor check requires
+  clang's resource directory to resolve under that worktree's prefix, so
+  linking all of `.cache` fails. Keep build, stage, Cargo target, logs, and
+  test output private to each worktree.
   Run `python3 rust-cpython/build.py fetch` once before the first build in
   each new worktree; it creates that worktree's private Cargo wrapper as
   well as caching the locked crates.

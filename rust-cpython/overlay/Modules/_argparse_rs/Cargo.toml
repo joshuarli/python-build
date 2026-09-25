@@ -1,0 +1,17 @@
+[package]
+name = "_argparse_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "MIT"
+
+[dependencies]
+clap_lex = "=1.1.1"
+cpython-sys = { path = "../cpython-sys" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_argparse_rs"
+crate-type = ["cdylib", "rlib"]

@@ -1,7 +1,10 @@
 *shared*
+_argparse_rs _argparse_rs/Cargo.toml _argparse_rs/src/lib.rs
 _bz2 _bz2module.c -DPYTHON_RUST_BZ2
 _bisect_rs _bisect_rs/Cargo.toml _bisect_rs/src/lib.rs
+_binascii_rs _binascii_rs/Cargo.toml _binascii_rs/src/lib.rs
 _bz2_rs _bz2_rs/Cargo.toml _bz2_rs/src/lib.rs
+_collections_rs _collections_rs/Cargo.toml _collections_rs/src/lib.rs
 _configparser_rs _configparser_rs/Cargo.toml _configparser_rs/src/lib.rs
 _contextlib_rs _contextlib_rs/Cargo.toml _contextlib_rs/src/lib.rs
 _csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs
@@ -19,13 +22,16 @@ _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs
 _lzma_rs _lzma_rs/Cargo.toml _lzma_rs/src/lib.rs
 _plistlib_rs _plistlib_rs/Cargo.toml _plistlib_rs/src/lib.rs
+_posixpath_rs _posixpath_rs/Cargo.toml _posixpath_rs/src/lib.rs
 _shlex_rs _shlex_rs/Cargo.toml _shlex_rs/src/lib.rs
 _statistics_rs _statistics_rs/Cargo.toml _statistics_rs/src/lib.rs
 _strptime_rs _strptime_rs/Cargo.toml _strptime_rs/src/lib.rs
 _struct_rs _struct_rs/Cargo.toml _struct_rs/src/lib.rs
+_tempfile_rs _tempfile_rs/Cargo.toml _tempfile_rs/src/lib.rs
 _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs
 _tomllib_rs _tomllib_rs/Cargo.toml _tomllib_rs/src/lib.rs
 _urllib_parse_rs _urllib_parse_rs/Cargo.toml _urllib_parse_rs/src/lib.rs
 _uuid_rs _uuid_rs/Cargo.toml _uuid_rs/src/lib.rs
+_warnings_rs _warnings_rs/Cargo.toml _warnings_rs/src/lib.rs
 _zip_rs _zip_rs/Cargo.toml _zip_rs/src/lib.rs
 _zstd_rs _zstd_rs/Cargo.toml _zstd_rs/src/lib.rs

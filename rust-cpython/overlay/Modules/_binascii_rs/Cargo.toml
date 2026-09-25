@@ -1,0 +1,17 @@
+[package]
+name = "_binascii_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "PSF-2.0"
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+crc32fast = "=1.5.2" # MIT OR Apache-2.0
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_binascii_rs"
+crate-type = ["cdylib", "rlib"]

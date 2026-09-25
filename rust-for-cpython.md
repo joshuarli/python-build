@@ -80,8 +80,14 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **30 complete targets**. Do not carry
+module. The strict count is now **35 complete targets**. Do not carry
 their performance ranking into this coverage phase.
+
+The latest five targets passed one combined default-resource debug suite on
+macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
+ran and nine were resource-denied. Their named focused suites passed as
+recorded on each line. The `os.path` joining and splitting source is present,
+but normalization is not yet routed through Rust, so that item remains open.
 
 The latest four targets passed one combined default-resource debug suite on
 macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
@@ -123,7 +129,9 @@ suites passed as recorded on each line.
 - [x] `base64` — public encode and decode functions reach Rust (`5024bbf`).
   Full `test_base64`, `test_binascii`, and `test_email`: 2,123 run/19
   skipped; integrated full suite passed.
-- [ ] `binascii` — binary/text conversion and checksums used by public callers.
+- [x] `binascii` — public hex conversion and checksums reach Rust
+  (`481f5dd`). Full `test_binascii`, `test_base64`, `test_email`, and
+  `test_zipfile`: 2,712 run/22 skipped; integrated full suite passed.
 - [ ] `zlib` — compression and decompression on public streams and one-shot calls.
 - [x] `gzip` — public file, stream, and one-shot compression/decompression
   reach Rust (`8c2b4a1`). Full `test_gzip`, `test_tarfile`, `test_xmlrpc`,
@@ -207,7 +215,10 @@ suites passed as recorded on each line.
   Full `test_fnmatch`, `test_glob`, and `test_shutil`: 275 run/78 skipped;
   integrated full suite passed.
 - [ ] `importlib.resources` — resource lookup and reading.
-- [ ] `tempfile` — temporary file and directory creation.
+- [x] `tempfile` — public temporary file and directory creation retry loops
+  reach Rust (`2ff348e`). Full `test_tempfile`, `test_threadedtempfile`,
+  `test_shutil`, `test_pathlib`, and `test_interpreters`: 1,915 run/496
+  skipped; integrated full suite passed.
 - [x] `fractions` — `Fraction` parsing and arithmetic reach Rust (`0dc86e5`).
   Full `test_fractions`, `test_statistics`, `test_numeric_tower`,
   `test_math`, `test_operator`, and `test_interpreters`: 727 run/11
@@ -217,7 +228,10 @@ suites passed as recorded on each line.
   `test_fractions`, `test_math`, and `test_random`: 654 run/10 skipped;
   integrated full suite passed.
 - [ ] `random` — public random number generation and sampling.
-- [ ] `collections` — common containers and counting operations.
+- [x] `collections` — public `Counter.subtract` iterable counting reaches
+  Rust (`07c457a`). Full `test_collections`, `test_defaultdict`,
+  `test_deque`, `test_ordered_dict`, `test_userdict`, `test_userlist`, and
+  `test_userstring`: 666 run/3 skipped; integrated full suite passed.
 - [x] `heapq` — public min-heap and max-heap operations reach Rust
   (`78afd13`). Full `test_heapq`, `test_queue`, and `test_sched`:
   243 run/6 memory-gated skips; integrated full suite passed.
@@ -235,7 +249,9 @@ suites passed as recorded on each line.
   1,405 run/0 skipped; integrated full suite passed.
 - [ ] `inspect` — signatures and object inspection.
 - [ ] `ast` — parse-tree walking and transformation helpers.
-- [ ] `argparse` — argument parsing and help generation.
+- [x] `argparse` — public argument parsing uses Rust option scans
+  (`21d506a`). Full `test_argparse`, `test_optparse`, and `test_pydoc`:
+  2,233 run; integrated full suite passed.
 - [ ] `tokenize` — token generation from Python source.
 - [x] `_strptime` — directive parsing used by public date/time calls reaches
   Rust (`1b9336e`). Full `test_strptime`, `test_datetime`, `test_time`,
@@ -253,5 +269,8 @@ suites passed as recorded on each line.
   resource-denied).
 - [ ] `threading` — public thread coordination and synchronization.
 - [ ] `typing` — runtime annotation and generic operations.
-- [ ] `warnings` — warning filtering and display.
+- [x] `warnings` — public filter insertion and warning display formatting
+  reach Rust (`8e08c96`). Full `test_warnings`, `test_logging`,
+  `test_unittest`, `test_context`, and `test_interpreters`: 1,803 run/21
+  skipped; integrated full suite passed.
 - [ ] `urllib.request` — request opening and response handling.

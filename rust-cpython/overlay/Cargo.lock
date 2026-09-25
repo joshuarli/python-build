@@ -3,6 +3,15 @@
 version = 4
 
 [[package]]
+name = "_argparse_rs"
+version = "0.1.0"
+dependencies = [
+ "clap_lex",
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_base64"
 version = "0.1.0"
 dependencies = [
@@ -10,6 +19,15 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "data-encoding",
+]
+
+[[package]]
+name = "_binascii_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "crc32fast",
 ]
 
 [[package]]
@@ -25,6 +43,14 @@ name = "_bz2_rs"
 version = "0.1.0"
 dependencies = [
  "bzip2",
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
+name = "_collections_rs"
+version = "0.1.0"
+dependencies = [
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -184,6 +210,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_posixpath_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_shlex_rs"
 version = "0.1.0"
 dependencies = [
@@ -214,6 +248,14 @@ name = "_struct_rs"
 version = "0.1.0"
 dependencies = [
  "byteorder",
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
+name = "_tempfile_rs"
+version = "0.1.0"
+dependencies = [
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -255,6 +297,14 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "uuid",
+]
+
+[[package]]
+name = "_warnings_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
 ]
 
 [[package]]
@@ -415,6 +465,12 @@ dependencies = [
  "libc",
  "libloading",
 ]
+
+[[package]]
+name = "clap_lex"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "cmov"
