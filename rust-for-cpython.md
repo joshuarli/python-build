@@ -326,6 +326,11 @@ as a separate baseline change.
   can still be bypassed for exact headers; broader behavior and memory remain
   unqualified. See
   [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md).
+  A second complete workload streamed every member through public
+  `tarfile` read and write calls into a new archive. All 12 runs produced
+  identical output; five candidate pairs reduced median wall by 11.87% and
+  kernel CPU by 12.05%, with mixed peak-memory directions. See
+  [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md).
 - An optional one-shot split routes only public `zlib.decompress` to Rust.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
@@ -631,10 +636,12 @@ as a separate baseline change.
 - The optional TAR checksum source patch produced a repeatable macOS
   complete-archive speed and CPU gain with unchanged output. Its TAR-owned
   private extension now loads only when an eligible checksum is needed.
-  Keep it behind `--tar-checksum` while pre-import helper replacement,
-  broader behavior, and memory cost are qualified. It is useful coverage
-  progress but does not yet complete the `tarfile` checklist item. See
-  [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md).
+  A complete read-and-rewrite task also gained 11.87% wall and 12.05% kernel
+  CPU with identical output. Keep it behind `--tar-checksum` while pre-import
+  helper replacement, broader behavior, and memory cost are qualified. It is
+  useful coverage progress but does not yet complete the `tarfile` checklist
+  item. See [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md)
+  and [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
