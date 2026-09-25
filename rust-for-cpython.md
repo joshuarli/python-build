@@ -80,20 +80,34 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **2 complete targets**. Do not carry
+module. The strict count is now **14 complete targets**. Do not carry
 their performance ranking into this coverage phase.
+
+The twelve targets checked below in `ada4895` and `6dc52d1` passed one
+combined default-resource debug suite on macOS arm64: 50,158 individual
+tests run, 2,754 skipped, zero failures; 496/505 files ran, with nine
+resource-denied. Their named focused suites passed as recorded on each line.
 
 ### Priority 0: common application paths
 
-- [ ] `urllib.parse` — quote, unquote, and query parsing on public calls.
+- [x] `urllib.parse` — quote, unquote, and query parsing reach Rust
+  (`5ec48ce`). Full `test_urlparse`, `test_urllib`, `test_http_cookies`,
+  `test_httpservers`, `test_logging`, `test_pathlib`, `test_pydoc`, and
+  `test_sqlite3`: 2,628 run/430 skipped; integrated full suite passed.
 - [ ] `json` — encode and decode complete documents.
 - [ ] `pickle` — dump and load common object graphs.
-- [ ] `csv` — parse and write records through the public reader and writer.
-- [ ] `tomllib` — parse complete TOML documents.
+- [x] `csv` — default Excel records reach Rust through public reader and
+  writer (`e49c5e1`). Full `test_csv`: 134 run/0 skipped; integrated full
+  suite passed.
+- [x] `tomllib` — complete TOML documents reach Rust (`76fbdb4`). Full
+  `test_tomllib` and `test_inspect`: 400 run/0 skipped; integrated full
+  suite passed.
 - [ ] `email` — parse and serialize messages and headers.
 - [ ] `xml.etree.ElementTree` — parse and serialize XML trees.
 - [ ] `re` — compile and search common patterns through `re`.
-- [ ] `base64` — public encode and decode functions.
+- [x] `base64` — public encode and decode functions reach Rust (`5024bbf`).
+  Full `test_base64`, `test_binascii`, and `test_email`: 2,123 run/19
+  skipped; integrated full suite passed.
 - [ ] `binascii` — binary/text conversion and checksums used by public callers.
 - [ ] `zlib` — compression and decompression on public streams and one-shot calls.
 - [ ] `gzip` — complete file and stream compression/decompression.
@@ -104,8 +118,13 @@ their performance ranking into this coverage phase.
 - [ ] `shutil` — file copying, tree operations, and archive handling.
 - [ ] `importlib.metadata` — distribution discovery and metadata access.
 - [ ] `hashlib` — public digest updates and finalization.
-- [ ] `hmac` — public keyed digest operations.
-- [ ] `uuid` — parse, format, and generate UUIDs.
+- [x] `hmac` — public keyed digest operations reach Rust (`dd10097`, with
+  hash-availability guard in `ada4895`). Full `test_hmac` and `test_hashlib`:
+  234 run/17 skipped; `test_imaplib` and `test_support` regression suites
+  also passed; integrated full suite passed.
+- [x] `uuid` — parse, format, and common generation reach Rust (`6517691`).
+  Full `test_uuid` and `test_os`: 667 run/120 skipped; integrated full
+  suite passed.
 - [ ] `datetime` — parse, format, and arithmetic on public date/time objects.
 - [ ] `decimal` — arithmetic on public `Decimal` values.
 - [ ] `sqlite3` — statement execution and row conversion through public cursors.
@@ -126,8 +145,12 @@ their performance ranking into this coverage phase.
 
 ### Priority 1: broad supporting surface
 
-- [ ] `configparser` — read and write INI-style configuration.
-- [ ] `plistlib` — parse and serialize property lists.
+- [x] `configparser` — default simple INI read and write reach Rust
+  (`94e1f1c`). Full `test_configparser` and `test_logging`: 642 run/9
+  skipped; integrated full suite passed.
+- [x] `plistlib` — XML and binary property-list read and write reach Rust
+  (`3c5d5c3`). Full `test_plistlib`: 71 run/0 skipped; integrated full
+  suite passed.
 - [ ] `struct` — pack and unpack binary records.
 - [ ] `marshal` — serialize and load supported Python code/data records.
 - [ ] `html.parser` — tokenize complete HTML documents.
@@ -139,15 +162,23 @@ their performance ranking into this coverage phase.
 - [ ] `compression.zstd` — public Zstandard streams and one-shot calls.
 - [ ] `zipimport` — module discovery and loading from ZIP archives.
 - [ ] `glob` — public pathname expansion.
-- [ ] `fnmatch` — public filename pattern matching.
+- [x] `fnmatch` — public filename pattern matching reaches Rust (`924b4c5`).
+  Full `test_fnmatch`, `test_glob`, and `test_shutil`: 275 run/78 skipped;
+  integrated full suite passed.
 - [ ] `importlib.resources` — resource lookup and reading.
 - [ ] `tempfile` — temporary file and directory creation.
-- [ ] `fractions` — `Fraction` parsing and arithmetic.
+- [x] `fractions` — `Fraction` parsing and arithmetic reach Rust (`0dc86e5`).
+  Full `test_fractions`, `test_statistics`, `test_numeric_tower`,
+  `test_math`, `test_operator`, and `test_interpreters`: 727 run/11
+  skipped; integrated full suite passed.
 - [ ] `statistics` — common summary operations.
 - [ ] `random` — public random number generation and sampling.
 - [ ] `collections` — common containers and counting operations.
 - [ ] `heapq` — heap operations.
-- [ ] `bisect` — ordered insertion and search.
+- [x] `bisect` — ordered insertion and search reach Rust (`52a58f7`). Full
+  `test_bisect`: 46 run/0 skipped; full `test_statistics`, `test_datetime`,
+  and `test_free_threading`: 1,560 run/38 skipped; integrated full suite
+  passed.
 - [ ] `itertools` — core iterator transformations.
 - [ ] `functools` — caching and ordering helpers.
 - [ ] `contextlib` — public context-manager composition.
@@ -157,7 +188,9 @@ their performance ranking into this coverage phase.
 - [ ] `argparse` — argument parsing and help generation.
 - [ ] `tokenize` — token generation from Python source.
 - [ ] `_strptime` — directive parsing used by public date/time calls.
-- [ ] `shlex` — POSIX and non-POSIX token splitting.
+- [x] `shlex` — POSIX and non-POSIX token splitting reach Rust (`5b3ef58`).
+  Full `test_shlex`, `test_mimetypes`, and `test_webbrowser`: 128 run/6
+  skipped; integrated full suite passed.
 - [x] `textwrap` — common ASCII wrap, fill, and shorten reach the Rust textwrap
   crate on macOS arm64 (`a23a25b`). Full `test_textwrap`, `test_argparse`,
   `test_optparse`, and `test_pydoc`: 2,301 run/0 skipped; full

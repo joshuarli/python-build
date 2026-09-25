@@ -1,0 +1,18 @@
+[package]
+name = "_tomllib_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+serde = "1.0.228"
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+toml_edit = "=0.25.15"
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_tomllib_rs"
+crate-type = ["cdylib", "rlib"]

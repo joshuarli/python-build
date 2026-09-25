@@ -1,0 +1,17 @@
+[package]
+name = "_plistlib_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+plist = { version = "=1.10.1", default-features = false }
+serde_json = "=1.0.151"
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_plistlib_rs"
+crate-type = ["cdylib", "rlib"]

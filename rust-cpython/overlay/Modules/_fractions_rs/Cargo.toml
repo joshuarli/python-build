@@ -1,0 +1,19 @@
+[package]
+name = "_fractions_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "PSF-2.0"
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+num-bigint = "=0.4.8"
+num-integer = "=0.1.47"
+num-rational = "=0.4.2"
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_fractions_rs"
+crate-type = ["cdylib", "rlib"]

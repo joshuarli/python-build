@@ -1,9 +1,11 @@
 [workspace]
 resolver = "3"
 members = [
-    "Modules/_base64", "Modules/_bisect_rs", "Modules/_fnmatch_rs",
-    "Modules/_hmac_rs", "Modules/_ipaddress_rs", "Modules/_shlex_rs",
-    "Modules/_textwrap_rs", "Modules/_urllib_parse_rs",
+    "Modules/_base64", "Modules/_bisect_rs", "Modules/_configparser_rs",
+    "Modules/_csv_rs", "Modules/_fnmatch_rs", "Modules/_fractions_rs",
+    "Modules/_hmac_rs", "Modules/_ipaddress_rs", "Modules/_plistlib_rs",
+    "Modules/_shlex_rs", "Modules/_textwrap_rs", "Modules/_tomllib_rs",
+    "Modules/_urllib_parse_rs", "Modules/_uuid_rs",
     "Modules/cpython-build-helper",
     "Modules/cpython-rust-staticlib", "Modules/cpython-sys"
 ]

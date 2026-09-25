@@ -1,0 +1,16 @@
+[package]
+name = "_uuid_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+uuid = { version = "=1.26.1", default-features = false, features = ["std", "v3", "v4", "v5"] }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_uuid_rs"
+crate-type = ["cdylib", "rlib"]
