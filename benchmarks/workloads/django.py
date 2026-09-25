@@ -1,8 +1,8 @@
 """Run deterministic Django request, ORM materialization, and template workloads.
 
-Invoke this module with a scenario name and iteration count. Django setup,
-schema creation, fixture loading, handler initialization, and warm-up requests
-are outside the reported elapsed_seconds interval.
+Warm scenarios exclude Django setup, database seeding, handler initialization,
+and validation from their internal timer. The first-request scenario uses one
+fresh process and leaves timing to its caller.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import json
 import os
 import sqlite3
 import time
+from pathlib import Path
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -22,6 +23,7 @@ from typing import Any
 
 
 SCENARIOS = (
+    "django_wsgi_first_request",
     "django_wsgi_request",
     "django_asgi_request",
     "django_orm_10k",
@@ -67,7 +69,7 @@ _DATABASE_ANCHOR: sqlite3.Connection | None = None
 @dataclass(frozen=True)
 class RunResult:
     operation_count: int
-    elapsed_seconds: float
+    elapsed_seconds: float | None
     digest: str
 
 
@@ -79,12 +81,8 @@ class _DjangoModels:
     Tag: Any
 
 
-def _bootstrap_application() -> _DjangoModels:
-    """Initialize Django and create deterministic in-memory benchmark data."""
-    global _APP, _DATABASE_ANCHOR
-    if _APP is not None:
-        return _APP
-
+def _setup_application() -> _DjangoModels:
+    """Load the benchmark models without creating or changing the database."""
     os.environ["DJANGO_SETTINGS_MODULE"] = _SETTINGS_MODULE
     try:
         import django
@@ -97,9 +95,7 @@ def _bootstrap_application() -> _DjangoModels:
             f"Django workload requires {_DJANGO_VERSION}, got {django.get_version()}"
         )
 
-    from django.apps import apps
     from django.conf import settings
-    from django.db import connection
 
     if settings.configured and settings.SETTINGS_MODULE != _SETTINGS_MODULE:
         raise RuntimeError(
@@ -107,18 +103,31 @@ def _bootstrap_application() -> _DjangoModels:
         )
     django.setup()
 
-    # Django closes request connections at request_finished, as recommended
-    # for ASGI. Keep the shared in-memory SQLite URI alive with a private idle
-    # anchor so the next WSGI or ASGI request sees the same seeded tables.
-    database = settings.DATABASES["default"]
-    _DATABASE_ANCHOR = sqlite3.connect(database["NAME"], uri=True)
-
     from benchmarks.workloads.django_app.models import Author, Comment, Post, Tag
 
+    return _DjangoModels(Author=Author, Comment=Comment, Post=Post, Tag=Tag)
+
+
+def _bootstrap_application() -> _DjangoModels:
+    """Initialize Django and create deterministic benchmark data."""
+    global _APP, _DATABASE_ANCHOR
+    if _APP is not None:
+        return _APP
+
+    models = _setup_application()
+    from django.apps import apps
+    from django.conf import settings
+    from django.db import connection
+
+    # Request cleanup closes Django's connection. The warm scenarios need an
+    # idle connection to keep their shared in-memory database alive.
+    database = settings.DATABASES["default"]
+    if not os.environ.get("BENCH_DJANGO_PREPARE_PATH"):
+        _DATABASE_ANCHOR = sqlite3.connect(database["NAME"], uri=True)
+
     with connection.cursor() as cursor:
-        # The database is process-private and in memory. Keep fixture writes
-        # cheap, then leave the shared in-memory journal available to ASGI's
-        # synchronous view thread.
+        # Fixture creation is outside every measured request. Keep its writes
+        # cheap for both the warm in-memory database and the cold database file.
         cursor.execute("PRAGMA journal_mode=MEMORY")
         cursor.execute("PRAGMA synchronous=OFF")
 
@@ -127,9 +136,22 @@ def _bootstrap_application() -> _DjangoModels:
         for model in app_models:
             schema_editor.create_model(model)
 
-    _seed_database(Author=Author, Comment=Comment, Post=Post, Tag=Tag)
-    _APP = _DjangoModels(Author=Author, Comment=Comment, Post=Post, Tag=Tag)
+    _seed_database(Author=models.Author, Comment=models.Comment,
+                   Post=models.Post, Tag=models.Tag)
+    _APP = models
     return _APP
+
+
+def prepare_fixture(path: Path) -> str:
+    """Seed one file backed database and return its complete byte digest."""
+    if path.exists():
+        raise FileExistsError(f"Django fixture already exists: {path}")
+    os.environ["BENCH_DJANGO_PREPARE_PATH"] = str(path.resolve())
+    _bootstrap_application()
+    from django.db import connection
+
+    connection.close()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _seed_database(*, Author: Any, Comment: Any, Post: Any, Tag: Any) -> None:
@@ -293,6 +315,17 @@ def _run_wsgi(iterations: int) -> RunResult:
         elapsed_seconds=elapsed_seconds,
         digest=hashlib.sha256(expected_body).hexdigest(),
     )
+
+
+def _run_wsgi_first_request() -> RunResult:
+    if not os.environ.get("BENCH_DJANGO_FIXTURE_PATH"):
+        raise RuntimeError("first-request workload requires a prepared Django fixture")
+    _setup_application()
+    from django.core.handlers.wsgi import WSGIHandler
+
+    status, body = _wsgi_exchange(WSGIHandler())
+    _validate_post_response(status, body)
+    return RunResult(1, None, hashlib.sha256(body).hexdigest())
 
 
 async def _asgi_exchange(handler: Any) -> tuple[int, bytes]:
@@ -479,6 +512,10 @@ def run_scenario(scenario: str, iterations: int) -> RunResult:
         raise ValueError(f"unknown Django scenario: {scenario}")
     if iterations < 1:
         raise ValueError("iterations must be a positive integer")
+    if scenario == "django_wsgi_first_request":
+        if iterations != 1:
+            raise ValueError("first-request workload requires exactly one iteration")
+        return _run_wsgi_first_request()
 
     _bootstrap_application()
     if scenario == "django_wsgi_request":
@@ -509,9 +546,18 @@ def _positive_integer(value: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("scenario", choices=SCENARIOS)
-    parser.add_argument("--iterations", type=_positive_integer, required=True)
+    parser.add_argument("scenario", nargs="?", choices=SCENARIOS)
+    parser.add_argument("--iterations", type=_positive_integer)
+    parser.add_argument("--prepare-fixture", type=Path)
     args = parser.parse_args(argv)
+    if args.prepare_fixture is not None:
+        if args.scenario is not None or args.iterations is not None:
+            parser.error("fixture preparation cannot specify a scenario or iterations")
+        digest = prepare_fixture(args.prepare_fixture)
+        print(json.dumps({"fixture_sha256": digest}, sort_keys=True, separators=(",", ":")))
+        return 0
+    if args.scenario is None or args.iterations is None:
+        parser.error("scenario and --iterations are required")
     result = run_scenario(args.scenario, args.iterations)
     print(json.dumps(asdict(result), sort_keys=True, separators=(",", ":")))
     return 0

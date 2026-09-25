@@ -44,16 +44,29 @@ TEMPLATES = [
     }
 ]
 
+_PREPARE_PATH = os.environ.get("BENCH_DJANGO_PREPARE_PATH")
+_FIXTURE_PATH = os.environ.get("BENCH_DJANGO_FIXTURE_PATH")
+if _PREPARE_PATH and _FIXTURE_PATH:
+    raise RuntimeError("Django fixture preparation and consumption cannot overlap")
+if _PREPARE_PATH:
+    _DATABASE_NAME = _PREPARE_PATH
+    _DATABASE_URI = False
+elif _FIXTURE_PATH:
+    _DATABASE_NAME = f"file:{_FIXTURE_PATH}?mode=ro"
+    _DATABASE_URI = True
+else:
+    _DATABASE_NAME = f"file:python_build_django_benchmark_{os.getpid()}?mode=memory&cache=shared"
+    _DATABASE_URI = True
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        # URI shared memory keeps the same deterministic database visible to
-        # Django's sync thread when ASGI adapts the synchronous ORM view.
-        "NAME": f"file:python_build_django_benchmark_{os.getpid()}?mode=memory&cache=shared",
-        "OPTIONS": {"uri": True, "timeout": 20},
-        # Follow Django's per-request close policy, including on the ASGI
-        # handler. django.py holds a separate URI connection as the shared
-        # in-memory database anchor while request connections are closed.
+        # Warm requests share process-local memory across ASGI threads. Cold
+        # children open the prepared file read-only during their timed process.
+        "NAME": _DATABASE_NAME,
+        "OPTIONS": {"uri": _DATABASE_URI, "timeout": 20},
+        # Request cleanup closes Django's connection. The warm scenario keeps
+        # a separate idle connection so its in-memory tables survive.
         "CONN_MAX_AGE": 0,
     }
 }

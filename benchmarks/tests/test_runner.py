@@ -14,6 +14,16 @@ from benchmarks.workloads.registry import Workload
 
 
 class TimingOnlyRunnerTests(unittest.TestCase):
+    def test_first_request_uses_external_process_duration(self) -> None:
+        workload = Workload("django_wsgi_first_request", "web", "django", "first request process",
+                            1, 1, ("Django",), timing_boundary="process")
+        measured = SimpleNamespace(duration_seconds=0.42)
+        self.assertEqual(runner._timing_elapsed(measured, {"elapsed_seconds": 0.01}, workload), 0.42)
+        warm = Workload("django_wsgi_request", "web", "django", "request", 1, 1)
+        self.assertEqual(runner._timing_elapsed(measured, {"elapsed_seconds": 0.01}, warm), 0.01)
+        with self.assertRaises(RuntimeError):
+            runner._timing_elapsed(measured, {}, warm)
+
     def test_cold_import_adds_reported_direct_child_cpu_once(self) -> None:
         measured = SimpleNamespace(
             cpu_user_seconds=0.2, cpu_system_seconds=0.1,
@@ -51,6 +61,7 @@ class TimingOnlyRunnerTests(unittest.TestCase):
         workload = Workload(
             "python_startup", "startup", "extra", "process", 1, 1,
             noise_class="noisy",
+            timing_boundary="process",
         )
         completed = SimpleNamespace(
             cleanup_complete=True,

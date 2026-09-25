@@ -7,6 +7,7 @@ The driver prints a correctness digest and operation count for every pass.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -19,9 +20,12 @@ class Workload:
     allocation_iterations: int
     packages: tuple[str, ...] = ()
     noise_class: str = "stable"
+    timing_boundary: Literal["internal", "process"] = "internal"
 
 
 WORKLOADS: tuple[Workload, ...] = (
+    Workload("django_wsgi_first_request", "web", "django", "first request process", 1, 1,
+             ("Django",), timing_boundary="process"),
     Workload("django_wsgi_request", "web", "django", "request", 30, 5, ("Django",)),
     Workload("django_asgi_request", "web", "django", "request", 30, 5, ("Django",), "noisy"),
     Workload("django_orm_10k", "database", "django", "row", 1, 1, ("Django",)),
@@ -29,7 +33,8 @@ WORKLOADS: tuple[Workload, ...] = (
     Workload("pylint_source", "tooling", "tooling", "lint pass", 1, 1, ("pylint",)),
     Workload("pycparser_source", "parsing", "tooling", "parse pass", 1, 1, ("pycparser",)),
     Workload("compileall_source", "tooling", "tooling", "compiled source tree", 1, 1),
-    Workload("python_startup", "startup", "extra", "process", 1, 1),
+    Workload("python_startup", "startup", "extra", "process", 1, 1,
+             timing_boundary="process"),
     Workload("import_django", "startup", "extra", "import process", 1, 1, ("Django",)),
     Workload("import_app_stack", "startup", "extra", "import process", 1, 1,
              ("Django", "FastAPI", "Pydantic", "SQLAlchemy")),

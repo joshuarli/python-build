@@ -1,14 +1,17 @@
 """Focused contract tests for the deterministic Django macro workloads."""
 
 import importlib.util
+import hashlib
 import json
 import math
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,18 +38,39 @@ class DjangoWorkloadCliTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("iterations must be a positive integer", completed.stderr)
 
+    def test_first_request_issues_one_exchange(self):
+        from benchmarks.workloads import django as workload
+
+        modules = {name: type(sys)(name) for name in (
+            "django", "django.core", "django.core.handlers", "django.core.handlers.wsgi",
+        )}
+        modules["django.core.handlers.wsgi"].WSGIHandler = object
+        with patch.dict(os.environ, {"BENCH_DJANGO_FIXTURE_PATH": "/unused/fixture"}), \
+             patch.object(workload, "_setup_application"), \
+             patch.object(workload, "_wsgi_exchange", return_value=(200, b"{}")) as exchange, \
+             patch.object(workload, "_validate_post_response"), \
+             patch.dict(sys.modules, modules):
+            result = workload.run_scenario("django_wsgi_first_request", 1)
+        exchange.assert_called_once()
+        self.assertEqual(result.operation_count, 1)
+        self.assertIsNone(result.elapsed_seconds)
+        with self.assertRaises(ValueError):
+            workload.run_scenario("django_wsgi_first_request", 2)
+
 
 @unittest.skipUnless(
     DJANGO_AVAILABLE,
     "Django is supplied externally on PYTHONPATH for workload integration tests",
 )
 class DjangoScenarioProcessTests(unittest.TestCase):
-    def run_scenario(self, scenario: str, iterations: int) -> dict:
+    def run_scenario(self, scenario: str, iterations: int, *, fixture: Path | None = None) -> dict:
         environment = os.environ.copy()
         python_path = environment.get("PYTHONPATH", "")
         environment["PYTHONPATH"] = os.pathsep.join(
             part for part in (str(ROOT), python_path) if part
         )
+        if fixture is not None:
+            environment["BENCH_DJANGO_FIXTURE_PATH"] = str(fixture)
         completed = subprocess.run(
             [
                 sys.executable,
@@ -76,8 +100,11 @@ class DjangoScenarioProcessTests(unittest.TestCase):
         )
         self.assertIsInstance(result["operation_count"], int)
         self.assertGreater(result["operation_count"], 0)
-        self.assertTrue(math.isfinite(result["elapsed_seconds"]))
-        self.assertGreater(result["elapsed_seconds"], 0)
+        if scenario == "django_wsgi_first_request":
+            self.assertIsNone(result["elapsed_seconds"])
+        else:
+            self.assertTrue(math.isfinite(result["elapsed_seconds"]))
+            self.assertGreater(result["elapsed_seconds"], 0)
         self.assertRegex(result["digest"], re.compile(r"\A[0-9a-f]{64}\Z"))
         return result
 
@@ -97,6 +124,33 @@ class DjangoScenarioProcessTests(unittest.TestCase):
         first = self.run_scenario("django_wsgi_request", iterations=2)
         second = self.run_scenario("django_wsgi_request", iterations=2)
         self.assertEqual(first["digest"], second["digest"])
+
+    def test_first_request_uses_stable_prepared_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary) / "posts.sqlite3"
+            second_fixture = Path(temporary) / "posts-again.sqlite3"
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = os.pathsep.join(
+                part for part in (str(ROOT), environment.get("PYTHONPATH", "")) if part
+            )
+            def prepare(path: Path) -> dict:
+                completed = subprocess.run(
+                    [sys.executable, "-m", "benchmarks.workloads.django", "--prepare-fixture", str(path)],
+                    cwd=ROOT, env=environment, capture_output=True, text=True, check=True, timeout=120,
+                )
+                return json.loads(completed.stdout)
+
+            prepared = prepare(fixture)
+            fixture_digest = hashlib.sha256(fixture.read_bytes()).hexdigest()
+            self.assertEqual(prepared["fixture_sha256"], fixture_digest)
+            self.assertEqual(prepare(second_fixture)["fixture_sha256"], fixture_digest)
+            fixture.chmod(0o444)
+            first = self.run_scenario("django_wsgi_first_request", 1, fixture=fixture)
+            second = self.run_scenario("django_wsgi_first_request", 1, fixture=fixture)
+            self.assertEqual(first["operation_count"], 1)
+            self.assertEqual(first["digest"], second["digest"])
+            self.assertEqual(first["digest"], self.run_scenario("django_wsgi_request", 1)["digest"])
+            self.assertEqual(hashlib.sha256(fixture.read_bytes()).hexdigest(), fixture_digest)
 
 
 if __name__ == "__main__":

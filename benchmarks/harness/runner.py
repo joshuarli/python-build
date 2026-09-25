@@ -8,6 +8,7 @@ used as timing observations.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import math
 import os
@@ -48,6 +49,8 @@ def workload_environment(
 ) -> dict[str, str]:
     root = Path(__file__).resolve().parents[2]
     env = dict(os.environ)
+    env.pop("BENCH_DJANGO_PREPARE_PATH", None)
+    env.pop("BENCH_DJANGO_FIXTURE_PATH", None)
     paths = [str(root)]
     if site_packages is not None:
         paths.insert(0, str(site_packages))
@@ -84,6 +87,54 @@ def _measurement_payload(stdout: str, workload: Workload, iterations: int) -> di
     if not payload["digest"]:
         raise RuntimeError(f"{workload.name}: empty correctness digest")
     return payload
+
+
+def _timing_elapsed(measured: Any, payload: dict[str, Any], workload: Workload) -> float:
+    if workload.timing_boundary == "process":
+        elapsed = measured.duration_seconds
+    elif workload.timing_boundary == "internal":
+        elapsed = payload.get("elapsed_seconds")
+    else:
+        raise ValueError(f"{workload.name}: unknown timing boundary {workload.timing_boundary!r}")
+    if type(elapsed) not in (int, float) or not math.isfinite(elapsed) or elapsed <= 0:
+        raise RuntimeError(f"{workload.name}: invalid elapsed time")
+    return float(elapsed)
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _prepare_django_first_request_fixture(
+    python: Path, env: dict[str, str], output_dir: Path, timeout_seconds: float,
+    affinity: set[int] | None,
+) -> tuple[Path, str]:
+    fixture = output_dir / "django-first-request.sqlite3"
+    if fixture.exists():
+        raise FileExistsError(f"Django fixture already exists: {fixture}")
+    prepared = run_command(
+        [str(python), "-m", "benchmarks.workloads.django", "--prepare-fixture", str(fixture)],
+        env=env, cwd=Path(__file__).resolve().parents[2], timeout=timeout_seconds,
+        affinity=affinity, sample_interval_seconds=None,
+    )
+    (output_dir / "fixture-preparation.json").write_text(
+        json.dumps(prepared.as_dict(), indent=2) + "\n"
+    )
+    if not prepared.cleanup_complete or prepared.remaining_pids or prepared.returncode != 0 or prepared.timed_out:
+        raise RuntimeError(f"Django fixture preparation failed: {prepared.stderr[-2000:]}")
+    try:
+        declared = json.loads(prepared.stdout.decode("utf-8"))["fixture_sha256"]
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError) as exc:
+        raise RuntimeError("Django fixture preparation returned no digest") from exc
+    actual = _file_sha256(fixture)
+    if declared != actual:
+        raise RuntimeError("Django fixture changed during preparation")
+    fixture.chmod(0o444)
+    return fixture, actual
 
 
 def _memory_dict(value: Any) -> dict[str, Any]:
@@ -203,6 +254,13 @@ def run_workload(
         memory_rounds = max(memory_rounds, 5)
     sides = {"baseline": baseline, "candidate": candidate}
     env = workload_environment(site_packages, wheelhouse=wheelhouse, pip_packages=pip_packages)
+    django_fixture: Path | None = None
+    django_fixture_sha256: str | None = None
+    if workload.name == "django_wsgi_first_request":
+        django_fixture, django_fixture_sha256 = _prepare_django_first_request_fixture(
+            baseline, env, output_dir, timeout_seconds, affinity,
+        )
+        env["BENCH_DJANGO_FIXTURE_PATH"] = str(django_fixture)
     result: dict[str, Any] = {
         "identity": {
             "name": workload.name,
@@ -211,6 +269,7 @@ def run_workload(
             "operation_count": workload.iterations,
             "noise_class": workload.noise_class,
             "packages": list(workload.packages),
+            "timing_boundary": workload.timing_boundary,
         },
         "baseline": {
             "timing": {"samples": [], "cpu_rounds": []},
@@ -262,9 +321,7 @@ def run_workload(
                                        workload.iterations)
         digests.add(payload["digest"])
         operation_counts.add(payload["operation_count"])
-        elapsed = payload.get("elapsed_seconds", measured.duration_seconds)
-        if not isinstance(elapsed, (int, float)) or elapsed <= 0:
-            raise RuntimeError(f"{workload.name}: invalid elapsed time")
+        elapsed = _timing_elapsed(measured, payload, workload)
         result[side]["timing"]["samples"].append(elapsed)
         cpu = _cpu_dict(measured, payload, workload.name)
         result[side]["timing"]["cpu_rounds"].append(cpu)
@@ -296,6 +353,11 @@ def run_workload(
         raise RuntimeError(f"{workload.name}: correctness digest differs across runs: {digests}")
     if len(operation_counts) != 1:
         raise RuntimeError(f"{workload.name}: operation count differs across runs: {operation_counts}")
+    if django_fixture is not None:
+        if _file_sha256(django_fixture) != django_fixture_sha256:
+            raise RuntimeError("Django fixture changed during measured runs")
+        result["identity"]["fixture_sha256"] = django_fixture_sha256
+        result["identity"]["fixture_open_boundary"] = "inside process timing"
     result["identity"]["digest"] = next(iter(digests))
     result["identity"]["operation_count"] = next(iter(operation_counts))
     if implementations:
