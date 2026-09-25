@@ -219,13 +219,20 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   are 1.59 MB larger than the platform-zlib control. Five public decompression
   workloads preserved checked output. One-shot zlib, streaming zlib, and gzip
   operations improved in the local paired run; ZIP read and cold ZIP import
-  remained within timing noise. ZIP read's peak RSS and sampled physical
-  footprint increased, and macOS memory parity is still unqualified. See
+  remained within timing noise. The first ZIP memory pass showed higher peak
+  RSS and sampled physical footprint, but macOS memory parity is still
+  unqualified. See
   [`zlib-build-candidate.md`](rust-cpython/experiments/zlib-build-candidate.md)
   and [`zlib-full-candidate-20260924.md`](rust-cpython/experiments/zlib-full-candidate-20260924.md).
   A paired follow-up found the 3.13 MB ZIP peak-RSS increase below local
   repeatability noise; the footprint signal remains sample-sensitive. See
   [`zlib-memory-followup-20260924.md`](rust-cpython/experiments/zlib-memory-followup-20260924.md).
+  A quieter eight-pair ZIP repeat with matched source-only bytecode policy
+  measured candidate-minus-control median root peak RSS of −0.15 MB and root
+  peak footprint of −0.36 MB, both inside same-session control variation.
+  The prior positive signal did not repeat; this does not establish parity
+  under installed-cache behavior or supply USS/PSS and allocation counts.
+  See [`zlib-quiet-memory-20260924.md`](rust-cpython/experiments/zlib-quiet-memory-20260924.md).
 - Cold ZIP import now records directly reaped child CPU separately from the
   root's `wait4` usage. Earlier cold-import CPU data remain root-only; see
   [`child-cpu-accounting-20260924.md`](rust-cpython/experiments/child-cpu-accounting-20260924.md).
@@ -354,9 +361,14 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
 
 - **The optional zlib-rs build is an experiment, not a production migration.**
   The ordinary lane build still links `Modules/zlibmodule.c` to platform zlib.
-  Repeat ZIP and memory measurements on a quieter host, including cold import
-  with the corrected direct-child CPU ledger, and decide whether the compressed-byte differences
-  and installed-size cost fit the desired contract before promotion.
+  The quiet ZIP repeat did not reproduce a memory increase, but installed-cache
+  behavior and upstream resource parity remain open. Prototype a bounded
+  decompression-only hybrid: link the pinned zlib-rs C ABI with prefixed
+  symbols, route every inflate-family call in the CPython wrapper to it, and
+  leave deflate, checksums, and public version identity on platform zlib.
+  Never pass a `z_stream` between backends. First prove identical compressed
+  bytes and decode behavior, then measure complete public tasks and the
+  installed-size cost. Keep the full-backend candidate separate.
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
