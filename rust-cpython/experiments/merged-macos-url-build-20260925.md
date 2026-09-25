@@ -1,0 +1,7 @@
+# Merged macOS URL candidate build, 2026-09-25
+
+The merged Linux and macOS builder completed `python3 rust-cpython/build.py build --url-unquote` in a persistent sibling worktree based on `31c5ab3`. The lock checks and `doctor` passed after cloning the verified source archive, LLVM cache, and private Cargo cache. A fresh source extraction applied the revised cross-platform URL quote patch and the optional URL unquote patch along with the two inert zlib patches. Configure, the nine-worker PGO task, build, and installation completed. No separate test command ran after the merge.
+
+The installed `urllib/parse.py` SHA-256 is `ad11741ef88e9b7175ef0e1ffb311fdee865c073194743e08eb61adee828f4dd`, the same parser bytes as the earlier optional candidate. The new `_rust_url_quote` extension is 51,720 bytes with SHA-256 `46eb2f451fea78b9654da64169ade68954646eccaf68ad7f07caf23284aac394`; `nm` found `_PyInit__rust_url_quote`, `_quote_ascii`, and `_unquote_ascii`. This establishes that the merged patch stack still builds on macOS. Public URL behavior and performance after this merge remain to be checked.
+
+The [compact build record](data/merged-macos-url-build-20260925.json) retains the exact command, source and patch digests, toolchain, flags, output identities, and `/usr/bin/time -l` result. The whole build consumed 706.76 user plus 108.37 system CPU seconds in 264.60 seconds elapsed; maximum kernel-reported RSS was 1,821,687,808 bytes, and reported swaps were zero. Generated stage and compiler logs remain rebuildable worktree outputs.

@@ -461,6 +461,10 @@ as a separate baseline change.
   reported process RSS with no swaps. A separate serial installed-tree
   performance comparison and broad semantic qualification remain open. See
   [`url-unquote-build-20260925.md`](rust-cpython/experiments/url-unquote-build-20260925.md).
+  After the Linux lane merge, the revised cross-platform quote patch plus
+  optional unquote patch also completed a fresh macOS LLVM/PGO build. The
+  installed parser bytes still match; see
+  [`merged-macos-url-build-20260925.md`](rust-cpython/experiments/merged-macos-url-build-20260925.md).
 - Five serial installed-tree search-form pairs then showed 42.9% lower
   complete-process wall time and 44.0% lower kernel CPU with exact output
   digests. The control/control wall variation reached 2.6%. The normalization
