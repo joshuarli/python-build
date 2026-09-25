@@ -117,7 +117,13 @@ def native_target() -> Target:
     family is even eligible before the machine name is compared.
     """
     machine = platform.machine()
-    family = MACOS if platform.system() == "Darwin" else LINUX_MUSL
+    host_os = platform.system()
+    if host_os == "Darwin":
+        family = MACOS
+    elif host_os == "Linux":
+        family = LINUX_MUSL
+    else:
+        raise UnsupportedTargetError(f"unsupported host OS {host_os!r}")
     for target in TARGETS.values():
         if target.family == family and target.machine == machine:
             return target
