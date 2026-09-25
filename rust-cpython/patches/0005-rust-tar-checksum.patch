@@ -1,0 +1,77 @@
+diff --git a/Lib/tarfile.py b/Lib/tarfile.py
+--- a/Lib/tarfile.py
++++ b/Lib/tarfile.py
+@@ -42,6 +42,7 @@
+ import stat
+ import time
+ import struct
++import _rust_url_quote
+ import copy
+ import re
+ 
+@@ -227,6 +228,8 @@
+        the high bit set. So we calculate two checksums, unsigned and
+        signed.
+     """
++    if type(buf) is bytes and len(buf) == 512:
++        return _rust_url_quote.tar_checksum(buf)
+     unsigned_chksum = 256 + sum(struct.unpack_from("148B8x356B", buf))
+     signed_chksum = 256 + sum(struct.unpack_from("148b8x356b", buf))
+     return unsigned_chksum, signed_chksum
+diff --git a/Modules/_rust_url_quote/module.c b/Modules/_rust_url_quote/module.c
+--- a/Modules/_rust_url_quote/module.c
++++ b/Modules/_rust_url_quote/module.c
+@@ -40,3 +40,22 @@
+ 
++/* CPython retains the exact header while Rust scans its 512 bytes. */
++extern void tar_checksum_scan(const unsigned char *, int *, int *);
++
++static PyObject *tar_checksum(PyObject *self, PyObject *arg)
++{
++    int unsigned_sum;
++    int signed_sum;
++    (void)self;
++    if (!PyBytes_CheckExact(arg) || PyBytes_GET_SIZE(arg) != 512) {
++        PyErr_SetString(PyExc_TypeError, "tar_checksum requires exact bytes of length 512");
++        return NULL;
++    }
++    tar_checksum_scan((const unsigned char *)PyBytes_AS_STRING(arg),
++                      &unsigned_sum, &signed_sum);
++    return Py_BuildValue("(ii)", unsigned_sum, signed_sum);
++}
++
+ static PyMethodDef methods[] = {
++    {"tar_checksum", tar_checksum, METH_O,
++     "Return unsigned and signed checksums of an exact TAR header."},
+     {"quote_bytes", (PyCFunction)(void (*)(void))quote_bytes, METH_FASTCALL,
+diff --git a/Modules/_rust_url_quote/quote.rs b/Modules/_rust_url_quote/quote.rs
+--- a/Modules/_rust_url_quote/quote.rs
++++ b/Modules/_rust_url_quote/quote.rs
+@@ -73,3 +73,27 @@
+     }
+     written as isize
+ }
++
++// The C caller holds one exact 512-byte header and two writable C integers.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn tar_checksum_scan(
++    buf: *const u8,
++    unsigned: *mut i32,
++    signed: *mut i32,
++) {
++    let mut u = 256i32;
++    let mut s = 256i32;
++    let mut offset = 0;
++    while offset < 512 {
++        if offset < 148 || offset >= 156 {
++            let byte = unsafe { *buf.add(offset) };
++            u += i32::from(byte);
++            s += i32::from(byte as i8);
++        }
++        offset += 1;
++    }
++    unsafe {
++        *unsigned = u;
++        *signed = s;
++    }
++}

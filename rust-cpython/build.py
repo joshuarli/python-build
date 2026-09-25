@@ -536,7 +536,8 @@ def _extract_fresh(destination: Path) -> Path:
     return _source_root(extraction)
 
 
-def _source_patch_inputs(*, url_unquote: bool = False) -> dict[str, Any]:
+def _source_patch_inputs(*, url_unquote: bool = False,
+                         tar_checksum: bool = False) -> dict[str, Any]:
     """Validate the authored patch inputs without touching an extracted tree."""
     metadata, _entry = _read_lock()
     try:
@@ -553,8 +554,11 @@ def _source_patch_inputs(*, url_unquote: bool = False) -> dict[str, Any]:
     records: list[dict[str, str]] = []
     seen: set[str] = set()
     required = {"file", "sha256", "author", "origin", "license", "reason", "compatibility", "reproducer"}
-    optional_patch = "0004-rust-url-unquote.patch"
-    optional_seen = False
+    optional_patches = {
+        "0004-rust-url-unquote.patch": "url-unquote",
+        "0005-rust-tar-checksum.patch": "tar-checksum",
+    }
+    optional_seen: set[str] = set()
     for entry in manifest["patches"]:
         if not isinstance(entry, dict) or set(entry) not in (required, required | {"mode"}):
             raise LaneError("source patch manifest entry has an invalid schema")
@@ -562,12 +566,10 @@ def _source_patch_inputs(*, url_unquote: bool = False) -> dict[str, Any]:
             raise LaneError("source patch manifest entry has an empty or invalid field")
         name = entry["file"]
         mode = entry.get("mode")
-        if (name == optional_patch and mode != "url-unquote") or (
-            name != optional_patch and mode is not None
-        ):
+        if mode != optional_patches.get(name):
             raise LaneError(f"source patch mode is invalid: {name}")
         if mode is not None:
-            optional_seen = True
+            optional_seen.add(name)
         if Path(name).name != name or not name.endswith(".patch") or name in seen:
             raise LaneError(f"source patch file name is unsafe or repeated: {name!r}")
         if re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) is None:
@@ -580,21 +582,27 @@ def _source_patch_inputs(*, url_unquote: bool = False) -> dict[str, Any]:
         digest = hashlib.sha256(patch_bytes).hexdigest()
         if digest != entry["sha256"]:
             raise LaneError(f"source patch digest disagrees with manifest: {name}")
-        if mode is None or url_unquote:
+        if mode is None or (mode == "url-unquote" and url_unquote) or (
+            mode == "tar-checksum" and tar_checksum
+        ):
             records.append(dict(entry))
-    if not optional_seen:
-        raise LaneError(f"source patch manifest is missing {optional_patch}")
+    if optional_seen != set(optional_patches):
+        raise LaneError("source patch manifest is missing optional patches: "
+                        + ", ".join(sorted(set(optional_patches) - optional_seen)))
     return {
         "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "source_commit": metadata["commit"],
         "url_unquote": url_unquote,
+        "tar_checksum": tar_checksum,
         "patches": records,
     }
 
 
-def _apply_source_patches(source: Path, *, url_unquote: bool = False) -> dict[str, Any]:
+def _apply_source_patches(source: Path, *, url_unquote: bool = False,
+                          tar_checksum: bool = False) -> dict[str, Any]:
     """Apply authored patches only to the verified, pinned fresh source tree."""
-    inputs = _source_patch_inputs(url_unquote=url_unquote)
+    inputs = _source_patch_inputs(url_unquote=url_unquote,
+                                  tar_checksum=tar_checksum)
     metadata, _entry = _read_lock()
     expected_lock = metadata["cargo_lock_sha256"]
     if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
@@ -1566,6 +1574,7 @@ def _unpatched_record() -> dict[str, Any]:
 
 def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
           zlib_oneshot: bool = False, url_unquote: bool = False,
+          tar_checksum: bool = False,
           apply_patches: bool = True) -> int:
     if sum((zlib_rs, zlib_hybrid, zlib_oneshot)) > 1:
         raise LaneError("select one zlib candidate mode")
@@ -1583,9 +1592,10 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
-    if url_unquote and not apply_patches:
-        raise LaneError("--url-unquote requires source patches")
-    patches = (_apply_source_patches(source, url_unquote=url_unquote)
+    if (url_unquote or tar_checksum) and not apply_patches:
+        raise LaneError("optional source patches require source patches")
+    patches = (_apply_source_patches(source, url_unquote=url_unquote,
+                                     tar_checksum=tar_checksum)
                if apply_patches else _unpatched_record())
     if zlib_backend is not None:
         zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
@@ -1636,11 +1646,15 @@ def test() -> int:
     if report.get("status") not in {"built", "tests-failed", "complete"}:
         raise LaneError("build report does not describe a completed build; run build first")
     recorded_patches = report["source"].get("patches")
-    if not isinstance(recorded_patches, dict) or type(recorded_patches.get("url_unquote")) is not bool:
-        raise LaneError("build report is missing the URL unquote patch selection")
+    if (not isinstance(recorded_patches, dict)
+            or type(recorded_patches.get("url_unquote")) is not bool
+            or type(recorded_patches.get("tar_checksum")) is not bool):
+        raise LaneError("build report is missing optional source patch selections")
     url_unquote = recorded_patches["url_unquote"]
+    tar_checksum = recorded_patches["tar_checksum"]
     applied = bool(recorded_patches.get("patches"))
-    patches = (_source_patch_inputs(url_unquote=url_unquote)
+    patches = (_source_patch_inputs(url_unquote=url_unquote,
+                                    tar_checksum=tar_checksum)
                if applied else _unpatched_record())
     if report["source"].get("patches") != patches:
         raise LaneError("current source patches disagree with the completed build report")
@@ -1648,7 +1662,8 @@ def test() -> int:
     if not (source / "Cargo.toml").is_file():
         source = _extract_fresh(SOURCE)
         if applied:
-            _apply_source_patches(source, url_unquote=url_unquote)
+            _apply_source_patches(source, url_unquote=url_unquote,
+                                  tar_checksum=tar_checksum)
     toolchain, _target = _toolchain()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -1764,6 +1779,10 @@ def main(argv: list[str] | None = None) -> int:
                 "--url-unquote", action="store_true",
                 help="include the optional Rust URL percent decoder",
             )
+            command_parser.add_argument(
+                "--tar-checksum", action="store_true",
+                help="include the optional Rust exact TAR header checksum scan",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
@@ -1775,6 +1794,7 @@ def main(argv: list[str] | None = None) -> int:
                 return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot)
             return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid,
                          zlib_oneshot=args.zlib_oneshot, url_unquote=args.url_unquote,
+                         tar_checksum=args.tar_checksum,
                          apply_patches=not args.no_patches)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
