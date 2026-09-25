@@ -316,10 +316,16 @@ as a separate baseline change.
   [`tar-checksum-proof-20260925.md`](rust-cpython/experiments/tar-checksum-proof-20260925.md).
   A later optional source patch built on macOS and repeated the complete-read
   gain: five corrected-build pairs improved median wall by 9.22% and kernel
-  CPU by 9.48%, with identical output. The route remains opt-in while exact
-  input monkeypatch behavior, eager import cost, module ownership, broader
-  compatibility, and memory qualification are resolved; see
+  CPU by 9.48%, with identical output; see
   [`tar-checksum-integrated-20260925.md`](rust-cpython/experiments/tar-checksum-integrated-20260925.md).
+  A TAR-owned private extension subsequently removed the URL-module coupling
+  and loads lazily. Five new complete-archive pairs improved median wall by
+  9.24% and user CPU by 9.17%, with unchanged output. Cold `tarfile` import
+  left the extension unloaded and showed no established regression. The route
+  remains opt-in because helper replacements made before `tarfile` imports
+  can still be bypassed for exact headers; broader behavior and memory remain
+  unqualified. See
+  [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md).
 - An optional one-shot split routes only public `zlib.decompress` to Rust.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
@@ -623,12 +629,12 @@ as a separate baseline change.
   and [`zlib-oneshot-mixedblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-mixedblobs-20260925.md).
   Revisit archive size only after the mixed-input regression is fixed.
 - The optional TAR checksum source patch produced a repeatable macOS
-  complete-archive speed and CPU gain with unchanged output. Keep it behind
-  `--tar-checksum` while its exact-input monkeypatch observability, eager
-  import, private-module naming, broad behavior, and memory cost are
-  qualified. It is useful coverage progress but does not yet complete the
-  `tarfile` checklist item. See
-  [`tar-checksum-integrated-20260925.md`](rust-cpython/experiments/tar-checksum-integrated-20260925.md).
+  complete-archive speed and CPU gain with unchanged output. Its TAR-owned
+  private extension now loads only when an eligible checksum is needed.
+  Keep it behind `--tar-checksum` while pre-import helper replacement,
+  broader behavior, and memory cost are qualified. It is useful coverage
+  progress but does not yet complete the `tarfile` checklist item. See
+  [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
