@@ -74,6 +74,17 @@
       "reason": "Optionally scan a fixed-width numeric slash timestamp in private no_std Rust while leaving datetime construction and all other inputs on the Python path.",
       "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --strptime-numeric; exact datetime class, exact input and format strings, original _strptime binding, and valid 19-byte ASCII fields only.",
       "reproducer": "Apply selected patches to fresh verified pinned source, verify seven changed paths and reverse checks, build --variant strptime-numeric --strptime-numeric, then compare complete public numeric-slash log-ingest output and serial control/candidate resource pairs."
+    },
+    {
+      "file": "0008-rust-uuid-canonical.patch",
+      "sha256": "939dd73e59400cd19a06148805d8c9935fd84e84f41070a48aa87806b138f61b",
+      "mode": "uuid-canonical",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Lib/uuid.py and CPython extension interfaces; authored on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython fork",
+      "reason": "Optionally scan exact lowercase canonical UUID text through a private no_std Rust extension while public UUID object construction and noncanonical fallback remain in Python.",
+      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --uuid-canonical; exact UUID class and str input, default version and original int_ binding only.",
+      "reproducer": "Apply selected patches to fresh verified pinned source for default, UUID-only, strptime plus UUID, and all optional modes; verify changed paths and reverse checks; build --variant uuid-canonical --strptime-numeric --uuid-canonical; compare complete public UUID index workload against the strptime-only control."
     }
   ]
 }

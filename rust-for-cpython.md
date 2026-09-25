@@ -677,6 +677,15 @@ as a separate baseline change.
   checks and regex-cache side effects. Broader semantic, memory, and Linux
   qualification remain open. See
   [`strptime-numeric-20260925.md`](rust-cpython/experiments/strptime-numeric-20260925.md).
+- The optional canonical UUID text scanner reaches public `uuid.UUID` calls,
+  but five complete 100,000-record index pairs showed no speed or CPU gain
+  beyond control variation: median candidate/control ratios were 1.003 and
+  1.000. Median paired peak RSS rose 376,832 bytes within local self-pair
+  variation, and the new extension is 51,272 bytes. Retain
+  `--uuid-canonical` for partial priority-0 coverage with this performance
+  debt; it is not a performance promotion or a completed `uuid` port.
+  Broader semantics and Linux resource costs remain open. See
+  [`uuid-canonical-20260925.md`](rust-cpython/experiments/uuid-canonical-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
@@ -737,8 +746,8 @@ order within each priority.
 
 The current `_base64` integration proof does not cover public `base64`; the
 guarded URL quote route is a partial `urllib.parse` port pending broad
-qualification; zlib, TAR, IPv4, and numeric timestamp Rust proofs remain
-partial. No item below is yet marked complete.
+qualification; zlib, TAR, IPv4, numeric timestamp, and UUID Rust proofs
+remain partial. No item below is yet marked complete.
 
 ### Priority 0: common application paths
 

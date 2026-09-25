@@ -1,0 +1,237 @@
+diff --git a/Lib/uuid.py b/Lib/uuid.py
+--- a/Lib/uuid.py
++++ b/Lib/uuid.py
+@@ -88,6 +88,7 @@
+     'reserved for Microsoft compatibility', 'reserved for future definition']
+ 
+ int_ = int      # The built-in int type
++_ORIGINAL_INT = int_
+ bytes_ = bytes  # The built-in bytes type
+ 
+ 
+@@ -213,11 +214,18 @@
+         if int is not None:
+             pass
+         elif hex is not None:
+-            hex = hex.replace('urn:', '').replace('uuid:', '')
+-            hex = hex.strip('{}').replace('-', '')
+-            if len(hex) != 32:
+-                raise ValueError('badly formed hexadecimal UUID string')
+-            int = int_(hex, 16)
++            parsed = None
++            if type(self) is UUID and type(hex) is str and version is None and int_ is _ORIGINAL_INT:
++                from _rust_uuid_canonical import scan
++                parsed = scan(hex)
++            if parsed is not None:
++                int = parsed
++            else:
++                hex = hex.replace('urn:', '').replace('uuid:', '')
++                hex = hex.strip('{}').replace('-', '')
++                if len(hex) != 32:
++                    raise ValueError('badly formed hexadecimal UUID string')
++                int = int_(hex, 16)
+         elif bytes_le is not None:
+             if len(bytes_le) != 16:
+                 raise ValueError('bytes_le is not a 16-char string')
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -3466 +3466,10 @@
++# Private no_std canonical UUID text scanner.
++RUST_UUID_CANONICAL_A=Modules/_rust_uuid_canonical/libuuid_canonical.a
++MODULE__RUST_UUID_CANONICAL_LDEPS=$(RUST_UUID_CANONICAL_A)
++MODULE__RUST_UUID_CANONICAL_LDFLAGS=$(RUST_UUID_CANONICAL_A)
++
++$(RUST_UUID_CANONICAL_A): $(srcdir)/Modules/_rust_uuid_canonical/scan.rs
++	mkdir -p Modules/_rust_uuid_canonical
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
++
+ RUST_URL_QUOTE_A=Modules/_rust_url_quote/libquote_ascii.a
+diff --git a/Modules/Setup.stdlib.in b/Modules/Setup.stdlib.in
+--- a/Modules/Setup.stdlib.in
++++ b/Modules/Setup.stdlib.in
+@@ -122 +122,2 @@
++@MODULE__RUST_UUID_CANONICAL_TRUE@_rust_uuid_canonical _rust_uuid_canonical/module.c
+ @MODULE__RUST_URL_QUOTE_TRUE@_rust_url_quote _rust_url_quote/module.c
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -7580 +7580,2 @@
++  Modules/_rust_uuid_canonical \
+   Modules/_rust_url_quote \
+@@ -8617 +8618,4 @@
++PY_STDLIB_MOD([_rust_uuid_canonical],
++  [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
++  [], [])
+ PY_STDLIB_MOD([_rust_url_quote],
+diff --git a/configure b/configure
+--- a/configure
++++ b/configure
+@@ -697 +697,3 @@
++MODULE__RUST_UUID_CANONICAL_FALSE
++MODULE__RUST_UUID_CANONICAL_TRUE
+ MODULE__RUST_URL_QUOTE_FALSE
+@@ -32098 +32100,2 @@
++  Modules/_rust_uuid_canonical \
+   Modules/_rust_url_quote \
+@@ -35731 +35734,42 @@
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_uuid_canonical" >&5
++printf %s "checking for stdlib extension module _rust_uuid_canonical... " >&6; }
++        if test "$py_cv_module__rust_uuid_canonical" != "n/a"
++then :
++
++    if test "$HAVE_CARGO" = yes
++then :
++  if test "$HAVE_CARGO" = yes
++then :
++  py_cv_module__rust_uuid_canonical=yes
++else case e in #(
++  e) py_cv_module__rust_uuid_canonical=missing ;;
++esac
++fi
++else case e in #(
++  e) py_cv_module__rust_uuid_canonical=disabled ;;
++esac
++fi
++
++fi
++  as_fn_append MODULE_BLOCK "MODULE__RUST_UUID_CANONICAL_STATE=$py_cv_module__rust_uuid_canonical$as_nl"
++  if test "x$py_cv_module__rust_uuid_canonical" = xyes
++then :
++
++
++
++
++fi
++   if test "$py_cv_module__rust_uuid_canonical" = yes; then
++  MODULE__RUST_UUID_CANONICAL_TRUE=
++  MODULE__RUST_UUID_CANONICAL_FALSE='#'
++else
++  MODULE__RUST_UUID_CANONICAL_TRUE='#'
++  MODULE__RUST_UUID_CANONICAL_FALSE=
++fi
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_uuid_canonical" >&5
++printf "%s\n" "$py_cv_module__rust_uuid_canonical" >&6; }
++
++
+   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_url_quote" >&5
+@@ -37079 +37123,5 @@
++if test -z "${MODULE__RUST_UUID_CANONICAL_TRUE}" && test -z "${MODULE__RUST_UUID_CANONICAL_FALSE}"; then
++  as_fn_error $? "conditional \"MODULE__RUST_UUID_CANONICAL\" was never defined.
++Usually this means the macro was only invoked conditionally." "$LINENO" 5
++fi
+ if test -z "${MODULE__RUST_URL_QUOTE_TRUE}" && test -z "${MODULE__RUST_URL_QUOTE_FALSE}"; then
+diff --git a/Modules/_rust_uuid_canonical/module.c b/Modules/_rust_uuid_canonical/module.c
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_uuid_canonical/module.c
+@@ -0,0 +1,45 @@
++/* The public UUID constructor retains object creation and fallback policy. */
++#define PY_SSIZE_T_CLEAN
++#include <Python.h>
++#include <stdint.h>
++
++extern int uuid_canonical_scan(const unsigned char *, Py_ssize_t, uint8_t *);
++
++static PyObject *scan(PyObject *self, PyObject *arg)
++{
++    uint8_t bytes[16];
++    (void)self;
++    if (!PyUnicode_CheckExact(arg)) {
++        PyErr_SetString(PyExc_TypeError, "scan requires exact str");
++        return NULL;
++    }
++    if (!PyUnicode_IS_ASCII(arg) ||
++        !uuid_canonical_scan((const unsigned char *)PyUnicode_1BYTE_DATA(arg),
++                             PyUnicode_GET_LENGTH(arg), bytes)) {
++        Py_RETURN_NONE;
++    }
++    return PyLong_FromUnsignedNativeBytes(bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN);
++}
++
++static PyMethodDef methods[] = {
++    {"scan", scan, METH_O, "Return a canonical UUID integer or None."},
++    {NULL, NULL, 0, NULL}
++};
++
++static PyModuleDef_Slot slots[] = {
++    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
++    {0, NULL}
++};
++
++static struct PyModuleDef module = {
++    PyModuleDef_HEAD_INIT,
++    .m_name = "_rust_uuid_canonical",
++    .m_size = 0,
++    .m_methods = methods,
++    .m_slots = slots,
++};
++
++PyMODINIT_FUNC PyInit__rust_uuid_canonical(void)
++{
++    return PyModuleDef_Init(&module);
++}
+diff --git a/Modules/_rust_uuid_canonical/scan.rs b/Modules/_rust_uuid_canonical/scan.rs
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_uuid_canonical/scan.rs
+@@ -0,0 +1,57 @@
++#![no_std]
++
++use core::panic::PanicInfo;
++
++unsafe extern "C" {
++    fn abort() -> !;
++}
++
++#[panic_handler]
++fn panic(_info: &PanicInfo<'_>) -> ! {
++    unsafe { abort() }
++}
++
++fn nibble(byte: u8) -> Option<u8> {
++    match byte {
++        b'0'..=b'9' => Some(byte - b'0'),
++        b'a'..=b'f' => Some(byte - b'a' + 10),
++        _ => None,
++    }
++}
++
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn uuid_canonical_scan(
++    input: *const u8,
++    length: isize,
++    output: *mut u8,
++) -> i32 {
++    if input.is_null() || output.is_null() || length != 36 {
++        return 0;
++    }
++    let bytes = unsafe { core::slice::from_raw_parts(input, 36) };
++    if bytes[8] != b'-' || bytes[13] != b'-' || bytes[18] != b'-' || bytes[23] != b'-' {
++        return 0;
++    }
++    let mut value = [0u8; 16];
++    let mut index = 0;
++    let mut digits = 0;
++    while index < 36 {
++        if index == 8 || index == 13 || index == 18 || index == 23 {
++            index += 1;
++            continue;
++        }
++        let (Some(&first), Some(&second), Some(out)) = (
++            bytes.get(index), bytes.get(index + 1), value.get_mut(digits),
++        ) else {
++            return 0;
++        };
++        let (Some(high), Some(low)) = (nibble(first), nibble(second)) else {
++            return 0;
++        };
++        *out = (high << 4) | low;
++        digits += 1;
++        index += 2;
++    }
++    unsafe { core::ptr::copy_nonoverlapping(value.as_ptr(), output, 16) };
++    1
++}
