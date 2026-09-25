@@ -232,9 +232,14 @@ totals for spawned children; it is diagnostic only. See
 [`mac-allocation-probe-20260924.md`](rust-cpython/experiments/mac-allocation-probe-20260924.md).
 An experiment-only dyld interposer did capture controlled parent, spawned
 child, and threaded `malloc` requests with exact sizes. It still lacks broad
-allocator-API, abnormal-exit, phase-boundary, and complete process-tree
+allocator-API, abnormal-exit, and complete process-tree
 coverage, so it is a diagnostic rather than an allocation benchmark gate;
 see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/mac-malloc-interpose-feasibility-20260924.md).
+An explicit one-phase-per-PID boundary now excludes startup and post-workload
+sentinel requests in a bounded parent, spawn-child, and threaded diagnostic.
+It remains a three-symbol, normal-exit observer without arbitrary process-tree
+coverage or quiet-host overhead bounds; see
+[`mac-malloc-phase-20260925.md`](rust-cpython/experiments/mac-malloc-phase-20260925.md).
 The Mach per-page object reference count also cannot establish USS or PSS;
 the bounded diagnostic route and stop conditions are in
 [`mac-memory-next-method-20260925.md`](rust-cpython/experiments/mac-memory-next-method-20260925.md).
@@ -735,8 +740,9 @@ as a separate baseline change.
   region probe failed; any further USS/PSS work needs a different interface
   with proven page identity and coverage. Xcode Allocations export failed the
   requested-byte and child-attribution gates. The bounded malloc interposer
-  is promising for diagnostics but needs API and process coverage before it
-  can support an allocation verdict.
+  now has a bounded workload phase, but still needs broader allocator API,
+  process-tree, abnormal-exit, and overhead coverage before it can support
+  an allocation verdict.
   Stop both the arbitrary public `difflib.SequenceMatcher` kernel and the
   one-shot `unified_diff` snapshot route under the unchanged behavior
   contract. The former exposes mutable matcher state; the latter changes

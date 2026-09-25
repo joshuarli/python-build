@@ -36,4 +36,13 @@ Raw dylib, thread script, and per-PID JSON files are retained under ignored `rus
 
 ## Next boundary
 
-Before using this as a diagnostic allocation pass, add explicit process discovery and a required exit record for every interpreter, plus a workload phase boundary that excludes interpreter startup. Check symbol/API coverage against direct zone and anonymous-VM paths and validate overflow, failure, and termination semantics. Measure observer perturbation with repeat self-comparisons. A separate CPython RAW/MEM/OBJ observer would need its own early-install and correctness evidence; its counts overlap underlying system requests and remain separate.
+A later [bounded phase experiment](mac-malloc-phase-20260925.md) added one
+explicit phase per PID and confirmed startup and post-phase sentinel requests
+are excluded in a parent, spawn child, and threaded batch. Before using this
+as a general diagnostic allocation pass, add explicit process discovery and a
+required exit record for every interpreter. Check symbol/API coverage against
+direct zone and anonymous-VM paths and validate overflow, failure, and
+termination semantics. Measure observer perturbation with repeat
+self-comparisons. A separate CPython RAW/MEM/OBJ observer would need its own
+early-install and correctness evidence; its counts overlap underlying system
+requests and remain separate.
