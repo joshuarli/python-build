@@ -8,6 +8,8 @@ import re
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 ROOT = Path(__file__).resolve().parents[2]
 CONTROL = Path('/Users/josh/d/python-build-exp-tar-owned-module-20260925/rust-cpython/stage-tar-owned/bin/python3.16')
 CANDIDATE = ROOT / 'rust-cpython/stage-tar-guard/bin/python3.16'
@@ -74,9 +76,8 @@ def attempt(kind, family, number, position, side, env):
     return record
 
 
-def main():
-    if DATA.exists():
-        raise FileExistsError(DATA)
+def main(output):
+    reserve_evidence(output)
     calibration = ROOT / 'rust-cpython/work/guard-discarded-calibration.json'
     prior = json.loads(calibration.read_text()) if calibration.exists() else None
     env = os.environ.copy()
@@ -117,6 +118,7 @@ def main():
                     for position, side in enumerate(sides, 1):
                         record = attempt(kind, family, number, position, side, env)
                         evidence['attempts'].append(record)
+                        checkpoint_evidence(output, evidence, sort_keys=True)
                         if 'user_seconds' not in record or record.get('failure'):
                             raise ValueError(f'failed measurement: {record["id"]}')
                         ids.append(record['id'])
@@ -132,6 +134,7 @@ def main():
             for position, side in enumerate(sides, 1):
                 record = attempt('archive', 'public-benefit', number, position, side, env)
                 public['attempts'].append(record)
+                checkpoint_evidence(output, evidence, sort_keys=True)
                 if 'user_seconds' not in record or record.get('failure'):
                     raise ValueError(f'failed measurement: {record["id"]}')
                 ids.append(record['id'])
@@ -140,8 +143,11 @@ def main():
     finally:
         evidence['host_swap_after'] = subprocess.check_output(['sysctl', 'vm.swapusage'], text=True).strip()
         evidence['host_load_after'] = subprocess.check_output(['uptime'], text=True).strip()
-        DATA.write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+        checkpoint_evidence(output, evidence, sort_keys=True)
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--evidence', type=Path, default=DATA)
+    main(parser.parse_args().evidence)

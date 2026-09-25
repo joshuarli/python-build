@@ -6,16 +6,18 @@ time logs live under ignored rust-cpython/work/url-quote-memory-followup-2026092
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "rust-cpython/work/url-quote-memory-followup-20260924"
-DATA = ROOT / "rust-cpython/experiments/data/url-quote-memory-followup-20260924.json"
 HASHES = {
     "control": {
         "python": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
@@ -129,7 +131,11 @@ def result_row(result: object, phase: str, side: str, round_number: int,
     }
 
 
-def run_phase(phase: str) -> None:
+def run_phase(phase: str, output: Path, previous: Path | None) -> None:
+    data = json.loads(previous.read_text()) if previous is not None else {}
+    if phase in data:
+        raise SystemExit(f"phase already recorded in {previous}: {phase}")
+    reserve_evidence(output)
     sys.path.insert(0, str(ROOT))
     from benchmarks.harness.process import run_command
     from benchmarks.harness.runner import workload_environment
@@ -138,7 +144,6 @@ def run_phase(phase: str) -> None:
     env = workload_environment(None)
     if phase.startswith("import"):
         env.pop("PYTHONPATH", None)
-    data = json.loads(DATA.read_text()) if DATA.exists() else {}
     data["identity"] = identity
     data["environment"] = {key: env.get(key) for key in (
         "PYTHONPATH", "PYTHONHASHSEED", "PYTHONNOUSERSITE",
@@ -176,17 +181,22 @@ def run_phase(phase: str) -> None:
                     row = result_row(result, phase, side, round_number, pair, position)
                     row["comparison"] = comparison
                     rows.append(row)
+                    data[phase] = {"rows": rows}
+                    checkpoint_evidence(output, data, sort_keys=True, separators=(",", ":"))
         print(f"{phase} {comparison}: {len(rows)} cumulative children", flush=True)
     data[phase] = {"rows": rows, "pairs_per_comparison": {first + "-" + second: count
                          for first, second, count in layouts},
                    "rounds": 5 if phase == "import-time" else 1}
-    DATA.write_text(json.dumps(data, separators=(",", ":"), sort_keys=True) + "\n")
+    checkpoint_evidence(output, data, sort_keys=True, separators=(",", ":"))
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "--preflight":
         print(json.dumps(preflight(), sort_keys=True))
-    elif len(sys.argv) == 2:
-        run_phase(sys.argv[1])
     else:
-        raise SystemExit("usage: script.py --preflight|path-memory|import-time|import-memory")
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("phase", choices=("path-memory", "import-time", "import-memory"))
+        parser.add_argument("--output", type=Path, required=True)
+        parser.add_argument("--previous", type=Path)
+        args = parser.parse_args()
+        run_phase(args.phase, args.output, args.previous)

@@ -1,5 +1,6 @@
 """Record whole-process timing attempts as compact, portable observations."""
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -8,12 +9,14 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[3]
 WORK = ROOT / "rust-cpython/work/tar-checksum-proof"
 ARCHIVE = WORK / "source.tar.gz"
 RUNNER = Path(__file__).with_name("run.py")
-DATA = ROOT / "rust-cpython/experiments/data/tar-checksum-proof-20260925.json"
 TIME_FIELD = re.compile(r"^\s*([\d.]+) real\s+([\d.]+) user\s+([\d.]+) sys", re.M)
 
 
@@ -59,8 +62,10 @@ def run_attempt(name, side, mode):
 
 
 def main():
-    if DATA.exists():
-        raise FileExistsError(DATA)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    reserve_evidence(args.output)
     evidence = {"method": "/usr/bin/time -l around one Python child per attempt; "
                           "external perf_counter around the full time process; "
                           "no sampler or profiler during speed", "attempts": [], "pairs": []}
@@ -77,6 +82,7 @@ def main():
                     name = f"{family}-{pair_number:02d}-{arm_number:02d}-{side}"
                     record = run_attempt(name, side, mode)
                     evidence["attempts"].append(record)
+                    checkpoint_evidence(args.output, evidence, sort_keys=True)
                     ids.append(name)
                     if record["returncode"] != 0:
                         raise RuntimeError(f"failed workload: {name}")
@@ -88,8 +94,9 @@ def main():
                         raise ValueError(f"mismatched output: {name}")
                 evidence["pairs"].append({"family": family, "number": pair_number,
                                           "attempts": ids})
+                checkpoint_evidence(args.output, evidence, sort_keys=True)
     finally:
-        DATA.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+        checkpoint_evidence(args.output, evidence, sort_keys=True)
 
 
 if __name__ == "__main__":

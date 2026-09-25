@@ -6,12 +6,15 @@ the ignored rust-cpython/work/url-quote-memory-attribution-20260924 directory.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
 import statistics
 import sys
 import time
+
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -131,7 +134,9 @@ def _memory_row(result: object, phase: str, variant: str, round_number: int) -> 
     }
 
 
-def _controller() -> None:
+def _controller(output_path: Path, raw_path: Path) -> None:
+    reserve_evidence(output_path)
+    reserve_evidence(raw_path)
     sys.path.insert(0, str(ROOT))
     from benchmarks.harness.process import run_command
     from benchmarks.harness.runner import workload_environment
@@ -148,10 +153,12 @@ def _controller() -> None:
                 command = [str(_paths(WORK / variant)["python"]), *command_tail, phase]
                 result = run_command(command, env=env, cwd=ROOT,
                                      timeout=30, sample_interval_seconds=0.01)
-                rows.append(_memory_row(result, phase, variant, round_number))
                 raw.append({"phase": phase, "variant": variant, "round": round_number,
                             "result": result.as_dict()})
-    (WORK / "raw.json").write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n")
+                checkpoint_evidence(raw_path, {"attempts": raw}, sort_keys=True)
+                rows.append(_memory_row(result, phase, variant, round_number))
+                checkpoint_evidence(output_path, {"rows": rows, "raw_path": str(raw_path)},
+                                    sort_keys=True)
     summary = {}
     for phase in ("catalog", "import"):
         by_round = {row["round"]: row for row in rows if row["phase"] == phase and row["variant"] == "control"}
@@ -171,17 +178,20 @@ def _controller() -> None:
         "expected_output_digest": EXPECTED_OUTPUT,
         "rows": rows,
         "paired_summary": summary,
-        "raw_path": str(WORK / "raw.json"),
+        "raw_path": str(raw_path),
     }
-    target = ROOT / "rust-cpython/experiments/data/url-quote-memory-attribution-20260924.json"
-    target.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n")
+    checkpoint_evidence(output_path, output, sort_keys=True)
     print(json.dumps(summary, sort_keys=True))
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--child":
         _child(sys.argv[2])
-    elif len(sys.argv) == 1:
-        _controller()
     else:
-        raise SystemExit("usage: python3 url-quote-memory-attribution-20260924.py")
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("--output", type=Path, required=True)
+        parser.add_argument("--raw-output", type=Path, required=True)
+        args = parser.parse_args()
+        if args.output.resolve() == args.raw_output.resolve():
+            parser.error("--output and --raw-output must differ")
+        _controller(args.output, args.raw_output)

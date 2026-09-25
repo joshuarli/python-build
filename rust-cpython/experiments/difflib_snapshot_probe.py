@@ -15,6 +15,8 @@ import os
 from pathlib import Path
 import sys
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 TASKS = {"difflib_unified_mostly_equal": 500, "difflib_unified_reordered": 1000}
 
@@ -62,15 +64,15 @@ def controller(args: argparse.Namespace) -> None:
                PYTHONDONTWRITEBYTECODE="1", PYTHONMALLOC="default")
     records: list[dict] = []
     cpu_total = 0.0
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    reserve_evidence(args.output)
 
     def save() -> None:
-        args.output.write_text(json.dumps({
+        checkpoint_evidence(args.output, {
             "identity": {"copies": {k: str(v) for k, v in copies.items()},
                          "executable_sha256": sha(pythons["control"]),
                          "environment": {k: env[k] for k in ("PYTHONPATH", "PYTHONHASHSEED", "PYTHONNOUSERSITE", "PYTHONDONTWRITEBYTECODE", "PYTHONMALLOC")},
                          "counts": TASKS, "child_cpu_seconds": cpu_total},
-            "observations": records}, separators=(",", ":")) + "\n")
+            "observations": records}, separators=(",", ":"))
 
     def measure(task: str, side: str, phase: str, pair: int, sample_memory: bool) -> None:
         nonlocal cpu_total

@@ -1,12 +1,15 @@
 """Sample the workload child separately from the uninstrumented speed runs."""
 
+import argparse
 import json
 import os
+from pathlib import Path
 import subprocess
 import tempfile
 import time
 
-from measure import ARCHIVE, DATA, RUNNER, WORK, TIME_FIELD, kernel_field
+from measure import ARCHIVE, RUNNER, WORK, TIME_FIELD, kernel_field
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 def attempt(name, side):
@@ -55,7 +58,14 @@ def attempt(name, side):
 
 
 def main():
-    evidence = json.loads(DATA.read_text())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--timing-evidence", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    evidence = json.loads(args.timing_evidence.read_text())
+    if "memory_attempts" in evidence or "memory_pairs" in evidence:
+        parser.error("--timing-evidence already contains memory observations")
+    reserve_evidence(args.output)
     evidence["memory_method"] = "20 ms external ps RSS samples of the direct Python child of /usr/bin/time; kernel lifetime peak RSS and physical footprint from time -l"
     evidence["memory_attempts"] = []
     evidence["memory_pairs"] = []
@@ -69,6 +79,7 @@ def main():
                 name = f"memory-{number:02d}-{index:02d}-{side}"
                 record = attempt(name, side)
                 evidence["memory_attempts"].append(record)
+                checkpoint_evidence(args.output, evidence, sort_keys=True)
                 ids.append(name)
                 if record["returncode"] != 0 or not record["samples"]:
                     raise RuntimeError(f"failed memory attempt: {name}")
@@ -79,8 +90,9 @@ def main():
                         6539, 6031, 136064031):
                     raise ValueError(f"mismatched output: {name}")
             evidence["memory_pairs"].append({"number": number, "attempts": ids})
+            checkpoint_evidence(args.output, evidence, sort_keys=True)
     finally:
-        DATA.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+        checkpoint_evidence(args.output, evidence, sort_keys=True)
 
 
 if __name__ == "__main__":

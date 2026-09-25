@@ -4,22 +4,31 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import json
 import os
 from pathlib import Path
 import statistics
 
 from probe_zlib import _check_inputs, _run, BY_NAME, WORKLOADS
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
-def _paired(name: str, iterations: int, rounds: int, *, memory: bool) -> list[dict]:
-    observations = []
+def _paired(name: str, iterations: int, rounds: int, *, memory: bool,
+            checkpoint: Callable[[], None] | None = None,
+            observations: list[dict] | None = None) -> list[dict]:
+    if observations is None:
+        observations = []
     for index in range(rounds):
         order = ("A", "B") if index % 2 == 0 else ("B", "A")
         runs = {}
+        current = {"round": index, "order": order, "runs": runs}
+        observations.append(current)
         for label in order:
             runs[label] = _run(name, "platform_zlib", iterations=iterations,
                                observe_memory=memory)
+            if checkpoint is not None:
+                checkpoint()
         common = ("digest", "input_digest", "operation_count")
         if any(runs["A"]["payload"][key] != runs["B"]["payload"][key]
                for key in common):
@@ -32,8 +41,9 @@ def _paired(name: str, iterations: int, rounds: int, *, memory: bool) -> list[di
             a = runs["A"]["memory"]["root_kernel_peak_rss_bytes"]
             b = runs["B"]["memory"]["root_kernel_peak_rss_bytes"]
             ratio["root_kernel_peak_rss"] = b / a if a and b else None
-        observations.append({"round": index, "order": order, "runs": runs,
-                             "ratio_B_over_A": ratio})
+        current["ratio_B_over_A"] = ratio
+        if checkpoint is not None:
+            checkpoint()
     return observations
 
 
@@ -46,6 +56,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.rounds < 1 or args.memory_rounds < 1 or args.scale < 1:
         parser.error("round counts and scale must be positive")
+    reserve_evidence(args.output)
     identity = _check_inputs()
     report = {"kind": "platform-zlib self-control noise probe",
               "identity": identity, "host_load_average_at_start": os.getloadavg(),
@@ -53,8 +64,15 @@ def main() -> None:
     for name in WORKLOADS:
         iterations = BY_NAME[name].iterations * args.scale
         _run(name, "platform_zlib", iterations=iterations)
-        timing = _paired(name, iterations, args.rounds, memory=False)
-        memory = _paired(name, iterations, args.memory_rounds, memory=True)
+        report["workloads"][name] = {"timing_pairs": [], "memory_pairs": []}
+        def save() -> None:
+            checkpoint_evidence(args.output, report, sort_keys=True)
+        timing = report["workloads"][name]["timing_pairs"]
+        _paired(name, iterations, args.rounds, memory=False,
+                checkpoint=save, observations=timing)
+        memory = report["workloads"][name]["memory_pairs"]
+        _paired(name, iterations, args.memory_rounds, memory=True,
+                checkpoint=save, observations=memory)
         report["workloads"][name] = {
             "operation_count": timing[0]["runs"]["A"]["payload"]["operation_count"],
             "timing_pairs": timing,
@@ -67,9 +85,9 @@ def main() -> None:
                 row["ratio_B_over_A"]["root_kernel_peak_rss"] for row in memory
                 if row["ratio_B_over_A"]["root_kernel_peak_rss"] is not None),
         }
+        checkpoint_evidence(args.output, report, sort_keys=True)
     report["host_load_average_at_end"] = os.getloadavg()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    checkpoint_evidence(args.output, report, sort_keys=True)
     for name, value in report["workloads"].items():
         print(name, "CPU", round(value["median_cpu_ratio_B_over_A"], 3),
               "wall", round(value["median_wall_ratio_B_over_A"], 3),

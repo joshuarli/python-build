@@ -12,6 +12,8 @@ import statistics
 import sys
 from typing import Any
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
@@ -98,22 +100,33 @@ def _run(name: str, side: str, *, iterations: int,
     return result
 
 
-def probe(*, rounds: int, scale: int, memory_rounds: int) -> dict[str, Any]:
+def probe(*, rounds: int, scale: int, memory_rounds: int,
+          evidence: Path | None = None) -> dict[str, Any]:
     if rounds < 1 or scale < 1 or memory_rounds < 0:
         raise ValueError("rounds and scale must be positive; memory rounds must be nonnegative")
     identity = _check_inputs()
     load_at_start = os.getloadavg()
     workloads: dict[str, Any] = {}
+    progress: dict[str, Any] = {}
     for name in WORKLOADS:
         spec = BY_NAME[name]
         iterations = spec.iterations * scale
         for side in ("platform_zlib", "zlib_rs"):
             _run(name, side, iterations=iterations)
         observations = []
+        memory_observations = []
+        progress[name] = {"rounds": observations, "memory_rounds": memory_observations}
         for round_index in range(rounds):
             order = (("platform_zlib", "zlib_rs") if round_index % 2 == 0
                      else ("zlib_rs", "platform_zlib"))
-            pair = [_run(name, side, iterations=iterations) for side in order]
+            pair = []
+            for side in order:
+                pair.append(_run(name, side, iterations=iterations))
+                if evidence is not None:
+                    checkpoint_evidence(evidence, {"workloads": progress,
+                                        "current_round": {"workload": name,
+                                                          "kind": "timing", "round": round_index,
+                                                          "runs": pair}}, sort_keys=True)
             by_side = {row["side"]: row for row in pair}
             common = ("digest", "input_digest", "operation_count")
             if any(by_side["platform_zlib"]["payload"][key] !=
@@ -125,12 +138,19 @@ def probe(*, rounds: int, scale: int, memory_rounds: int) -> dict[str, Any]:
                                      by_side["zlib_rs"]["cpu_total_seconds"] /
                                      by_side["platform_zlib"]["cpu_total_seconds"]
                                  )})
-        memory_observations = []
+            if evidence is not None:
+                checkpoint_evidence(evidence, {"workloads": progress}, sort_keys=True)
         for round_index in range(memory_rounds):
             order = (("platform_zlib", "zlib_rs") if round_index % 2 == 0
                      else ("zlib_rs", "platform_zlib"))
-            pair = [_run(name, side, iterations=iterations, observe_memory=True)
-                    for side in order]
+            pair = []
+            for side in order:
+                pair.append(_run(name, side, iterations=iterations, observe_memory=True))
+                if evidence is not None:
+                    checkpoint_evidence(evidence, {"workloads": progress,
+                                        "current_round": {"workload": name,
+                                                          "kind": "memory", "round": round_index,
+                                                          "runs": pair}}, sort_keys=True)
             by_side = {row["side"]: row for row in pair}
             common = ("digest", "input_digest", "operation_count")
             if any(by_side["platform_zlib"]["payload"][key] !=
@@ -138,6 +158,8 @@ def probe(*, rounds: int, scale: int, memory_rounds: int) -> dict[str, Any]:
                 raise RuntimeError(f"{name}: memory-pass workload identity differs")
             memory_observations.append({"round": round_index, "order": list(order),
                                         "runs": pair})
+            if evidence is not None:
+                checkpoint_evidence(evidence, {"workloads": progress}, sort_keys=True)
         valid_rss_ratios = []
         root_kernel_rss_ratios = []
         for observation in memory_observations:
@@ -200,10 +222,10 @@ def main() -> None:
                         help="separate paired external RSS passes; zero disables")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    reserve_evidence(args.output)
     report = probe(rounds=args.rounds, scale=args.scale,
-                   memory_rounds=args.memory_rounds)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+                   memory_rounds=args.memory_rounds, evidence=args.output)
+    checkpoint_evidence(args.output, report, sort_keys=True)
     for name, value in report["workloads"].items():
         rss = value["paired_peak_rss_ratio_median"]
         rss_label = "unavailable" if rss is None else f"{rss:.3f}"

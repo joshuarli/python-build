@@ -7,6 +7,8 @@ from pathlib import Path
 import platform
 import resource
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 def cpu(usage: resource.struct_rusage) -> dict[str, float]:
     return {"user_seconds": usage.ru_utime, "system_seconds": usage.ru_stime}
@@ -28,8 +30,7 @@ def main() -> None:
     args = parser.parse_args()
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         parser.error("CPU probe requires native macOS arm64")
-    if args.output.exists():
-        parser.error(f"refusing to overwrite {args.output}")
+    reserve_evidence(args.output)
 
     read_fd, write_fd = os.pipe()
     child = os.fork()
@@ -78,8 +79,7 @@ def main() -> None:
         "parent_wait4_minus_child_self_minus_grandchild_wait4": accounted,
         "conclusion": "parent wait4 for the child includes the waited grandchild's user and system CPU; summing nested ledgers double counts",
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    checkpoint_evidence(args.output, result, sort_keys=True)
     print(args.output)
 
 

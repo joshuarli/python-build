@@ -17,6 +17,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -180,17 +182,19 @@ def parent(python: Path, overlay: Path | None, output: Path,
            candidate_python: Path | None = None) -> None:
     """Compare platform zlib with an overlay, or with a second installed interpreter."""
     script = Path(__file__).resolve()
-    output.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=False)
     sides = {"platform": (python, None),
              "zlib_rs": (candidate_python or python, None if candidate_python else overlay)}
     raw = {}
     for side, (side_python, path) in sides.items():
         payload = run_child(side_python, script, path, "--encode")
+        raw_path = output / f"zlib-byte-{side}.json"
+        reserve_evidence(raw_path)
+        checkpoint_evidence(raw_path, payload, sort_keys=True)
         repeat = run_child(side_python, script, path, "--encode")
         if payload != repeat:
             raise AssertionError(f"{side} compressed output changed on repeat")
         raw[side] = payload
-        (output / f"zlib-byte-{side}.json").write_text(json.dumps(payload, sort_keys=True))
     if raw["platform"]["items"].keys() != raw["zlib_rs"]["items"].keys():
         raise AssertionError("case inventory differs")
     cross = {}
@@ -224,8 +228,9 @@ def parent(python: Path, overlay: Path | None, output: Path,
         "byte_equal_count": sum(case["byte_equal"] for case in cases.values()),
         "cases": cases,
     }
-    (output / "zlib-byte-comparison.json").write_text(json.dumps(report, indent=2,
-                                                                    sort_keys=True) + "\n")
+    report_path = output / "zlib-byte-comparison.json"
+    reserve_evidence(report_path)
+    checkpoint_evidence(report_path, report, sort_keys=True)
     print(json.dumps({key: value for key, value in report.items() if key != "cases"},
                      sort_keys=True))
 

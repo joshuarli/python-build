@@ -40,6 +40,7 @@ sys.path.insert(0, str(REPO))
 from benchmarks.harness.process import run_command  # noqa: E402
 from benchmarks.harness.runner import workload_command, workload_environment  # noqa: E402
 from benchmarks.workloads.registry import BY_NAME  # noqa: E402
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 def _run(python: Path, workload, iterations: int, cpu: int, *, memory: bool) -> dict[str, Any]:
@@ -117,6 +118,7 @@ def main() -> int:
     workload = BY_NAME[args.workload]
     if workload.packages:
         raise SystemExit("packaged workloads need a prepared site; use benchmarks/bench.py")
+    reserve_evidence(args.output)
     iterations = args.iterations or workload.iterations
     sides = {"baseline": args.baseline.resolve(), "candidate": args.candidate.resolve()}
     started = time.time()
@@ -125,6 +127,8 @@ def main() -> int:
         _run(python, workload, iterations, args.cpu, memory=False)
     timing: list[dict[str, Any]] = []
     memory: list[dict[str, Any]] = []
+    attempts: dict[str, Any] = {"workload": workload.name, "timing_pairs": timing,
+                                "memory_pairs": memory}
     for phase, count, rows in (("timing", args.pairs, timing), ("memory", args.memory_pairs, memory)):
         for index in range(count):
             order = ("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline")
@@ -132,9 +136,12 @@ def main() -> int:
             for side in order:
                 pair[side] = _run(sides[side], workload, iterations, args.cpu,
                                   memory=phase == "memory")
+                checkpoint_evidence(args.output, {**attempts,
+                                    "current_pair": {"phase": phase, **pair}}, sort_keys=True)
             if pair["baseline"]["digest"] != pair["candidate"]["digest"]:
                 raise SystemExit(f"{workload.name}: correctness digests differ in {phase} pair {index}")
             rows.append(pair)
+            checkpoint_evidence(args.output, attempts, sort_keys=True)
     report = {
         "workload": workload.name,
         "iterations": iterations,
@@ -158,8 +165,7 @@ def main() -> int:
         "timing_pairs": timing,
         "memory_pairs": memory,
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    checkpoint_evidence(args.output, report, sort_keys=True)
     compact = {name: None if value is None else
                {k: value[k] for k in ("median", "bootstrap95_median", "candidate_lower_count", "n")}
                for name, value in report["summary"].items()}

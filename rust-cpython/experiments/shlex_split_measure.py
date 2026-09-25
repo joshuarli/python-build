@@ -9,6 +9,8 @@ import re
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 LANE = Path(__file__).resolve().parents[1]
 WORKLOAD = LANE / "experiments/shlex_split_workload.py"
@@ -58,8 +60,7 @@ def attempt(family: str, pair: int, position: int, side: str, stage: Path,
 
 
 def main(control: Path, candidate: Path, output: Path) -> None:
-    if output.exists():
-        raise FileExistsError(output)
+    reserve_evidence(output)
     env = os.environ.copy()
     for key in tuple(env):
         if key in ("PYTHONPATH", "PYTHONPYCACHEPREFIX") or key.startswith("DYLD_"):
@@ -95,6 +96,7 @@ def main(control: Path, candidate: Path, output: Path) -> None:
                     stage = control if side == "control" else candidate
                     record = attempt(family, pair, position, side, stage, env)
                     evidence["attempts"].append(record)
+                    checkpoint_evidence(output, evidence)
                     if record["returncode"] != 0:
                         raise RuntimeError(f"attempt {record['id']} failed")
                     if family != "cold-import":
@@ -108,8 +110,7 @@ def main(control: Path, candidate: Path, output: Path) -> None:
     finally:
         evidence["host_swap_after"] = subprocess.check_output(["sysctl", "vm.swapusage"], text=True).strip()
         evidence["host_load_after"] = subprocess.check_output(["uptime"], text=True).strip()
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(evidence, indent=2) + "\n")
+        checkpoint_evidence(output, evidence)
 
 
 if __name__ == "__main__":

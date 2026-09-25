@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import subprocess
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "rust-cpython/work"
@@ -72,7 +74,8 @@ def measure(side: str, number: int, position: int,
     }
 
 
-def main() -> None:
+def main(output: Path) -> None:
+    reserve_evidence(output)
     attempts = []
     pairs = []
     before = swap()
@@ -82,6 +85,7 @@ def main() -> None:
         for position, side in enumerate(order, 1):
             entry = measure(side, number, position)
             attempts.append(entry)
+            checkpoint_evidence(output, {"attempts": attempts, "pairs": pairs})
             ids.append(entry["id"])
         pairs.append(ids)
     old = WORK / "strptime-guard-old/Lib/_strptime.py"
@@ -102,12 +106,14 @@ def main() -> None:
         "pairs": pairs,
         "attempts": attempts,
     }
-    OUTPUT.write_text(json.dumps(report, indent=2) + "\n")
-    print(OUTPUT)
+    checkpoint_evidence(output, report)
+    print(output)
 
 
-def append_control_comparison() -> None:
-    report = json.loads(OUTPUT.read_text())
+def append_control_comparison(source: Path, output: Path) -> None:
+    report = json.loads(source.read_text())
+    reserve_evidence(output)
+    report["source_evidence"] = str(source)
     before = swap()
     pairs = []
     for number in range(1, 6):
@@ -117,6 +123,7 @@ def append_control_comparison() -> None:
             entry = measure(side, number, position)
             entry["id"] = "control-comparison-" + entry["id"]
             report["attempts"].append(entry)
+            checkpoint_evidence(output, report)
             ids.append(entry["id"])
         pairs.append(ids)
     report["control_comparison"] = {
@@ -125,12 +132,14 @@ def append_control_comparison() -> None:
         "host_swap_after": swap(),
         "pairs": pairs,
     }
-    OUTPUT.write_text(json.dumps(report, indent=2) + "\n")
-    print(OUTPUT)
+    checkpoint_evidence(output, report)
+    print(output)
 
 
-def append_installed_comparison() -> None:
-    report = json.loads(OUTPUT.read_text())
+def append_installed_comparison(source: Path, output: Path) -> None:
+    report = json.loads(source.read_text())
+    reserve_evidence(output)
+    report["source_evidence"] = str(source)
     before = swap()
     pairs = []
     for number in range(1, 4):
@@ -140,6 +149,7 @@ def append_installed_comparison() -> None:
             entry = measure(side, number, position, INSTALLED_PYTHON)
             entry["id"] = "final-installed-comparison-" + entry["id"]
             report["attempts"].append(entry)
+            checkpoint_evidence(output, report)
             ids.append(entry["id"])
         pairs.append(ids)
     report["installed_comparison_final"] = {
@@ -150,18 +160,24 @@ def append_installed_comparison() -> None:
         "pairs": pairs,
         "cache_policy": "-S -B; PYTHONDONTWRITEBYTECODE=1; empty worktree-local PYTHONPYCACHEPREFIX for both arms",
     }
-    OUTPUT.write_text(json.dumps(report, indent=2) + "\n")
-    print(OUTPUT)
+    checkpoint_evidence(output, report)
+    print(output)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--append-control", action="store_true")
     parser.add_argument("--append-installed", action="store_true")
+    parser.add_argument("--evidence", type=Path, default=OUTPUT)
+    parser.add_argument("--source-evidence", type=Path)
     arguments = parser.parse_args()
+    if (arguments.append_installed or arguments.append_control) and arguments.source_evidence is None:
+        parser.error("append mode requires --source-evidence and a new --evidence path")
     if arguments.append_installed:
-        append_installed_comparison()
+        append_installed_comparison(arguments.source_evidence, arguments.evidence)
     elif arguments.append_control:
-        append_control_comparison()
+        append_control_comparison(arguments.source_evidence, arguments.evidence)
     else:
-        main()
+        if arguments.source_evidence is not None:
+            parser.error("--source-evidence requires an append mode")
+        main(arguments.evidence)

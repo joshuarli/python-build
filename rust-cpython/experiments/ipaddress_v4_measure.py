@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import sys
 import time
+
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,9 +66,8 @@ def attempt(pair, position, side, env, family='comparison', kind='routing'):
     return record
 
 
-def main():
-    if DATA.exists():
-        raise FileExistsError(DATA)
+def main(output):
+    reserve_evidence(output)
     env = os.environ.copy()
     for key in tuple(env):
         if key in ('PYTHONPATH', 'PYTHONPYCACHEPREFIX') or key.startswith('DYLD_'):
@@ -105,6 +105,7 @@ def main():
                 for position, side in enumerate(sides, 1):
                     record = attempt(number, position, side, env, family)
                     evidence['attempts'].append(record)
+                    checkpoint_evidence(output, evidence, sort_keys=True)
                     ids.append(record['id'])
                     if record['returncode'] or 'failure' in record or 'user_seconds' not in record:
                         raise ValueError(f'failed attempt {record["id"]}')
@@ -118,11 +119,13 @@ def main():
     finally:
         evidence['host_swap_after'] = subprocess.check_output(['sysctl', 'vm.swapusage'], text=True).strip()
         evidence['host_load_after'] = subprocess.check_output(['uptime'], text=True).strip()
-        DATA.write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+        checkpoint_evidence(output, evidence, sort_keys=True)
 
 
-def calibrate():
-    evidence = json.loads(DATA.read_text())
+def calibrate(source, output):
+    evidence = json.loads(source.read_text())
+    reserve_evidence(output)
+    evidence['source_evidence'] = str(source)
     env = os.environ.copy()
     for key in tuple(env):
         if key in ('PYTHONPATH', 'PYTHONPYCACHEPREFIX') or key.startswith('DYLD_'):
@@ -137,6 +140,7 @@ def calibrate():
                 record = attempt(number, position, 'control', env)
                 record['id'] = f'self-{number:02d}-{position:02d}-control'
                 evidence['attempts'].append(record)
+                checkpoint_evidence(output, evidence, sort_keys=True)
                 ids.append(record['id'])
                 if (record['returncode'] or 'failure' in record or
                         record.get('output') != evidence['attempts'][0]['output']):
@@ -148,13 +152,15 @@ def calibrate():
             ['sysctl', 'vm.swapusage'], text=True).strip()
         evidence['host_load_after_calibration'] = subprocess.check_output(
             ['uptime'], text=True).strip()
-        DATA.write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+        checkpoint_evidence(output, evidence, sort_keys=True)
 
 
-def guard_followup():
-    evidence = json.loads(DATA.read_text())
+def guard_followup(source, output):
+    evidence = json.loads(source.read_text())
     if 'guard_followup' in evidence:
         raise ValueError('guard follow-up already recorded')
+    reserve_evidence(output)
+    evidence['source_evidence'] = str(source)
     env = os.environ.copy()
     for key in tuple(env):
         if key in ('PYTHONPATH', 'PYTHONPYCACHEPREFIX') or key.startswith('DYLD_'):
@@ -183,6 +189,7 @@ def guard_followup():
         'host_load_before': subprocess.check_output(['uptime'], text=True).strip(),
         'attempts': [], 'pairs': [],
     }
+    evidence['guard_followup'] = followup
     expected = evidence['attempts'][0]['output']
     plan = (('guard-self', 'routing', 3, ('candidate', 'candidate')),
             ('guard-prior', 'routing', 5, ('candidate', 'guard')),
@@ -196,6 +203,7 @@ def guard_followup():
                 for position, side in enumerate(sides, 1):
                     record = attempt(number, position, side, env, family, kind)
                     followup['attempts'].append(record)
+                    checkpoint_evidence(output, evidence, sort_keys=True)
                     ids.append(record['id'])
                     if (record['returncode'] or 'failure' in record or
                             'user_seconds' not in record or
@@ -212,14 +220,25 @@ def guard_followup():
             ['sysctl', 'vm.swapusage'], text=True).strip()
         followup['host_load_after'] = subprocess.check_output(
             ['uptime'], text=True).strip()
-        evidence['guard_followup'] = followup
-        DATA.write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+        checkpoint_evidence(output, evidence, sort_keys=True)
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['--guard-followup']:
-        guard_followup()
-    elif sys.argv[1:] == ['--self-calibrate']:
-        calibrate()
+    import argparse
+    parser = argparse.ArgumentParser()
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--guard-followup', action='store_true')
+    mode.add_argument('--self-calibrate', action='store_true')
+    parser.add_argument('--evidence', type=Path, default=DATA)
+    parser.add_argument('--source-evidence', type=Path)
+    args = parser.parse_args()
+    if (args.guard_followup or args.self_calibrate) and args.source_evidence is None:
+        parser.error('follow-up requires --source-evidence and a new --evidence path')
+    if args.guard_followup:
+        guard_followup(args.source_evidence, args.evidence)
+    elif args.self_calibrate:
+        calibrate(args.source_evidence, args.evidence)
     else:
-        main()
+        if args.source_evidence is not None:
+            parser.error('--source-evidence requires a follow-up mode')
+        main(args.evidence)

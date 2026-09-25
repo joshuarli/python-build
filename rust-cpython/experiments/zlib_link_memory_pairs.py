@@ -13,6 +13,8 @@ import shutil
 import statistics
 import subprocess
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRATCH = ROOT / "rust-cpython" / "work" / "zlib-link-memory"
@@ -83,6 +85,8 @@ def main() -> None:
     parser.add_argument("--candidate", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+    output_path = args.output.resolve()
+    reserve_evidence(output_path)
     if platform.system() != "Darwin" or platform.machine().lower() not in {"arm64", "aarch64"}:
         raise RuntimeError("this memory pass requires native macOS arm64")
     python = args.python.resolve()
@@ -100,14 +104,22 @@ def main() -> None:
         for index in range(1, count + 1):
             order = ("control", "control") if kind == "self" else (
                 ("control", "smaller") if index % 2 else ("smaller", "control"))
-            attempts = [observation(python, modules[arm], f"{kind}-{index:02d}-{position}-{arm}")
-                        for position, arm in enumerate(order, 1)]
+            attempts = []
+            for position, arm in enumerate(order, 1):
+                attempts.append(observation(python, modules[arm],
+                                            f"{kind}-{index:02d}-{position}-{arm}"))
+                checkpoint_evidence(output_path, {"pairs": pairs,
+                                    "current_pair": {"kind": kind, "index": index,
+                                                     "order": order, "attempts": attempts}},
+                                    sort_keys=True, separators=(",", ":"))
             for attempt in attempts:
                 if expected is None:
                     expected = attempt["output"]
                 elif attempt["output"] != expected:
                     raise RuntimeError(f"workload output changed in {attempt['id']}")
             pairs.append({"kind": kind, "index": index, "order": order, "attempts": attempts})
+            checkpoint_evidence(output_path, {"pairs": pairs}, sort_keys=True,
+                                separators=(",", ":"))
     if (SCRATCH / "absent-pycache").exists():
         raise RuntimeError("the no-write bytecode cache prefix was unexpectedly created")
     differences = {
@@ -130,11 +142,7 @@ def main() -> None:
         },
         "pairs": pairs,
     }
-    output_path = args.output.resolve()
-    if output_path.exists():
-        raise RuntimeError(f"refusing to replace existing evidence: {output_path}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n")
+    checkpoint_evidence(output_path, report, sort_keys=True, separators=(",", ":"))
     print(output_path)
 
 

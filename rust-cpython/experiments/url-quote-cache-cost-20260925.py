@@ -10,6 +10,8 @@ from pathlib import Path
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "rust-cpython/work/url-quote-cache-cost-20260925"
@@ -184,7 +186,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--comparison", choices=("pre-primed", "baseline-primed", "pre-baseline", "native-hits", "native-lengths", "cache-edits"),
                         default="pre-primed")
+    parser.add_argument("--evidence", type=Path, default=ROOT / "rust-cpython/experiments/data/url-quote-cache-cost-20260925.json")
+    parser.add_argument("--source-evidence", type=Path)
     args = parser.parse_args()
+    if args.comparison != "pre-primed" and args.source_evidence is None:
+        parser.error("follow-up comparisons require --source-evidence and a new --evidence path")
+    if args.comparison == "pre-primed" and args.source_evidence is not None:
+        parser.error("--source-evidence requires a follow-up comparison")
     pre = (WORK / "pre/urllib/parse.py").read_text()
     primed = (WORK / "primed/urllib/parse.py").read_text()
     loop = "        for byte in _rust_url_dict_fromkeys(bs):\n            quoter(byte)\n"
@@ -195,16 +203,23 @@ def main() -> None:
         "pre_parse_sha256": sha256(WORK / "pre/urllib/parse.py"),
         "primed_parse_sha256": sha256(WORK / "primed/urllib/parse.py"),
     }
-    evidence_path = ROOT / "rust-cpython/experiments/data/url-quote-cache-cost-20260925.json"
+    evidence_path = args.evidence
+    source_path = args.source_evidence
     if args.comparison == "cache-edits":
-        prior = json.loads(evidence_path.read_text())
+        prior = json.loads(source_path.read_text())
         if prior["identities"] != identities or "cache_edit_observations" in prior:
             raise SystemExit("prior identities changed or cache edit observations exist")
         revised = WORK / "revised/urllib/parse.py"
         expected = (WORK / "revised-source/Lib/urllib/parse.py").read_bytes()
         if revised.read_bytes() != expected:
             raise SystemExit("revised overlay differs from revised patch source")
-        observations = [cache_edit_observation(side) for side in ("baseline", "revised")]
+        reserve_evidence(evidence_path)
+        prior["source_evidence"] = str(source_path)
+        observations = []
+        prior["cache_edit_observations"] = observations
+        for side in ("baseline", "revised"):
+            observations.append(cache_edit_observation(side))
+            checkpoint_evidence(evidence_path, prior)
         public_fields = ("fresh", "edited", "exception", "one_byte", "traced", "profiled")
         if any(observations[0][field] != observations[1][field] for field in public_fields):
             raise SystemExit("revised public output or exception differs from pure parser")
@@ -216,24 +231,31 @@ def main() -> None:
             raise SystemExit("revised guard reached native code after fallback condition")
         prior["revised_patch_sha256"] = sha256(ROOT / "rust-cpython/patches/0001-rust-url-quote.patch")
         prior["revised_parse_sha256"] = sha256(revised)
-        prior["cache_edit_observations"] = observations
-        evidence_path.write_text(json.dumps(prior, indent=2) + "\n")
+        checkpoint_evidence(evidence_path, prior)
         return
     if args.comparison == "native-hits":
-        prior = json.loads(evidence_path.read_text())
+        prior = json.loads(source_path.read_text())
         if prior["identities"] != identities or "native_hit_counts" in prior:
             raise SystemExit("prior identities changed or hit counts exist")
-        prior["native_hit_counts"] = [native_hit_count(task, side)
-                                      for task in EXPECTED for side in ("pre", "primed")]
-        evidence_path.write_text(json.dumps(prior, indent=2) + "\n")
+        reserve_evidence(evidence_path)
+        prior["source_evidence"] = str(source_path)
+        prior["native_hit_counts"] = []
+        for task in EXPECTED:
+            for side in ("pre", "primed"):
+                prior["native_hit_counts"].append(native_hit_count(task, side))
+                checkpoint_evidence(evidence_path, prior)
         return
     if args.comparison == "native-lengths":
-        prior = json.loads(evidence_path.read_text())
+        prior = json.loads(source_path.read_text())
         if prior["identities"] != identities or "native_length_observations" in prior:
             raise SystemExit("prior identities changed or lengths exist")
-        prior["native_length_observations"] = [native_hit_count(task, side)
-                                               for task in EXPECTED for side in ("pre", "primed")]
-        evidence_path.write_text(json.dumps(prior, indent=2) + "\n")
+        reserve_evidence(evidence_path)
+        prior["source_evidence"] = str(source_path)
+        prior["native_length_observations"] = []
+        for task in EXPECTED:
+            for side in ("pre", "primed"):
+                prior["native_length_observations"].append(native_hit_count(task, side))
+                checkpoint_evidence(evidence_path, prior)
         return
     baseline_comparison = args.comparison in ("baseline-primed", "pre-baseline")
     data_key = ("baseline_comparison" if args.comparison == "baseline-primed"
@@ -242,7 +264,7 @@ def main() -> None:
         if sha256(WORK / "baseline/urllib/parse.py") != sha256(
                 Path("/Users/josh/d/python-build/rust-cpython/stage/lib/python3.16/urllib/parse.py")):
             raise SystemExit("baseline overlay differs from pinned installed source")
-        evidence = json.loads(evidence_path.read_text())
+        evidence = json.loads(source_path.read_text())
         if evidence["identities"] != identities or data_key in evidence:
             raise SystemExit("prior identities changed or baseline comparison exists")
         evidence = {
@@ -262,6 +284,9 @@ def main() -> None:
             "accounting": "os.wait4 direct workload child; no workload descendants; host sampled outside workload runs",
             "host_before": host(), "attempts": [], "pair_host": [],
         }
+    reserve_evidence(evidence_path)
+    if source_path is not None:
+        evidence["source_evidence"] = str(source_path)
     attempts = evidence["attempts"]
     pair_host = evidence["pair_host"]
     assert isinstance(attempts, list) and isinstance(pair_host, list)
@@ -275,22 +300,13 @@ def main() -> None:
             for position, side in enumerate(order):
                 record = run(task, side, pair, position)
                 attempts.append(record)
+                checkpoint_evidence(evidence_path, evidence)
                 if not record["valid"]:
                     evidence["host_after"] = host()
-                    if baseline_comparison:
-                        prior = json.loads(evidence_path.read_text())
-                        prior[data_key] = evidence
-                        evidence_path.write_text(json.dumps(prior, indent=2) + "\n")
-                    else:
-                        evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
+                    checkpoint_evidence(evidence_path, evidence)
                     raise SystemExit(f"invalid attempt: {record['id']}")
     evidence["host_after"] = host()
-    if baseline_comparison:
-        prior = json.loads(evidence_path.read_text())
-        prior[data_key] = evidence
-        evidence_path.write_text(json.dumps(prior, indent=2) + "\n")
-    else:
-        evidence_path.write_text(json.dumps(evidence, indent=2) + "\n")
+    checkpoint_evidence(evidence_path, evidence)
 
 
 if __name__ == "__main__":

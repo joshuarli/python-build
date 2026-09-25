@@ -26,6 +26,7 @@ from harness.pyperformance import (
     select_benchmarks,
     PyperformanceRun,
 )
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 SUPPORTED = (
@@ -166,8 +167,7 @@ def main() -> None:
     work = args.work.resolve()
     if work.exists() and any(work.iterdir()):
         parser.error(f"work directory must be empty: {work}")
-    if args.evidence.exists():
-        parser.error(f"refusing to overwrite evidence: {args.evidence}")
+    reserve_evidence(args.evidence)
     work.mkdir(parents=True, exist_ok=True)
     site, benchmark_root, wheels = prepare_site(work)
     selected = select_benchmarks(benchmark_root, args.benchmark)
@@ -178,6 +178,8 @@ def main() -> None:
     candidate = identity(args.candidate)
     common = (*spec.extra_opts, "--processes", "1", "--values", "1", "--warmups", "0", "--inherit-environ", "PYPERFORMANCE_SCRIPT,PYPERFORMANCE_CPU_LEDGER,PYTHONPATH,PYTHONDONTWRITEBYTECODE,PYTHONNOUSERSITE,PYTHONPYCACHEPREFIX")
     calibration = invoke(args.baseline, spec.script, common, site, work / "calibration", args.timeout)
+    attempts = {"calibration": calibration, "timing_arms": []}
+    checkpoint_evidence(args.evidence, attempts, sort_keys=True)
     parsed = parse_raw_json(work / "calibration" / "pyperf.json")
     calib_benchmarks = tuple(replace(benchmark, manifest_name=spec.name) for benchmark in parsed.benchmarks.values())
     calibration_run = PyperformanceRun(str(args.baseline), "timing", (spec.name,), work / "calibration", calib_benchmarks, (work / "calibration" / "pyperf.json",) * len(calib_benchmarks), calibration=True)
@@ -201,6 +203,8 @@ def main() -> None:
             attempt["arm"] = label
             attempt["pair"] = pair + 1
             arms.append(attempt)
+            attempts["timing_arms"] = arms
+            checkpoint_evidence(args.evidence, attempts, sort_keys=True)
     if len({tuple((item["name"], item["unit"]) for item in arm["benchmarks"]) for arm in arms}) != 1:
         raise RuntimeError("pyperf output names or units differ between arms")
     evidence = {
@@ -218,8 +222,7 @@ def main() -> None:
             "output_digest": "pyperf JSON hashes identify recorded samples; startup script has no application payload digest",
         },
     }
-    args.evidence.parent.mkdir(parents=True, exist_ok=True)
-    args.evidence.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    checkpoint_evidence(args.evidence, evidence, sort_keys=True)
     print(f"wrote {args.evidence}; fixed loops={loops}; benchmark={spec.name}")
 
 

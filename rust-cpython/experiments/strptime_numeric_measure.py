@@ -9,6 +9,8 @@ import re
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKLOAD = ROOT / "rust-cpython/experiments/strptime_numeric_workload.py"
@@ -64,12 +66,11 @@ def attempt(family: str, pair: int, position: int, side: str,
     return record
 
 
-def main(control: Path, candidate: Path, output: Path, *, resume: bool = False,
+def main(control: Path, candidate: Path, output: Path, *, source_evidence: Path | None = None,
          self_only: bool = False) -> None:
-    if output.exists() and not resume:
-        raise FileExistsError(output)
-    if resume and not output.exists():
-        raise FileNotFoundError(output)
+    if source_evidence is not None and not source_evidence.exists():
+        raise FileNotFoundError(source_evidence)
+    reserve_evidence(output)
     env = os.environ.copy()
     for key in tuple(env):
         if key in ("PYTHONPATH", "PYTHONPYCACHEPREFIX") or key.startswith("DYLD_"):
@@ -80,7 +81,7 @@ def main(control: Path, candidate: Path, output: Path, *, resume: bool = False,
         raise ValueError("measurement pycache prefix must be empty")
     env.update(PYTHONHASHSEED="1", PYTHONNOUSERSITE="1",
                PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=str(cache))
-    evidence = json.loads(output.read_text()) if resume else {
+    evidence = json.loads(source_evidence.read_text()) if source_evidence else {
         "recipe": {
             "workload": "strptime_numeric_workload.py --count 30000 --rounds 2",
             "workload_sha256": digest(WORKLOAD),
@@ -98,12 +99,13 @@ def main(control: Path, candidate: Path, output: Path, *, resume: bool = False,
         "host_load_before": subprocess.check_output(["uptime"], text=True).strip(),
         "attempts": [], "pairs": [],
     }
-    if resume:
+    if source_evidence:
+        evidence["source_evidence"] = str(source_evidence)
         evidence["host_swap_resume"] = subprocess.check_output(["sysctl", "vm.swapusage"], text=True).strip()
         evidence["host_load_resume"] = subprocess.check_output(["uptime"], text=True).strip()
     try:
-        reference = evidence["attempts"][0]["output"] if resume else None
-        plan = (("comparison", 5), ("cold", 5)) if resume else (
+        reference = evidence["attempts"][0]["output"] if source_evidence else None
+        plan = (("comparison", 5), ("cold", 5)) if source_evidence else (
             (("self", 3),) if self_only else
             (("self", 3), ("comparison", 5), ("cold", 5)))
         for family, count in plan:
@@ -116,6 +118,7 @@ def main(control: Path, candidate: Path, output: Path, *, resume: bool = False,
                     record = attempt(family, number, position, side, env,
                                      control, candidate)
                     evidence["attempts"].append(record)
+                    checkpoint_evidence(output, evidence, sort_keys=True)
                     ids.append(record["id"])
                     if record["returncode"] or "failure" in record or "user_seconds" not in record:
                         raise ValueError(f"failed attempt {record['id']}")
@@ -132,7 +135,7 @@ def main(control: Path, candidate: Path, output: Path, *, resume: bool = False,
     finally:
         evidence["host_swap_after"] = subprocess.check_output(["sysctl", "vm.swapusage"], text=True).strip()
         evidence["host_load_after"] = subprocess.check_output(["uptime"], text=True).strip()
-        output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+        checkpoint_evidence(output, evidence, sort_keys=True)
 
 
 if __name__ == "__main__":
@@ -140,9 +143,14 @@ if __name__ == "__main__":
     parser.add_argument("--control-stage", type=Path, required=True)
     parser.add_argument("--candidate-stage", type=Path, default=ROOT / "rust-cpython/stage-strptime-numeric")
     parser.add_argument("--output", type=Path, default=DATA)
+    parser.add_argument("--source-evidence", type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--self-only", action="store_true")
     mode.add_argument("--continue", dest="resume", action="store_true")
     options = parser.parse_args()
+    if options.resume and options.source_evidence is None:
+        parser.error("--continue requires --source-evidence and a new --output")
+    if options.source_evidence is not None and not options.resume:
+        parser.error("--source-evidence requires --continue")
     main(options.control_stage, options.candidate_stage, options.output,
-         resume=options.resume, self_only=options.self_only)
+         source_evidence=options.source_evidence, self_only=options.self_only)
