@@ -331,6 +331,12 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   process CPU per run across batched fresh processes; wall time remained
   inconclusive and peak RSS was within self-noise. See
   [`url-quote-memory-followup-20260924.md`](rust-cpython/experiments/url-quote-memory-followup-20260924.md).
+- A same-executable lazy extension-import overlay preserved 2,177 public
+  cases and unchanged URL tests, but fresh-import speed stayed within
+  self-comparison noise and request-path peak RSS rose in three small paired
+  runs. The overlay also delays a missing-extension failure until first use.
+  Keep the eager source patch; see
+  [`url-quote-lazy-import-20260924.md`](rust-cpython/experiments/url-quote-lazy-import-20260924.md).
 
 ## Immediate work queue
 
@@ -356,10 +362,11 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   `unified_diff` path is a separate hypothesis whose snapshot and validation
   cost should be measured first; see
   [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
-- The guarded URL patch is speed-qualified on three complete tasks. Test a
-  lazy private-extension import as a possible fix for its small fresh-import
-  CPU cost, while checking that public URL workload gains survive. The
-  request-path RSS increase did not repeat with identical checkers.
+- The guarded URL patch is speed-qualified on three complete tasks. Its small
+  fresh-import CPU cost remains visible; the tested lazy variant did not show
+  a reliable benefit. The earlier request-path RSS increase did not repeat
+  with identical checkers, while the lazy overlay showed a separate small
+  directional RSS increase. Keep the eager patch as the current experiment.
   Unique/proportional memory and allocations remain unqualified even when
   paired RSS medians fall within noise. Extend to broader applications when
   compatible byte-pinned inputs exist.
