@@ -1,0 +1,34 @@
+--- a/Lib/urllib/parse.py
++++ b/Lib/urllib/parse.py
+@@ -34,7 +34,6 @@
+ from collections import namedtuple
+ import functools
+ import math
+-import _rust_url_quote
+ import re
+ import types
+ import warnings
+@@ -1094,6 +1093,9 @@
+ def _byte_quoter_factory(safe):
+     return _Quoter(safe).__getitem__
+ 
++_rust_url_quote = None
++_rust_url_quote_bytes = None
++
+ def quote_from_bytes(bs, safe='/'):
+     """Like quote(), but accepts a bytes object rather than a str, and does
+     not perform string-to-bytes encoding.  It always returns an ASCII string.
+@@ -1113,7 +1115,12 @@
+         return bs.decode()
+     # Only exact bytes enter the native kernel after the original fast exits.
+     if type(bs) is bytes and type(safe) is bytes and len(bs) < 200_000:
+-        return _rust_url_quote.quote_bytes(bs, safe)
++        global _rust_url_quote, _rust_url_quote_bytes
++        if _rust_url_quote_bytes is None:
++            import _rust_url_quote as native_quote
++            _rust_url_quote = native_quote
++            _rust_url_quote_bytes = native_quote.quote_bytes
++        return _rust_url_quote_bytes(bs, safe)
+     quoter = _byte_quoter_factory(safe)
+     if (bs_len := len(bs)) < 200_000:
+         return ''.join(map(quoter, bs))
