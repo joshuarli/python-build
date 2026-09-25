@@ -1,5 +1,19 @@
 # Rust-for-CPython experiment lanes
 
+## URL decoder upstream speed comparison (base `dee6771`)
+
+The queued three-way timing lane uses
+`/private/tmp/python-build-exp-url-unquote-upstream-speed-20260925a`, branch
+`exp/url-unquote-upstream-speed-20260925a`. It owns only
+`experiments/url-unquote-upstream-speed-20260925.md`, compact data under
+`experiments/data/`, and ignored local logs/clones. After the resource lane
+stops, it will compare complete catalog search-form wall and kernel CPU for
+vanilla upstream 3.16, the accepted quote-only fork, and the fresh decoder
+candidate, with exact outputs, equivalent valid caches, self-noise, and
+counterbalanced serial attempts. Budget: 120 kernel CPU seconds and 1 GiB
+per-process RSS. Separate source ancestry and PGO profiles limit causal
+attribution; the same-executable proof supplies that narrower evidence.
+
 ## URL decoder upstream memory comparison (base `b09ac07`)
 
 The queued resource lane uses
