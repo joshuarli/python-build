@@ -190,6 +190,12 @@ child, and threaded `malloc` requests with exact sizes. It still lacks broad
 allocator-API, abnormal-exit, phase-boundary, and complete process-tree
 coverage, so it is a diagnostic rather than an allocation benchmark gate;
 see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/mac-malloc-interpose-feasibility-20260924.md).
+The local `rustybench` now offers a Rust `Allocator`/`GlobalAlloc` profiler
+under its Rust 1.100 toolchain. It may explain allocation changes inside a
+focused Rust kernel, but cannot count CPython's C allocator activity or
+qualify a whole Python process. Keep the experimental lane's pinned toolchain
+and existing interpreter comparisons coherent; evaluate any toolchain update
+as a separate baseline change.
 
 ## Current evidence
 

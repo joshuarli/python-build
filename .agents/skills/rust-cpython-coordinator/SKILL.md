@@ -72,11 +72,15 @@ Linux recipes outside these lanes.
   import and can dominate startup RSS. Regenerate valid caches for both sides
   outside measured processes, or make both sides run from source; record the
   policy and cache identities with the result.
-- `~/d/rustybench` can inform a focused Rust kernel experiment. Inspect its
-  contract before use; it currently reports Linux process CPU/resource
-  fields and marks the macOS resource extension unsupported. It does not
-  replace end-to-end Python workload qualification. Do not add it as a
-  dependency without the project's required scope decision.
+- `~/d/rustybench` can inform a focused Rust kernel experiment. Its current
+  `AllocProfiler` wraps `GlobalAlloc` and Rust 1.100's `Allocator`, so it can
+  count global or collection-local Rust allocation requests in a separate
+  diagnostic. Use the same toolchain and allocator in both arms, and keep its
+  instrumented elapsed time out of speed verdicts. It currently reports Linux
+  process CPU/resource fields and marks the macOS resource extension
+  unsupported. It cannot count CPython C allocations or replace end-to-end
+  Python workload qualification. The experiment lane pins an earlier nightly;
+  do not silently change that pin or add rustybench as a dependency.
 
 ## Experiment handoff
 
