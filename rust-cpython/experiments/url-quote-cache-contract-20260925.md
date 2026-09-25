@@ -1,5 +1,10 @@
 # Quote cache contract, 2026-09-25
 
+This cache-priming revision was superseded after complete-workload diagnostics
+showed that it leaves only one native call per safe value and raises CPU
+against the pure parser. The current guard and its private-state tradeoff are
+recorded in [the cache cost result](url-quote-cache-cost-20260925.md).
+
 The guarded `quote_from_bytes` route now primes an empty `_Quoter` through its original bound `__getitem__` once per distinct byte, in first appearance order, before the Rust output scan. `dict.fromkeys(bs)` preserves that order for exact `bytes`. The baseline's later hits on repeated bytes do not write to the dict, so the final keys, insertion order, and cached string values match. This preserves the private cached `_Quoter` object returned by `_byte_quoter_factory(safe)` while still leaving the complete output scan in Rust. The guard also checks that `_Quoter.__setitem__` retains its captured implementation.
 
 The native route requires `1 < len(bs) < 200_000`. For a one byte input, `''.join(map(quoter, bs))` returns the cached string object itself on CPython. The native extension makes a distinct Unicode object, so one byte calls stay on the original path. For longer input, both paths return a new joined/output string, while each cached fragment is the exact string returned by the same `_Quoter.__missing__` call. Inputs whose quoter dict is already populated also stay on the original path; modified cached values therefore remain effective. Nonexact inputs, changed relevant bindings, large inputs, and calls with `sys.gettrace()` or `sys.getprofile()` active retain the fallback.

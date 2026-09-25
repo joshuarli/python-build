@@ -10,7 +10,7 @@ diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
 +import sys
  import types
  import warnings
-@@ -1093,6 +1095,26 @@
+@@ -1093,6 +1095,25 @@
  def _byte_quoter_factory(safe):
      return _Quoter(safe).__getitem__
  
@@ -23,7 +23,6 @@ diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
 +_rust_url_chr = chr
 +_rust_url_frozenset = frozenset
 +_rust_url_dict_len = dict.__len__
-+_rust_url_dict_fromkeys = dict.fromkeys
 +_rust_url_gettrace = sys.gettrace
 +_rust_url_getprofile = sys.getprofile
 +_rust_url_quoter_factory = _byte_quoter_factory
@@ -37,13 +36,13 @@ diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
  def quote_from_bytes(bs, safe='/'):
      """Like quote(), but accepts a bytes object rather than a str, and does
      not perform string-to-bytes encoding.  It always returns an ASCII string.
-@@ -1111,7 +1132,30 @@
+@@ -1111,7 +1131,28 @@
      if not bs.rstrip(_ALWAYS_SAFE_BYTES + safe):
          return bs.decode()
      quoter = _byte_quoter_factory(safe)
 -    if (bs_len := len(bs)) < 200_000:
 +    bs_len = len(bs)
-+    # Use the original quoter to populate its cache in first-occurrence order.
++    # Preserve cached quoter edits by using the original path once populated.
 +    if (len is _rust_url_len and map is _rust_url_map and
 +            isinstance is _rust_url_isinstance and
 +            bytes is _rust_url_bytes and str is _rust_url_str and
@@ -62,8 +61,6 @@ diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
 +            _rust_url_type(quoter.__self__.safe) is _rust_url_frozenset and
 +            quoter.__self__.safe == _ALWAYS_SAFE.union(safe) and
 +            _rust_url_dict_len(quoter.__self__) == 0):
-+        for byte in _rust_url_dict_fromkeys(bs):
-+            quoter(byte)
 +        return _rust_url_quote.quote_bytes(bs, safe)
 +    if bs_len < 200_000:
          return ''.join(map(quoter, bs))

@@ -520,16 +520,18 @@ as a separate baseline change.
   [`url-unquote-source-patch-20260925.md`](rust-cpython/experiments/url-unquote-source-patch-20260925.md)
   and [`url-unquote-contract-audit-20260925.md`](rust-cpython/experiments/url-unquote-contract-audit-20260925.md).
 - A later source audit narrowed native `quote_from_bytes` dispatch around
-  replaceable Python helpers and mutable quoter state. Its subsequent cache
-  revision primes the original quoter in first-byte order; one-byte inputs
-  and active tracing or profiling use Python. The revised route has no
-  installed-build or speed verdict, and exact event-stream parity remains
-  open. Optional `unquote` changes public output if `_hextobyte` is edited in
-  place and skips its lazy initialization. A narrow in-loop Rust replacement
-  was stopped because it leaves the mapping and append work in Python. The
-  earlier URL speed ratios describe pre-guard quote source. See the
-  [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md),
-  [cache revision](rust-cpython/experiments/url-quote-cache-contract-20260925.md),
+  replaceable Python helpers and mutable quoter state. Priming its private
+  cache on native hits left only one Rust call per safe value in a complete
+  batch and raised CPU in loaded-host diagnostics. The current revision leaves
+  that private cache empty, but populated or edited caches, one-byte inputs,
+  and active trace/profile hooks use Python. Public edited-cache outcomes
+  matched the pinned parser; private cache state still differs. A same-binary
+  diagnostic found lower search CPU but higher request-path CPU against pure
+  Python, so quiet-host speed and memory remain open. Optional `unquote`
+  changes public output if `_hextobyte` is edited and skips its lazy setup;
+  the narrow in-loop Rust replacement was stopped. Earlier URL speed ratios
+  describe pre-guard source. See the [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md),
+  [cache cost](rust-cpython/experiments/url-quote-cache-cost-20260925.md),
   and [decoder decision](rust-cpython/experiments/url-unquote-contract-followup-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
   recipe. Its installed parser matches the selected source, its extension
