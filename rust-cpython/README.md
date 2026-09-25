@@ -24,6 +24,8 @@ python3 rust-cpython/build.py fetch   # verified sources, LLVM, and locked Cargo
 python3 rust-cpython/build.py build   # out-of-tree optimized build, network denied
 python3 rust-cpython/build.py fetch --zlib-rs  # also cache pinned optional backend
 python3 rust-cpython/build.py build --zlib-rs  # isolated optional zlib candidate
+python3 rust-cpython/build.py fetch --zlib-hybrid # cache the same pinned backend
+python3 rust-cpython/build.py build --zlib-hybrid # Rust inflate, platform deflate
 python3 rust-cpython/build.py test    # Cargo, focused CPython, then broad regression
 python3 rust-cpython/build_no_rust.py # matched same-source benchmark control
 python3 rust-cpython/build.py clean   # remove generated outputs; retain private Cargo cache
@@ -74,6 +76,13 @@ against the platform zlib library. `--zlib-rs` builds an optional candidate
 from the pinned proof backend, retaining platform zlib for `binascii`; its
 whole-build and public-workload evidence is in
 [`experiments/zlib-full-candidate-20260924.md`](experiments/zlib-full-candidate-20260924.md).
+`--zlib-hybrid` builds a separate candidate using prefixed Rust inflate
+symbols while retaining platform zlib for compression, checksums, public
+version identity, and `binascii`. Its digest-checked source patch is inert in
+the ordinary and full-backend modes. The hybrid matched all 876 sampled
+compressed byte outputs and passed focused CPython consumers; workload speed
+and resource parity are still open. See
+[`experiments/zlib-hybrid-proof-20260924.md`](experiments/zlib-hybrid-proof-20260924.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under
 that unchanged CPython wrapper and runs CPython's zlib and compression-consumer
