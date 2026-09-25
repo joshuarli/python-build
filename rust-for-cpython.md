@@ -185,6 +185,11 @@ Xcode's Allocations export was also probed on the pinned 3.16 interpreter.
 Its aggregate buckets round requested bytes and do not establish allocation
 totals for spawned children; it is diagnostic only. See
 [`mac-allocation-probe-20260924.md`](rust-cpython/experiments/mac-allocation-probe-20260924.md).
+An experiment-only dyld interposer did capture controlled parent, spawned
+child, and threaded `malloc` requests with exact sizes. It still lacks broad
+allocator-API, abnormal-exit, phase-boundary, and complete process-tree
+coverage, so it is a diagnostic rather than an allocation benchmark gate;
+see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/mac-malloc-interpose-feasibility-20260924.md).
 
 ## Current evidence
 
@@ -335,9 +340,9 @@ totals for spawned children; it is diagnostic only. See
   measurements and matched upstream control comparison. The simple libproc
   region probe failed; any further USS/PSS work needs a different interface
   with proven page identity and coverage. Xcode Allocations export failed the
-  requested-byte and child-attribution gates, so a different validated
-  allocation observer is needed; see
-  [`mac-allocation-probe-20260924.md`](rust-cpython/experiments/mac-allocation-probe-20260924.md).
+  requested-byte and child-attribution gates. The bounded malloc interposer
+  is promising for diagnostics but needs API and process coverage before it
+  can support an allocation verdict.
   Continue zlib's
   quiet-host and memory qualification.
   A native kernel on arbitrary public `difflib.SequenceMatcher` instances has
