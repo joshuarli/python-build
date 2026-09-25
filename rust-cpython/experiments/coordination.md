@@ -47,6 +47,14 @@ No timing comparison or other compiler runs concurrently. Budget: 1,200
 kernel CPU seconds and 4 GiB per-process RSS. The coordinator will inspect
 its report and integrate it before a separate installed workload comparison.
 This build does not resolve public semantic or upstream memory qualification.
+The one-attempt native build succeeded. Fresh source inventories differed in
+exactly three intended paths; the installed parser and extension matched the
+opt-in selection, and both complete catalog URL digests matched. The build
+used 696.95 user plus 105.45 system = 802.40 kernel CPU seconds, with
+1,785,905,152 bytes maximum reported process RSS and zero swaps. All timed
+preflight, build, and narrow probes totaled 808.76 kernel CPU seconds. See
+`url-unquote-build-20260925.md`. Broad behavior and upstream resource gates
+remain open.
 
 ## Optional URL unquote source patch (base `50737ef`)
 

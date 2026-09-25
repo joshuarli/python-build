@@ -418,11 +418,19 @@ as a separate baseline change.
 - The decoder proof is now a digest-checked optional `build --url-unquote`
   source patch. Fresh verified source selections differed only in the parser,
   C wrapper, and Rust byte scanner; the default build remains quote-only.
-  A full opt-in build and broad public semantic qualification are open. The
+  At source-selection time, the full build and broad public semantic checks
+  remained open. The
   eligible path bypasses lazy initialization and replacement of private
   parser globals, and codec dispatch needs a differential check. See
   [`url-unquote-source-patch-20260925.md`](rust-cpython/experiments/url-unquote-source-patch-20260925.md)
   and [`url-unquote-contract-audit-20260925.md`](rust-cpython/experiments/url-unquote-contract-audit-20260925.md).
+- The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
+  recipe. Its installed parser matches the selected source, its extension
+  exports the Rust decoder, and both complete catalog URL output digests
+  matched. The build consumed 802.40 kernel CPU seconds and peaked at 1.79 GB
+  reported process RSS with no swaps. A separate serial installed-tree
+  performance comparison and broad semantic qualification remain open. See
+  [`url-unquote-build-20260925.md`](rust-cpython/experiments/url-unquote-build-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and
@@ -513,8 +521,8 @@ as a separate baseline change.
   Unique/proportional memory and allocations remain unqualified even when
   paired RSS medians fall within noise. Extend to broader applications when
   compatible byte-pinned inputs exist. The separate `unquote` proof has a
-  large search-form gain and a checked-in opt-in source patch; full native
-  build and broad public semantic qualification remain open.
+  large search-form gain and a built opt-in source patch; serial installed
+  comparison and broad public semantic qualification remain open.
 - The approved macOS CPython 3.16 Django benchmark lock now pins and verifies
   Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 without changing the
   product or Linux lock. See
