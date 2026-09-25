@@ -1,0 +1,90 @@
+--- a/Modules/_base64/src/lib.rs
++++ b/Modules/_base64/src/lib.rs
+@@ -34,20 +34,77 @@
+         .and_then(|blocks| blocks.checked_mul(4))
+ }
+ 
++#[cfg(target_arch = "aarch64")]
++#[inline]
++unsafe fn encode_neon_block(input: *const u8, output: *mut u8) {
++    use std::arch::aarch64::*;
++
++    // Each lane holds one 3-byte group; a 48-byte input block yields 64 output bytes.
++    let groups = unsafe { vld3q_u8(input) };
++    let a = groups.0;
++    let b = groups.1;
++    let c = groups.2;
++    let mask = vdupq_n_u8(0x3f);
++    let first = vshrq_n_u8(a, 2);
++    let second = vandq_u8(vorrq_u8(vshlq_n_u8(a, 4), vshrq_n_u8(b, 4)), mask);
++    let third = vandq_u8(vorrq_u8(vshlq_n_u8(b, 2), vshrq_n_u8(c, 6)), mask);
++    let fourth = vandq_u8(c, mask);
++
++    #[inline]
++    unsafe fn ascii(value: uint8x16_t) -> uint8x16_t {
++        use std::arch::aarch64::*;
++        let offset = vbslq_u8(
++            vcgtq_u8(value, vdupq_n_u8(61)),
++            vbslq_u8(vceqq_u8(value, vdupq_n_u8(62)), vdupq_n_u8(237), vdupq_n_u8(240)),
++            vbslq_u8(
++                vcgtq_u8(value, vdupq_n_u8(51)),
++                vdupq_n_u8(252),
++                vdupq_n_u8(0),
++            ),
++        );
++        let offset = vbslq_u8(
++            vcgtq_u8(value, vdupq_n_u8(51)),
++            offset,
++            vbslq_u8(vcgtq_u8(value, vdupq_n_u8(25)), vdupq_n_u8(71), vdupq_n_u8(65)),
++        );
++        vaddq_u8(value, offset)
++    }
++
++    let encoded = uint8x16x4_t(
++        unsafe { ascii(first) },
++        unsafe { ascii(second) },
++        unsafe { ascii(third) },
++        unsafe { ascii(fourth) },
++    );
++    unsafe { vst4q_u8(output, encoded) };
++}
++
+ #[inline]
+ fn encode_into(input: &[u8], output: &mut [u8]) -> usize {
++    let len = input.len();
++    // The caller allocates the full padded result before entering this kernel.
++    assert!(output.len() >= encoded_output_len(len).expect("Base64 output size overflow"));
+     let mut src_index = 0;
+     let mut dst_index = 0;
+-    let len = input.len();
+-
+-    while src_index + 3 <= len {
+-        let chunk = (u32::from(input[src_index]) << 16)
+-            | (u32::from(input[src_index + 1]) << 8)
+-            | u32::from(input[src_index + 2]);
+-        output[dst_index] = ENCODE_TABLE[((chunk >> 18) & 0x3f) as usize];
+-        output[dst_index + 1] = ENCODE_TABLE[((chunk >> 12) & 0x3f) as usize];
+-        output[dst_index + 2] = ENCODE_TABLE[((chunk >> 6) & 0x3f) as usize];
+-        output[dst_index + 3] = ENCODE_TABLE[(chunk & 0x3f) as usize];
++
++    #[cfg(target_arch = "aarch64")]
++    while len - src_index >= 48 && output.len() - dst_index >= 64 {
++        // The loop bounds cover the 48-byte read and 64-byte write.
++        unsafe {
++            encode_neon_block(input.as_ptr().add(src_index), output.as_mut_ptr().add(dst_index));
++        }
++        src_index += 48;
++        dst_index += 64;
++    }
++
++    for (src, dst) in input[src_index..].chunks_exact(3).zip(output[dst_index..].chunks_exact_mut(4)) {
++        let chunk = (u32::from(src[0]) << 16)
++            | (u32::from(src[1]) << 8)
++            | u32::from(src[2]);
++        dst[0] = ENCODE_TABLE[((chunk >> 18) & 0x3f) as usize];
++        dst[1] = ENCODE_TABLE[((chunk >> 12) & 0x3f) as usize];
++        dst[2] = ENCODE_TABLE[((chunk >> 6) & 0x3f) as usize];
++        dst[3] = ENCODE_TABLE[(chunk & 0x3f) as usize];
+         src_index += 3;
+         dst_index += 4;
+     }

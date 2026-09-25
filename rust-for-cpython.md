@@ -277,6 +277,12 @@ as a separate baseline change.
   an output buffer while `binascii` allocated one, so this does not establish
   public-route headroom. Keep the patch as kernel evidence without changing
   public `base64`; see the [runtime probe](rust-cpython/experiments/base64-bulk-runtime-20260925/report.md).
+  A separate optional AArch64 NEON kernel produced exact bytes in 108
+  deterministic cases and reduced direct 1 MiB encode time to 133.58 µs
+  versus staged `binascii` at 387.34 µs in a loaded-host diagnostic. The
+  comparison reused Rust output storage, so its next gate is an end-to-end
+  route beneath `binascii.b2a_base64` with allocation, memory, size, and option
+  behavior measured; see the [NEON result](rust-cpython/experiments/base64-neon-20260925.md).
 - A separate [`zlib-proof`](rust-cpython/zlib-proof/README.md) links the pinned
   `zlib-rs` 0.6.7 C ABI beneath the unchanged CPython `Modules/zlibmodule.c`.
   `test_zlib` passed 85 tests (2 skipped); `test_gzip`, `test_tarfile`,
