@@ -1,49 +1,80 @@
 ---
 name: rust-cpython-coordinator
-description: Coordinate parallel Rust-for-CPython stdlib coverage ports using isolated worktrees and complete CPython Python-level test suites. Use for delegated work under rust-cpython/ or rust-for-cpython.md.
+description: Coordinate up to 16 parallel Rust-for-CPython stdlib coverage ports using isolated worktrees, real source overlays, and CPython Python-level tests. Use for delegated work under rust-cpython/ or rust-for-cpython.md.
 ---
 
 # Rust-for-CPython coverage coordination
 
-This skill supersedes the general `orchestrate` skill for this lane. The root
-agent owns the coverage checklist, worktree assignment, integration, and the
-final coverage verdict. Keep the production CPython 3.14.6 build outside the
-lane. Follow `rust-for-cpython.md`; the performance phase is deferred until
-its checklist is complete.
+This skill supersedes `orchestrate` for this lane. The root agent owns the
+checklist in `rust-for-cpython.md`, worktree assignment, shared-file merges,
+full-suite integration, and coverage verdicts. Production CPython 3.14.6
+is outside this lane. Performance starts only after all 71 coverage items
+are complete.
 
-## Assign independent modules
+## Fan out by module
 
-- Use the smallest useful fan-out, at most **six active experiment agents**.
-  Prefer `gpt-6-sol` at `medium` reasoning. Give each agent a self-contained
-  module brief with owned paths and complete CPython Python test suites.
-- Create a unique Git worktree and branch before an editing agent starts.
-  The agent runs every file command there and commits candidate source on
-  that branch. Do not assign overlapping source or docs. Keep build outputs
-  in that worktree; never put the only source copy under `/private/tmp` or
-  an ignored directory.
-- The root agent inspects and integrates one completed lane at a time. Resolve
-  interactions and rerun affected complete Python suites after integration.
-  Do not commit assignments, scout status, handoffs, or repeated ledgers.
-  Never push without explicit user instruction.
+- Run up to **16 module agents** concurrently. Prefer `gpt-6-luna` at
+  `xhigh` for implementation. Reserve `gpt-6-sol` at `medium` or `high`
+  for difficult C-ABI, concurrency, semantic, or integration problems. Give
+  each agent one distinct module, public behavior, and affected CPython suites.
+  Spawn with `fork_turns: "none"` and a self-contained brief. Children do not
+  spawn further agents. Before spawning, reserve expected source paths and
+  public behavior in the coordinator's working context; schedule coupled
+  modules together or sequentially so two agents do not rewrite one route.
+- Create a unique branch and Git worktree before an agent edits. Every agent
+  uses its own worktree as `workdir`. Keep module-specific files under
+  `rust-cpython/overlay/` and commit actual `.rs`, Python, C, and Cargo
+  source there. No patch manifests, embedded source strings, or ignored
+  directories as the sole copy. Shared `Cargo.toml`, `Cargo.lock`, configure,
+  and module registration edits may appear in separate branches; the root
+  agent owns their final reconciliation. Agents leave the shared checklist
+  untouched; the root checks items only after integrated qualification.
+  When branches add crates, merge their exact manifest constraints and
+  regenerate one lockfile for the combined source; inspect the changed
+  package set before the integrated fetch and build.
+- Share only verified immutable input cache bytes, for example by linking
+  each worktree's ignored `.cache` to the warmed primary cache. Keep build,
+  stage, Cargo target, logs, and test output private to each worktree.
+  Schedule build jobs according to available CPUs, memory, and disk rather
+  than letting 16 compilers saturate the host. Use `build --jobs N` and
+  `test --jobs N` to divide capacity. Agents can edit while builds queue.
+- Do not commit lane assignments, scout status, handoffs, repeated evidence
+  ledgers, or generated build output. Put the focused suite verdict in the
+  implementation commit message; no separate report file is needed. Remove
+  completed worktrees after integration to reclaim disk. Never push without
+  instruction.
 
-## Coverage verdict
+## Correctness hill climb
 
-- Choose important modules with tractable full suites. Identify all relevant
-  unchanged CPython test modules or packages before implementation. Run the
-  baseline once to identify existing platform failures and expected skips.
-- Prefer a maintained Rust library for the algorithm or format. Check
-  compatibility, maintenance, license, and dependency closure. Consult the
-  user before adding a dependency. Keep Python-visible objects, exceptions,
-  callbacks, and state behavior correct.
-- Use the default debug build: no PGO, no LTO, Cargo `dev`. Run only complete
-  named CPython Python suites with `build.py test --suite test_NAME`. Do not
-  write or run Rust tests. Do not run pyperformance, benchmarks, profiles, or
-  CPU/memory comparisons during this phase.
-- Count a module only when its named public behavior reaches Rust and every
-  relevant Python suite passes fully on a supported native host. Ordinary
-  platform skips are acceptable; feature-gap skips are not. Commit source,
-  exact build/suite command, target and candidate identity, pass/skip counts,
-  and a short verdict together. No per-attempt report files are needed.
-- A partial or failed route remains unchecked. Keep a concise finding when
-  it changes the next decision; remove abandoned scaffolding. Stage trees,
-  raw compiler logs, and test logs are rebuildable and stay outside Git.
+1. First establish a passing baseline across all CPython test modules under
+   the default resource policy on the pinned fork. Before each port, identify
+   every relevant unchanged CPython test
+   module or package. An agent may run a small subset for feedback, then
+   must run the full relevant module suites with `build.py test --suite
+   test_NAME` before handing off. Compare platform skips with the baseline.
+2. Prefer maintained Rust libraries for formats and algorithms. Check their
+   compatibility, license, maintenance, and dependency closure. Vetted Rust
+   crates are preauthorized in this isolated lane when pinned in committed
+   `Cargo.lock` and their compatible licenses are recorded. Other dependency
+   types still require consultation. Keep public Python object, exception,
+   callback, and state semantics at the CPython boundary.
+3. Build only debug CPython: no PGO, LTO, benchmark, or Rust tests. Do not
+   write Rust tests. A private extension or passing test subset alone gives
+   no coverage credit. The named public behavior must reach Rust.
+4. The root agent integrates completed module branches in a small batch,
+   reconciles shared files, builds the combined interpreter, and runs
+   `build.py test --all`. If it fails, isolate the interacting change and
+   repair or revert it. Mark a checklist item complete only after its full
+   relevant module suites **and** the integrated default-resource CPython
+   suite pass.
+   Baseline platform/resource skips are acceptable; new skips and claimed
+   module feature skips are not.
+5. In the module commit message, state Rust-owned public behavior, supported
+   target, any added crate and license, exact debug build and focused-suite
+   commands, pass/skip counts, and baseline platform skips. The root adds
+   the integrated full-suite verdict beside each checked checklist item.
+   If a route fails, retain a concise finding only when it changes the next
+   decision.
+   Remove abandoned scaffolding and continue with another module. Refill
+   finished lanes until every checklist item is qualified; ordinary failures
+   trigger repair or a different module, not a coordinator status cycle.

@@ -18,51 +18,66 @@ parsing where exposed.
 
 ## Coverage loop
 
-1. Pick one unchecked module and identify its complete relevant CPython
-   Python-level test modules or packages before editing. Include neighboring
-   suites when the public behavior crosses modules. Run the unchanged suite
-   on the pinned fork to learn existing failures.
+1. Establish a passing baseline across all CPython test modules under the
+   runner's default resource policy on the pinned fork. Then pick one
+   unchecked module and identify its complete relevant CPython
+   test modules or packages before editing. Include neighboring suites when
+   the public behavior crosses modules. Run those unchanged suites on the
+   baseline to learn expected platform skips.
 2. Look for a maintained Rust library implementing the format or algorithm.
    Use one where its license, compatibility, maintenance, and dependency
-   closure fit this lane. Consult the user before adding a dependency.
+   closure fit this lane. Vetted Rust crates are preauthorized for this
+   isolated lane when committed with pinned `Cargo.lock` entries and license
+   information; other dependencies still require consultation.
    Keep CPython's public API and object/callback semantics at the boundary.
-3. Make a small module-level port in an isolated, committed worktree.
+3. Make a module-level port in an isolated, committed worktree.
    Prefer adapting a library over writing another codec, parser, or container
-   from scratch. Keep the candidate source and exact build input in Git;
-   generated interpreters and compiler logs are rebuildable.
+   from scratch. Keep the candidate's real Rust, Python, C, and Cargo source
+   files under `rust-cpython/overlay/` in Git. Generated interpreters and
+   compiler logs are rebuildable.
 4. Build with `python3 rust-cpython/build.py build`, which now defaults to
    a non-PGO, non-LTO CPython `--with-pydebug` build and Cargo `dev`
    profile. Run `python3 rust-cpython/build.py test --suite test_NAME`
    for every identified full suite. Do not write or run Rust tests, run
    pyperformance, or run benchmarks during this phase.
 5. Inspect failures at the Python API, fix the Rust boundary, and rerun the
-   full affected suites. Mark a module complete only when the public route
-   reaches Rust and all relevant Python suites pass. Commit the source
-   and one concise suite result with the module checklist change. Then
-   select the next module.
+   affected suites. Agents may use focused tests while developing, but the
+   final candidate must pass every relevant unchanged module suite. The
+   coordinator integrates independent modules, runs `build.py test --all`
+   across all default-resource test modules on the combined tree, and repairs
+   or reverts failures before checking any items from that batch. Put the
+   focused suite verdict in the module commit
+   and the integrated verdict beside the checked checklist item. Then select
+   the next batch.
 
 A failed candidate may stay on its own branch while being repaired. Do not
 mark partial implementations complete or create per-attempt reports, scout
 commits, or resource ledgers. A short finding is enough when a route is
 abandoned. The coordinator owns lane assignment, path isolation, and
-integration; the repo-local skill specifies the six-agent maximum.
+integration; the repo-local skill allows up to 16 module agents.
+
+Baseline on macOS arm64 (2026-09-25): the pinned fork's debug build passed
+`python3 rust-cpython/build.py test --all --jobs 4` under default resources.
+The runner found 505 test files, ran 496, denied nine for resources, and
+reported 50,158 individual tests run, 2,703 skipped, and zero failures.
 
 ## Coverage checklist
 
-
-Work through the modules below, choosing library-backed modules with a
-tractable complete CPython test suite first. A checked item requires public
-calls for the named behavior to reach maintained Rust code on a supported
-host, and every relevant unchanged CPython test module or package to pass
-in full on the debug candidate. Normal platform skips are acceptable;
-failures, errors, and skips caused by an unimplemented feature are not.
+These are 71 named public-behavior targets, not claims that every line of
+each stdlib module must be Rust. Work through them, choosing library-backed
+modules with a tractable complete CPython test suite first. A checked item
+requires public calls for the named behavior to reach maintained Rust code
+on a supported host, and every relevant unchanged CPython test module or package to pass
+in full on the debug candidate. Baseline platform and resource skips are
+acceptable; failures, errors, new skips, and skips caused by an unimplemented
+feature of the claimed module are not.
 Record the exact Rust-owned behavior, platform, candidate commit, suite
-command, pass and skip counts, and any expected platform skips in a short
-checked-in note. A private extension, a narrow proof, or passing a subset
-of a module's tests does not complete an item.
+command, pass and skip counts, and any expected platform skips in the module
+commit and completed checklist line. A private extension, a narrow proof, or
+passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count starts at **0 complete modules**. Do not carry
+module. The strict count starts at **0 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 ### Priority 0: common application paths

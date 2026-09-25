@@ -67,6 +67,7 @@ IS_LINUX = TARGET == LINUX_TARGET
 SYMBOL_PREFIX = "" if IS_LINUX else "_"
 RUST_CHANNEL = "nightly-2026-09-15"
 SOURCE_LOCK = LANE / "sources.lock.json"
+OVERLAY = LANE / "overlay"
 BOOTSTRAP_LOCK = REPO / "bootstrap.lock.json"
 LINUX_TOOLCHAIN_LOCK = LANE / "linux-toolchain.lock.json"
 CACHE_ROOT = REPO / ".cache"
@@ -497,34 +498,46 @@ def _extract_fresh(destination: Path) -> Path:
     return _source_root(extraction)
 
 
-def _apply_candidate_patch(source: Path, patch: Path) -> dict[str, str]:
-    if patch.is_symlink():
-        raise LaneError(f"candidate patch is a symlink: {patch}")
-    path = patch.resolve()
-    try:
-        relative = path.relative_to(REPO.resolve())
-    except ValueError as error:
-        raise LaneError("candidate patch must be in this Git worktree") from error
-    if not path.is_file() or path.suffix != ".patch":
-        raise LaneError(f"candidate patch is missing or invalid: {patch}")
-    git_env = os.environ.copy()
-    for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"):
-        git_env.pop(key, None)
-    git_env["GIT_CEILING_DIRECTORIES"] = str(source.parent.resolve())
-    for arguments in (("--check",), (), ("--reverse", "--check")):
-        result = subprocess.run(
-            ["git", "apply", "--whitespace=error", *arguments, str(path)],
-            cwd=source, env=git_env, capture_output=True, text=True,
+def _apply_overlay(source: Path) -> dict[str, Any]:
+    """Copy worktree source files over a freshly verified upstream tree."""
+    digest = hashlib.sha256()
+    count = 0
+    if OVERLAY.is_symlink() or (OVERLAY.exists() and not OVERLAY.is_dir()):
+        raise LaneError(f"source overlay is not a directory: {OVERLAY}")
+    if not OVERLAY.is_dir():
+        return {"files": 0, "sha256": digest.hexdigest()}
+    for path in sorted(OVERLAY.rglob("*")):
+        if ("__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}
+                or path.name == ".DS_Store"):
+            continue
+        if path.is_symlink():
+            raise LaneError(f"source overlay cannot contain symlinks: {path}")
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise LaneError(f"source overlay contains a non-file: {path}")
+        relative = path.relative_to(OVERLAY)
+        if relative.parts[:2] == ("Lib", "test"):
+            raise LaneError(f"CPython test files cannot be changed by the source overlay: {relative}")
+        target = source / relative
+        parent = source
+        for component in relative.parts[:-1]:
+            parent = parent / component
+            if parent.is_symlink():
+                raise LaneError(f"source overlay traverses a symlink: {relative}")
+        if target.is_symlink() or (target.exists() and not target.is_file()):
+            raise LaneError(f"source overlay target is not a file: {relative}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        data = path.read_bytes()
+        mode = path.stat().st_mode & 0o777
+        target.write_bytes(data)
+        target.chmod(mode)
+        digest.update(
+            relative.as_posix().encode() + b"\0" + str(mode).encode()
+            + b"\0" + data + b"\0"
         )
-        if result.returncode != 0:
-            detail = (result.stderr or result.stdout).strip()
-            raise LaneError(f"candidate patch {relative} does not apply: {detail}")
-    if subprocess.run(
-        ["git", "apply", "--check", str(path)], cwd=source, env=git_env,
-        capture_output=True, text=True,
-    ).returncode == 0:
-        raise LaneError(f"candidate patch {relative} did not change the source")
-    return {"file": str(relative), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        count += 1
+    return {"files": count, "sha256": digest.hexdigest()}
 
 
 def _llvm_layout():
@@ -675,7 +688,7 @@ def _require_command(
     return result
 
 
-def _fetch_cargo_dependencies(source: Path, toolchain, *, candidate: bool = False) -> None:
+def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
     env = _environment(toolchain, offline=False)
     env["PATH"] = f"{CARGO_HOME / 'bin'}:{env['PATH']}"
     command = [
@@ -688,12 +701,11 @@ def _fetch_cargo_dependencies(source: Path, toolchain, *, candidate: bool = Fals
         command, cwd=source, env=env, log=LOGS / "cargo-fetch.log"
     )
     after = hashlib.sha256(cargo_lock.read_bytes()).hexdigest()
-    metadata, _entry = _read_lock()
-    if (not candidate and before != metadata["cargo_lock_sha256"]) or after != before:
+    if after != before:
         raise LaneError("cargo fetch changed the locked Cargo.lock")
 
 
-def fetch(*, patch: Path | None = None) -> int:
+def fetch() -> int:
     _require_host()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -709,9 +721,8 @@ def fetch(*, patch: Path | None = None) -> int:
     WORK.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="cargo-fetch-", dir=WORK) as temporary:
         source = _source_root(safe_extract(source_blob, Path(temporary) / "source"))
-        if patch is not None:
-            _apply_candidate_patch(source, patch)
-        _fetch_cargo_dependencies(source, toolchain, candidate=patch is not None)
+        _apply_overlay(source)
+        _fetch_cargo_dependencies(source, toolchain)
     print(
         f"OK    Cargo dependencies cached under {CARGO_HOME}; "
         f"source pin {metadata['commit']}"
@@ -1018,7 +1029,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
 
 
 def _configure_source(source: Path, toolchain, target, jobs: int,
-                      sandbox: SealedRun, candidate_patch: dict[str, str] | None) -> dict[str, Any]:
+                      sandbox: SealedRun, overlay: dict[str, Any]) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     for path in (BUILD, STAGE):
@@ -1068,7 +1079,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int,
         "target": TARGET,
         "source_commit": metadata["commit"],
         "source_archive_sha256": source_input.sha256,
-        "candidate_patch": candidate_patch,
+        "overlay": overlay,
         "cargo_lock_sha256": hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest(),
         "configure_arguments": configure,
         "cflags": env["CFLAGS"],
@@ -1095,14 +1106,16 @@ def _platform_sdk_report(toolchain) -> dict[str, Any]:
     }
 
 
-def build(*, patch: Path | None = None) -> int:
+def build(*, jobs: int | None = None) -> int:
     _require_host()
+    if jobs is not None and jobs < 1:
+        raise LaneError("build jobs must be positive")
     if not doctor_report()["ok"]:
         raise LaneError("doctor found prerequisites missing; run doctor for details")
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
     source = _extract_fresh(SOURCE)
-    candidate_patch = _apply_candidate_patch(source, patch) if patch is not None else None
+    overlay = _apply_overlay(source)
     env = _environment(toolchain, offline=True)
     _require_command(
         [str(CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
@@ -1110,8 +1123,8 @@ def build(*, patch: Path | None = None) -> int:
         cwd=source, env=env, log=LOGS / "cargo-offline-check.log",
     )
     sandbox = _sealed_sandbox()
-    jobs = max(1, (os.cpu_count() or 4) - 1)
-    report = _configure_source(source, toolchain, target, jobs, sandbox, candidate_patch)
+    workers = jobs if jobs is not None else max(1, (os.cpu_count() or 4) - 1)
+    report = _configure_source(source, toolchain, target, workers, sandbox, overlay)
     print(f"OK    debug CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     return 0
 
@@ -1135,33 +1148,40 @@ def _run_python_test(
     return _test_record(result.returncode, log, summary)
 
 
-def test(suites: list[str]) -> int:
+def test(suites: list[str], *, all_suites: bool = False, jobs: int | None = None) -> int:
     _require_host()
-    if not suites:
-        raise LaneError("name at least one complete CPython suite with --suite")
+    if all_suites == bool(suites):
+        raise LaneError("select --all or at least one --suite, but not both")
     if any(re.fullmatch(r"test_[a-z0-9_]+", suite) is None for suite in suites):
         raise LaneError("suite names must be CPython test modules or packages named test_*")
+    if jobs is not None and jobs < 1:
+        raise LaneError("test jobs must be positive")
     if not BUILD_REPORT.is_file() or not _build_python().is_file():
         raise LaneError("no completed Rust-for-CPython debug build; run build first")
     report = json.loads(BUILD_REPORT.read_text())
-    if report.get("status") not in {"built", "suite-failed", "suite-passed"}:
+    if report.get("status") not in {
+        "built", "suite-failed", "suite-passed", "all-failed", "all-passed"
+    }:
         raise LaneError("build report does not describe a completed build; run build first")
     if report.get("build_mode") != "debug":
         raise LaneError("coverage suites require a debug build without PGO")
     toolchain, _target = _toolchain()
     env = _test_environment(toolchain)
     build_python = _build_python()
-    log = LOGS / f"cpython-{'-'.join(suites)}.log"
+    scope = "all" if all_suites else "suite"
+    log = LOGS / ("cpython-all.log" if all_suites else f"cpython-{'-'.join(suites)}.log")
+    workers = jobs if jobs is not None else _test_jobs()
     result = _run_python_test(
-        [str(build_python), "-m", "test", "-j", str(_test_jobs()), *suites],
+        [str(build_python), "-m", "test", "-j", str(workers), "--timeout=900", *suites],
         cwd=BUILD, env=env, log=log,
     )
-    report["tests"] = {"suites": suites, **result}
-    report["status"] = "suite-passed" if result["returncode"] == 0 else "suite-failed"
+    report["tests"] = {"scope": scope, "suites": suites, **result}
+    report["status"] = f"{scope}-passed" if result["returncode"] == 0 else f"{scope}-failed"
     _write_json(BUILD_REPORT, report)
     if result["returncode"] != 0:
         raise LaneError(f"CPython suite failed; inspect {log}")
-    print(f"OK    CPython suites: {', '.join(suites)}")
+    print("OK    default-resource CPython suite" if all_suites
+          else f"OK    CPython suites: {', '.join(suites)}")
     return 0
 
 
@@ -1186,13 +1206,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Rust-for-CPython 3.16 coverage builder")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="report host and locked input readiness")
-    fetch_parser = commands.add_parser("fetch", help="fetch source, toolchain, and locked Cargo dependencies")
+    commands.add_parser("fetch", help="fetch source, toolchain, and locked Cargo dependencies")
     build_parser = commands.add_parser("build", help="build native debug CPython offline")
     test_parser = commands.add_parser("test", help="run complete named CPython Python suites")
     commands.add_parser("clean", help="remove generated outputs")
-    for selected in (fetch_parser, build_parser):
-        selected.add_argument("--patch", type=Path,
-                              help="candidate source patch in this Git worktree")
+    build_parser.add_argument("--jobs", type=int, metavar="N", help="parallel build jobs")
+    test_parser.add_argument("--all", action="store_true", help="run all default-resource CPython tests")
+    test_parser.add_argument("--jobs", type=int, metavar="N", help="parallel test workers")
     test_parser.add_argument("--suite", action="append", default=[], metavar="TEST_NAME",
                              help="complete CPython test module or package; repeatable")
     args = parser.parse_args(argv)
@@ -1200,11 +1220,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "doctor":
             return doctor()
         if args.command == "fetch":
-            return fetch(patch=args.patch)
+            return fetch()
         if args.command == "build":
-            return build(patch=args.patch)
+            return build(jobs=args.jobs)
         if args.command == "test":
-            return test(args.suite)
+            return test(args.suite, all_suites=args.all, jobs=args.jobs)
         return clean()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
         print(f"FAIL  {error}", file=sys.stderr)

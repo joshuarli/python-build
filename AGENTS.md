@@ -18,9 +18,16 @@ describe that experimental target as built until it is qualified.
 For delegated work on that lane, use the repo-local
 `.agents/skills/rust-cpython-coordinator/SKILL.md` in place of the general
 `orchestrate` skill. The root agent coordinates isolated worktrees and
-integration; no more than six coverage subagents run concurrently. The
+integration; no more than 16 coverage subagents run concurrently. The
 active loop uses debug builds and complete Python-level module suites;
-performance work waits until `rust-for-cpython.md` is complete.
+the coordinator also runs all default-resource CPython test modules on
+integrated work.
+Performance work waits until `rust-for-cpython.md` is complete.
+For this isolated coverage lane, vetted Rust crates may be added without
+per-crate approval when their versions and checksums are pinned in the
+committed overlay `Cargo.lock`, their licenses are recorded and compatible,
+and they add no production dependency or platform. Other new dependencies
+still require consultation.
 
 ## Product targets (`buildsys/targets.py` owns production target branching)
 
@@ -252,6 +259,7 @@ assets. CI builds are dev-mode; sealed qualification stays local.
   alter shared behavior (recipe flags, shebangs, prefix ownership,
   component claims) must be recorded, not silent.
 - Small typed Python, stdlib where practical; one dependency-order model,
-  one cache, one target description. No new platforms, versions, or
-  dependencies without an explicit scope decision.
+  one cache, one target description. No new production platforms, versions,
+  or dependencies without an explicit scope decision. The isolated Rust
+  coverage crate exception above applies only to that lane.
 - Do not run formatters/linters/pre-commit hooks; do not push unless told.
