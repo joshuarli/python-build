@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## URL decoder upstream memory comparison (base `b09ac07`)
+
+The queued resource lane uses
+`/private/tmp/python-build-exp-url-unquote-upstream-memory-20260925a`,
+branch `exp/url-unquote-upstream-memory-20260925a`. It owns only
+`experiments/url-unquote-upstream-memory-20260925.md`, compact raw data under
+`experiments/data/`, and ignored logs/cloned stages in its worktree. After
+installed timing stops, it will compare the vanilla upstream 3.16 control,
+the accepted quote-only fork, and the fresh opt-in decoder on the same
+complete catalog search task. It will record external root and sampled tree
+RSS/physical footprint in a separate pass with self-noise, valid cache
+identities, and exact outputs. Budget: 120 kernel CPU seconds and 1 GiB
+per-process RSS. These macOS measures cannot establish USS/PSS or allocation
+parity, so they may only support a limited resource verdict.
+
 ## URL unquote installed comparison (base `e4d3772`)
 
 The queued comparison lane uses
