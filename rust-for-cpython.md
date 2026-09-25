@@ -408,7 +408,11 @@ as a separate baseline change.
 - The three pinned macOS Django wheel metadata records are parsed during host
   benchmark setup, before either compared interpreter starts. The currently
   admitted macOS tasks have no substantial `importlib.metadata` inventory;
-  defer an email-parser proof until a real measured caller is pinned.
+  defer that module until a measured caller is pinned. A pinned public `email`
+  archive workload now supplies an independent caller. Its phase profile
+  finds that round-trip validation takes 38.7% of task time and three plausible
+  lexical helpers only 3.7% of instrumented self time. Defer a narrow Rust
+  header scanner; see the [boundary diagnostic](rust-cpython/experiments/email-header-headroom-20260925.md).
 - A package-free catalog export workload now checks one complete 512-record,
   259,349-byte JSON document per operation. The pinned interpreter completed
   300 exports in 1.33 process CPU seconds. A separate instrumented profile
