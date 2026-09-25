@@ -181,6 +181,10 @@ That bounded `PROC_PIDREGIONINFO` probe failed the traversal gate: submaps
 made its raw page sums incomplete or overlapping. No mapped-private benchmark
 field was added; see
 [`mac-region-probe-20260924.md`](rust-cpython/experiments/mac-region-probe-20260924.md).
+Xcode's Allocations export was also probed on the pinned 3.16 interpreter.
+Its aggregate buckets round requested bytes and do not establish allocation
+totals for spawned children; it is diagnostic only. See
+[`mac-allocation-probe-20260924.md`](rust-cpython/experiments/mac-allocation-probe-20260924.md).
 
 ## Current evidence
 
@@ -321,10 +325,10 @@ field was added; see
 - Establish the missing macOS unique/proportional memory and allocation
   measurements and matched upstream control comparison. The simple libproc
   region probe failed; any further USS/PSS work needs a different interface
-  with proven page identity and coverage. The installed Xcode Allocations
-  tool may offer a bounded diagnostic route, but its export and child coverage
-  need proof; see
-  [`mac-allocation-feasibility-20260924.md`](rust-cpython/experiments/mac-allocation-feasibility-20260924.md).
+  with proven page identity and coverage. Xcode Allocations export failed the
+  requested-byte and child-attribution gates, so a different validated
+  allocation observer is needed; see
+  [`mac-allocation-probe-20260924.md`](rust-cpython/experiments/mac-allocation-probe-20260924.md).
   Continue zlib's
   quiet-host and memory qualification.
   A native kernel on arbitrary public `difflib.SequenceMatcher` instances has
