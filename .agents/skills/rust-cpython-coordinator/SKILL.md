@@ -35,13 +35,30 @@ Linux recipes outside these lanes.
   `git apply` exit status can still mean zero files were patched when Git
   discovers the enclosing worktree. Verify source hashes and installed
   identities again after the build.
-- The coordinator keeps a lane ledger: agent, worktree, branch/base commit,
-  owned paths, question, expected evidence, status, CPU and memory budget,
-  and merge order. Reassign a path only after its prior owner stops. Inspect
-  the worktree diff and reports before integrating; apply one lane at a time
-  and resolve interactions against the current mainline. Rebuild or remeasure
-  after integration when changes can interact. Do not push without explicit
-  user instruction.
+- Track active ownership, worktree, budget, and merge order in the coordinator's
+  working context or an ignored local note. **Do not commit lane assignments,
+  status updates, or scout bookkeeping.** Reassign a path only after its prior
+  owner stops. Inspect a lane's diff and evidence before integrating; apply
+  one lane at a time and resolve interactions against the current mainline.
+  Rebuild or remeasure after integration when changes can interact. Do not
+  push without explicit user instruction.
+
+## Commit discipline
+
+- Keep coordination lightweight. A read-only scout can report its verdict in
+  a message; it needs no report file or commit merely to say that an idea was
+  deferred. Commit a scout result only when it adds reusable, decision-changing
+  evidence that future experiments need to reproduce.
+- Prefer one coherent commit for an implementation and its decisive evidence.
+  A standalone evidence commit is appropriate for a substantial benchmark or
+  qualification result. Do not make separate assignment, status, handoff, and
+  documentation-sync commits around the same experiment. Update the main plan
+  and candidate map when a decision changes, grouping those edits with the
+  relevant result when practical.
+- Preserve raw measurements in the lane and summarize rejected candidates
+  concisely in the next substantive decision record. Do not integrate a
+  negative scout's branch solely to archive ceremony. Keep the main branch
+  focused on code and evidence that changes what to try or accept next.
 
 ## Resource and measurement discipline
 
