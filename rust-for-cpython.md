@@ -757,9 +757,13 @@ as a separate baseline change.
   broad semantics, and Linux qualification. See the [original result](rust-cpython/experiments/strptime-numeric-20260925.md)
   and [guarded follow-up](rust-cpython/experiments/strptime-guard-20260925.md).
   A later binding guard closes six observed warm-path hook and scanner-import
-  mismatches. It reused the unchanged native extension for source-overlay
-  checks; the 0.758/0.774 ratios describe the pre-revision guard. See the
-  [contract revision](rust-cpython/experiments/strptime-contract-20260925.md).
+  mismatches. A same-executable comparison of that current revision matched
+  all complete 60,000-record outputs and measured median wall/CPU ratios of
+  0.756/0.745 across five pairs. Host load rose during the run, so this is a
+  bounded diagnostic, not quiet-host qualification; a separate three-pair
+  memory pass leaned 82–262 KB higher in peak RSS without self-noise
+  calibration. See the [contract revision](rust-cpython/experiments/strptime-contract-20260925.md)
+  and [current-guard measurement](rust-cpython/experiments/strptime-current-guard-measure-20260925.md).
 - The optional canonical UUID text scanner reaches public `uuid.UUID` calls,
   but five complete 100,000-record index pairs showed no speed or CPU gain
   beyond control variation: median candidate/control ratios were 1.003 and
