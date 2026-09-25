@@ -1,0 +1,81 @@
+{
+  "comment": "x86_64 glibc Linux build-tool trust roots for the isolated Rust-for-CPython 3.16 experiment only; the production 3.14.6 Linux musl recipes and bootstrap.lock.json are unaffected. LLVM is the official x86_64 Linux binary release of the same 23.1.2 tag and source commit as the macOS lane, locked by archive SHA-256 and selectively extracted into .cache. The host distribution supplies glibc, make, pkgconf and the development headers/libraries that the macOS lane takes from the Xcode SDK and Homebrew; their exact package versions are pinned here and checked by doctor, but not digest-pinned.",
+  "target": "x86_64-unknown-linux-gnu",
+  "arch": "x86_64",
+  "cpu_baseline": "-march=x86-64",
+  "host": {
+    "os_id": "ubuntu",
+    "os_version_id": "24.04",
+    "glibc": "2.39"
+  },
+  "llvm": {
+    "distribution": "official LLVM release binaries",
+    "version": "23.1.2",
+    "archive": {
+      "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.2/LLVM-23.1.2-Linux-X64.tar.xz",
+      "size": 2013958032,
+      "sha256": "b5ed9675149cc837c282e9b6962c276c9fa62863d5b2f91537b60848552995b7",
+      "format": "tar.xz",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "archive_root": "LLVM-23.1.2-Linux-X64",
+      "provenance": {
+        "release_url": "https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.2",
+        "release_tag": "llvmorg-23.1.2",
+        "source_commit": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+        "workflow": "https://github.com/llvm/llvm-project/.github/workflows/release-binaries.yml@refs/tags/llvmorg-23.1.2",
+        "attestation_url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.2/LLVM-23.1.2-Linux-X64.tar.xz.jsonl",
+        "attestation_sha256": "4e2a296c15632492721c6b92132286735f4e25b897ac62efc76a266e0e09df10",
+        "attestation_subject_sha256": "b5ed9675149cc837c282e9b6962c276c9fa62863d5b2f91537b60848552995b7",
+        "attestation_size": 11071
+      }
+    },
+    "clang": "bin/clang",
+    "resource_dir": "lib/clang/23",
+    "linker": "bin/ld.lld (selected with -fuse-ld=lld; performs ThinLTO without a separate plugin)",
+    "role": "compiler, linker, archiver, nm, readelf, strip and llvm-profdata (build tools only)"
+  },
+  "lld_icu_runtime": {
+    "reason": "The official LLVM 23.1.2 Linux ld.lld binary has DT_NEEDED entries for ICU 70 (libicui18n/libicuuc/libicudata.so.70) and RUNPATH $ORIGIN/../lib. Ubuntu 24.04 ships ICU 74 only, so these three runtime libraries are extracted into the verified LLVM prefix's lib/ directory. No other tool in the prefix and no built product links ICU.",
+    "package": "libicu70=70.1-2",
+    "url": "http://archive.ubuntu.com/ubuntu/pool/main/i/icu/libicu70_70.1-2_amd64.deb",
+    "sha256": "58a154f6307289813da2276f900498ef536ae7c0522d2cf31a3c3c5cf62dfd9a",
+    "size": 10581942,
+    "license": "ICU (Unicode-DFS-2016 and related notices in usr/share/doc/libicu70/copyright)",
+    "provenance": "Digest listed in jammy main/binary-amd64/Packages.gz (SHA-256 712ee19b50fa5a5963b82b8dd00438f59ef1f088db8e3e042f4306d2b7c89c69), which is listed in the jammy InRelease verified with gpgv against /usr/share/keyrings/ubuntu-archive-keyring.gpg (Ubuntu Archive Automatic Signing Key 2018, 871920D1991BC93C) on 2026-09-25.",
+    "members": [
+      "usr/lib/x86_64-linux-gnu/libicudata.so.70.1",
+      "usr/lib/x86_64-linux-gnu/libicui18n.so.70.1",
+      "usr/lib/x86_64-linux-gnu/libicuuc.so.70.1",
+      "usr/share/doc/libicu70/copyright"
+    ]
+  },
+  "make": {
+    "package": "make=4.3-4.1build2",
+    "version": "4.3",
+    "path": "/usr/bin/make",
+    "reported": "GNU Make 4.3"
+  },
+  "pkgconf": {
+    "package": "pkgconf=1.8.1-2build1",
+    "version": "1.8.1",
+    "path": "/usr/bin/pkg-config"
+  },
+  "system_packages": [
+    "libc6-dev=2.39-0ubuntu8.7",
+    "linux-libc-dev=6.8.0-106.106",
+    "libssl-dev=3.0.13-0ubuntu3.7",
+    "libsqlite3-dev=3.45.1-1ubuntu2.5",
+    "libffi-dev=3.4.6-1build1",
+    "zlib1g-dev=1:1.3.dfsg-3.1ubuntu2.1",
+    "libbz2-dev=1.0.8-5.1build0.1",
+    "liblzma-dev=5.6.1+really5.4.5-1ubuntu0.2",
+    "libzstd-dev=1.5.5+dfsg2-2build1.1",
+    "libreadline-dev=8.2-4build1",
+    "libncurses-dev=6.4+20240113-1ubuntu2",
+    "uuid-dev=2.39.3-9ubuntu6.5",
+    "libgdbm-dev=1.23-5.1build1",
+    "libgdbm-compat-dev=1.23-5.1build1",
+    "libexpat1-dev=2.6.1-2ubuntu0.4"
+  ],
+  "system_packages_note": "Mirrors the macOS lane's platform/Homebrew dependency set (OpenSSL 3, SQLite, libffi, xz, bzip2, zstd, zlib, readline/ncurses, uuid, dbm). libzstd-dev is not in the default image and is installed with apt-get install libzstd-dev. The pinned 3.16 sources no longer bundle libmpdec and Ubuntu 24.04 main has no libmpdec-dev (the only candidate on this image is a third-party PPA), so every Linux lane build, including the no-Rust and upstream controls, is configured with _decimal missing and decimal falls back to _pydecimal. Decimal-heavy timings are therefore not comparable with a build that has _decimal."
+}

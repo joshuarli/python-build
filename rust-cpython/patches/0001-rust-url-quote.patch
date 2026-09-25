@@ -2,7 +2,7 @@ diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
 index 4247b9a..54d4032 100644
 --- a/Lib/urllib/parse.py
 +++ b/Lib/urllib/parse.py
-@@ -34,6 +34,7 @@ It serves as a useful guide when making changes.
+@@ -34,6 +34,7 @@
  from collections import namedtuple
  import functools
  import math
@@ -21,7 +21,7 @@ index 4247b9a..54d4032 100644
      if (bs_len := len(bs)) < 200_000:
          return ''.join(map(quoter, bs))
 diff --git a/Makefile.pre.in b/Makefile.pre.in
-index 0925d02..042af80 100644
+index 0925d02..3d9a1e3 100644
 --- a/Makefile.pre.in
 +++ b/Makefile.pre.in
 @@ -3461,6 +3461,16 @@ Python/thread.o: @THREADHEADERS@ $(srcdir)/Python/condvar.h
@@ -36,7 +36,7 @@ index 0925d02..042af80 100644
 +
 +$(RUST_URL_QUOTE_A): $(srcdir)/Modules/_rust_url_quote/quote.rs
 +	mkdir -p Modules/_rust_url_quote
-+	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin $< -o $@
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
 +
  RUST_STATICLIB_A= target/$(if $(CARGO_TARGET),$(CARGO_TARGET)/$(CARGO_TARGET_DIR),$(CARGO_TARGET_DIR))/libcpython_rust_staticlib.a
  
@@ -211,7 +211,7 @@ index 0000000..7b00ec5
 +    written as isize
 +}
 diff --git a/configure b/configure
-index 7b5f7bd..a56d3d9 100755
+index 7b5f7bd..6ca03bd 100755
 --- a/configure
 +++ b/configure
 @@ -694,6 +694,8 @@ MODULE_ZLIB_FALSE
@@ -223,7 +223,15 @@ index 7b5f7bd..a56d3d9 100755
  MODULE__UUID_FALSE
  MODULE__UUID_TRUE
  MODULE__TKINTER_FALSE
-@@ -35725,6 +35727,45 @@ fi
+@@ -32093,6 +32095,7 @@ SRCDIRS="\
+   Modules/_testinternalcapi \
+   Modules/_testlimitedcapi \
+   Modules/_xxtestfuzz \
++  Modules/_rust_url_quote \
+   Modules/_zstd \
+   Modules/cjkcodecs \
+   Modules/expat \
+@@ -35725,6 +35728,45 @@ fi
    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__base64" >&5
  printf "%s\n" "$py_cv_module__base64" >&6; }
  
@@ -269,7 +277,7 @@ index 7b5f7bd..a56d3d9 100755
  
  
    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module zlib" >&5
-@@ -37034,6 +37075,10 @@ if test -z "${MODULE__BASE64_TRUE}" && test -z "${MODULE__BASE64_FALSE}"; then
+@@ -37034,6 +37076,10 @@ if test -z "${MODULE__BASE64_TRUE}" && test -z "${MODULE__BASE64_FALSE}"; then
    as_fn_error $? "conditional \"MODULE__BASE64\" was never defined.
  Usually this means the macro was only invoked conditionally." "$LINENO" 5
  fi
@@ -281,10 +289,18 @@ index 7b5f7bd..a56d3d9 100755
    as_fn_error $? "conditional \"MODULE_ZLIB\" was never defined.
  Usually this means the macro was only invoked conditionally." "$LINENO" 5
 diff --git a/configure.ac b/configure.ac
-index 7fde993..c1f4f55 100644
+index 7fde993..cc20e77 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -8613,6 +8613,9 @@ PY_STDLIB_MOD([_uuid],
+@@ -7577,6 +7577,7 @@ SRCDIRS="\
+   Modules/_testinternalcapi \
+   Modules/_testlimitedcapi \
+   Modules/_xxtestfuzz \
++  Modules/_rust_url_quote \
+   Modules/_zstd \
+   Modules/cjkcodecs \
+   Modules/expat \
+@@ -8613,6 +8614,9 @@ PY_STDLIB_MOD([_uuid],
  PY_STDLIB_MOD([_base64],
    [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
    [], [])

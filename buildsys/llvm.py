@@ -13,11 +13,39 @@ import hashlib
 import base64
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 import tarfile
 import tempfile
 
 from .inputs import InputError
+
+@dataclass(frozen=True)
+class ExtractionLayout:
+    """The allowlisted tool/resource closure taken from one release archive."""
+
+    tools: frozenset[str]
+    links: dict[str, str]
+    required: frozenset[str]
+    library_files: frozenset[str]
+    resource_prefixes: tuple[str, ...]
+    max_member_bytes: int
+    max_prefix_bytes: int
+    resource_files: frozenset[str] = frozenset()
+
+    def selected(self, relative: str) -> bool:
+        return (
+            relative in self.tools
+            or relative in self.links
+            or relative in self.library_files
+            or relative in self.resource_files
+            or relative == "lib/clang/23"
+            or any(
+                relative == prefix.rstrip("/") or relative.startswith(prefix)
+                for prefix in self.resource_prefixes
+            )
+        )
+
 
 _TOOLS = {
     "bin/clang-23",
@@ -39,6 +67,45 @@ _REQUIRED_FILES = _TOOLS | {
 }
 _MAX_MEMBER_BYTES = 256 * 1024 * 1024
 _MAX_PREFIX_BYTES = 600 * 1024 * 1024
+
+MACOS_AARCH64_LAYOUT = ExtractionLayout(
+    tools=frozenset(_TOOLS),
+    links=dict(_LINKS),
+    required=frozenset(_REQUIRED_FILES),
+    library_files=frozenset({"lib/libLTO.dylib"}),
+    resource_prefixes=("lib/clang/23/",),
+    max_member_bytes=_MAX_MEMBER_BYTES,
+    max_prefix_bytes=_MAX_PREFIX_BYTES,
+)
+
+# The Linux release links clang and lld statically against LLVM, so no
+# libLTO/LLVMgold is needed: lld performs ThinLTO itself. Only the headers
+# and the builtins/profile/crt runtimes are taken from the resource tree; the
+# sanitizer and Fortran runtimes are left in the archive.
+_LINUX_RUNTIME = "lib/clang/23/lib/x86_64-unknown-linux-gnu/"
+LINUX_X86_64_LAYOUT = ExtractionLayout(
+    tools=frozenset(_TOOLS | {"bin/lld", "bin/llvm-readobj"}),
+    links={**_LINKS, "bin/ld.lld": "lld", "bin/llvm-readelf": "llvm-readobj"},
+    required=frozenset(_TOOLS | {
+        "bin/lld",
+        "bin/llvm-readobj",
+        "lib/clang/23/include/stdint.h",
+        _LINUX_RUNTIME + "libclang_rt.profile.a",
+        _LINUX_RUNTIME + "libclang_rt.builtins.a",
+    }),
+    library_files=frozenset(),
+    resource_prefixes=("lib/clang/23/include/",),
+    resource_files=frozenset(
+        _LINUX_RUNTIME + name for name in (
+            "libclang_rt.profile.a",
+            "libclang_rt.builtins.a",
+            "clang_rt.crtbegin.o",
+            "clang_rt.crtend.o",
+        )
+    ),
+    max_member_bytes=320 * 1024 * 1024,
+    max_prefix_bytes=900 * 1024 * 1024,
+)
 _CHUNK = 1024 * 1024
 LLVM_REPOSITORY = "https://github.com/llvm/llvm-project"
 
@@ -61,14 +128,8 @@ def _archive_identity(archive: Path, sha256: str, size: int) -> None:
         )
 
 
-def _selected(relative: str) -> bool:
-    return (
-        relative in _TOOLS
-        or relative in _LINKS
-        or relative == "lib/libLTO.dylib"
-        or relative == "lib/clang/23"
-        or relative.startswith("lib/clang/23/")
-    )
+def _selected_member(layout: ExtractionLayout, relative: str) -> bool:
+    return layout.selected(relative)
 
 
 def _safe_relative(relative: str) -> PurePosixPath:
@@ -98,6 +159,7 @@ def extract_llvm_archive(
     sha256: str,
     size: int,
     version: str,
+    layout: ExtractionLayout = MACOS_AARCH64_LAYOUT,
 ) -> Path:
     """Verify and selectively extract the locked LLVM `.tar.xz` archive.
 
@@ -150,7 +212,7 @@ def extract_llvm_archive(
                         continue
                     relative = PurePosixPath(*name.parts[1:])
                     relative_text = relative.as_posix()
-                    if not _selected(relative_text):
+                    if not _selected_member(layout, relative_text):
                         continue
                     relative = _safe_relative(relative_text)
                     if member.isdir():
@@ -161,7 +223,7 @@ def extract_llvm_archive(
                             f"duplicate LLVM archive member: {relative_text}"
                         )
                     if member.issym():
-                        expected_link = _LINKS.get(relative_text)
+                        expected_link = layout.links.get(relative_text)
                         if expected_link is None or member.linkname != expected_link:
                             raise InputError(
                                 f"unexpected LLVM tool symlink: {relative_text} "
@@ -179,16 +241,16 @@ def extract_llvm_archive(
                         raise InputError(
                             f"unsupported LLVM archive member: {relative_text}"
                         )
-                    if member.size < 0 or member.size > _MAX_MEMBER_BYTES:
+                    if member.size < 0 or member.size > layout.max_member_bytes:
                         raise InputError(
                             f"LLVM archive member exceeds extraction limit: "
                             f"{relative_text} ({member.size} bytes)"
                         )
                     prefix_bytes += member.size
-                    if prefix_bytes > _MAX_PREFIX_BYTES:
+                    if prefix_bytes > layout.max_prefix_bytes:
                         raise InputError(
                             "LLVM selected toolchain exceeds extraction limit "
-                            f"({_MAX_PREFIX_BYTES} bytes)"
+                            f"({layout.max_prefix_bytes} bytes)"
                         )
                     output = staged.joinpath(*relative.parts)
                     _ensure_directory(staged, relative.parent)
@@ -210,8 +272,8 @@ def extract_llvm_archive(
         except (tarfile.TarError, OSError, EOFError) as error:
             raise InputError(f"cannot selectively extract LLVM archive: {error}") from error
 
-        missing_files = sorted(_REQUIRED_FILES - extracted_files)
-        missing_links = sorted(set(_LINKS) - extracted_links.keys())
+        missing_files = sorted(layout.required - extracted_files)
+        missing_links = sorted(set(layout.links) - extracted_links.keys())
         if missing_files or missing_links:
             raise InputError(
                 "LLVM archive is missing required members: "

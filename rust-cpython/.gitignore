@@ -4,4 +4,5 @@
 /results/
 /stage/
 /stage-no-rust/
+/stage-*/
 /work/

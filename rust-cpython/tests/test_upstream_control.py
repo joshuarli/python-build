@@ -54,6 +54,9 @@ class UpstreamControlContractTests(unittest.TestCase):
         self.assertIn("-O3", env["CFLAGS"])
         self.assertIn(target.cpu_baseline_cflag, env["CFLAGS"])
         self.assertEqual(env["IPHONEOS_DEPLOYMENT_TARGET"], "")
+        self.assertEqual(env["LDFLAGS"], control.FORK._platform_flags(toolchain, target, control.STAGE)["LDFLAGS"])
+        if control.FORK.IS_LINUX:
+            self.assertIn(f"-Wl,-rpath,{control.STAGE / 'lib'}", env["LDFLAGS"])
         self.assertNotIn("cargo", env["PATH"].lower())
         self.assertNotIn("CARGO_TARGET_DIR", env)
 

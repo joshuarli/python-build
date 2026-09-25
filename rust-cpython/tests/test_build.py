@@ -33,7 +33,9 @@ class SourcePinTests(unittest.TestCase):
             "55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023",
         )
         self.assertEqual(archive.role, "build-source")
+        # The source archive predates the Linux lane and is platform independent.
         self.assertEqual(archive.target, "aarch64-apple-darwin")
+        self.assertIn(archive.target, build.LANE_TARGETS)
 
     def test_source_tree_rejects_a_different_cargo_lock(self) -> None:
         metadata = {"cargo_lock_sha256": "0" * 64}
@@ -230,12 +232,61 @@ class ToolchainIsolationTests(unittest.TestCase):
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "PYTHONPYCACHEPREFIX": "/isolated/pycache",
                 "CARGO_NET_OFFLINE": "true",
+                "HTTPS_PROXY": "http://127.0.0.1:9",
+                "no_proxy": "localhost",
             },
         ):
             env = build._test_environment(toolchain)
+        self.assertNotIn("HTTPS_PROXY", env)
+        self.assertNotIn("no_proxy", env)
         self.assertNotIn("PYTHONDONTWRITEBYTECODE", env)
         self.assertEqual(env["PYTHONPYCACHEPREFIX"], "/isolated/pycache")
         self.assertEqual(env["CARGO_NET_OFFLINE"], "true")
+
+
+class SignalTests(unittest.TestCase):
+    def test_inherited_ignored_interrupts_are_restored_for_children(self) -> None:
+        signal = build.signal
+        saved = (signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGQUIT))
+        try:
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+            build.restore_default_signals()
+            self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+            self.assertEqual(signal.getsignal(signal.SIGQUIT), signal.SIG_DFL)
+            if build.IS_LINUX:
+                child = build.subprocess.run(
+                    ["sh", "-c", "grep SigIgn /proc/self/status"],
+                    capture_output=True, text=True,
+                )
+                ignored = int(child.stdout.split()[1], 16)
+                self.assertFalse(ignored & (1 << (signal.SIGINT - 1)))
+                self.assertFalse(ignored & (1 << (signal.SIGQUIT - 1)))
+        finally:
+            signal.signal(signal.SIGINT, saved[0])
+            signal.signal(signal.SIGQUIT, saved[1])
+
+
+class VariantTests(unittest.TestCase):
+    def test_variant_outputs_do_not_overlap_the_default_candidate(self) -> None:
+        names = ("VARIANT", "SOURCE", "BUILD", "STAGE", "LOGS", "BUILD_REPORT",
+                 "ZLIB_SOURCE", "ZLIB_TARGET", "ZLIB_ARCHIVE")
+        saved = {name: getattr(build, name) for name in names}
+        try:
+            build._select_variant("prior-fork")
+            self.assertEqual(build.STAGE, build.LANE / "stage-prior-fork")
+            self.assertEqual(build.BUILD, build.WORK / "variants" / "prior-fork" / "build")
+            self.assertEqual(build.BUILD_REPORT, build.RESULTS / "build-prior-fork.json")
+            for name in names[1:]:
+                self.assertNotEqual(getattr(build, name), saved[name])
+        finally:
+            for name, value in saved.items():
+                setattr(build, name, value)
+
+    def test_variant_names_are_restricted(self) -> None:
+        for name in ("../x", "Upper", "no-rust", "a" * 41):
+            with self.assertRaises(build.LaneError):
+                build._select_variant(name)
 
 
 class BuildConfigurationTests(unittest.TestCase):
@@ -253,15 +304,30 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("--without-ensurepip", args)
         self.assertEqual(env["PROFILE_TASK"], "-m test --pgo -j 7")
         self.assertEqual(env["LLVM_PROFDATA"], str(toolchain.llvm_profdata))
+        self.assertIn("-O3", env["CFLAGS"])
+        self.assertIn(target.cpu_baseline_cflag, env["CFLAGS"])
+        self.assertNotIn("RUSTFLAGS", env)
+        if build.IS_LINUX:
+            self.assertEqual(target.cpu_baseline_cflag, "-march=x86-64")
+            self.assertEqual(env["CPPFLAGS"], "")
+            self.assertEqual(env["LDFLAGS"], f"-fuse-ld=lld -Wl,-rpath,{build.STAGE / 'lib'}")
+            self.assertEqual(env["PKG_CONFIG_PATH"], "")
+            return
         sysroot_flag = f"-isysroot {toolchain.sdkroot}"
         self.assertEqual(env["CPPFLAGS"], sysroot_flag)
         self.assertEqual(env["PY_CPPFLAGS"], sysroot_flag)
-        self.assertIn("-O3", env["CFLAGS"])
-        self.assertIn(target.cpu_baseline_cflag, env["CFLAGS"])
         self.assertIn(
             f"-mmacosx-version-min={toolchain.deployment_target}", env["CFLAGS"]
         )
-        self.assertNotIn("RUSTFLAGS", env)
+
+    def test_host_selects_one_lane_target(self) -> None:
+        self.assertIn(build.TARGET, build.LANE_TARGETS)
+        self.assertEqual(build.SYMBOL_PREFIX, "" if build.IS_LINUX else "_")
+        self.assertEqual(
+            build._cargo_linker_variable(),
+            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER" if build.IS_LINUX
+            else "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER",
+        )
 
     def test_pgo_worker_count_must_be_positive(self) -> None:
         with self.assertRaises(ValueError):

@@ -176,14 +176,17 @@ def run_child(python: Path, script: Path, overlay: Path | None,
     return json.loads(completed.stdout)
 
 
-def parent(python: Path, overlay: Path, output: Path) -> None:
+def parent(python: Path, overlay: Path | None, output: Path,
+           candidate_python: Path | None = None) -> None:
+    """Compare platform zlib with an overlay, or with a second installed interpreter."""
     script = Path(__file__).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    sides = {"platform": None, "zlib_rs": overlay}
+    sides = {"platform": (python, None),
+             "zlib_rs": (candidate_python or python, None if candidate_python else overlay)}
     raw = {}
-    for side, path in sides.items():
-        payload = run_child(python, script, path, "--encode")
-        repeat = run_child(python, script, path, "--encode")
+    for side, (side_python, path) in sides.items():
+        payload = run_child(side_python, script, path, "--encode")
+        repeat = run_child(side_python, script, path, "--encode")
         if payload != repeat:
             raise AssertionError(f"{side} compressed output changed on repeat")
         raw[side] = payload
@@ -191,9 +194,9 @@ def parent(python: Path, overlay: Path, output: Path) -> None:
     if raw["platform"]["items"].keys() != raw["zlib_rs"]["items"].keys():
         raise AssertionError("case inventory differs")
     cross = {}
-    for decoder, path in sides.items():
+    for decoder, (side_python, path) in sides.items():
         producer = "zlib_rs" if decoder == "platform" else "platform"
-        cross[decoder] = run_child(python, script, path, "--decode",
+        cross[decoder] = run_child(side_python, script, path, "--decode",
                                    str(output / f"zlib-byte-{producer}.json"))
     cases = {}
     for key, control in raw["platform"]["items"].items():
@@ -210,6 +213,7 @@ def parent(python: Path, overlay: Path, output: Path) -> None:
         }
     report = {
         "python": str(python), "overlay": str(overlay),
+        "candidate_python": str(candidate_python) if candidate_python else None,
         "module_sha256": {side: digest(Path(payload["module"]).read_bytes())
                           for side, payload in raw.items()},
         "repeat_identical": True,
@@ -235,15 +239,17 @@ def main() -> None:
     parser.add_argument("--python", type=Path)
     parser.add_argument("--overlay", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--candidate-python", type=Path,
+                        help="installed zlib-rs or hybrid interpreter in place of --overlay")
     args = parser.parse_args()
     if args.encode:
         child_encode()
     elif args.decode:
         child_decode(args.decode)
     else:
-        if not (args.python and args.overlay and args.output):
-            parser.error("--compare requires --python, --overlay, and --output")
-        parent(args.python, args.overlay, args.output)
+        if not (args.python and args.output and (args.overlay or args.candidate_python)):
+            parser.error("--compare requires --python, --output, and --overlay or --candidate-python")
+        parent(args.python, args.overlay, args.output, args.candidate_python)
 
 
 if __name__ == "__main__":

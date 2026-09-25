@@ -34,11 +34,6 @@ REPORT = LANE / "results" / "no-rust-build.json"
 
 
 def _configuration(toolchain: Any, target: Any, jobs: int) -> tuple[list[str], dict[str, str]]:
-    cflags = " ".join((
-        "-O3", target.cpu_baseline_cflag, "-fPIC",
-        f"-mmacosx-version-min={toolchain.deployment_target}",
-    ))
-    linkflags = f"-mmacosx-version-min={toolchain.deployment_target}"
     arguments = [
         f"--prefix={STAGE}",
         "--enable-shared",
@@ -51,15 +46,10 @@ def _configuration(toolchain: Any, target: Any, jobs: int) -> tuple[list[str], d
     environment = BUILD_LANE._environment(
         toolchain, offline=True, build_dir=BUILD_DIR
     )
+    environment.update(BUILD_LANE._platform_flags(toolchain, target, STAGE))
     environment.update({
-        "CFLAGS": cflags,
-        "CXXFLAGS": cflags,
-        "CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
-        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
-        "LDFLAGS": linkflags,
         "PROFILE_TASK": BUILD_LANE._profile_task(jobs),
         "LLVM_PROFDATA": str(toolchain.llvm_profdata),
-        "PKG_CONFIG_PATH": BUILD_LANE._brew_pkg_config_path(),
         # This fork's generated configure script otherwise defaults HAVE_CARGO
         # to yes when Cargo is absent from PATH.
         "HAVE_CARGO": "no",
@@ -101,6 +91,7 @@ def _run(arguments: list[str], *, cwd: Path, env: dict[str, str], log: Path, san
 
 
 def main() -> int:
+    BUILD_LANE.restore_default_signals()
     BUILD_LANE._require_host()
     doctor = BUILD_LANE.doctor_report()
     if not doctor["ok"]:
@@ -121,7 +112,7 @@ def main() -> int:
     arguments, environment = _configuration(toolchain, target, jobs)
     if shutil.which("cargo", path=environment["PATH"]) is not None:
         raise BUILD_LANE.LaneError("Cargo remains on PATH in the no-Rust control environment")
-    sandbox = BUILD_LANE._macos_sandbox()
+    sandbox = BUILD_LANE._sealed_sandbox()
     environment = sandbox.environment(environment)
     configure = [str(source / "configure"), *arguments]
     _run(
