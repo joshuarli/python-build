@@ -30,6 +30,17 @@
       "reason": "Route only the local zlib.decompress inflate stream to prefixed zlib-rs while persistent public and private streams remain on platform libz.",
       "compatibility": "Applies after 0002 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; guarded by PYTHON_BUILD_ZLIB_ONESHOT and requires libz-rs-sys-cdylib 0.6.7 custom-prefix with LIBZ_RS_SYS_PREFIX=python_build_rs_.",
       "reproducer": "Apply 0001, 0002, and 0003 in order to a fresh pinned source tree; verify forward and reverse patch checks, inspect the one-shot and persistent stream call sites, build --zlib-oneshot, and check installed prefixed definitions plus platform inflate references."
+    },
+    {
+      "file": "0004-rust-url-unquote.patch",
+      "sha256": "27c0e4c21be013830d253215db25a1f3f04566755a2d5e19e879977ceae033a7",
+      "mode": "url-unquote",
+      "author": "OpenAI Codex, adapting the measured URL unquote proof",
+      "origin": "rust-cpython/experiments/url-unquote-proof/{quote.rs,module.c,build.py} and the pinned Rust-for-CPython source; authored for this experiment on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython fork and repository proof",
+      "reason": "Optionally evaluate exact-str ASCII URL percent decoding through the existing private extension and no_std Rust byte scan.",
+      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only by build --url-unquote with pinned nightly-2026-09-15.",
+      "reproducer": "Apply the selected patches to a fresh verified source outside Git discovery, verify exactly three source paths change and reverse checks pass, then build --url-unquote and compare public unquote behavior and focused CPython URL tests against the quote-only control."
     }
   ]
 }

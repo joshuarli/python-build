@@ -401,7 +401,7 @@ def _extract_fresh(destination: Path) -> Path:
     return _source_root(extraction)
 
 
-def _source_patch_inputs() -> dict[str, Any]:
+def _source_patch_inputs(*, url_unquote: bool = False) -> dict[str, Any]:
     """Validate the authored patch inputs without touching an extracted tree."""
     metadata, _entry = _read_lock()
     try:
@@ -418,12 +418,21 @@ def _source_patch_inputs() -> dict[str, Any]:
     records: list[dict[str, str]] = []
     seen: set[str] = set()
     required = {"file", "sha256", "author", "origin", "license", "reason", "compatibility", "reproducer"}
+    optional_patch = "0004-rust-url-unquote.patch"
+    optional_seen = False
     for entry in manifest["patches"]:
-        if not isinstance(entry, dict) or set(entry) != required:
+        if not isinstance(entry, dict) or set(entry) not in (required, required | {"mode"}):
             raise LaneError("source patch manifest entry has an invalid schema")
         if any(not isinstance(entry[key], str) or not entry[key].strip() for key in required):
             raise LaneError("source patch manifest entry has an empty or invalid field")
         name = entry["file"]
+        mode = entry.get("mode")
+        if (name == optional_patch and mode != "url-unquote") or (
+            name != optional_patch and mode is not None
+        ):
+            raise LaneError(f"source patch mode is invalid: {name}")
+        if mode is not None:
+            optional_seen = True
         if Path(name).name != name or not name.endswith(".patch") or name in seen:
             raise LaneError(f"source patch file name is unsafe or repeated: {name!r}")
         if re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) is None:
@@ -436,17 +445,21 @@ def _source_patch_inputs() -> dict[str, Any]:
         digest = hashlib.sha256(patch_bytes).hexdigest()
         if digest != entry["sha256"]:
             raise LaneError(f"source patch digest disagrees with manifest: {name}")
-        records.append(dict(entry))
+        if mode is None or url_unquote:
+            records.append(dict(entry))
+    if not optional_seen:
+        raise LaneError(f"source patch manifest is missing {optional_patch}")
     return {
         "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "source_commit": metadata["commit"],
+        "url_unquote": url_unquote,
         "patches": records,
     }
 
 
-def _apply_source_patches(source: Path) -> dict[str, Any]:
+def _apply_source_patches(source: Path, *, url_unquote: bool = False) -> dict[str, Any]:
     """Apply authored patches only to the verified, pinned fresh source tree."""
-    inputs = _source_patch_inputs()
+    inputs = _source_patch_inputs(url_unquote=url_unquote)
     metadata, _entry = _read_lock()
     expected_lock = metadata["cargo_lock_sha256"]
     if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
@@ -629,7 +642,7 @@ def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
 
 
 def _zlib_input() -> tuple[dict[str, str], Input]:
-    """Use the proof's existing source pin for the optional whole-build candidate."""
+    """Use the pinned zlib-rs source for the optional whole-build candidate."""
     try:
         metadata = json.loads(ZLIB_LOCK.read_text())["backend"]
         entries = load_lock(ZLIB_LOCK)
@@ -1291,7 +1304,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
 
 
 def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
-          zlib_oneshot: bool = False) -> int:
+          zlib_oneshot: bool = False, url_unquote: bool = False) -> int:
     if sum((zlib_rs, zlib_hybrid, zlib_oneshot)) > 1:
         raise LaneError("select one zlib candidate mode")
     _require_host()
@@ -1308,7 +1321,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
-    patches = _apply_source_patches(source)
+    patches = _apply_source_patches(source, url_unquote=url_unquote)
     if zlib_backend is not None:
         zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
         zlib_backend["cpython_zlibmodule_sha256"] = hashlib.sha256(wrapper.read_bytes()).hexdigest()
@@ -1357,13 +1370,17 @@ def test() -> int:
     report = json.loads(BUILD_REPORT.read_text())
     if report.get("status") not in {"built", "tests-failed", "complete"}:
         raise LaneError("build report does not describe a completed build; run build first")
-    patches = _source_patch_inputs()
+    recorded_patches = report["source"].get("patches")
+    if not isinstance(recorded_patches, dict) or type(recorded_patches.get("url_unquote")) is not bool:
+        raise LaneError("build report is missing the URL unquote patch selection")
+    url_unquote = recorded_patches["url_unquote"]
+    patches = _source_patch_inputs(url_unquote=url_unquote)
     if report["source"].get("patches") != patches:
         raise LaneError("current source patches disagree with the completed build report")
     source = SOURCE
     if not (source / "Cargo.toml").is_file():
         source = _extract_fresh(SOURCE)
-        _apply_source_patches(source)
+        _apply_source_patches(source, url_unquote=url_unquote)
     toolchain, _target = _toolchain()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -1450,6 +1467,11 @@ def main(argv: list[str] | None = None) -> int:
                 "--zlib-oneshot", action="store_true",
                 help="use prefixed zlib-rs only for one-shot decompression",
             )
+        if name == "build":
+            command_parser.add_argument(
+                "--url-unquote", action="store_true",
+                help="include the optional Rust URL percent decoder",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
@@ -1459,7 +1481,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "fetch":
                 return fetch(zlib_rs=args.zlib_rs or args.zlib_hybrid or args.zlib_oneshot)
             return build(zlib_rs=args.zlib_rs, zlib_hybrid=args.zlib_hybrid,
-                         zlib_oneshot=args.zlib_oneshot)
+                         zlib_oneshot=args.zlib_oneshot, url_unquote=args.url_unquote)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
         print(f"FAIL  {error}", file=sys.stderr)
