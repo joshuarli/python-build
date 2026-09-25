@@ -66,6 +66,14 @@ zlib-rs recipe has completed a full candidate build. Do not
 add a dependency, change a source/toolchain pin, or expand product scope
 without an explicit scope decision.
 
+Keep the lane's `nightly-2026-09-15` pin for current comparisons. It reports
+Rust 1.100.0-nightly, but this fork and its patches do not use the newly
+stabilized `Allocator` API; changing the compiler would invalidate matched
+build evidence without improving a current path. `~/d/rustybench` may profile
+Rust allocation requests in a separate diagnostic, but is not a build input.
+Reconsider a stable 1.100 toolchain after release with a matched rebuild and
+resource comparison.
+
 Only macOS arm64 and Linux x86-64/arm64 are in scope. Windows, Intel macOS,
 other Linux architectures, and all other platforms are explicitly
 unsupported; do not spend coverage effort on their platform branches. The
@@ -834,6 +842,9 @@ as a separate baseline change.
   [short-safe trial](rust-cpython/experiments/url-quote-short-safe-20260925.md),
   [default-safe trial](rust-cpython/experiments/url-quote-safe-slash-20260925.md),
   and [safe/length crossover](rust-cpython/experiments/url-quote-crossover-20260925.md).
+  Moving that fallback ahead of trace/profile checks preserved all 48
+  complete outputs but did not improve request-path CPU beyond same-side
+  drift; see the [early-gate trial](rust-cpython/experiments/url-quote-early-gate-20260925.md).
   The ranked entries in `rust-cpython/README.md` remain hypotheses, not
   completed ports.
 - Establish the missing macOS unique/proportional memory and allocation

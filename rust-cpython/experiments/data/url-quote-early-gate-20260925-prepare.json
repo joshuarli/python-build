@@ -1,0 +1,88 @@
+{
+  "hypothesis": "moving the exact-byte short-input fallback before trace/profile checks reduces request-path CPU",
+  "rule": "after the fast exit and exact bytes type checks, nonempty safe and 1 < input length < 32 use the original cached Python quoter",
+  "accounting": "wait4 direct child; monotonic external wall; ru_maxrss and ru_nswap; workloads have no descendants; rustup launcher may spawn rustc and its wait4 CPU excludes that child",
+  "cache": "all overlays source-only, -B and PYTHONDONTWRITEBYTECODE=1; fresh copied urllib directory has no __pycache__",
+  "environment": "PYTHONPATH=SIDE:NATIVE:ROOT; PYTHONHASHSEED=1",
+  "host_initial": {
+    "load": [
+      3.48583984375,
+      3.369140625,
+      3.4736328125
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top": [
+      "76985  18.5 7215392 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "53193   5.0  27616 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "32688   2.5 339008 codex",
+      "585   2.3  42064 /System/Library/DriverExtensions/com.apple.DriverKit-AppleBCMWLAN.dext/com.apple.DriverKit-AppleBCMWLAN"
+    ],
+    "vm_stat": [
+      "Mach Virtual Memory Statistics: (page size of 16384 bytes)",
+      "Pages free:                                    12536.",
+      "Pages active:                                 762572.",
+      "Pages inactive:                               927657.",
+      "Pages speculative:                             11293.",
+      "Pages throttled:                                   0.",
+      "Pages wired down:                             162195.",
+      "Pages purgeable:                                 200."
+    ]
+  },
+  "attempts": [
+    {
+      "returncode": 0,
+      "wall_seconds": 0.13524904195219278,
+      "user_seconds": 0.052479,
+      "system_seconds": 0.035622999999999995,
+      "peak_rss_bytes": 101449728,
+      "swaps": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-0"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.278343667043373,
+      "user_seconds": 0.052322,
+      "system_seconds": 0.06702999999999999,
+      "peak_rss_bytes": 54181888,
+      "swaps": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-1"
+    },
+    {
+      "returncode": 0,
+      "wall_seconds": 0.12625612504780293,
+      "user_seconds": 0.07592499999999999,
+      "system_seconds": 0.049247,
+      "peak_rss_bytes": 35635200,
+      "swaps": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_excerpt": "",
+      "stderr_excerpt": "",
+      "id": "build-2"
+    }
+  ],
+  "groups": [],
+  "identities": {
+    "patch": "8117e87d51a91dd362d5c315f3eae552ac1144b83f43dae1980423c320b618ad",
+    "python": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "experimental_patch": "357d038233fc02470bb160f1e8ae6df04fd2022d5e0ced6b2236fbce33546f28",
+    "stage_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "pure_parse": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "current_parse": "f2949f2bfd61891f33a9e79168f1c188587b374985ebb3faa04a476202b280f2",
+    "fallback_parse": "0264651c499fc0fab167dde63a953e84facd55a4813bda044987555df5ac1835",
+    "early_parse": "8546198d00018cf39daf23d7c0345740f42442369c74d1af90a072000a6b3d01",
+    "module_c": "727e5b12a8a2e0b8a81be59b86ccb5252f88b1f66c64ca1cbc05ec71448f44df",
+    "quote_rs": "bb9156522ea47140e52e309b501ee3222ed5466fb8b33a779a31566e184fad8c",
+    "extension": "b1ab627f758d778087fb2c8e8e8df0835396e9b9c8d3db45550c7ca74710d617"
+  },
+  "build_recipe": {
+    "rust": "rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin quote.rs -o libquote_ascii.a",
+    "c": "locked LLVM 23.1.2 clang -O3 -fPIC -mcpu=apple-m1 -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK -I stage/include/python3.16 -c module.c -o module.o",
+    "link": "locked LLVM clang -bundle -undefined dynamic_lookup -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK module.o libquote_ascii.a -o _rust_url_quote.cpython-316-darwin.so"
+  }
+}
