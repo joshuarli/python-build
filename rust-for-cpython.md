@@ -684,7 +684,8 @@ as a separate baseline change.
   A follow-up complete-task profile put IPv4 integer formatting at no more
   than 4% of instrumented time. Larger network costs depend on replaceable
   public properties, so defer a second narrow network kernel.
-  See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md).
+  See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md)
+  and the [follow-up profile](rust-cpython/experiments/ipaddress-next-kernel-profile-20260925.md).
 - The optional fixed-width numeric `datetime.strptime` path matched the
   complete 60,000-record log-ingest output in five macOS pairs. Median
   candidate/control wall and kernel CPU ratios were 0.641 and 0.613; median
