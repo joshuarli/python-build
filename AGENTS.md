@@ -6,7 +6,8 @@ dynamically linked installation. Astral's python-build-standalone (PBS) is a
 technical reference and comparison target only: never fork, vendor, import,
 or execute its build engine, and never copy its binaries into the product.
 
-`rust-cpython/` is an isolated macOS CPython 3.16 Rust-for-CPython experiment;
+`rust-cpython/` is an isolated CPython 3.16 Rust-for-CPython experiment
+(native Apple Silicon macOS and x86_64 glibc Linux hosts);
 its source pin is scoped there and does not change the product's exact 3.14.6
 contract or participate in production targets and packaging.
 

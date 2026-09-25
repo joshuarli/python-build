@@ -232,9 +232,13 @@ class ToolchainIsolationTests(unittest.TestCase):
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "PYTHONPYCACHEPREFIX": "/isolated/pycache",
                 "CARGO_NET_OFFLINE": "true",
+                "HTTPS_PROXY": "http://127.0.0.1:9",
+                "no_proxy": "localhost",
             },
         ):
             env = build._test_environment(toolchain)
+        self.assertNotIn("HTTPS_PROXY", env)
+        self.assertNotIn("no_proxy", env)
         self.assertNotIn("PYTHONDONTWRITEBYTECODE", env)
         self.assertEqual(env["PYTHONPYCACHEPREFIX"], "/isolated/pycache")
         self.assertEqual(env["CARGO_NET_OFFLINE"], "true")

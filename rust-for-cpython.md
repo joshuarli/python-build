@@ -37,7 +37,12 @@ evidence if it needs a product-policy decision.
 ## Scope and comparison controls
 
 The production product remains CPython **3.14.6**. Its frozen Linux recipes,
-packaging, and release workflow are outside this experiment. The experimental
+packaging, and release workflow are outside this experiment. The lane runs
+natively on Apple Silicon macOS and, since 2026-09-25, on x86_64 glibc Linux
+(Ubuntu 24.04) with the same source pins, patches, LLVM 23.1.2 release, and
+controls; the Linux toolchain and host packages are pinned in
+`rust-cpython/linux-toolchain.lock.json`. Report which platform each result
+comes from; a verdict on one platform does not transfer to the other. The experimental
 source and Rust toolchain pins live in `rust-cpython/sources.lock.json` and
 `rust-cpython/rust-toolchain.toml`. Use the commands and ranked candidate map
 in [`rust-cpython/README.md`](rust-cpython/README.md). Persist source changes
@@ -164,6 +169,16 @@ before their CPU values can be called process-tree totals; each result records
 its coverage.
 The Linux wheel lock targets CPython 3.14 musl and must not be silently reused
 for 3.16.
+
+On x86_64 Linux the lane has what macOS lacks: the external sampler reads
+`/proc/*/smaps_rollup`, so peak PSS and peak private (USS) memory are measured
+for every workload, and the matched upstream 3.16 control is built on the
+same host. The shared KVM host is noisy (standard-profile self-comparison
+limits of 4.5–56%), so Linux verdicts use
+[`linux_paired.py`](rust-cpython/experiments/linux_paired.py): 20 timing and
+10 memory alternating pairs with bootstrap intervals and matching
+self-comparisons. Allocation counts remain unavailable on both platforms
+(no Memray build for 3.16).
 
 The next benchmark infrastructure work is native macOS unique/proportional
 memory observation and a compatible allocation pass, followed by self-comparison
@@ -375,6 +390,29 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   transparent `unified_diff` kernel; see
   [`difflib-one-shot-contract-20260924.md`](rust-cpython/experiments/difflib-one-shot-contract-20260924.md).
 
+- The x86_64 Linux lane builds the candidate, unpatched fork, no-Rust fork,
+  vanilla upstream, zlib hybrid, and full zlib-rs offline in about five
+  minutes each. Bring-up found and fixed four portability defects: the URL
+  patch lacked its `SRCDIRS` entry, a fork cargo rule destroyed `$ORIGIN`,
+  an inherited ignored SIGINT failed the PGO task, and host proxy variables
+  leaked into tests. The candidate passed 2,177 URL differential cases, the
+  unchanged URL tests, and the Cargo and targeted suites. The broad
+  regression run (50,567 tests) failed only in `test_socket`, on vsock
+  errors that vanilla upstream shares on this host. `_decimal` is absent on
+  Linux because the 3.16 sources no longer bundle libmpdec. See
+  [`linux-lane-bringup-20260925.md`](rust-cpython/experiments/linux-lane-bringup-20260925.md).
+- On Linux, the URL patch cut `catalog_url_normalize` process CPU by 12.3%
+  against the unpatched fork and 12.7% against upstream (95% intervals
+  exclude no-change). `catalog_search_form` and `catalog_request_path`
+  improved 6.3% and 3.5% against upstream. Peak USS/PSS differences
+  (±0.06 MB) stayed within same-interpreter bias. The zlib hybrid matched
+  876/876 encodings and the focused zlib tests. On a sustained public
+  decode pass it cut process CPU by 38–40% for zlib and 13% for gzip, but
+  added a steady +1.0 MB of USS/PSS. That is almost entirely clean private
+  pages of its 1.8 MB larger extension, which still carries unused deflate
+  code. See
+  [`linux-comparison-20260925.md`](rust-cpython/experiments/linux-comparison-20260925.md).
+
 ## Immediate work queue
 
 - **The optional zlib-rs build is an experiment, not a production migration.**
@@ -385,10 +423,13 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   the extension added 1.45 MB after equal debug stripping. Internal decode
   and gzip timers improved about 45% and 40%. See
   [`zlib-hybrid-qualification-20260924.md`](rust-cpython/experiments/zlib-hybrid-qualification-20260924.md).
-  A baseline-sized sustained public decode/gzip pass is the next decision
-  gate; it was prepared but not run because another host process occupied
-  several cores. If complete-task CPU still does not improve beyond noise,
-  remove the optional hybrid path while preserving its experiment record.
+  The sustained public decode/gzip gate has now run on Linux: process CPU
+  fell 38–40% for zlib and 13% for gzip, at a steady +1.0 MB USS/PSS cost.
+  This is a genuine speed/RAM tradeoff, so the hybrid stays an experiment
+  pending a product-policy decision. Next, shrink the extension: link the
+  prefixed archive with section garbage collection, or build an
+  inflate-only archive, and repeat the sustained pass on both platforms.
+  The macOS sustained pass is still unrun.
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.

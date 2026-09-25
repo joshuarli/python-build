@@ -734,6 +734,11 @@ def _test_environment(toolchain) -> dict[str, str]:
     """Let CPython's test runner populate its isolated bytecode cache."""
     env = _environment(toolchain, offline=True)
     env.pop("PYTHONDONTWRITEBYTECODE", None)
+    # A host egress proxy changes urllib/http.client test behavior; the
+    # regression suite runs against direct loopback servers only.
+    for name in tuple(env):
+        if name.lower() in {"http_proxy", "https_proxy", "all_proxy", "no_proxy"}:
+            env.pop(name)
     return env
 
 
