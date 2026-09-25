@@ -915,6 +915,10 @@ The current `_base64` integration proof does not cover public `base64`; the
 guarded URL quote route is a partial `urllib.parse` port pending broad
 qualification; zlib, TAR, IPv4, numeric timestamp, UUID, `shlex`, and
 `fractions` Rust proofs remain partial. No item below is yet marked complete.
+The pinned [email archive workload](rust-cpython/experiments/email-workload-20260925.md)
+now covers public parse, header access, serialize, and reparse operations for
+11 source-corpus messages. It establishes output and resource baselines, not
+a Rust port or a speed claim.
 
 ### Priority 0: common application paths
 
