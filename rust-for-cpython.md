@@ -440,6 +440,13 @@ as a separate baseline change.
   builds. The same-executable decoder proof remains the cleaner attribution;
   this comparison shows the gain survives the reproducible opt-in build. See
   [`url-unquote-installed-comparison-20260925.md`](rust-cpython/experiments/url-unquote-installed-comparison-20260925.md).
+- A separate three-way resource pass compared the fresh decoder, quote-only
+  fork, and vanilla upstream on the complete search task. Decoder minus
+  upstream median root peak RSS was -114,688 bytes, with every pair inside
+  upstream self-noise; sampled physical footprint was 180,224 bytes lower at
+  the paired median. The pass found no RSS regression on this workload, but
+  it cannot qualify USS/PSS, allocations, or retained memory. See
+  [`url-unquote-upstream-memory-20260925.md`](rust-cpython/experiments/url-unquote-upstream-memory-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and

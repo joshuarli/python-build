@@ -117,13 +117,17 @@ two complete catalog URL output digests matched. Five serial installed-tree
 pairs showed 42.9% lower complete search-form wall time and 44.0% lower kernel
 CPU, beyond self-noise. The separate native builds have different PGO profiles;
 the prior same-executable proof is cleaner for attribution. Broad public
-semantic and upstream memory checks remain open. The
+semantic and upstream memory checks remain open. A separate three-way
+resource pass found decoder root peak RSS within upstream self-noise on the
+search task; unique/proportional and retained memory and allocations remain
+unqualified. The
 eligible native path also bypasses initialization and replacement of private
 parser globals. Static source tracing finds the same built-in UTF-8 decoder
 under the exact guard, while public differential behavior remains to check. See
 [`experiments/url-unquote-source-patch-20260925.md`](experiments/url-unquote-source-patch-20260925.md)
 [`experiments/url-unquote-build-20260925.md`](experiments/url-unquote-build-20260925.md),
 [`experiments/url-unquote-installed-comparison-20260925.md`](experiments/url-unquote-installed-comparison-20260925.md),
+[`experiments/url-unquote-upstream-memory-20260925.md`](experiments/url-unquote-upstream-memory-20260925.md),
 and [`experiments/url-unquote-contract-audit-20260925.md`](experiments/url-unquote-contract-audit-20260925.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under

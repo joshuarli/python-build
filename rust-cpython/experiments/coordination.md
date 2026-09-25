@@ -28,6 +28,13 @@ RSS/physical footprint in a separate pass with self-noise, valid cache
 identities, and exact outputs. Budget: 120 kernel CPU seconds and 1 GiB
 per-process RSS. These macOS measures cannot establish USS/PSS or allocation
 parity, so they may only support a limited resource verdict.
+All 60 complete search attempts matched digests. Decoder minus upstream
+median root peak RSS was -114,688 bytes; all five pair differences fit inside
+upstream self-noise. Sampled physical footprint was 180,224 bytes lower at
+the paired median. Recorded commands consumed 47.16 kernel CPU seconds and
+at most 39,944,192 bytes process RSS, with no swaps. USS/PSS, allocations,
+and steady/retained memory remain unavailable; see
+`url-unquote-upstream-memory-20260925.md`.
 
 ## URL unquote installed comparison (base `e4d3772`)
 
