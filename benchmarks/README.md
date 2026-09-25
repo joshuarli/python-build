@@ -209,6 +209,29 @@ are atomically refreshed after successful measurements. A self-comparison is
 labeled `self_control_calibration`; it characterizes the runner and harness,
 but it does not substitute for a product-versus-upstream baseline.
 
+For a native Rust-for-CPython experiment, pass `--evidence` to `run` or
+`self-compare` with a new path under `rust-cpython/experiments/data/`:
+
+```sh
+python3 benchmarks/bench.py run \
+  --baseline /path/to/control/python3.16 \
+  --candidate /path/to/candidate/python3.16 \
+  --baseline-kind custom --candidate-kind custom \
+  --suite realworld --profile standard --workload catalog_search_form \
+  --local --output rust-cpython/work/search-run \
+  --evidence rust-cpython/experiments/data/search-run.json
+```
+
+This writes one compact, Git-ready JSON file with every timing and memory
+attempt's output digest, wall time, kernel CPU, and available memory counters,
+plus input, interpreter, host, noise, and verdict details. The generated run
+directory remains disposable. `--evidence` refuses to overwrite an existing
+record and skips the automatic baseline snapshot; use `--record-baseline` as
+well when a stable baseline snapshot is wanted. Compact export currently
+supports quick and standard smoke or realworld runs. Record an external
+`/usr/bin/time -l` controller total separately when whole-lane CPU and peak
+resident memory are needed.
+
 The benchmark dependency prefix is separate from the tested interpreter. The
 controller prepares it from verified wheelhouse inputs, so the tested
 distribution does not need to ship `pip` or `venv`. Use `--wheelhouse PATH` to

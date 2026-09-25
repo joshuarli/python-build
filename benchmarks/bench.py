@@ -504,6 +504,8 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--pyperformance-selection", help="pyperformance group or benchmark name")
         command.add_argument("--wheelhouse", type=Path)
         command.add_argument("--output", type=Path)
+        command.add_argument("--evidence", type=Path,
+                             help="write compact attempt evidence to this file; skip automatic baseline snapshot")
         command.add_argument("--allow-cross-version", action="store_true")
         command.add_argument("--perf-stat", action="store_true", help="optional separate Linux perf stat diagnostics")
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
@@ -604,6 +606,11 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError("--timing-only requires --local")
             if not args.baseline or not args.candidate:
                 raise ValueError("--baseline and --candidate are required")
+            if args.evidence is not None:
+                if args.profile == "rigorous" or args.suite in {"pyperformance", "full"}:
+                    raise ValueError("--evidence supports smoke/realworld quick or standard runs")
+                if args.evidence.exists():
+                    raise ValueError(f"refusing to overwrite compact evidence: {args.evidence}")
             if args.output is None:
                 stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
                 args.output = BENCH / "results" / stamp
@@ -613,11 +620,15 @@ def main(argv: list[str] | None = None) -> int:
                 result = _run_container(args)
             print(result)
             if args.command != "_run":
+                if args.evidence is not None:
+                    from benchmarks.harness.evidence import compact_evidence
+
+                    print(compact_evidence(result, args.evidence))
                 baseline_destination = getattr(args, "record_baseline", None)
-                if baseline_destination is None:
-                    print(_update_baseline(result))
-                else:
+                if baseline_destination is not None:
                     print(_record_baseline(result, baseline_destination))
+                elif args.evidence is None:
+                    print(_update_baseline(result))
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
