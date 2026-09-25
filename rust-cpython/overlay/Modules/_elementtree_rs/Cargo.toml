@@ -1,0 +1,16 @@
+[package]
+name = "_elementtree_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+quick-xml = { version = "=0.42.0", default-features = false }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_elementtree_rs"
+crate-type = ["cdylib", "rlib"]

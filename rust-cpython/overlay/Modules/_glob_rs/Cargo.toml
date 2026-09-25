@@ -1,0 +1,17 @@
+[package]
+name = "_glob_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+# glob 0.3.4 is dual-licensed MIT OR Apache-2.0.
+glob = { version = "=0.3.4" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_glob_rs"
+crate-type = ["cdylib", "rlib"]

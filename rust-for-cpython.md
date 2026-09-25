@@ -80,8 +80,13 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **20 complete targets**. Do not carry
+module. The strict count is now **26 complete targets**. Do not carry
 their performance ranking into this coverage phase.
+
+The latest six targets passed one combined default-resource debug suite on
+macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
+ran and nine were resource-denied. Their named focused suites passed as
+recorded on each line.
 
 The eighteen targets credited after `ipaddress` and `textwrap` passed their
 respective combined default-resource debug suites on macOS arm64. Each
@@ -106,7 +111,9 @@ suites passed as recorded on each line.
   `test_tomllib` and `test_inspect`: 400 run/0 skipped; integrated full
   suite passed.
 - [ ] `email` — parse and serialize messages and headers.
-- [ ] `xml.etree.ElementTree` — parse and serialize XML trees.
+- [x] `xml.etree.ElementTree` — complete-document parsing and XML writing
+  reach Rust (`bab729d`). Full `test_xml_etree` and `test_xml_etree_c`:
+  480 run/12 skipped; integrated full suite passed.
 - [ ] `re` — compile and search common patterns through `re`.
 - [x] `base64` — public encode and decode functions reach Rust (`5024bbf`).
   Full `test_base64`, `test_binascii`, and `test_email`: 2,123 run/19
@@ -162,7 +169,10 @@ suites passed as recorded on each line.
   integrated full suite passed.
 - [ ] `marshal` — serialize and load supported Python code/data records.
 - [ ] `html.parser` — tokenize complete HTML documents.
-- [ ] `difflib` — public sequence matching and diff generation.
+- [x] `difflib` — public sequence matching and diff generation use Rust
+  longest-match discovery for supported built-in sequences (`2ed801f`).
+  Eight full focused suites: 4,119 run/8 skipped; `test_peg_generator`
+  was resource-denied at baseline. Integrated full suite passed.
 - [ ] `codecs` — encode/decode dispatch and incremental conversion.
 - [ ] `unicodedata` — Unicode property lookup and normalization.
 - [x] `bz2` — public one-shot and incremental compression/decompression
@@ -174,9 +184,14 @@ suites passed as recorded on each line.
   reach Rust (`c53e9cf`). Full `test_lzma`: 123 run/0 skipped;
   free-threading tests retain the baseline GIL skip. Integrated full suite
   passed.
-- [ ] `compression.zstd` — public Zstandard streams and one-shot calls.
+- [x] `compression.zstd` — default dictionary-free public Zstandard streams
+  and one-shot calls reach Rust (`503d673`). Full `test_zstd`, `test_zipfile`,
+  `test_tarfile`, `test_shutil`, `test_zipimport`, and `test_profiling`:
+  2,274 run/178 skipped; integrated full suite passed.
 - [ ] `zipimport` — module discovery and loading from ZIP archives.
-- [ ] `glob` — public pathname expansion.
+- [x] `glob` — public nonrecursive text pathname expansion reaches Rust
+  (`cd43075`). Full `test_glob`: 22 run/2 macOS skips; integrated full suite
+  passed.
 - [x] `fnmatch` — public filename pattern matching reaches Rust (`924b4c5`).
   Full `test_fnmatch`, `test_glob`, and `test_shutil`: 275 run/78 skipped;
   integrated full suite passed.
@@ -186,10 +201,15 @@ suites passed as recorded on each line.
   Full `test_fractions`, `test_statistics`, `test_numeric_tower`,
   `test_math`, `test_operator`, and `test_interpreters`: 727 run/11
   skipped; integrated full suite passed.
-- [ ] `statistics` — common summary operations.
+- [x] `statistics` — common integer-sequence mean, median, and variance
+  operations reach Rust (`5d7899e`). Full `test_statistics`,
+  `test_fractions`, `test_math`, and `test_random`: 654 run/10 skipped;
+  integrated full suite passed.
 - [ ] `random` — public random number generation and sampling.
 - [ ] `collections` — common containers and counting operations.
-- [ ] `heapq` — heap operations.
+- [x] `heapq` — public min-heap and max-heap operations reach Rust
+  (`78afd13`). Full `test_heapq`, `test_queue`, and `test_sched`:
+  243 run/6 memory-gated skips; integrated full suite passed.
 - [x] `bisect` — ordered insertion and search reach Rust (`52a58f7`). Full
   `test_bisect`: 46 run/0 skipped; full `test_statistics`, `test_datetime`,
   and `test_free_threading`: 1,560 run/38 skipped; integrated full suite
