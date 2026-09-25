@@ -760,9 +760,14 @@ as a separate baseline change.
   This is partial priority-1 coverage, not a completed `shlex` port. See
   [`shlex-split-20260925.md`](rust-cpython/experiments/shlex-split-20260925.md).
   A later guard preserves 18 observed parser-binding and hook cases while
-  retaining an ordinary native route. The 63.7%/67.2% gains describe the
-  pre-revision guard; quiet-host measurement of the revision remains open.
-  See the [binding audit](rust-cpython/experiments/shlex-binding-guard-20260925.md).
+  retaining an ordinary native route. A same-executable diagnostic of that
+  revision matched every complete-task output and measured median paired
+  wall/CPU ratios of 0.380/0.369 across five pairs, well outside its local
+  same-side timing variation. OrbStack remained active, so quiet-host speed
+  and installed-build qualification remain open. A separate three-pair
+  physical-footprint pass rose by a median 737,280 bytes without self-noise
+  calibration. See the [binding audit](rust-cpython/experiments/shlex-binding-guard-20260925.md)
+  and [guarded measurement](rust-cpython/experiments/shlex-guard-measure-20260925.md).
 - The optional `fractions.Fraction` scanner reaches public parsing of short
   canonical ASCII rational strings; Python still constructs and normalizes
   the value and handles all other inputs. A complete 200,000-record ledger
