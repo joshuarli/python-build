@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## URL unquote native proof (base `70b57b2`)
+
+The reversible proof uses
+`/private/tmp/python-build-exp-url-unquote-proof-20260925a`, branch
+`exp/url-unquote-proof-20260925a`. It owns only a new
+`experiments/url-unquote-proof/` source directory, its report, compact data,
+and ignored work/logs. It copies the installed guarded quote source into
+its own lane, builds a dependency-free Rust scan behind a CPython-owned C
+wrapper, and overlays only an APFS-cloned candidate stage. The accepted
+stage remains read-only. The search-form task is the speed target and
+catalog normalization is a negative control. No other heavy lane runs
+concurrently. Budget: 180 kernel-accounted command CPU seconds and 2 GiB
+per-process RSS, including failed attempts; all benchmark outputs must
+match complete digests and cache policy before any speed verdict.
+
 ## URL unquote headroom (base `0b0ebc4`)
 
 The diagnostic uses
@@ -13,6 +28,12 @@ checks all workload digests. No other heavy lane is active. Budget: 45
 kernel-accounted CPU seconds, 512 MiB per-process RSS. The coordinator
 will compare projected headroom with existing self-noise before authorizing
 decoder source work.
+The scout found 182 eligible escaped calls per 48-record search batch and
+a 36.74% instrumented `unquote` ceiling, above its 1.78% timing self-noise.
+Catalog normalization had only four eligible calls and a 1.59% ceiling below
+its 1.83% noise. Six diagnostic commands used 2.65 kernel CPU seconds, at
+most 32.51 MB RSS, and zero swaps. See
+`url-unquote-headroom-20260925.md`.
 
 ## JSON headroom scout (base `8c9f92c`)
 
