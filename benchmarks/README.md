@@ -283,6 +283,20 @@ the bundled `lib2to3` source is present, `2to3` runs normally. If it is
 missing, the result records `2to3` as unsupported with the reason instead of
 silently omitting it.
 
+Before measurement, the baseline calibrates loops for each selected manifest
+script with one pyperf process and one measured value. The harness reads the
+baseline's value-bearing run metadata, then passes the selected fixed count
+through `--loops` to baseline and candidate timing and both separate memory
+passes. The raw per-script calibration files under `pyperformance/calibration/`
+preserve the source counts. `pyperformance/comparison.json` records the chosen
+count for each manifest script, unsupported reasons, and fixed-loop coverage.
+Scripts with missing or inconsistent loop
+metadata are marked unsupported. A script that emits several named results
+accepts only one loop count, so the harness uses the largest baseline count
+when it is at most four times the smallest; wider differences are marked
+unsupported. Every measured result is checked against the requested count.
+Calibration time is excluded from the timing comparison.
+
 Payload versions are pinned separately from the interpreter baseline in
 [`inputs.lock.json`](inputs.lock.json). Several pyperformance dependencies
 use compatible releases because the older upstream pins lack CPython 3.14

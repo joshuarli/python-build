@@ -170,9 +170,10 @@ roughly 3 MB heavier at import; see the
 existing installed `.pyc` files; an absent `PYTHONPYCACHEPREFIX` does not
 change that. An import audit is needed before describing a run as source-only.
 Calibrate both control against itself and candidate against itself before
-accepting a close result. Use baseline-derived fixed loop counts for
-pyperformance where its interface supports them; that path is still open in
-the current harness. Record child-CPU coverage for each workload. A numeric
+accepting a close result. The pyperformance harness now calibrates loops on
+the baseline and fixes equal counts for both timing and memory arms where
+the pinned runner supplies usable metadata; a complete execution of that
+new path remains open. Record child-CPU coverage for each workload. A numeric
 CPU comparison with root-only coverage is not a process-tree total.
 
 ### Present measurement boundary
@@ -766,8 +767,10 @@ as a separate baseline change.
   established cold or warm Django WSGI gain; its small CPU and RSS differences
   stayed within local variation. See
   [`merged-macos-url-django-20260925.md`](rust-cpython/experiments/merged-macos-url-django-20260925.md).
-  Add baseline-derived loops for
-  pyperformance and selected Pyston macros only with separately pinned inputs.
+  The pyperformance harness now implements baseline-derived fixed loops with
+  explicit unsupported coverage but has not completed a full execution under
+  quiet host conditions; see the [loop recipe](rust-cpython/experiments/pyperformance-fixed-loops-20260925.md).
+  Add selected Pyston macros only with separately pinned inputs.
 
 ## Secondary goal: Rust stdlib coverage
 

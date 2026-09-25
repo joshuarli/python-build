@@ -257,6 +257,8 @@ class PyperformanceRun:
     benchmarks: tuple[PyperfBenchmark, ...]
     files: tuple[Path, ...]
     failures: tuple[BenchmarkFailure, ...] = ()
+    fixed_loops: Mapping[str, int] | None = None
+    calibration: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe manifest of raw result files and parsed data."""
@@ -271,6 +273,8 @@ class PyperformanceRun:
             "directory": str(self.directory),
             "successful_count": len(self.benchmarks),
             "failed_count": len(self.failures),
+            "fixed_loops": None if self.fixed_loops is None else dict(self.fixed_loops),
+            "calibration": self.calibration,
             "upstream_exclusions": dict(UPSTREAM_EXCLUSIONS),
             "benchmarks": [
                 dict(benchmark.to_dict(), result_file=str(path))
@@ -668,6 +672,8 @@ def run_pyperformance(
     *,
     warmups: int = 2,
     affinity: str | None = None,
+    fixed_loops: Mapping[str, int] | None = None,
+    calibration: bool = False,
 ) -> PyperformanceRun:
     """Run one complete pyperformance pass with a tested interpreter.
 
@@ -680,8 +686,16 @@ def run_pyperformance(
 
     if mode not in ("timing", "memory"):
         raise ValueError(f"unsupported pyperformance mode {mode!r}")
+    if calibration and (mode != "timing" or fixed_loops is not None):
+        raise ValueError("loop calibration requires an automatically calibrated timing pass")
     if isinstance(warmups, bool) or not isinstance(warmups, int) or warmups < 0:
         raise ValueError("warmups must be a non-negative integer")
+    if fixed_loops is not None and any(
+        not isinstance(name, str) or isinstance(count, bool)
+        or not isinstance(count, int) or count <= 0
+        for name, count in fixed_loops.items()
+    ):
+        raise ValueError("fixed loops must map benchmark names to positive integers")
 
     python_arg = os.fspath(python)
     site_path = Path(site_packages).resolve()
@@ -719,6 +733,11 @@ def run_pyperformance(
     failures: list[BenchmarkFailure] = []
     for spec in specs:
         output, log = paths[spec.name]
+        if fixed_loops is not None and spec.name not in fixed_loops:
+            failures.append(BenchmarkFailure(
+                spec.name, "unsupported", "baseline calibration yielded no fixed loop count", None, None
+            ))
+            continue
         benchmark_environment = environment
         extra_path = EXTERNAL_SOURCE_PATHS.get(spec.name)
         if extra_path is not None:
@@ -742,10 +761,14 @@ def run_pyperformance(
             python_arg,
             str(spec.script),
             *spec.extra_opts,
-            "--rigorous",
-            "--warmups",
-            str(warmups),
         ]
+        if calibration:
+            command.extend(("--processes", "1", "--values", "1"))
+        else:
+            command.append("--rigorous")
+        command.extend(("--warmups", str(warmups)))
+        if fixed_loops is not None:
+            command.extend(("--loops", str(fixed_loops[spec.name])))
         if affinity:
             command.extend(("--affinity", affinity))
         if mode == "memory":
@@ -807,8 +830,28 @@ def run_pyperformance(
             )
             continue
         for benchmark in parsed.benchmarks.values():
-            parsed_benchmarks.append(replace(benchmark, manifest_name=spec.name))
-            result_files.append(output)
+            if fixed_loops is not None:
+                measured_loops = [
+                    metadata.get("loops")
+                    for values, metadata in zip(benchmark.runs, benchmark.run_metadata, strict=True)
+                    if values
+                ]
+                if not measured_loops or any(
+                    isinstance(value, bool) or not isinstance(value, int)
+                    or value != fixed_loops[spec.name]
+                    for value in measured_loops
+                ):
+                    failures.append(BenchmarkFailure(
+                        spec.name, "loops",
+                        f"expected {fixed_loops[spec.name]} loops for {benchmark.name}, "
+                        f"recorded {measured_loops!r}", log, output,
+                        completed.returncode,
+                    ))
+                    break
+        else:
+            for benchmark in parsed.benchmarks.values():
+                parsed_benchmarks.append(replace(benchmark, manifest_name=spec.name))
+                result_files.append(output)
 
     return PyperformanceRun(
         python=python_arg,
@@ -818,7 +861,54 @@ def run_pyperformance(
         benchmarks=tuple(parsed_benchmarks),
         files=tuple(result_files),
         failures=tuple(failures),
+        fixed_loops=fixed_loops,
+        calibration=calibration,
     )
+
+
+def baseline_loop_counts(
+    calibration: PyperformanceRun,
+) -> tuple[dict[str, int], dict[str, str]]:
+    """Choose one baseline-calibrated loop count for each manifest script.
+
+    A script can emit several named results but accepts only one ``--loops``
+    argument. The largest measured baseline count covers every emitted result;
+    all four measured passes then use that same count for the script.
+    """
+
+    if calibration.mode != "timing" or calibration.fixed_loops is not None or not calibration.calibration:
+        raise ValueError("loop calibration requires an automatically calibrated timing pass")
+    counts: dict[str, list[int]] = {}
+    unsupported = {failure.name: failure.detail for failure in calibration.failures}
+    for benchmark in calibration.benchmarks:
+        manifest_name = benchmark.manifest_name
+        if manifest_name is None:
+            raise PyPerformanceError(f"missing manifest name for {benchmark.name}")
+        values = [
+            metadata.get("loops")
+            for samples, metadata in zip(benchmark.runs, benchmark.run_metadata, strict=True)
+            if samples
+        ]
+        if not values or any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in values):
+            unsupported[manifest_name] = f"missing positive measured loop metadata for {benchmark.name}"
+            continue
+        if len(set(values)) != 1:
+            unsupported[manifest_name] = f"inconsistent measured loop metadata for {benchmark.name}: {sorted(set(values))}"
+            continue
+        counts.setdefault(manifest_name, []).extend(values)
+    for name in unsupported:
+        counts.pop(name, None)
+    chosen: dict[str, int] = {}
+    for name, values in counts.items():
+        smallest, largest = min(values), max(values)
+        if largest > 4 * smallest:
+            unsupported[name] = (
+                f"named results need divergent baseline loops ({smallest} to {largest}); "
+                "one script accepts only one --loops value"
+            )
+        else:
+            chosen[name] = largest
+    return chosen, unsupported
 
 
 def _pinned_pyperf() -> Any:
@@ -1119,6 +1209,7 @@ __all__ = [
     "PyperfBenchmark",
     "PyperfResult",
     "PyperformanceRun",
+    "baseline_loop_counts",
     "load_benchmarks",
     "compare_pyperformance_runs",
     "parse_raw_json",

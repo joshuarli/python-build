@@ -275,7 +275,8 @@ def _run_internal(args: argparse.Namespace) -> Path:
         perf_comparison = None
         if perf_site is not None:
             from benchmarks.harness.pyperformance import (
-                compare_pyperformance_runs, run_pyperformance,
+                baseline_loop_counts, compare_pyperformance_runs, run_pyperformance,
+                select_benchmarks,
             )
 
             perf_dir = output / "pyperformance"
@@ -283,6 +284,16 @@ def _run_internal(args: argparse.Namespace) -> Path:
             selection = args.pyperformance_selection or (
                 "all" if args.profile == "rigorous" else "fastapi" if args.profile == "standard" else "python_startup"
             )
+            calibration = run_pyperformance(
+                baseline, perf_site.site_packages, perf_site.benchmark_root,
+                perf_dir / "calibration", selection=selection, mode="timing",
+                affinity=",".join(map(str, sorted(affinity))) if affinity else None,
+                calibration=True,
+            )
+            fixed_loops, unsupported_loops = baseline_loop_counts(calibration)
+            selected_count = len(select_benchmarks(perf_site.benchmark_root, selection))
+            if len(fixed_loops) + len(unsupported_loops) != selected_count:
+                raise RuntimeError("pyperformance loop calibration did not account for every selected benchmark")
             runs = {}
             for mode in ("timing", "memory"):
                 for side, python in (("baseline", baseline), ("candidate", candidate)):
@@ -290,6 +301,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
                         python, perf_site.site_packages, perf_site.benchmark_root,
                         perf_dir / side, selection=selection, mode=mode,
                         affinity=",".join(map(str, sorted(affinity))) if affinity else None,
+                        fixed_loops=fixed_loops,
                     )
             sys.path.insert(0, str(perf_site.site_packages))
             try:
@@ -297,6 +309,14 @@ def _run_internal(args: argparse.Namespace) -> Path:
                     runs[("timing", "baseline")], runs[("timing", "candidate")],
                     runs[("memory", "baseline")], runs[("memory", "candidate")],
                 )
+                perf_comparison["loop_policy"] = {
+                    "source": "baseline timing calibration",
+                    "selection": selection,
+                    "fixed_loops_by_manifest": fixed_loops,
+                    "unsupported_by_manifest": unsupported_loops,
+                    "coverage": {"fixed": len(fixed_loops), "selected": selected_count},
+                    "multi_result_expansion_limit": 4,
+                }
             finally:
                 sys.path.remove(str(perf_site.site_packages))
             (perf_dir / "comparison.json").write_text(json.dumps(perf_comparison, indent=2, sort_keys=True) + "\n")
