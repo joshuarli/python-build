@@ -1,6 +1,6 @@
 # Hybrid zlib inflate qualification, 2026-09-24
 
-**Recommendation: keep the hybrid as a correctness candidate, but do not promote it.** All measured workloads produced identical input and output digests. The matched accepted-fork control did not establish a speed gain or a stable RSS regression within five paired runs. The hybrid adds 1,592,928 bytes to the installed unstripped `zlib` extension and 1,451,456 bytes after the same copied-artifact debug-strip policy. Compatible USS/PSS and native allocation counts remain unavailable, and the matched upstream resource baseline required by `rust-for-cpython.md` is absent. This is an inconclusive performance and memory qualification, not a passed gate.
+**Recommendation: stop work on this optional hybrid and retain it as a correctness candidate, without promotion.** All measured workloads produced identical input and output digests. The inner decode and gzip timers show a repeatable hot-path gain, but the matched accepted-fork control did not establish a complete-task speed gain or a stable RSS direction within five paired runs. The hybrid adds 1,592,928 bytes to the installed unstripped `zlib` extension and 1,451,456 bytes after the same copied-artifact debug-strip policy. Compatible USS/PSS and native allocation counts remain unavailable, and the matched upstream resource baseline required by `rust-for-cpython.md` is absent. The measured hot-path gain does not justify that size and qualification cost for this optional candidate.
 
 All 238 successful workload attempts, including each external memory sample, kernel lifetime root peak, `wait4` CPU result, digest, launch order, and unique attempt ID, are retained in [the raw data](data/zlib-hybrid-qualification-20260924.json). The four complete `/usr/bin/time -l` controller records are embedded there. The original attempt files remain in ignored `rust-cpython/results/zlib-hybrid-qualification-20260924/` in this worktree.
 
@@ -22,11 +22,21 @@ Both primary comparisons set `PYTHONPYCACHEPREFIX` to the same nonexistent lane 
 
 The accepted-fork comparison ran five serial control/control timing pairs, then five counterbalanced control/hybrid timing pairs for each focused workload. The external 10 ms memory sampler ran in a separate five-pair ZIP pass. Values are paired hybrid-minus-control medians. A logical unit is one decoded or extracted byte; the ZIP job reads four wheels, or 8,413,264 extracted bytes. `wait4` user plus system CPU is reported per unit, separately from wall latency.
 
-| Workload | Hybrid wall per byte | Hybrid CPU per byte | Paired wall range per job | Control/control wall range per job |
+| Workload | Paired hybrid-minus-control external wall per byte | Paired hybrid-minus-control complete CPU per byte | Paired wall range per job | Control/control wall range per job |
 | --- | ---: | ---: | ---: | ---: |
 | `zlib_decode_1m` | +0.097 ns | +0.035 ns | −3.235 to +7.791 ms | −3.772 to +2.838 ms |
 | `gzip_extract_1m` | +0.290 ns | −0.166 ns | −1.901 to +13.383 ms | −10.742 to +6.770 ms |
 | `zip_read_wheel` | −0.292 ns | +0.229 ns | −5.166 to +6.446 ms | −12.712 to +4.300 ms |
+
+The workload also reports an internal `elapsed_seconds` timer around its decode or extraction loop. For each pair, the internal difference is `(hybrid elapsed_seconds − control elapsed_seconds) / operation_count`; the table reports the median of five pair differences, with the control/control second-minus-first range from the same session. One logical unit is one decoded or extracted byte, as above.
+
+| Workload | Paired hybrid-minus-control internal elapsed per byte | Internal control/control range per byte | Median paired internal change |
+| --- | ---: | ---: | ---: |
+| `zlib_decode_1m` | −0.095 ns | −0.010 to +0.001 ns | −44.8% |
+| `gzip_extract_1m` | −0.119 ns | −0.053 to +0.014 ns | −40.0% |
+| `zip_read_wheel` | −0.068 ns | −0.113 to +0.077 ns | −10.3% |
+
+All five decode and gzip internal pairs favored the hybrid, beyond the observed self-comparison ranges. The ZIP internal difference stayed within its self range. These timers omit interpreter startup, input fixture creation, imports, digest reporting, and process cleanup. They are useful evidence for the hot decompression path; external wall and complete root-plus-child CPU measure the full task and govern the application-level decision. Separate PGO profiles also limit attribution of small differences between the installed interpreters.
 
 The source-only ZIP memory pass gave a paired median root lifetime peak RSS difference of **+409,600 bytes**, range −3,948,544 to +3,719,168 bytes. The paired root physical-footprint median was +212,992 bytes, range −4,145,152 to +3,522,560. A separate five-pair accepted-control valid-cache ZIP memory repeat gave +1,490,944 bytes root peak RSS, range −2,850,816 to +3,719,168, and +1,310,720 bytes root footprint, range −3,031,040 to +3,538,944. Its uninstrumented timing median was +0.467 ns per extracted byte, with pair range −1.310 to +0.993 ns per byte. The memory passes observed one process, at least 15 samples per attempt, and no sampler errors. These wide, sign-changing ranges do not establish a stable ZIP memory direction.
 
