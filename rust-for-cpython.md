@@ -663,8 +663,9 @@ as a separate baseline change.
   symbols and stripping unreachable code at link time. The installed module
   passed the builder's import and round-trip checks. After equal stripping
   and signing, its size fell from 1,538,000 to 483,264 bytes, with a real
-  code-section reduction. This is a size result, not quiet-host speed or
-  memory qualification; the adaptive workload tradeoff remains open. See
+  code-section reduction. A same-interpreter paired process-memory pass under
+  host load found no memory saving beyond control variation; it does not
+  qualify quiet-host speed or memory. The adaptive workload tradeoff remains open. See
   [`zlib-adaptive-small-link-20260925.md`](rust-cpython/experiments/zlib-adaptive-small-link-20260925.md).
 - The optional TAR checksum source patch produced a repeatable macOS
   complete-archive speed and CPU gain with unchanged output. Its TAR-owned

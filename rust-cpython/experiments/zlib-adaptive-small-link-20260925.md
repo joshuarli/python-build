@@ -182,3 +182,29 @@ their kernel user and system times rounded to 0.00 s each.
 The adaptive route still needs quiet-host semantic, CPU, memory, and paired
 speed qualification before acceptance. This build gives no speed claim and
 does not alter the production CPython 3.14.6 build.
+
+## Same-interpreter process-memory diagnostic
+
+The [paired memory recipe](zlib_link_memory_pairs.py) compared the two signed,
+stripped modules above through one adaptive-stage interpreter, SHA-256
+`bdd4d2bbb252811fe3fff53fc15af678a8414a7079d13bd76c6461134c4101ff`.
+It copied each module into a separate seven-character directory and selected
+it through `PYTHONPATH`. Independent `-S -B` import probes resolved `zlib` to
+the intended copy in both arms. The public `zlib_decode_1m` task completed
+1,707 iterations per process, decoding both a compressible and an
+incompressible 1 MiB stream in each iteration. All 16 process outputs had the
+same input and output digests. Three control/control and five counterbalanced
+control/smaller pairs ran with no process swaps. An unrelated Docker job held
+about one CPU throughout, so wall and CPU observations are diagnostic only.
+
+The smaller module's paired peak RSS differences were −2,293,760,
++2,736,128, −98,304, +3,407,872, and +196,608 bytes; the median was
++196,608 bytes. Control/control RSS differences ranged from −344,064 to
++3,309,568 bytes. Paired peak physical-footprint differences had a
++262,144-byte median and ranged from −2,228,224 to +3,473,408 bytes.
+The kernel user-plus-system CPU median was 0.83 s in each arm at the
+`/usr/bin/time` 0.01 s resolution. This does not establish a process-memory
+or speed benefit from the smaller link. Its 1,054,736-byte file-size reduction
+remains established. The [compact raw observations](data/zlib-adaptive-small-memory-20260925.json)
+retain order, output identity, kernel CPU, peak RSS, peak footprint, and swaps
+for every attempt. The exact interpreter and module hashes are in that file.
