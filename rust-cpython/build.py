@@ -1043,6 +1043,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int,
         "PY_CPPFLAGS": env["CPPFLAGS"],
         "PY_CFLAGS": env["CFLAGS"],
         "PYTHON_BUILD_DIR": str(BUILD),
+        "CARGO_BUILD_JOBS": str(jobs),
         _cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
         "IPHONEOS_DEPLOYMENT_TARGET": "",
     })

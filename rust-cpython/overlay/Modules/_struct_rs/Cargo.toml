@@ -1,0 +1,16 @@
+[package]
+name = "_struct_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+byteorder = { version = "=1.5.0", default-features = false }
+cpython-sys = { path = "../cpython-sys" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_struct_rs"
+crate-type = ["cdylib", "rlib"]

@@ -1,0 +1,16 @@
+[package]
+name = "_lzma_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+lzma-rust2 = { version = "=0.21.0", default-features = false, features = ["std", "encoder", "xz"] }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_lzma_rs"
+crate-type = ["cdylib", "rlib"]

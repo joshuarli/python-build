@@ -1,0 +1,16 @@
+[package]
+name = "_strptime_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+cpython-sys = { path = "../cpython-sys" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_strptime_rs"
+crate-type = ["cdylib", "rlib"]

@@ -1,0 +1,18 @@
+[package]
+name = "_json_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "MIT"
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+serde = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision", "preserve_order", "raw_value"] }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_json_rs"
+crate-type = ["cdylib", "rlib"]

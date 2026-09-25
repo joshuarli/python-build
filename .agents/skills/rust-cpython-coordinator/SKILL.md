@@ -37,6 +37,9 @@ are complete.
 - Share only verified immutable input cache bytes, for example by linking
   each worktree's ignored `.cache` to the warmed primary cache. Keep build,
   stage, Cargo target, logs, and test output private to each worktree.
+  Run `python3 rust-cpython/build.py fetch` once before the first build in
+  each new worktree; it creates that worktree's private Cargo wrapper as
+  well as caching the locked crates.
   Schedule build jobs according to available CPUs, memory, and disk rather
   than letting 16 compilers saturate the host. Use `build --jobs N` and
   `test --jobs N` to divide capacity. Agents can edit while builds queue.

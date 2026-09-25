@@ -80,13 +80,14 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **14 complete targets**. Do not carry
+module. The strict count is now **20 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
-The twelve targets checked below in `ada4895` and `6dc52d1` passed one
-combined default-resource debug suite on macOS arm64: 50,158 individual
-tests run, 2,754 skipped, zero failures; 496/505 files ran, with nine
-resource-denied. Their named focused suites passed as recorded on each line.
+The eighteen targets credited after `ipaddress` and `textwrap` passed their
+respective combined default-resource debug suites on macOS arm64. Each
+combined run reported 50,158 individual tests run, 2,754 skipped, zero
+failures; 496/505 files ran, with nine resource-denied. Their named focused
+suites passed as recorded on each line.
 
 ### Priority 0: common application paths
 
@@ -94,7 +95,9 @@ resource-denied. Their named focused suites passed as recorded on each line.
   (`5ec48ce`). Full `test_urlparse`, `test_urllib`, `test_http_cookies`,
   `test_httpservers`, `test_logging`, `test_pathlib`, `test_pydoc`, and
   `test_sqlite3`: 2,628 run/430 skipped; integrated full suite passed.
-- [ ] `json` — encode and decode complete documents.
+- [x] `json` — public default encode and decode of complete documents reach
+  Rust (`7c37dd0`). Full `test_json` and `test_interpreters`: 402 run/11
+  skipped; integrated full suite passed.
 - [ ] `pickle` — dump and load common object graphs.
 - [x] `csv` — default Excel records reach Rust through public reader and
   writer (`e49c5e1`). Full `test_csv`: 134 run/0 skipped; integrated full
@@ -110,7 +113,9 @@ resource-denied. Their named focused suites passed as recorded on each line.
   skipped; integrated full suite passed.
 - [ ] `binascii` — binary/text conversion and checksums used by public callers.
 - [ ] `zlib` — compression and decompression on public streams and one-shot calls.
-- [ ] `gzip` — complete file and stream compression/decompression.
+- [x] `gzip` — public file, stream, and one-shot compression/decompression
+  reach Rust (`8c2b4a1`). Full `test_gzip`, `test_tarfile`, `test_xmlrpc`,
+  and `test_zlib`: 1,027 run/15 skipped; integrated full suite passed.
 - [ ] `zipfile` — read and write complete ZIP archives.
 - [ ] `tarfile` — read and write complete TAR archives.
 - [ ] `pathlib` — public path parsing and common filesystem operations.
@@ -151,14 +156,24 @@ resource-denied. Their named focused suites passed as recorded on each line.
 - [x] `plistlib` — XML and binary property-list read and write reach Rust
   (`3c5d5c3`). Full `test_plistlib`: 71 run/0 skipped; integrated full
   suite passed.
-- [ ] `struct` — pack and unpack binary records.
+- [x] `struct` — public pack and unpack of binary records reach Rust
+  (`9844a6a`). Full `test_struct`, `test_array`, `test_buffer`, `test_call`,
+  `test_float`, `test_pickle`, and `test_socket`: 3,235 run/311 skipped;
+  integrated full suite passed.
 - [ ] `marshal` — serialize and load supported Python code/data records.
 - [ ] `html.parser` — tokenize complete HTML documents.
 - [ ] `difflib` — public sequence matching and diff generation.
 - [ ] `codecs` — encode/decode dispatch and incremental conversion.
 - [ ] `unicodedata` — Unicode property lookup and normalization.
-- [ ] `bz2` — public compression and decompression.
-- [ ] `lzma` — public compression and decompression.
+- [x] `bz2` — public one-shot and incremental compression/decompression
+  reach Rust (`540b0dd`). Full `test_bz2`, `test_tarfile`, `test_fileinput`,
+  and `test_codecs`: 1,235 run/18 skipped; the GIL-enabled
+  `test_free_threading` file was skipped as at baseline. Integrated full
+  suite passed.
+- [x] `lzma` — public one-shot and incremental XZ compression/decompression
+  reach Rust (`c53e9cf`). Full `test_lzma`: 123 run/0 skipped;
+  free-threading tests retain the baseline GIL skip. Integrated full suite
+  passed.
 - [ ] `compression.zstd` — public Zstandard streams and one-shot calls.
 - [ ] `zipimport` — module discovery and loading from ZIP archives.
 - [ ] `glob` — public pathname expansion.
@@ -187,7 +202,10 @@ resource-denied. Their named focused suites passed as recorded on each line.
 - [ ] `ast` — parse-tree walking and transformation helpers.
 - [ ] `argparse` — argument parsing and help generation.
 - [ ] `tokenize` — token generation from Python source.
-- [ ] `_strptime` — directive parsing used by public date/time calls.
+- [x] `_strptime` — directive parsing used by public date/time calls reaches
+  Rust (`1b9336e`). Full `test_strptime`, `test_datetime`, `test_time`,
+  `test_calendar`, and `test_locale`: 1,439 run/160 skipped; integrated full
+  suite passed.
 - [x] `shlex` — POSIX and non-POSIX token splitting reach Rust (`5b3ef58`).
   Full `test_shlex`, `test_mimetypes`, and `test_webbrowser`: 128 run/6
   skipped; integrated full suite passed.
