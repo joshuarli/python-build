@@ -363,16 +363,21 @@ memory runs hold an initialized interpreter
 briefly in the separate memory pass.
 
 Timing result files retain the workload's internal wall-latency sample and
-external elapsed time separately. They also record kernel `wait4` user and
-system CPU seconds, raw and per logical operation. On macOS, `wait4` for the
-workload root includes descendants reaped through that process tree. The cold
-ZIP import workload also reports `RUSAGE_CHILDREN` for its direct reaped
-interpreters; the harness retains this as a diagnostic without adding it to
-the macOS `wait4` total. On Linux, `wait4` covers the root only, so the harness
-adds that cold ZIP child ledger once. Other Linux workloads remain root-only
-unless they provide an explicit child ledger. Detached or unreaped descendants
-remain outside the macOS total; Linux grandchildren and unreaped descendants
-remain outside the cold ZIP total. Timeout rounds mark CPU unavailable. A CPU
+external elapsed time separately. They also record kernel user and system CPU
+seconds, raw and per logical operation. On Linux, the timing pass puts the
+workload in a fresh cgroup v2 when delegation is available and reads `cpu.stat`
+after process cleanup. Its user and system counters include descendants,
+including processes in nested cgroups. This requires no sampling thread or
+CPU controller. If delegation or the counters are unavailable, the runner
+falls back to root-only `wait4` CPU and labels tree coverage incomplete.
+On macOS, `wait4` for the workload root includes descendants reaped through
+that process tree. The cold ZIP import workload also reports `RUSAGE_CHILDREN`
+for its directly reaped interpreters; the harness retains this as a diagnostic
+without adding it to
+the macOS `wait4` or Linux cgroup total. The runner adds the cold ZIP child
+ledger once when Linux falls back to root-only `wait4`; grandchildren and
+unreaped descendants then remain excluded. Detached or unreaped descendants
+remain outside the macOS total. Timeout rounds mark CPU unavailable. A CPU
 comparison's `compared` status means numeric paired values were available,
 not full process-tree coverage;
 inspect each round's `coverage` field. The

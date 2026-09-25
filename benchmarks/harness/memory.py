@@ -1,4 +1,4 @@
-"""Linux process-memory measurements used by benchmark memory passes.
+"""Linux process memory and cgroup CPU measurements used by benchmarks.
 
 `smaps_rollup` is read by the controller, outside the interpreter under test.
 All public sizes are bytes; procfs labels its values in KiB (`kB`).
@@ -11,7 +11,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
-from typing import Mapping
+from typing import Mapping, TypeVar
 
 
 class SmapsRollupError(ValueError):
@@ -301,65 +301,13 @@ def _read_cgroup_value(path: Path) -> int:
     return int(raw)
 
 
-class CgroupV2MemoryScope:
-    """A fresh delegated cgroup used only during one process memory pass."""
-
-    REQUIRED_FILES = ("cgroup.procs", "memory.current", "memory.peak", "memory.events")
+class CgroupV2ProcessScope:
+    """A fresh cgroup v2 subtree containing one workload process tree."""
 
     def __init__(self, path: Path):
         self.path = path
         self._closed = False
         self.cleanup_error: str | None = None
-
-    @classmethod
-    def detect_and_create(
-        cls, *, proc_root: str | os.PathLike[str] = "/proc"
-    ) -> CgroupV2MemoryScope | None:
-        """Create a private child only when the current cgroup delegated memory."""
-
-        parent = _current_cgroup_v2_directory(Path(proc_root))
-        if parent is None:
-            return None
-        return cls.create_under(parent)
-
-    @classmethod
-    def create_under(cls, parent: str | os.PathLike[str]) -> CgroupV2MemoryScope | None:
-        """Create a fresh child beneath an already resolved v2 cgroup parent.
-
-        The memory controller must already be enabled for descendants. This
-        method never changes `cgroup.subtree_control` or any host controller.
-        """
-
-        parent_path = Path(parent)
-        try:
-            controllers = set((parent_path / "cgroup.controllers").read_text(encoding="ascii").split())
-            enabled = {
-                item.lstrip("+")
-                for item in (parent_path / "cgroup.subtree_control").read_text(encoding="ascii").split()
-            }
-        except OSError:
-            return None
-        if "memory" not in controllers or "memory" not in enabled:
-            return None
-        try:
-            child_path = _create_child_cgroup(parent_path)
-        except OSError:
-            return None
-        try:
-            if not all((child_path / name).is_file() for name in cls.REQUIRED_FILES):
-                _remove_cgroup_directory(child_path)
-                return None
-            # Prove that the empty scope's files are readable and that the
-            # process membership file can be opened before launching anything.
-            scope = cls(child_path)
-            scope.read_snapshot()
-            if not os.access(child_path / "cgroup.procs", os.W_OK):
-                scope.close()
-                return None
-            return scope
-        except (OSError, ValueError):
-            _remove_cgroup_directory(child_path)
-            return None
 
     @property
     def procs_file(self) -> Path:
@@ -376,17 +324,6 @@ class CgroupV2MemoryScope:
         finally:
             os.close(fd)
 
-    def read_snapshot(self) -> CgroupV2MemorySnapshot:
-        """Read current/peak bytes and the current memory event counters."""
-
-        return CgroupV2MemorySnapshot(
-            current_bytes=_read_cgroup_value(self.path / "memory.current"),
-            peak_bytes=_read_cgroup_value(self.path / "memory.peak"),
-            events=parse_cgroup_memory_events(
-                (self.path / "memory.events").read_text(encoding="ascii")
-            ),
-        )
-
     def close(self) -> None:
         """Remove the empty per-command subtree; never recursively delete."""
 
@@ -398,6 +335,123 @@ class CgroupV2MemoryScope:
             self.cleanup_error = str(error)
         else:
             self._closed = True
+
+
+class CgroupV2MemoryScope(CgroupV2ProcessScope):
+    """A fresh delegated cgroup used only during one process memory pass."""
+
+    REQUIRED_FILES = ("cgroup.procs", "memory.current", "memory.peak", "memory.events")
+
+    @classmethod
+    def detect_and_create(
+        cls, *, proc_root: str | os.PathLike[str] = "/proc"
+    ) -> CgroupV2MemoryScope | None:
+        """Create a private child only when the current cgroup delegated memory."""
+
+        parent = _current_cgroup_v2_directory(Path(proc_root))
+        if parent is None:
+            return None
+        return cls.create_under(parent)
+
+    @classmethod
+    def create_under(cls, parent: str | os.PathLike[str]) -> CgroupV2MemoryScope | None:
+        """Create a child only when memory is enabled for descendants."""
+
+        parent_path = Path(parent)
+        try:
+            controllers = set((parent_path / "cgroup.controllers").read_text(encoding="ascii").split())
+            enabled = {
+                item.lstrip("+")
+                for item in (parent_path / "cgroup.subtree_control").read_text(encoding="ascii").split()
+            }
+        except OSError:
+            return None
+        if "memory" not in controllers or "memory" not in enabled:
+            return None
+        return _create_checked_scope(cls, parent_path)
+
+    def read_snapshot(self) -> CgroupV2MemorySnapshot:
+        """Read current/peak bytes and the current memory event counters."""
+
+        return CgroupV2MemorySnapshot(
+            current_bytes=_read_cgroup_value(self.path / "memory.current"),
+            peak_bytes=_read_cgroup_value(self.path / "memory.peak"),
+            events=parse_cgroup_memory_events(
+                (self.path / "memory.events").read_text(encoding="ascii")
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class CgroupV2CpuSnapshot:
+    """Kernel CPU time for a cgroup and its descendants, in microseconds."""
+
+    user_usec: int
+    system_usec: int
+
+
+class CgroupV2CpuScope(CgroupV2ProcessScope):
+    """A fresh timing cgroup that does not require an enabled CPU controller."""
+
+    REQUIRED_FILES = ("cgroup.procs", "cpu.stat")
+
+    @classmethod
+    def detect_and_create(
+        cls, *, proc_root: str | os.PathLike[str] = "/proc"
+    ) -> CgroupV2CpuScope | None:
+        parent = _current_cgroup_v2_directory(Path(proc_root))
+        if parent is None:
+            return None
+        return cls.create_under(parent)
+
+    @classmethod
+    def create_under(cls, parent: str | os.PathLike[str]) -> CgroupV2CpuScope | None:
+        return _create_checked_scope(cls, Path(parent))
+
+    def read_snapshot(self) -> CgroupV2CpuSnapshot:
+        values = parse_cgroup_cpu_stat((self.path / "cpu.stat").read_text(encoding="ascii"))
+        return CgroupV2CpuSnapshot(values["user_usec"], values["system_usec"])
+
+
+def parse_cgroup_cpu_stat(text: str) -> dict[str, int]:
+    """Read mandatory cgroup v2 CPU counters without treating absence as zero."""
+
+    values: dict[str, int] = {}
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        fields = line.split()
+        if len(fields) != 2 or not fields[1].isdecimal():
+            raise ValueError(f"invalid cpu.stat line {line_number}: {line!r}")
+        name, raw_value = fields
+        if name in values:
+            raise ValueError(f"duplicate cpu.stat counter {name!r}")
+        values[name] = int(raw_value)
+    missing = {"usage_usec", "user_usec", "system_usec"} - values.keys()
+    if missing:
+        raise ValueError(f"missing cpu.stat counters: {', '.join(sorted(missing))}")
+    return values
+
+
+_ScopeT = TypeVar("_ScopeT", CgroupV2MemoryScope, CgroupV2CpuScope)
+
+
+def _create_checked_scope(scope_type: type[_ScopeT], parent: Path) -> _ScopeT | None:
+    try:
+        child_path = _create_child_cgroup(parent)
+    except OSError:
+        return None
+    try:
+        if not all((child_path / name).is_file() for name in scope_type.REQUIRED_FILES):
+            _remove_cgroup_directory(child_path)
+            return None
+        scope = scope_type(child_path)
+        scope.read_snapshot()
+        if not os.access(child_path / "cgroup.procs", os.W_OK):
+            scope.close()
+            return None
+        return scope
+    except (OSError, ValueError):
+        _remove_cgroup_directory(child_path)
+        return None
 
 
 def _create_child_cgroup(parent: Path) -> Path:

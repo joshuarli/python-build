@@ -15,7 +15,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from benchmarks.harness.process import MAC_REAPED_CPU_COVERAGE, run_command
+from benchmarks.harness.process import (
+    CGROUP_TREE_CPU_COVERAGE, LINUX_ROOT_CPU_COVERAGE,
+    MAC_REAPED_CPU_COVERAGE, run_command,
+)
 from benchmarks.workloads.registry import Workload
 
 
@@ -183,12 +186,13 @@ def _ensure_clean(result: Any, workload: Workload, side: str, pass_name: str) ->
 
 
 def _cpu_dict(measured: Any, payload: dict[str, Any], workload_name: str) -> dict[str, Any]:
-    """Account for reaped child CPU once on each host."""
+    """Account for reported child CPU only when kernel totals exclude it."""
     operation_count = payload["operation_count"]
-    root_user = getattr(measured, "cpu_user_seconds", None)
-    root_system = getattr(measured, "cpu_system_seconds", None)
-    user, system = root_user, root_system
+    user = getattr(measured, "cpu_user_seconds", None)
+    system = getattr(measured, "cpu_system_seconds", None)
     coverage = getattr(measured, "cpu_coverage", "unsupported")
+    root_user = None if coverage == CGROUP_TREE_CPU_COVERAGE else user
+    root_system = None if coverage == CGROUP_TREE_CPU_COVERAGE else system
     child_cpu = None
     if workload_name == "zipimport_cold":
         child_cpu = payload.get("reaped_child_cpu")
@@ -199,11 +203,13 @@ def _cpu_dict(measured: Any, payload: dict[str, Any], workload_name: str) -> dic
             value = child_cpu.get(key)
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise RuntimeError(f"zipimport_cold: invalid direct child {key}")
-        if user is not None and system is not None and coverage == MAC_REAPED_CPU_COVERAGE:
-            # Darwin wait4 already includes descendants reaped by the root or
-            # by children it waited for. Keep the ledger as a cross-check.
+        if user is not None and system is not None and coverage in (
+            MAC_REAPED_CPU_COVERAGE, CGROUP_TREE_CPU_COVERAGE
+        ):
+            # Both kernel totals already include these children. Keep the
+            # workload ledger as a cross-check without adding it twice.
             pass
-        elif user is not None and system is not None and coverage == "wait4 root only; descendants excluded":
+        elif user is not None and system is not None and coverage == LINUX_ROOT_CPU_COVERAGE:
             user += child_cpu["user_seconds"]
             system += child_cpu["system_seconds"]
             coverage = ("wait4 root plus workload-reported RUSAGE_CHILDREN direct reaped children; "

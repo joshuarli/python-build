@@ -1,7 +1,8 @@
 """Run benchmark commands and observe process-tree resources externally.
 
 Linux memory uses procfs. macOS memory uses libproc resident-size snapshots.
-CPU time is kernel wait4 usage for the workload root. On macOS, that usage
+Linux timing CPU uses cgroup v2 when delegation permits. Otherwise CPU time
+is kernel wait4 usage for the workload root. On macOS, that usage
 includes descendants reaped through the workload process tree; detached or
 unreaped descendants remain outside it. Linux workloads may report direct
 reaped-child CPU separately.
@@ -24,6 +25,8 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import IO
 
 from .memory import (
+    CgroupV2CpuScope,
+    CgroupV2CpuSnapshot,
     CgroupV2MemoryScope,
     CgroupV2MemorySnapshot,
     MemorySample,
@@ -40,6 +43,8 @@ from .macos_resource import (
 MAC_REAPED_CPU_COVERAGE = (
     "wait4 root plus reaped descendants; detached or unreaped children excluded"
 )
+CGROUP_TREE_CPU_COVERAGE = "cgroup v2 workload process tree, including descendants"
+LINUX_ROOT_CPU_COVERAGE = "incomplete: wait4 root only; descendants excluded"
 
 
 @dataclass(frozen=True)
@@ -321,10 +326,11 @@ class ProcessSampler:
         self._stop_sampler = threading.Event()
         self._sampler_thread: threading.Thread | None = None
         self._collected = _Collected()
-        self._cgroup_scope: CgroupV2MemoryScope | None = None
+        self._cgroup_scope: CgroupV2MemoryScope | CgroupV2CpuScope | None = None
         self._cgroup_error: str | None = None
         self._last_cgroup_snapshot: CgroupV2MemorySnapshot | None = None
         self._final_cgroup_snapshot: CgroupV2MemorySnapshot | None = None
+        self._final_cpu_snapshot: CgroupV2CpuSnapshot | None = None
         self._remaining_pids: tuple[int, ...] = ()
         self._lock = threading.Lock()
         self._finished_result: ProcessResult | None = None
@@ -352,6 +358,10 @@ class ProcessSampler:
         argv = list(self.command)
         if self.sample_interval_seconds is not None and sys.platform != "darwin":
             self._cgroup_scope = CgroupV2MemoryScope.detect_and_create(
+                proc_root=self.proc_root
+            )
+        elif self.sample_interval_seconds is None and sys.platform == "linux":
+            self._cgroup_scope = CgroupV2CpuScope.detect_and_create(
                 proc_root=self.proc_root
             )
         set_affinity = self._make_preexec(self._cgroup_scope)
@@ -392,7 +402,7 @@ class ProcessSampler:
         return self
 
     def _make_preexec(
-        self, cgroup_scope: CgroupV2MemoryScope | None
+        self, cgroup_scope: CgroupV2MemoryScope | CgroupV2CpuScope | None
     ) -> Callable[[], None] | None:
         if self.affinity is None and cgroup_scope is None:
             return None
@@ -487,7 +497,13 @@ class ProcessSampler:
                 self._close_output_files()
                 raise
             finally:
-                self._final_cgroup_snapshot = self._read_cgroup_snapshot()
+                if isinstance(self._cgroup_scope, CgroupV2CpuScope):
+                    try:
+                        self._final_cpu_snapshot = self._cgroup_scope.read_snapshot()
+                    except (OSError, ValueError):
+                        self._final_cpu_snapshot = None
+                else:
+                    self._final_cgroup_snapshot = self._read_cgroup_snapshot()
                 self._close_cgroup_scope()
 
         assert self._stdout_file is not None and self._stderr_file is not None
@@ -520,6 +536,20 @@ class ProcessSampler:
                     )
                 if wait_result.mac_memory_error is not None:
                     memory.sampling_errors.append(wait_result.mac_memory_error)
+        cpu_user = None if wait_result.usage is None else wait_result.usage.ru_utime
+        cpu_system = None if wait_result.usage is None else wait_result.usage.ru_stime
+        cpu_coverage = (
+            "unsupported" if wait_result.usage is None else
+            "incomplete: workload left descendants at completion" if boundary_remaining else
+            MAC_REAPED_CPU_COVERAGE if sys.platform == "darwin" else
+            LINUX_ROOT_CPU_COVERAGE
+        )
+        if (self._final_cpu_snapshot is not None and wait_result.usage is not None
+                and not boundary_remaining and not self._remaining_pids
+                and self._cgroup_error is None):
+            cpu_user = self._final_cpu_snapshot.user_usec / 1_000_000
+            cpu_system = self._final_cpu_snapshot.system_usec / 1_000_000
+            cpu_coverage = CGROUP_TREE_CPU_COVERAGE
         result = ProcessResult(
             command=self.command,
             returncode=self._process.returncode if self._process.returncode is not None else 0,
@@ -530,12 +560,9 @@ class ProcessSampler:
             memory=memory,
             cleanup_complete=not self._remaining_pids,
             remaining_pids=self._remaining_pids,
-            cpu_user_seconds=None if wait_result.usage is None else wait_result.usage.ru_utime,
-            cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
-            cpu_coverage=("unsupported" if wait_result.usage is None else
-                          "incomplete: workload left descendants at completion" if boundary_remaining else
-                          MAC_REAPED_CPU_COVERAGE if sys.platform == "darwin" else
-                          "wait4 root only; descendants excluded"),
+            cpu_user_seconds=cpu_user,
+            cpu_system_seconds=cpu_system,
+            cpu_coverage=cpu_coverage,
         )
         self._finished_result = result
         return result
@@ -614,7 +641,7 @@ class ProcessSampler:
         return sample
 
     def _read_cgroup_snapshot(self) -> CgroupV2MemorySnapshot | None:
-        if self._cgroup_scope is None:
+        if not isinstance(self._cgroup_scope, CgroupV2MemoryScope):
             return None
         try:
             snapshot = self._cgroup_scope.read_snapshot()
