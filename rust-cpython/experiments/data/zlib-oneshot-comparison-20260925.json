@@ -1,0 +1,3996 @@
+{
+  "attempts": [
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-c",
+        "import gzip, tarfile, zlib, json, sys; print(json.dumps({k: {'file': m.__file__, 'cached': getattr(m, '__cached__', None)} for k,m in sys.modules.items() if k in ('gzip','tarfile','zlib','encodings','json','argparse')}))"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.14047587500000003,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 0.08,
+      "kind": "import_audit",
+      "output": {
+        "encodings": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/encodings/__init__.py"
+        },
+        "gzip": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/gzip.py"
+        },
+        "json": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/json/__init__.py"
+        },
+        "tarfile": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/tarfile.py"
+        },
+        "zlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so"
+        }
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/001-import_audit-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 19661280,
+      "root_peak_rss_bytes": 30359552,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/001-import_audit-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-c",
+        "import gzip, tarfile, zlib, json, sys; print(json.dumps({k: {'file': m.__file__, 'cached': getattr(m, '__cached__', None)} for k,m in sys.modules.items() if k in ('gzip','tarfile','zlib','encodings','json','argparse')}))"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.10962016599999999,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.08,
+      "kind": "import_audit",
+      "output": {
+        "encodings": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/encodings/__init__.py"
+        },
+        "gzip": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/gzip.py"
+        },
+        "json": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/json/__init__.py"
+        },
+        "tarfile": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/tarfile.py"
+        },
+        "zlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so"
+        }
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/002-import_audit-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 20021752,
+      "root_peak_rss_bytes": 30670848,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/002-import_audit-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9105659589999999,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-pilot",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6944368330296129,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/003-zlib_decode_1m-pilot-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 40927736,
+      "root_peak_rss_bytes": 54050816,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/003-zlib_decode_1m-pilot-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.898469958,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.86,
+      "kind": "zlib_decode_1m-self-1-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.7010649580042809,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/004-zlib_decode_1m-self-1-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43008504,
+      "root_peak_rss_bytes": 56131584,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/004-zlib_decode_1m-self-1-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.897795458,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.86,
+      "kind": "zlib_decode_1m-self-1-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.7018965419847518,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/005-zlib_decode_1m-self-1-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43041272,
+      "root_peak_rss_bytes": 56164352,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/005-zlib_decode_1m-self-1-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8964117919999999,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-self-2-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6959786249790341,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/006-zlib_decode_1m-self-2-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 42959352,
+      "root_peak_rss_bytes": 56082432,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/006-zlib_decode_1m-self-2-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8852869170000002,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.84,
+      "kind": "zlib_decode_1m-self-2-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6904318750603124,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/007-zlib_decode_1m-self-2-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 40255992,
+      "root_peak_rss_bytes": 53379072,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/007-zlib_decode_1m-self-2-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.892201333,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-self-3-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6916409999830648,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/008-zlib_decode_1m-self-3-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 39895544,
+      "root_peak_rss_bytes": 53018624,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/008-zlib_decode_1m-self-3-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8907283750000001,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-self-3-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6937646250007674,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/009-zlib_decode_1m-self-3-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 42926584,
+      "root_peak_rss_bytes": 56049664,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/009-zlib_decode_1m-self-3-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8979941670000002,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-self-4-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6973387079779059,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/010-zlib_decode_1m-self-4-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43008504,
+      "root_peak_rss_bytes": 56131584,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/010-zlib_decode_1m-self-4-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8977044999999997,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-self-4-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.7014585830038413,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/011-zlib_decode_1m-self-4-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43074040,
+      "root_peak_rss_bytes": 56197120,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/011-zlib_decode_1m-self-4-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8977982090000012,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.86,
+      "kind": "zlib_decode_1m-self-5-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.7028903750469908,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/012-zlib_decode_1m-self-5-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 42992120,
+      "root_peak_rss_bytes": 56115200,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/012-zlib_decode_1m-self-5-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9014499999999988,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.86,
+      "kind": "zlib_decode_1m-self-5-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.7061152089154348,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/013-zlib_decode_1m-self-5-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43336184,
+      "root_peak_rss_bytes": 56459264,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/013-zlib_decode_1m-self-5-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8924041249999988,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-pair-1",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6971658340189606,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/014-zlib_decode_1m-pair-1-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 42975736,
+      "root_peak_rss_bytes": 56098816,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/014-zlib_decode_1m-pair-1-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5717844999999997,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.53,
+      "kind": "zlib_decode_1m-pair-1",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.36829987505916506,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/015-zlib_decode_1m-pair-1-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 40223224,
+      "root_peak_rss_bytes": 53477376,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/015-zlib_decode_1m-pair-1-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5666395840000007,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.52,
+      "kind": "zlib_decode_1m-pair-2",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.3677887920057401,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/016-zlib_decode_1m-pair-2-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43221496,
+      "root_peak_rss_bytes": 56475648,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/016-zlib_decode_1m-pair-2-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8939623339999994,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-pair-2",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6961933750426397,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/017-zlib_decode_1m-pair-2-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43074040,
+      "root_peak_rss_bytes": 56197120,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/017-zlib_decode_1m-pair-2-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8965570840000012,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.86,
+      "kind": "zlib_decode_1m-pair-3",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.7002417920157313,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/018-zlib_decode_1m-pair-3-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43057656,
+      "root_peak_rss_bytes": 56180736,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/018-zlib_decode_1m-pair-3-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5648533749999984,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.52,
+      "kind": "zlib_decode_1m-pair-3",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.3669932499760762,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/019-zlib_decode_1m-pair-3-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43221496,
+      "root_peak_rss_bytes": 56475648,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/019-zlib_decode_1m-pair-3-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5669552499999995,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.52,
+      "kind": "zlib_decode_1m-pair-4",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.36797608400229365,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/020-zlib_decode_1m-pair-4-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43368952,
+      "root_peak_rss_bytes": 56623104,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/020-zlib_decode_1m-pair-4-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8934961669999986,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-pair-4",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6982465840410441,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/021-zlib_decode_1m-pair-4-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 44106232,
+      "root_peak_rss_bytes": 57229312,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/021-zlib_decode_1m-pair-4-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.898034458999998,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-pair-5",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6958914580754936,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/022-zlib_decode_1m-pair-5-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43090424,
+      "root_peak_rss_bytes": 56213504,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/022-zlib_decode_1m-pair-5-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5671517500000007,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.53,
+      "kind": "zlib_decode_1m-pair-5",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.3686441669706255,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/023-zlib_decode_1m-pair-5-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43352568,
+      "root_peak_rss_bytes": 56606720,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/023-zlib_decode_1m-pair-5-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8953805000000017,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-memory-1",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6978639999870211,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/024-zlib_decode_1m-memory-1-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43008504,
+      "root_peak_rss_bytes": 56131584,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/024-zlib_decode_1m-memory-1-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5649497499999967,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.52,
+      "kind": "zlib_decode_1m-memory-1",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.3641930000158027,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/025-zlib_decode_1m-memory-1-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43172344,
+      "root_peak_rss_bytes": 56426496,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/025-zlib_decode_1m-memory-1-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5695459580000026,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.53,
+      "kind": "zlib_decode_1m-memory-2",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.3680939170299098,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/026-zlib_decode_1m-memory-2-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 43287032,
+      "root_peak_rss_bytes": 56541184,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/026-zlib_decode_1m-memory-2-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.8979675829999998,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.85,
+      "kind": "zlib_decode_1m-memory-2",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6986538750352338,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/027-zlib_decode_1m-memory-2-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 41927160,
+      "root_peak_rss_bytes": 55050240,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/027-zlib_decode_1m-memory-2-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9014622920000015,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.86,
+      "kind": "zlib_decode_1m-memory-3",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.6999686250928789,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/028-zlib_decode_1m-memory-3-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 42861048,
+      "root_peak_rss_bytes": 55984128,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/028-zlib_decode_1m-memory-3-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.5663522909999976,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.52,
+      "kind": "zlib_decode_1m-memory-3",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.3639165840577334,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3579838464
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/029-zlib_decode_1m-memory-3-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 39993848,
+      "root_peak_rss_bytes": 53248000,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/029-zlib_decode_1m-memory-3-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1364610420000005,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pilot",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9873223330359906,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/030-source_tar_hybrid-pilot-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33669624,
+      "root_peak_rss_bytes": 46333952,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/030-source_tar_hybrid-pilot-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1441725419999997,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-1-a",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9861983330920339,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/031-source_tar_hybrid-self-1-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34079224,
+      "root_peak_rss_bytes": 46743552,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/031-source_tar_hybrid-self-1-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1402048749999985,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-1-b",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.990673708030954,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/032-source_tar_hybrid-self-1-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33997304,
+      "root_peak_rss_bytes": 46661632,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/032-source_tar_hybrid-self-1-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1351945420000007,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.08,
+      "kind": "source_tar_hybrid-self-2-a",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9829302919097245,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/033-source_tar_hybrid-self-2-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33948152,
+      "root_peak_rss_bytes": 46612480,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/033-source_tar_hybrid-self-2-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1383647079999974,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.08,
+      "kind": "source_tar_hybrid-self-2-b",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9862438340205699,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/034-source_tar_hybrid-self-2-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 35422712,
+      "root_peak_rss_bytes": 48087040,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/034-source_tar_hybrid-self-2-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1358357079999983,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-3-a",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9867750839330256,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/035-source_tar_hybrid-self-3-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33686008,
+      "root_peak_rss_bytes": 46350336,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/035-source_tar_hybrid-self-3-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1329939170000003,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.08,
+      "kind": "source_tar_hybrid-self-3-b",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9850179590284824,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/036-source_tar_hybrid-self-3-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33456632,
+      "root_peak_rss_bytes": 46120960,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/036-source_tar_hybrid-self-3-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1403738339999983,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-4-a",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9907243340276182,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/037-source_tar_hybrid-self-4-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33833464,
+      "root_peak_rss_bytes": 46497792,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/037-source_tar_hybrid-self-4-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1367614999999986,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-4-b",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9860915000317618,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/038-source_tar_hybrid-self-4-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33079800,
+      "root_peak_rss_bytes": 45744128,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/038-source_tar_hybrid-self-4-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1463512090000023,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-5-a",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.991461000056006,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/039-source_tar_hybrid-self-5-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33849848,
+      "root_peak_rss_bytes": 46514176,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/039-source_tar_hybrid-self-5-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.138479832999998,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-self-5-b",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9857238329714164,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/040-source_tar_hybrid-self-5-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33866232,
+      "root_peak_rss_bytes": 46530560,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/040-source_tar_hybrid-self-5-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.148938875000006,
+      "kernel_system_seconds": 0.03,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-1",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9938253340078518,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/041-source_tar_hybrid-pair-1-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34406904,
+      "root_peak_rss_bytes": 47071232,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/041-source_tar_hybrid-pair-1-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1364837910000034,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-1",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9871093339752406,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/042-source_tar_hybrid-pair-1-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34341368,
+      "root_peak_rss_bytes": 47005696,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/042-source_tar_hybrid-pair-1-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1411357500000037,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-2",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.986662624985911,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/043-source_tar_hybrid-pair-2-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34570744,
+      "root_peak_rss_bytes": 47235072,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/043-source_tar_hybrid-pair-2-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1511567910000053,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-2",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9951507500372827,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/044-source_tar_hybrid-pair-2-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33718776,
+      "root_peak_rss_bytes": 46383104,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/044-source_tar_hybrid-pair-2-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1386932079999994,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-3",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9865066669881344,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/045-source_tar_hybrid-pair-3-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33423864,
+      "root_peak_rss_bytes": 46088192,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/045-source_tar_hybrid-pair-3-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.141848374999995,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-3",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.987438082927838,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/046-source_tar_hybrid-pair-3-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33620472,
+      "root_peak_rss_bytes": 46284800,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/046-source_tar_hybrid-pair-3-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1342527500000017,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.08,
+      "kind": "source_tar_hybrid-pair-4",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9840217919554561,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/047-source_tar_hybrid-pair-4-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34439672,
+      "root_peak_rss_bytes": 47104000,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/047-source_tar_hybrid-pair-4-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1416783330000015,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-4",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9898903750581667,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/048-source_tar_hybrid-pair-4-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33751544,
+      "root_peak_rss_bytes": 46415872,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/048-source_tar_hybrid-pair-4-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1397229999999965,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-5",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.990541874896735,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/049-source_tar_hybrid-pair-5-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33997304,
+      "root_peak_rss_bytes": 46661632,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/049-source_tar_hybrid-pair-5-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.139360584000002,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-pair-5",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9873527910094708,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/050-source_tar_hybrid-pair-5-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33931768,
+      "root_peak_rss_bytes": 46596096,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/050-source_tar_hybrid-pair-5-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1456814580000056,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-memory-1",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9902723330305889,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/051-source_tar_hybrid-memory-1-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34292216,
+      "root_peak_rss_bytes": 46956544,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/051-source_tar_hybrid-memory-1-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1438358750000006,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-memory-1",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9888694579713047,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/052-source_tar_hybrid-memory-1-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33980920,
+      "root_peak_rss_bytes": 46645248,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/052-source_tar_hybrid-memory-1-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1434524580000058,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-memory-2",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9887797500705346,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/053-source_tar_hybrid-memory-2-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33948152,
+      "root_peak_rss_bytes": 46612480,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/053-source_tar_hybrid-memory-2-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.144158166000004,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-memory-2",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.9878969170385972,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/054-source_tar_hybrid-memory-2-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34161144,
+      "root_peak_rss_bytes": 46825472,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/054-source_tar_hybrid-memory-2-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.139043749999999,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.09,
+      "kind": "source_tar_hybrid-memory-3",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.991308750002645,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/055-source_tar_hybrid-memory-3-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34062840,
+      "root_peak_rss_bytes": 46727168,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/055-source_tar_hybrid-memory-3-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1382579169999971,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.08,
+      "kind": "source_tar_hybrid-memory-3",
+      "output": {
+        "digest": "4274d870abacbefea6bbdb2175de8b4073198e1fd39f34ede1c065b3faf1a805",
+        "internal_seconds": 0.98496883304324,
+        "logical_bytes": 408192093,
+        "loops": 3,
+        "members": 6539,
+        "regular_bytes": 136064031,
+        "regular_files": 6031
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/056-source_tar_hybrid-memory-3-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 34324984,
+      "root_peak_rss_bytes": 46989312,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/056-source_tar_hybrid-memory-3-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9761432079999963,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pilot",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7745388329494745,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/057-gzip_extract_1m-pilot-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30114296,
+      "root_peak_rss_bytes": 43237376,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/057-gzip_extract_1m-pilot-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9629130829999966,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.92,
+      "kind": "gzip_extract_1m-self-1-a",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7697163330158219,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/058-gzip_extract_1m-self-1-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 29753848,
+      "root_peak_rss_bytes": 42876928,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/058-gzip_extract_1m-self-1-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9740717090000004,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-1-b",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7763892500661314,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/059-gzip_extract_1m-self-1-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30212600,
+      "root_peak_rss_bytes": 43335680,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/059-gzip_extract_1m-self-1-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9740792500000026,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-2-a",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7753898749360815,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/060-gzip_extract_1m-self-2-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30245368,
+      "root_peak_rss_bytes": 43368448,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/060-gzip_extract_1m-self-2-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9658160840000036,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-2-b",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.774237958015874,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/061-gzip_extract_1m-self-2-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30228984,
+      "root_peak_rss_bytes": 43352064,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/061-gzip_extract_1m-self-2-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9749604169999984,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-3-a",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7730576250469312,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/062-gzip_extract_1m-self-3-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30261752,
+      "root_peak_rss_bytes": 43384832,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/062-gzip_extract_1m-self-3-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9697568750000016,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-3-b",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7727242920082062,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/063-gzip_extract_1m-self-3-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30114296,
+      "root_peak_rss_bytes": 43237376,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/063-gzip_extract_1m-self-3-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9701960419999978,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-4-a",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7738541250582784,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/064-gzip_extract_1m-self-4-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30278136,
+      "root_peak_rss_bytes": 43401216,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/064-gzip_extract_1m-self-4-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9686742920000029,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-4-b",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7748784159775823,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/065-gzip_extract_1m-self-4-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30818808,
+      "root_peak_rss_bytes": 43941888,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/065-gzip_extract_1m-self-4-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9705519580000015,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-5-a",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7742153749568388,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/066-gzip_extract_1m-self-5-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30802424,
+      "root_peak_rss_bytes": 43925504,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/066-gzip_extract_1m-self-5-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9640327919999976,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-self-5-b",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7729392090113834,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/067-gzip_extract_1m-self-5-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30212600,
+      "root_peak_rss_bytes": 43335680,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/067-gzip_extract_1m-self-5-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9665176669999909,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-1",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7728345419745892,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/068-gzip_extract_1m-pair-1-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30622200,
+      "root_peak_rss_bytes": 43745280,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/068-gzip_extract_1m-pair-1-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9724897079999977,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-1",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7750833330210298,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/069-gzip_extract_1m-pair-1-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30065144,
+      "root_peak_rss_bytes": 43220992,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/069-gzip_extract_1m-pair-1-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9744692920000091,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-2",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7784081249265,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/070-gzip_extract_1m-pair-2-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30704120,
+      "root_peak_rss_bytes": 43859968,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/070-gzip_extract_1m-pair-2-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9648624160000026,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-2",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7746460419148207,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/071-gzip_extract_1m-pair-2-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30228984,
+      "root_peak_rss_bytes": 43352064,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/071-gzip_extract_1m-pair-2-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9720870419999983,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-3",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7758036250015721,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/072-gzip_extract_1m-pair-3-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30753272,
+      "root_peak_rss_bytes": 43876352,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/072-gzip_extract_1m-pair-3-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9731036670000037,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-3",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7762148749316111,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/073-gzip_extract_1m-pair-3-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30867960,
+      "root_peak_rss_bytes": 44023808,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/073-gzip_extract_1m-pair-3-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9755715830000042,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-4",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7761599160730839,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/074-gzip_extract_1m-pair-4-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30278136,
+      "root_peak_rss_bytes": 43433984,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/074-gzip_extract_1m-pair-4-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.968203666000008,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-4",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7744997499976307,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/075-gzip_extract_1m-pair-4-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30818808,
+      "root_peak_rss_bytes": 43941888,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/075-gzip_extract_1m-pair-4-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9650217920000017,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-5",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7737485410179943,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/076-gzip_extract_1m-pair-5-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30196216,
+      "root_peak_rss_bytes": 43319296,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/076-gzip_extract_1m-pair-5-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.9689583749999997,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.93,
+      "kind": "gzip_extract_1m-pair-5",
+      "output": {
+        "digest": "6eb307fbef685d28bb65e832fe7c3601720b61272f303e9f66f816f55ef89055",
+        "elapsed_seconds": 0.7721082500647753,
+        "input_digest": "1de194e61a7ceece437084b2fae6152edf3c6258f9ff0854f05869524ba3d960",
+        "operation_count": 2831155200
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/077-gzip_extract_1m-pair-5-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 30310904,
+      "root_peak_rss_bytes": 43466752,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/077-gzip_extract_1m-pair-5-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "400"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 0.44344200000000455,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.4,
+      "kind": "zlib_stream_4k-pilot",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.23777912510558963,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 838860800
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/078-zlib_stream_4k-pilot-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32686584,
+      "root_peak_rss_bytes": 45809664,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/078-zlib_stream_4k-pilot-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1526809579999906,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-self-1-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9513527499511838,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/079-zlib_stream_4k-self-1-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32817656,
+      "root_peak_rss_bytes": 45940736,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/079-zlib_stream_4k-self-1-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1541175830000014,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-self-1-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9497250829590484,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/080-zlib_stream_4k-self-1-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32702968,
+      "root_peak_rss_bytes": 45826048,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/080-zlib_stream_4k-self-1-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.130554042,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.09,
+      "kind": "zlib_stream_4k-self-2-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9334214159753174,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/081-zlib_stream_4k-self-2-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 33014264,
+      "root_peak_rss_bytes": 46137344,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/081-zlib_stream_4k-self-2-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1499449169999991,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-self-2-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9511588750174269,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/082-zlib_stream_4k-self-2-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32768504,
+      "root_peak_rss_bytes": 45891584,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/082-zlib_stream_4k-self-2-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1292987920000002,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.09,
+      "kind": "zlib_stream_4k-self-3-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9315917079802603,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/083-zlib_stream_4k-self-3-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32424440,
+      "root_peak_rss_bytes": 45547520,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/083-zlib_stream_4k-self-3-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.150230417000003,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-self-3-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.953368709073402,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/084-zlib_stream_4k-self-3-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32768504,
+      "root_peak_rss_bytes": 45891584,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/084-zlib_stream_4k-self-3-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1360059999999947,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.09,
+      "kind": "zlib_stream_4k-self-4-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9365876669762656,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/085-zlib_stream_4k-self-4-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32457208,
+      "root_peak_rss_bytes": 45580288,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/085-zlib_stream_4k-self-4-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1475585000000024,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-self-4-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9505117499502376,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/086-zlib_stream_4k-self-4-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32735736,
+      "root_peak_rss_bytes": 45858816,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/086-zlib_stream_4k-self-4-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1475525829999924,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.1,
+      "kind": "zlib_stream_4k-self-5-a",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9435569160850719,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/087-zlib_stream_4k-self-5-a-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32686584,
+      "root_peak_rss_bytes": 45809664,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/087-zlib_stream_4k-self-5-a-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1499009169999965,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-self-5-b",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9544879579916596,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/088-zlib_stream_4k-self-5-b-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32719352,
+      "root_peak_rss_bytes": 45842432,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/088-zlib_stream_4k-self-5-b-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1489302920000029,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-pair-1",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9509625000646338,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/089-zlib_stream_4k-pair-1-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32768504,
+      "root_peak_rss_bytes": 45891584,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/089-zlib_stream_4k-pair-1-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1495652910000018,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-pair-1",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9500779589870945,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/090-zlib_stream_4k-pair-1-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32801272,
+      "root_peak_rss_bytes": 46055424,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/090-zlib_stream_4k-pair-1-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1504565829999933,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-pair-2",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9501246250001714,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/091-zlib_stream_4k-pair-2-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32801272,
+      "root_peak_rss_bytes": 46055424,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/091-zlib_stream_4k-pair-2-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1526140830000031,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-pair-2",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9519235000479966,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/092-zlib_stream_4k-pair-2-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32752120,
+      "root_peak_rss_bytes": 45875200,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/092-zlib_stream_4k-pair-2-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.139722875000004,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.09,
+      "kind": "zlib_stream_4k-pair-3",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9383839579531923,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/093-zlib_stream_4k-pair-3-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 31851000,
+      "root_peak_rss_bytes": 44974080,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/093-zlib_stream_4k-pair-3-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1521661249999937,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.1,
+      "kind": "zlib_stream_4k-pair-3",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.945899958955124,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/094-zlib_stream_4k-pair-3-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32801272,
+      "root_peak_rss_bytes": 46055424,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/094-zlib_stream_4k-pair-3-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1350064579999923,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.09,
+      "kind": "zlib_stream_4k-pair-4",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9417002080008388,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/095-zlib_stream_4k-pair-4-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32817656,
+      "root_peak_rss_bytes": 46071808,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/095-zlib_stream_4k-pair-4-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1225402500000001,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.08,
+      "kind": "zlib_stream_4k-pair-4",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9277027091011405,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/096-zlib_stream_4k-pair-4-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 31801848,
+      "root_peak_rss_bytes": 44924928,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/096-zlib_stream_4k-pair-4-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.144547249999988,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.09,
+      "kind": "zlib_stream_4k-pair-5",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9340628749923781,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/097-zlib_stream_4k-pair-5-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32326136,
+      "root_peak_rss_bytes": 45449216,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/097-zlib_stream_4k-pair-5-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "env_policy": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "1",
+        "PYTHONMALLOC": "default",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache"
+      },
+      "external_wall_seconds": 1.1532883750000025,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.11,
+      "kind": "zlib_stream_4k-pair-5",
+      "output": {
+        "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+        "elapsed_seconds": 0.9464855409460142,
+        "input_digest": "d890765be28e2a1df58b1c67ddf0579416ebf4165e021fae6cffc13bfd68cba4",
+        "operation_count": 3351248896
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/098-zlib_stream_4k-pair-5-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 32850424,
+      "root_peak_rss_bytes": 46104576,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/098-zlib_stream_4k-pair-5-candidate.stdout.log",
+      "swaps": 0
+    }
+  ],
+  "audit_passed": true,
+  "cache_policy_check": "Both audits reported __cached__ paths under the identical absent PYTHONPYCACHEPREFIX; prefix remained absent after 98 attempts.",
+  "cache_prefix": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/absent-pycache",
+  "complete": true,
+  "controller": {
+    "command": [
+      "/usr/bin/time",
+      "-l",
+      "/usr/bin/python3",
+      "rust-cpython/results/zlib-oneshot-comparison-20260925/run.py"
+    ],
+    "coverage": "Kernel CPU includes controller and all 98 reaped /usr/bin/time plus Python descendants; maximum RSS is largest single process, not simultaneous tree RSS.",
+    "direct_child_processes": 98,
+    "kernel_system_seconds": 2.43,
+    "kernel_user_seconds": 92.64,
+    "max_process_rss_bytes": 60243968,
+    "peak_footprint_bytes": 55689552,
+    "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/controller-001.time.log",
+    "swaps": 0,
+    "wall_seconds": 96.72
+  },
+  "expected_hashes": {
+    "archive": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+    "candidate_python": "a2f682948c50217a77393cc636ffaec1066fff1ee61da2eeba2102504f3a5296",
+    "candidate_zlib": "e2f9a02bffe3f7277e5766d29adfbb6ef316d3f412422918325baabecfd11a38",
+    "control_python": "622ef6135d157b61254ebbce3778fb424a26d91d1fdc365a66d5fd19ba3797d6",
+    "control_zlib": "2aef4049da6abe4b4e6725f2f79f692ef8f8b3148aa87903a0d40cdef3ef50bd"
+  },
+  "installed_extension_sizes_bytes": {
+    "candidate": 1676056,
+    "control": 82760
+  },
+  "method": "serial /usr/bin/time -l per direct child; external perf_counter around spawn/wait; no timing sampler; kernel CPU includes the single workload process and short-lived descendants if any",
+  "stream_calibration": {
+    "chosen_iterations": 1598,
+    "pilot_internal_seconds": 0.23777912510558963,
+    "pilot_iterations": 400
+  },
+  "symbol_mode": "Candidate defines prefixed _python_build_rs_inflateInit2_, _python_build_rs_inflate, _python_build_rs_inflateEnd; unprefixed inflate entry points remain undefined platform references.",
+  "workload_source_hashes": {
+    "source_tar_hybrid.py": "f4df09327ef321aa96ea9114713d6eb21e3ae61f00022efffedb44e3cacc34e9",
+    "zlib.py": "735cbe284df04c2e5bf7f2a6eaca2a58b6783bb011b5bbbf542728078445b9f5"
+  },
+  "workloads": {
+    "gzip_extract_1m": {
+      "args": [
+        "-m",
+        "benchmarks.workloads.zlib",
+        "gzip_extract_1m",
+        "--iterations",
+        "2700"
+      ],
+      "candidate_pairs": [
+        [
+          67,
+          68
+        ],
+        [
+          69,
+          70
+        ],
+        [
+          71,
+          72
+        ],
+        [
+          73,
+          74
+        ],
+        [
+          75,
+          76
+        ]
+      ],
+      "memory_pairs": [],
+      "self_pairs": [
+        [
+          57,
+          58
+        ],
+        [
+          59,
+          60
+        ],
+        [
+          61,
+          62
+        ],
+        [
+          63,
+          64
+        ],
+        [
+          65,
+          66
+        ]
+      ]
+    },
+    "source_tar_hybrid": {
+      "args": [
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/experiments/source_tar_hybrid.py",
+        "/private/tmp/python-build-exp-zlib-oneshot-compare-20260925a/rust-cpython/results/zlib-oneshot-comparison-20260925/source.tar.gz",
+        "--loops",
+        "3"
+      ],
+      "candidate_pairs": [
+        [
+          40,
+          41
+        ],
+        [
+          42,
+          43
+        ],
+        [
+          44,
+          45
+        ],
+        [
+          46,
+          47
+        ],
+        [
+          48,
+          49
+        ]
+      ],
+      "memory_pairs": [
+        [
+          50,
+          51
+        ],
+        [
+          52,
+          53
+        ],
+        [
+          54,
+          55
+        ]
+      ],
+      "self_pairs": [
+        [
+          30,
+          31
+        ],
+        [
+          32,
+          33
+        ],
+        [
+          34,
+          35
+        ],
+        [
+          36,
+          37
+        ],
+        [
+          38,
+          39
+        ]
+      ]
+    },
+    "zlib_decode_1m": {
+      "args": [
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_decode_1m",
+        "--iterations",
+        "1707"
+      ],
+      "candidate_pairs": [
+        [
+          13,
+          14
+        ],
+        [
+          15,
+          16
+        ],
+        [
+          17,
+          18
+        ],
+        [
+          19,
+          20
+        ],
+        [
+          21,
+          22
+        ]
+      ],
+      "memory_pairs": [
+        [
+          23,
+          24
+        ],
+        [
+          25,
+          26
+        ],
+        [
+          27,
+          28
+        ]
+      ],
+      "self_pairs": [
+        [
+          3,
+          4
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          11,
+          12
+        ]
+      ]
+    },
+    "zlib_stream_4k": {
+      "args": [
+        "-m",
+        "benchmarks.workloads.zlib",
+        "zlib_stream_4k",
+        "--iterations",
+        "1598"
+      ],
+      "candidate_pairs": [
+        [
+          88,
+          89
+        ],
+        [
+          90,
+          91
+        ],
+        [
+          92,
+          93
+        ],
+        [
+          94,
+          95
+        ],
+        [
+          96,
+          97
+        ]
+      ],
+      "memory_pairs": [],
+      "self_pairs": [
+        [
+          78,
+          79
+        ],
+        [
+          80,
+          81
+        ],
+        [
+          82,
+          83
+        ],
+        [
+          84,
+          85
+        ],
+        [
+          86,
+          87
+        ]
+      ]
+    }
+  }
+}
