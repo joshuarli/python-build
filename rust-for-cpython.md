@@ -494,6 +494,13 @@ as a separate baseline change.
   builds. The same-executable decoder proof remains the cleaner attribution;
   this comparison shows the gain survives the reproducible opt-in build. See
   [`url-unquote-installed-comparison-20260925.md`](rust-cpython/experiments/url-unquote-installed-comparison-20260925.md).
+- The merged Linux/macOS builder's fresh quote-only and optional-unquote
+  macOS stages repeated the search-form benefit across five pairs: 42.29%
+  less full-process wall and 42.84% less kernel CPU. Separate memory pairs
+  changed sign, and the two independent PGO profiles limit attribution.
+  Normalization had a small directional gain; request paths showed no clear
+  change. See
+  [`merged-macos-url-comparison-20260925.md`](rust-cpython/experiments/merged-macos-url-comparison-20260925.md).
 - A separate three-way resource pass compared the fresh decoder, quote-only
   fork, and vanilla upstream on the complete search task. Decoder minus
   upstream median root peak RSS was -114,688 bytes, with every pair inside
