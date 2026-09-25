@@ -1,5 +1,19 @@
 # Rust-for-CPython experiment lanes
 
+## Importlib metadata workload scout (base `87e138d`)
+
+The static application scout uses
+`/private/tmp/python-build-exp-metadata-workload-scout-20260925a`, branch
+`exp/metadata-workload-scout-20260925a`. It owns only
+`experiments/metadata-workload-scout-20260925.md`. It maps existing
+byte-pinned macOS CPython 3.16 Django wheels, repository tooling tasks, and
+public `importlib.metadata`/email parser entry points to identify one
+representative complete package-metadata workload. It proposes an exact
+fixture/output gate and a headroom probe if the caller is real, or stops if
+the input set is too small. No compiler, benchmark, or profiler runs while
+the tar checksum proof is active. Budget: 20 kernel CPU seconds and 512 MiB
+per-process RSS. No dependency or source pin is added.
+
 ## Tar header checksum native proof (base `b9ab03e`)
 
 The isolated proof uses
