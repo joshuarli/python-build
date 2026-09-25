@@ -57,9 +57,24 @@ def _observation(path: Path) -> dict[str, Any]:
             ("process_count", "process_count"),
         ):
             item[target] = memory.get(source)
+        item["sample_count"] = len(memory.get("samples", []))
         if memory.get("sampling_errors"):
             item["sampling_errors"] = memory["sampling_errors"]
     return item
+
+
+def _interpreter_identity(value: dict[str, Any]) -> dict[str, Any]:
+    return {key: value.get(key) for key in (
+        "label", "kind", "version", "implementation", "abi", "platform",
+        "compiler", "config_args", "executable_sha256",
+    )}
+
+
+def _installed_size(value: dict[str, Any]) -> dict[str, Any]:
+    return {side: {key: record.get(key) for key in (
+        "total_installed_bytes", "interpreter_executable_bytes", "libpython_bytes",
+        "extension_module_bytes", "stdlib_source_bytes",
+    )} for side, record in value.items()}
 
 
 def compact_evidence(result_directory: Path, destination: Path) -> Path:
@@ -87,9 +102,9 @@ def compact_evidence(result_directory: Path, destination: Path) -> Path:
             "git_commit": provenance.get("git_commit"),
             "benchmark_lock_sha256": provenance["benchmark_lock_sha256"],
             "benchmark_packages": provenance["benchmark_packages"],
-            "baseline": provenance["baseline"],
-            "candidate": provenance["candidate"],
-            "installed_size": provenance["installed_size"],
+            "baseline": _interpreter_identity(provenance["baseline"]),
+            "candidate": _interpreter_identity(provenance["candidate"]),
+            "installed_size": _installed_size(provenance["installed_size"]),
         },
         "host": provenance["host"],
         "workloads": [],

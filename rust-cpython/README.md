@@ -204,8 +204,12 @@ the named unchanged CPython tests on baseline and migrated builds, add
 differential/property tests for semantic edges, then benchmark realistic
 end-to-end workloads against the current implementation (including existing
 C accelerators). Report separate cold/warm, input-size, callback, and I/O
-cases. Keep a Rust path only when it has exact behavior and a repeatable
-measured benefit or a clearly scoped safety/maintenance case.
+cases. A repeatable complete-workload gain with no material resource
+regression qualifies a path as a performance improvement. An important public
+module may also retain a behavior-preserving Rust port as an optional
+experimental coverage candidate with its measured speed, memory, and size
+debt recorded plainly. Coverage retention does not qualify it for default
+performance acceptance.
 
 ## Performance comparison
 
