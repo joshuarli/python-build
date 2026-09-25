@@ -1,0 +1,20 @@
+[package]
+name = "_hmac_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+hmac = { version = "=0.13.0", default-features = false, features = ["zeroize"] }
+md-5 = { version = "=0.11.0", default-features = false, features = ["zeroize"] }
+sha1 = { version = "=0.11.0", default-features = false, features = ["zeroize"] }
+sha2 = { version = "=0.11.0", default-features = false, features = ["zeroize"] }
+sha3 = { version = "=0.12.0", default-features = false, features = ["zeroize"] }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_hmac_rs"
+crate-type = ["cdylib", "rlib"]

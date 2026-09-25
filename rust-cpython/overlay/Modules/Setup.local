@@ -1,3 +1,8 @@
 *shared*
+_bisect_rs _bisect_rs/Cargo.toml _bisect_rs/src/lib.rs
+_fnmatch_rs _fnmatch_rs/Cargo.toml _fnmatch_rs/src/lib.rs
+_hmac_rs _hmac_rs/Cargo.toml _hmac_rs/src/lib.rs
 _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
+_shlex_rs _shlex_rs/Cargo.toml _shlex_rs/src/lib.rs
 _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs
+_urllib_parse_rs _urllib_parse_rs/Cargo.toml _urllib_parse_rs/src/lib.rs

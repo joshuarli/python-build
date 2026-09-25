@@ -1,0 +1,17 @@
+[package]
+name = "_urllib_parse_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+form_urlencoded = "=1.2.2"
+percent-encoding = "=2.3.2"
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_urllib_parse_rs"
+crate-type = ["cdylib", "rlib"]

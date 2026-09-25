@@ -1,0 +1,15 @@
+[package]
+name = "_fnmatch_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_fnmatch_rs"
+crate-type = ["cdylib", "rlib"]
