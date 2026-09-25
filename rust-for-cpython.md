@@ -374,6 +374,14 @@ as a separate baseline change.
   runs. The overlay also delays a missing-extension failure until first use.
   Keep the eager source patch; see
   [`url-quote-lazy-import-20260924.md`](rust-cpython/experiments/url-quote-lazy-import-20260924.md).
+- A new cold Django WSGI first-request workload includes process startup,
+  Django setup, the first read-only SQLite open, and one checked response.
+  Seven serial standard-profile controller runs compared that workload and
+  the warm WSGI request against the prior fork. Neither showed a wall or CPU
+  change beyond same-interpreter noise. A cold candidate RSS increase exceeded
+  noise in one host-load pilot, but the quieter repeat was within noise;
+  upstream memory parity remains open. See
+  [`django-cold-comparison-20260925.md`](rust-cpython/experiments/django-cold-comparison-20260925.md).
 - A one-shot `difflib.unified_diff` snapshot and exact-string scan proxy added
   4.7% root CPU per mostly-equal complete diff and 9.6% per reordered diff.
   Its peak-RSS deltas were within measured self-noise after equalizing child
@@ -386,6 +394,11 @@ as a separate baseline change.
   and reentrancy under the unchanged public contract. Stop the proposed
   transparent `unified_diff` kernel; see
   [`difflib-one-shot-contract-20260924.md`](rust-cpython/experiments/difflib-one-shot-contract-20260924.md).
+- A source and workload scout found no measured headroom for a native
+  `ZipFile._RealGetContents` parser. The wheel task also extracts and checks
+  member data; cold ZIP import uses a separate directory reader. Profile the
+  complete wheel task before changing this boundary; see
+  [`zipfile-headroom-20260925.md`](rust-cpython/experiments/zipfile-headroom-20260925.md).
 
 ## Immediate work queue
 
@@ -433,6 +446,8 @@ as a separate baseline change.
   fixture and spawn-to-exit timing; its same-interpreter correctness smoke
   passed. See
   [`django-cold-first-20260925.md`](rust-cpython/experiments/django-cold-first-20260925.md).
-  Compare the warm and cold Django tasks on matched interpreters before
-  claiming broader gains. Add baseline-derived loops for
+  The paired warm/cold comparison found no established URL-patch benefit for
+  either WSGI request, with upstream memory parity still open. See
+  [`django-cold-comparison-20260925.md`](rust-cpython/experiments/django-cold-comparison-20260925.md).
+  Add baseline-derived loops for
   pyperformance and selected Pyston macros only with separately pinned inputs.
