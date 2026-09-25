@@ -687,13 +687,17 @@ as a separate baseline change.
   See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md)
   and the [follow-up profile](rust-cpython/experiments/ipaddress-next-kernel-profile-20260925.md).
 - The optional fixed-width numeric `datetime.strptime` path matched the
-  complete 60,000-record log-ingest output in five macOS pairs. Median
-  candidate/control wall and kernel CPU ratios were 0.641 and 0.613; median
-  paired peak RSS changed by +32 KiB. Cold import was neutral. Keep
-  `--strptime-numeric` opt-in because eligible calls bypass `_strptime` locale
-  checks and regex-cache side effects. Broader semantic, memory, and Linux
-  qualification remain open. See
-  [`strptime-numeric-20260925.md`](rust-cpython/experiments/strptime-numeric-20260925.md).
+  complete 60,000-record log-ingest output in five macOS pairs. The first
+  unguarded version had median wall and CPU ratios of 0.641 and 0.613, but
+  bypassed `_strptime` locale and regex-cache behavior. The current opt-in
+  `--strptime-numeric` patch uses Rust only with an unchanged, warm canonical
+  cache and matching locale/time-zone state; cold or altered states return to
+  CPython's parser. Its rebuilt installed source matched the patch, and 14
+  focused routing cases matched baseline outcomes. Three complete-task
+  same-binary pairs under unrelated host load had median wall and CPU ratios
+  of 0.758 and 0.774. Keep it opt-in pending quiet-host performance, memory,
+  broad semantics, and Linux qualification. See the [original result](rust-cpython/experiments/strptime-numeric-20260925.md)
+  and [guarded follow-up](rust-cpython/experiments/strptime-guard-20260925.md).
 - The optional canonical UUID text scanner reaches public `uuid.UUID` calls,
   but five complete 100,000-record index pairs showed no speed or CPU gain
   beyond control variation: median candidate/control ratios were 1.003 and

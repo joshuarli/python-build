@@ -66,14 +66,14 @@
     },
     {
       "file": "0007-rust-strptime-numeric.patch",
-      "sha256": "dca0d09d88038a1ef78c97e34cac3fe1091260a5d8a64c143f8a6f164ccedb1d",
+      "sha256": "d2366974fdd96f2407f7f6f10de89b658644331c2f2af22436ad9b7e8218bf85",
       "mode": "strptime-numeric",
       "author": "OpenAI Codex",
       "origin": "Pinned Rust-for-CPython Lib/_strptime.py and CPython extension interfaces; authored on 2026-09-25",
       "license": "PSF-2.0, matching the pinned CPython fork",
-      "reason": "Optionally scan a fixed-width numeric slash timestamp in private no_std Rust while leaving datetime construction and all other inputs on the Python path.",
-      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --strptime-numeric; exact datetime class, exact input and format strings, original _strptime binding, and valid 19-byte ASCII fields only.",
-      "reproducer": "Apply selected patches to fresh verified pinned source, verify seven changed paths and reverse checks, build --variant strptime-numeric --strptime-numeric, then compare complete public numeric-slash log-ingest output and serial control/candidate resource pairs."
+      "reason": "Optionally scan fixed-width numeric slash timestamps in private no_std Rust when the warmed parser cache, locale and timezone state, and replaceable parser globals retain the original ASCII behavior.",
+      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --strptime-numeric; exact datetime class, exact input and format strings, original parser/cache globals, current locale and timezone, canonical warmed regex, and valid 19-byte ASCII fields only.",
+      "reproducer": "Apply selected patches to fresh verified pinned source for default, numeric-only, and all-optional selections; verify intended changed paths and reverse checks; build --variant strptime-guard --strptime-numeric; compare complete public numeric-slash log-ingest output and serial resource pairs against the same compiler control."
     },
     {
       "file": "0008-rust-uuid-canonical.patch",

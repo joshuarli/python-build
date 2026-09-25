@@ -1,24 +1,66 @@
 diff --git a/Lib/_strptime.py b/Lib/_strptime.py
 --- a/Lib/_strptime.py
 +++ b/Lib/_strptime.py
+@@ -16,2 +16,3 @@
+ from re import compile as re_compile
++from re import Pattern as _re_pattern_type
+ from re import sub as re_sub
 @@ -22,2 +22,3 @@
  from datetime import (date as datetime_date,
 +                      datetime as datetime_datetime,
                        timedelta as datetime_timedelta,
-@@ -843,2 +844,9 @@
+@@ -843,2 +845,34 @@
      format string."""
 +    if (cls is datetime_datetime and type(data_string) is str and
 +            type(format) is str and format == "%Y/%m/%d %H:%M:%S" and
-+            _strptime is _ORIGINAL_STRPTIME):
-+        from _rust_strptime_numeric import scan
-+        fields = scan(data_string)
-+        if fields is not None:
-+            return cls(*fields)
++            _strptime is _ORIGINAL_STRPTIME and
++            _cache_lock is _ORIGINAL_CACHE_LOCK and
++            _TimeRE_cache is _ORIGINAL_TIME_RE_CACHE and
++            _regex_cache is _ORIGINAL_REGEX_CACHE and
++            _getlang is _ORIGINAL_GETLANG and
++            locale.getlocale is _ORIGINAL_GETLOCALE and
++            datetime_date is _ORIGINAL_DATE and
++            int is _ORIGINAL_INT and
++            type(_CACHE_MAX_SIZE) is int and _CACHE_MAX_SIZE == 5):
++        with _cache_lock:
++            locale_time = _TimeRE_cache.locale_time
++            # A cache miss, locale refresh, or replaced regex needs the parser.
++            ready = (locale_time is _ORIGINAL_LOCALE_TIME and
++                     _getlang() == locale_time.lang and
++                     time.tzname == locale_time.tzname and
++                     time.daylight == locale_time.daylight and
++                     locale_time.LC_alt_digits is _ORIGINAL_ALT_DIGITS and
++                     _ORIGINAL_ALT_DIGITS == () and
++                     _regex_cache is _ORIGINAL_REGEX_CACHE and
++                     len(_regex_cache) <= _CACHE_MAX_SIZE)
++            if ready:
++                format_regex = _regex_cache.get(format)
++                ready = (type(format_regex) is _re_pattern_type and
++                         format_regex.pattern == _NUMERIC_PATTERN and
++                         format_regex.flags == 34)
++        if ready:
++            from _rust_strptime_numeric import scan
++            fields = scan(data_string)
++            if fields is not None:
++                return cls(*fields)
      tt, fraction, gmtoff_fraction = _strptime(data_string, format)
-@@ -851 +859,3 @@
+@@ -851 +885,16 @@
          return cls(*args, tz)
 +
 +_ORIGINAL_STRPTIME = _strptime
++_ORIGINAL_CACHE_LOCK = _cache_lock
++_ORIGINAL_TIME_RE_CACHE = _TimeRE_cache
++_ORIGINAL_LOCALE_TIME = _TimeRE_cache.locale_time
++_ORIGINAL_ALT_DIGITS = _TimeRE_cache.locale_time.LC_alt_digits
++_ORIGINAL_REGEX_CACHE = _regex_cache
++_ORIGINAL_GETLANG = _getlang
++_ORIGINAL_GETLOCALE = locale.getlocale
++_ORIGINAL_DATE = datetime_date
++_ORIGINAL_INT = int
++_NUMERIC_PATTERN = (r'(?P<Y>\d\d\d\d)/(?P<m>1[0-2]|0[1-9]|[1-9])/'
++                    r'(?P<d>3[0-1]|[1-2]\d|0[1-9]|[1-9]| [1-9])\s+'
++                    r'(?P<H>2[0-3]|[0-1]\d|\d| \d):(?P<M>[0-5]\d|\d):'
++                    r'(?P<S>6[0-1]|[0-5]\d|\d)')
 diff --git a/Makefile.pre.in b/Makefile.pre.in
 --- a/Makefile.pre.in
 +++ b/Makefile.pre.in
