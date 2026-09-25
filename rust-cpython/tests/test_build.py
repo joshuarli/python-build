@@ -33,7 +33,9 @@ class SourcePinTests(unittest.TestCase):
             "55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023",
         )
         self.assertEqual(archive.role, "build-source")
+        # The source archive predates the Linux lane and is platform independent.
         self.assertEqual(archive.target, "aarch64-apple-darwin")
+        self.assertIn(archive.target, build.LANE_TARGETS)
 
     def test_source_tree_rejects_a_different_cargo_lock(self) -> None:
         metadata = {"cargo_lock_sha256": "0" * 64}
@@ -253,15 +255,30 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("--without-ensurepip", args)
         self.assertEqual(env["PROFILE_TASK"], "-m test --pgo -j 7")
         self.assertEqual(env["LLVM_PROFDATA"], str(toolchain.llvm_profdata))
+        self.assertIn("-O3", env["CFLAGS"])
+        self.assertIn(target.cpu_baseline_cflag, env["CFLAGS"])
+        self.assertNotIn("RUSTFLAGS", env)
+        if build.IS_LINUX:
+            self.assertEqual(target.cpu_baseline_cflag, "-march=x86-64")
+            self.assertEqual(env["CPPFLAGS"], "")
+            self.assertEqual(env["LDFLAGS"], "-fuse-ld=lld -Wl,-rpath,'$$ORIGIN/../lib'")
+            self.assertEqual(env["PKG_CONFIG_PATH"], "")
+            return
         sysroot_flag = f"-isysroot {toolchain.sdkroot}"
         self.assertEqual(env["CPPFLAGS"], sysroot_flag)
         self.assertEqual(env["PY_CPPFLAGS"], sysroot_flag)
-        self.assertIn("-O3", env["CFLAGS"])
-        self.assertIn(target.cpu_baseline_cflag, env["CFLAGS"])
         self.assertIn(
             f"-mmacosx-version-min={toolchain.deployment_target}", env["CFLAGS"]
         )
-        self.assertNotIn("RUSTFLAGS", env)
+
+    def test_host_selects_one_lane_target(self) -> None:
+        self.assertIn(build.TARGET, build.LANE_TARGETS)
+        self.assertEqual(build.SYMBOL_PREFIX, "" if build.IS_LINUX else "_")
+        self.assertEqual(
+            build._cargo_linker_variable(),
+            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER" if build.IS_LINUX
+            else "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER",
+        )
 
     def test_pgo_worker_count_must_be_positive(self) -> None:
         with self.assertRaises(ValueError):

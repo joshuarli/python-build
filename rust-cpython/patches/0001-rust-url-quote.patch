@@ -36,7 +36,7 @@ index 0925d02..042af80 100644
 +
 +$(RUST_URL_QUOTE_A): $(srcdir)/Modules/_rust_url_quote/quote.rs
 +	mkdir -p Modules/_rust_url_quote
-+	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort --target=aarch64-apple-darwin $< -o $@
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
 +
  RUST_STATICLIB_A= target/$(if $(CARGO_TARGET),$(CARGO_TARGET)/$(CARGO_TARGET_DIR),$(CARGO_TARGET_DIR))/libcpython_rust_staticlib.a
  

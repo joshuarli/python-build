@@ -3,12 +3,12 @@
   "patches": [
     {
       "file": "0001-rust-url-quote.patch",
-      "sha256": "77d02738c4e4b8ebe2fcb2fbdc16a016abfc8069d7257459ff785671c9a5f4f9",
+      "sha256": "1a27b50bf2889b1fe4fb534aafdeb405272bbf419edc900e207fe475b9e449a0",
       "author": "OpenAI Codex, adapting the repository lean URL quotation proof",
       "origin": "rust-cpython/experiments/url-quote-lean-proof/{quote.rs,module.c,build.py} and the pinned Rust-for-CPython source; original build integration authored for this experiment on 2026-09-24",
       "license": "PSF-2.0, matching the pinned CPython fork and repository proof",
       "reason": "Evaluate guarded exact-bytes URL percent quotation through a CPython-owned C extension and private no_std Rust kernel in the source build.",
-      "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b with Cargo.lock SHA-256 55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023; preserves the original urllib.parse guards and fallback, targets the pinned macOS Rust lane and nightly-2026-09-15.",
+      "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b with Cargo.lock SHA-256 55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023; preserves the original urllib.parse guards and fallback, builds the private kernel for Cargo's configured target (the native host when CARGO_TARGET is empty) on the macOS aarch64 and Linux x86_64 lanes with nightly-2026-09-15.",
       "reproducer": "Apply to the locked archive with git apply --check, build the pinned Rust candidate, then run the 2,177 public differential cases from rust-cpython/experiments/url-quote-lean-proof/check.py adapted to compare installed candidate and control, plus python3.16 -m test test_urlparse test_urllib -j1."
     },
     {

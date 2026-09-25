@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the vanilla CPython ancestor as an isolated macOS comparison control."""
+"""Build the vanilla CPython ancestor as an isolated lane comparison control."""
 
 from __future__ import annotations
 
@@ -24,6 +24,9 @@ from buildsys.bootstrap import problems as toolchain_problems  # noqa: E402
 from buildsys.inputs import Cache, Input, InputError, load_lock, safe_extract  # noqa: E402
 from buildsys.sandbox import SealedRun, SandboxError, available, network_boundary_selftest  # noqa: E402
 
+sys.path.insert(0, str(LANE))
+import lane_linux  # noqa: E402
+
 _SPEC = importlib.util.spec_from_file_location("rust_cpython_build", LANE / "build.py")
 if _SPEC is None or _SPEC.loader is None:
     raise RuntimeError("cannot load the experiment's locked macOS toolchain helpers")
@@ -42,6 +45,7 @@ RESULTS = LANE / "results" / "upstream-build.json"
 HOME = WORK / "home"
 COMMIT = "0983642c966d9c536416101e99b7d2b085483847"
 VERSION = "3.16.0a0"
+LIBPYTHON = "libpython3.16.so.1.0" if FORK.IS_LINUX else "libpython3.16.dylib"
 CONFIGURE_FLAGS = (
     "--enable-shared", "--with-lto=thin", "--enable-optimizations",
     "--enable-experimental-jit=no", "--with-tail-call-interp=no",
@@ -76,7 +80,7 @@ def source_input() -> Input:
         or item.version != VERSION
         or item.url != expected_url
         or item.role != "test"
-        or item.target != FORK.TARGET
+        or item.target not in FORK.LANE_TARGETS
         or item.license != "PSF-2.0"
         or item.size is None
     ):
@@ -85,8 +89,15 @@ def source_input() -> Input:
 
 
 def _host_and_toolchain(*, require_ready: bool = True) -> tuple[Any, Any]:
+    if FORK.IS_LINUX:
+        toolchain, target = FORK._toolchain()
+        if require_ready:
+            problems = lane_linux.problems(toolchain)
+            if problems:
+                raise ControlError("locked Linux toolchain is unavailable: " + "; ".join(problems))
+        return toolchain, target
     if platform.system() != "Darwin" or platform.machine().lower() not in {"arm64", "aarch64"}:
-        raise ControlError("upstream control requires native Apple Silicon macOS")
+        raise ControlError("upstream control requires native Apple Silicon macOS or x86_64 Linux")
     toolchain, target = FORK._toolchain()
     if require_ready:
         problems = toolchain_problems(toolchain, host_floor="26.0")
@@ -121,10 +132,6 @@ def _extract_fresh(item: Input) -> Path:
 def _environment(toolchain: Any, target: Any, jobs: int) -> dict[str, str]:
     if jobs < 1:
         raise ControlError("PGO workers must be positive")
-    flags = " ".join((
-        "-O3", target.cpu_baseline_cflag, "-fPIC",
-        f"-mmacosx-version-min={toolchain.deployment_target}",
-    ))
     env = toolchain.toolchain().env()
     for name in tuple(env):
         if name.startswith(("CARGO_", "RUST", "BINDGEN_")) or name in (
@@ -135,15 +142,10 @@ def _environment(toolchain: Any, target: Any, jobs: int) -> dict[str, str]:
         "PATH": os.pathsep.join((str(toolchain.llvm_prefix / "bin"), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
         "HOME": str(HOME),
         "TMPDIR": str(WORK / "tmp"),
-        "CFLAGS": flags,
-        "CXXFLAGS": flags,
-        "CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
-        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
-        "LDFLAGS": f"-mmacosx-version-min={toolchain.deployment_target}",
+        **FORK._platform_flags(toolchain, target),
         "PROFILE_TASK": FORK._profile_task(jobs),
         "LLVM_PROFDATA": str(toolchain.llvm_profdata),
         "PKG_CONFIG": str(toolchain.pkgconf),
-        "PKG_CONFIG_PATH": FORK._brew_pkg_config_path(),
         "SOURCE_DATE_EPOCH": FORK.SOURCE_DATE_EPOCH,
         "PYTHONHASHSEED": FORK.SOURCE_DATE_EPOCH,
         "PYTHONDONTWRITEBYTECODE": "1",
@@ -184,8 +186,8 @@ def _artifact_identity(path: Path) -> dict[str, Any]:
 def fetch(*, source_only: bool = False) -> None:
     item = source_input()
     toolchain, _target = _host_and_toolchain(require_ready=False)
-    blob = Cache(CACHE).fetch(item)
-    print(f"OK    verified upstream source {item.sha256} -> {blob}")
+    blob, route = lane_linux.fetch_source(Cache(CACHE), item)
+    print(f"OK    verified upstream source {item.sha256} ({route}) -> {blob}")
     if not source_only:
         FORK._fetch_llvm(toolchain)
         print(f"OK    locked LLVM {toolchain.llvm_version}")
@@ -195,7 +197,7 @@ def build(jobs: int | None = None) -> None:
     item = source_input()
     toolchain, target = _host_and_toolchain()
     FORK._llvm_ready(toolchain)
-    if not available():
+    if not FORK.IS_LINUX and not available():
         raise ControlError("offline build requires sandbox-exec")
     source = _extract_fresh(item)
     _require_configure_flags(source)
@@ -207,8 +209,14 @@ def build(jobs: int | None = None) -> None:
     RESULTS.parent.mkdir(parents=True, exist_ok=True)
     worker_count = jobs if jobs is not None else max(1, (os.cpu_count() or 4) - 1)
     env = _environment(toolchain, target, worker_count)
-    sandbox = SealedRun(write_paths=[WORK, STAGE, LOGS, RESULTS.parent], home=HOME)
-    proof = network_boundary_selftest(Path(sys.executable), WORK / "sandbox-probe")
+    if FORK.IS_LINUX:
+        sandbox = lane_linux.SealedRun(write_paths=[WORK, STAGE, LOGS, RESULTS.parent], home=HOME)
+        proof = lane_linux.network_boundary_selftest(Path(sys.executable), WORK / "sandbox-probe")
+        mechanism = lane_linux.describe()["mechanism"]
+    else:
+        sandbox = SealedRun(write_paths=[WORK, STAGE, LOGS, RESULTS.parent], home=HOME)
+        proof = network_boundary_selftest(Path(sys.executable), WORK / "sandbox-probe")
+        mechanism = "sandbox-exec deny network*"
     if not proof.get("ok"):
         raise ControlError(f"offline network boundary failed: {proof}")
     sealed_env = sandbox.environment(env)
@@ -248,7 +256,8 @@ def build(jobs: int | None = None) -> None:
                    "archive_sha256": item.sha256, "archive_size": item.size},
         "toolchain": toolchain.identity(),
         "configure_arguments": commands[0][1],
-        "configure_environment": {name: sealed_env[name] for name in (
+        "target": target.triple,
+        "configure_environment": {name: sealed_env.get(name, "") for name in (
             "CC", "CXX", "AR", "RANLIB", "CFLAGS", "CXXFLAGS", "CPPFLAGS",
             "PY_CPPFLAGS", "LDFLAGS", "PROFILE_TASK", "LLVM_PROFDATA",
             "SDKROOT", "MACOSX_DEPLOYMENT_TARGET", "PKG_CONFIG", "PKG_CONFIG_PATH",
@@ -257,11 +266,11 @@ def build(jobs: int | None = None) -> None:
         "pgo_profile": _artifact_identity(BUILD / "code.profclangd"),
         "artifacts": {
             "python3.16": _artifact_identity(python),
-            "libpython3.16.dylib": _artifact_identity(STAGE / "lib" / "libpython3.16.dylib"),
+            LIBPYTHON: _artifact_identity(STAGE / "lib" / LIBPYTHON),
         },
         "interpreter": identity,
         "executable": str(python),
-        "offline_boundary": {"mechanism": "sandbox-exec deny network*", "selftest": proof},
+        "offline_boundary": {"mechanism": mechanism, "selftest": proof},
         "logs": {phase: str(LOGS / f"{phase}.log") for phase, _ in commands},
     }
     RESULTS.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
@@ -284,7 +293,7 @@ def main() -> int:
     else:
         item = source_input()
         toolchain, target = _host_and_toolchain()
-        print(json.dumps({"source_cached": Cache(CACHE).require(item).is_file(),
+        print(json.dumps({"source_cached": lane_linux.fetch_source(Cache(CACHE), item)[1] == "cache",
                           "target": target.triple, "toolchain": toolchain.identity()}, indent=2))
     return 0
 

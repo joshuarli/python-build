@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Build and validate the isolated macOS Rust-for-CPython lane."""
+"""Build and validate the isolated Rust-for-CPython lane.
+
+The lane runs natively on Apple Silicon macOS (`aarch64-apple-darwin`) or on
+x86_64 glibc Linux (`x86_64-unknown-linux-gnu`); the host selects the target.
+"""
 
 from __future__ import annotations
 
@@ -16,12 +20,14 @@ import sys
 import tempfile
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 REPO = Path(__file__).resolve().parents[1]
 LANE = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(LANE))
 
+import lane_linux  # noqa: E402
 from buildsys import macho  # noqa: E402
 from buildsys.bootstrap import (  # noqa: E402
     BootstrapError,
@@ -37,6 +43,8 @@ from buildsys.inputs import (  # noqa: E402
     safe_extract,
 )
 from buildsys.llvm import (  # noqa: E402
+    LINUX_X86_64_LAYOUT,
+    MACOS_AARCH64_LAYOUT,
     extract_llvm_archive,
     verify_llvm_attestation_metadata,
 )
@@ -48,12 +56,24 @@ from buildsys.sandbox import (  # noqa: E402
 )
 from buildsys.targets import target_for_triple  # noqa: E402
 
-TARGET = "aarch64-apple-darwin"
+MACOS_TARGET = "aarch64-apple-darwin"
+LINUX_TARGET = lane_linux.TARGET
+# Source archives are platform independent. Locks written before the Linux
+# lane name the macOS target; either lane target is accepted for them.
+LANE_TARGETS = frozenset({MACOS_TARGET, LINUX_TARGET})
+TARGET = LINUX_TARGET if lane_linux.supported_host() else MACOS_TARGET
+IS_LINUX = TARGET == LINUX_TARGET
+# Mach-O prefixes C symbol names with an underscore; ELF does not.
+SYMBOL_PREFIX = "" if IS_LINUX else "_"
+PLATFORM_LIBZ = "libz.so.1" if IS_LINUX else "/usr/lib/libz.1.dylib"
+# zlib.ZLIB_RUNTIME_VERSION reported by the platform library each lane links.
+PLATFORM_ZLIB_VERSION = "1.3" if IS_LINUX else "1.2.12"
 RUST_CHANNEL = "nightly-2026-09-15"
 SOURCE_LOCK = LANE / "sources.lock.json"
 PATCH_MANIFEST = LANE / "patches" / "manifest.json"
 ZLIB_LOCK = LANE / "zlib-proof" / "sources.lock.json"
 BOOTSTRAP_LOCK = REPO / "bootstrap.lock.json"
+LINUX_TOOLCHAIN_LOCK = LANE / "linux-toolchain.lock.json"
 CACHE_ROOT = REPO / ".cache"
 CARGO_HOME = LANE / ".cargo-home"
 WORK = LANE / "work"
@@ -73,6 +93,13 @@ PROFILE_TASK = "-m test --pgo"
 
 class LaneError(Exception):
     """The pinned experimental build lane cannot safely continue."""
+
+
+class LaneTarget(NamedTuple):
+    """The Linux lane's target; the production target table stays unchanged."""
+
+    triple: str
+    cpu_baseline_cflag: str
 
 
 def _read_lock() -> tuple[dict[str, Any], Input]:
@@ -96,7 +123,7 @@ def _read_lock() -> tuple[dict[str, Any], Input]:
         entry.name != "cpython-rust"
         or entry.version != metadata["version"]
         or entry.role != "build-source"
-        or entry.target != TARGET
+        or entry.target not in LANE_TARGETS
         or metadata["commit"] not in entry.url
         or entry.license != metadata["license"]
     ):
@@ -105,6 +132,12 @@ def _read_lock() -> tuple[dict[str, Any], Input]:
 
 
 def _toolchain():
+    if IS_LINUX:
+        try:
+            toolchain = lane_linux.load_linux_toolchain(LINUX_TOOLCHAIN_LOCK, CACHE_ROOT)
+        except lane_linux.LinuxHostError as error:
+            raise LaneError(str(error)) from error
+        return toolchain, LaneTarget(LINUX_TARGET, toolchain.cpu_baseline)
     try:
         toolchain = load_macos_toolchain(BOOTSTRAP_LOCK)
     except (BootstrapError, OSError, ValueError) as error:
@@ -119,6 +152,8 @@ def _toolchain():
 
 
 def _supported_host() -> bool:
+    if IS_LINUX:
+        return True
     return platform.system() == "Darwin" and platform.machine().lower() in {
         "arm64", "aarch64",
     }
@@ -127,8 +162,8 @@ def _supported_host() -> bool:
 def _require_host() -> None:
     if not _supported_host():
         raise LaneError(
-            "rust-cpython currently supports only a native Apple Silicon macOS host; "
-            "cross-compilation is not implemented"
+            "rust-cpython supports only native Apple Silicon macOS or x86_64 "
+            "glibc Linux hosts; cross-compilation is not implemented"
         )
 
 
@@ -217,6 +252,11 @@ def doctor_report() -> dict[str, Any]:
     llvm_prefix_ready = (
         toolchain.llvm_prefix / ".verified.json"
     ).is_file()
+    if IS_LINUX:
+        return _linux_doctor_report(
+            metadata, source_input, source_cached, toolchain, target, rust, rustup,
+            llvm_archive.is_file() and llvm_prefix_ready,
+        )
     failures: list[str] = []
     if not _supported_host():
         failures.append(
@@ -317,6 +357,73 @@ def doctor_report() -> dict[str, Any]:
         "ok": not failures,
     }
     return report
+
+
+def _rust_problems(rust: dict[str, Any], rustup: str | None) -> list[str]:
+    failures: list[str] = []
+    if rustup is None:
+        failures.append("rustup is not on PATH")
+    elif not rust["installed"]:
+        failures.append(
+            f"install the pinned compiler with `rustup toolchain install {RUST_CHANNEL} --profile minimal`"
+        )
+    elif not rust["rustc_vv"].startswith("rustc ") or "nightly" not in rust["rustc_vv"].splitlines()[0]:
+        failures.append(f"rustup could not run the pinned compiler {RUST_CHANNEL}")
+    if not rust.get("cargo_v", "").startswith("cargo ") or "nightly" not in rust["cargo_v"].splitlines()[0]:
+        failures.append(f"rustup could not run the pinned Cargo for {RUST_CHANNEL}")
+    active = rust.get("active_toolchain", "")
+    if rust.get("installed") and not active.startswith(RUST_CHANNEL):
+        failures.append(f"rustup did not activate {RUST_CHANNEL} for the build")
+    return failures
+
+
+def _linux_doctor_report(
+    metadata: dict[str, Any], source_input: Input, source_cached: bool, toolchain,
+    target, rust: dict[str, Any], rustup: str | None, llvm_ready: bool,
+) -> dict[str, Any]:
+    failures = lane_linux.problems(toolchain)
+    failures.extend(_rust_problems(rust, rustup))
+    if not source_cached:
+        failures.append("the pinned CPython archive is not verified in .cache; run fetch")
+    if not llvm_ready:
+        failures.append("the locked LLVM 23.1.2 toolchain is not provisioned; run fetch")
+    return {
+        "host": {
+            "os": platform.system(),
+            "architecture": platform.machine(),
+            "libc": list(platform.libc_ver()),
+        },
+        "target": target.triple,
+        "source": {
+            **metadata,
+            "archive_url": source_input.url,
+            "archive_sha256": source_input.sha256,
+            "archive_size": source_input.size,
+            "cached_and_verified": source_cached,
+        },
+        "rust": rust,
+        "cargo": {
+            "private_home": str(CARGO_HOME),
+            "wrapper_present": (CARGO_HOME / "bin" / "cargo").is_file(),
+            "registry_cache_present": (CARGO_HOME / "registry").is_dir(),
+        },
+        "c_toolchain": {
+            "locked_identity": toolchain.identity(),
+            "clang_path": str(toolchain.clang),
+            "clang_version": _tool_output([str(toolchain.clang), "--version"]),
+            "llvm_prefix_ready": llvm_ready,
+        },
+        "host_packages": lane_linux.package_report(toolchain),
+        "gnu_make": {"path": str(toolchain.make),
+                     "version": _tool_output([str(toolchain.make), "--version"])},
+        "pgo_profdata": {
+            "path": str(toolchain.llvm_profdata),
+            "version": _tool_output([str(toolchain.llvm_profdata), "--version"]),
+        },
+        "network_sandbox": lane_linux.describe(),
+        "problems": failures,
+        "ok": not failures,
+    }
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -489,8 +596,15 @@ def _apply_source_patches(source: Path) -> dict[str, Any]:
     return inputs
 
 
+def _llvm_layout():
+    return LINUX_X86_64_LAYOUT if IS_LINUX else MACOS_AARCH64_LAYOUT
+
+
 def _llvm_ready(toolchain) -> Path:
     llvm_cache = Cache(CACHE_ROOT / "llvm")
+    if IS_LINUX:
+        deb = llvm_cache.require(toolchain.icu_input())
+        lane_linux.provision_icu_runtime(toolchain, deb)
     archive = llvm_cache.require(toolchain.llvm_input())
     attestation = llvm_cache.require(toolchain.llvm_attestation_input())
     verify_llvm_attestation_metadata(
@@ -508,11 +622,24 @@ def _llvm_ready(toolchain) -> Path:
         sha256=toolchain.llvm_archive_sha256,
         size=toolchain.llvm_archive_size,
         version=toolchain.llvm_version,
+        layout=_llvm_layout(),
     )
 
 
 def _fetch_llvm(toolchain) -> Path:
     llvm_cache = Cache(CACHE_ROOT / "llvm")
+    if IS_LINUX:
+        prefix = _fetch_llvm_archive(toolchain, llvm_cache)
+        try:
+            deb = llvm_cache.fetch(toolchain.icu_input())
+            lane_linux.provision_icu_runtime(toolchain, deb)
+        except (InputError, OSError, lane_linux.LinuxHostError) as error:
+            raise LaneError(f"cannot provision the ld.lld ICU runtime: {error}") from error
+        return prefix
+    return _fetch_llvm_archive(toolchain, llvm_cache)
+
+
+def _fetch_llvm_archive(toolchain, llvm_cache: Cache) -> Path:
     try:
         archive = llvm_cache.fetch(toolchain.llvm_input())
         attestation = llvm_cache.fetch(toolchain.llvm_attestation_input())
@@ -531,6 +658,7 @@ def _fetch_llvm(toolchain) -> Path:
             sha256=toolchain.llvm_archive_sha256,
             size=toolchain.llvm_archive_size,
             version=toolchain.llvm_version,
+            layout=_llvm_layout(),
         )
     except (InputError, OSError, ValueError) as error:
         raise LaneError(f"cannot provision the locked LLVM toolchain: {error}") from error
@@ -543,7 +671,8 @@ def _environment(toolchain, *, offline: bool, build_dir: Path = BUILD) -> dict[s
     llvm_bin = toolchain.llvm_prefix / "bin"
     path_parts = [
         str(cargo_bin), str(llvm_bin), rustup_directory,
-        "/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin",
+        *(() if IS_LINUX else ("/opt/homebrew/bin",)),
+        "/usr/bin", "/bin", "/usr/sbin", "/sbin",
     ]
     path = ":".join(dict.fromkeys(path_parts))
     temp_dir = WORK / "tmp"
@@ -647,7 +776,7 @@ def _zlib_input() -> tuple[dict[str, str], Input]:
         raise LaneError("zlib-rs lock must contain exactly one source archive")
     entry = entries[0]
     if (entry.name != metadata["crate"] or entry.version != metadata["version"]
-            or entry.role != "build-source" or entry.target != TARGET
+            or entry.role != "build-source" or entry.target not in LANE_TARGETS
             or entry.license != metadata["license"]
             or entry.url != "https://static.crates.io/crates/libz-rs-sys-cdylib/libz-rs-sys-cdylib-0.6.7.crate"):
         raise LaneError("zlib-rs archive entry disagrees with backend metadata")
@@ -733,9 +862,10 @@ def _build_zlib(toolchain, sandbox: SealedRun, *, hybrid: bool = False) -> dict[
         if symbols["returncode"] != 0:
             raise LaneError(f"cannot inspect hybrid archive symbols: {symbols['output']}")
         for symbol in ("inflate", "inflateInit2_", "inflateEnd", "inflateCopy", "inflateSetDictionary"):
-            if re.search(rf"(?m)\b_{ZLIB_HYBRID_PREFIX}{symbol}$", symbols["output"]) is None:
+            if re.search(rf"(?m)\b{SYMBOL_PREFIX}{ZLIB_HYBRID_PREFIX}{symbol}$", symbols["output"]) is None:
                 raise LaneError(f"hybrid archive lacks prefixed {symbol}")
-        if re.search(r"(?m)\b_(?:deflate\w*|inflate\w*|zlibVersion)$", symbols["output"]):
+        if re.search(rf"(?m)\b{SYMBOL_PREFIX}(?:deflate\w*|inflate\w*|zlibVersion)$",
+                     symbols["output"]):
             raise LaneError("hybrid archive defines an unprefixed zlib entry point")
     return {
         "kind": "hybrid-inflate" if hybrid else "full-rust",
@@ -762,10 +892,10 @@ def fetch(*, zlib_rs: bool = False) -> int:
     metadata, source_input = _read_lock()
     toolchain, _target = _toolchain()
     try:
-        source_blob = Cache(CACHE_ROOT).fetch(source_input)
+        source_blob, route = lane_linux.fetch_source(Cache(CACHE_ROOT), source_input)
     except (InputError, OSError) as error:
         raise LaneError(f"cannot fetch the pinned CPython source: {error}") from error
-    print(f"OK    source archive -> {source_blob}")
+    print(f"OK    source archive ({route}) -> {source_blob}")
     _fetch_llvm(toolchain)
     print(f"OK    LLVM {toolchain.llvm_version} -> {toolchain.llvm_prefix}")
     WORK.mkdir(parents=True, exist_ok=True)
@@ -806,14 +936,45 @@ def _brew_pkg_config_path() -> str:
     return ":".join(dict.fromkeys(found))
 
 
-def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None,
-                   zlib_hybrid: bool = False) -> tuple[list[str], dict[str, str]]:
-    profile_task = _profile_task(jobs)
+# The Linux interpreter finds libpython beside itself. Make expands `$$` to
+# `$`; the single quotes keep the recipe shell from expanding `$ORIGIN`.
+LINUX_RPATH_LDFLAG = "-Wl,-rpath,'$$ORIGIN/../lib'"
+
+
+def _platform_flags(toolchain, target) -> dict[str, str]:
+    """C, C++, preprocessor, linker and pkg-config inputs for the host target."""
+    if IS_LINUX:
+        flags = " ".join(("-O3", target.cpu_baseline_cflag, "-fPIC"))
+        return {
+            "CFLAGS": flags,
+            "CXXFLAGS": flags,
+            "CPPFLAGS": "",
+            "PY_CPPFLAGS": "",
+            "LDFLAGS": f"-fuse-ld=lld {LINUX_RPATH_LDFLAG}",
+            "PKG_CONFIG_PATH": "",
+        }
     flags = " ".join((
         "-O3", target.cpu_baseline_cflag, "-fPIC",
         f"-mmacosx-version-min={toolchain.deployment_target}",
     ))
-    link_flags = f"-mmacosx-version-min={toolchain.deployment_target}"
+    return {
+        "CFLAGS": flags,
+        "CXXFLAGS": flags,
+        "CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
+        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
+        "LDFLAGS": f"-mmacosx-version-min={toolchain.deployment_target}",
+        "PKG_CONFIG_PATH": _brew_pkg_config_path(),
+    }
+
+
+def _cargo_linker_variable() -> str:
+    return f"CARGO_TARGET_{TARGET.upper().replace('-', '_')}_LINKER"
+
+
+def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = None,
+                   zlib_hybrid: bool = False) -> tuple[list[str], dict[str, str]]:
+    profile_task = _profile_task(jobs)
+    platform_flags = _platform_flags(toolchain, target)
     args = [
         f"--prefix={STAGE}",
         "--enable-shared",
@@ -824,15 +985,10 @@ def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = 
         "--without-ensurepip",
     ]
     env = _environment(toolchain, offline=True)
+    env.update(platform_flags)
     env.update({
-        "CFLAGS": flags,
-        "CXXFLAGS": flags,
-        "CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
-        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
-        "LDFLAGS": link_flags,
         "PROFILE_TASK": profile_task,
         "LLVM_PROFDATA": str(toolchain.llvm_profdata),
-        "PKG_CONFIG_PATH": _brew_pkg_config_path(),
     })
     if zlib_archive is not None:
         env["ZLIB_LIBS"] = f"-lz {zlib_archive}" if zlib_hybrid else str(zlib_archive)
@@ -841,7 +997,10 @@ def _configuration(toolchain, target, jobs: int, *, zlib_archive: Path | None = 
     return args, env
 
 
-def _macos_sandbox() -> SealedRun:
+def _sealed_sandbox():
+    """The offline boundary for this host, proven against a live listener."""
+    if IS_LINUX:
+        return _linux_sandbox()
     if not sandbox_available():
         raise LaneError("offline build requires /usr/bin/sandbox-exec")
     sandbox = SealedRun(write_paths=[LANE], home=LANE / ".home")
@@ -851,6 +1010,17 @@ def _macos_sandbox() -> SealedRun:
         raise LaneError(f"cannot prove the offline network boundary: {error}") from error
     if not proof.get("ok"):
         raise LaneError(f"sandbox network-denial self-test failed: {proof}")
+    return sandbox
+
+
+def _linux_sandbox() -> "lane_linux.SealedRun":
+    sandbox = lane_linux.SealedRun(write_paths=[LANE], home=LANE / ".home")
+    try:
+        proof = lane_linux.network_boundary_selftest(Path(sys.executable), WORK / "sandbox-probe")
+    except (lane_linux.LinuxHostError, OSError, subprocess.SubprocessError) as error:
+        raise LaneError(f"cannot prove the offline network boundary: {error}") from error
+    if not proof.get("ok"):
+        raise LaneError(f"namespace network-denial self-test failed: {proof}")
     return sandbox
 
 
@@ -872,6 +1042,49 @@ def _build_python() -> Path:
     if not name or "$" in name or Path(name).name != name:
         raise LaneError(f"cannot resolve CPython build interpreter name {name!r}")
     return BUILD / name
+
+
+LINUX_ELF_MACHINE = "Advanced Micro Devices X86-64"
+
+
+def _binary_identity(path: Path, toolchain) -> dict[str, Any]:
+    """Architecture, deployment floor, and dynamic references of one binary."""
+    if IS_LINUX:
+        machine = lane_linux.elf_machine(toolchain, path)
+        if machine != LINUX_ELF_MACHINE:
+            raise LaneError(f"{path.name} ELF machine is {machine!r}, expected x86-64")
+        dynamic = lane_linux.elf_dynamic(toolchain, path)
+        return {"arch": "x86_64", "minos": "", "dependencies": dynamic["needed"],
+                "rpaths": dynamic["rpaths"]}
+    header = macho.read_header(path)
+    version = macho.build_version(path)
+    if header.arch != "arm64":
+        raise LaneError(f"{path.name} architecture is {header.arch}, expected arm64")
+    if version is None or version.minos != toolchain.deployment_target:
+        raise LaneError(
+            f"{path.name} deployment floor is {version.minos if version else None}, "
+            f"expected {toolchain.deployment_target}"
+        )
+    return {"arch": header.arch, "minos": version.minos,
+            "dependencies": macho.dependencies(path), "rpaths": macho.rpaths(path)}
+
+
+def _check_linux_interpreter(python: Path, toolchain) -> None:
+    """The installed interpreter must find libpython relative to itself."""
+    dynamic = lane_linux.elf_dynamic(toolchain, python.resolve())
+    if dynamic["rpaths"] != ["$ORIGIN/../lib"]:
+        raise LaneError(f"installed interpreter runpath is {dynamic['rpaths']!r}")
+    if not any(name.startswith("libpython3.16") for name in dynamic["needed"]):
+        raise LaneError("installed interpreter does not link the shared libpython")
+
+
+def _defined_symbols(path: Path, toolchain) -> str:
+    symbols = _command([
+        str(toolchain.llvm_prefix / "bin" / "llvm-nm"), "-g", "--defined-only", str(path),
+    ])
+    if symbols["returncode"] != 0:
+        raise LaneError(f"cannot inspect symbols of {path}: {symbols['output']}")
+    return str(symbols["output"])
 
 
 def _module_report(install: Path, python: Path, toolchain) -> dict[str, Any]:
@@ -935,17 +1148,11 @@ print(json.dumps({
     except ValueError as error:
         raise LaneError(f"Rust module was loaded outside the stage tree: {module_path}") from error
 
-    header = macho.read_header(module_path)
-    version = macho.build_version(module_path)
-    if header.arch != "arm64":
-        raise LaneError(f"Rust module architecture is {header.arch}, expected arm64")
-    if version is None or version.minos != toolchain.deployment_target:
-        raise LaneError(
-            f"Rust module deployment floor is {version.minos if version else None}, "
-            f"expected {toolchain.deployment_target}"
-        )
-    dependencies = macho.dependencies(module_path)
-    rpaths = macho.rpaths(module_path)
+    binary = _binary_identity(module_path, toolchain)
+    dependencies = binary["dependencies"]
+    rpaths = binary["rpaths"]
+    if IS_LINUX:
+        _check_linux_interpreter(python, toolchain)
     forbidden_markers = (
         "/opt/homebrew", ".rustup", ".cargo-home", "/.cache/llvm/",
     )
@@ -973,8 +1180,8 @@ print(json.dumps({
     interpreter["module_dependencies"] = dependencies
     interpreter["module_rpaths"] = rpaths
     interpreter["module_exports"] = exports
-    interpreter["module_arch"] = header.arch
-    interpreter["module_minos"] = version.minos
+    interpreter["module_arch"] = binary["arch"]
+    interpreter["module_minos"] = binary["minos"]
     return interpreter
 
 
@@ -1001,7 +1208,7 @@ def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False) -> dic
         identity = json.loads(result.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError) as error:
         raise LaneError("installed zlib candidate did not report its identity") from error
-    expected_version = "1.2.12" if hybrid else "1.3.0-zlib-rs-0.6.7"
+    expected_version = PLATFORM_ZLIB_VERSION if hybrid else "1.3.0-zlib-rs-0.6.7"
     if identity["runtime_version"] != expected_version:
         raise LaneError(f"installed zlib runtime is not the pinned backend: {identity['runtime_version']!r}")
     module = Path(identity["path"]).resolve()
@@ -1011,25 +1218,20 @@ def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False) -> dic
         raise LaneError(f"zlib module was loaded outside the stage tree: {module}") from error
     if not module.is_file():
         raise LaneError(f"installed zlib module is missing: {module}")
-    dependencies = macho.dependencies(module)
-    platform_zlib = "/usr/lib/libz.1.dylib"
-    if (platform_zlib in dependencies) != hybrid:
+    dependencies = _binary_identity(module, toolchain)["dependencies"]
+    if (PLATFORM_LIBZ in dependencies) != hybrid:
         raise LaneError("installed zlib module has the wrong platform libz dependency")
-    symbols = _command([
-        str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
-        "-g", "--defined-only", str(module),
-    ])
-    if symbols["returncode"] != 0:
-        raise LaneError(f"cannot inspect installed zlib module symbols: {symbols['output']}")
-    expected_symbols = (tuple(f"_{ZLIB_HYBRID_PREFIX}{name}" for name in
+    defined = _defined_symbols(module, toolchain)
+    expected_symbols = (tuple(f"{SYMBOL_PREFIX}{ZLIB_HYBRID_PREFIX}{name}" for name in
                               ("inflateInit2_", "inflate", "inflateEnd", "inflateCopy",
                                "inflateSetDictionary")) if hybrid else
-                        ("_zlibVersion", "_deflateInit2_", "_inflateInit2_"))
+                        tuple(f"{SYMBOL_PREFIX}{name}" for name in
+                              ("zlibVersion", "deflateInit2_", "inflateInit2_")))
     for symbol in expected_symbols:
-        if re.search(rf"(?m)\b{symbol}$", symbols["output"]) is None:
+        if re.search(rf"(?m)\b{symbol}$", defined) is None:
             raise LaneError(f"installed zlib module lacks static backend symbol {symbol}")
-    if hybrid and re.search(r"(?m)\b_(?:deflate\w*|inflate\w*|zlibVersion)$",
-                            symbols["output"]):
+    if hybrid and re.search(rf"(?m)\b{SYMBOL_PREFIX}(?:deflate\w*|inflate\w*|zlibVersion)$",
+                            defined):
         raise LaneError("hybrid zlib module defines platform zlib symbols")
     binascii = Path(identity.pop("binascii_path")).resolve()
     try:
@@ -1038,25 +1240,20 @@ def _zlib_module_report(python: Path, toolchain, *, hybrid: bool = False) -> dic
         raise LaneError(f"binascii module was loaded outside the stage tree: {binascii}") from error
     if not binascii.is_file():
         raise LaneError(f"installed binascii module is missing: {binascii}")
-    binascii_dependencies = macho.dependencies(binascii)
-    if not any(dependency == "/usr/lib/libz.1.dylib" for dependency in binascii_dependencies):
+    binascii_dependencies = _binary_identity(binascii, toolchain)["dependencies"]
+    if PLATFORM_LIBZ not in binascii_dependencies:
         raise LaneError("installed binascii module does not use platform libz")
-    binascii_symbols = _command([
-        str(toolchain.llvm_prefix / "bin" / "llvm-nm"),
-        "-g", "--defined-only", str(binascii),
-    ])
-    if binascii_symbols["returncode"] != 0:
-        raise LaneError(f"cannot inspect installed binascii symbols: {binascii_symbols['output']}")
-    for symbol in ("_crc32", "_adler32", "_zlibVersion"):
-        if symbol in binascii_symbols["output"]:
-            raise LaneError(f"installed binascii still defines static backend symbol {symbol}")
+    binascii_defined = _defined_symbols(binascii, toolchain)
+    for name in ("crc32", "adler32", "zlibVersion"):
+        if re.search(rf"(?m)\b{SYMBOL_PREFIX}{name}$", binascii_defined):
+            raise LaneError(f"installed binascii still defines static backend symbol {name}")
     return {
         **identity,
         "path": str(module),
         "sha256": hashlib.sha256(module.read_bytes()).hexdigest(),
         "size": module.stat().st_size,
         "dynamic_dependencies": dependencies,
-        "static_backend_symbols": [symbol[1:] for symbol in expected_symbols],
+        "static_backend_symbols": [symbol[len(SYMBOL_PREFIX):] for symbol in expected_symbols],
         "python_wrapper": "conditional inflate routing in pinned CPython Modules/zlibmodule.c" if hybrid else
                           "pinned CPython Modules/zlibmodule.c with inactive hybrid guard",
         "binascii": {
@@ -1150,7 +1347,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "PY_CPPFLAGS": env["CPPFLAGS"],
         "PY_CFLAGS": env["CFLAGS"],
         "PYTHON_BUILD_DIR": str(BUILD),
-        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER": str(toolchain.llvm_prefix / "bin" / "clang"),
+        _cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
         "IPHONEOS_DEPLOYMENT_TARGET": "",
     })
     env = sandbox.environment(env)
@@ -1190,7 +1387,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "CARGO_TARGET_DIR": str(BUILD / "target"),
         "LLVM_TARGET": TARGET,
         "RUST_SHARED_BUILD": "1",
-        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER": str(toolchain.llvm_prefix / "bin" / "clang"),
+        _cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
     })
     cargo_lock_hash = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
     metadata, source_input = _read_lock()
@@ -1227,11 +1424,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "build_interpreter": str(_build_python()),
         "rust": _rust_identity(rustup),
         "c_toolchain": toolchain.identity(),
-        "sdk": {
-            "path": str(toolchain.sdkroot),
-            "version": sdk_version(toolchain.sdkroot),
-            "xcode_version": toolchain.xcode_version,
-        },
+        "sdk": _platform_sdk_report(toolchain),
         "configure_arguments": configure,
         "configure_environment": {
             key: env.get(key, "")
@@ -1251,7 +1444,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "built_rust_workspace_members": built_workspace_members,
         "zlib_backend": zlib_backend if zlib_backend is not None else {"kind": "platform"},
         "offline_boundary": {
-            "mechanism": "sandbox-exec with deny network*",
+            "mechanism": (lane_linux.describe()["mechanism"] if IS_LINUX
+                          else "sandbox-exec with deny network*"),
             "network_self_test": "passed",
             "cargo_net_offline": env["CARGO_NET_OFFLINE"],
         },
@@ -1266,6 +1460,17 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
     return report
 
 
+def _platform_sdk_report(toolchain) -> dict[str, Any]:
+    if IS_LINUX:
+        return {"host_packages": lane_linux.package_report(toolchain),
+                "libc": list(platform.libc_ver())}
+    return {
+        "path": str(toolchain.sdkroot),
+        "version": sdk_version(toolchain.sdkroot),
+        "xcode_version": toolchain.xcode_version,
+    }
+
+
 def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False) -> int:
     if zlib_rs and zlib_hybrid:
         raise LaneError("select one zlib candidate mode")
@@ -1277,7 +1482,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False) -> int:
     _cargo_wrapper(rustup)
     toolchain, target = _toolchain()
     _llvm_ready(toolchain)
-    sandbox = _macos_sandbox() if (zlib_rs or zlib_hybrid) else None
+    sandbox = _sealed_sandbox() if (zlib_rs or zlib_hybrid) else None
     zlib_backend = _build_zlib(toolchain, sandbox, hybrid=zlib_hybrid) if sandbox is not None else None
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
@@ -1295,7 +1500,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False) -> int:
         cwd=source, env=env, log=LOGS / "cargo-offline-check.log",
     )
     if sandbox is None:
-        sandbox = _macos_sandbox()
+        sandbox = _sealed_sandbox()
     jobs = max(1, (os.cpu_count() or 4) - 1)
     report = _configure_source(source, toolchain, target, jobs, sandbox, patches, zlib_backend,
                                zlib_hybrid=zlib_hybrid)
@@ -1345,12 +1550,12 @@ def test() -> int:
     env.update({
         "PYTHON_BUILD_DIR": str(BUILD),
         "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
-        "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
+        "PY_CPPFLAGS": _platform_flags(toolchain, _target)["PY_CPPFLAGS"],
         "PY_CFLAGS": env.get("CFLAGS", ""),
         "CARGO_TARGET_DIR": str(BUILD / "target"),
         "LLVM_TARGET": TARGET,
         "RUST_SHARED_BUILD": "1",
-        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER": str(toolchain.llvm_prefix / "bin" / "clang"),
+        _cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
     })
     build_python = _build_python()
     report["build_interpreter"] = str(build_python)
@@ -1406,7 +1611,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, help_text in (
         ("doctor", "report host, source, and toolchain readiness"),
         ("fetch", "fetch locked sources and Cargo dependencies"),
-        ("build", "build and validate the native arm64 interpreter offline"),
+        ("build", "build and validate the native interpreter offline"),
         ("test", "run Rust and CPython tests"),
         ("clean", "remove build outputs while keeping the private Cargo cache"),
     ):
