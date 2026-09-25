@@ -142,7 +142,7 @@ def _environment(toolchain: Any, target: Any, jobs: int) -> dict[str, str]:
         "PATH": os.pathsep.join((str(toolchain.llvm_prefix / "bin"), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
         "HOME": str(HOME),
         "TMPDIR": str(WORK / "tmp"),
-        **FORK._platform_flags(toolchain, target),
+        **FORK._platform_flags(toolchain, target, STAGE),
         "PROFILE_TASK": FORK._profile_task(jobs),
         "LLVM_PROFDATA": str(toolchain.llvm_profdata),
         "PKG_CONFIG": str(toolchain.pkgconf),

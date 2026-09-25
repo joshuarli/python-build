@@ -283,7 +283,7 @@ class BuildConfigurationTests(unittest.TestCase):
         if build.IS_LINUX:
             self.assertEqual(target.cpu_baseline_cflag, "-march=x86-64")
             self.assertEqual(env["CPPFLAGS"], "")
-            self.assertEqual(env["LDFLAGS"], "-fuse-ld=lld -Wl,-rpath,'$$ORIGIN/../lib'")
+            self.assertEqual(env["LDFLAGS"], f"-fuse-ld=lld -Wl,-rpath,{build.STAGE / 'lib'}")
             self.assertEqual(env["PKG_CONFIG_PATH"], "")
             return
         sysroot_flag = f"-isysroot {toolchain.sdkroot}"

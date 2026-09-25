@@ -46,7 +46,7 @@ def _configuration(toolchain: Any, target: Any, jobs: int) -> tuple[list[str], d
     environment = BUILD_LANE._environment(
         toolchain, offline=True, build_dir=BUILD_DIR
     )
-    environment.update(BUILD_LANE._platform_flags(toolchain, target))
+    environment.update(BUILD_LANE._platform_flags(toolchain, target, STAGE))
     environment.update({
         "PROFILE_TASK": BUILD_LANE._profile_task(jobs),
         "LLVM_PROFDATA": str(toolchain.llvm_profdata),

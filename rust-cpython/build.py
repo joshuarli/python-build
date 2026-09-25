@@ -965,13 +965,16 @@ def _brew_pkg_config_path() -> str:
     return ":".join(dict.fromkeys(found))
 
 
-# The Linux interpreter finds libpython beside itself. Make expands `$$` to
-# `$`; the single quotes keep the recipe shell from expanding `$ORIGIN`.
-LINUX_RPATH_LDFLAG = "-Wl,-rpath,'$$ORIGIN/../lib'"
+def _platform_flags(toolchain, target, prefix: Path | None = None) -> dict[str, str]:
+    """C, C++, preprocessor, linker and pkg-config inputs for the host target.
 
-
-def _platform_flags(toolchain, target) -> dict[str, str]:
-    """C, C++, preprocessor, linker and pkg-config inputs for the host target."""
+    Linux binaries find libpython through an absolute runpath to the build's
+    own install prefix, matching the macOS lane's absolute install names. An
+    `$ORIGIN` runpath is not usable: the fork's cargo rule passes the linker
+    arguments through a double-quoted shell word, which expands it away.
+    """
+    if prefix is None:
+        prefix = STAGE
     if IS_LINUX:
         flags = " ".join(("-O3", target.cpu_baseline_cflag, "-fPIC"))
         return {
@@ -979,7 +982,7 @@ def _platform_flags(toolchain, target) -> dict[str, str]:
             "CXXFLAGS": flags,
             "CPPFLAGS": "",
             "PY_CPPFLAGS": "",
-            "LDFLAGS": f"-fuse-ld=lld {LINUX_RPATH_LDFLAG}",
+            "LDFLAGS": f"-fuse-ld=lld -Wl,-rpath,{Path(prefix) / 'lib'}",
             "PKG_CONFIG_PATH": "",
         }
     flags = " ".join((
@@ -1101,10 +1104,20 @@ def _binary_identity(path: Path, toolchain) -> dict[str, Any]:
 def _check_linux_interpreter(python: Path, toolchain) -> None:
     """The installed interpreter must find libpython relative to itself."""
     dynamic = lane_linux.elf_dynamic(toolchain, python.resolve())
-    if dynamic["rpaths"] != ["$ORIGIN/../lib"]:
+    # configure repeats LDFLAGS on the link line, so the entry can repeat.
+    entries = {entry for value in dynamic["rpaths"] for entry in value.split(":")}
+    if entries != {str(STAGE / "lib")}:
         raise LaneError(f"installed interpreter runpath is {dynamic['rpaths']!r}")
     if not any(name.startswith("libpython3.16") for name in dynamic["needed"]):
         raise LaneError("installed interpreter does not link the shared libpython")
+    allowed = {str(STAGE / "lib")}
+    for binary in sorted((STAGE / "lib").glob("**/*.so*")):
+        if binary.is_symlink() or not binary.is_file():
+            continue
+        runpaths = lane_linux.elf_dynamic(toolchain, binary)["rpaths"]
+        found = {entry for value in runpaths for entry in value.split(":")}
+        if not found <= allowed:
+            raise LaneError(f"{binary.relative_to(STAGE)} has unexpected runpath {sorted(found)}")
 
 
 def _defined_symbols(path: Path, toolchain) -> str:

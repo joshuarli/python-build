@@ -1,7 +1,8 @@
 # Rust-for-CPython research lane
 
 This directory builds the pinned Rust-for-CPython **CPython 3.16.0a0** fork as
-a native Apple Silicon macOS development interpreter. It is an isolated
+a native development interpreter on Apple Silicon macOS
+(`aarch64-apple-darwin`) or x86_64 glibc Linux (`x86_64-unknown-linux-gnu`). It is an isolated
 experiment: it does not change the production CPython 3.14.6 pin, frozen Linux
 targets, production packaging, or release workflow. This is CPython with Rust
 implementation kernels behind existing Python and CPython C-ABI boundaries;
@@ -31,7 +32,35 @@ python3 rust-cpython/build_no_rust.py # matched same-source benchmark control
 python3 rust-cpython/build.py clean   # remove generated outputs; retain private Cargo cache
 ```
 
-Only native `aarch64-apple-darwin` is supported. The lane reuses the root
+The host selects the target: native `aarch64-apple-darwin`, or native
+`x86_64-unknown-linux-gnu` on the Ubuntu 24.04 host described below.
+`build --variant NAME` writes to `work/variants/NAME/`, `stage-NAME/`, and
+`results/build-NAME.json` instead of the default candidate paths;
+`--no-patches` builds the pinned fork without `patches/manifest.json`, which
+is the unpatched Rust-fork control (`--variant prior-fork --no-patches`).
+`test --variant NAME` tests that variant.
+
+### Linux x86_64 host
+
+[`linux-toolchain.lock.json`](linux-toolchain.lock.json) pins the official
+LLVM 23.1.2 x86_64 Linux archive and Sigstore statement (same release tag and
+source commit as the macOS archive), the exact Ubuntu 24.04 packages that
+supply glibc, make, pkgconf and development libraries, and Ubuntu jammy's
+`libicu70` package. The official `ld.lld` needs ICU 70, which Ubuntu 24.04
+does not ship; `fetch` copies only its three runtime libraries into the
+verified LLVM prefix. Install `libzstd-dev` with apt before `doctor`.
+[`lane_linux.py`](lane_linux.py) seals configure, build and install in fresh
+user and network namespaces (`unshare --user --map-root-user --net`), proven
+by a loopback self-test; unlike the macOS profile it does not restrict
+writes. Linux builds use `-march=x86-64 -fPIC`, lld (`-fuse-ld=lld`) for
+ThinLTO, and an absolute runpath to each build's own `<prefix>/lib` (like the
+macOS absolute install names; the fork's cargo rule expands `$ORIGIN` away),
+so a copied stage still loads its original prefix's libpython. When
+`codeload.github.com` is unreachable, `fetch` rebuilds pinned GitHub archives
+from the commit with `git archive | gzip -n`; the bytes must still match the
+locked SHA-256. The pinned 3.16 sources do not bundle libmpdec and Ubuntu
+24.04 main has no `libmpdec-dev`, so every Linux build, controls included,
+lacks `_decimal`. The lane reuses the root
 `bootstrap.lock.json` LLVM 23.1.2, Xcode SDK, deployment floor, and GNU Make
 identity, but keeps CPython 3.16 configuration and outputs under this
 directory. Source is safely re-extracted to `work/source/`; compilation is in
@@ -67,7 +96,7 @@ The fork's Cargo workspace has `_base64`, `cpython-build-helper`,
 produces `_base64` as an extension with `PyInit__base64`; the lane verifies
 that it imports, matches `binascii` for representative byte buffers, has the
 expected extension suffix and export, and is arm64 Mach-O with the locked
-deployment floor. It also runs the workspace Cargo tests and CPython tests.
+deployment floor (x86-64 ELF on Linux, with no build-tool runpath). It also runs the workspace Cargo tests and CPython tests.
 
 At this commit, `_base64` is an integration proof, not a faster public
 `base64` implementation: `Lib/base64.py` still routes its normal APIs through
