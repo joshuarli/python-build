@@ -18,12 +18,11 @@ parsing where exposed.
 
 ## Coverage loop
 
-1. Establish a passing baseline across all CPython test modules under the
-   runner's default resource policy on the pinned fork. Then pick one
-   unchecked module and identify its complete relevant CPython
-   test modules or packages before editing. Include neighboring suites when
-   the public behavior crosses modules. Run those unchanged suites on the
-   baseline to learn expected platform skips.
+1. Use the passing full-suite baseline below and pick one unchecked module.
+   Identify its complete relevant CPython test modules or packages before
+   editing. Include neighboring suites when public behavior crosses modules.
+   Run a pristine focused suite only when its expected platform skips need
+   clarification; do not rebuild the same baseline for every lane.
 2. Look for a maintained Rust library implementing the format or algorithm.
    Use one where its license, compatibility, maintenance, and dependency
    closure fit this lane. Vetted Rust crates are preauthorized for this

@@ -25,8 +25,10 @@ are complete.
   uses its own worktree as `workdir`. Keep module-specific files under
   `rust-cpython/overlay/` and commit actual `.rs`, Python, C, and Cargo
   source there. No patch manifests, embedded source strings, or ignored
-  directories as the sole copy. Shared `Cargo.toml`, `Cargo.lock`, configure,
-  and module registration edits may appear in separate branches; the root
+  directories as the sole copy. Register new extension crates through
+  `overlay/Modules/Setup.local`; the builder copies it into the build tree.
+  Shared `Cargo.toml`, `Cargo.lock`, and `Setup.local` edits may appear in
+  separate branches; the root
   agent owns their final reconciliation. Agents leave the shared checklist
   untouched; the root checks items only after integrated qualification.
   When branches add crates, merge their exact manifest constraints and
@@ -46,10 +48,11 @@ are complete.
 
 ## Correctness hill climb
 
-1. First establish a passing baseline across all CPython test modules under
-   the default resource policy on the pinned fork. Before each port, identify
-   every relevant unchanged CPython test
-   module or package. An agent may run a small subset for feedback, then
+1. Use the recorded passing full-suite baseline instead of rebuilding the
+   pristine fork in every lane. Before each port, identify every relevant
+   unchanged CPython test module or package. Run a pristine focused suite
+   only when its expected platform skips need clarification. An agent may
+   run a small subset for feedback, then
    must run the full relevant module suites with `build.py test --suite
    test_NAME` before handing off. Compare platform skips with the baseline.
 2. Prefer maintained Rust libraries for formats and algorithms. Check their

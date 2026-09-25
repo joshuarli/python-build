@@ -1049,6 +1049,12 @@ def _configure_source(source: Path, toolchain, target, jobs: int,
     configure = [str(source / "configure"), *args]
     _require_command(configure, cwd=BUILD, env=env,
                      log=LOGS / "cpython-configure.log", sealed=sandbox)
+    setup_local = source / "Modules" / "Setup.local"
+    if setup_local.is_file():
+        # CPython reads local module declarations from the build directory.
+        build_setup_local = BUILD / "Modules" / "Setup.local"
+        build_setup_local.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(setup_local, build_setup_local)
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(make, cwd=BUILD, env=env,
                      log=LOGS / "cpython-build.log", sealed=sandbox)

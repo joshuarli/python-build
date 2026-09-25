@@ -47,7 +47,9 @@ to the pinned CPython source root. The builder copies those files over a
 fresh verified source extraction before Cargo fetch and build. For example,
 `overlay/Modules/_bz2_rs/src/lib.rs` could hold a future Rust codec source.
 Put Rust in `.rs` files, Python in `.py` files, and C integration in C or
-header files; do not embed Rust source in
+header files. For a new extension, put its module declaration in
+`overlay/Modules/Setup.local`; the builder copies it to CPython's build
+directory after configure. Do not embed Rust source in
 Python strings or patch hunks. An edited `Cargo.lock` is an ordinary overlay
 file and `fetch` caches its approved dependencies; `build` checks it
 offline. The overlay refuses changes under `Lib/test/`, keeping the CPython
