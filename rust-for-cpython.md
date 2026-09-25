@@ -251,6 +251,15 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   small local files does not establish an application bottleneck. The
   [`tomllib-target.md`](rust-cpython/experiments/tomllib-target.md) report
   defers a native parser until complete public workloads justify its cost.
+- A package-free catalog export workload now checks one complete 512-record,
+  259,349-byte JSON document per operation. The pinned interpreter completed
+  300 exports in 1.33 process CPU seconds. A separate instrumented profile
+  found many `json.dumps`/`json.loads` calls, but their ordinary paths already
+  use `_json`'s C encoder and scanner. The application repeatedly encodes and
+  decodes each record before its final array encode, so defer a Rust JSON
+  kernel pending evidence of C-level headroom. See
+  [`catalog-json-workload-20260924.md`](rust-cpython/experiments/catalog-json-workload-20260924.md)
+  and [`catalog-json-profile-20260924.md`](rust-cpython/experiments/catalog-json-profile-20260924.md).
 - A registered catalog URL workload now exercises the checked-in application's
   `normalize_url` and `stable_key` functions over 48 mixed records with fixed
   complete-output digests. A short profile identified `urllib.parse.quote`
