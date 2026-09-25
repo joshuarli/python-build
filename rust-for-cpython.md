@@ -52,7 +52,7 @@ natively on Apple Silicon macOS and, since 2026-09-25, on x86_64 glibc Linux
 (Ubuntu 24.04) with the same source pins, patches, LLVM 23.1.2 release, and
 controls; the Linux toolchain and host packages are pinned in
 `rust-cpython/linux-toolchain.lock.json`. Report which platform each result
-comes from; a verdict on one platform does not transfer to the other. The experimental
+comes from; a verdict on one target does not transfer to another. The experimental
 source and Rust toolchain pins live in `rust-cpython/sources.lock.json` and
 `rust-cpython/rust-toolchain.toml`. Use the commands and ranked candidate map
 in [`rust-cpython/README.md`](rust-cpython/README.md). Persist source changes
@@ -520,13 +520,15 @@ as a separate baseline change.
   [`url-unquote-source-patch-20260925.md`](rust-cpython/experiments/url-unquote-source-patch-20260925.md)
   and [`url-unquote-contract-audit-20260925.md`](rust-cpython/experiments/url-unquote-contract-audit-20260925.md).
 - A later source audit narrowed native `quote_from_bytes` dispatch around
-  replaceable Python helpers and mutable quoter state. The native hit still
-  leaves `_Quoter`'s private per-byte cache empty where Python fills it.
-  Optional `unquote` also changes public output if `_hextobyte` is edited in
-  place, and skips its lazy initialization. These opt-in routes remain
-  experimental and do not meet strict behavior parity; the earlier URL speed
-  ratios describe pre-guard quote source. See the
-  [contract audit](rust-cpython/experiments/url-contract-guard-20260925.md).
+  replaceable Python helpers and mutable quoter state. Its subsequent cache
+  revision primes the original quoter in first-byte order; one-byte inputs
+  and active tracing or profiling use Python. The revised route has no
+  installed-build or speed verdict, and exact event-stream parity remains
+  open. Optional `unquote` changes public output if `_hextobyte` is edited in
+  place and skips its lazy initialization. The earlier URL speed ratios
+  describe pre-guard quote source. See the [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md)
+  [cache revision](rust-cpython/experiments/url-quote-cache-contract-20260925.md),
+  and [decoder decision](rust-cpython/experiments/url-unquote-contract-followup-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
   recipe. Its installed parser matches the selected source, its extension
   exports the Rust decoder, and both complete catalog URL output digests
@@ -695,6 +697,9 @@ as a separate baseline change.
   coverage progress but does not yet complete the `tarfile` checklist item.
   See [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md)
   and [`tar-helper-guard-20260925.md`](rust-cpython/experiments/tar-helper-guard-20260925.md).
+  A later binding and import guard matched 13 source-overlay scenarios; the
+  speed figures above belong to its predecessor. See the
+  [contract audit](rust-cpython/experiments/tar-contract-20260925.md).
 - The optional `ipaddress` IPv4 parser improved a complete mixed routing task
   beyond its local self-comparison, with matching public output. Keep it
   behind `--ipv4-scan` while focused behavior, other important workloads,
@@ -705,6 +710,8 @@ as a separate baseline change.
   public properties, so defer a second narrow network kernel.
   See [`ipaddress-v4-scan-20260925.md`](rust-cpython/experiments/ipaddress-v4-scan-20260925.md)
   and the [follow-up profile](rust-cpython/experiments/ipaddress-next-kernel-profile-20260925.md).
+  A later binding guard has source-only differential evidence; its native
+  build and speed still need checking.
 - The optional fixed-width numeric `datetime.strptime` path matched the
   complete 60,000-record log-ingest output in five macOS pairs. The first
   unguarded version had median wall and CPU ratios of 0.641 and 0.613, but
@@ -730,6 +737,9 @@ as a separate baseline change.
   debt; it is not a performance promotion or a completed `uuid` port.
   Broader semantics and Linux resource costs remain open. See
   [`uuid-canonical-20260925.md`](rust-cpython/experiments/uuid-canonical-20260925.md).
+  A later guard closes observed mutable-binding and shadow-module bypasses;
+  the 1.003/1.000 ratios describe the earlier source. See the
+  [contract audit](rust-cpython/experiments/uuid-canonical-contract-20260925.md).
 - The optional default POSIX `shlex.split` scanner matched a complete
   25,264-call command-processing task, including its fallback cases and
   expected parse errors. Five macOS pairs improved median wall by 63.7%
@@ -757,9 +767,9 @@ as a separate baseline change.
   describe pre-revision source; see the
   [contract audit](rust-cpython/experiments/fraction-rational-contract-20260925.md).
 - Earlier URL patches had targeted gains across three complete tasks; the
-  revised quote guard has no fresh speed result or strict state parity. The
-  ranked entries
-  in `rust-cpython/README.md` remain hypotheses, not completed ports.
+  revised quote guard has no fresh speed result or complete behavior verdict.
+  The ranked entries in `rust-cpython/README.md` remain hypotheses, not
+  completed ports.
 - Establish the missing macOS unique/proportional memory and allocation
   measurements and matched upstream control comparison. The simple libproc
   region probe failed; any further USS/PSS work needs a different interface
@@ -773,8 +783,8 @@ as a separate baseline change.
   contract. The former exposes mutable matcher state; the latter changes
   trace-mediated mutation and callback timing. Their measured and semantic
   limits are in the difflib experiment records.
-- The guarded URL patch is speed-qualified on three complete tasks. Its small
-  fresh-import CPU cost remains visible; the tested lazy variant did not show
+- An earlier guarded URL patch was speed-qualified on three complete tasks.
+  Its small fresh-import CPU cost remains visible; the tested lazy variant did not show
   a reliable benefit. The earlier request-path RSS increase did not repeat
   with identical checkers, while the lazy overlay showed a separate small
   directional RSS increase. Keep the eager patch as the current experiment.

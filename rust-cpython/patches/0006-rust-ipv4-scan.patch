@@ -1,23 +1,38 @@
 diff --git a/Lib/ipaddress.py b/Lib/ipaddress.py
 --- a/Lib/ipaddress.py
 +++ b/Lib/ipaddress.py
-@@ -1233,2 +1233,11 @@
+@@ -1233,2 +1233,21 @@
          """
-+        if (cls is IPv4Address and type(ip_str) is str and
-+                7 <= len(ip_str) <= 15 and
++        if (cls is IPv4Address and type is _ORIGINAL_V4_TYPE and
++                type(ip_str) is str and
++                len is _ORIGINAL_V4_LEN and
++                map is _ORIGINAL_V4_MAP and
++                int is _ORIGINAL_V4_INT and
++                __import__ is _ORIGINAL_V4_IMPORT and
 +                _BaseV4.__dict__.get('_parse_octet') is _ORIGINAL_V4_PARSE_OCTET and
 +                '_parse_octet' not in IPv4Address.__dict__):
-+            from _rust_ipv4_scan import scan
-+            scanned = scan(ip_str)
-+            if scanned is not None:
-+                return scanned
++            try:
++                from _rust_ipv4_scan import scan
++            except ImportError:
++                pass
++            else:
++                # Only the native extension may bypass the Python parser.
++                if type(scan) is type(len) and scan.__module__ == '_rust_ipv4_scan':
++                    scanned = scan(ip_str)
++                    if scanned is not None:
++                        return scanned
 +
          if not ip_str:
-@@ -1302,2 +1311,5 @@
+@@ -1302,2 +1321,10 @@
          return '.'.join(reverse_octets) + '.in-addr.arpa'
 +
 +# The native scan is valid only while the original octet parser is inherited.
 +_ORIGINAL_V4_PARSE_OCTET = _BaseV4.__dict__['_parse_octet']
++_ORIGINAL_V4_TYPE = type
++_ORIGINAL_V4_LEN = len
++_ORIGINAL_V4_MAP = map
++_ORIGINAL_V4_INT = int
++_ORIGINAL_V4_IMPORT = __import__
  
 diff --git a/Makefile.pre.in b/Makefile.pre.in
 --- a/Makefile.pre.in

@@ -3,12 +3,12 @@
   "patches": [
     {
       "file": "0001-rust-url-quote.patch",
-      "sha256": "7fac5479b53de5eda3d83b4176352aecc9901ec094b79baacad015083323a43f",
+      "sha256": "0296c67e64c7f02f1f5ff374eca4d8d8e685323e59f8cd3f37edb467ce1c2f8f",
       "author": "OpenAI Codex, adapting the repository lean URL quotation proof",
       "origin": "rust-cpython/experiments/url-quote-lean-proof/{quote.rs,module.c,build.py} and the pinned Rust-for-CPython source; original build integration authored for this experiment on 2026-09-24; 2026-09-25: registered Modules/_rust_url_quote in configure SRCDIRS so out-of-tree parallel builds create its object directory, and removed the hard-coded aarch64-apple-darwin rustc target",
       "license": "PSF-2.0, matching the pinned CPython fork and repository proof",
       "reason": "Evaluate guarded exact-bytes URL percent quotation through a CPython-owned C extension and private no_std Rust kernel while consulting the original Python quoter and its mutable per-safe state before native dispatch.",
-      "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b with Cargo.lock SHA-256 55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023; preserves the original urllib.parse fast exits and quoter fallback, permits native quotation only for exact bytes with original Python helper bindings, quoter methods, and canonical empty per-safe cache; native hits do not populate the private per-byte quoter cache, so strict state parity remains open. Builds the private kernel for Cargo's configured target (the native host when CARGO_TARGET is empty) on the macOS aarch64 and Linux x86_64 lanes with nightly-2026-09-15.",
+      "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b with Cargo.lock SHA-256 55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023; preserves the original urllib.parse fast exits and quoter fallback, permits native quotation only for exact bytes with original Python helper bindings, quoter methods, and canonical empty per-safe cache; native hits prime the original per-byte quoter cache in first-occurrence order, while one-byte calls and active trace/profile hooks use Python. Installed 3.16 and performance qualification remain open. Builds the private kernel for Cargo's configured target (the native host when CARGO_TARGET is empty) on the macOS aarch64 and Linux x86_64 lanes with nightly-2026-09-15.",
       "reproducer": "Apply to the locked archive with git apply --check, build the pinned Rust candidate, then run the 2,177 public differential cases from rust-cpython/experiments/url-quote-lean-proof/check.py adapted to compare installed candidate and control, plus python3.16 -m test test_urlparse test_urllib -j1."
     },
     {
@@ -44,24 +44,24 @@
     },
     {
       "file": "0005-rust-tar-checksum.patch",
-      "sha256": "a9ca2311c068cd3f9d281cd3a78e5c25621cb11f258090fdba575a43a496ac31",
+      "sha256": "0da95722ef14a790c984c7056929c7d08eaa7deb7a21e6a3b64df4296ce42df6",
       "mode": "tar-checksum",
       "author": "OpenAI Codex, integrating the repository TAR checksum proof",
       "origin": "Pinned Rust-for-CPython tarfile.py and repository TAR checksum proof; authored on 2026-09-25",
       "license": "PSF-2.0, matching the pinned CPython fork and repository proof",
-      "reason": "Optionally route exact 512-byte TAR header checksums to a TAR-owned private no_std Rust extension only when the captured native helpers have their expected type, module, and name and remain unchanged.",
-      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; ordinary Python helper replacements before or after tarfile import use the Python path; lazy import on first eligible checksum; pinned nightly-2026-09-15.",
+      "reason": "Optionally route exact 512-byte TAR header checksums to a TAR-owned private no_std Rust extension when parser helpers and import state retain their captured behavior.",
+      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; changed parser helpers, builtins, or import state use the Python path; lazy import accepts a native scanner only when the private module was not preloaded, then caches that bound scanner while its module remains registered. Preexisting custom import finders remain a gap. Native rebuild and speed comparison of this revision remain open; pinned nightly-2026-09-15.",
       "reproducer": "Apply selected patches to fresh verified source and check changed paths for default, TAR-only, and URL+TAR; build --tar-checksum; compare complete locked source TAR workload and cold import tarfile with the prior TAR-owned candidate; inspect helper replacement and non-exact fallback boundaries."
     },
     {
       "file": "0006-rust-ipv4-scan.patch",
-      "sha256": "a592ce81d8455242bfdabd0daac7c71ab42a2e989aab61946c9297ff0e118f36",
+      "sha256": "83d6529503188ce9144b90f853b684187867d07ee1a23ff29af678d142fbce70",
       "mode": "ipv4-scan",
       "author": "OpenAI Codex",
       "origin": "Pinned Rust-for-CPython Lib/ipaddress.py and its public IPv4 address behavior; authored on 2026-09-25",
       "license": "PSF-2.0, matching the pinned CPython fork",
       "reason": "Optionally scan exact canonical dotted-decimal IPv4 literals through a private no_std Rust extension only while the original inherited octet parser remains installed; retain all other Python parsing, errors, and subclass paths.",
-      "compatibility": "Applies after default source patches to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only with --ipv4-scan; built and measured on native macOS arm64, Linux unbuilt; exact str, cls is IPv4Address, the original _BaseV4._parse_octet descriptor, and no IPv4Address override are required.",
+      "compatibility": "Applies after default source patches to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only with --ipv4-scan; the prior revision was built and measured on native macOS arm64, Linux unbuilt; exact str, cls is IPv4Address, original parser descriptor and mutable builtin bindings, and no IPv4Address override are required. The revised guard has source-only evidence; native rebuild and speed comparison remain open.",
       "reproducer": "Apply selected patches to fresh verified source for default, TAR, URL unquote, and all optional modes; check seven changed paths each time; build --variant ipv4-guard --ipv4-scan; compare serial mixed routing and cold-import workloads with the prior candidate and TAR-guard control."
     },
     {
@@ -77,13 +77,13 @@
     },
     {
       "file": "0008-rust-uuid-canonical.patch",
-      "sha256": "939dd73e59400cd19a06148805d8c9935fd84e84f41070a48aa87806b138f61b",
+      "sha256": "50f49664ff00ef4f99c268f4ae36bc7928d495499575258038e4ea38fc880f83",
       "mode": "uuid-canonical",
       "author": "OpenAI Codex",
       "origin": "Pinned Rust-for-CPython Lib/uuid.py and CPython extension interfaces; authored on 2026-09-25",
       "license": "PSF-2.0, matching the pinned CPython fork",
       "reason": "Optionally scan exact lowercase canonical UUID text through a private no_std Rust extension while public UUID object construction and noncanonical fallback remain in Python.",
-      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --uuid-canonical; exact UUID class and str input, default version and original int_ binding only.",
+      "compatibility": "Applies after default source patches to commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected with --uuid-canonical; exact UUID class and str input, default version, captured int_ and relevant builtin bindings, and an unshadowed native scanner are required. The revised guard has source-only evidence; native rebuild and speed comparison remain open.",
       "reproducer": "Apply selected patches to fresh verified pinned source for default, UUID-only, strptime plus UUID, and all optional modes; verify changed paths and reverse checks; build --variant uuid-canonical --strptime-numeric --uuid-canonical; compare complete public UUID index workload against the strptime-only control."
     },
     {

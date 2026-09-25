@@ -1,37 +1,101 @@
 diff --git a/Lib/tarfile.py b/Lib/tarfile.py
 --- a/Lib/tarfile.py
 +++ b/Lib/tarfile.py
-@@ -218,6 +218,20 @@
+@@ -45,4 +45,5 @@
+ from builtins import open as bltn_open
++import builtins
+ import sys
+ import os
+ import io
+@@ -218,6 +219,72 @@
  
      return s
  
-+# A helper replaced before this import must also use the Python checksum path.
-+# Built-in functions have a distinct type, and their names identify the two
-+# native helpers; the per-call identities below detect later replacements.
++# Keep the Python expressions when a binding they would observe changes.
++# The native function checks also reject ordinary replacements before import.
 +_ORIGINAL_UNPACK_FROM = struct.unpack_from
++_ORIGINAL_STRUCT = struct
 +_ORIGINAL_SUM = sum
++_ORIGINAL_TYPE = type
++_ORIGINAL_BYTES = bytes
++_ORIGINAL_LEN = len
++_ORIGINAL_IMPORT = builtins.__import__
++_ORIGINAL_BUILTINS = builtins
++_ORIGINAL_SYS = sys
++_ORIGINAL_MODULES = sys.modules
++_ORIGINAL_META_PATH = sys.meta_path
++_ORIGINAL_META_FINDERS = tuple(sys.meta_path)
++_NATIVE_FUNCTION_TYPE = [].append.__class__
 +_CHECKSUM_HELPERS_NATIVE = (
-+    type(_ORIGINAL_UNPACK_FROM) is type([].append) and
++    type is (1).__class__.__class__ and
++    bytes is b"".__class__ and
++    type(_ORIGINAL_LEN) is _NATIVE_FUNCTION_TYPE and
++    _ORIGINAL_LEN.__module__ == "builtins" and
++    _ORIGINAL_LEN.__name__ == "len" and
++    type(_ORIGINAL_IMPORT) is _NATIVE_FUNCTION_TYPE and
++    _ORIGINAL_IMPORT.__module__ == "builtins" and
++    _ORIGINAL_IMPORT.__name__ == "__import__" and
++    type(_ORIGINAL_UNPACK_FROM) is _NATIVE_FUNCTION_TYPE and
 +    _ORIGINAL_UNPACK_FROM.__module__ == "_struct" and
 +    _ORIGINAL_UNPACK_FROM.__name__ == "unpack_from" and
-+    type(_ORIGINAL_SUM) is type([].append) and
++    type(_ORIGINAL_SUM) is _NATIVE_FUNCTION_TYPE and
 +    _ORIGINAL_SUM.__module__ == "builtins" and
-+    _ORIGINAL_SUM.__name__ == "sum"
++    _ORIGINAL_SUM.__name__ == "sum" and
++    type(sys.modules) is {}.__class__
 +)
++_RUST_TAR_MODULE = None
++_RUST_TAR_SCAN = None
++
++def _unchanged_import_path():
++    if (sys.meta_path is not _ORIGINAL_META_PATH or
++            type(sys.meta_path) is not list or
++            len(sys.meta_path) != len(_ORIGINAL_META_FINDERS)):
++        return False
++    index = 0
++    while index < len(_ORIGINAL_META_FINDERS):
++        if sys.meta_path[index] is not _ORIGINAL_META_FINDERS[index]:
++            return False
++        index += 1
++    return True
++
++def _trusted_checksum_scan(buf):
++    global _RUST_TAR_MODULE, _RUST_TAR_SCAN
++    module = sys.modules.get("_rust_tar_checksum")
++    if _RUST_TAR_MODULE is None:
++        # An application-supplied private module must not set the result.
++        if "_rust_tar_checksum" in sys.modules:
++            return None
++        from _rust_tar_checksum import scan
++        module = sys.modules.get("_rust_tar_checksum")
++        if (type(module) is not type(sys) or
++                type(scan) is not _NATIVE_FUNCTION_TYPE or
++                scan.__self__ is not module):
++            return None
++        _RUST_TAR_MODULE = module
++        _RUST_TAR_SCAN = scan
++    if module is _RUST_TAR_MODULE:
++        return _RUST_TAR_SCAN(buf)
++    return None
 +
  def calc_chksums(buf):
      """Calculate the checksum for a member's header by summing up all
         characters except for the chksum field which is treated as if
-@@ -227,6 +241,12 @@
+@@ -227,6 +294,18 @@
         the high bit set. So we calculate two checksums, unsigned and
         signed.
      """
-+    if (type(buf) is bytes and len(buf) == 512 and
-+            _CHECKSUM_HELPERS_NATIVE and
++    if (_CHECKSUM_HELPERS_NATIVE and
++            type is _ORIGINAL_TYPE and bytes is _ORIGINAL_BYTES and
++            len is _ORIGINAL_LEN and builtins is _ORIGINAL_BUILTINS and
++            sys is _ORIGINAL_SYS and sys.modules is _ORIGINAL_MODULES and
++            builtins.__import__ is _ORIGINAL_IMPORT and
++            type(buf) is bytes and len(buf) == 512 and
++            struct is _ORIGINAL_STRUCT and
 +            struct.unpack_from is _ORIGINAL_UNPACK_FROM and
-+            sum is _ORIGINAL_SUM):
-+        from _rust_tar_checksum import scan
-+        return scan(buf)
++            sum is _ORIGINAL_SUM and _unchanged_import_path()):
++        checksums = _trusted_checksum_scan(buf)
++        if checksums is not None:
++            return checksums
      unsigned_chksum = 256 + sum(struct.unpack_from("148B8x356B", buf))
      signed_chksum = 256 + sum(struct.unpack_from("148b8x356b", buf))
      return unsigned_chksum, signed_chksum

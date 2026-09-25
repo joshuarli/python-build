@@ -1,0 +1,238 @@
+{
+  "source": "rust-cpython/work/tar-contract/cpython-b812b4a7b9efaca46b98544a8633b7d7e454166b/Lib/tarfile.py",
+  "observations": [
+    {
+      "case": "ordinary_proxy",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": [
+          "native"
+        ]
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "bytearray",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "short_bytes",
+      "candidate": {
+        "error": "error",
+        "message": "unpack_from requires a buffer of at least 512 bytes for unpacking 512 bytes at offset 0 (actual buffer size is 511)",
+        "events": []
+      },
+      "baseline": {
+        "error": "error",
+        "message": "unpack_from requires a buffer of at least 512 bytes for unpacking 512 bytes at offset 0 (actual buffer size is 511)",
+        "events": []
+      }
+    },
+    {
+      "case": "type_binding",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "bytes_binding",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "len_binding",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "sum_binding",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": [
+          "sum",
+          "sum"
+        ]
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": [
+          "sum",
+          "sum"
+        ]
+      }
+    },
+    {
+      "case": "struct_binding",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": [
+          "unpack_from",
+          "unpack_from"
+        ]
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": [
+          "unpack_from",
+          "unpack_from"
+        ]
+      }
+    },
+    {
+      "case": "import_hook",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "meta_path",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "preloaded_private",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "replaced_private",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    },
+    {
+      "case": "changed_scan_attribute",
+      "candidate": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": [
+          "cached_scan"
+        ]
+      },
+      "baseline": {
+        "result": [
+          64324,
+          836
+        ],
+        "events": []
+      }
+    }
+  ]
+}

@@ -274,13 +274,14 @@ The measured results, repeated runs, and limits are recorded in
 
 ### Tier A — candidate map and measured outcomes
 
-The URL quote, numeric `strptime`, `shlex`, and Fraction Python guards were
-revised after the timing figures below. Those figures describe their earlier
-source; fresh quiet-host comparisons of the revised guards remain open. The
-URL quote route still leaves a private quoter cache unfilled, and optional
-`unquote` can change public output when `_hextobyte` is edited. Both URL routes
-remain experimental and unqualified for strict behavior parity; see the
-[URL contract audit](experiments/url-contract-guard-20260925.md).
+The URL quote, TAR, IPv4, numeric `strptime`, UUID, `shlex`, and Fraction
+guards were revised after the timing figures below. Those figures describe
+earlier source; fresh installed and quiet-host comparisons remain open. The
+revised quote route primes the original private quoter cache for its guarded
+inputs, while optional `unquote` can still change public output when
+`_hextobyte` is edited. Both URL routes remain experimental; see the
+[quote cache audit](experiments/url-quote-cache-contract-20260925.md) and
+[unquote mutable-state decision](experiments/url-unquote-contract-followup-20260925.md).
 
 | Rank | Area: current implementation and CPython tests | Leverage and proposed Rust boundary | Hazards, prior art, and measurement gate |
 | ---: | --- | --- | --- |
