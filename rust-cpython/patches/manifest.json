@@ -20,6 +20,16 @@
       "reason": "Route every CPython inflate stream operation to prefixed zlib-rs symbols while preserving platform zlib for deflate, checksums, and version identity.",
       "compatibility": "Applies to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; guarded by PYTHON_BUILD_ZLIB_HYBRID and requires libz-rs-sys-cdylib 0.6.7 custom-prefix with LIBZ_RS_SYS_PREFIX=python_build_rs_.",
       "reproducer": "Apply to a fresh extracted pinned source with rust-cpython/build.py source patch checks, inspect the prefixed archive symbols, build --zlib-hybrid, compare 876 encoded bytes with the platform control, and run focused CPython zlib consumer tests."
+    },
+    {
+      "file": "0003-zlib-oneshot-inflate.patch",
+      "sha256": "5b6c108d95777043d37fb59671d75da044d64c5757e3f37ba276da37dbaa5d07",
+      "author": "OpenAI Codex",
+      "origin": "Pinned Rust-for-CPython Modules/zlibmodule.c and libz-rs-sys-cdylib 0.6.7 custom-prefix feature; authored for this experiment on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython source",
+      "reason": "Route only the local zlib.decompress inflate stream to prefixed zlib-rs while persistent public and private streams remain on platform libz.",
+      "compatibility": "Applies after 0002 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; guarded by PYTHON_BUILD_ZLIB_ONESHOT and requires libz-rs-sys-cdylib 0.6.7 custom-prefix with LIBZ_RS_SYS_PREFIX=python_build_rs_.",
+      "reproducer": "Apply 0001, 0002, and 0003 in order to a fresh pinned source tree; verify forward and reverse patch checks, inspect the one-shot and persistent stream call sites, build --zlib-oneshot, and check installed prefixed definitions plus platform inflate references."
     }
   ]
 }
