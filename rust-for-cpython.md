@@ -527,11 +527,17 @@ as a separate baseline change.
   and active trace/profile hooks use Python. Public edited-cache outcomes
   matched the pinned parser; private cache state still differs. A same-binary
   diagnostic found lower search CPU but higher request-path CPU against pure
-  Python, so quiet-host speed and memory remain open. Optional `unquote`
+  Python. A further bounded same-executable, source-only comparison of the
+  exact revised patch matched all 32 workload digests. Under host load,
+  median paired CPU ratios were 0.959 for search and 1.083 for request path;
+  the path increase exceeded measured same-side noise. This is a warning for
+  the default route, while quiet-host installed-build speed and memory remain
+  open. Optional `unquote`
   changes public output if `_hextobyte` is edited and skips its lazy setup;
   the narrow in-loop Rust replacement was stopped. Earlier URL speed ratios
   describe pre-guard source. See the [binding audit](rust-cpython/experiments/url-contract-guard-20260925.md),
   [cache cost](rust-cpython/experiments/url-quote-cache-cost-20260925.md),
+  [revised-guard diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md),
   and [decoder decision](rust-cpython/experiments/url-unquote-contract-followup-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
   recipe. Its installed parser matches the selected source, its extension
@@ -770,8 +776,12 @@ as a separate baseline change.
   using the unchanged native extension. The 0.927/0.929 loaded-host ratios
   describe pre-revision source; see the
   [contract audit](rust-cpython/experiments/fraction-rational-contract-20260925.md).
-- Earlier URL patches had targeted gains across three complete tasks; the
-  revised quote guard has no fresh speed result or complete behavior verdict.
+- Earlier URL patches had targeted gains across three complete tasks. The
+  revised quote guard has a loaded-host source-overlay result: search CPU
+  improved 4.1% while request-path CPU rose 8.3%, beyond local same-side
+  variation. Resolve the request-path regression before a default performance
+  claim; broad behavior and installed-build resource qualification remain open.
+  See the [bounded diagnostic](rust-cpython/experiments/url-quote-quiet-20260925.md).
   The ranked entries in `rust-cpython/README.md` remain hypotheses, not
   completed ports.
 - Establish the missing macOS unique/proportional memory and allocation

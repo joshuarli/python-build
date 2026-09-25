@@ -1,0 +1,1867 @@
+{
+  "identities": {
+    "patch_sha256": "8117e87d51a91dd362d5c315f3eae552ac1144b83f43dae1980423c320b618ad",
+    "interpreter_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+    "stage_parse_sha256": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "control_parse_sha256": "178fce6bb504b9e544ac22015778554234c63865d94374913f988bb731e0d825",
+    "candidate_parse_sha256": "f2949f2bfd61891f33a9e79168f1c188587b374985ebb3faa04a476202b280f2",
+    "patched_source_parse_sha256": "f2949f2bfd61891f33a9e79168f1c188587b374985ebb3faa04a476202b280f2",
+    "module_c_sha256": "727e5b12a8a2e0b8a81be59b86ccb5252f88b1f66c64ca1cbc05ec71448f44df",
+    "quote_rs_sha256": "bb9156522ea47140e52e309b501ee3222ed5466fb8b33a779a31566e184fad8c",
+    "extension_sha256": "b1ab627f758d778087fb2c8e8e8df0835396e9b9c8d3db45550c7ca74710d617"
+  },
+  "command": "stage/bin/python3.16 -B -m benchmarks.workloads.catalog_url_breadth TASK --iterations N",
+  "environment": "PYTHONPATH=SIDE:NATIVE:ROOT; PYTHONDONTWRITEBYTECODE=1; PYTHONHASHSEED=1",
+  "cache_policy": "Both overlays have no __pycache__; source compiled on each import",
+  "accounting": "os.wait4 direct workload child; monotonic wall includes a host sample during the run; no workload descendants; ru_maxrss is lifetime peak, ru_nswap is child swaps; host ps RSS is sampled, physical footprint unavailable",
+  "host_initial": {
+    "load_average": [
+      3.9501953125,
+      4.193359375,
+      4.94140625
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top_processes": [
+      "76985  76.4 7078608 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "53193   6.6  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "89494   6.4  20928 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+    ],
+    "vm_pages": {
+      "Pages free": 34776,
+      "Pages active": 782510,
+      "Pages inactive": 895766,
+      "Pages wired down": 161629
+    }
+  },
+  "attempts": [
+    {
+      "id": "catalog_search_form-control_candidate-0-0",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.9869221249828115,
+      "user_seconds": 0.8927649999999999,
+      "system_seconds": 0.034651999999999995,
+      "peak_rss_bytes": 34226176,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  58.5 7080080 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "89494  10.9  21376 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+          "53193   6.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 34580,
+          "Pages active": 782529,
+          "Pages inactive": 895767,
+          "Pages wired down": 161707
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  39.4 7078656 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "89547  10.5  29856 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "89494   8.1  21440 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 32535,
+          "Pages active": 784246,
+          "Pages inactive": 895791,
+          "Pages wired down": 161642
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-0-1",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8862242919858545,
+      "user_seconds": 0.852881,
+      "system_seconds": 0.02173,
+      "peak_rss_bytes": 34537472,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  15.3 7191456 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "826   7.1  34304 /Users/josh/.local/bin/mactop",
+          "53193   4.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 33319,
+          "Pages active": 783047,
+          "Pages inactive": 895790,
+          "Pages wired down": 162118
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  24.1 7196656 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "89707   6.4  33680 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.0  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 32165,
+          "Pages active": 784195,
+          "Pages inactive": 896097,
+          "Pages wired down": 162130
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-1-0",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8804708329262212,
+      "user_seconds": 0.848869,
+      "system_seconds": 0.020363,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.6 7208432 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   2.5  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 33298,
+          "Pages active": 783060,
+          "Pages inactive": 896097,
+          "Pages wired down": 162122
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  18.8 7216352 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.5  21664 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 32045,
+          "Pages active": 784309,
+          "Pages inactive": 896104,
+          "Pages wired down": 162144
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-1-1",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.9236977499676868,
+      "user_seconds": 0.886045,
+      "system_seconds": 0.02156,
+      "peak_rss_bytes": 34603008,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.8 7218800 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   3.9  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 33284,
+          "Pages active": 783073,
+          "Pages inactive": 896110,
+          "Pages wired down": 162123
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.6 7218800 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "90022  13.2  33728 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   4.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 31958,
+          "Pages active": 784349,
+          "Pages inactive": 896119,
+          "Pages wired down": 162145
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-2-0",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.9062121660681441,
+      "user_seconds": 0.87508,
+      "system_seconds": 0.020087999999999998,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.5 7230176 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.6   1888 bash"
+        ],
+        "vm_pages": {
+          "Pages free": 33326,
+          "Pages active": 782992,
+          "Pages inactive": 896137,
+          "Pages wired down": 162116
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.9501953125,
+          4.193359375,
+          4.94140625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "90199  25.0  33376 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  18.0 7230176 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 32104,
+          "Pages active": 784273,
+          "Pages inactive": 896137,
+          "Pages wired down": 162138
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-2-1",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8839084579376504,
+      "user_seconds": 0.851978,
+      "system_seconds": 0.021082999999999998,
+      "peak_rss_bytes": 34717696,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.0 7233648 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   4.2  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 33352,
+          "Pages active": 783038,
+          "Pages inactive": 896143,
+          "Pages wired down": 162122
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.5 7244480 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.8  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   2.5  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 31859,
+          "Pages active": 784357,
+          "Pages inactive": 896147,
+          "Pages wired down": 162144
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-3-0",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8804362080991268,
+      "user_seconds": 0.847637,
+      "system_seconds": 0.021373,
+      "peak_rss_bytes": 34684928,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  18.0 7260208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.3  21792 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 33151,
+          "Pages active": 783080,
+          "Pages inactive": 896147,
+          "Pages wired down": 162127
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "90517  19.8  33856 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  17.1 7260208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 31919,
+          "Pages active": 784361,
+          "Pages inactive": 896147,
+          "Pages wired down": 162149
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_candidate-3-1",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.915873209014535,
+      "user_seconds": 0.883678,
+      "system_seconds": 0.020687999999999998,
+      "peak_rss_bytes": 34226176,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  12.8 7260256 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   3.9  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 33153,
+          "Pages active": 783088,
+          "Pages inactive": 896148,
+          "Pages wired down": 162131
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  15.3 7260256 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "90665   4.8  33408 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16"
+        ],
+        "vm_pages": {
+          "Pages free": 31946,
+          "Pages active": 784344,
+          "Pages inactive": 896151,
+          "Pages wired down": 162153
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_control-0-0",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.9140044169034809,
+      "user_seconds": 0.8797269999999999,
+      "system_seconds": 0.021008,
+      "peak_rss_bytes": 34078720,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  18.3 7263824 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.8  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.6  21840 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 33366,
+          "Pages active": 783052,
+          "Pages inactive": 896155,
+          "Pages wired down": 162124
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "90838  19.8  33248 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  16.8 7263824 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 32074,
+          "Pages active": 784339,
+          "Pages inactive": 896155,
+          "Pages wired down": 162153
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_control-0-1",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.9215993749676272,
+      "user_seconds": 0.8907849999999999,
+      "system_seconds": 0.020864999999999998,
+      "peak_rss_bytes": 34095104,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.8 7300320 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.4  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   4.0  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 33096,
+          "Pages active": 783097,
+          "Pages inactive": 896167,
+          "Pages wired down": 162132
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.7138671875,
+          4.14013671875,
+          4.91796875
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.6 7300336 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "585   1.7  42048 /System/Library/DriverExtensions/com.apple.DriverKit-AppleBCMWLAN.dext/com.apple.DriverKit-AppleBCMWLAN"
+        ],
+        "vm_pages": {
+          "Pages free": 31958,
+          "Pages active": 784344,
+          "Pages inactive": 896169,
+          "Pages wired down": 162154
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_control-1-0",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.9214847499970347,
+      "user_seconds": 0.889339,
+      "system_seconds": 0.020569999999999998,
+      "peak_rss_bytes": 34553856,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.2 7311920 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.0  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   1.7  21856 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 33216,
+          "Pages active": 783014,
+          "Pages inactive": 896173,
+          "Pages wired down": 162126
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.8 7311920 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.6  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "91164   4.1  33728 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16"
+        ],
+        "vm_pages": {
+          "Pages free": 31833,
+          "Pages active": 784376,
+          "Pages inactive": 896173,
+          "Pages wired down": 162156
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-control_control-1-1",
+      "task": "catalog_search_form",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.915994834038429,
+      "user_seconds": 0.8838159999999999,
+      "system_seconds": 0.020259,
+      "peak_rss_bytes": 34373632,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  13.4 7312208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "32688   2.8 300272 codex"
+        ],
+        "vm_pages": {
+          "Pages free": 32618,
+          "Pages active": 783106,
+          "Pages inactive": 896173,
+          "Pages wired down": 162133
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.7 7312352 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "91320  12.9  33536 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.1  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 31287,
+          "Pages active": 784410,
+          "Pages inactive": 896175,
+          "Pages wired down": 162157
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-candidate_candidate-0-0",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8838819999946281,
+      "user_seconds": 0.8516159999999999,
+      "system_seconds": 0.020922,
+      "peak_rss_bytes": 34324480,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.4 7324512 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89818   1.5   1888 bash"
+        ],
+        "vm_pages": {
+          "Pages free": 32477,
+          "Pages active": 783158,
+          "Pages inactive": 896179,
+          "Pages wired down": 162132
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "91494  26.5  33488 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  20.0 7331280 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 31195,
+          "Pages active": 784416,
+          "Pages inactive": 896179,
+          "Pages wired down": 162153
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-candidate_candidate-0-1",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8839384169550613,
+      "user_seconds": 0.851887,
+      "system_seconds": 0.02132,
+      "peak_rss_bytes": 34177024,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  19.4 7348368 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "2112   1.5  27008 tmux"
+        ],
+        "vm_pages": {
+          "Pages free": 32481,
+          "Pages active": 783128,
+          "Pages inactive": 896185,
+          "Pages wired down": 162130
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  19.5 7348560 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "91640   7.2  33360 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   4.8  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 31300,
+          "Pages active": 784333,
+          "Pages inactive": 896191,
+          "Pages wired down": 162147
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-candidate_candidate-1-0",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8932260420406237,
+      "user_seconds": 0.86037,
+      "system_seconds": 0.021405,
+      "peak_rss_bytes": 34635776,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.65625,
+          4.12109375,
+          4.90625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  20.5 7349408 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.1  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "91702   4.7 139712 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/154.0.8037.57/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)"
+        ],
+        "vm_pages": {
+          "Pages free": 29402,
+          "Pages active": 786062,
+          "Pages inactive": 896207,
+          "Pages wired down": 162190
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  18.5 7349408 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.9  21904 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 28096,
+          "Pages active": 787338,
+          "Pages inactive": 896207,
+          "Pages wired down": 162210
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_search_form-candidate_candidate-1-1",
+      "task": "catalog_search_form",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.8707910829689354,
+      "user_seconds": 0.838769,
+      "system_seconds": 0.020787999999999997,
+      "peak_rss_bytes": 34340864,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.3 7349808 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "32688   2.1 300272 codex"
+        ],
+        "vm_pages": {
+          "Pages free": 29502,
+          "Pages active": 785991,
+          "Pages inactive": 896221,
+          "Pages wired down": 162180
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  15.6 7357824 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "91960  13.3  33488 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.1  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28208,
+          "Pages active": 787254,
+          "Pages inactive": 896223,
+          "Pages wired down": 162203
+        }
+      },
+      "output_digest": "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 500,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-0-0",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.25550304097123444,
+      "user_seconds": 0.225096,
+      "system_seconds": 0.019833,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.0 7361008 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   4.6  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   3.6  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 29556,
+          "Pages active": 786074,
+          "Pages inactive": 896019,
+          "Pages wired down": 162191
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.3 7361040 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.0  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   3.4  21904 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 28333,
+          "Pages active": 787327,
+          "Pages inactive": 896019,
+          "Pages wired down": 162213
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-0-1",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.2791277499636635,
+      "user_seconds": 0.246336,
+      "system_seconds": 0.020541999999999998,
+      "peak_rss_bytes": 34373632,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  12.4 7361040 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.1  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.5  21904 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29663,
+          "Pages active": 786076,
+          "Pages inactive": 896019,
+          "Pages wired down": 162191
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "92182  18.2  33552 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  12.2 7361040 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28100,
+          "Pages active": 787371,
+          "Pages inactive": 896019,
+          "Pages wired down": 162409
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-1-0",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.2759199170395732,
+      "user_seconds": 0.24468099999999998,
+      "system_seconds": 0.02002,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  14.0 7361072 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.2  21920 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29294,
+          "Pages active": 786112,
+          "Pages inactive": 896019,
+          "Pages wired down": 162388
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.6 7361072 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.8  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   4.5  21936 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 28077,
+          "Pages active": 787364,
+          "Pages inactive": 896019,
+          "Pages wired down": 162410
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-1-1",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.2560394579777494,
+      "user_seconds": 0.225574,
+      "system_seconds": 0.019781999999999998,
+      "peak_rss_bytes": 34029568,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.2 7361184 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.5  21952 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29365,
+          "Pages active": 786113,
+          "Pages inactive": 896021,
+          "Pages wired down": 162388
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  20.5 7361520 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "92316  13.6  33216 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.8  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28043,
+          "Pages active": 787356,
+          "Pages inactive": 896025,
+          "Pages wired down": 162410
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-2-0",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.2540634999750182,
+      "user_seconds": 0.225441,
+      "system_seconds": 0.018996,
+      "peak_rss_bytes": 34177024,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  20.6 7380480 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.4  21968 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29190,
+          "Pages active": 786125,
+          "Pages inactive": 896025,
+          "Pages wired down": 162393
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.9 7380512 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   6.0  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   4.6  21968 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 28111,
+          "Pages active": 787292,
+          "Pages inactive": 896025,
+          "Pages wired down": 162407
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-2-1",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.2762600000714883,
+      "user_seconds": 0.24578799999999998,
+      "system_seconds": 0.020034,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  18.3 7380512 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "826   3.6  34304 /Users/josh/.local/bin/mactop"
+        ],
+        "vm_pages": {
+          "Pages free": 29342,
+          "Pages active": 786093,
+          "Pages inactive": 896025,
+          "Pages wired down": 162391
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  25.3 7380528 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "92447  17.2  33376 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.6  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28036,
+          "Pages active": 787378,
+          "Pages inactive": 896025,
+          "Pages wired down": 162416
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-3-0",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.27499174990225583,
+      "user_seconds": 0.24527,
+      "system_seconds": 0.02037,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  21.2 7414656 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.4  22064 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29348,
+          "Pages active": 786132,
+          "Pages inactive": 896025,
+          "Pages wired down": 162394
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.3 7414656 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.7  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   4.5  22064 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 28052,
+          "Pages active": 787340,
+          "Pages inactive": 896025,
+          "Pages wired down": 162414
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_candidate-3-1",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.2594871250912547,
+      "user_seconds": 0.22702799999999998,
+      "system_seconds": 0.02012,
+      "peak_rss_bytes": 34308096,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  10.6 7414672 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.8  22080 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29332,
+          "Pages active": 786120,
+          "Pages inactive": 896025,
+          "Pages wired down": 162393
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  13.4 7415376 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "92584  10.0  33488 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28066,
+          "Pages active": 787328,
+          "Pages inactive": 896037,
+          "Pages wired down": 162404
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_control-0-0",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.2549482089234516,
+      "user_seconds": 0.223964,
+      "system_seconds": 0.019372999999999998,
+      "peak_rss_bytes": 34177024,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5234375,
+          4.08544921875,
+          4.88916015625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  29.3 7075264 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   2.5  22096 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29938,
+          "Pages active": 786100,
+          "Pages inactive": 896038,
+          "Pages wired down": 161881
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  22.1 7075568 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.4  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   4.1  22096 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 28522,
+          "Pages active": 787384,
+          "Pages inactive": 896044,
+          "Pages wired down": 161932
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_control-0-1",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.25893825001548976,
+      "user_seconds": 0.225297,
+      "system_seconds": 0.01983,
+      "peak_rss_bytes": 34390016,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.8 7075920 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "32688   4.0 300288 codex"
+        ],
+        "vm_pages": {
+          "Pages free": 29764,
+          "Pages active": 786100,
+          "Pages inactive": 896044,
+          "Pages wired down": 161905
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  15.3 7075920 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "92717  13.2  33568 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28382,
+          "Pages active": 787406,
+          "Pages inactive": 896044,
+          "Pages wired down": 161932
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_control-1-0",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.25462870800402015,
+      "user_seconds": 0.22419799999999998,
+      "system_seconds": 0.019509,
+      "peak_rss_bytes": 34439168,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  16.0 7075952 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   3.0  22272 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29742,
+          "Pages active": 786016,
+          "Pages inactive": 896044,
+          "Pages wired down": 161896
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  19.2 7075952 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "826   6.0  34304 /Users/josh/.local/bin/mactop",
+          "53193   6.0  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28472,
+          "Pages active": 787439,
+          "Pages inactive": 896044,
+          "Pages wired down": 161932
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-control_control-1-1",
+      "task": "catalog_request_path",
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.2563756669405848,
+      "user_seconds": 0.22588799999999998,
+      "system_seconds": 0.019988,
+      "peak_rss_bytes": 33931264,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  17.1 7075952 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.6  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   3.4  22272 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29787,
+          "Pages active": 786135,
+          "Pages inactive": 896044,
+          "Pages wired down": 161909
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "92850  19.4  33104 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  13.5 7075984 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.8  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28461,
+          "Pages active": 787409,
+          "Pages inactive": 896044,
+          "Pages wired down": 161932
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-candidate_candidate-0-0",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.2744121659779921,
+      "user_seconds": 0.24523199999999998,
+      "system_seconds": 0.019792,
+      "peak_rss_bytes": 34324480,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985   9.9 7075984 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   3.7  22304 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29863,
+          "Pages active": 786141,
+          "Pages inactive": 896044,
+          "Pages wired down": 161909
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  11.0 7076016 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "92927   7.8  33504 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28540,
+          "Pages active": 787353,
+          "Pages inactive": 896044,
+          "Pages wired down": 161927
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-candidate_candidate-0-1",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.28558483405504376,
+      "user_seconds": 0.25173799999999996,
+      "system_seconds": 0.020701999999999998,
+      "peak_rss_bytes": 34062336,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  13.7 7076048 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.2  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "89494   3.0  22352 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+        ],
+        "vm_pages": {
+          "Pages free": 29739,
+          "Pages active": 786144,
+          "Pages inactive": 896044,
+          "Pages wired down": 161910
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "92983  18.7  33248 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "76985  13.9 7076048 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.3  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28150,
+          "Pages active": 787674,
+          "Pages inactive": 896044,
+          "Pages wired down": 161966
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-candidate_candidate-1-0",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.27795454196166247,
+      "user_seconds": 0.24523999999999999,
+      "system_seconds": 0.01968,
+      "peak_rss_bytes": 34193408,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  23.3 7080208 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "32688  18.0 300464 codex",
+          "53193   8.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 29564,
+          "Pages active": 786169,
+          "Pages inactive": 896055,
+          "Pages wired down": 162065
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  19.2 7080352 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "32688  10.9 300464 codex",
+          "53193   7.5  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28131,
+          "Pages active": 787419,
+          "Pages inactive": 896055,
+          "Pages wired down": 162087
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    },
+    {
+      "id": "catalog_request_path-candidate_candidate-1-1",
+      "task": "catalog_request_path",
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.2816779159475118,
+      "user_seconds": 0.24770899999999998,
+      "system_seconds": 0.020114,
+      "peak_rss_bytes": 34553856,
+      "swaps": 0,
+      "host_before": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  13.7 7080368 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "53193   5.9  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+          "32688   4.3 300464 codex"
+        ],
+        "vm_pages": {
+          "Pages free": 29539,
+          "Pages active": 786162,
+          "Pages inactive": 896056,
+          "Pages wired down": 162063
+        }
+      },
+      "host_during": {
+        "load_average": [
+          3.5615234375,
+          4.083984375,
+          4.8837890625
+        ],
+        "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+        "top_processes": [
+          "76985  13.5 7080368 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+          "93133   9.9  33728 /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+          "53193   5.7  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension"
+        ],
+        "vm_pages": {
+          "Pages free": 28225,
+          "Pages active": 787401,
+          "Pages inactive": 896056,
+          "Pages wired down": 162084
+        }
+      },
+      "output_digest": "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff",
+      "input_digest": "7593b5e1e89029f11d467bdbd9a6b5392ce088f9591251c72133324c6a94d38f",
+      "operation_count": 1000,
+      "valid": true
+    }
+  ],
+  "groups": [
+    {
+      "id": "catalog_search_form-control_candidate-0",
+      "order": [
+        "control",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_search_form-control_candidate-1",
+      "order": [
+        "candidate",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_search_form-control_candidate-2",
+      "order": [
+        "control",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_search_form-control_candidate-3",
+      "order": [
+        "candidate",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_search_form-control_control-0",
+      "order": [
+        "control",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_search_form-control_control-1",
+      "order": [
+        "control",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_search_form-candidate_candidate-0",
+      "order": [
+        "candidate",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_search_form-candidate_candidate-1",
+      "order": [
+        "candidate",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_request_path-control_candidate-0",
+      "order": [
+        "control",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_request_path-control_candidate-1",
+      "order": [
+        "candidate",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_request_path-control_candidate-2",
+      "order": [
+        "control",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_request_path-control_candidate-3",
+      "order": [
+        "candidate",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_request_path-control_control-0",
+      "order": [
+        "control",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_request_path-control_control-1",
+      "order": [
+        "control",
+        "control"
+      ]
+    },
+    {
+      "id": "catalog_request_path-candidate_candidate-0",
+      "order": [
+        "candidate",
+        "candidate"
+      ]
+    },
+    {
+      "id": "catalog_request_path-candidate_candidate-1",
+      "order": [
+        "candidate",
+        "candidate"
+      ]
+    }
+  ],
+  "host_final": {
+    "load_average": [
+      3.5615234375,
+      4.083984375,
+      4.8837890625
+    ],
+    "swap": "total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top_processes": [
+      "76985  16.2 7080368 /Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+      "53193   5.6  27072 /Library/SystemExtensions/D262B73A-3C76-4BC4-8E40-1930810C0F6B/io.kandji.KandjiAgent.ESF-Extension.systemextension/Contents/MacOS/io.kandji.KandjiAgent.ESF-Extension",
+      "826   2.7  34304 /Users/josh/.local/bin/mactop"
+    ],
+    "vm_pages": {
+      "Pages free": 29427,
+      "Pages active": 786218,
+      "Pages inactive": 896056,
+      "Pages wired down": 162130
+    }
+  }
+}
