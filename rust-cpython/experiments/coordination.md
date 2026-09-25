@@ -1,5 +1,22 @@
 # Rust-for-CPython experiment lanes
 
+## Tar header checksum native proof (base `b9ab03e`)
+
+The isolated proof uses
+`/private/tmp/python-build-exp-tar-checksum-proof-20260925a`, branch
+`exp/tar-checksum-proof-20260925a`. It owns only a new
+`experiments/tar-checksum-proof/` source directory, its report and compact
+data, plus ignored local build, stage clones, and logs. It builds a no-std,
+dependency-free Rust checksum scan behind a CPython C extension, guarded for
+exact 512-byte built-in headers. Both control and candidate use clones of the
+same accepted installed fork and load the same extension; only candidate
+dispatches through the guarded helper. The complete locked source-tar read
+must preserve the digest and improve uninstrumented wall and kernel CPU beyond
+control self-noise, or the route stops. No other compiler or benchmark runs
+concurrently. Budget: 180 kernel CPU seconds and 2 GiB per-process RSS,
+including all failed attempts. This proof does not change the build source
+patches, public release, or production CPython.
+
 ## tarfile source-archive boundary scout (base `aa252fe`)
 
 The next candidate scout uses
@@ -12,6 +29,12 @@ and exclusive `tarfile` work. It maps one behavior-preserving Rust boundary
 only if the complete task offers material headroom and the Python file-like,
 PAX, security, and mutable-object contracts allow it. Budget: 30 kernel CPU
 seconds and 512 MiB per-process RSS. No build or implementation runs yet.
+The existing complete archive profile gave 157 ms of disjoint `tarfile.py`
+self time and 43.23–43.27 ms cumulative in 6,540 checksum calls. That is a
+7.4% instrumented complete-task ceiling for a checksum-only native scan;
+the full header/PAX parser remains deferred. The scout ran static inspection
+only, with no measured new resource use. See
+`tarfile-boundary-scout-20260925.md`.
 
 ## tomllib application-workload scout (base `a7be46a`)
 
