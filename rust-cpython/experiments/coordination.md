@@ -1,5 +1,18 @@
 # Rust-for-CPython experiment lanes
 
+## Optional URL unquote source patch (base `50737ef`)
+
+The source integration lane uses
+`/private/tmp/python-build-exp-url-unquote-source-patch-20260925a`, branch
+`exp/url-unquote-source-patch-20260925a`. It owns only `rust-cpython/build.py`,
+the patch manifest, a new `0004-rust-url-unquote.patch`, and
+`experiments/url-unquote-source-patch-20260925.md`. It must encode the measured
+proof behind an explicit opt-in build mode, retain the ordinary quote-only
+source route, and verify actual file changes in a fresh pinned extraction.
+No full build or performance run is concurrent. Budget: 90 kernel CPU
+seconds and 1 GiB per-process RSS, including failed attempts. The
+coordinator owns the later serial native build and installed comparison.
+
 ## URL unquote native proof (base `70b57b2`)
 
 The reversible proof uses
@@ -14,6 +27,14 @@ catalog normalization is a negative control. No other heavy lane runs
 concurrently. Budget: 180 kernel-accounted command CPU seconds and 2 GiB
 per-process RSS, including failed attempts; all benchmark outputs must
 match complete digests and cache policy before any speed verdict.
+The proof retained 129 uniquely logged attempts and a matched-compiler
+quote-only control. Five search-form pairs gave a 0.564 median external-wall
+ratio and 0.553 kernel-CPU ratio, with identical full digests and 1.3%
+maximum control self-variation. The extension added 368 bytes against the
+matched build. Total measured command CPU was 81.10 seconds, maximum
+per-process RSS 102.04 MB, and swaps zero. It remains a prototype pending
+reproducible source integration and semantic qualification; see
+`url-unquote-proof-20260925.md`.
 
 ## URL unquote headroom (base `0b0ebc4`)
 
