@@ -6,10 +6,18 @@ Make the standard library faster and less resource intensive on representative
 application workloads. Work independently in the isolated CPython 3.16
 `rust-cpython/` lane: find a measured bottleneck, improve the smallest useful
 implementation boundary, prove unchanged behavior, and measure the result.
-Keep a change when it produces a repeatable, useful improvement without a
-material regression; then select the next bottleneck. Rust is an implementation
-option, not the success criterion. Existing C and Python paths are the
-semantic and performance competition.
+The primary goal is a repeatable workload improvement without an unexplained
+resource regression. A secondary goal is broad, useful Rust implementation
+coverage of important public stdlib modules. Existing C and Python paths are
+the semantic and performance comparison.
+
+A coverage port may be retained in the experimental lane even when it is
+slower, larger, or uses more memory. Record that cost plainly and keep working
+on it; an important module can become faster over later iterations. A port
+with a material default-workload regression may remain selectable behind an
+explicit build option while its performance debt is addressed. Coverage
+retention does not turn a regression into a performance win or change the
+production CPython 3.14.6 contract.
 
 Judge each candidate in this order:
 
@@ -23,16 +31,18 @@ Judge each candidate in this order:
    for CPU consumption.
    A private microbenchmark win is insufficient unless a public stdlib path
    uses it and a representative workload benefits.
-3. Keep peak and retained process memory at or below a comparable upstream
-   CPython baseline within empirically measured noise. Track native and Python
-   allocation counts and bytes per unit of work, and investigate increases.
+3. For performance acceptance, keep peak and retained process memory at or
+   below a comparable upstream CPython baseline within empirically measured
+   noise. For coverage retention, measure and record any excess as debt.
+   Track native and Python allocation counts and bytes per unit of work.
 4. Record installed native size, build complexity, and maintenance cost.
    Prefer the simpler change when performance is indistinguishable.
 
 Individual important workloads determine the verdict. An aggregate speedup
 cannot hide a clear time or memory regression. Do not silently exchange a
-speed gain for more RAM. Leave a genuine tradeoff as an experiment with its
-evidence if it needs a product-policy decision.
+speed gain for more RAM. Coverage can justify retaining a port in this
+experimental lane, but its tradeoffs remain explicit and unresolved for any
+product decision.
 
 ## Scope and comparison controls
 
@@ -89,10 +99,13 @@ comparisons accordingly; they cannot pass the upstream resource gate.
    workloads to decide its value. Keep timing, memory, and allocation passes
    separate. Run broad pyperformance coverage for changes with broad reach.
    Repeat close results when host noise could change the verdict.
-7. **Decide and repeat.** Keep only a behavior-preserving change with a gain
-   beyond measured noise in a meaningful workload and no unexplained material
-   regression elsewhere. Investigate a concrete failure, or revert the
-   candidate and record why. Update the evidence and choose the next target.
+7. **Decide and repeat.** Mark a behavior-preserving change as a performance
+   gain when it improves meaningful workloads beyond noise without an
+   unexplained material regression elsewhere. A high-value Rust port can
+   instead be retained for coverage with its measured performance and memory
+   debt visible, often behind an option until that debt is reduced. Reject an
+   incorrect or unsafe boundary. Update the evidence and choose the next
+   target or optimization of a retained port.
 
 Commit each finished experiment's source or patch, exact build and workload
 recipe, compact measurements for every attempt, relevant failure excerpts,
@@ -131,12 +144,13 @@ Pyston macrobenchmark. The full pyperformance suite gives broad context;
 targeted kernels explain a module. Keep group and per-workload results visible.
 PBS comparison remains a distribution reference.
 
-For an upstream-matched comparison, each important workload's peak and
-steady/retained memory must remain within a noise allowance established by
-self-comparison. Report raw direction even within noise. Investigate material
-allocation growth. An unavailable metric is neither zero nor a pass. Report
-installed interpreter, extension, and Rust runtime bytes separately from
-process memory.
+For performance acceptance against a matched upstream build, each important
+workload's peak and steady/retained memory must remain within a noise
+allowance established by self-comparison. For coverage retention, record the
+same differences as debt and keep the port selectable while optimizing it.
+Report raw direction even within noise and investigate material allocation
+growth. An unavailable metric is neither zero nor a pass. Report installed
+interpreter, extension, and Rust runtime bytes separately from process memory.
 When an installed Python source file changes, verify equal bytecode-cache
 policy before timing or memory measurement: each side must have valid cache
 bytes for its own source, or both must compile source. Prepare caches outside
@@ -626,3 +640,94 @@ as a separate baseline change.
   [`django-cold-comparison-20260925.md`](rust-cpython/experiments/django-cold-comparison-20260925.md).
   Add baseline-derived loops for
   pyperformance and selected Pyston macros only with separately pinned inputs.
+
+## Secondary goal: Rust stdlib coverage
+
+Cover the core public operation named for every priority 0 module, then work
+through priority 1. A checked item means normal public calls on at least one
+native experimental target reach a maintained Rust implementation, the
+specified behavior is preserved, and a complete application or stdlib
+workload has measured its time, CPU, memory, and size cost. It does **not**
+claim that every API in that module is written in Rust. State the covered API
+and target in the result. A private extension that no public caller uses, or
+a standalone kernel proof, does not complete an item. Keep partial work and
+negative performance results as evidence and optimization backlog. The
+checklist sets coverage value; measured bottlenecks still choose experiment
+order within each priority.
+
+The current `_base64` integration proof does not cover public `base64`; the
+guarded URL quote route is a partial `urllib.parse` port pending broad
+qualification; zlib and TAR Rust proofs remain partial. No item below is
+yet marked complete.
+
+### Priority 0: common application paths
+
+- [ ] `urllib.parse` — quote, unquote, and query parsing on public calls.
+- [ ] `json` — encode and decode complete documents.
+- [ ] `pickle` — dump and load common object graphs.
+- [ ] `csv` — parse and write records through the public reader and writer.
+- [ ] `tomllib` — parse complete TOML documents.
+- [ ] `email` — parse and serialize messages and headers.
+- [ ] `xml.etree.ElementTree` — parse and serialize XML trees.
+- [ ] `re` — compile and search common patterns through `re`.
+- [ ] `base64` — public encode and decode functions.
+- [ ] `binascii` — binary/text conversion and checksums used by public callers.
+- [ ] `zlib` — compression and decompression on public streams and one-shot calls.
+- [ ] `gzip` — complete file and stream compression/decompression.
+- [ ] `zipfile` — read and write complete ZIP archives.
+- [ ] `tarfile` — read and write complete TAR archives.
+- [ ] `pathlib` — public path parsing and common filesystem operations.
+- [ ] `os.path` — path normalization, joining, and splitting via the platform module.
+- [ ] `shutil` — file copying, tree operations, and archive handling.
+- [ ] `importlib.metadata` — distribution discovery and metadata access.
+- [ ] `hashlib` — public digest updates and finalization.
+- [ ] `hmac` — public keyed digest operations.
+- [ ] `uuid` — parse, format, and generate UUIDs.
+- [ ] `datetime` — parse, format, and arithmetic on public date/time objects.
+- [ ] `decimal` — arithmetic on public `Decimal` values.
+- [ ] `sqlite3` — statement execution and row conversion through public cursors.
+- [ ] `io` — buffered and text stream reads and writes.
+- [ ] `logging` — record creation, formatting, and handler dispatch.
+- [ ] `asyncio` — task scheduling and event-loop operations on public APIs.
+- [ ] `http.client` — parse and send HTTP messages through public connections.
+- [ ] `socket` — public address conversion and I/O operations.
+- [ ] `ssl` — public TLS context and stream operations.
+- [ ] `subprocess` — command launch and communication.
+- [ ] `multiprocessing` — interprocess queues and pools.
+- [ ] `concurrent.futures` — executor scheduling and result handling.
+
+### Priority 1: broad supporting surface
+
+- [ ] `configparser` — read and write INI-style configuration.
+- [ ] `plistlib` — parse and serialize property lists.
+- [ ] `struct` — pack and unpack binary records.
+- [ ] `marshal` — serialize and load supported Python code/data records.
+- [ ] `html.parser` — tokenize complete HTML documents.
+- [ ] `difflib` — public sequence matching and diff generation.
+- [ ] `codecs` — encode/decode dispatch and incremental conversion.
+- [ ] `unicodedata` — Unicode property lookup and normalization.
+- [ ] `bz2` — public compression and decompression.
+- [ ] `lzma` — public compression and decompression.
+- [ ] `compression.zstd` — public Zstandard streams and one-shot calls.
+- [ ] `zipimport` — module discovery and loading from ZIP archives.
+- [ ] `glob` — public pathname expansion.
+- [ ] `fnmatch` — public filename pattern matching.
+- [ ] `importlib.resources` — resource lookup and reading.
+- [ ] `tempfile` — temporary file and directory creation.
+- [ ] `fractions` — `Fraction` parsing and arithmetic.
+- [ ] `statistics` — common summary operations.
+- [ ] `random` — public random number generation and sampling.
+- [ ] `collections` — common containers and counting operations.
+- [ ] `heapq` — heap operations.
+- [ ] `bisect` — ordered insertion and search.
+- [ ] `itertools` — core iterator transformations.
+- [ ] `functools` — caching and ordering helpers.
+- [ ] `contextlib` — public context-manager composition.
+- [ ] `dataclasses` — class generation and field processing.
+- [ ] `inspect` — signatures and object inspection.
+- [ ] `ast` — parse-tree walking and transformation helpers.
+- [ ] `argparse` — argument parsing and help generation.
+- [ ] `threading` — public thread coordination and synchronization.
+- [ ] `typing` — runtime annotation and generic operations.
+- [ ] `warnings` — warning filtering and display.
+- [ ] `urllib.request` — request opening and response handling.
