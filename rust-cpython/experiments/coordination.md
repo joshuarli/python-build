@@ -1,5 +1,18 @@
 # Rust-for-CPython experiment lanes
 
+## tarfile source-archive boundary scout (base `aa252fe`)
+
+The next candidate scout uses
+`/private/tmp/python-build-exp-tarfile-boundary-scout-20260925a`, branch
+`exp/tarfile-boundary-scout-20260925a`. It owns only
+`experiments/tarfile-boundary-scout-20260925.md`, optional compact diagnostic
+data, and ignored logs. It revisits the real pinned CPython source-tar read
+and existing complete profile, separating gzip, hashing, metadata handling,
+and exclusive `tarfile` work. It maps one behavior-preserving Rust boundary
+only if the complete task offers material headroom and the Python file-like,
+PAX, security, and mutable-object contracts allow it. Budget: 30 kernel CPU
+seconds and 512 MiB per-process RSS. No build or implementation runs yet.
+
 ## tomllib application-workload scout (base `a7be46a`)
 
 The next target scout uses
