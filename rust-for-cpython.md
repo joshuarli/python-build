@@ -260,8 +260,15 @@ as a separate baseline change.
   inputs. Its measured performance is in
   [`rust-cpython/PERFORMANCE.md`](rust-cpython/PERFORMANCE.md).
 - `_base64` is an integration proof, not a public stdlib optimization:
-  `Lib/base64.py` still routes through `binascii`. The Rust path is faster for
-  64-byte inputs but 42–48% slower at 4 KiB and above in the measured cases.
+  `Lib/base64.py` still routes through `binascii`. The original Rust path is
+  faster for 64-byte inputs but 42–48% slower at 4 KiB and above in the
+  measured cases. An optional chunked loop removed repeated bounds branches
+  and cut direct Rust encoding time by about 32% in a bounded runtime probe.
+  At 1 MiB its median 387.52 µs was within host variation of `binascii`'s
+  393.37 µs; at 65,538 bytes it was 24.57 vs 24.28 µs. The Rust probe reused
+  an output buffer while `binascii` allocated one, so this does not establish
+  public-route headroom. Keep the patch as kernel evidence without changing
+  public `base64`; see the [runtime probe](rust-cpython/experiments/base64-bulk-runtime-20260925/report.md).
 - A separate [`zlib-proof`](rust-cpython/zlib-proof/README.md) links the pinned
   `zlib-rs` 0.6.7 C ABI beneath the unchanged CPython `Modules/zlibmodule.c`.
   `test_zlib` passed 85 tests (2 skipped); `test_gzip`, `test_tarfile`,
