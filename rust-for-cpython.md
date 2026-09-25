@@ -280,9 +280,15 @@ as a separate baseline change.
   A separate optional AArch64 NEON kernel produced exact bytes in 108
   deterministic cases and reduced direct 1 MiB encode time to 133.58 µs
   versus staged `binascii` at 387.34 µs in a loaded-host diagnostic. The
-  comparison reused Rust output storage, so its next gate is an end-to-end
-  route beneath `binascii.b2a_base64` with allocation, memory, size, and option
-  behavior measured; see the [NEON result](rust-cpython/experiments/base64-neon-20260925.md).
+  comparison reused Rust output storage; see the
+  [NEON result](rust-cpython/experiments/base64-neon-20260925.md).
+  A standalone public `binascii.b2a_base64` route then matched checked
+  `base64` outputs and reduced loaded-host encode time to about 35% of the
+  same-source C control at 65 KiB and 1 MiB. Its extension is 1.42 MB larger,
+  and three fresh-process pairs showed 1.6–2.0 MB higher peak RSS. Keep this
+  route as an optional candidate while reducing its Rust link and measuring
+  complete workloads; do not promote it by default. See the
+  [public route result](rust-cpython/experiments/base64-binascii-route-20260925.md).
 - A separate [`zlib-proof`](rust-cpython/zlib-proof/README.md) links the pinned
   `zlib-rs` 0.6.7 C ABI beneath the unchanged CPython `Modules/zlibmodule.c`.
   `test_zlib` passed 85 tests (2 skipped); `test_gzip`, `test_tarfile`,
@@ -921,8 +927,9 @@ negative performance results as evidence and optimization backlog. The
 checklist sets coverage value; measured bottlenecks still choose experiment
 order within each priority.
 
-The current `_base64` integration proof does not cover public `base64`; the
-guarded URL quote route is a partial `urllib.parse` port pending broad
+The current `_base64` integration proof does not cover public `base64`, while
+the standalone `binascii` route covers only large default encodes with a
+material memory cost. The guarded URL quote route is a partial `urllib.parse` port pending broad
 qualification; zlib, TAR, IPv4, numeric timestamp, UUID, `shlex`, and
 `fractions` Rust proofs remain partial. No item below is yet marked complete.
 The pinned [email archive workload](rust-cpython/experiments/email-workload-20260925.md)

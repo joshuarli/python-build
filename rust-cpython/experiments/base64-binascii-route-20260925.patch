@@ -1,0 +1,62 @@
+--- a/Modules/binascii.c
++++ b/Modules/binascii.c
+@@ -64,6 +64,11 @@
+ #  include "zlib.h"
+ #endif
+ 
++#if defined(__aarch64__)
++extern size_t rust_base64_encode_into(const unsigned char *input, size_t input_len,
++                                      unsigned char *output, size_t output_len);
++#endif
++
+ typedef struct binascii_state {
+     PyObject *Error;
+     PyObject *Incomplete;
+@@ -1007,6 +1012,20 @@
+         return NULL;
+     }
+     unsigned char *ascii_data = PyBytesWriter_GetData(writer);
++
++#if defined(__aarch64__)
++    if (bin_len >= 4096 && padded && wrapcol == 0 && !newline &&
++        alphabet->buf == NULL && PyBuffer_IsContiguous(data, 'C')) {
++        size_t written = rust_base64_encode_into(bin_data, (size_t)bin_len,
++                                                  ascii_data, out_len);
++        if (written == out_len) {
++            return PyBytesWriter_FinishWithPointer(writer, ascii_data + written);
++        }
++        PyBytesWriter_Discard(writer);
++        PyErr_SetString(PyExc_SystemError, "base64 encoder returned an invalid length");
++        return NULL;
++    }
++#endif
+ 
+     /* Use the optimized fast path for complete 3-byte groups */
+     Py_ssize_t fast_bytes = base64_encode_fast(bin_data, bin_len, ascii_data,
+--- a/Modules/_base64/src/lib.rs
++++ b/Modules/_base64/src/lib.rs
+@@ -134,6 +134,24 @@
+     dst_index
+ }
+ 
++/// # Safety
++/// The input must contain `input_len` readable bytes and the output must
++/// contain `output_len` writable bytes. Their ranges must not overlap.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn rust_base64_encode_into(
++    input: *const u8,
++    input_len: usize,
++    output: *mut u8,
++    output_len: usize,
++) -> usize {
++    if input_len < 4096 || encoded_output_len(input_len) != Some(output_len) {
++        return 0;
++    }
++    let input = unsafe { std::slice::from_raw_parts(input, input_len) };
++    let output = unsafe { std::slice::from_raw_parts_mut(output, output_len) };
++    encode_into(input, output)
++}
++
+ struct BorrowedBuffer {
+     view: Py_buffer,
+ }
