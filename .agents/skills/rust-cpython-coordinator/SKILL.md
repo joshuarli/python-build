@@ -30,6 +30,11 @@ Linux recipes outside these lanes.
   build outputs or use the primary checkout as scratch. A common verified
   input cache is acceptable only if its publication and reads are atomic and
   content checked; otherwise copy inputs into the lane.
+- Before an expensive build with an authored source patch, check that every
+  intended path actually changed in a fresh extracted tree. A successful
+  `git apply` exit status can still mean zero files were patched when Git
+  discovers the enclosing worktree. Verify source hashes and installed
+  identities again after the build.
 - The coordinator keeps a lane ledger: agent, worktree, branch/base commit,
   owned paths, question, expected evidence, status, CPU and memory budget,
   and merge order. Reassign a path only after its prior owner stops. Inspect
@@ -51,6 +56,10 @@ Linux recipes outside these lanes.
   proportional memory, plus swap and process count. Note the measurement
   method and coverage of short-lived children. Never infer CPU consumption
   from wall time or treat missing memory as zero.
+- Give every attempt, including failed and discarded calibrations, a unique
+  raw log and resource record. Do not overwrite earlier observations when
+  retrying. If a record is lost, state exactly which command is missing and
+  do not claim a total lane resource cost.
 - For workload performance, wall time still measures user-visible latency;
   CPU time measures compute consumption. Report both per logical work unit.
   A faster wall time with more CPU work or more memory is a visible tradeoff.
