@@ -13,6 +13,13 @@ not a speed verdict. It is the only active profiler or timing lane. Budget:
 30 kernel-accounted CPU seconds and 512 MiB per-process RSS, with every
 attempt and its output digest retained. The coordinator will integrate its
 result before selecting any JSON implementation experiment.
+In parallel, the read-only URL unquote scout uses
+`/private/tmp/python-build-exp-url-unquote-scout-20260925a`, branch
+`exp/url-unquote-scout-20260925a` (base `a0e697e`), and owns only
+`experiments/url-unquote-boundary-20260925.md`. It maps the pinned public
+unquote behavior, existing catalog caller, and a guarded native boundary.
+It runs no profiler, benchmark, or build while JSON timing is active. The
+coordinator will reconcile both scouts before choosing a source-patch lane.
 
 ## Mixed-input follow-up (base `0da49c3`)
 
