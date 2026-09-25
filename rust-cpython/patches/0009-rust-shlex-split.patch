@@ -1,24 +1,87 @@
 diff --git a/Lib/shlex.py b/Lib/shlex.py
 --- a/Lib/shlex.py
 +++ b/Lib/shlex.py
-@@ -303,2 +303,7 @@
+@@ -9,3 +9,5 @@
+ 
++import builtins
+ import sys
++from _collections import deque as _ORIGINAL_DEQUE
+ from io import StringIO
+@@ -303,2 +305,44 @@
  
 +_ORIGINAL_SHLEX = shlex
-+_ORIGINAL_SHLEX_METHODS = (shlex.__init__, shlex.get_token, shlex.read_token,
-+                           shlex.__iter__, shlex.__next__)
++_ORIGINAL_SHLEX_METHODS = (
++    shlex.__new__, shlex.__init__, shlex.__getattribute__, shlex.__setattr__,
++    shlex.get_token, shlex.read_token, shlex.__iter__, shlex.__next__,
++    shlex.punctuation_chars,
++)
++_ORIGINAL_STRING_IO = StringIO
++_ORIGINAL_LIST = list
++_ORIGINAL_ISINSTANCE = isinstance
++_ORIGINAL_STOP_ITERATION = StopIteration
++_ORIGINAL_STR = str
++_ORIGINAL_TYPE = type
++_ORIGINAL_BUILTINS = builtins
++_ORIGINAL_SYS = sys
++_ORIGINAL_IMPORT = builtins.__import__
++_ORIGINAL_MODULES = sys.modules
++_NATIVE_FUNCTION_TYPE = type(len)
++_NATIVE_MODULE_TYPE = type(sys)
++_RUST_SHLEX_SPLIT_MODULE = None
++_RUST_SHLEX_SPLIT_SCAN = None
++
++
++def _trusted_rust_split(s):
++    global _RUST_SHLEX_SPLIT_MODULE, _RUST_SHLEX_SPLIT_SCAN
++    module = sys.modules.get('_rust_shlex_split')
++    if _RUST_SHLEX_SPLIT_MODULE is None:
++        # A preloaded private module may be supplied by an application.
++        if '_rust_shlex_split' in sys.modules:
++            return None
++        from _rust_shlex_split import scan
++        module = sys.modules.get('_rust_shlex_split')
++        if (type(module) is not _NATIVE_MODULE_TYPE or
++                type(scan) is not _NATIVE_FUNCTION_TYPE or
++                scan.__self__ is not module):
++            return None
++        _RUST_SHLEX_SPLIT_MODULE = module
++        _RUST_SHLEX_SPLIT_SCAN = scan
++    if module is _RUST_SHLEX_SPLIT_MODULE:
++        return _RUST_SHLEX_SPLIT_SCAN(s)
++    return None
 +
 +
  def split(s, comments=False, posix=True):
-@@ -307,2 +312,10 @@
+@@ -307,2 +351,30 @@
          raise ValueError("s argument must not be None")
-+    if (type(s) is str and comments is False and posix is True and
-+            shlex is _ORIGINAL_SHLEX and
-+            (shlex.__init__, shlex.get_token, shlex.read_token,
-+             shlex.__iter__, shlex.__next__) == _ORIGINAL_SHLEX_METHODS):
-+        from _rust_shlex_split import scan
-+        tokens = scan(s)
-+        if tokens is not None:
-+            return tokens
++    if (type is _ORIGINAL_TYPE and str is _ORIGINAL_STR and
++            type(s) is str and comments is False and posix is True and
++            shlex is _ORIGINAL_SHLEX and StringIO is _ORIGINAL_STRING_IO and
++            list is _ORIGINAL_LIST and isinstance is _ORIGINAL_ISINSTANCE and
++            StopIteration is _ORIGINAL_STOP_ITERATION and
++            builtins is _ORIGINAL_BUILTINS and sys is _ORIGINAL_SYS and
++            builtins.__import__ is _ORIGINAL_IMPORT and
++            sys.modules is _ORIGINAL_MODULES):
++        hooks = (shlex.__new__, shlex.__init__, shlex.__getattribute__,
++                 shlex.__setattr__, shlex.get_token, shlex.read_token,
++                 shlex.__iter__, shlex.__next__, shlex.punctuation_chars)
++        if (hooks[0] is _ORIGINAL_SHLEX_METHODS[0] and
++                hooks[1] is _ORIGINAL_SHLEX_METHODS[1] and
++                hooks[2] is _ORIGINAL_SHLEX_METHODS[2] and
++                hooks[3] is _ORIGINAL_SHLEX_METHODS[3] and
++                hooks[4] is _ORIGINAL_SHLEX_METHODS[4] and
++                hooks[5] is _ORIGINAL_SHLEX_METHODS[5] and
++                hooks[6] is _ORIGINAL_SHLEX_METHODS[6] and
++                hooks[7] is _ORIGINAL_SHLEX_METHODS[7] and
++                hooks[8] is _ORIGINAL_SHLEX_METHODS[8] and
++                '__len__' not in shlex.__dict__ and
++                '__length_hint__' not in shlex.__dict__ and
++                '__del__' not in shlex.__dict__):
++            from collections import deque
++            if deque is _ORIGINAL_DEQUE:
++                tokens = _trusted_rust_split(s)
++                if tokens is not None:
++                    return tokens
      lex = shlex(s, posix=posix)
 diff --git a/Makefile.pre.in b/Makefile.pre.in
 --- a/Makefile.pre.in

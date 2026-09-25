@@ -1,0 +1,109 @@
+{
+  "source_commit": "b812b4a7b9efaca46b98544a8633b7d7e454166b",
+  "integration_base": "c21eb38a5a4f9a668b9168385991760b51a3ec95",
+  "recipe": {
+    "control_python": "/Users/josh/d/python-build-exp-shlex-split-20260925/rust-cpython/stage-shlex-split/bin/python3.16",
+    "prior_candidate_python": "/Users/josh/d/python-build-exp-fractions-rational-20260925/rust-cpython/stage-fraction-rational/bin/python3.16",
+    "revised_source_overlay": "/Users/josh/d/python-build-exp-fraction-contract-20260925/rust-cpython/work/contract-lib/fractions.py",
+    "overlay_environment": "PYTHONPATH=/Users/josh/d/python-build-exp-fraction-contract-20260925/rust-cpython/work/contract-lib",
+    "interpreter_flags": "-B -c <case snippet>",
+    "note": "Each case ran as a fresh process. The revised source overlay uses the prior installed native extension unchanged."
+  },
+  "identities": {
+    "control_fractions_sha256": "bf61790248594add2b9e78c4671af35471313552cf8d3e98899a5327e55fd395",
+    "prior_candidate_fractions_sha256": "f493e8a7cb4af622534e6e2b4fcfc0dd4af711c3ad63cf9c09c05e2c028c9d7c",
+    "revised_source_sha256": "8275fd7933de5062f6d8f82169caa306980ed398fe1376fe1be1906ae458ee6c",
+    "prior_extension_sha256": "15e51ff2800c6daa2f015023be664d1e1e960ce4025cc17b356322806b1aacbe",
+    "revised_patch_sha256": "a49252164c9f9a16393b46b7d19b980e2ed13e151b0f0e23a6e7acbbf09c2439"
+  },
+  "fresh_patch_selections": {
+    "default": {
+      "changed_paths": 8,
+      "selected_patches": 3
+    },
+    "fraction_only": {
+      "changed_paths": 11,
+      "selected_patches": 4
+    },
+    "candidate_stack": {
+      "changed_paths": 20,
+      "selected_patches": 7
+    },
+    "all_optional": {
+      "changed_paths": 26,
+      "selected_patches": 11
+    }
+  },
+  "patch_checks": "Every selected patch passed application and reverse/forward checks on fresh verified source; revised fraction source hash matched the overlay. Counts and identities were rerun after final cache guard change.",
+  "cases": [
+    {
+      "name": "post_import_blocked_import",
+      "snippet": "import fractions,builtins; builtins.__import__=<raising hook>; Fraction(\"12/35\")",
+      "control": "12/35",
+      "prior_candidate": "RuntimeError: blocked import",
+      "revised_overlay": "12/35"
+    },
+    {
+      "name": "pre_import_native_block",
+      "snippet": "replace builtins.__import__ with a delegating hook that rejects _rust_fraction_rational; import fractions; Fraction(\"12/35\")",
+      "revised_overlay": "12/35"
+    },
+    {
+      "name": "private_module_fake",
+      "snippet": "import fractions,sys,types; sys.modules[\"_rust_fraction_rational\"]=types.SimpleNamespace(scan=lambda _: (7,1)); Fraction(\"12/35\")",
+      "control": "12/35",
+      "prior_candidate": "7",
+      "revised_overlay": "12/35"
+    },
+    {
+      "name": "private_module_none",
+      "snippet": "import fractions,sys; sys.modules[\"_rust_fraction_rational\"]=None; Fraction(\"12/35\")",
+      "control": "12/35",
+      "prior_candidate": "ModuleNotFoundError: import of _rust_fraction_rational halted; None in sys.modules",
+      "revised_overlay": "12/35"
+    },
+    {
+      "name": "native_scan_replaced",
+      "snippet": "import fractions,sys; Fraction('12/35'); sys.modules['_rust_fraction_rational'].scan=lambda _: (7,1); Fraction('12/35')",
+      "prior_candidate": "7 after replacement",
+      "revised_overlay": "12/35 before and after replacement; cached verified function retained"
+    },
+    {
+      "name": "module_type_replaced",
+      "snippet": "replace fractions.type with callable type-like class recording calls; Fraction(\"12/35\")",
+      "control": "12/35; 1 call",
+      "prior_candidate": "12/35; 2 calls",
+      "revised_overlay": "12/35; 1 call"
+    },
+    {
+      "name": "module_isinstance_wrapped",
+      "snippet": "replace fractions.isinstance with delegating counter; Fraction(\"12/35\")",
+      "control": "12/35; 3 calls",
+      "prior_candidate": "12/35; 3 calls",
+      "revised_overlay": "12/35; 3 calls"
+    },
+    {
+      "name": "ordinary_native_route",
+      "snippet": "import fractions,sys; Fraction(\"12/35\"); check _rust_fraction_rational in sys.modules",
+      "revised_overlay": "12/35; native module present"
+    },
+    {
+      "name": "private_module_exact_type_fake",
+      "snippet": "import fractions,sys,types; m=types.ModuleType('_rust_fraction_rational'); m.scan=lambda _: (7,1); sys.modules[m.__name__]=m; Fraction('12/35')",
+      "revised_overlay": "12/35"
+    },
+    {
+      "name": "private_module_other_native",
+      "snippet": "import fractions,sys,_rust_shlex_split; sys.modules['_rust_fraction_rational']=_rust_shlex_split; Fraction('12/35')",
+      "revised_overlay": "12/35"
+    },
+    {
+      "name": "private_module_replaced_after_first_use",
+      "snippet": "import fractions,sys,types; Fraction('12/35'); m=types.ModuleType('_rust_fraction_rational'); m.scan=lambda _: (7,1); sys.modules[m.__name__]=m; Fraction('12/35')",
+      "revised_overlay": "12/35 before and after replacement"
+    }
+  ],
+  "build": "No full build; Python source overlay was exercised with the prior byte-identical installed native extension.",
+  "tests": "No test suite or separate tests were run.",
+  "performance": "Prior timing and memory observations apply to the pre-guard source only. Revised guard awaits quiet-host performance and memory qualification."
+}

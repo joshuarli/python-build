@@ -1,6 +1,10 @@
 diff --git a/Lib/_strptime.py b/Lib/_strptime.py
 --- a/Lib/_strptime.py
 +++ b/Lib/_strptime.py
+@@ -10,2 +10,3 @@
+ import os
++import sys
+ import time
 @@ -16,2 +16,3 @@
  from re import compile as re_compile
 +from re import Pattern as _re_pattern_type
@@ -9,9 +13,16 @@ diff --git a/Lib/_strptime.py b/Lib/_strptime.py
  from datetime import (date as datetime_date,
 +                      datetime as datetime_datetime,
                        timedelta as datetime_timedelta,
-@@ -843,2 +845,34 @@
+@@ -843,2 +846,40 @@
      format string."""
-+    if (cls is datetime_datetime and type(data_string) is str and
++    if (cls is datetime_datetime and
++            type is _ORIGINAL_TYPE and
++            isinstance is _ORIGINAL_ISINSTANCE and
++            enumerate is _ORIGINAL_ENUMERATE and
++            len is _ORIGINAL_LEN and
++            __import__ is _ORIGINAL_IMPORT and
++            sys.modules is _ORIGINAL_SYS_MODULES and
++            type(data_string) is str and
 +            type(format) is str and format == "%Y/%m/%d %H:%M:%S" and
 +            _strptime is _ORIGINAL_STRPTIME and
 +            _cache_lock is _ORIGINAL_CACHE_LOCK and
@@ -39,15 +50,20 @@ diff --git a/Lib/_strptime.py b/Lib/_strptime.py
 +                         format_regex.pattern == _NUMERIC_PATTERN and
 +                         format_regex.flags == 34)
 +        if ready:
-+            from _rust_strptime_numeric import scan
-+            fields = scan(data_string)
++            fields = _scan_numeric_if_unshadowed(data_string)
 +            if fields is not None:
 +                return cls(*fields)
      tt, fraction, gmtoff_fraction = _strptime(data_string, format)
-@@ -851 +885,16 @@
+@@ -851 +892,46 @@
          return cls(*args, tz)
 +
 +_ORIGINAL_STRPTIME = _strptime
++_ORIGINAL_TYPE = type
++_ORIGINAL_ISINSTANCE = isinstance
++_ORIGINAL_ENUMERATE = enumerate
++_ORIGINAL_LEN = len
++_ORIGINAL_IMPORT = __import__
++_ORIGINAL_SYS_MODULES = sys.modules
 +_ORIGINAL_CACHE_LOCK = _cache_lock
 +_ORIGINAL_TIME_RE_CACHE = _TimeRE_cache
 +_ORIGINAL_LOCALE_TIME = _TimeRE_cache.locale_time
@@ -57,10 +73,34 @@ diff --git a/Lib/_strptime.py b/Lib/_strptime.py
 +_ORIGINAL_GETLOCALE = locale.getlocale
 +_ORIGINAL_DATE = datetime_date
 +_ORIGINAL_INT = int
++_ORIGINAL_SCAN_TYPE = type(len)
++_ORIGINAL_MODULE_TYPE = type(sys)
++_NUMERIC_MODULE = None
++_NUMERIC_SCAN = None
 +_NUMERIC_PATTERN = (r'(?P<Y>\d\d\d\d)/(?P<m>1[0-2]|0[1-9]|[1-9])/'
 +                    r'(?P<d>3[0-1]|[1-2]\d|0[1-9]|[1-9]| [1-9])\s+'
 +                    r'(?P<H>2[0-3]|[0-1]\d|\d| \d):(?P<M>[0-5]\d|\d):'
 +                    r'(?P<S>6[0-1]|[0-5]\d|\d)')
++
++def _scan_numeric_if_unshadowed(data_string):
++    global _NUMERIC_MODULE, _NUMERIC_SCAN
++    module = sys.modules.get('_rust_strptime_numeric')
++    if _NUMERIC_MODULE is None:
++        if module is not None:
++            return None
++        from _rust_strptime_numeric import scan
++        module = sys.modules.get('_rust_strptime_numeric')
++        if (_ORIGINAL_TYPE(module) is not _ORIGINAL_MODULE_TYPE or
++                module.__dict__.get('__name__') != '_rust_strptime_numeric' or
++                _ORIGINAL_TYPE(scan) is not _ORIGINAL_SCAN_TYPE or
++                scan.__self__ is not module or
++                scan.__module__ != '_rust_strptime_numeric'):
++            return None
++        _NUMERIC_MODULE = module
++        _NUMERIC_SCAN = scan
++    elif module is not _NUMERIC_MODULE:
++        return None
++    return _NUMERIC_SCAN(data_string)
 diff --git a/Makefile.pre.in b/Makefile.pre.in
 --- a/Makefile.pre.in
 +++ b/Makefile.pre.in

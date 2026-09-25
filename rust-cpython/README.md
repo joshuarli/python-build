@@ -183,10 +183,11 @@ search task; unique/proportional and retained memory and allocations remain
 unqualified. Against vanilla upstream, the complete search task used 49.6%
 less wall time and 50.8% less kernel CPU across five pairs. Different source
 ancestry and PGO profiles constrain attribution of that overall difference.
-The
-eligible native path also bypasses initialization and replacement of private
-parser globals. Static source tracing finds the same built-in UTF-8 decoder
-under the exact guard, while public differential behavior remains to check. See
+The eligible native path also bypasses initialization and replacement of
+private parser globals. An in-place `_hextobyte` edit changes public `unquote`
+output on the Python path but is ignored by this native route; it remains an
+opt-in contract experiment, not a behavior-qualified decoder. Static source
+tracing finds the same built-in UTF-8 decoder under the exact guard. See
 [`experiments/url-unquote-source-patch-20260925.md`](experiments/url-unquote-source-patch-20260925.md)
 [`experiments/url-unquote-build-20260925.md`](experiments/url-unquote-build-20260925.md),
 [`experiments/url-unquote-installed-comparison-20260925.md`](experiments/url-unquote-installed-comparison-20260925.md),
@@ -272,6 +273,14 @@ The measured results, repeated runs, and limits are recorded in
 [`PERFORMANCE.md`](PERFORMANCE.md).
 
 ### Tier A — candidate map and measured outcomes
+
+The URL quote, numeric `strptime`, `shlex`, and Fraction Python guards were
+revised after the timing figures below. Those figures describe their earlier
+source; fresh quiet-host comparisons of the revised guards remain open. The
+URL quote route still leaves a private quoter cache unfilled, and optional
+`unquote` can change public output when `_hextobyte` is edited. Both URL routes
+remain experimental and unqualified for strict behavior parity; see the
+[URL contract audit](experiments/url-contract-guard-20260925.md).
 
 | Rank | Area: current implementation and CPython tests | Leverage and proposed Rust boundary | Hazards, prior art, and measurement gate |
 | ---: | --- | --- | --- |

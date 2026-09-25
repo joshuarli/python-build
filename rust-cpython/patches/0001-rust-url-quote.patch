@@ -1,5 +1,4 @@
 diff --git a/Lib/urllib/parse.py b/Lib/urllib/parse.py
-index 4247b9a..54d4032 100644
 --- a/Lib/urllib/parse.py
 +++ b/Lib/urllib/parse.py
 @@ -34,6 +34,7 @@
@@ -10,16 +9,57 @@ index 4247b9a..54d4032 100644
  import re
  import types
  import warnings
-@@ -1110,6 +1111,9 @@ def quote_from_bytes(bs, safe='/'):
-         safe = bytes([c for c in safe if c < 128])
+@@ -1093,6 +1094,22 @@
+ def _byte_quoter_factory(safe):
+     return _Quoter(safe).__getitem__
+ 
++_rust_url_type = type
++_rust_url_bytes = bytes
++_rust_url_str = str
++_rust_url_isinstance = isinstance
++_rust_url_len = len
++_rust_url_map = map
++_rust_url_chr = chr
++_rust_url_frozenset = frozenset
++_rust_url_dict_len = dict.__len__
++_rust_url_quoter_factory = _byte_quoter_factory
++_rust_url_quoter_type = _Quoter
++_rust_url_quoter_getitem = _Quoter.__getitem__
++_rust_url_quoter_missing = _Quoter.__missing__
++_rust_url_quoter_getattribute = _Quoter.__getattribute__
++_rust_url_always_safe = _ALWAYS_SAFE
++
+ def quote_from_bytes(bs, safe='/'):
+     """Like quote(), but accepts a bytes object rather than a str, and does
+     not perform string-to-bytes encoding.  It always returns an ASCII string.
+@@ -1111,7 +1128,26 @@
      if not bs.rstrip(_ALWAYS_SAFE_BYTES + safe):
          return bs.decode()
-+    # Only exact bytes enter the native kernel after the original fast exits.
-+    if type(bs) is bytes and type(safe) is bytes and len(bs) < 200_000:
-+        return _rust_url_quote.quote_bytes(bs, safe)
      quoter = _byte_quoter_factory(safe)
-     if (bs_len := len(bs)) < 200_000:
+-    if (bs_len := len(bs)) < 200_000:
++    bs_len = len(bs)
++    # Consult the original quoter and its mutable cache before native quoting.
++    if (len is _rust_url_len and map is _rust_url_map and
++            isinstance is _rust_url_isinstance and
++            bytes is _rust_url_bytes and str is _rust_url_str and
++            chr is _rust_url_chr and
++            bs_len < 200_000 and
++            _rust_url_type(bs) is bytes and _rust_url_type(safe) is bytes and
++            _byte_quoter_factory is _rust_url_quoter_factory and
++            _Quoter is _rust_url_quoter_type and
++            _Quoter.__getitem__ is _rust_url_quoter_getitem and
++            _Quoter.__missing__ is _rust_url_quoter_missing and
++            _Quoter.__getattribute__ is _rust_url_quoter_getattribute and
++            _ALWAYS_SAFE is _rust_url_always_safe and
++            _rust_url_type(quoter.__self__) is _Quoter and
++            _rust_url_type(quoter.__self__.safe) is _rust_url_frozenset and
++            quoter.__self__.safe == _ALWAYS_SAFE.union(safe) and
++            _rust_url_dict_len(quoter.__self__) == 0):
++        return _rust_url_quote.quote_bytes(bs, safe)
++    if bs_len < 200_000:
          return ''.join(map(quoter, bs))
+     else:
+         # This saves memory - https://github.com/python/cpython/issues/95865
 diff --git a/Makefile.pre.in b/Makefile.pre.in
 index 0925d02..3d9a1e3 100644
 --- a/Makefile.pre.in

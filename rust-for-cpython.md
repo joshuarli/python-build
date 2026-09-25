@@ -59,9 +59,10 @@ in [`rust-cpython/README.md`](rust-cpython/README.md). Persist source changes
 as checked-in patches or other reproducible inputs; edits only under generated
 `rust-cpython/work/source/` disappear on re-extraction. The candidate builder
 now applies digest-checked patches from `rust-cpython/patches/manifest.json`
-after each fresh extraction. Its no-Rust control remains unpatched. The patch
-path has a full patched-build qualification for the URL quotation candidate,
-and the optional zlib-rs recipe has completed a full candidate build. Do not
+after each fresh extraction. Its no-Rust control remains unpatched. The earlier
+quote patch completed a full patched build; its later Python guard revision
+has source-overlay checks but no rebuilt resource verdict. The optional
+zlib-rs recipe has completed a full candidate build. Do not
 add a dependency, change a source/toolchain pin, or expand product scope
 without an explicit scope decision.
 
@@ -518,6 +519,14 @@ as a separate baseline change.
   checking. See
   [`url-unquote-source-patch-20260925.md`](rust-cpython/experiments/url-unquote-source-patch-20260925.md)
   and [`url-unquote-contract-audit-20260925.md`](rust-cpython/experiments/url-unquote-contract-audit-20260925.md).
+- A later source audit narrowed native `quote_from_bytes` dispatch around
+  replaceable Python helpers and mutable quoter state. The native hit still
+  leaves `_Quoter`'s private per-byte cache empty where Python fills it.
+  Optional `unquote` also changes public output if `_hextobyte` is edited in
+  place, and skips its lazy initialization. These opt-in routes remain
+  experimental and do not meet strict behavior parity; the earlier URL speed
+  ratios describe pre-guard quote source. See the
+  [contract audit](rust-cpython/experiments/url-contract-guard-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
   recipe. Its installed parser matches the selected source, its extension
   exports the Rust decoder, and both complete catalog URL output digests
@@ -708,6 +717,10 @@ as a separate baseline change.
   of 0.758 and 0.774. Keep it opt-in pending quiet-host performance, memory,
   broad semantics, and Linux qualification. See the [original result](rust-cpython/experiments/strptime-numeric-20260925.md)
   and [guarded follow-up](rust-cpython/experiments/strptime-guard-20260925.md).
+  A later binding guard closes six observed warm-path hook and scanner-import
+  mismatches. It reused the unchanged native extension for source-overlay
+  checks; the 0.758/0.774 ratios describe the pre-revision guard. See the
+  [contract revision](rust-cpython/experiments/strptime-contract-20260925.md).
 - The optional canonical UUID text scanner reaches public `uuid.UUID` calls,
   but five complete 100,000-record index pairs showed no speed or CPU gain
   beyond control variation: median candidate/control ratios were 1.003 and
@@ -726,6 +739,10 @@ as a separate baseline change.
   cap bounds temporary storage; larger and nondefault calls use Python.
   This is partial priority-1 coverage, not a completed `shlex` port. See
   [`shlex-split-20260925.md`](rust-cpython/experiments/shlex-split-20260925.md).
+  A later guard preserves 18 observed parser-binding and hook cases while
+  retaining an ordinary native route. The 63.7%/67.2% gains describe the
+  pre-revision guard; quiet-host measurement of the revision remains open.
+  See the [binding audit](rust-cpython/experiments/shlex-binding-guard-20260925.md).
 - The optional `fractions.Fraction` scanner reaches public parsing of short
   canonical ASCII rational strings; Python still constructs and normalizes
   the value and handles all other inputs. A complete 200,000-record ledger
@@ -735,8 +752,13 @@ as a separate baseline change.
   `--fraction-rational` for partial priority-1 coverage only. Clean-host
   speed, memory, broad semantics, and Linux qualification remain open. See
   [`fraction-rational-20260925.md`](rust-cpython/experiments/fraction-rational-20260925.md).
-- The URL patch has targeted gains across three complete tasks, but no broad
-  application-suite or upstream resource acceptance yet. The ranked entries
+  A later guard preserves observed import, type, and private-module behavior
+  using the unchanged native extension. The 0.927/0.929 loaded-host ratios
+  describe pre-revision source; see the
+  [contract audit](rust-cpython/experiments/fraction-rational-contract-20260925.md).
+- Earlier URL patches had targeted gains across three complete tasks; the
+  revised quote guard has no fresh speed result or strict state parity. The
+  ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
 - Establish the missing macOS unique/proportional memory and allocation
   measurements and matched upstream control comparison. The simple libproc

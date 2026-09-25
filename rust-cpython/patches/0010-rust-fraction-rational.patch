@@ -1,16 +1,22 @@
 diff --git a/Lib/fractions.py b/Lib/fractions.py
 --- a/Lib/fractions.py
 +++ b/Lib/fractions.py
-@@ -66,6 +66,8 @@
+@@ -66,6 +66,14 @@
      )
      \s*\z                                  # and optional whitespace to finish
  """, re.VERBOSE | re.IGNORECASE)
 +_ORIGINAL_RATIONAL_FORMAT = _RATIONAL_FORMAT
 +_ORIGINAL_INT = int
++_ORIGINAL_TYPE = type
++_ORIGINAL_IMPORT = __import__
++_ORIGINAL_SYS = sys
++_ORIGINAL_MODULES = sys.modules
++_ORIGINAL_BUILTIN_FUNCTION_TYPE = type(len)
++_RATIONAL_SCAN_CACHE = [None, None]
  
  
  # Helpers for formatting
-@@ -251,31 +253,40 @@
+@@ -251,31 +259,60 @@
  
              elif isinstance(numerator, str):
                  # Handle construction from strings.
@@ -23,11 +29,31 @@ diff --git a/Lib/fractions.py b/Lib/fractions.py
 -                if denom:
 -                    denominator = int(denom)
 +                parsed = None
-+                if (cls is Fraction and type(numerator) is str and
++                if (cls is Fraction and type is _ORIGINAL_TYPE and
++                        type(numerator) is str and
 +                        _RATIONAL_FORMAT is _ORIGINAL_RATIONAL_FORMAT and
-+                        int is _ORIGINAL_INT):
-+                    from _rust_fraction_rational import scan
-+                    parsed = scan(numerator)
++                        int is _ORIGINAL_INT and
++                        __import__ is _ORIGINAL_IMPORT and
++                        type(__import__) is _ORIGINAL_BUILTIN_FUNCTION_TYPE and
++                        sys is _ORIGINAL_SYS and
++                        sys.modules is _ORIGINAL_MODULES):
++                    module = sys.modules.get('_rust_fraction_rational')
++                    if (module is _RATIONAL_SCAN_CACHE[0] and
++                            _RATIONAL_SCAN_CACHE[1] is not None):
++                        parsed = _RATIONAL_SCAN_CACHE[1](numerator)
++                    else:
++                        if '_rust_fraction_rational' not in sys.modules:
++                            from _rust_fraction_rational import scan
++                            module = sys.modules.get('_rust_fraction_rational')
++                        if (type(module) is type(sys) and
++                                module.__name__ == '_rust_fraction_rational'):
++                            scan = module.__dict__.get('scan')
++                            if (type(scan) is _ORIGINAL_BUILTIN_FUNCTION_TYPE and
++                                    scan.__self__ is module and
++                                    scan.__module__ == '_rust_fraction_rational' and
++                                    scan.__name__ == 'scan'):
++                                _RATIONAL_SCAN_CACHE[:] = [module, scan]
++                                parsed = scan(numerator)
 +                if parsed is not None:
 +                    numerator, denominator = parsed
                  else:
