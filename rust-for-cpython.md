@@ -686,6 +686,15 @@ as a separate baseline change.
   debt; it is not a performance promotion or a completed `uuid` port.
   Broader semantics and Linux resource costs remain open. See
   [`uuid-canonical-20260925.md`](rust-cpython/experiments/uuid-canonical-20260925.md).
+- The optional default POSIX `shlex.split` scanner matched a complete
+  25,264-call command-processing task, including its fallback cases and
+  expected parse errors. Five macOS pairs improved median wall by 63.7%
+  and kernel CPU by 67.2%; median paired peak RSS/footprint rose 256 KiB
+  within self variation. Keep `--shlex-split` opt-in while broader semantic,
+  memory, and Linux qualification remain open. Its 4,096-character ASCII
+  cap bounds temporary storage; larger and nondefault calls use Python.
+  This is partial priority-1 coverage, not a completed `shlex` port. See
+  [`shlex-split-20260925.md`](rust-cpython/experiments/shlex-split-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
@@ -746,8 +755,8 @@ order within each priority.
 
 The current `_base64` integration proof does not cover public `base64`; the
 guarded URL quote route is a partial `urllib.parse` port pending broad
-qualification; zlib, TAR, IPv4, numeric timestamp, and UUID Rust proofs
-remain partial. No item below is yet marked complete.
+qualification; zlib, TAR, IPv4, numeric timestamp, UUID, and `shlex` Rust
+proofs remain partial. No item below is yet marked complete.
 
 ### Priority 0: common application paths
 

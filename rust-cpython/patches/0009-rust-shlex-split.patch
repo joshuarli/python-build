@@ -1,0 +1,299 @@
+diff --git a/Lib/shlex.py b/Lib/shlex.py
+--- a/Lib/shlex.py
++++ b/Lib/shlex.py
+@@ -303,2 +303,7 @@
+ 
++_ORIGINAL_SHLEX = shlex
++_ORIGINAL_SHLEX_METHODS = (shlex.__init__, shlex.get_token, shlex.read_token,
++                           shlex.__iter__, shlex.__next__)
++
++
+ def split(s, comments=False, posix=True):
+@@ -307,2 +312,10 @@
+         raise ValueError("s argument must not be None")
++    if (type(s) is str and comments is False and posix is True and
++            shlex is _ORIGINAL_SHLEX and
++            (shlex.__init__, shlex.get_token, shlex.read_token,
++             shlex.__iter__, shlex.__next__) == _ORIGINAL_SHLEX_METHODS):
++        from _rust_shlex_split import scan
++        tokens = scan(s)
++        if tokens is not None:
++            return tokens
+     lex = shlex(s, posix=posix)
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -3473,2 +3473,11 @@
+ 
++# Private no_std POSIX shell text scanner.
++RUST_SHLEX_SPLIT_A=Modules/_rust_shlex_split/libshlex_split.a
++MODULE__RUST_SHLEX_SPLIT_LDEPS=$(RUST_SHLEX_SPLIT_A)
++MODULE__RUST_SHLEX_SPLIT_LDFLAGS=$(RUST_SHLEX_SPLIT_A)
++
++$(RUST_SHLEX_SPLIT_A): $(srcdir)/Modules/_rust_shlex_split/scan.rs
++	mkdir -p Modules/_rust_shlex_split
++	rustup run nightly-2026-09-15 rustc --edition=2024 --crate-type=staticlib -C opt-level=3 -C panic=abort $(if $(CARGO_TARGET),--target=$(CARGO_TARGET)) $< -o $@
++
+ RUST_STATICLIB_A= target/$(if $(CARGO_TARGET),$(CARGO_TARGET)/$(CARGO_TARGET_DIR),$(CARGO_TARGET_DIR))/libcpython_rust_staticlib.a
+diff --git a/Modules/Setup.stdlib.in b/Modules/Setup.stdlib.in
+--- a/Modules/Setup.stdlib.in
++++ b/Modules/Setup.stdlib.in
+@@ -122,1 +122,2 @@
+ @MODULE__RUST_URL_QUOTE_TRUE@_rust_url_quote _rust_url_quote/module.c
++@MODULE__RUST_SHLEX_SPLIT_TRUE@_rust_shlex_split _rust_shlex_split/module.c
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -7580,1 +7580,2 @@
+   Modules/_rust_url_quote \
++  Modules/_rust_shlex_split \
+@@ -8617,3 +8617,6 @@
+ PY_STDLIB_MOD([_rust_url_quote],
+   [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
+   [], [])
++PY_STDLIB_MOD([_rust_shlex_split],
++  [test "$HAVE_CARGO" = yes], [test "$HAVE_CARGO" = yes],
++  [], [])
+diff --git a/configure b/configure
+--- a/configure
++++ b/configure
+@@ -698,1 +698,3 @@
+ MODULE__RUST_URL_QUOTE_TRUE
++MODULE__RUST_SHLEX_SPLIT_FALSE
++MODULE__RUST_SHLEX_SPLIT_TRUE
+@@ -32098,1 +32098,2 @@
+   Modules/_rust_url_quote \
++  Modules/_rust_shlex_split \
+@@ -35768,1 +35768,41 @@
+ printf "%s\n" "$py_cv_module__rust_url_quote" >&6; }
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for stdlib extension module _rust_shlex_split" >&5
++printf %s "checking for stdlib extension module _rust_shlex_split... " >&6; }
++        if test "$py_cv_module__rust_shlex_split" != "n/a"
++then :
++
++    if test "$HAVE_CARGO" = yes
++then :
++  if test "$HAVE_CARGO" = yes
++then :
++  py_cv_module__rust_shlex_split=yes
++else case e in #(
++  e) py_cv_module__rust_shlex_split=missing ;;
++esac
++fi
++else case e in #(
++  e) py_cv_module__rust_shlex_split=disabled ;;
++esac
++fi
++
++fi
++  as_fn_append MODULE_BLOCK "MODULE__RUST_SHLEX_SPLIT_STATE=$py_cv_module__rust_shlex_split$as_nl"
++  if test "x$py_cv_module__rust_shlex_split" = xyes
++then :
++
++
++
++
++fi
++   if test "$py_cv_module__rust_shlex_split" = yes; then
++  MODULE__RUST_SHLEX_SPLIT_TRUE=
++  MODULE__RUST_SHLEX_SPLIT_FALSE='#'
++else
++  MODULE__RUST_SHLEX_SPLIT_TRUE='#'
++  MODULE__RUST_SHLEX_SPLIT_FALSE=
++fi
++
++  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $py_cv_module__rust_shlex_split" >&5
++printf "%s\n" "$py_cv_module__rust_shlex_split" >&6; }
++
++
+@@ -37082,4 +37082,8 @@
+ if test -z "${MODULE__RUST_URL_QUOTE_TRUE}" && test -z "${MODULE__RUST_URL_QUOTE_FALSE}"; then
+   as_fn_error $? "conditional \"MODULE__RUST_URL_QUOTE\" was never defined.
+ Usually this means the macro was only invoked conditionally." "$LINENO" 5
+ fi
++if test -z "${MODULE__RUST_SHLEX_SPLIT_TRUE}" && test -z "${MODULE__RUST_SHLEX_SPLIT_FALSE}"; then
++  as_fn_error $? "conditional \"MODULE__RUST_SHLEX_SPLIT\" was never defined.
++Usually this means the macro was only invoked conditionally." "$LINENO" 5
++fi
+diff --git a/Modules/_rust_shlex_split/module.c b/Modules/_rust_shlex_split/module.c
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_shlex_split/module.c
+@@ -0,0 +1,79 @@
++/* CPython owns Unicode and token objects; Rust scans exact ASCII text. */
++#define PY_SSIZE_T_CLEAN
++#include <Python.h>
++
++extern int shlex_split_scan(const unsigned char *, Py_ssize_t,
++                           unsigned char *, Py_ssize_t *, Py_ssize_t *);
++
++static PyObject *scan(PyObject *self, PyObject *arg)
++{
++    Py_ssize_t length, count = 0, offset = 0;
++    unsigned char *buffer;
++    Py_ssize_t *lengths;
++    PyObject *tokens;
++    (void)self;
++    if (!PyUnicode_CheckExact(arg)) {
++        PyErr_SetString(PyExc_TypeError, "scan requires exact str");
++        return NULL;
++    }
++    if (!PyUnicode_IS_ASCII(arg)) {
++        Py_RETURN_NONE;
++    }
++    length = PyUnicode_GET_LENGTH(arg);
++    /* Command-sized inputs bound temporary token-length storage. */
++    if (length > 4096) {
++        Py_RETURN_NONE;
++    }
++    buffer = PyMem_Malloc((size_t)length + 1);
++    lengths = PyMem_Malloc(((size_t)length + 1) * sizeof(Py_ssize_t));
++    if (buffer == NULL || lengths == NULL) {
++        PyMem_Free(buffer);
++        PyMem_Free(lengths);
++        return PyErr_NoMemory();
++    }
++    if (!shlex_split_scan((const unsigned char *)PyUnicode_1BYTE_DATA(arg),
++                          length, buffer, lengths, &count)) {
++        PyMem_Free(buffer);
++        PyMem_Free(lengths);
++        Py_RETURN_NONE;
++    }
++    tokens = PyList_New(count);
++    if (tokens != NULL) {
++        for (Py_ssize_t index = 0; index < count; index++) {
++            PyObject *token = PyUnicode_FromStringAndSize(
++                (const char *)buffer + offset, lengths[index]);
++            if (token == NULL) {
++                Py_CLEAR(tokens);
++                break;
++            }
++            PyList_SET_ITEM(tokens, index, token);
++            offset += lengths[index];
++        }
++    }
++    PyMem_Free(buffer);
++    PyMem_Free(lengths);
++    return tokens;
++}
++
++static PyMethodDef methods[] = {
++    {"scan", scan, METH_O, "Return POSIX shell tokens or None for fallback."},
++    {NULL, NULL, 0, NULL}
++};
++
++static PyModuleDef_Slot slots[] = {
++    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
++    {0, NULL}
++};
++
++static struct PyModuleDef module = {
++    PyModuleDef_HEAD_INIT,
++    .m_name = "_rust_shlex_split",
++    .m_size = 0,
++    .m_methods = methods,
++    .m_slots = slots,
++};
++
++PyMODINIT_FUNC PyInit__rust_shlex_split(void)
++{
++    return PyModuleDef_Init(&module);
++}
+diff --git a/Modules/_rust_shlex_split/scan.rs b/Modules/_rust_shlex_split/scan.rs
+new file mode 100644
+--- /dev/null
++++ b/Modules/_rust_shlex_split/scan.rs
+@@ -0,0 +1,93 @@
++#![no_std]
++
++use core::panic::PanicInfo;
++
++unsafe extern "C" {
++    fn abort() -> !;
++}
++
++#[panic_handler]
++fn panic(_info: &PanicInfo<'_>) -> ! {
++    unsafe { abort() }
++}
++
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn shlex_split_scan(
++    input: *const u8,
++    length: isize,
++    output: *mut u8,
++    lengths: *mut isize,
++    count_out: *mut isize,
++) -> i32 {
++    if input.is_null() || output.is_null() || lengths.is_null()
++        || count_out.is_null() || length < 0
++    {
++        return 0;
++    }
++    let source = unsafe { core::slice::from_raw_parts(input, length as usize) };
++    let mut index = 0usize;
++    let mut used = 0usize;
++    let mut start = 0usize;
++    let mut count = 0usize;
++    let mut active = false;
++    let mut quote = 0u8;
++    while index < source.len() {
++        let Some(&byte) = source.get(index) else { return 0 };
++        index += 1;
++        if quote == b'\'' {
++            if byte == b'\'' {
++                quote = 0;
++            } else {
++                unsafe { *output.add(used) = byte };
++                used += 1;
++            }
++            continue;
++        }
++        if quote == b'"' {
++            if byte == b'"' {
++                quote = 0;
++            } else if byte == b'\\' {
++                let Some(&next) = source.get(index) else { return 0 };
++                index += 1;
++                if next != b'"' && next != b'\\' {
++                    unsafe { *output.add(used) = b'\\' };
++                    used += 1;
++                }
++                unsafe { *output.add(used) = next };
++                used += 1;
++            } else {
++                unsafe { *output.add(used) = byte };
++                used += 1;
++            }
++            continue;
++        }
++        if byte == b' ' || byte == b'\t' || byte == b'\r' || byte == b'\n' {
++            if active {
++                unsafe { *lengths.add(count) = (used - start) as isize };
++                count += 1;
++                start = used;
++                active = false;
++            }
++        } else if byte == b'\'' || byte == b'"' {
++            quote = byte;
++            active = true;
++        } else if byte == b'\\' {
++            let Some(&next) = source.get(index) else { return 0 };
++            index += 1;
++            unsafe { *output.add(used) = next };
++            used += 1;
++            active = true;
++        } else {
++            unsafe { *output.add(used) = byte };
++            used += 1;
++            active = true;
++        }
++    }
++    if quote != 0 { return 0 }
++    if active {
++        unsafe { *lengths.add(count) = (used - start) as isize };
++        count += 1;
++    }
++    unsafe { *count_out = count as isize };
++    1
++}

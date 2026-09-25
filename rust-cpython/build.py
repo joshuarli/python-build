@@ -540,7 +540,8 @@ def _source_patch_inputs(*, url_unquote: bool = False,
                          tar_checksum: bool = False,
                          ipv4_scan: bool = False,
                          strptime_numeric: bool = False,
-                         uuid_canonical: bool = False) -> dict[str, Any]:
+                         uuid_canonical: bool = False,
+                         shlex_split: bool = False) -> dict[str, Any]:
     """Validate the authored patch inputs without touching an extracted tree."""
     metadata, _entry = _read_lock()
     try:
@@ -563,6 +564,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         "0006-rust-ipv4-scan.patch": "ipv4-scan",
         "0007-rust-strptime-numeric.patch": "strptime-numeric",
         "0008-rust-uuid-canonical.patch": "uuid-canonical",
+        "0009-rust-shlex-split.patch": "shlex-split",
     }
     optional_seen: set[str] = set()
     for entry in manifest["patches"]:
@@ -596,6 +598,8 @@ def _source_patch_inputs(*, url_unquote: bool = False,
             mode == "strptime-numeric" and strptime_numeric
         ) or (
             mode == "uuid-canonical" and uuid_canonical
+        ) or (
+            mode == "shlex-split" and shlex_split
         ):
             records.append(dict(entry))
     if optional_seen != set(optional_patches):
@@ -609,6 +613,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         "ipv4_scan": ipv4_scan,
         "strptime_numeric": strptime_numeric,
         "uuid_canonical": uuid_canonical,
+        "shlex_split": shlex_split,
         "patches": records,
     }
 
@@ -617,13 +622,15 @@ def _apply_source_patches(source: Path, *, url_unquote: bool = False,
                           tar_checksum: bool = False,
                           ipv4_scan: bool = False,
                           strptime_numeric: bool = False,
-                          uuid_canonical: bool = False) -> dict[str, Any]:
+                          uuid_canonical: bool = False,
+                          shlex_split: bool = False) -> dict[str, Any]:
     """Apply authored patches only to the verified, pinned fresh source tree."""
     inputs = _source_patch_inputs(url_unquote=url_unquote,
                                   tar_checksum=tar_checksum,
                                   ipv4_scan=ipv4_scan,
                                   strptime_numeric=strptime_numeric,
-                                  uuid_canonical=uuid_canonical)
+                                  uuid_canonical=uuid_canonical,
+                                  shlex_split=shlex_split)
     metadata, _entry = _read_lock()
     expected_lock = metadata["cargo_lock_sha256"]
     if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
@@ -637,8 +644,12 @@ def _apply_source_patches(source: Path, *, url_unquote: bool = False,
     git_env["GIT_CEILING_DIRECTORIES"] = str(source.parent.resolve())
     for record in inputs["patches"]:
         path = PATCH_MANIFEST.parent / record["file"]
+        # The optional shell scanner anchors insertions on a single stable
+        # URL module line because other optional modules occupy both sides.
+        narrow_context = (["--unidiff-zero"]
+                          if record["file"] == "0009-rust-shlex-split.patch" else [])
         for check_only in (True, False):
-            argv = ["git", "apply", "--whitespace=error"]
+            argv = ["git", "apply", "--whitespace=error", *narrow_context]
             if check_only:
                 argv.append("--check")
             argv.append(str(path))
@@ -649,14 +660,14 @@ def _apply_source_patches(source: Path, *, url_unquote: bool = False,
         # A zero exit status alone is insufficient: git apply may skip all
         # paths and still report success. The applied patch must now reverse.
         reverse = subprocess.run(
-            ["git", "apply", "--reverse", "--check", str(path)],
+            ["git", "apply", "--reverse", "--check", *narrow_context, str(path)],
             cwd=source, env=git_env, capture_output=True, text=True,
         )
         if reverse.returncode != 0:
             detail = (reverse.stderr or reverse.stdout).strip()
             raise LaneError(f"source patch {record['file']} did not change the source: {detail}")
         forward = subprocess.run(
-            ["git", "apply", "--check", str(path)],
+            ["git", "apply", "--check", *narrow_context, str(path)],
             cwd=source, env=git_env, capture_output=True, text=True,
         )
         if forward.returncode == 0:
@@ -1441,7 +1452,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -1482,6 +1493,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         (BUILD / "Modules" / "_rust_strptime_numeric").mkdir(parents=True, exist_ok=True)
     if uuid_canonical:
         (BUILD / "Modules" / "_rust_uuid_canonical").mkdir(parents=True, exist_ok=True)
+    if shlex_split:
+        (BUILD / "Modules" / "_rust_shlex_split").mkdir(parents=True, exist_ok=True)
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(
         make, cwd=BUILD, env=source_date_env,
@@ -1605,7 +1618,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
           zlib_oneshot: bool = False, url_unquote: bool = False,
           tar_checksum: bool = False, ipv4_scan: bool = False,
           strptime_numeric: bool = False,
-          uuid_canonical: bool = False,
+          uuid_canonical: bool = False, shlex_split: bool = False,
           apply_patches: bool = True) -> int:
     if sum((zlib_rs, zlib_hybrid, zlib_oneshot)) > 1:
         raise LaneError("select one zlib candidate mode")
@@ -1623,13 +1636,15 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     source = _extract_fresh(SOURCE)
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
-    if (url_unquote or tar_checksum or ipv4_scan or strptime_numeric or uuid_canonical) and not apply_patches:
+    if (url_unquote or tar_checksum or ipv4_scan or strptime_numeric
+            or uuid_canonical or shlex_split) and not apply_patches:
         raise LaneError("optional source patches require source patches")
     patches = (_apply_source_patches(source, url_unquote=url_unquote,
                                      tar_checksum=tar_checksum,
                                      ipv4_scan=ipv4_scan,
                                      strptime_numeric=strptime_numeric,
-                                     uuid_canonical=uuid_canonical)
+                                     uuid_canonical=uuid_canonical,
+                                     shlex_split=shlex_split)
                if apply_patches else _unpatched_record())
     if zlib_backend is not None:
         zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
@@ -1649,7 +1664,8 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
                                zlib_hybrid=zlib_hybrid, zlib_oneshot=zlib_oneshot,
                                tar_checksum=tar_checksum, ipv4_scan=ipv4_scan,
                                strptime_numeric=strptime_numeric,
-                               uuid_canonical=uuid_canonical)
+                               uuid_canonical=uuid_canonical,
+                               shlex_split=shlex_split)
     print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
     _write_json(BUILD_REPORT, report)
@@ -1688,19 +1704,22 @@ def test() -> int:
             or type(recorded_patches.get("tar_checksum")) is not bool
             or type(recorded_patches.get("ipv4_scan")) is not bool
             or type(recorded_patches.get("strptime_numeric")) is not bool
-            or type(recorded_patches.get("uuid_canonical")) is not bool):
+            or type(recorded_patches.get("uuid_canonical")) is not bool
+            or type(recorded_patches.get("shlex_split")) is not bool):
         raise LaneError("build report is missing optional source patch selections")
     url_unquote = recorded_patches["url_unquote"]
     tar_checksum = recorded_patches["tar_checksum"]
     ipv4_scan = recorded_patches["ipv4_scan"]
     strptime_numeric = recorded_patches["strptime_numeric"]
     uuid_canonical = recorded_patches["uuid_canonical"]
+    shlex_split = recorded_patches["shlex_split"]
     applied = bool(recorded_patches.get("patches"))
     patches = (_source_patch_inputs(url_unquote=url_unquote,
                                     tar_checksum=tar_checksum,
                                     ipv4_scan=ipv4_scan,
                                     strptime_numeric=strptime_numeric,
-                                    uuid_canonical=uuid_canonical)
+                                    uuid_canonical=uuid_canonical,
+                                    shlex_split=shlex_split)
                if applied else _unpatched_record())
     if report["source"].get("patches") != patches:
         raise LaneError("current source patches disagree with the completed build report")
@@ -1712,7 +1731,8 @@ def test() -> int:
                                   tar_checksum=tar_checksum,
                                   ipv4_scan=ipv4_scan,
                                   strptime_numeric=strptime_numeric,
-                                  uuid_canonical=uuid_canonical)
+                                  uuid_canonical=uuid_canonical,
+                                  shlex_split=shlex_split)
     toolchain, _target = _toolchain()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -1844,6 +1864,10 @@ def main(argv: list[str] | None = None) -> int:
                 "--uuid-canonical", action="store_true",
                 help="include the optional Rust canonical UUID text scanner",
             )
+            command_parser.add_argument(
+                "--shlex-split", action="store_true",
+                help="include the optional Rust POSIX shlex split scanner",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
@@ -1858,6 +1882,7 @@ def main(argv: list[str] | None = None) -> int:
                          tar_checksum=args.tar_checksum, ipv4_scan=args.ipv4_scan,
                          strptime_numeric=args.strptime_numeric,
                          uuid_canonical=args.uuid_canonical,
+                         shlex_split=args.shlex_split,
                          apply_patches=not args.no_patches)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:

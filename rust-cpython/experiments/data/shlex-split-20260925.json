@@ -1,0 +1,879 @@
+{
+  "recipe": {
+    "workload": "shlex_split_workload.py --count 12000 --rounds 2",
+    "workload_sha256": "23f5ed285177d2254d03a9e9577bacc2a939353c5c6e262432ffa40e7f045c70",
+    "control_interpreter_sha256": "264c7708192c4fde5232034f8653f25dd2bd5dbd9fd656f2ae0f4864a9e16b54",
+    "candidate_interpreter_sha256": "e898fd4f6b44d3eeec84bc63b60ef0f2cbf9b63ca6df1b18c9ae7fa183d540ad",
+    "control_shlex_sha256": "3e75f98ddd7a8dd4f492183c25f480d34a8f9e4f1868f2ca2196d5018eb24150",
+    "candidate_shlex_sha256": "7775524252ef7660a73b8be8b2c5995d74df50f82ad7ff7a4f1abca2ac8196af",
+    "candidate_extension_sha256": "44a0d14a43c8978154f28650895d7f35f4728df282f9eee8803ca42542e6a353",
+    "measurement": "/usr/bin/time -l -p around direct Python child, with parent perf_counter wall; Darwin wait4 kernel child usage",
+    "cache_policy": "empty PYTHONPYCACHEPREFIX, PYTHONDONTWRITEBYTECODE=1, -B; both sides compile source",
+    "environment": {
+      "PYTHONHASHSEED": "1",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    },
+    "order": "three self pairs, five alternating comparison pairs, five alternating cold import pairs"
+  },
+  "host_swap_before": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+  "host_load_before": "1:57  up 10 days, 14:03, 2 users, load averages: 2.94 5.77 5.15",
+  "attempts": [
+    {
+      "id": "self-01-01-control",
+      "family": "self",
+      "kind": "command-processing",
+      "pair": 1,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.5975862499326468,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.56,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34373632,
+      "peak_footprint_bytes": 21791200,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "self-01-02-control",
+      "family": "self",
+      "kind": "command-processing",
+      "pair": 1,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6011085829231888,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34996224,
+      "peak_footprint_bytes": 22430200,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "self-02-01-control",
+      "family": "self",
+      "kind": "command-processing",
+      "pair": 2,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6011173339793459,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34553856,
+      "peak_footprint_bytes": 21987832,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "self-02-02-control",
+      "family": "self",
+      "kind": "command-processing",
+      "pair": 2,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6011226659175009,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.56,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35110912,
+      "peak_footprint_bytes": 22528480,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "self-03-01-control",
+      "family": "self",
+      "kind": "command-processing",
+      "pair": 3,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6013567909831181,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.56,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34652160,
+      "peak_footprint_bytes": 22069728,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "self-03-02-control",
+      "family": "self",
+      "kind": "command-processing",
+      "pair": 3,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.608566208044067,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35061760,
+      "peak_footprint_bytes": 22479328,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-01-01-control",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 1,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6037720829481259,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35061760,
+      "peak_footprint_bytes": 22495736,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-01-02-candidate",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 1,
+      "position": 2,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.21658854105044156,
+      "kernel_real_seconds": 0.21,
+      "user_seconds": 0.18,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35323904,
+      "peak_footprint_bytes": 22757880,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-02-01-candidate",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 2,
+      "position": 1,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.22110712504945695,
+      "kernel_real_seconds": 0.21,
+      "user_seconds": 0.19,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35045376,
+      "peak_footprint_bytes": 22479352,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-02-02-control",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 2,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6030382909812033,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34734080,
+      "peak_footprint_bytes": 22168056,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-03-01-control",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 3,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6036232500337064,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35192832,
+      "peak_footprint_bytes": 22610400,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-03-02-candidate",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 3,
+      "position": 2,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.21938566607423127,
+      "kernel_real_seconds": 0.21,
+      "user_seconds": 0.18,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34914304,
+      "peak_footprint_bytes": 22348280,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-04-01-candidate",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 4,
+      "position": 1,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.2171234160196036,
+      "kernel_real_seconds": 0.21,
+      "user_seconds": 0.19,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34766848,
+      "peak_footprint_bytes": 22200824,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-04-02-control",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 4,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6009571249596775,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.56,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35094528,
+      "peak_footprint_bytes": 22528504,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-05-01-control",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 5,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.6034349169349298,
+      "kernel_real_seconds": 0.59,
+      "user_seconds": 0.57,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 34521088,
+      "peak_footprint_bytes": 21938656,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "candidate-05-02-candidate",
+      "family": "candidate",
+      "kind": "command-processing",
+      "pair": 5,
+      "position": 2,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.21910341701004654,
+      "kernel_real_seconds": 0.21,
+      "user_seconds": 0.18,
+      "system_seconds": 0.01,
+      "peak_rss_bytes": 35094528,
+      "peak_footprint_bytes": 22528504,
+      "swaps": 0,
+      "output": {
+        "buckets": 14,
+        "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+        "errors": 632,
+        "records": 12632,
+        "rounds": 2,
+        "tokens": 163580
+      }
+    },
+    {
+      "id": "cold-import-01-01-control",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 1,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.026599832926876843,
+      "kernel_real_seconds": 0.02,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17203200,
+      "peak_footprint_bytes": 7307720,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-01-02-candidate",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 1,
+      "position": 2,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.024878000025637448,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17317888,
+      "peak_footprint_bytes": 7373232,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-02-01-candidate",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 2,
+      "position": 1,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.02376095810905099,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17252352,
+      "peak_footprint_bytes": 7307696,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-02-02-control",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 2,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.02626070799306035,
+      "kernel_real_seconds": 0.02,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17039360,
+      "peak_footprint_bytes": 7143880,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-03-01-control",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 3,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.024034083005972207,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17268736,
+      "peak_footprint_bytes": 7356848,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-03-02-candidate",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 3,
+      "position": 2,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.02408658294007182,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17203200,
+      "peak_footprint_bytes": 7274952,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-04-01-candidate",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 4,
+      "position": 1,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.02591545891482383,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17186816,
+      "peak_footprint_bytes": 7242160,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-04-02-control",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 4,
+      "position": 2,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.024211790994741023,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17170432,
+      "peak_footprint_bytes": 7274952,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-05-01-control",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 5,
+      "position": 1,
+      "side": "control",
+      "returncode": 0,
+      "wall_seconds": 0.028489875025115907,
+      "kernel_real_seconds": 0.02,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17154048,
+      "peak_footprint_bytes": 7242160,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    },
+    {
+      "id": "cold-import-05-02-candidate",
+      "family": "cold-import",
+      "kind": "cold-import",
+      "pair": 5,
+      "position": 2,
+      "side": "candidate",
+      "returncode": 0,
+      "wall_seconds": 0.024972292012535036,
+      "kernel_real_seconds": 0.01,
+      "user_seconds": 0.01,
+      "system_seconds": 0.0,
+      "peak_rss_bytes": 17203200,
+      "peak_footprint_bytes": 7258544,
+      "swaps": 0,
+      "output": {
+        "empty_stdout": true
+      }
+    }
+  ],
+  "host_swap_after": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+  "host_load_after": "1:58  up 10 days, 14:04, 2 users, load averages: 3.47 5.79 5.16",
+  "calibration": {
+    "host_load_after": "1:57  up 10 days, 14:03, 2 users, load averages: 3.19 5.91 5.19",
+    "host_swap_after": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "attempts": [
+      {
+        "id": "calibration-01-01-control",
+        "family": "calibration",
+        "kind": "command-processing",
+        "pair": 1,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6322338749887422,
+        "kernel_real_seconds": 0.62,
+        "user_seconds": 0.57,
+        "system_seconds": 0.02,
+        "peak_rss_bytes": 34308096,
+        "peak_footprint_bytes": 21742072,
+        "swaps": 0,
+        "output": {
+          "buckets": 14,
+          "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+          "errors": 632,
+          "records": 12632,
+          "rounds": 2,
+          "tokens": 163580
+        }
+      },
+      {
+        "id": "calibration-01-02-control",
+        "family": "calibration",
+        "kind": "command-processing",
+        "pair": 1,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6016509999753907,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.57,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 34881536,
+        "peak_footprint_bytes": 22299104,
+        "swaps": 0,
+        "output": {
+          "buckets": 14,
+          "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+          "errors": 632,
+          "records": 12632,
+          "rounds": 2,
+          "tokens": 163580
+        }
+      },
+      {
+        "id": "calibration-02-01-control",
+        "family": "calibration",
+        "kind": "command-processing",
+        "pair": 2,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6072802080307156,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.57,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 35028992,
+        "peak_footprint_bytes": 22462968,
+        "swaps": 0,
+        "output": {
+          "buckets": 14,
+          "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+          "errors": 632,
+          "records": 12632,
+          "rounds": 2,
+          "tokens": 163580
+        }
+      },
+      {
+        "id": "calibration-02-02-control",
+        "family": "calibration",
+        "kind": "command-processing",
+        "pair": 2,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6050167090725154,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.57,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 34308096,
+        "peak_footprint_bytes": 21725664,
+        "swaps": 0,
+        "output": {
+          "buckets": 14,
+          "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+          "errors": 632,
+          "records": 12632,
+          "rounds": 2,
+          "tokens": 163580
+        }
+      },
+      {
+        "id": "calibration-03-01-control",
+        "family": "calibration",
+        "kind": "command-processing",
+        "pair": 3,
+        "position": 1,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.6066989159444347,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.57,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 34996224,
+        "peak_footprint_bytes": 22430200,
+        "swaps": 0,
+        "output": {
+          "buckets": 14,
+          "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+          "errors": 632,
+          "records": 12632,
+          "rounds": 2,
+          "tokens": 163580
+        }
+      },
+      {
+        "id": "calibration-03-02-control",
+        "family": "calibration",
+        "kind": "command-processing",
+        "pair": 3,
+        "position": 2,
+        "side": "control",
+        "returncode": 0,
+        "wall_seconds": 0.5999962500063702,
+        "kernel_real_seconds": 0.59,
+        "user_seconds": 0.56,
+        "system_seconds": 0.01,
+        "peak_rss_bytes": 34488320,
+        "peak_footprint_bytes": 21922296,
+        "swaps": 0,
+        "output": {
+          "buckets": 14,
+          "digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+          "errors": 632,
+          "records": 12632,
+          "rounds": 2,
+          "tokens": 163580
+        }
+      }
+    ]
+  },
+  "build": {
+    "id": "build-01",
+    "status": "passed",
+    "command": "python3 rust-cpython/build.py build --variant shlex-split --strptime-numeric --uuid-canonical --shlex-split",
+    "source_commit": "b812b4a7b9efaca46b98544a8633b7d7e454166b",
+    "source_archive_sha256": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+    "cargo_lock_sha256": "55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023",
+    "selected_patches": [
+      "0001-rust-url-quote.patch",
+      "0002-zlib-hybrid-inflate.patch",
+      "0003-zlib-oneshot-inflate.patch",
+      "0007-rust-strptime-numeric.patch",
+      "0008-rust-uuid-canonical.patch",
+      "0009-rust-shlex-split.patch"
+    ],
+    "manifest_sha256": "e623adc12400b33ac6781a23c695ce598e4ccff505ad2c8537e55df878ea8436",
+    "shlex_patch_sha256": "dfb8bfd3fd9312a9ed403d88f9864f8951c71ee11d1a431a83dfa17dbf4f8b85",
+    "build_report_sha256": "5e6327ea7c8d07cb287c5decb4a99819f524f5da60ff39f4593c60c0b6d48f9d",
+    "configure_switches": [
+      "--enable-shared",
+      "--with-lto=thin",
+      "--enable-optimizations",
+      "--enable-experimental-jit=no",
+      "--with-tail-call-interp=no",
+      "--without-ensurepip"
+    ],
+    "pgo_task": "-m test --pgo -j 9",
+    "lto_mode": "thin",
+    "cargo_profile": "release",
+    "rust_channel": "nightly-2026-09-15",
+    "llvm_release": "23.1.2",
+    "optimization": "-O3, Apple M1 baseline",
+    "wall_seconds": 274.82,
+    "user_seconds": 699.07,
+    "system_seconds": 108.4,
+    "peak_rss_bytes": 1767178240,
+    "peak_footprint_bytes": 37945848,
+    "swaps": 0,
+    "measurement": "/usr/bin/time -l -p around build.py process tree; peak RSS is maximum observed child, footprint is reported parent/process accounting",
+    "host_overlap": "unrelated xsh cargo/rustc compile began after this build started; build wall cost is contaminated, no published timing pair overlapped it",
+    "source_shlex_sha256": "7775524252ef7660a73b8be8b2c5995d74df50f82ad7ff7a4f1abca2ac8196af",
+    "installed_shlex_sha256": "7775524252ef7660a73b8be8b2c5995d74df50f82ad7ff7a4f1abca2ac8196af",
+    "extension_exported_symbols": [
+      "PyInit__rust_shlex_split",
+      "shlex_split_scan"
+    ],
+    "extension_unresolved_personality": false,
+    "installed_native_size": {
+      "control": {
+        "files": 85,
+        "bytes": 17117487
+      },
+      "candidate": {
+        "files": 86,
+        "bytes": 17180769
+      },
+      "candidate_shlex_extension_bytes": 51416
+    }
+  },
+  "profile_gate": {
+    "id": "profile-02",
+    "status": "passed",
+    "control_complete_task_cprofile_seconds": 1.232,
+    "shlex_split_cumulative_seconds": 1.077,
+    "read_token_cumulative_seconds": 0.924,
+    "shlex_split_calls": 25264,
+    "output_digest": "f3044038f323d044f07ff99da59314f8861473624726d4483aeb1b9cea1f4afe",
+    "instrumented_fraction": 0.8742,
+    "failed_prior_attempt": {
+      "id": "profile-01",
+      "failure": "cProfile completed task but could not write stats because rust-cpython/work did not exist; created the directory and reran"
+    }
+  },
+  "patch_selection": {
+    "status": "passed",
+    "fresh_source_verified_changed_paths": {
+      "default": 8,
+      "shlex_only": 11,
+      "candidate_stack": 17,
+      "all_optional": 23
+    },
+    "reverse_checks": true,
+    "failures_before_final_patch": [
+      {
+        "id": "patch-01",
+        "failure": "manifest required 0009 entry before patch file was registered"
+      },
+      {
+        "id": "patch-02",
+        "failure": "first 0009 hunk context followed UUID insertion and did not apply in shlex-only selection"
+      },
+      {
+        "id": "patch-03",
+        "failure": "revised patch applied shlex-only and candidate stack but not all optional due adjacent TAR and IPv4 insertions"
+      },
+      {
+        "id": "patch-04",
+        "failure": "reordering 0009 before TAR made existing TAR insertion conflict"
+      },
+      {
+        "id": "patch-05",
+        "failure": "single-anchor patch needed git apply --unidiff-zero for one-context insertions"
+      }
+    ],
+    "application_mode": "git apply --unidiff-zero for 0009 only, with exact changed-path hashes and reverse checks on fresh verified source"
+  },
+  "summary": {
+    "self": {
+      "median_wall_ratio": 1.005894267130375,
+      "median_cpu_ratio": 1.0175438596491226
+    },
+    "candidate": {
+      "median_wall_ratio": 0.3630937005153004,
+      "median_cpu_ratio": 0.32758620689655177,
+      "median_rss_delta_bytes": 262144,
+      "median_footprint_delta_bytes": 262144
+    },
+    "cold-import": {
+      "median_wall_ratio": 0.9352690332314219,
+      "median_cpu_ratio": 1.0,
+      "median_rss_delta_bytes": 49152,
+      "median_footprint_delta_bytes": 16384
+    }
+  },
+  "limits": {
+    "fast_path": "exact ASCII str of at most 4096 characters; comments is False, posix is True, unchanged shlex binding and core methods; malformed strings, other inputs and options use Python fallback",
+    "semantic_qualification": "not run by request; matching complete-task digest is the only behavioral comparison",
+    "memory": "Darwin time supplies max RSS and peak footprint, not unique/proportional memory or allocation counts",
+    "host": "native Apple Silicon macOS only; Linux not built"
+  }
+}
