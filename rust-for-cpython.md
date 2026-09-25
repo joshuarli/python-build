@@ -653,6 +653,10 @@ as a separate baseline change.
   The paired warm/cold comparison found no established URL-patch benefit for
   either WSGI request, with upstream memory parity still open. See
   [`django-cold-comparison-20260925.md`](rust-cpython/experiments/django-cold-comparison-20260925.md).
+  A fresh matched quote-only versus optional unquote comparison also found no
+  established cold or warm Django WSGI gain; its small CPU and RSS differences
+  stayed within local variation. See
+  [`merged-macos-url-django-20260925.md`](rust-cpython/experiments/merged-macos-url-django-20260925.md).
   Add baseline-derived loops for
   pyperformance and selected Pyston macros only with separately pinned inputs.
 
