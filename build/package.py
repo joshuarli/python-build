@@ -7,7 +7,7 @@ installation can be repackaged without rebuilding it.
 Only three things are format- or platform-specific — how a binary is
 stripped (and, on macOS, re-signed), what the binary checks are, and what the
 comparison baseline is. Everything else is one pipeline shared by both
-families, per plan Section 3's "one package layout".
+families, using the same package layout on both platforms.
 
 On the Linux targets this runs inside a Docker stage, because it strips and
 inspects ELF binaries and executes the staged interpreter. On macOS it runs

@@ -14,8 +14,7 @@ cross-checks against the platform tools (`build/package.py`), but the
 primitives below stand on their own.
 
 The fat/universal rejection is deliberate: this project ships one arm64
-slice. A fat binary would mean the build silently produced an Intel slice
-that the plan excludes.
+slice. A fat binary would include an unsupported Intel slice in the product.
 """
 
 from __future__ import annotations

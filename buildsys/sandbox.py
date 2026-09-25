@@ -11,9 +11,9 @@ properties matter and both are enforced rather than asserted:
 
 What this is *not*: a container. A sandboxed process shares the host kernel
 and filesystem namespace with everything else, so this is weaker containment
-than the Linux targets have. That is stated plainly in the reports rather
-than papered over — the plan requires demonstrating that the boundary is
-real, not claiming it is equivalent.
+than the Linux targets have. Reports describe this boundary accurately; the
+network denial is checked with a live listener rather than assumed from the
+profile configuration.
 
 `network_boundary_selftest` is the load-bearing check: it runs the same
 probe inside and outside the profile against a listener this process owns,

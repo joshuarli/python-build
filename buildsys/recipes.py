@@ -85,7 +85,7 @@ class Toolchain:
             # The linker is intentionally not named: clang's driver selects
             # the platform linker and passes the libLTO matching its own
             # bitcode. Pinning LD to a separately installed LLD is how you
-            # get a version-mismatched bitcode rejection (Section 5.1).
+            # get a version-mismatched bitcode rejection.
             env.pop("LD", None)
             if self.sdkroot:
                 env["SDKROOT"] = self.sdkroot
@@ -135,7 +135,7 @@ class Toolchain:
             parts.append(f"-mmacosx-version-min={self.deployment_target}")
         else:
             # macOS has no equivalent of these; they are ELF loader
-            # hardening and ELF build-id, not portable flags (Section 5.3).
+            # hardening and ELF build-id, not portable flags.
             parts += ["-Wl,-z,noexecstack", "-Wl,--build-id=sha1"]
         if extra:
             parts.append(extra)
@@ -242,10 +242,9 @@ def build_recipe(
             make_cflags = toolchain.cflags(recipe.cflags)
             make_ldflags = toolchain.ldflags(prefix, recipe.ldflags)
         else:
-            # Verbatim reproduction of the frozen Linux flag strings. See the
-            # freeze note in plan Section 1.2: these recipes already produced
-            # validated artifacts with exactly this text, and "improving" it
-            # here would alter a completed target without re-validating it.
+            # Keep the Linux flag strings unchanged: they already produced
+            # validated artifacts, and changing them would alter a completed
+            # target without re-validating it.
             # `-D_FILE_OFFSET_BITS=64` is a large-file concern for
             # 32-bit-off_t platforms and is not needed on Darwin.
             make_cflags = f"{recipe.cflags} -O3 -fPIC -D_FILE_OFFSET_BITS=64"

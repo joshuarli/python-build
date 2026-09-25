@@ -339,7 +339,7 @@ _LTO_MAIN_C = (
 def lto_smoke_test(toolchain: Toolchain, workdir: Path) -> dict:
     """Prove the locked compiler and linker can actually build and run ThinLTO.
 
-    This is the gate plan Section 5.1 requires before any dependency build.
+    This gate runs before any dependency build.
     On macOS the risk is specific and silent: clang passes its own
     `libLTO.dylib` to the platform linker, so a compiler/linker generation
     mismatch surfaces as a hard bitcode rejection — but only if LTO is

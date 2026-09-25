@@ -1,4 +1,4 @@
-"""Typed controller front door for the M1 distribution build.
+"""Typed controller front door for the product distribution build.
 
 The CLI validates arguments and delegates to buildsys; heavy work lives in
 buildsys and per-phase drivers. Unsupported targets fail closed: no artifacts

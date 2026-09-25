@@ -84,7 +84,7 @@ class ProfileTests(unittest.TestCase):
         self.assertTrue((self.root / "home").is_dir())
 
     def test_describe_states_the_containment_is_weaker_than_a_container(self) -> None:
-        # The plan requires an honest description rather than an implied
+        # The report must describe the weaker macOS boundary without implying
         # equivalence with the Linux targets' container boundary.
         text = describe()
         self.assertEqual(text["mechanism"], "sandbox-exec")

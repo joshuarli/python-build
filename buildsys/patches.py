@@ -1,7 +1,7 @@
 """Apply the project's small selected patch set.
 
-Every patch here carries a sibling `.md` provenance file: upstream source
-and version, origin/license, explanation, scope, and regression test.
+Every patch records its upstream source and version, origin and license,
+purpose, scope, applicability, and regression test.
 Patches are applied against a freshly verified source tree and rejected
 outright on any reject or unexpected preimage, rather than silently
 skipped.

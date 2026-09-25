@@ -1,4 +1,4 @@
-"""Build-system controller for the M1 Alpine x86_64 musl CPython distribution."""
+"""Build-system controller for the x86_64 musl CPython distribution."""
 
 from .inputs import (
     Cache,

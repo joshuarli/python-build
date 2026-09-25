@@ -140,7 +140,8 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         # token in both the build's own link commands and the installed
         # sysconfigdata LDFLAGS that pip reads directly (no shell involved)
         # at the same time. Relative RPATHs are set as a structured
-        # post-install ELF edit instead (build/relocate.py, plan 6).
+        # post-install ELF edit instead, so the installed search path is
+        # relative to the interpreter rather than the build prefix.
         "LDFLAGS": f"-L{prefix}/lib -Wl,-z,noexecstack -Wl,--build-id=sha1",
         "CFLAGS": (
             f"-O3 {target.cpu_baseline_cflag} -fno-omit-frame-pointer -fPIC -fstack-protector-strong "
@@ -158,9 +159,9 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         "--with-openssl=" + str(prefix),
         "--with-openssl-rpath=no",
         "--with-dbmliborder=bdb:ndbm:gdbm",
-        # Plan 5.2 forbids silently replacing libedit with readline; the
-        # readline module must link against the private libedit build, not
-        # probe for a system GNU readline that isn't part of this product.
+        # Keep libedit as the readline backend: it must link against the
+        # private libedit build rather than probe for a system GNU readline
+        # that is not part of this product.
         "--with-readline=editline",
         "--with-tail-call-interp=no",
         "--without-static-libpython",

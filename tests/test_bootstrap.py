@@ -166,7 +166,7 @@ class LockAgainstMachineTests(unittest.TestCase):
 
 
 class LtoSmokeGateTests(unittest.TestCase):
-    """The gate plan Section 5.1 requires before any dependency build."""
+    """The toolchain gate that must pass before any dependency build."""
 
     def test_locked_toolchain_builds_and_runs_thinlto(self) -> None:
         from buildsys.bootstrap import lto_smoke_test

@@ -1,8 +1,8 @@
 """Verified content-addressed acquisition for locked build inputs.
 
-Roles (build-source, source, reference, test) separate what may become product
-payload from comparison-only or test-only inputs; plan Section 4 requires that
-separation be enforced structurally, not by convention.
+Roles (build-source, source, reference, test) separate inputs that may become
+product payload from comparison-only or test-only inputs. The role is checked
+structurally so excluded inputs cannot enter the product by convention alone.
 """
 
 from __future__ import annotations

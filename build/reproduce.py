@@ -3,8 +3,7 @@
 Both builds are clean — the Linux targets use `docker build --no-cache` on
 the `sealed` stage, macOS runs `build/sealed.py` from a cleared work tree —
 so reusing compiled objects across the two runs cannot masquerade as
-reproducibility; only the immutable `.cache/objects` downloads are shared,
-which plan 8.3 explicitly allows.
+reproducibility; only the immutable `.cache/objects` downloads are shared.
 
 On macOS the raw comparison is not the answer on its own: every Mach-O
 carries an ad-hoc signature covering the whole image, so the per-link
@@ -77,8 +76,7 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
 
     The first tree is set aside before the rebuild wipes the staging area, so
     the comparison is between two *complete* builds rather than between a
-    build and leftovers of itself. Only `.cache/objects` is shared, which
-    plan 8.3 explicitly permits.
+    build and leftovers of itself. Only `.cache/objects` is shared.
     """
     import shutil
 

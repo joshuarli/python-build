@@ -1,18 +1,17 @@
 """Target description: the one place architecture-specific data lives.
 
-Plan Section 12: "Every recipe, the CPython configure policy, and validation
-share one dependency graph, one Toolchain, and one packaging pipeline; only
-the handful of values below differ by machine." The running interpreter's
-own `platform.machine()` is what's actually true inside a given container or
-on a given host (including a QEMU-emulated one, which reports the emulated
-architecture, not the host's) — target selection reads that rather than
-trusting an external flag that could disagree with reality.
+Every target shares one dependency graph, one toolchain model, and one
+packaging pipeline; only the target-specific values below differ by machine.
+The running interpreter's own `platform.machine()` is what's actually true
+inside a container or on a host, including under QEMU emulation. Target
+selection reads that value rather than trusting an external flag that could
+disagree with reality.
 
 Two families are implemented, and they are deliberately different shapes:
 
   linux-musl  Alpine userspace in a Dockerfile-defined container. ELF,
               musl loader, Alpine apk toolchain.
-              Completed and frozen at commit 6750ae2.
+              Completed and frozen.
   macos       Native Apple Silicon macOS 26.0+. Mach-O,
               Apple libSystem, the locked official LLVM archive, and the Xcode SDK.
 
