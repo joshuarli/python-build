@@ -1,0 +1,1791 @@
+{
+  "attempt_count": 39,
+  "attempts": [
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "-c",
+        "import json, sqlite3, zlib, hashlib, sys; print(json.dumps({k: {'file': m.__file__, 'cached': getattr(m, '__cached__', None)} for k,m in sys.modules.items() if k in ('json','sqlite3','zlib','hashlib','encodings')}))"
+      ],
+      "external_wall_seconds": 0.08152545802295208,
+      "kernel_system_seconds": 0.0,
+      "kernel_user_seconds": 0.05,
+      "kind": "import-audit",
+      "output": {
+        "encodings": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/encodings/__init__.py"
+        },
+        "hashlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/hashlib.py"
+        },
+        "json": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/json/__init__.py"
+        },
+        "sqlite3": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/sqlite3/__init__.py"
+        },
+        "zlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so"
+        }
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/001-import-audit-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 16531936,
+      "root_peak_rss_bytes": 29163520,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/001-import-audit-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "-c",
+        "import json, sqlite3, zlib, hashlib, sys; print(json.dumps({k: {'file': m.__file__, 'cached': getattr(m, '__cached__', None)} for k,m in sys.modules.items() if k in ('json','sqlite3','zlib','hashlib','encodings')}))"
+      ],
+      "external_wall_seconds": 0.08653412503190339,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.06,
+      "kind": "import-audit",
+      "output": {
+        "encodings": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/encodings/__init__.py"
+        },
+        "hashlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/hashlib.py"
+        },
+        "json": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/json/__init__.py"
+        },
+        "sqlite3": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/sqlite3/__init__.py"
+        },
+        "zlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so"
+        }
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/002-import-audit-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 16597472,
+      "root_peak_rss_bytes": 29179904,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/002-import-audit-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "seed",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3"
+      ],
+      "external_wall_seconds": 0.15156754094641656,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.12,
+      "kind": "seed",
+      "output": {
+        "bytes": 561152,
+        "compressed_sizes": {
+          "modest": {
+            "count": 64,
+            "max": 2101,
+            "median": 1367,
+            "min": 565
+          },
+          "mostly_random": {
+            "count": 64,
+            "max": 3635,
+            "median": 2399,
+            "min": 1045
+          },
+          "random": {
+            "count": 64,
+            "max": 4101,
+            "median": 2605,
+            "min": 1055
+          },
+          "repetitive": {
+            "count": 64,
+            "max": 75,
+            "median": 63,
+            "min": 51
+          }
+        },
+        "fixture": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "rows": 256
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/003-seed-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22053368,
+      "root_peak_rss_bytes": 35733504,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/003-seed-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "100"
+      ],
+      "external_wall_seconds": 0.27883566601667553,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.24,
+      "kind": "pilot",
+      "output": {
+        "digest": "146c5f14a99fe706e41aef0c834e801851be9e29eebffa0971ed5a84ed414d77",
+        "elapsed_seconds": 0.1491220840252936,
+        "logical_bytes": 66047400,
+        "loops": 100,
+        "row_count": 25600
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/004-pilot-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21381624,
+      "root_peak_rss_bytes": 35045376,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/004-pilot-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0289036670001224,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "calibration",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8990616250084713,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/005-calibration-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21512672,
+      "root_peak_rss_bytes": 35192832,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/005-calibration-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0337027080822736,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9027776250150055,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/006-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21725688,
+      "root_peak_rss_bytes": 35389440,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/006-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0220998339354992,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.98,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8960880420636386,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/007-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21299704,
+      "root_peak_rss_bytes": 34963456,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/007-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.024093082989566,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8972267089411616,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/008-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21463544,
+      "root_peak_rss_bytes": 35127296,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/008-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.028315124916844,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8998218749184161,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/009-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22299128,
+      "root_peak_rss_bytes": 35962880,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/009-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.030373000074178,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8988955420209095,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/010-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22200824,
+      "root_peak_rss_bytes": 35864576,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/010-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0238277500029653,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8967974580591545,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/011-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21283320,
+      "root_peak_rss_bytes": 34947072,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/011-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0362623749533668,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9010581249604002,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/012-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22184440,
+      "root_peak_rss_bytes": 35848192,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/012-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0265318339224905,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8979446250014007,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/013-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21905912,
+      "root_peak_rss_bytes": 35569664,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/013-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0276059999596328,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8948887919541448,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/014-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21971448,
+      "root_peak_rss_bytes": 35635200,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/014-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0292815420543775,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9035382909933105,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/015-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21332472,
+      "root_peak_rss_bytes": 34996224,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/015-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0217840840341523,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8953199159586802,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/016-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21529080,
+      "root_peak_rss_bytes": 35192832,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/016-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0277260419679806,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8954822089290246,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/017-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21955064,
+      "root_peak_rss_bytes": 35618816,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/017-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0308885000413284,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9010541249299422,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/018-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21643768,
+      "root_peak_rss_bytes": 35307520,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/018-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0331967080710456,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-control",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9005523339146748,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/019-control-control-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21496312,
+      "root_peak_rss_bytes": 35160064,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/019-control-control-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0377122920472175,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.0,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9088864169316366,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/020-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21643768,
+      "root_peak_rss_bytes": 35307520,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/020-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1095738750882447,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.07,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9805074169998989,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/021-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22200800,
+      "root_peak_rss_bytes": 35979264,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/021-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.11354379192926,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.08,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9856407500337809,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/022-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21430776,
+      "root_peak_rss_bytes": 35192832,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/022-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.030727042001672,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8988772080047056,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/023-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21496312,
+      "root_peak_rss_bytes": 35160064,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/023-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.029565459000878,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8981905420077965,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/024-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21529080,
+      "root_peak_rss_bytes": 35192832,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/024-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1188192500267178,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.08,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9855685000075027,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/025-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21561824,
+      "root_peak_rss_bytes": 35340288,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/025-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1139557500137016,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.07,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9846064170124009,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/026-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21922296,
+      "root_peak_rss_bytes": 35684352,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/026-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0253684999188408,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8946882080053911,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/027-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21447160,
+      "root_peak_rss_bytes": 35110912,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/027-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0365513749420643,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9047981669427827,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/028-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21627384,
+      "root_peak_rss_bytes": 35291136,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/028-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1169723339844495,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.08,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9853966250084341,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/029-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22200824,
+      "root_peak_rss_bytes": 35962880,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/029-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.172674375004135,
+      "kernel_system_seconds": 0.02,
+      "kernel_user_seconds": 1.12,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 1.0261290419148281,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/030-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21496312,
+      "root_peak_rss_bytes": 35258368,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/030-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.026696874992922,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.900000249966979,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/031-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21823992,
+      "root_peak_rss_bytes": 35487744,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/031-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0270761250285432,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.897299165953882,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/032-control-candidate-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21873144,
+      "root_peak_rss_bytes": 35536896,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/032-control-candidate-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1134950830601156,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.07,
+      "kind": "control-candidate",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9825634169392288,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/033-control-candidate-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22184440,
+      "root_peak_rss_bytes": 35946496,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/033-control-candidate-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.0351280000759289,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "memory",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8997344169765711,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/034-memory-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21430776,
+      "root_peak_rss_bytes": 35094528,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/034-memory-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1190277499845251,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.08,
+      "kind": "memory",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.986206709058024,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/035-memory-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21578232,
+      "root_peak_rss_bytes": 35340288,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/035-memory-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1129051669267938,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.07,
+      "kind": "memory",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9862888340139762,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/036-memory-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21430776,
+      "root_peak_rss_bytes": 35192832,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/036-memory-candidate.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.028275499935262,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "memory",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.8956561250379309,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/037-memory-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21414392,
+      "root_peak_rss_bytes": 35078144,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/037-memory-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "control",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.031746834050864,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 0.99,
+      "kind": "memory",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9017192079918459,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/038-memory-control.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 21463544,
+      "root_peak_rss_bytes": 35127296,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/038-memory-control.stdout.log",
+      "swaps": 0
+    },
+    {
+      "arm": "candidate",
+      "command": [
+        "/usr/bin/time",
+        "-l",
+        "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/experiments/zlib_oneshot_mixedblobs.py",
+        "read",
+        "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+        "--loops",
+        "604"
+      ],
+      "external_wall_seconds": 1.1210187081014737,
+      "kernel_system_seconds": 0.01,
+      "kernel_user_seconds": 1.08,
+      "kind": "memory",
+      "output": {
+        "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+        "elapsed_seconds": 0.9882960410322994,
+        "logical_bytes": 398926296,
+        "loops": 604,
+        "row_count": 154624
+      },
+      "process_count": 1,
+      "resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/039-memory-candidate.time.log",
+      "returncode": 0,
+      "root_peak_footprint_bytes": 22217208,
+      "root_peak_rss_bytes": 35979264,
+      "stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/039-memory-candidate.stdout.log",
+      "swaps": 0
+    }
+  ],
+  "cache_policy": "Same nonexistent PYTHONPYCACHEPREFIX and no-write policy; source imports audited",
+  "controller_elapsed_seconds": 37.73,
+  "controller_kernel_system_seconds": 0.79,
+  "controller_kernel_user_seconds": 36.31,
+  "controller_max_process_rss_bytes": 35979264,
+  "controller_peak_footprint_bytes": 12911048,
+  "controller_total_kernel_cpu_seconds": 37.1,
+  "controller_total_swaps": 0,
+  "environment_policy": {
+    "LANG": "C",
+    "PATH": "/usr/bin:/bin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONHASHSEED": "1",
+    "PYTHONMALLOC": "default",
+    "PYTHONNOUSERSITE": "1",
+    "PYTHONPYCACHEPREFIX": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/no-such-pycache"
+  },
+  "fixture": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/fixture.sqlite3",
+  "fixture_sha256": "dd3f25573c9307a466c9e1d374d698d242a3c7249fac691c18d5177ce891a2df",
+  "host_postflight": {
+    "swapusage": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top_processes": [
+      "  PID COMM              %CPU    RSS",
+      "    1 /sbin/launchd      0.1  23952",
+      "  332 /usr/libexec/log   0.1  67712",
+      "  334 /usr/libexec/Use   0.0  14144",
+      "  336 /System/Library/   0.0  14672",
+      "  337 /System/Library/   0.0  17664",
+      "  340 /usr/sbin/system   0.0  10608",
+      "  344 /usr/libexec/con   0.0  11408",
+      "  346 /System/Library/   0.0  10800",
+      "  347 /usr/libexec/IOM   0.0   3184",
+      "  351 /usr/libexec/rem   0.0   4352",
+      "  355 /System/Library/   0.0   2400",
+      "  357 /usr/libexec/wat   0.0   3296",
+      "  361 /System/Library/   0.0  40688",
+      "  363 /usr/libexec/ker   0.0   8352"
+    ],
+    "uptime": "21:02  up 10 days,  9:08, 2 users, load averages: 3.84 3.87 4.00"
+  },
+  "host_preflight": {
+    "swapusage": "vm.swapusage: total = 1024.00M  used = 243.88M  free = 780.12M  (encrypted)",
+    "top_processes": [
+      "  PID COMM              %CPU    RSS"
+    ],
+    "uptime": "21:01  up 10 days,  9:07, 2 users, load averages: 2.91 3.62 3.93"
+  },
+  "identity": {
+    "candidate": {
+      "import_audit": {
+        "encodings": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/encodings/__init__.py"
+        },
+        "hashlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/hashlib.py"
+        },
+        "json": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/json/__init__.py"
+        },
+        "sqlite3": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/sqlite3/__init__.py"
+        },
+        "zlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so"
+        }
+      },
+      "interpreter": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/bin/python3.16",
+      "interpreter_sha256": "a2f682948c50217a77393cc636ffaec1066fff1ee61da2eeba2102504f3a5296",
+      "zlib_extension": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so",
+      "zlib_extension_sha256": "e2f9a02bffe3f7277e5766d29adfbb6ef316d3f412422918325baabecfd11a38"
+    },
+    "control": {
+      "import_audit": {
+        "encodings": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/encodings/__init__.py"
+        },
+        "hashlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/hashlib.py"
+        },
+        "json": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/json/__init__.py"
+        },
+        "sqlite3": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/sqlite3/__init__.py"
+        },
+        "zlib": {
+          "cached": null,
+          "file": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so"
+        }
+      },
+      "interpreter": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/bin/python3.16",
+      "interpreter_sha256": "622ef6135d157b61254ebbce3778fb424a26d91d1fdc365a66d5fd19ba3797d6",
+      "zlib_extension": "/private/tmp/python-build-exp-url-full-build-retry-20260924p/rust-cpython/stage/lib/python3.16/lib-dynload/zlib.cpython-316-darwin.so",
+      "zlib_extension_sha256": "2aef4049da6abe4b4e6725f2f79f692ef8f8b3148aa87903a0d40cdef3ef50bd"
+    }
+  },
+  "loops": 604,
+  "measurement": {
+    "command": "/usr/bin/time -l python3 rust-cpython/results/zlib-oneshot-mixedblobs-20260925/controller.py",
+    "controller_resource_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/controller-001.time.log",
+    "controller_stdout_log": "/private/tmp/python-build-exp-zlib-oneshot-mixedblobs-20260925a/rust-cpython/results/zlib-oneshot-mixedblobs-20260925/controller-001.stdout.log",
+    "kernel_method": "macOS /usr/bin/time -l for each child and the complete controller process tree; CPU fields resolve to 0.01 s",
+    "memory_method": "/usr/bin/time -l maximum resident set size and peak physical footprint; per-process peaks do not sum to simultaneous tree peak",
+    "wall_method": "time.perf_counter around subprocess.run for each complete child process"
+  },
+  "metrics": {
+    "control-candidate": {
+      "arm_medians": {
+        "candidate": {
+          "external_wall_seconds": 1.1139557500137016,
+          "kernel_cpu_seconds": 1.09
+        },
+        "control": {
+          "external_wall_seconds": 1.029565459000878,
+          "kernel_cpu_seconds": 1.0
+        }
+      },
+      "deltas": {
+        "external_wall_percent": [
+          6.925000656902447,
+          8.03478967300184,
+          8.669073952078232,
+          8.63955252203208,
+          7.758511636423249,
+          14.218169312361017,
+          8.414075249696884
+        ],
+        "footprint_bytes": [
+          557032,
+          -65536,
+          32744,
+          475136,
+          573440,
+          -327680,
+          311296
+        ],
+        "kernel_cpu_percent": [
+          6.930693069306937,
+          9.000000000000007,
+          9.000000000000007,
+          8.000000000000007,
+          9.000000000000007,
+          14.000000000000012,
+          8.000000000000007
+        ],
+        "rss_bytes": [
+          671744,
+          32768,
+          147456,
+          573440,
+          671744,
+          -229376,
+          409600
+        ]
+      },
+      "median_deltas": {
+        "external_wall_percent": 8.414075249696884,
+        "footprint_bytes": 311296,
+        "kernel_cpu_percent": 9.000000000000007,
+        "rss_bytes": 409600
+      },
+      "ranges": {
+        "external_wall_percent": [
+          6.925000656902447,
+          14.218169312361017
+        ],
+        "footprint_bytes": [
+          -327680,
+          573440
+        ],
+        "kernel_cpu_percent": [
+          6.930693069306937,
+          14.000000000000012
+        ],
+        "rss_bytes": [
+          -229376,
+          671744
+        ]
+      }
+    },
+    "control-control": {
+      "arm_medians": {
+        "control": {
+          "external_wall_seconds": 1.0280205834424123,
+          "kernel_cpu_seconds": 1.0
+        }
+      },
+      "deltas": {
+        "external_wall_percent": [
+          -1.1224575553545835,
+          0.41227130593959327,
+          -0.635231131904801,
+          -0.9390036023757209,
+          0.1630529692129734,
+          0.5815277441363564,
+          0.22390472195825684
+        ],
+        "footprint_bytes": [
+          -425984,
+          835584,
+          -917504,
+          -278528,
+          -638976,
+          425984,
+          -147456
+        ],
+        "kernel_cpu_percent": [
+          -1.0000000000000009,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rss_bytes": [
+          -425984,
+          835584,
+          -917504,
+          -278528,
+          -638976,
+          425984,
+          -147456
+        ]
+      },
+      "median_deltas": {
+        "external_wall_percent": 0.1630529692129734,
+        "footprint_bytes": -278528,
+        "kernel_cpu_percent": 0.0,
+        "rss_bytes": -278528
+      },
+      "ranges": {
+        "external_wall_percent": [
+          -1.1224575553545835,
+          0.5815277441363564
+        ],
+        "footprint_bytes": [
+          -917504,
+          835584
+        ],
+        "kernel_cpu_percent": [
+          -1.0000000000000009,
+          0.0
+        ],
+        "rss_bytes": [
+          -917504,
+          835584
+        ]
+      }
+    },
+    "memory": {
+      "arm_medians": {
+        "candidate": {
+          "external_wall_seconds": 1.1190277499845251,
+          "kernel_cpu_seconds": 1.09
+        },
+        "control": {
+          "external_wall_seconds": 1.031746834050864,
+          "kernel_cpu_seconds": 1.0
+        }
+      },
+      "deltas": {
+        "external_wall_percent": [
+          8.10525364036545,
+          8.230252203505772,
+          8.65249798733172
+        ],
+        "footprint_bytes": [
+          147456,
+          16384,
+          753664
+        ],
+        "kernel_cpu_percent": [
+          9.000000000000007,
+          8.000000000000007,
+          9.000000000000007
+        ],
+        "rss_bytes": [
+          245760,
+          114688,
+          851968
+        ]
+      },
+      "median_deltas": {
+        "external_wall_percent": 8.230252203505772,
+        "footprint_bytes": 147456,
+        "kernel_cpu_percent": 9.000000000000007,
+        "rss_bytes": 245760
+      },
+      "ranges": {
+        "external_wall_percent": [
+          8.10525364036545,
+          8.65249798733172
+        ],
+        "footprint_bytes": [
+          16384,
+          753664
+        ],
+        "kernel_cpu_percent": [
+          8.000000000000007,
+          9.000000000000007
+        ],
+        "rss_bytes": [
+          114688,
+          851968
+        ]
+      }
+    }
+  },
+  "output_identity": {
+    "digest": "40fa20924c332b4304ea3b7f680c3b11fb692b3df14075901091744a33f38cc3",
+    "logical_bytes": 398926296,
+    "loops": 604,
+    "row_count": 154624
+  },
+  "pairs": [
+    {
+      "attempts": [
+        6,
+        7
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 1
+    },
+    {
+      "attempts": [
+        8,
+        9
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 2
+    },
+    {
+      "attempts": [
+        10,
+        11
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 3
+    },
+    {
+      "attempts": [
+        12,
+        13
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 4
+    },
+    {
+      "attempts": [
+        14,
+        15
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 5
+    },
+    {
+      "attempts": [
+        16,
+        17
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 6
+    },
+    {
+      "attempts": [
+        18,
+        19
+      ],
+      "kind": "control-control",
+      "order": [
+        "control",
+        "control"
+      ],
+      "pair_index": 7
+    },
+    {
+      "attempts": [
+        20,
+        21
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "control",
+        "candidate"
+      ],
+      "pair_index": 1
+    },
+    {
+      "attempts": [
+        22,
+        23
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "candidate",
+        "control"
+      ],
+      "pair_index": 2
+    },
+    {
+      "attempts": [
+        24,
+        25
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "control",
+        "candidate"
+      ],
+      "pair_index": 3
+    },
+    {
+      "attempts": [
+        26,
+        27
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "candidate",
+        "control"
+      ],
+      "pair_index": 4
+    },
+    {
+      "attempts": [
+        28,
+        29
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "control",
+        "candidate"
+      ],
+      "pair_index": 5
+    },
+    {
+      "attempts": [
+        30,
+        31
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "candidate",
+        "control"
+      ],
+      "pair_index": 6
+    },
+    {
+      "attempts": [
+        32,
+        33
+      ],
+      "kind": "control-candidate",
+      "order": [
+        "control",
+        "candidate"
+      ],
+      "pair_index": 7
+    },
+    {
+      "attempts": [
+        34,
+        35
+      ],
+      "kind": "memory",
+      "order": [
+        "control",
+        "candidate"
+      ],
+      "pair_index": 1
+    },
+    {
+      "attempts": [
+        36,
+        37
+      ],
+      "kind": "memory",
+      "order": [
+        "candidate",
+        "control"
+      ],
+      "pair_index": 2
+    },
+    {
+      "attempts": [
+        38,
+        39
+      ],
+      "kind": "memory",
+      "order": [
+        "control",
+        "candidate"
+      ],
+      "pair_index": 3
+    }
+  ],
+  "workload_sha256": "d97b4a49ed5f23f859db26ddb6c86fea526cb08b89ed800cf5c6ad276fd551f7"
+}
