@@ -322,15 +322,23 @@ as a separate baseline change.
   and loads lazily. Five new complete-archive pairs improved median wall by
   9.24% and user CPU by 9.17%, with unchanged output. Cold `tarfile` import
   left the extension unloaded and showed no established regression. The route
-  remains opt-in because helper replacements made before `tarfile` imports
-  can still be bypassed for exact headers; broader behavior and memory remain
-  unqualified. See
+  remains opt-in while helper-replacement semantics, broader behavior, and
+  memory remain unqualified. See
   [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md).
   A second complete workload streamed every member through public
   `tarfile` read and write calls into a new archive. All 12 runs produced
   identical output; five candidate pairs reduced median wall by 11.87% and
   kernel CPU by 12.05%, with mixed peak-memory directions. See
   [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md).
+  An import-time helper guard now sends ordinary Python-function replacements
+  made before `tarfile` imports through the original checksum expressions;
+  later replacements retain the existing fallback. Five new archive pairs
+  kept a 9.01% median wall gain over quote-only. Against the earlier TAR-owned
+  stage, the guard's 0.90% median wall increase was within local control
+  drift. Deliberately spoofed native helpers and custom importers remain
+  outside the established behavior boundary; no separate semantic probe or
+  CPython suite ran. See
+  [`tar-helper-guard-20260925.md`](rust-cpython/experiments/tar-helper-guard-20260925.md).
 - An optional one-shot split routes only public `zlib.decompress` to Rust.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
@@ -637,11 +645,13 @@ as a separate baseline change.
   complete-archive speed and CPU gain with unchanged output. Its TAR-owned
   private extension now loads only when an eligible checksum is needed.
   A complete read-and-rewrite task also gained 11.87% wall and 12.05% kernel
-  CPU with identical output. Keep it behind `--tar-checksum` while pre-import
-  helper replacement, broader behavior, and memory cost are qualified. It is
-  useful coverage progress but does not yet complete the `tarfile` checklist
-  item. See [`tar-owned-module-20260925.md`](rust-cpython/experiments/tar-owned-module-20260925.md)
-  and [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md).
+  CPU with identical output. The added import-time guard handles ordinary
+  Python-function checksum-helper replacements before import and retained a
+  9.01% median read gain over quote-only. Keep it behind `--tar-checksum`
+  while broader semantic and memory costs are qualified. It is useful
+  coverage progress but does not yet complete the `tarfile` checklist item.
+  See [`source-tar-rewrite-20260925.md`](rust-cpython/experiments/source-tar-rewrite-20260925.md)
+  and [`tar-helper-guard-20260925.md`](rust-cpython/experiments/tar-helper-guard-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.

@@ -44,14 +44,14 @@
     },
     {
       "file": "0005-rust-tar-checksum.patch",
-      "sha256": "7688c78e608213031e4d4bac3e278f81f7dae4e2e58338de96d8b7778fdf0c8c",
+      "sha256": "a9ca2311c068cd3f9d281cd3a78e5c25621cb11f258090fdba575a43a496ac31",
       "mode": "tar-checksum",
       "author": "OpenAI Codex, integrating the repository TAR checksum proof",
       "origin": "Pinned Rust-for-CPython tarfile.py and repository TAR checksum proof; authored on 2026-09-25",
       "license": "PSF-2.0, matching the pinned CPython fork and repository proof",
-      "reason": "Optionally route exact 512-byte TAR header checksums to a TAR-owned private no_std Rust extension after preserving replaceable checksum helper behavior.",
-      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; lazy import on first eligible checksum; pinned nightly-2026-09-15.",
-      "reproducer": "Apply selected patches to fresh verified source and check changed paths; build --tar-checksum; compare complete locked source TAR workload and cold import tarfile with quote-only control; audit helper replacement and non-exact fallback."
+      "reason": "Optionally route exact 512-byte TAR header checksums to a TAR-owned private no_std Rust extension only when the captured native helpers have their expected type, module, and name and remain unchanged.",
+      "compatibility": "Applies after 0001, 0002, and 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; independently selectable with 0004; exact built-in bytes of length 512 only; ordinary Python helper replacements before or after tarfile import use the Python path; lazy import on first eligible checksum; pinned nightly-2026-09-15.",
+      "reproducer": "Apply selected patches to fresh verified source and check changed paths for default, TAR-only, and URL+TAR; build --tar-checksum; compare complete locked source TAR workload and cold import tarfile with the prior TAR-owned candidate; inspect helper replacement and non-exact fallback boundaries."
     }
   ]
 }

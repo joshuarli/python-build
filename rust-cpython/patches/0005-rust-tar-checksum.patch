@@ -1,22 +1,33 @@
 diff --git a/Lib/tarfile.py b/Lib/tarfile.py
 --- a/Lib/tarfile.py
 +++ b/Lib/tarfile.py
-@@ -218,6 +218,10 @@
+@@ -218,6 +218,20 @@
  
      return s
  
-+# Keep the ordinary checksum helpers replaceable by callers.
++# A helper replaced before this import must also use the Python checksum path.
++# Built-in functions have a distinct type, and their names identify the two
++# native helpers; the per-call identities below detect later replacements.
 +_ORIGINAL_UNPACK_FROM = struct.unpack_from
 +_ORIGINAL_SUM = sum
++_CHECKSUM_HELPERS_NATIVE = (
++    type(_ORIGINAL_UNPACK_FROM) is type([].append) and
++    _ORIGINAL_UNPACK_FROM.__module__ == "_struct" and
++    _ORIGINAL_UNPACK_FROM.__name__ == "unpack_from" and
++    type(_ORIGINAL_SUM) is type([].append) and
++    _ORIGINAL_SUM.__module__ == "builtins" and
++    _ORIGINAL_SUM.__name__ == "sum"
++)
 +
  def calc_chksums(buf):
      """Calculate the checksum for a member's header by summing up all
         characters except for the chksum field which is treated as if
-@@ -227,6 +231,11 @@
+@@ -227,6 +241,12 @@
         the high bit set. So we calculate two checksums, unsigned and
         signed.
      """
 +    if (type(buf) is bytes and len(buf) == 512 and
++            _CHECKSUM_HELPERS_NATIVE and
 +            struct.unpack_from is _ORIGINAL_UNPACK_FROM and
 +            sum is _ORIGINAL_SUM):
 +        from _rust_tar_checksum import scan
