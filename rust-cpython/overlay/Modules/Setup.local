@@ -3,7 +3,9 @@ _bz2 _bz2module.c -DPYTHON_RUST_BZ2
 _bisect_rs _bisect_rs/Cargo.toml _bisect_rs/src/lib.rs
 _bz2_rs _bz2_rs/Cargo.toml _bz2_rs/src/lib.rs
 _configparser_rs _configparser_rs/Cargo.toml _configparser_rs/src/lib.rs
+_contextlib_rs _contextlib_rs/Cargo.toml _contextlib_rs/src/lib.rs
 _csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs
+_dataclasses_rs _dataclasses_rs/Cargo.toml _dataclasses_rs/src/lib.rs
 _difflib_rs _difflib_rs/Cargo.toml _difflib_rs/src/lib.rs
 _elementtree_rs _elementtree_rs/Cargo.toml _elementtree_rs/src/lib.rs
 _fnmatch_rs _fnmatch_rs/Cargo.toml _fnmatch_rs/src/lib.rs
@@ -12,6 +14,7 @@ _glob_rs _glob_rs/Cargo.toml _glob_rs/src/lib.rs
 _gzip_rs _gzip_rs/Cargo.toml _gzip_rs/src/lib.rs
 _heapq_rs _heapq_rs/Cargo.toml _heapq_rs/src/lib.rs
 _hmac_rs _hmac_rs/Cargo.toml _hmac_rs/src/lib.rs
+_html_parser_rs _html_parser_rs/Cargo.toml _html_parser_rs/src/lib.rs
 _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs
 _lzma_rs _lzma_rs/Cargo.toml _lzma_rs/src/lib.rs
@@ -24,4 +27,5 @@ _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs
 _tomllib_rs _tomllib_rs/Cargo.toml _tomllib_rs/src/lib.rs
 _urllib_parse_rs _urllib_parse_rs/Cargo.toml _urllib_parse_rs/src/lib.rs
 _uuid_rs _uuid_rs/Cargo.toml _uuid_rs/src/lib.rs
+_zip_rs _zip_rs/Cargo.toml _zip_rs/src/lib.rs
 _zstd_rs _zstd_rs/Cargo.toml _zstd_rs/src/lib.rs

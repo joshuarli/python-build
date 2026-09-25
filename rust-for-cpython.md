@@ -80,10 +80,15 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **26 complete targets**. Do not carry
+module. The strict count is now **30 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
-The latest six targets passed one combined default-resource debug suite on
+The latest four targets passed one combined default-resource debug suite on
+macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
+ran and nine were resource-denied. Their named focused suites passed as
+recorded on each line.
+
+The preceding six targets passed one combined default-resource debug suite on
 macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
 ran and nine were resource-denied. Their named focused suites passed as
 recorded on each line.
@@ -123,7 +128,11 @@ suites passed as recorded on each line.
 - [x] `gzip` — public file, stream, and one-shot compression/decompression
   reach Rust (`8c2b4a1`). Full `test_gzip`, `test_tarfile`, `test_xmlrpc`,
   and `test_zlib`: 1,027 run/15 skipped; integrated full suite passed.
-- [ ] `zipfile` — read and write complete ZIP archives.
+- [x] `zipfile` — public ZIP CRC and deflate read/write paths reach Rust
+  (`26746c1`). Full `test_zipfile`, `test_zipimport`,
+  `test_zipimport_support`, and `test_shutil`: 956 run/91 skipped;
+  `test_zipfile64` was resource-denied at baseline. Integrated full suite
+  passed.
 - [ ] `tarfile` — read and write complete TAR archives.
 - [ ] `pathlib` — public path parsing and common filesystem operations.
 - [ ] `os.path` — path normalization, joining, and splitting via the platform module.
@@ -168,7 +177,9 @@ suites passed as recorded on each line.
   `test_float`, `test_pickle`, and `test_socket`: 3,235 run/311 skipped;
   integrated full suite passed.
 - [ ] `marshal` — serialize and load supported Python code/data records.
-- [ ] `html.parser` — tokenize complete HTML documents.
+- [x] `html.parser` — public HTML token scanning reaches Rust (`d64846f`).
+  Full `test_htmlparser` and `test_html`: 70 run/2 skipped; integrated full
+  suite passed.
 - [x] `difflib` — public sequence matching and diff generation use Rust
   longest-match discovery for supported built-in sequences (`2ed801f`).
   Eight full focused suites: 4,119 run/8 skipped; `test_peg_generator`
@@ -216,8 +227,12 @@ suites passed as recorded on each line.
   passed.
 - [ ] `itertools` — core iterator transformations.
 - [ ] `functools` — caching and ordering helpers.
-- [ ] `contextlib` — public context-manager composition.
-- [ ] `dataclasses` — class generation and field processing.
+- [x] `contextlib` — public `ExitStack` and `AsyncExitStack` composition
+  reaches Rust (`9f55f22`). Full `test_contextlib` and `test_asyncio`:
+  2,880 run/65 skipped; integrated full suite passed.
+- [x] `dataclasses` — public class and field processing reaches Rust
+  (`aab81e7`). Full `test_dataclasses`, `test_inspect`, and `test_typing`:
+  1,405 run/0 skipped; integrated full suite passed.
 - [ ] `inspect` — signatures and object inspection.
 - [ ] `ast` — parse-tree walking and transformation helpers.
 - [ ] `argparse` — argument parsing and help generation.

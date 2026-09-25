@@ -1,0 +1,17 @@
+[package]
+name = "_zip_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+[dependencies]
+crc32fast = { version = "=1.5.2" }
+cpython-sys = { path = "../cpython-sys" }
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_zip_rs"
+crate-type = ["cdylib", "rlib"]

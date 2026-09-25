@@ -39,12 +39,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "_contextlib_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_csv_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "csv",
+]
+
+[[package]]
+name = "_dataclasses_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
 ]
 
 [[package]]
@@ -120,6 +136,14 @@ dependencies = [
  "sha1",
  "sha2",
  "sha3",
+]
+
+[[package]]
+name = "_html_parser_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
 ]
 
 [[package]]
@@ -231,6 +255,16 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "uuid",
+]
+
+[[package]]
+name = "_zip_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "crc32fast",
+ "flate2",
 ]
 
 [[package]]
