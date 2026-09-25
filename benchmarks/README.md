@@ -364,15 +364,17 @@ briefly in the separate memory pass.
 
 Timing result files retain the workload's internal wall-latency sample and
 external elapsed time separately. They also record kernel `wait4` user and
-system CPU seconds, raw and per logical operation. `wait4` measures the
-workload root alone, even when that process reaped children. The cold ZIP
-import workload additionally reports `RUSAGE_CHILDREN` user and system time
-for its direct reaped interpreter children; the harness retains the separate
-root and child components and adds them once. Other workloads remain root-only
-unless they provide an explicit child ledger. Grandchildren, detached children,
-and children left alive at the boundary remain outside that accounting;
-timeout rounds mark CPU unavailable. A CPU comparison's `compared` status
-means numeric paired values were available, not full process-tree coverage;
+system CPU seconds, raw and per logical operation. On macOS, `wait4` for the
+workload root includes descendants reaped through that process tree. The cold
+ZIP import workload also reports `RUSAGE_CHILDREN` for its direct reaped
+interpreters; the harness retains this as a diagnostic without adding it to
+the macOS `wait4` total. On Linux, `wait4` covers the root only, so the harness
+adds that cold ZIP child ledger once. Other Linux workloads remain root-only
+unless they provide an explicit child ledger. Detached or unreaped descendants
+remain outside the macOS total; Linux grandchildren and unreaped descendants
+remain outside the cold ZIP total. Timeout rounds mark CPU unavailable. A CPU
+comparison's `compared` status means numeric paired values were available,
+not full process-tree coverage;
 inspect each round's `coverage` field. The
 memory pass also records CPU seconds for diagnosis, but its sampled execution
 does not replace the uninstrumented timing pass.

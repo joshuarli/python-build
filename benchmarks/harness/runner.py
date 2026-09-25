@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from benchmarks.harness.process import run_command
+from benchmarks.harness.process import MAC_REAPED_CPU_COVERAGE, run_command
 from benchmarks.workloads.registry import Workload
 
 
@@ -183,7 +183,7 @@ def _ensure_clean(result: Any, workload: Workload, side: str, pass_name: str) ->
 
 
 def _cpu_dict(measured: Any, payload: dict[str, Any], workload_name: str) -> dict[str, Any]:
-    """Combine separate root and direct child CPU ledgers for cold ZIP import."""
+    """Account for reaped child CPU once on each host."""
     operation_count = payload["operation_count"]
     root_user = getattr(measured, "cpu_user_seconds", None)
     root_system = getattr(measured, "cpu_system_seconds", None)
@@ -199,7 +199,11 @@ def _cpu_dict(measured: Any, payload: dict[str, Any], workload_name: str) -> dic
             value = child_cpu.get(key)
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise RuntimeError(f"zipimport_cold: invalid direct child {key}")
-        if user is not None and system is not None and coverage.startswith("wait4 root"):
+        if user is not None and system is not None and coverage == MAC_REAPED_CPU_COVERAGE:
+            # Darwin wait4 already includes descendants reaped by the root or
+            # by children it waited for. Keep the ledger as a cross-check.
+            pass
+        elif user is not None and system is not None and coverage == "wait4 root only; descendants excluded":
             user += child_cpu["user_seconds"]
             system += child_cpu["system_seconds"]
             coverage = ("wait4 root plus workload-reported RUSAGE_CHILDREN direct reaped children; "

@@ -1,0 +1,205 @@
+{
+  "benchmark": "python_startup",
+  "bytecode_policy": "empty per-attempt PYTHONPYCACHEPREFIX and PYTHONDONTWRITEBYTECODE=1; source compiled on both arms",
+  "calibration": {
+    "benchmarks": [
+      {
+        "measured_loops": [
+          8
+        ],
+        "name": "python_startup",
+        "unit": "second",
+        "values": [
+          0.02026590112654958
+        ]
+      }
+    ],
+    "command": [
+      "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "/Users/josh/d/python-build-exp-mac-pyperf-timing-20260925/rust-cpython/experiments/pyperformance_macos_launcher.py",
+      "--processes",
+      "1",
+      "--values",
+      "1",
+      "--warmups",
+      "0",
+      "--inherit-environ",
+      "PYPERFORMANCE_SCRIPT,PYPERFORMANCE_CPU_LEDGER,PYTHONPATH,PYTHONDONTWRITEBYTECODE,PYTHONNOUSERSITE,PYTHONPYCACHEPREFIX",
+      "--output",
+      "/Users/josh/d/python-build-exp-mac-pyperf-timing-20260925/rust-cpython/work/pyperformance_macos/calibration/pyperf.json"
+    ],
+    "coverage": "Darwin wait4 pyperf root includes waited descendants; escaped or unreaped descendants unavailable. Nested RUSAGE_CHILDREN ledgers are diagnostics and are not added to the total",
+    "cpu_system_seconds": 0.29614799999999997,
+    "cpu_user_seconds": 1.463366,
+    "pyperf_json_sha256": "ebe62afb167a47f73cfa9aaa986e056d744cb4941f2ffbf6c67790389583a3e4",
+    "root_pid": 37014,
+    "root_reaped_child_system_seconds": 0.265488,
+    "root_reaped_child_user_seconds": 1.233298,
+    "root_wait4_system_seconds": 0.29614799999999997,
+    "root_wait4_user_seconds": 1.463366,
+    "wall_seconds": 2.036645291,
+    "worker_count": 2,
+    "worker_reaped_child_system_seconds": 0.19755899999999998,
+    "worker_reaped_child_user_seconds": 0.7508299999999999
+  },
+  "fixed_loops": 8,
+  "host": {
+    "machine": "arm64",
+    "macos": "26.5.2",
+    "processor": "arm",
+    "system": "Darwin"
+  },
+  "input": {
+    "extra_opts": [],
+    "manifest_sha256": "7d67bee0ec54ec5f5c055f7449bd042b89c243aa4a4e5a22749654fc057ddf3b",
+    "script": "pyperformance/data-files/benchmarks/bm_python_startup/run_benchmark.py",
+    "script_sha256": "4cc396c9fe32d633a5e902c8ca738391a4cfe80b6d7658a9d9048989fc796d0c",
+    "wheels": [
+      {
+        "filename": "pyperf-2.10.0-py3-none-any.whl",
+        "sha256": "79196bc4a11e3c926dd4c6b14c80136c6b37f884fe913cbc57037f37636e9841"
+      },
+      {
+        "filename": "pyperformance-1.14.0-py3-none-any.whl",
+        "sha256": "94068ac2935b6952ccb5e8a302eb9cebc26e82454494bef6e53822738adf0049"
+      }
+    ]
+  },
+  "interpreters": {
+    "baseline": {
+      "executable": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "executable_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+      "implementation": "CPython",
+      "ldlibrary": "libpython3.16.dylib",
+      "libdir": "/Users/josh/d/python-build/rust-cpython/stage/lib",
+      "libpython_path": "/Users/josh/d/python-build/rust-cpython/stage/lib/libpython3.16.dylib",
+      "libpython_sha256": "a81b7abb07a9837ef7c2eecd08729fd86c1b9dd01613f13f809ef9f7cb61065c",
+      "prefix": "/Users/josh/d/python-build/rust-cpython/stage",
+      "requested_path": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "resolved_path": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "version": "3.16.0a0 (main, Jan  1 2024, 00:00:00) [Clang 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22"
+    },
+    "candidate": {
+      "executable": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "executable_sha256": "6eeeb64b9eb161d4d5edb9200e79146dabd8acc0f73fcdca48417d0e3c9531bd",
+      "implementation": "CPython",
+      "ldlibrary": "libpython3.16.dylib",
+      "libdir": "/Users/josh/d/python-build/rust-cpython/stage/lib",
+      "libpython_path": "/Users/josh/d/python-build/rust-cpython/stage/lib/libpython3.16.dylib",
+      "libpython_sha256": "a81b7abb07a9837ef7c2eecd08729fd86c1b9dd01613f13f809ef9f7cb61065c",
+      "prefix": "/Users/josh/d/python-build/rust-cpython/stage",
+      "requested_path": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "resolved_path": "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+      "version": "3.16.0a0 (main, Jan  1 2024, 00:00:00) [Clang 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22"
+    }
+  },
+  "pairs": 1,
+  "status": "bounded command and semantic proof under concurrent host load; timings are not publishable",
+  "timing_arms": [
+    {
+      "arm": "baseline",
+      "benchmarks": [
+        {
+          "measured_loops": [
+            8
+          ],
+          "name": "python_startup",
+          "unit": "second",
+          "values": [
+            0.019539000000804663
+          ]
+        }
+      ],
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-mac-pyperf-timing-20260925/rust-cpython/experiments/pyperformance_macos_launcher.py",
+        "--processes",
+        "1",
+        "--values",
+        "1",
+        "--warmups",
+        "0",
+        "--inherit-environ",
+        "PYPERFORMANCE_SCRIPT,PYPERFORMANCE_CPU_LEDGER,PYTHONPATH,PYTHONDONTWRITEBYTECODE,PYTHONNOUSERSITE,PYTHONPYCACHEPREFIX",
+        "--loops",
+        "8",
+        "--output",
+        "/Users/josh/d/python-build-exp-mac-pyperf-timing-20260925/rust-cpython/work/pyperformance_macos/pair-01-baseline/pyperf.json"
+      ],
+      "coverage": "Darwin wait4 pyperf root includes waited descendants; escaped or unreaped descendants unavailable. Nested RUSAGE_CHILDREN ledgers are diagnostics and are not added to the total",
+      "cpu_system_seconds": 0.116965,
+      "cpu_user_seconds": 0.652656,
+      "pair": 1,
+      "pyperf_json_sha256": "b7366f3900af93d7f93319713835b559c407854791059fd60064dfef30a660ca",
+      "root_pid": 37363,
+      "root_reaped_child_system_seconds": 0.091483,
+      "root_reaped_child_user_seconds": 0.42436599999999997,
+      "root_wait4_system_seconds": 0.116965,
+      "root_wait4_user_seconds": 0.652656,
+      "wall_seconds": 0.903472458,
+      "worker_count": 1,
+      "worker_reaped_child_system_seconds": 0.06044,
+      "worker_reaped_child_user_seconds": 0.18264899999999998
+    },
+    {
+      "arm": "candidate",
+      "benchmarks": [
+        {
+          "measured_loops": [
+            8
+          ],
+          "name": "python_startup",
+          "unit": "second",
+          "values": [
+            0.020631244740798138
+          ]
+        }
+      ],
+      "command": [
+        "/Users/josh/d/python-build/rust-cpython/stage/bin/python3.16",
+        "/Users/josh/d/python-build-exp-mac-pyperf-timing-20260925/rust-cpython/experiments/pyperformance_macos_launcher.py",
+        "--processes",
+        "1",
+        "--values",
+        "1",
+        "--warmups",
+        "0",
+        "--inherit-environ",
+        "PYPERFORMANCE_SCRIPT,PYPERFORMANCE_CPU_LEDGER,PYTHONPATH,PYTHONDONTWRITEBYTECODE,PYTHONNOUSERSITE,PYTHONPYCACHEPREFIX",
+        "--loops",
+        "8",
+        "--output",
+        "/Users/josh/d/python-build-exp-mac-pyperf-timing-20260925/rust-cpython/work/pyperformance_macos/pair-01-candidate/pyperf.json"
+      ],
+      "coverage": "Darwin wait4 pyperf root includes waited descendants; escaped or unreaped descendants unavailable. Nested RUSAGE_CHILDREN ledgers are diagnostics and are not added to the total",
+      "cpu_system_seconds": 0.117159,
+      "cpu_user_seconds": 0.653473,
+      "pair": 1,
+      "pyperf_json_sha256": "06e934932c77f5c3d54de34b0ac2b1c78debe699d37c3b8a6356a27904b71dfb",
+      "root_pid": 37519,
+      "root_reaped_child_system_seconds": 0.091359,
+      "root_reaped_child_user_seconds": 0.423261,
+      "root_wait4_system_seconds": 0.117159,
+      "root_wait4_user_seconds": 0.653473,
+      "wall_seconds": 0.918050959,
+      "worker_count": 1,
+      "worker_reaped_child_system_seconds": 0.061245999999999995,
+      "worker_reaped_child_user_seconds": 0.18259399999999998
+    }
+  ],
+  "unsupported_coverage": {
+    "allocation": "not measured",
+    "memory": "not measured",
+    "other_manifest_scripts": "outside inspected stdlib-only subset or not selected",
+    "output_digest": "pyperf JSON hashes identify recorded samples; startup script has no application payload digest",
+    "selected_script": {},
+    "supported_subset_not_selected": [
+      "python_startup_no_site",
+      "base64",
+      "json_dumps",
+      "json_loads",
+      "pickle",
+      "unpickle"
+    ]
+  }
+}

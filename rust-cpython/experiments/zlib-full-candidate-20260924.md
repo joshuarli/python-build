@@ -134,9 +134,9 @@ for the root process, whose startup and fixture setup dominate these very
 short workloads. That is why the large hot-operation wall improvements
 produce smaller whole-process CPU changes. For cold ZIP import (*), the
 workload launches and reaps a fresh child interpreter per operation. The
-outer harness's root `wait4` usage does not account for those child CPU
-seconds. Its +2.5% value is a root-only diagnostic, not a complete process
-CPU comparison. The sampler did observe two processes in all ten cold ZIP
+outer harness's macOS root `wait4` usage already includes those reaped child
+CPU seconds. Its +2.5% value covers that reaped process tree, though the
+comparison does not establish a gain. The sampler did observe two processes in all ten cold ZIP
 memory rounds, but its 10 ms samples can miss short child peaks.
 
 The separate memory passes retained raw time-stamped RSS and physical

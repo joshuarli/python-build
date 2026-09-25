@@ -1,8 +1,10 @@
 """Run benchmark commands and observe process-tree resources externally.
 
 Linux memory uses procfs. macOS memory uses libproc resident-size snapshots.
-CPU time is kernel wait4 usage for the workload root only. A workload may
-report CPU for its own reaped children separately.
+CPU time is kernel wait4 usage for the workload root. On macOS, that usage
+includes descendants reaped through the workload process tree; detached or
+unreaped descendants remain outside it. Linux workloads may report direct
+reaped-child CPU separately.
 """
 
 from __future__ import annotations
@@ -32,6 +34,11 @@ from .memory import (
 )
 from .macos_resource import (
     MacProcessInfo, MacProcessMemory, read_process_memory, read_process_table,
+)
+
+
+MAC_REAPED_CPU_COVERAGE = (
+    "wait4 root plus reaped descendants; detached or unreaped children excluded"
 )
 
 
@@ -85,7 +92,8 @@ def _wait4(
 ) -> _WaitResult:
     """Reap one workload root and return kernel-accounted CPU usage.
 
-    wait4 reports this process's own CPU, not the CPU of children it reaped.
+    The kernel's treatment of descendants reaped by that root differs across
+    supported hosts; callers label the recorded coverage accordingly.
     """
     if not hasattr(os, "wait4"):
         process.wait(timeout=timeout)
@@ -526,6 +534,7 @@ class ProcessSampler:
             cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
             cpu_coverage=("unsupported" if wait_result.usage is None else
                           "incomplete: workload left descendants at completion" if boundary_remaining else
+                          MAC_REAPED_CPU_COVERAGE if sys.platform == "darwin" else
                           "wait4 root only; descendants excluded"),
         )
         self._finished_result = result
@@ -910,5 +919,6 @@ def _run_unmonitored(
         cpu_system_seconds=None if wait_result.usage is None else wait_result.usage.ru_stime,
         cpu_coverage=("unsupported" if wait_result.usage is None else
                       "incomplete: workload left descendants at completion" if boundary_remaining else
+                      MAC_REAPED_CPU_COVERAGE if sys.platform == "darwin" else
                       "wait4 root only; descendants excluded"),
     )

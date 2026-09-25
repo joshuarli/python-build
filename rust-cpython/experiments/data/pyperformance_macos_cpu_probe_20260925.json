@@ -1,0 +1,33 @@
+{
+  "child_rusage_children": {
+    "system_seconds": 0.124827,
+    "user_seconds": 0.081537
+  },
+  "child_rusage_self": {
+    "system_seconds": 0.000646,
+    "user_seconds": 0.000125
+  },
+  "conclusion": "parent wait4 for the child includes the waited grandchild's user and system CPU; summing nested ledgers double counts",
+  "grandchild_wait4": {
+    "system_seconds": 0.124827,
+    "user_seconds": 0.081537
+  },
+  "host": {
+    "machine": "arm64",
+    "macos": "26.5.2",
+    "system": "Darwin"
+  },
+  "parent_rusage_children": {
+    "system_seconds": 0.125643,
+    "user_seconds": 0.08171199999999999
+  },
+  "parent_wait4_child": {
+    "system_seconds": 0.125643,
+    "user_seconds": 0.08171199999999999
+  },
+  "parent_wait4_minus_child_self_minus_grandchild_wait4": {
+    "system_seconds": 0.00017000000000001736,
+    "user_seconds": 4.999999999999449e-05
+  },
+  "work": "grandchild: 600000 arithmetic iterations and 120000 os.stat calls"
+}
