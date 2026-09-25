@@ -1,5 +1,19 @@
 # Rust-for-CPython experiment lanes
 
+## JSON headroom scout (base `8c9f92c`)
+
+The next-target diagnostic uses
+`/private/tmp/python-build-exp-json-headroom-20260925a`, branch
+`exp/json-headroom-20260925a`. It owns only
+`experiments/json-headroom-20260925.md`, compact data if needed, and ignored
+raw logs. It profiles the existing complete 512-record catalog export on
+the accepted fork stage, separating stdlib JSON calls from application
+conversion and hashing. Its output is an Amdahl-style headroom decision,
+not a speed verdict. It is the only active profiler or timing lane. Budget:
+30 kernel-accounted CPU seconds and 512 MiB per-process RSS, with every
+attempt and its output digest retained. The coordinator will integrate its
+result before selecting any JSON implementation experiment.
+
 ## Mixed-input follow-up (base `0da49c3`)
 
 The one-shot zlib mixed-BLOB comparison uses
