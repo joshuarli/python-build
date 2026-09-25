@@ -116,7 +116,8 @@ fresh source and installed-byte checks found the intended selection, and the
 two complete catalog URL output digests matched. Broad public semantic checks
 remain open. The
 eligible native path also bypasses initialization and replacement of private
-parser globals; codec dispatch needs differential qualification. See
+parser globals. Static source tracing finds the same built-in UTF-8 decoder
+under the exact guard, while public differential behavior remains to check. See
 [`experiments/url-unquote-source-patch-20260925.md`](experiments/url-unquote-source-patch-20260925.md)
 [`experiments/url-unquote-build-20260925.md`](experiments/url-unquote-build-20260925.md),
 and [`experiments/url-unquote-contract-audit-20260925.md`](experiments/url-unquote-contract-audit-20260925.md).

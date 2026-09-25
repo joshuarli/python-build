@@ -421,7 +421,9 @@ as a separate baseline change.
   At source-selection time, the full build and broad public semantic checks
   remained open. The
   eligible path bypasses lazy initialization and replacement of private
-  parser globals, and codec dispatch needs a differential check. See
+  parser globals. A follow-up source trace found that both exact UTF-8 paths
+  reach the same built-in decoder; public differential behavior still needs
+  checking. See
   [`url-unquote-source-patch-20260925.md`](rust-cpython/experiments/url-unquote-source-patch-20260925.md)
   and [`url-unquote-contract-audit-20260925.md`](rust-cpython/experiments/url-unquote-contract-audit-20260925.md).
 - The fresh opt-in native build succeeded with the locked LLVM, SDK, and PGO
