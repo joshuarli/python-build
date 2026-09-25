@@ -120,7 +120,10 @@ the prior same-executable proof is cleaner for attribution. Broad public
 semantic and upstream memory checks remain open. A separate three-way
 resource pass found decoder root peak RSS within upstream self-noise on the
 search task; unique/proportional and retained memory and allocations remain
-unqualified. The
+unqualified. Against vanilla upstream, the complete search task used 49.6%
+less wall time and 50.8% less kernel CPU across five pairs. Different source
+ancestry and PGO profiles constrain attribution of that overall difference.
+The
 eligible native path also bypasses initialization and replacement of private
 parser globals. Static source tracing finds the same built-in UTF-8 decoder
 under the exact guard, while public differential behavior remains to check. See
@@ -128,6 +131,7 @@ under the exact guard, while public differential behavior remains to check. See
 [`experiments/url-unquote-build-20260925.md`](experiments/url-unquote-build-20260925.md),
 [`experiments/url-unquote-installed-comparison-20260925.md`](experiments/url-unquote-installed-comparison-20260925.md),
 [`experiments/url-unquote-upstream-memory-20260925.md`](experiments/url-unquote-upstream-memory-20260925.md),
+[`experiments/url-unquote-upstream-speed-20260925.md`](experiments/url-unquote-upstream-speed-20260925.md),
 and [`experiments/url-unquote-contract-audit-20260925.md`](experiments/url-unquote-contract-audit-20260925.md).
 Separately,
 [`zlib-proof/`](zlib-proof/README.md) links the pinned Rust zlib C ABI under

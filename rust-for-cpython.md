@@ -447,6 +447,12 @@ as a separate baseline change.
   the paired median. The pass found no RSS regression on this workload, but
   it cannot qualify USS/PSS, allocations, or retained memory. See
   [`url-unquote-upstream-memory-20260925.md`](rust-cpython/experiments/url-unquote-upstream-memory-20260925.md).
+- The complete search-form task then ran with decoder/upstream median wall
+  and kernel CPU ratios of 0.504 and 0.492 across five pairs. Quote-only fork
+  ratios were 0.841 and 0.841. All 60 self and cross attempts returned the
+  same complete digests. This is an installed-artifact improvement; differing
+  fork ancestry and PGO profiles limit attribution to the decoder. See
+  [`url-unquote-upstream-speed-20260925.md`](rust-cpython/experiments/url-unquote-upstream-speed-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
   Seven serial standard-profile controller runs compared that workload and
