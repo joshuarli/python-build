@@ -80,30 +80,12 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **35 complete targets**. Do not carry
+module. The strict count is now **40 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
-The latest five targets passed one combined default-resource debug suite on
-macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
-ran and nine were resource-denied. Their named focused suites passed as
-recorded on each line. The `os.path` joining and splitting source is present,
-but normalization is not yet routed through Rust, so that item remains open.
-
-The latest four targets passed one combined default-resource debug suite on
-macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
-ran and nine were resource-denied. Their named focused suites passed as
-recorded on each line.
-
-The preceding six targets passed one combined default-resource debug suite on
-macOS arm64: 50,158 tests run, 2,754 skipped, zero failures; 496/505 files
-ran and nine were resource-denied. Their named focused suites passed as
-recorded on each line.
-
-The eighteen targets credited after `ipaddress` and `textwrap` passed their
-respective combined default-resource debug suites on macOS arm64. Each
-combined run reported 50,158 individual tests run, 2,754 skipped, zero
-failures; 496/505 files ran, with nine resource-denied. Their named focused
-suites passed as recorded on each line.
+The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
+skipped and zero failures; 496/505 files ran and nine were resource-denied.
+Each checked line records its focused-suite result and combined qualification.
 
 ### Priority 0: common application paths
 
@@ -141,7 +123,9 @@ suites passed as recorded on each line.
   `test_zipimport_support`, and `test_shutil`: 956 run/91 skipped;
   `test_zipfile64` was resource-denied at baseline. Integrated full suite
   passed.
-- [ ] `tarfile` — read and write complete TAR archives.
+- [x] `tarfile` — public USTAR header read and write reach Rust
+  (`a4aef06`). Full `test_tarfile`, `test_shutil`, and `test_zipfile`:
+  1,587 run/84 skipped; integrated full suite passed.
 - [ ] `pathlib` — public path parsing and common filesystem operations.
 - [ ] `os.path` — path normalization, joining, and splitting via the platform module.
 - [ ] `shutil` — file copying, tree operations, and archive handling.
@@ -214,7 +198,10 @@ suites passed as recorded on each line.
 - [x] `fnmatch` — public filename pattern matching reaches Rust (`924b4c5`).
   Full `test_fnmatch`, `test_glob`, and `test_shutil`: 275 run/78 skipped;
   integrated full suite passed.
-- [ ] `importlib.resources` — resource lookup and reading.
+- [x] `importlib.resources` — public resource traversal, lookup, and reading
+  reach Rust (`1fbf607`). Full `test_importlib`, `test_zipimport`,
+  `test_pathlib`, and `test_interpreters`: 2,917 run/438 skipped;
+  integrated full suite passed.
 - [x] `tempfile` — public temporary file and directory creation retry loops
   reach Rust (`2ff348e`). Full `test_tempfile`, `test_threadedtempfile`,
   `test_shutil`, `test_pathlib`, and `test_interpreters`: 1,915 run/496
@@ -227,7 +214,9 @@ suites passed as recorded on each line.
   operations reach Rust (`5d7899e`). Full `test_statistics`,
   `test_fractions`, `test_math`, and `test_random`: 654 run/10 skipped;
   integrated full suite passed.
-- [ ] `random` — public random number generation and sampling.
+- [x] `random` — public choice and sampling operations reach Rust
+  (`f02e1f2`). Full `test_random`, `test_statistics`, and `test_uuid`:
+  635 run/23 skipped; integrated full suite passed.
 - [x] `collections` — public `Counter.subtract` iterable counting reaches
   Rust (`07c457a`). Full `test_collections`, `test_defaultdict`,
   `test_deque`, `test_ordered_dict`, `test_userdict`, `test_userlist`, and
@@ -240,7 +229,9 @@ suites passed as recorded on each line.
   and `test_free_threading`: 1,560 run/38 skipped; integrated full suite
   passed.
 - [ ] `itertools` — core iterator transformations.
-- [ ] `functools` — caching and ordering helpers.
+- [x] `functools` — public `cmp_to_key` ordering comparisons reach Rust
+  (`953946d`). Full `test_functools`, `test_sort`, `test_list`, and
+  `test_userlist`: 479 run; integrated full suite passed.
 - [x] `contextlib` — public `ExitStack` and `AsyncExitStack` composition
   reaches Rust (`9f55f22`). Full `test_contextlib` and `test_asyncio`:
   2,880 run/65 skipped; integrated full suite passed.
@@ -252,7 +243,9 @@ suites passed as recorded on each line.
 - [x] `argparse` — public argument parsing uses Rust option scans
   (`21d506a`). Full `test_argparse`, `test_optparse`, and `test_pydoc`:
   2,233 run; integrated full suite passed.
-- [ ] `tokenize` — token generation from Python source.
+- [x] `tokenize` — public token generation for simple ASCII source reaches
+  Rust (`e30aac18`). Full `test_tokenize` and `test_inspect`: 518 run;
+  integrated full suite passed.
 - [x] `_strptime` — directive parsing used by public date/time calls reaches
   Rust (`1b9336e`). Full `test_strptime`, `test_datetime`, `test_time`,
   `test_calendar`, and `test_locale`: 1,439 run/160 skipped; integrated full

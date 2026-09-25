@@ -126,6 +126,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_functools_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_glob_rs"
 version = "0.1.0"
 dependencies = [
@@ -166,6 +174,14 @@ dependencies = [
 
 [[package]]
 name = "_html_parser_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
+name = "_importlib_resources_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
@@ -218,6 +234,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_random_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_shlex_rs"
 version = "0.1.0"
 dependencies = [
@@ -253,6 +277,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "_tarfile_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "tar",
+]
+
+[[package]]
 name = "_tempfile_rs"
 version = "0.1.0"
 dependencies = [
@@ -267,6 +300,14 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "textwrap",
+]
+
+[[package]]
+name = "_tokenize_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
 ]
 
 [[package]]
@@ -630,6 +671,16 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "filetime"
+version = "0.2.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c287a33c7f0a620c38e641e7f60827713987b3c0f26e8ddc9462cc69cf75759"
+dependencies = [
+ "cfg-if",
+ "libc",
+]
 
 [[package]]
 name = "find-msvc-tools"
@@ -1188,6 +1239,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tar"
+version = "0.4.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
+dependencies = [
+ "filetime",
+ "libc",
 ]
 
 [[package]]

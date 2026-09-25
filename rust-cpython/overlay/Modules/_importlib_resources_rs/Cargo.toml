@@ -1,0 +1,17 @@
+[package]
+name = "_importlib_resources_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "PSF-2.0"
+build = "build.rs"
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_importlib_resources_rs"
+crate-type = ["cdylib", "rlib"]
