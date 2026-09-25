@@ -1,5 +1,20 @@
 # Rust-for-CPython experiment lanes
 
+## URL unquote installed comparison (base `e4d3772`)
+
+The queued comparison lane uses
+`/private/tmp/python-build-exp-url-unquote-installed-compare-20260925a`,
+branch `exp/url-unquote-installed-compare-20260925a`. It owns only
+`experiments/url-unquote-installed-comparison-20260925.md`, compact raw data
+under `experiments/data/`, and ignored logs within its own worktree. After
+the native build lane stops, it will compare the fresh opt-in installed tree
+with the accepted quote-only installed control on complete catalog search
+and normalization tasks, with serial counterbalanced wall and kernel CPU
+observations, output digests, valid bytecode cache policy, and self-noise.
+Budget: 150 kernel CPU seconds and 1 GiB per-process RSS. It must not claim
+that separately generated PGO profiles are a same-executable isolation or
+that missing unique/proportional memory is parity.
+
 ## Django query breadth scout (base `e37da3f`)
 
 The read-only application scout uses
