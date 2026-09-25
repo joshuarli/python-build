@@ -1,6 +1,6 @@
 # Zipfile complete-task profile, 2026-09-25
 
-**Verdict: the warmed directory reader is a modest part of the registered wheel task.** On the unchanged pinned Rust-for-CPython interpreter, `ZipFile._RealGetContents` took 1.366 ms cumulative across four calls, 10.0% of the 13.669 ms warmed, instrumented complete `zip_read_wheel(4)` call. Its own time was 0.577 ms, 4.2% of the task. The cold profile attributed 18.6% to the directory reader because its first call triggered a one-time codec lookup. These are cProfile location measurements, not uninstrumented speed or kernel CPU shares. A native implementation is not justified until an uninstrumented complete-task baseline and control/control noise measurement establish that this size of change can be resolved.
+**Verdict: the warmed directory reader is a modest part of the registered wheel task.** On the unchanged pinned Rust-for-CPython interpreter, `ZipFile._RealGetContents` took 1.366 ms cumulative across four calls, 10.0% of the 13.669 ms warmed, instrumented complete `zip_read_wheel(4)` call. Its own time was 0.577 ms, 4.2% of the task. The cold profile attributed 18.6% to the directory reader because its first call triggered a one-time codec lookup. These are cProfile location measurements, not uninstrumented speed or kernel CPU shares. A separate uninstrumented [control baseline](zipfile-baseline-20260925.md) found low timing noise, but this 10% theoretical ceiling and the parser's broad public contract do not yet justify a native implementation.
 
 ## Workload and boundary
 

@@ -394,11 +394,19 @@ as a separate baseline change.
   and reentrancy under the unchanged public contract. Stop the proposed
   transparent `unified_diff` kernel; see
   [`difflib-one-shot-contract-20260924.md`](rust-cpython/experiments/difflib-one-shot-contract-20260924.md).
-- A source and workload scout found no measured headroom for a native
-  `ZipFile._RealGetContents` parser. The wheel task also extracts and checks
-  member data; cold ZIP import uses a separate directory reader. Profile the
-  complete wheel task before changing this boundary; see
+- A source and workload scout identified `ZipFile._RealGetContents` as a
+  possible directory-parsing cost. The wheel task also extracts and checks
+  member data; cold ZIP import uses a separate directory reader. See
   [`zipfile-headroom-20260925.md`](rust-cpython/experiments/zipfile-headroom-20260925.md).
+- A warmed complete-wheel profile put that directory reader at 10.0% of
+  instrumented task time, down from 18.6% when first-use codec loading was
+  included. Seven longer control/control pairs had at most 0.89% wall and
+  1.79% kernel-CPU differences. The possible gain is resolvable but capped,
+  while arbitrary file-like inputs and replaceable Python objects make a
+  transparent native parser costly. Defer it pending stronger application
+  headroom; see
+  [`zipfile-profile-20260925.md`](rust-cpython/experiments/zipfile-profile-20260925.md)
+  and [`zipfile-baseline-20260925.md`](rust-cpython/experiments/zipfile-baseline-20260925.md).
 
 ## Immediate work queue
 
