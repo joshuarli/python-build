@@ -8,10 +8,11 @@ import re
 import subprocess
 from pathlib import Path
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 LANE = Path(__file__).resolve().parents[1]
-LOGS = LANE / "logs" / "variants" / "zlib-adaptive" / "loaded-pairs"
 FIXTURE = LANE / "work" / "variants" / "zlib-adaptive" / "identity" / "mixedblobs.sqlite"
 PYCACHE = LANE / "work" / "variants" / "zlib-adaptive" / "loaded-pairs-pycache-absent"
 
@@ -29,9 +30,7 @@ def run(name: str, arm: str, python: Path, arguments: list[str]) -> dict[str, ob
                PYTHONMALLOC="default", PYTHONPYCACHEPREFIX=str(PYCACHE))
     argv = ["/usr/bin/time", "-l", "-p", str(python), *arguments]
     result = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True)
-    LOGS.mkdir(parents=True, exist_ok=True)
-    (LOGS / f"{name}.stdout").write_text(result.stdout)
-    (LOGS / f"{name}.stderr").write_text(result.stderr)
+    record: dict[str, object] = {"id": name, "arm": arm, "returncode": result.returncode}
     fields = {}
     for label, pattern in {
         "external_wall_seconds": r"(?m)^real ([0-9.]+)$",
@@ -43,12 +42,20 @@ def run(name: str, arm: str, python: Path, arguments: list[str]) -> dict[str, ob
     }.items():
         match = re.search(pattern, result.stderr)
         if match is None:
-            raise RuntimeError(f"missing {label} in {name}")
+            record["failure"] = {"reason": f"missing {label}",
+                                 "stdout": result.stdout[-1000:], "stderr": result.stderr[-1000:]}
+            return record
         fields[label] = float(match.group(1)) if label.endswith("seconds") else int(match.group(1))
+    record["resources"] = fields
     if result.returncode:
-        raise RuntimeError(f"{name} exited {result.returncode}: {result.stderr[-300:]}")
-    return {"id": name, "arm": arm,
-            "output": json.loads(result.stdout), "resources": fields}
+        record["failure"] = {"stdout": result.stdout[-1000:], "stderr": result.stderr[-1000:]}
+        return record
+    try:
+        record["output"] = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        record["failure"] = {"reason": "invalid JSON output",
+                             "stdout": result.stdout[-1000:], "stderr": result.stderr[-1000:]}
+    return record
 
 
 def swap() -> str:
@@ -59,7 +66,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate", required=True, type=Path)
     parser.add_argument("--control", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+    reserve_evidence(args.output)
     if PYCACHE.exists():
         raise RuntimeError("the common no-write cache prefix already exists")
     if digest(FIXTURE) != "dd3f25573c9307a466c9e1d374d698d242a3c7249fac691c18d5177ce891a2df":
@@ -69,32 +78,46 @@ def main() -> None:
         "mixedblobs": ["rust-cpython/experiments/zlib_oneshot_mixedblobs.py", "read", str(FIXTURE), "--loops", "604"],
     }
     before_swap = swap()
-    pairs = []
+    evidence = {"kind": "loaded-host diagnostic only; not quiet-host speed or memory acceptance",
+                "recipe": "python3.14 rust-cpython/experiments/zlib_adaptive_loaded_pairs.py --candidate <adaptive-stage-python> --control <same-branch-platform-stage-python> --output <fresh-evidence.json>",
+                "control_python_sha256": digest(args.control),
+                "candidate_python_sha256": digest(args.candidate),
+                "fixture_sha256": digest(FIXTURE),
+                "environment": {"PYTHONHASHSEED": "1", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONMALLOC": "default", "PYTHONPYCACHEPREFIX": "common absent no-write prefix", "PYTHONPATH": None, "PYTHONHOME": None, "DYLD_*": None},
+                "host_swap_before": before_swap,
+                "resource_coverage": "Each task process had no descendants; /usr/bin/time -l accounts for its kernel user/system CPU, peak RSS, footprint, and swaps. CPU resolves to 0.01 s. No memory sampler ran.",
+                "pairs": []}
+    checkpoint_evidence(args.output, evidence, sort_keys=True)
     for task, command in tasks.items():
         for kind, count in (("self", 3), ("candidate", 5)):
             for index in range(1, count + 1):
                 order = ("control", "control") if kind == "self" else (
                     ("control", "candidate") if index % 2 else ("candidate", "control"))
-                attempts = [run(f"{task}-{kind}-{index}-{position}", arm,
-                                args.candidate if arm == "candidate" else args.control,
-                                command) for position, arm in enumerate(order, 1)]
+                pair = {"task": task, "kind": kind, "pair": index,
+                        "order": list(order), "attempts": []}
+                evidence["pairs"].append(pair)
+                for position, arm in enumerate(order, 1):
+                    attempt = run(f"{task}-{kind}-{index}-{position}", arm,
+                                  args.candidate if arm == "candidate" else args.control,
+                                  command)
+                    pair["attempts"].append(attempt)
+                    checkpoint_evidence(args.output, evidence, sort_keys=True)
+                    if "failure" in attempt:
+                        raise RuntimeError(f"{attempt['id']} failed; see {args.output}")
+                attempts = pair["attempts"]
                 outputs = [{key: value for key, value in attempt["output"].items()
                             if key != "elapsed_seconds"} for attempt in attempts]
                 if outputs[0] != outputs[1]:
+                    pair["output_match"] = False
+                    checkpoint_evidence(args.output, evidence, sort_keys=True)
                     raise RuntimeError(f"{task} output mismatch in {kind} pair {index}")
-                pairs.append({"task": task, "kind": kind, "pair": index,
-                              "order": list(order), "attempts": attempts})
+                pair["output_match"] = True
+                checkpoint_evidence(args.output, evidence, sort_keys=True)
     if PYCACHE.exists():
         raise RuntimeError("no-write cache prefix was unexpectedly created")
-    print(json.dumps({"kind": "loaded-host diagnostic only; not quiet-host speed or memory acceptance",
-                      "recipe": "python3.14 rust-cpython/experiments/zlib_adaptive_loaded_pairs.py --candidate <adaptive-stage-python> --control <same-branch-platform-stage-python>",
-                      "control_python_sha256": digest(args.control),
-                      "candidate_python_sha256": digest(args.candidate),
-                      "fixture_sha256": digest(FIXTURE),
-                      "environment": {"PYTHONHASHSEED": "1", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONMALLOC": "default", "PYTHONPYCACHEPREFIX": "common absent no-write prefix", "PYTHONPATH": None, "PYTHONHOME": None, "DYLD_*": None},
-                      "host_swap_before": before_swap, "host_swap_after": swap(),
-                      "resource_coverage": "Each task process had no descendants; /usr/bin/time -l accounts for its kernel user/system CPU, peak RSS, footprint, and swaps. CPU resolves to 0.01 s. No memory sampler ran.",
-                      "pairs": pairs}, indent=2, sort_keys=True))
+    evidence["host_swap_after"] = swap()
+    checkpoint_evidence(args.output, evidence, sort_keys=True)
+    print(args.output)
 
 
 if __name__ == "__main__":
