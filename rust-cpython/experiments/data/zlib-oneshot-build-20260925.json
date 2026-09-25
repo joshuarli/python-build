@@ -42,8 +42,7 @@
       "user_cpu_s": 0.01,
       "system_cpu_s": 0.71,
       "max_process_rss_bytes": 2048000,
-      "swaps": 0,
-      "raw_log": "rust-cpython/work/resource-logs/inputs-copy-01.log"
+      "swaps": 0
     },
     {
       "name": "preflight-01",
@@ -53,8 +52,7 @@
       "user_cpu_s": 1.04,
       "system_cpu_s": 1.52,
       "max_process_rss_bytes": 43810816,
-      "swaps": 0,
-      "raw_log": "rust-cpython/work/resource-logs/preflight-01.log"
+      "swaps": 0
     },
     {
       "name": "preflight-02",
@@ -62,10 +60,9 @@
       "status": "passed",
       "elapsed_s": 3.45,
       "user_cpu_s": 1.05,
-      "system_cpu_s": 2.00,
+      "system_cpu_s": 2.0,
       "max_process_rss_bytes": 40534016,
-      "swaps": 0,
-      "raw_log": "rust-cpython/work/resource-logs/preflight-02.log"
+      "swaps": 0
     },
     {
       "name": "build-01",
@@ -75,9 +72,7 @@
       "user_cpu_s": 113.78,
       "system_cpu_s": 44.95,
       "max_process_rss_bytes": 449249280,
-      "swaps": 0,
-      "raw_log": "rust-cpython/work/resource-logs/build-01.log",
-      "phase_logs": "rust-cpython/work/resource-logs/attempt-01"
+      "swaps": 0
     },
     {
       "name": "build-02",
@@ -87,9 +82,7 @@
       "user_cpu_s": 700.52,
       "system_cpu_s": 104.41,
       "max_process_rss_bytes": 1819181056,
-      "swaps": 0,
-      "raw_log": "rust-cpython/work/resource-logs/build-02.log",
-      "phase_logs": "rust-cpython/logs"
+      "swaps": 0
     }
   ],
   "timed_command_cpu_s": 969.99,
@@ -98,7 +91,6 @@
   "limit_per_process_rss_bytes": 3000000000,
   "stage": "/private/tmp/python-build-exp-zlib-oneshot-build-20260925a/rust-cpython/stage",
   "installed": {
-    "build_report": "rust-cpython/results/build.json",
     "build_status": "built",
     "zlib_backend_kind": "oneshot-inflate",
     "zlib_sha256": "e2f9a02bffe3f7277e5766d29adfbb6ef316d3f412422918325baabecfd11a38",
@@ -108,10 +100,19 @@
     "platform_control_combined_bytes_unstripped": 175816,
     "all_stream_hybrid_combined_bytes_unstripped": 1768904,
     "zlib_runtime_version": "1.2.12",
-    "defined_prefixed_oneshot": ["python_build_rs_inflateInit2_", "python_build_rs_inflate", "python_build_rs_inflateEnd"],
-    "undefined_platform_stream": ["inflateInit2_", "inflate", "inflateEnd", "inflateCopy", "inflateSetDictionary"],
-    "zlib_and_binascii_load_platform_libz": true,
-    "raw_symbol_log": "rust-cpython/work/resource-logs/installed-symbols-01.log"
+    "defined_prefixed_oneshot": [
+      "python_build_rs_inflateInit2_",
+      "python_build_rs_inflate",
+      "python_build_rs_inflateEnd"
+    ],
+    "undefined_platform_stream": [
+      "inflateInit2_",
+      "inflate",
+      "inflateEnd",
+      "inflateCopy",
+      "inflateSetDictionary"
+    ],
+    "zlib_and_binascii_load_platform_libz": true
   },
   "cpython_test_suite_run": false,
   "performance_benchmark_run": false

@@ -4,22 +4,19 @@
       "command": "/usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -B rust-cpython/work/zipfile-profile-20260925a/profile.py rust-cpython/work/zipfile-profile-20260925a/attempt-001.prof",
       "id": "001",
       "status": "failed before profile; benchmarks import unavailable without PYTHONPATH",
-      "stdout": "",
-      "time_log": "Traceback (most recent call last):\n  File \"/private/tmp/python-build-exp-zipfile-profile-20260925a/rust-cpython/work/zipfile-profile-20260925a/profile.py\", line 7, in <module>\n    from benchmarks.workloads.registry import BY_NAME\nModuleNotFoundError: No module named 'benchmarks'\n        0.08 real         0.05 user         0.02 sys\n            26755072  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                2133  page reclaims\n                   4  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  32  voluntary context switches\n                 356  involuntary context switches\n           504063835  instructions retired\n           229332941  cycles elapsed\n            15679968  peak memory footprint\n"
+      "stdout": ""
     },
     {
       "command": "PYTHONPATH=/private/tmp/python-build-exp-zipfile-profile-20260925a /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -B rust-cpython/work/zipfile-profile-20260925a/profile.py rust-cpython/work/zipfile-profile-20260925a/attempt-002.prof",
       "id": "002",
       "status": "success",
-      "stdout_sha256": "74f5e5cd2687c2626657790cc6ed46815523183e1c987f6b4996d6b6659fcdda",
-      "time_log": "        0.08 real         0.05 user         0.01 sys\n            39960576  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3106  page reclaims\n                   4  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   3  voluntary context switches\n                 323  involuntary context switches\n           548704978  instructions retired\n           239103174  cycles elapsed\n            26853880  peak memory footprint\n"
+      "stdout_sha256": "74f5e5cd2687c2626657790cc6ed46815523183e1c987f6b4996d6b6659fcdda"
     },
     {
       "command": "PYTHONPATH=/private/tmp/python-build-exp-zipfile-profile-20260925a /usr/bin/time -l /Users/josh/d/python-build/rust-cpython/stage/bin/python3.16 -B rust-cpython/work/zipfile-profile-20260925a/warm-profile.py rust-cpython/work/zipfile-profile-20260925a/attempt-003.prof",
       "id": "003",
       "status": "success; one warm complete task before four profiled iterations",
-      "stdout_sha256": "2f55dd11e93b416d3031a4a473bcdddfd685eabb20e6534ab310f0b5d1a58182",
-      "time_log": "        0.09 real         0.06 user         0.02 sys\n            43450368  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3322  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 360  involuntary context switches\n           614614078  instructions retired\n           252840201  cycles elapsed\n            30343672  peak memory footprint\n"
+      "stdout_sha256": "2f55dd11e93b416d3031a4a473bcdddfd685eabb20e6534ab310f0b5d1a58182"
     }
   ],
   "base_commit": "f8996445bb5f86cfba6f70e54d57ae3a385b40f6",
@@ -1947,7 +1944,6 @@
     "clock": "cProfile default internal timer; instrumented location evidence, not kernel-accounted CPU",
     "directory_cumulative_fraction_of_root": 0.1863731139506389,
     "directory_self_fraction_of_root": 0.04097062839138807,
-    "local_binary_profile": "rust-cpython/work/zipfile-profile-20260925a/attempt-002.prof",
     "local_binary_profile_sha256": "a1bb16160fa78efe9147f338d285c04e086a4ed79e3602cb004d16bd81c84614",
     "root_cumulative_seconds": 0.0142825,
     "scope": "cProfile enabled immediately around zip_read_wheel(4), including fixture creation, input digest, archive reads, and output checks; module imports and JSON reporting outside",
@@ -2770,7 +2766,6 @@
     ],
     "directory_cumulative_fraction_of_root": 0.09991776863283036,
     "directory_self_fraction_of_root": 0.04220129858253315,
-    "local_binary_profile": "rust-cpython/work/zipfile-profile-20260925a/attempt-003.prof",
     "local_binary_profile_sha256": "1b5f7e371b05cb7ba167e0b3c8e1994a48f4a944ac03f982e34b86cda6776e3c",
     "local_runner_sha256": "0dfc4feb65f642369b17c91cce2b2b029bd8fddcdb94682b63cf1cbad908872b",
     "profiled_result": {

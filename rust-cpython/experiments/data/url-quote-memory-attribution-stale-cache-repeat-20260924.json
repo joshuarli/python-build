@@ -80,7 +80,6 @@
     }
   },
   "raw_coverage": "full external samples preserved in ignored work area",
-  "raw_path": "rust-cpython/work/url-quote-memory-attribution-20260924/raw-stale-cache-repeat.json",
   "rows": [
     {
       "cpu_coverage": "wait4 root only; descendants excluded",

@@ -24,7 +24,6 @@
         "time_real_seconds": 0.26,
         "user_seconds": 0.24
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-pilot-00-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -38,9 +37,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        0.26 real         0.24 user         0.01 sys\n            45580288  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3218  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 205  involuntary context switches\n          2479268193  instructions retired\n           805545513  cycles elapsed\n            32915960  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-pilot-00-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.10351399995852262, \"logical_extracted_bytes\": 105689200, \"loops\": 100}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-pilot-00-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.10351399995852262, \"logical_extracted_bytes\": 105689200, \"loops\": 100}\n"
     },
     {
       "command": [
@@ -66,7 +63,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-01-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -80,9 +76,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            44613632  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3159  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 273  involuntary context switches\n         11378155344  instructions retired\n          3631810220  cycles elapsed\n            31949304  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-01-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9953284580260515, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-01-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9953284580260515, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -108,7 +102,6 @@
         "time_real_seconds": 1.14,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-01-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -122,9 +115,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.14 real         1.12 user         0.01 sys\n            45645824  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3222  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 276  involuntary context switches\n         11362380831  instructions retired\n          3619725426  cycles elapsed\n            32981496  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-01-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9912922920193523, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-01-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9912922920193523, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -150,7 +141,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-02-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -164,9 +154,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            44253184  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3139  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 297  involuntary context switches\n         11368316367  instructions retired\n          3630823469  cycles elapsed\n            31588856  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-02-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9960502089234069, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-02-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9960502089234069, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -192,7 +180,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-02-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -206,9 +193,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            44285952  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3139  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 289  involuntary context switches\n         11367278037  instructions retired\n          3642317163  cycles elapsed\n            31621624  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-02-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.0001924170646816, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-02-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.0001924170646816, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -234,7 +219,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-03-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -248,9 +232,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            44498944  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3152  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 304  involuntary context switches\n         11367950768  instructions retired\n          3635668031  cycles elapsed\n            31834616  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-03-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9990015000803396, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-03-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9990015000803396, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -276,7 +258,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-03-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -290,9 +271,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            45236224  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3198  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 276  involuntary context switches\n         11412456837  instructions retired\n          3635439213  cycles elapsed\n            32555488  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-03-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9977057080250233, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-03-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9977057080250233, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -318,7 +297,6 @@
         "time_real_seconds": 1.14,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-04-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -332,9 +310,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.14 real         1.12 user         0.01 sys\n            46252032  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3261  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 273  involuntary context switches\n         11364692756  instructions retired\n          3619583945  cycles elapsed\n            33587704  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-04-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9923363339621574, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-04-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9923363339621574, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -360,7 +336,6 @@
         "time_real_seconds": 1.14,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-04-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -374,9 +349,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.14 real         1.12 user         0.01 sys\n            44531712  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3154  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 248  involuntary context switches\n         11364481550  instructions retired\n          3610084124  cycles elapsed\n            31867384  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-04-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9897972500184551, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-04-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9897972500184551, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -402,7 +375,6 @@
         "time_real_seconds": 1.14,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-05-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -416,9 +388,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.14 real         1.12 user         0.01 sys\n            44548096  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3155  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 259  involuntary context switches\n         11370395897  instructions retired\n          3611312476  cycles elapsed\n            31883768  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-05-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9904915830120444, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-05-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9904915830120444, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -444,7 +414,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-05-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -458,9 +427,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            43532288  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3093  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 261  involuntary context switches\n         11361688950  instructions retired\n          3623904475  cycles elapsed\n            30867960  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-05-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9932266670512035, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-05-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9932266670512035, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -486,7 +453,6 @@
         "time_real_seconds": 1.14,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-06-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -500,9 +466,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.14 real         1.12 user         0.01 sys\n            44072960  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3126  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 250  involuntary context switches\n         11363463716  instructions retired\n          3607879684  cycles elapsed\n            31408632  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-06-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9864756250753999, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-06-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9864756250753999, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -528,7 +492,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-06-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -542,9 +505,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            45809664  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3232  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 292  involuntary context switches\n         11377432626  instructions retired\n          3631929467  cycles elapsed\n            33145336  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-06-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9951615419704467, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-06-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9951615419704467, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -570,7 +531,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-07-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -584,9 +544,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            46301184  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3262  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 286  involuntary context switches\n         11366178302  instructions retired\n          3633064723  cycles elapsed\n            33636856  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-07-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9978038750123233, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-07-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9978038750123233, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -612,7 +570,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-07-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -626,9 +583,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            45203456  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3195  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 293  involuntary context switches\n         11413639653  instructions retired\n          3640714612  cycles elapsed\n            32539128  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-07-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9982455830322579, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-self-07-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9982455830322579, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -654,7 +609,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-01-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -668,9 +622,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            45924352  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3239  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 277  involuntary context switches\n         11365999980  instructions retired\n          3625290670  cycles elapsed\n            33260024  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-01-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9944363330723718, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-01-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9944363330723718, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -696,7 +648,6 @@
         "time_real_seconds": 1.18,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-01-b-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -710,9 +661,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.18 real         1.13 user         0.02 sys\n            44515328  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                2701  page reclaims\n                 459  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  35  voluntary context switches\n                 442  involuntary context switches\n         11607425299  instructions retired\n          3652919674  cycles elapsed\n            31654392  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-01-b-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9953845409909263, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-01-b-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9953845409909263, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -738,7 +687,6 @@
         "time_real_seconds": 1.16,
         "user_seconds": 1.14
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-02-a-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -752,9 +700,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.16 real         1.14 user         0.01 sys\n            44023808  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3125  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 270  involuntary context switches\n         11751360636  instructions retired\n          3672226141  cycles elapsed\n            31162872  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-02-a-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.0072800419293344, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-02-a-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.0072800419293344, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -780,7 +726,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-02-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -794,9 +739,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            43991040  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3121  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 306  involuntary context switches\n         11372650952  instructions retired\n          3626094335  cycles elapsed\n            31326712  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-02-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9965945419389755, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-02-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9965945419389755, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -822,7 +765,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-03-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -836,9 +778,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            45318144  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3203  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 295  involuntary context switches\n         11363953146  instructions retired\n          3630161351  cycles elapsed\n            32653816  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-03-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9948062079492956, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-03-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9948062079492956, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -864,7 +804,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-03-b-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -878,9 +817,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            44548096  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3159  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 303  involuntary context switches\n         11566348067  instructions retired\n          3641052668  cycles elapsed\n            31687160  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-03-b-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9991329580079764, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-03-b-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9991329580079764, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -906,7 +843,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-04-a-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -920,9 +856,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            46678016  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3287  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 251  involuntary context switches\n         11568282289  instructions retired\n          3629922481  cycles elapsed\n            33817080  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-04-a-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9990005420986563, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-04-a-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9990005420986563, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -948,7 +882,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-04-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -962,9 +895,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            46120960  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3251  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 287  involuntary context switches\n         11366824205  instructions retired\n          3636702398  cycles elapsed\n            33456632  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-04-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9971334160072729, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-04-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9971334160072729, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -990,7 +921,6 @@
         "time_real_seconds": 1.16,
         "user_seconds": 1.14
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-05-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1004,9 +934,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.16 real         1.14 user         0.01 sys\n            43712512  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3104  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 407  involuntary context switches\n         11376503915  instructions retired\n          3664755247  cycles elapsed\n            31048184  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-05-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.0047895000316203, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-05-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.0047895000316203, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1032,7 +960,6 @@
         "time_real_seconds": 1.17,
         "user_seconds": 1.14
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-05-b-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1046,9 +973,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.17 real         1.14 user         0.01 sys\n            46514176  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3277  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 272  involuntary context switches\n         11759059288  instructions retired\n          3683024191  cycles elapsed\n            33653240  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-05-b-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.011646999977529, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-05-b-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 1.011646999977529, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1074,7 +999,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-06-a-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1088,9 +1012,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            44974080  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3183  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 288  involuntary context switches\n         11566170988  instructions retired\n          3633066078  cycles elapsed\n            32113144  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-06-a-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9963626659009606, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-06-a-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9963626659009606, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1116,7 +1038,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-06-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1130,9 +1051,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            46252032  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3259  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 265  involuntary context switches\n         11366047780  instructions retired\n          3622094089  cycles elapsed\n            33587704  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-06-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9938475000672042, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-06-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9938475000672042, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1158,7 +1077,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.12
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-07-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1172,9 +1090,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "        1.15 real         1.12 user         0.01 sys\n            43286528  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3078  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 299  involuntary context switches\n         11366445559  instructions retired\n          3628273533  cycles elapsed\n            30622200  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-07-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9942667920840904, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-07-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9942667920840904, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1200,7 +1116,6 @@
         "time_real_seconds": 1.15,
         "user_seconds": 1.13
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-07-b-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1214,9 +1129,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "        1.15 real         1.13 user         0.01 sys\n            46710784  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3289  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 270  involuntary context switches\n         11568893556  instructions retired\n          3637677265  cycles elapsed\n            33849848  peak memory footprint\n",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-07-b-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9982238750671968, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-comparison-07-b-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9982238750671968, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1240,7 +1153,6 @@
         "sampled_peak_rss_bytes": 46268416,
         "sampling_errors": []
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-01-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1254,9 +1166,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-01-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9931299579329789, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-01-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9931299579329789, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1280,7 +1190,6 @@
         "sampled_peak_rss_bytes": 46678016,
         "sampling_errors": []
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-01-b-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1294,9 +1203,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-01-b-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9987297090701759, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-01-b-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9987297090701759, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1320,7 +1227,6 @@
         "sampled_peak_rss_bytes": 45023232,
         "sampling_errors": []
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-02-a-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1334,9 +1240,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-02-a-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.997682832996361, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-02-a-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.997682832996361, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1360,7 +1264,6 @@
         "sampled_peak_rss_bytes": 46235648,
         "sampling_errors": []
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-02-b-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1374,9 +1277,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-02-b-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9959722080966458, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-02-b-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9959722080966458, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1400,7 +1301,6 @@
         "sampled_peak_rss_bytes": 43892736,
         "sampling_errors": []
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-03-a-control.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1414,9 +1314,7 @@
       "returncode": 0,
       "slot": "a",
       "stderr": "",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-03-a-control.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9950558750424534, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-03-a-control.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9950558750424534, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     },
     {
       "command": [
@@ -1440,7 +1338,6 @@
         "sampled_peak_rss_bytes": 46661632,
         "sampling_errors": []
       },
-      "resource_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-03-b-hybrid.resource",
       "result": {
         "archive_bytes": 1050296,
         "archive_sha256": "c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f",
@@ -1454,9 +1351,7 @@
       "returncode": 0,
       "slot": "b",
       "stderr": "",
-      "stderr_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-03-b-hybrid.stderr",
-      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9983430840075016, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n",
-      "stdout_path": "/private/tmp/python-build-exp-tarfile-hybrid-breadth-20260925a/rust-cpython/results/tarfile-hybrid-breadth-20260925/v2-memory-03-b-hybrid.stdout"
+      "stdout": "{\"archive_bytes\": 1050296, \"archive_sha256\": \"c3a1efad63406bc8045a04de881d778c171bdf9aa23e37f6196d36808a565c5f\", \"bytes_per_loop\": 1056892, \"content_sha256\": \"882e28e798c459b79bd291bcac95cdd6b84f4ea11f332788a2d4202197e2d0fc\", \"entry_count\": 25, \"internal_seconds\": 0.9983430840075016, \"logical_extracted_bytes\": 1020957672, \"loops\": 966}\n"
     }
   ],
   "calibration": {

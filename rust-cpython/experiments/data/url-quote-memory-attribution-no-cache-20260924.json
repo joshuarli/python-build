@@ -80,7 +80,6 @@
     }
   },
   "raw_coverage": "compact per-process observations only; full sampler output overwritten by later run",
-  "raw_path": null,
   "rows": [
     {
       "cpu_coverage": "wait4 root only; descendants excluded",

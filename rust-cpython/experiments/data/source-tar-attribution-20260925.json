@@ -1955,10 +1955,8 @@
         6031,
         136064031
       ],
-      "stdout_log": "rust-cpython/results/source-tar-attribution-20260925/control-01.out",
       "swaps": 0,
       "system_seconds": 0.02,
-      "time_log": "rust-cpython/results/source-tar-attribution-20260925/control-01.time",
       "user_seconds": 0.62
     },
     {
@@ -3916,10 +3914,8 @@
         6031,
         136064031
       ],
-      "stdout_log": "rust-cpython/results/source-tar-attribution-20260925/hybrid-01.out",
       "swaps": 0,
       "system_seconds": 0.02,
-      "time_log": "rust-cpython/results/source-tar-attribution-20260925/hybrid-01.time",
       "user_seconds": 0.66
     },
     {
@@ -5877,10 +5873,8 @@
         6031,
         136064031
       ],
-      "stdout_log": "rust-cpython/results/source-tar-attribution-20260925/hybrid-02.out",
       "swaps": 0,
       "system_seconds": 0.02,
-      "time_log": "rust-cpython/results/source-tar-attribution-20260925/hybrid-02.time",
       "user_seconds": 0.66
     },
     {
@@ -7838,10 +7832,8 @@
         6031,
         136064031
       ],
-      "stdout_log": "rust-cpython/results/source-tar-attribution-20260925/control-02.out",
       "swaps": 0,
       "system_seconds": 0.02,
-      "time_log": "rust-cpython/results/source-tar-attribution-20260925/control-02.time",
       "user_seconds": 0.62
     }
   ],
@@ -7867,10 +7859,8 @@
       "maximum_resident_bytes": 20217856,
       "observed": "PYTHONVERBOSE=1 reports matching cache and loaded code object for all four listed modules",
       "real_seconds": 0.04,
-      "stdout_log": "rust-cpython/results/source-tar-attribution-20260925/control-cache.out",
       "swaps": 0,
       "system_seconds": 0.01,
-      "time_log": "rust-cpython/results/source-tar-attribution-20260925/control-cache.time",
       "user_seconds": 0.02
     },
     {
@@ -7894,10 +7884,8 @@
       "maximum_resident_bytes": 20168704,
       "observed": "PYTHONVERBOSE=1 reports matching cache and loaded code object for all four listed modules",
       "real_seconds": 0.05,
-      "stdout_log": "rust-cpython/results/source-tar-attribution-20260925/hybrid-cache.out",
       "swaps": 0,
       "system_seconds": 0.01,
-      "time_log": "rust-cpython/results/source-tar-attribution-20260925/hybrid-cache.time",
       "user_seconds": 0.02
     }
   ],

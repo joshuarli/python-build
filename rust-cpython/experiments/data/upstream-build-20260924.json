@@ -49,11 +49,6 @@
     "ldflags": "-mmacosx-version-min=26.0 -mmacosx-version-min=26.0",
     "version": "3.16.0a0"
   },
-  "logs": {
-    "build": "/private/tmp/python-build-exp-upstream-20260924/rust-cpython/logs/upstream/build.log",
-    "configure": "/private/tmp/python-build-exp-upstream-20260924/rust-cpython/logs/upstream/configure.log",
-    "install": "/private/tmp/python-build-exp-upstream-20260924/rust-cpython/logs/upstream/install.log"
-  },
   "offline_boundary": {
     "mechanism": "sandbox-exec deny network*",
     "selftest": {
