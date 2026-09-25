@@ -1,0 +1,114 @@
+{
+  "archive": {
+    "bytes": 6279912,
+    "sha256": "36d93425c0a32f1147b1a20edb8f0ce214e849d089d84472d65d50da004b2a14"
+  },
+  "attempts": [
+    {
+      "failure": "Python TLS CA verification failed; fallback git reconstruction did not match the locked archive digest. Direct curl downloaded exact locked bytes; digest and size verified before atomic cache publication.",
+      "id": "fetch-1",
+      "outcome": "failed",
+      "resource": null
+    },
+    {
+      "failure": "git apply --whitespace=error rejected the experiment patch trailing blank line; removed that line and updated the optional patch digest.",
+      "id": "patch-preflight-1",
+      "outcome": "failed",
+      "resource": null
+    },
+    {
+      "failure": "Shared LLVM cache symlink caused clang resource directory to resolve to the primary worktree; cloned the verified cache locally and doctor passed.",
+      "id": "doctor-1",
+      "outcome": "failed",
+      "resource": null
+    },
+    {
+      "failure": "PGO make clean removed the Rust archive under BUILD; make then reported no rule for liblean_route.a. Moved archive outside BUILD.",
+      "id": "build-1",
+      "outcome": "failed",
+      "resource": {
+        "max_resident_bytes": 162529280,
+        "peak_memory_footprint_bytes": 40468984,
+        "swaps": 0,
+        "system_seconds": null,
+        "user_seconds": null,
+        "wall_seconds": null
+      }
+    },
+    {
+      "id": "build-2",
+      "outcome": "passed",
+      "resource": {
+        "max_resident_bytes": 1833844736,
+        "peak_memory_footprint_bytes": 43450872,
+        "swaps": 0,
+        "system_seconds": null,
+        "user_seconds": null,
+        "wall_seconds": null
+      }
+    }
+  ],
+  "build_recipe": {
+    "archive_relative_to_variant_work": "base64-lean/liblean_route.a",
+    "command": "python3 rust-cpython/build.py build --variant base64-lean --base64-lean",
+    "link_flags": [
+      "-Wl,-dead_strip",
+      "-Wl,-exported_symbol,_PyInit_binascii"
+    ],
+    "mode": "offline sealed after verified cache population"
+  },
+  "cargo_lock_sha256": "55f5f3bf547d3b9e7896a5feb6d17aa3b607610c7c21d919164f0877a8d05023",
+  "comparative_timing": "not run: host load included xsh, mediaanalysisd, and apfsd during the build",
+  "installed_binascii": {
+    "bytes": 95024,
+    "defined_global_symbols": [
+      "PyInit_binascii"
+    ],
+    "defined_local_route_symbol": "rust_base64_encode_into",
+    "dynamic_dependencies": [
+      "/usr/lib/libz.1.dylib",
+      "/usr/lib/libSystem.B.dylib"
+    ],
+    "relative_path": "lib/python3.16/lib-dynload/binascii.cpython-316-darwin.so",
+    "sha256": "4bf30e7a92d2227b8c80efdd06bdeb69081120130125b1618699b9fea377411b"
+  },
+  "manifest_sha256": "d93d72aeda61154199ca39c219e2ead05644ba58115774699a226653b9e7e05a",
+  "module_link_recipe": {
+    "binascii_link_rule": "Modules/binascii$(EXT_SUFFIX):  Modules/binascii.o /Users/josh/d/python-build-exp-base64-lean-installed-20260925/rust-cpython/work/variants/base64-lean/base64-lean/liblean_route.a $(MODULE_BINASCII_LDEPS); $(BLDSHARED_EXE) $(BLDSHARED_ARGS) -Wl,-dead_strip -Wl,-exported_symbol,_PyInit_binascii Modules/binascii.o /Users/josh/d/python-build-exp-base64-lean-installed-20260925/rust-cpython/work/variants/base64-lean/base64-lean/liblean_route.a $(MODULE_BINASCII_LDFLAGS) $(LIBPYTHON) -o Modules/binascii$(EXT_SUFFIX)",
+    "configured_makefile_sha256": "491d1b15fd80b995ad94c0e63cf822d13de2bc09f2c001fcdb858fb553b4c6b2",
+    "effective_makefile_sha256": "7ba3596031907f5fbe7f17be3042ce85d4ccfcdcd0cb2a075154331bc1da6885"
+  },
+  "output_checks": [
+    {
+      "binascii_path": "lib/python3.16/lib-dynload/binascii.cpython-316-darwin.so",
+      "binascii_sha256": "4bf30e7a92d2227b8c80efdd06bdeb69081120130125b1618699b9fea377411b",
+      "id": "candidate",
+      "public_output_sha256": "22d307822213140dcd2c97b88f4d237fcc79bdaf6ba0a929b5875103b49eb633",
+      "python": "3.16.0a0",
+      "result": "pass",
+      "vectors": 18
+    },
+    {
+      "binascii_path": "lib/python3.16/lib-dynload/binascii.cpython-316-darwin.so",
+      "binascii_sha256": "8d5d97f4e81f4db5baf1a16eb0eb81e3d3951248a56aa4b959a41537b3004494",
+      "id": "existing-default-control",
+      "public_output_sha256": "22d307822213140dcd2c97b88f4d237fcc79bdaf6ba0a929b5875103b49eb633",
+      "python": "3.16.0a0",
+      "result": "pass",
+      "vectors": 18
+    }
+  ],
+  "patch_sha256": "5adfdd86fc1491be2d56b3ffb466d6bfc5687bbdf30a22cfd69277be044de7c0",
+  "peak_process_count": null,
+  "resource_method": "/usr/bin/time -l wrapped the build command; Darwin kernel accounting reports command and reaped children. Short-lived child RSS and process-count peaks were not sampled independently.",
+  "rust_channel": "nightly-2026-09-15",
+  "rustc_version": "rustc 1.100.0-nightly (574ff7d98 2026-09-14)",
+  "source_archive_sha256": "965dbc9c847b0ed779a16134495b8690c9fc957996d8bcbb83c47089d4e81467",
+  "source_commit": "b812b4a7b9efaca46b98544a8633b7d7e454166b",
+  "source_sha256": {
+    "Modules/_base64/src/lean_route.rs": "0a9b3b5e7a823b8a2df94025fe91ef6f7cbfd8ab808b3921b744aa32213e1355",
+    "Modules/binascii.c": "e2653c0d14867d5e6340f1845e59f7d9a072e0a3b00c8a9e02aaa2f0b3a4dae1"
+  },
+  "swap_used_mib_after_build": 235.88,
+  "target": "aarch64-apple-darwin"
+}

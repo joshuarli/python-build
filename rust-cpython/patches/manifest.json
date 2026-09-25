@@ -118,6 +118,17 @@
       "reason": "Limit optional Rust one-shot inflate to streams with at least 8192 compressed bytes, keeping the observed 1 MiB stored-stream win while routing all checked-in small SQLite BLOBs to platform zlib.",
       "compatibility": "Applies after 0003 to Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b; selected only by --zlib-adaptive with prefixed zlib-rs 0.6.7 and platform libz; the existing --zlib-oneshot mode is unchanged.",
       "reproducer": "Apply selected patches to a fresh verified pinned source and verify Modules/zlibmodule.c changed plus forward and reverse checks; build --variant zlib-adaptive --zlib-adaptive; compare direct 1 MiB and both SQLite BLOB workloads against platform and unbounded one-shot controls on a quiet host."
+    },
+    {
+      "file": "0012-base64-lean.patch",
+      "sha256": "5adfdd86fc1491be2d56b3ffb466d6bfc5687bbdf30a22cfd69277be044de7c0",
+      "mode": "base64-lean",
+      "author": "OpenAI Codex, integrating the existing lean Base64 route experiment",
+      "origin": "Pinned Rust-for-CPython Modules/binascii.c and the checked lean Base64 experiment source; assembled for installed build integration on 2026-09-25",
+      "license": "PSF-2.0, matching the pinned CPython fork and repository experiment",
+      "reason": "Optionally route large contiguous default-alphabet Base64 encoding through a no_std AArch64 Rust NEON kernel beneath the existing binascii C API and retain C handling for all other options.",
+      "compatibility": "Applies to pinned Rust-for-CPython commit b812b4a7b9efaca46b98544a8633b7d7e454166b only with --base64-lean on native macOS arm64; the generated binascii link rule adds the pinned-nightly static archive and exports PyInit_binascii.",
+      "reproducer": "Apply selected patches to freshly extracted locked source and verify both changed source hashes; build --variant base64-lean --base64-lean; inspect the installed binascii extension export, import path, and exact public Base64 output."
     }
   ]
 }

@@ -292,13 +292,20 @@ as a separate baseline change.
   A `no_std` AArch64 link reduced the standalone extension to 91,808 bytes,
   only 1,760 bytes above the same-source C control, while checked public
   outputs and the large-input speed diagnostic held. Three fresh-process RSS
-  pairs were within a 294,912-byte control/control difference. Retain this
-  lean route as the preferred optional candidate pending an installed build
-  and complete-workload qualification; see the
+  pairs were within a 294,912-byte control/control difference. The lean route
+  became the preferred optional candidate for installed-build and workload
+  qualification; see the
   [lean route result](rust-cpython/experiments/base64-lean-route-20260925.md).
   A [locked source archive workload](rust-cpython/experiments/base64-archive-workload-20260925.md)
   now supplies 675 public large-input calls and a fixed output digest for
   that comparison.
+  The optional `--base64-lean` variant has since built and installed on macOS
+  arm64. Its 95,024-byte `binascii` extension contains the linked Rust route;
+  the installed interpreter matched an independent Base64 oracle over the
+  checked lengths and options. An initial PGO build lost the archive during
+  cleanup; the corrected archive location survived a full build. No installed
+  workload speed or memory comparison has run under the current host load.
+  See the [installed result](rust-cpython/experiments/base64-lean-installed-20260925.md).
 - A separate [`zlib-proof`](rust-cpython/zlib-proof/README.md) links the pinned
   `zlib-rs` 0.6.7 C ABI beneath the unchanged CPython `Modules/zlibmodule.c`.
   `test_zlib` passed 85 tests (2 skipped); `test_gzip`, `test_tarfile`,

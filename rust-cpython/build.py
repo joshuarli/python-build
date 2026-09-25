@@ -543,7 +543,8 @@ def _source_patch_inputs(*, url_unquote: bool = False,
                          strptime_numeric: bool = False,
                          uuid_canonical: bool = False,
                          shlex_split: bool = False,
-                         fraction_rational: bool = False) -> dict[str, Any]:
+                         fraction_rational: bool = False,
+                         base64_lean: bool = False) -> dict[str, Any]:
     """Validate the authored patch inputs without touching an extracted tree."""
     metadata, _entry = _read_lock()
     try:
@@ -569,6 +570,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         "0009-rust-shlex-split.patch": "shlex-split",
         "0010-rust-fraction-rational.patch": "fraction-rational",
         "0011-zlib-adaptive-oneshot.patch": "zlib-adaptive",
+        "0012-base64-lean.patch": "base64-lean",
     }
     optional_seen: set[str] = set()
     for entry in manifest["patches"]:
@@ -608,6 +610,8 @@ def _source_patch_inputs(*, url_unquote: bool = False,
             mode == "shlex-split" and shlex_split
         ) or (
             mode == "fraction-rational" and fraction_rational
+        ) or (
+            mode == "base64-lean" and base64_lean
         ):
             records.append(dict(entry))
     if optional_seen != set(optional_patches):
@@ -624,6 +628,7 @@ def _source_patch_inputs(*, url_unquote: bool = False,
         "uuid_canonical": uuid_canonical,
         "shlex_split": shlex_split,
         "fraction_rational": fraction_rational,
+        "base64_lean": base64_lean,
         "patches": records,
     }
 
@@ -635,7 +640,8 @@ def _apply_source_patches(source: Path, *, url_unquote: bool = False,
                           strptime_numeric: bool = False,
                           uuid_canonical: bool = False,
                           shlex_split: bool = False,
-                          fraction_rational: bool = False) -> dict[str, Any]:
+                          fraction_rational: bool = False,
+                          base64_lean: bool = False) -> dict[str, Any]:
     """Apply authored patches only to the verified, pinned fresh source tree."""
     inputs = _source_patch_inputs(url_unquote=url_unquote,
                                   zlib_adaptive=zlib_adaptive,
@@ -644,7 +650,8 @@ def _apply_source_patches(source: Path, *, url_unquote: bool = False,
                                   strptime_numeric=strptime_numeric,
                                   uuid_canonical=uuid_canonical,
                                   shlex_split=shlex_split,
-                                  fraction_rational=fraction_rational)
+                                  fraction_rational=fraction_rational,
+                                  base64_lean=base64_lean)
     metadata, _entry = _read_lock()
     expected_lock = metadata["cargo_lock_sha256"]
     if hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest() != expected_lock:
@@ -1486,6 +1493,62 @@ def _select_zlib_small_link(makefile: Path) -> dict[str, str]:
     }
 
 
+def _build_base64_lean(source: Path, rustup: str, env: dict[str, str], sandbox: SealedRun) -> dict[str, Any]:
+    """Compile the optional AArch64 encoder from the verified source tree."""
+    c_source = source / "Modules" / "binascii.c"
+    rust_source = source / "Modules" / "_base64" / "src" / "lean_route.rs"
+    expected = {
+        c_source: "e2653c0d14867d5e6340f1845e59f7d9a072e0a3b00c8a9e02aaa2f0b3a4dae1",
+        rust_source: "0a9b3b5e7a823b8a2df94025fe91ef6f7cbfd8ab808b3921b744aa32213e1355",
+    }
+    for path, digest in expected.items():
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise LaneError(f"optional Base64 source identity disagrees with the pinned route: {path}")
+    archive = SOURCE.parent / "base64-lean" / "liblean_route.a"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    command = [rustup, "run", RUST_CHANNEL, "rustc",
+               "--crate-type", "staticlib", "-O", "-C", "target-cpu=apple-m1",
+               "-C", "panic=abort", str(rust_source), "-o", str(archive)]
+    _require_command(command, cwd=BUILD, env=env,
+                     log=LOGS / "base64-lean-rustc.log", sealed=sandbox)
+    if not archive.is_file():
+        raise LaneError("pinned Rust compiler did not produce the lean Base64 archive")
+    return {
+        "source_sha256": {str(path.relative_to(source)): digest for path, digest in expected.items()},
+        "rustc_command": command,
+        "archive_path": str(archive),
+        "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+        "archive_size": archive.stat().st_size,
+    }
+
+
+def _select_base64_lean_link(makefile: Path, archive: Path) -> dict[str, str]:
+    """Link the private Rust archive into only the generated binascii module."""
+    if _make_value(makefile, "MODULE_BINASCII_STATE") != "yes":
+        raise LaneError("configure did not enable the binascii extension")
+    original = makefile.read_bytes()
+    old = (b"Modules/binascii$(EXT_SUFFIX):  Modules/binascii.o $(MODULE_BINASCII_LDEPS); "
+           b"$(BLDSHARED_EXE) $(BLDSHARED_ARGS)  Modules/binascii.o "
+           b"$(MODULE_BINASCII_LDFLAGS) $(LIBPYTHON) -o Modules/binascii$(EXT_SUFFIX)")
+    archive_bytes = str(archive).encode()
+    new = (b"Modules/binascii$(EXT_SUFFIX):  Modules/binascii.o " + archive_bytes +
+           b" $(MODULE_BINASCII_LDEPS); $(BLDSHARED_EXE) $(BLDSHARED_ARGS) "
+           b"-Wl,-dead_strip -Wl,-exported_symbol,_PyInit_binascii "
+           b"Modules/binascii.o " + archive_bytes +
+           b" $(MODULE_BINASCII_LDFLAGS) $(LIBPYTHON) -o Modules/binascii$(EXT_SUFFIX)")
+    if original.count(old) != 1:
+        raise LaneError("cannot locate one exact generated binascii link rule")
+    modified = original.replace(old, new)
+    makefile.write_bytes(modified)
+    if makefile.read_bytes().count(new) != 1:
+        raise LaneError("generated Makefile did not retain the lean Base64 link rule")
+    return {
+        "configured_makefile_sha256": hashlib.sha256(original).hexdigest(),
+        "effective_makefile_sha256": hashlib.sha256(modified).hexdigest(),
+        "binascii_link_rule": new.decode(),
+    }
+
+
 def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     command = [
         str(CARGO_HOME / "bin" / "cargo"), "metadata", "--locked", "--offline",
@@ -1514,7 +1577,7 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
-def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, zlib_adaptive: bool = False, zlib_adaptive_small: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False) -> dict[str, Any]:
+def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: SealedRun, patches: dict[str, Any], zlib_backend: dict[str, Any] | None = None, *, zlib_hybrid: bool = False, zlib_oneshot: bool = False, zlib_adaptive: bool = False, zlib_adaptive_small: bool = False, tar_checksum: bool = False, ipv4_scan: bool = False, strptime_numeric: bool = False, uuid_canonical: bool = False, shlex_split: bool = False, fraction_rational: bool = False, base64_lean: bool = False) -> dict[str, Any]:
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
     if BUILD.exists():
@@ -1549,6 +1612,12 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         zlib_backend["module_link_recipe"] = _select_platform_binascii(BUILD / "Makefile", hybrid=zlib_hybrid or zlib_oneshot)
         if zlib_adaptive_small:
             zlib_backend["small_link_recipe"] = _select_zlib_small_link(BUILD / "Makefile")
+    base64_backend = None
+    if base64_lean:
+        base64_backend = _build_base64_lean(source, rustup, source_date_env, sandbox)
+        base64_backend["module_link_recipe"] = _select_base64_lean_link(
+            BUILD / "Makefile", SOURCE.parent / "base64-lean" / "liblean_route.a"
+        )
     (BUILD / "Modules" / "_rust_url_quote").mkdir(parents=True, exist_ok=True)
     if tar_checksum:
         (BUILD / "Modules" / "_rust_tar_checksum").mkdir(parents=True, exist_ok=True)
@@ -1648,6 +1717,7 @@ def _configure_source(source: Path, toolchain, target, jobs: int, sandbox: Seale
         "cargo_workspace_members": workspace_members,
         "built_rust_workspace_members": built_workspace_members,
         "zlib_backend": zlib_backend if zlib_backend is not None else {"kind": "platform"},
+        "base64_backend": base64_backend if base64_backend is not None else {"kind": "platform"},
         "offline_boundary": {
             "mechanism": (lane_linux.describe()["mechanism"] if IS_LINUX
                           else "sandbox-exec with deny network*"),
@@ -1689,13 +1759,17 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
           tar_checksum: bool = False, ipv4_scan: bool = False,
           strptime_numeric: bool = False,
           uuid_canonical: bool = False, shlex_split: bool = False,
-          fraction_rational: bool = False,
+          fraction_rational: bool = False, base64_lean: bool = False,
           apply_patches: bool = True) -> int:
     if sum((zlib_rs, zlib_hybrid, zlib_oneshot, zlib_adaptive,
             zlib_adaptive_small)) > 1:
         raise LaneError("select one zlib candidate mode")
     if zlib_adaptive_small and IS_LINUX:
         raise LaneError("the small zlib link is implemented only for macOS arm64")
+    if base64_lean and (IS_LINUX or not _supported_host()):
+        raise LaneError("the lean Base64 route is implemented only for native macOS arm64")
+    if base64_lean and (zlib_rs or zlib_hybrid or zlib_oneshot or zlib_adaptive or zlib_adaptive_small):
+        raise LaneError("the lean Base64 route cannot be combined with a zlib candidate")
     zlib_adaptive = zlib_adaptive or zlib_adaptive_small
     oneshot_backend = zlib_oneshot or zlib_adaptive
     _require_host()
@@ -1718,7 +1792,7 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
     wrapper = source / "Modules" / "zlibmodule.c"
     wrapper_sha256 = hashlib.sha256(wrapper.read_bytes()).hexdigest() if zlib_backend else None
     if (zlib_adaptive or url_unquote or tar_checksum or ipv4_scan or strptime_numeric
-            or uuid_canonical or shlex_split or fraction_rational) and not apply_patches:
+            or uuid_canonical or shlex_split or fraction_rational or base64_lean) and not apply_patches:
         raise LaneError("optional source patches require source patches")
     patches = (_apply_source_patches(source, url_unquote=url_unquote,
                                      zlib_adaptive=zlib_adaptive,
@@ -1727,7 +1801,8 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
                                      strptime_numeric=strptime_numeric,
                                      uuid_canonical=uuid_canonical,
                                      shlex_split=shlex_split,
-                                     fraction_rational=fraction_rational)
+                                     fraction_rational=fraction_rational,
+                                     base64_lean=base64_lean)
                if apply_patches else _unpatched_record())
     if zlib_backend is not None:
         zlib_backend["cpython_zlibmodule_source_sha256"] = wrapper_sha256
@@ -1751,7 +1826,8 @@ def build(*, zlib_rs: bool = False, zlib_hybrid: bool = False,
                                strptime_numeric=strptime_numeric,
                                uuid_canonical=uuid_canonical,
                                shlex_split=shlex_split,
-                               fraction_rational=fraction_rational)
+                               fraction_rational=fraction_rational,
+                               base64_lean=base64_lean)
     print(f"OK    CPython {report['interpreter']['version'].split()[0]} -> {STAGE}")
     print(f"OK    Rust _base64 -> {report['interpreter']['module_path']}")
     _write_json(BUILD_REPORT, report)
@@ -1793,7 +1869,8 @@ def test() -> int:
             or type(recorded_patches.get("strptime_numeric")) is not bool
             or type(recorded_patches.get("uuid_canonical")) is not bool
             or type(recorded_patches.get("shlex_split")) is not bool
-            or type(recorded_patches.get("fraction_rational")) is not bool):
+            or type(recorded_patches.get("fraction_rational")) is not bool
+            or type(recorded_patches.get("base64_lean", False)) is not bool):
         raise LaneError("build report is missing optional source patch selections")
     url_unquote = recorded_patches["url_unquote"]
     zlib_adaptive = recorded_patches["zlib_adaptive"]
@@ -1803,6 +1880,7 @@ def test() -> int:
     uuid_canonical = recorded_patches["uuid_canonical"]
     shlex_split = recorded_patches["shlex_split"]
     fraction_rational = recorded_patches["fraction_rational"]
+    base64_lean = recorded_patches.get("base64_lean", False)
     applied = bool(recorded_patches.get("patches"))
     patches = (_source_patch_inputs(url_unquote=url_unquote,
                                     zlib_adaptive=zlib_adaptive,
@@ -1811,7 +1889,8 @@ def test() -> int:
                                     strptime_numeric=strptime_numeric,
                                     uuid_canonical=uuid_canonical,
                                     shlex_split=shlex_split,
-                                    fraction_rational=fraction_rational)
+                                    fraction_rational=fraction_rational,
+                                    base64_lean=base64_lean)
                if applied else _unpatched_record())
     if report["source"].get("patches") != patches:
         raise LaneError("current source patches disagree with the completed build report")
@@ -1826,7 +1905,8 @@ def test() -> int:
                                   strptime_numeric=strptime_numeric,
                                   uuid_canonical=uuid_canonical,
                                   shlex_split=shlex_split,
-                                  fraction_rational=fraction_rational)
+                                  fraction_rational=fraction_rational,
+                                  base64_lean=base64_lean)
     toolchain, _target = _toolchain()
     rustup = _require_nightly()
     _cargo_wrapper(rustup)
@@ -1974,6 +2054,10 @@ def main(argv: list[str] | None = None) -> int:
                 "--fraction-rational", action="store_true",
                 help="include the optional Rust canonical rational text scanner",
             )
+            command_parser.add_argument(
+                "--base64-lean", action="store_true",
+                help="link the optional no_std AArch64 Base64 encoder into binascii",
+            )
     args = parser.parse_args(argv)
     commands = {"doctor": doctor, "fetch": fetch, "build": build, "test": test, "clean": clean}
     try:
@@ -1996,6 +2080,7 @@ def main(argv: list[str] | None = None) -> int:
                          uuid_canonical=args.uuid_canonical,
                          shlex_split=args.shlex_split,
                          fraction_rational=args.fraction_rational,
+                         base64_lean=args.base64_lean,
                          apply_patches=not args.no_patches)
         return commands[args.command]()
     except (LaneError, InputError, BootstrapError, SandboxError, OSError, ValueError) as error:
