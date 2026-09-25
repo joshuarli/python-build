@@ -1,5 +1,18 @@
 # Rust-for-CPython experiment lanes
 
+## Django query breadth scout (base `e37da3f`)
+
+The read-only application scout uses
+`/private/tmp/python-build-exp-django-query-scout-20260925a`, branch
+`exp/django-query-scout-20260925a`. It owns only
+`experiments/django-query-breadth-scout-20260925.md`. It maps the existing
+byte-pinned Django WSGI/ASGI fixtures and public query/form decoding path,
+then proposes one fixed complete request that would independently expose the
+optional URL decoder in an application task. It runs no benchmark, test,
+compiler, or network command during the native build. Budget: 20 kernel CPU
+seconds and 512 MiB per-process RSS; the coordinator will review the proposed
+fixture and decide whether to implement it after the build.
+
 ## Optional URL unquote full build (base `cdc5387`)
 
 The native qualification lane uses
