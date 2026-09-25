@@ -312,8 +312,14 @@ as a separate baseline change.
 - A narrow Rust checksum scan under public `tarfile` reduced five paired
   complete source-archive reads by 10.18% wall and 10.38% kernel CPU. It
   preserved the checked output digest; three memory pairs were inconclusive.
-  This is a same-interpreter proof, not an accepted stdlib patch; see
+  That same-interpreter proof is retained in
   [`tar-checksum-proof-20260925.md`](rust-cpython/experiments/tar-checksum-proof-20260925.md).
+  A later optional source patch built on macOS and repeated the complete-read
+  gain: five corrected-build pairs improved median wall by 9.22% and kernel
+  CPU by 9.48%, with identical output. The route remains opt-in while exact
+  input monkeypatch behavior, eager import cost, module ownership, broader
+  compatibility, and memory qualification are resolved; see
+  [`tar-checksum-integrated-20260925.md`](rust-cpython/experiments/tar-checksum-integrated-20260925.md).
 - An optional one-shot split routes only public `zlib.decompress` to Rust.
   Five complete-process pairs reduced sustained direct decode wall/CPU by
   36.6%/38.4%, while source-tar, gzip, and streaming remained within self-noise.
@@ -529,9 +535,9 @@ as a separate baseline change.
   [`tomllib-workload-scout-20260925.md`](rust-cpython/experiments/tomllib-workload-scout-20260925.md).
 - The real pinned CPython source `.tar.gz` read spends 43.23–43.27 ms of a
   581 ms instrumented task in two TAR header checksum conventions across
-  6,540 calls. An exact 512-byte Rust checksum scan is a plausible narrow
-  proof with a 7.4% instrumented upper bound; full header/PAX replacement is
-  deferred. See
+  6,540 calls. The 7.4% instrumented share identified a narrow boundary; it
+  did not predict the uninstrumented speed gain. Full header/PAX replacement
+  remains deferred. See
   [`tarfile-boundary-scout-20260925.md`](rust-cpython/experiments/tarfile-boundary-scout-20260925.md).
 - A new cold Django WSGI first-request workload includes process startup,
   Django setup, the first read-only SQLite open, and one checked response.
@@ -616,6 +622,13 @@ as a separate baseline change.
   [`zlib-oneshot-comparison-20260925.md`](rust-cpython/experiments/zlib-oneshot-comparison-20260925.md)
   and [`zlib-oneshot-mixedblobs-20260925.md`](rust-cpython/experiments/zlib-oneshot-mixedblobs-20260925.md).
   Revisit archive size only after the mixed-input regression is fixed.
+- The optional TAR checksum source patch produced a repeatable macOS
+  complete-archive speed and CPU gain with unchanged output. Keep it behind
+  `--tar-checksum` while its exact-input monkeypatch observability, eager
+  import, private-module naming, broad behavior, and memory cost are
+  qualified. It is useful coverage progress but does not yet complete the
+  `tarfile` checklist item. See
+  [`tar-checksum-integrated-20260925.md`](rust-cpython/experiments/tar-checksum-integrated-20260925.md).
 - The URL patch has targeted gains across three complete tasks, but no broad
   application-suite or upstream resource acceptance yet. The ranked entries
   in `rust-cpython/README.md` remain hypotheses, not completed ports.
