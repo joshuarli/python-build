@@ -343,6 +343,12 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   entry points. This cost alone does not rule out a native kernel; public
   monkeypatch, generator, and reentrancy behavior still need a sound route.
   See [`difflib-snapshot-cost-20260924.md`](rust-cpython/experiments/difflib-snapshot-cost-20260924.md).
+- A pinned-interpreter dispatch probe found an exact `list[str]` mutation
+  during `find_longest_match` that changes the emitted diff. A one-shot native
+  snapshot would miss it; identity/type guards cannot exclude all callbacks
+  and reentrancy under the unchanged public contract. Stop the proposed
+  transparent `unified_diff` kernel; see
+  [`difflib-one-shot-contract-20260924.md`](rust-cpython/experiments/difflib-one-shot-contract-20260924.md).
 
 ## Immediate work queue
 
@@ -363,12 +369,11 @@ see [`mac-malloc-interpose-feasibility-20260924.md`](rust-cpython/experiments/ma
   can support an allocation verdict.
   Continue zlib's
   quiet-host and memory qualification.
-  A native kernel on arbitrary public `difflib.SequenceMatcher` instances has
-  no cheap sound guard for their mutable state; stop that route. A one-shot
-  `unified_diff` path survived the snapshot-cost gate. Specify its exact
-  monkeypatch, lazy-generator, and reentrancy contract before a bounded native
-  kernel proof; see
-  [`difflib-guard-audit-20260924.md`](rust-cpython/experiments/difflib-guard-audit-20260924.md).
+  Stop both the arbitrary public `difflib.SequenceMatcher` kernel and the
+  one-shot `unified_diff` snapshot route under the unchanged behavior
+  contract. The former exposes mutable matcher state; the latter changes
+  trace-mediated mutation and callback timing. Their measured and semantic
+  limits are in the difflib experiment records.
 - The guarded URL patch is speed-qualified on three complete tasks. Its small
   fresh-import CPU cost remains visible; the tested lazy variant did not show
   a reliable benefit. The earlier request-path RSS increase did not repeat
