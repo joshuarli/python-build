@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 LANE = Path(__file__).resolve().parents[1]
 RUN_ID = os.environ.get("FRACTION_RUN_ID", "01")
@@ -26,10 +28,7 @@ def digest(path):
 
 
 def checkpoint(data):
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    temporary = OUT.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(data, separators=(",", ":")) + "\n")
-    temporary.replace(OUT)
+    checkpoint_evidence(OUT, data, indent=None, separators=(",", ":"))
 
 
 def host():
@@ -92,8 +91,9 @@ def record_attempt(data, phase, side, command, env):
 
 
 def main():
-    if OUT.exists() or SCRATCH.exists():
-        raise FileExistsError("existing evidence or scratch; preserve prior attempt")
+    if SCRATCH.exists():
+        raise FileExistsError("existing scratch; choose a distinct FRACTION_RUN_ID")
+    reserve_evidence(OUT)
     SCRATCH.mkdir(parents=True)
     patch = PATCH.read_text()
     manifest = LANE / "patches/manifest.json"

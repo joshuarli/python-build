@@ -10,6 +10,8 @@ import subprocess
 import sys
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN_ID = sys.argv[1] if len(sys.argv) == 2 else ""
@@ -35,9 +37,7 @@ def digest(path):
 
 
 def checkpoint(data):
-    temporary = DATA.with_name(DATA.name + ".new")
-    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
-    os.replace(temporary, DATA)
+    checkpoint_evidence(DATA, data, sort_keys=True)
 
 
 def measured(command, label, env):
@@ -68,8 +68,9 @@ def new_file(patch, name, target):
 
 
 def main():
-    if DATA.exists() or WORK.exists():
-        raise FileExistsError("run ID already has evidence or scratch")
+    if WORK.exists():
+        raise FileExistsError("run ID already has scratch; pass a distinct run ID")
+    reserve_evidence(DATA)
     WORK.mkdir(parents=True)
     data = {"run_id": RUN_ID, "attempts": [], "build": [], "pairs": [],
             "host_before": {"uptime": subprocess.check_output(["uptime"], text=True).strip(),

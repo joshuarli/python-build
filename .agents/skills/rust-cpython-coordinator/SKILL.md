@@ -98,6 +98,9 @@ parsing of Windows-style paths, without taking on Windows OS support.
   Checkpoint each attempt, and give each rerun a new output path or run ID:
   never overwrite earlier raw attempts. If a record is lost, state which
   attempts are missing and do not claim a complete lane resource cost.
+  Recent experiment runners use `experiments/evidence_checkpoint.py` for
+  exclusive reservation and atomic checkpoints; pass a fresh `--evidence`
+  path or run ID when replaying them.
 - For workload performance, wall time still measures user-visible latency;
   CPU time measures compute consumption. Report both per logical work unit.
   A faster wall time with more CPU work or more memory is a visible tradeoff.

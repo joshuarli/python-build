@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -9,8 +10,9 @@ from pathlib import Path
 import re
 import statistics
 import subprocess
-import sys
 import time
+
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 LANE = Path(__file__).resolve().parents[1]
@@ -73,10 +75,13 @@ def run_child(argv: list[str], env: dict[str, str], tag: str, *, workload: bool 
     return record
 
 
-def memory_pass() -> None:
-    evidence = json.loads(DATA.read_text())
+def memory_pass(source_evidence: Path, evidence_path: Path, scratch_path: Path) -> None:
+    global SCRATCH
+    SCRATCH = scratch_path
+    evidence = json.loads(source_evidence.read_text())
     if evidence.get("failure") or "memory_attempts" in evidence:
         raise ValueError("timing evidence failed or memory pass already exists")
+    reserve_evidence(evidence_path)
     overlays = {side: SCRATCH / side / "Lib" for side in ("control", "guarded")}
     if (sha(overlays["control"] / "shlex.py") != PURE_SHA or
             sha(overlays["guarded"] / "shlex.py") != SOURCE_SHA or
@@ -93,6 +98,7 @@ def memory_pass() -> None:
                PYTHONPYCACHEPREFIX=str(cache))
     evidence["memory_attempts"] = []
     evidence["memory_method"] = "/usr/bin/time -l -p wraps complete child for peak physical footprint; output digest checked"
+    checkpoint_evidence(evidence_path, evidence)
     for pair in range(1, 4):
         group = {"pair": pair, "host_before_pair": host(), "runs": []}
         evidence["memory_attempts"].append(group)
@@ -129,11 +135,12 @@ def memory_pass() -> None:
             out.unlink()
             err.unlink()
             group["runs"].append(result)
+            checkpoint_evidence(evidence_path, evidence)
             if result.get("failure") or "child_peak_footprint_bytes" not in result:
                 evidence["memory_failure"] = f"pair {pair} {side} failed output or footprint"
                 break
         group["host_after_pair"] = host()
-        DATA.write_text(json.dumps(evidence, indent=2) + "\n")
+        checkpoint_evidence(evidence_path, evidence)
         if evidence.get("memory_failure"):
             raise RuntimeError(evidence["memory_failure"])
     deltas = []
@@ -142,18 +149,18 @@ def memory_pass() -> None:
         deltas.append(sides["guarded"]["child_peak_footprint_bytes"] - sides["control"]["child_peak_footprint_bytes"])
     evidence["memory_summary"] = {"footprint_delta_bytes": deltas,
                                    "median_footprint_delta_bytes": statistics.median(deltas)}
-    DATA.write_text(json.dumps(evidence, indent=2) + "\n")
+    checkpoint_evidence(evidence_path, evidence)
 
 
-def main() -> None:
-    SCRATCH.mkdir(parents=True, exist_ok=True)
+def main(evidence_path: Path, scratch_path: Path) -> None:
+    global SCRATCH
+    SCRATCH = scratch_path
+    if SCRATCH.exists():
+        raise FileExistsError(f"scratch already exists: {SCRATCH}; choose a new --scratch path")
+    reserve_evidence(evidence_path)
+    SCRATCH.mkdir(parents=True)
     evidence: dict = {"recipe": {}, "build": {}, "attempts": [], "host_before": host()}
-    if DATA.exists():
-        previous = json.loads(DATA.read_text())
-        evidence["previous_attempts"] = previous.get("previous_attempts", []) + [{
-            "build": previous.get("build"), "failure": previous.get("failure"),
-            "host_before": previous.get("host_before"), "host_after": previous.get("host_after"),
-        }]
+    checkpoint_evidence(evidence_path, evidence)
     try:
         patch_text = PATCH.read_text()
         if sha(PATCH) != "de3ae62647a02df5722c6da57db3fe34cab9bc39676a3cc8087d494b2b4ffbaf":
@@ -192,6 +199,7 @@ def main() -> None:
         for index, command in enumerate(commands):
             result = run_child(command, os.environ.copy(), f"build-{index+1}", workload=False)
             evidence["build"][f"step_{index+1}"] = result
+            checkpoint_evidence(evidence_path, evidence)
             if result.get("failure"):
                 raise RuntimeError(result["failure"])
         evidence["build"]["wall_seconds"] = time.perf_counter() - build_start
@@ -230,6 +238,7 @@ def main() -> None:
                     argv = [str(BASE / "bin/python3.16"), "-S", "-B", str(WORKLOAD), "--count", "12000", "--rounds", "2"]
                     result = run_child(argv, env, side)
                     group["runs"].append(result)
+                    checkpoint_evidence(evidence_path, evidence)
                     if result.get("failure"):
                         raise RuntimeError(f"{family} {pair} {side}: {result['failure']}")
                 group["host_after_pair"] = host()
@@ -253,14 +262,21 @@ def main() -> None:
         raise
     finally:
         evidence["host_after"] = host()
-        DATA.parent.mkdir(exist_ok=True)
-        DATA.write_text(json.dumps(evidence, indent=2) + "\n")
+        checkpoint_evidence(evidence_path, evidence)
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--memory"]:
-        memory_pass()
-    elif len(sys.argv) == 1:
-        main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--memory", action="store_true")
+    parser.add_argument("--source-evidence", type=Path, default=DATA,
+                        help="completed timing evidence for a memory pass")
+    parser.add_argument("--evidence", type=Path,
+                        help="unique JSON output path for this run")
+    parser.add_argument("--scratch", type=Path, default=SCRATCH,
+                        help="unique scratch path for a new run, or earlier scratch for --memory")
+    args = parser.parse_args()
+    if args.memory:
+        memory_pass(args.source_evidence, args.evidence or DATA.with_name(DATA.stem + "-memory.json"),
+                    args.scratch)
     else:
-        raise SystemExit("usage: shlex_guard_measure_20260925.py [--memory]")
+        main(args.evidence or DATA, args.scratch)

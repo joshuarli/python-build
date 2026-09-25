@@ -12,6 +12,8 @@ import shutil
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "rust-cpython/work/url-quote-short-safe-20260925"
@@ -43,8 +45,8 @@ def host() -> dict[str, object]:
         "vm_stat": subprocess.check_output(["vm_stat"], text=True).splitlines()[:8]}
 
 
-def save(data: dict[str, object]) -> None:
-    DATA.write_text(json.dumps(data, indent=2) + "\n")
+def save(path: Path, data: dict[str, object]) -> None:
+    checkpoint_evidence(path, data)
 
 
 def measured(argv: list[str], *, env: dict[str, str] | None = None) -> dict[str, object]:
@@ -62,7 +64,7 @@ def measured(argv: list[str], *, env: dict[str, str] | None = None) -> dict[str,
             "stdout_excerpt": stdout[:2000], "stderr_excerpt": stderr[:300]}
 
 
-def prepare(data: dict[str, object]) -> None:
+def prepare(data: dict[str, object], evidence_path: Path) -> None:
     source = WORK / "source"
     (source / "Lib/urllib").mkdir(parents=True, exist_ok=True)
     shutil.copy2(STDLIB / "urllib/parse.py", source / "Lib/urllib/parse.py")
@@ -111,7 +113,7 @@ def prepare(data: dict[str, object]) -> None:
         "c": "locked LLVM 23.1.2 clang -O3 -fPIC -mcpu=apple-m1 -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK -I stage/include/python3.16 -c module.c -o module.o",
         "link": "locked LLVM clang -bundle -undefined dynamic_lookup -mmacosx-version-min=26.0 -isysroot Xcode26.5SDK module.o libquote_ascii.a -o _rust_url_quote.cpython-316-darwin.so",
     }
-    save(data)
+    save(evidence_path, data)
     native = WORK / "native"
     commands = [
         ["rustup", "run", "nightly-2026-09-15", "rustc", "--edition=2024", "--crate-type=staticlib", "-C", "opt-level=3", "-C", "panic=abort", "--target=aarch64-apple-darwin", str(source_modules / "quote.rs"), "-o", str(native / "libquote_ascii.a")],
@@ -122,11 +124,11 @@ def prepare(data: dict[str, object]) -> None:
         result = measured(command)
         result["id"] = f"build-{number}"
         data["attempts"].append(result)
-        save(data)
+        save(evidence_path, data)
         if result["returncode"]:
             raise RuntimeError(f"build-{number}: {result['stderr_excerpt']}")
     data["identities"]["extension"] = digest(native / "_rust_url_quote.cpython-316-darwin.so")
-    save(data)
+    save(evidence_path, data)
 
 
 def workload(task: str, side: str, attempt_id: str) -> dict[str, object]:
@@ -151,10 +153,10 @@ def workload(task: str, side: str, attempt_id: str) -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prepare-only", action="store_true")
+    parser.add_argument("--evidence", type=Path, default=DATA,
+                        help="unique JSON output path for this run")
     args = parser.parse_args()
-    if DATA.exists():
-        raise SystemExit(f"evidence already exists: {DATA}; archive it before a new run")
-    DATA.parent.mkdir(parents=True, exist_ok=True)
+    reserve_evidence(args.evidence)
     data: dict[str, object] = {"hypothesis": "short exact safe=b'/' dispatch cost dominates request path",
         "rule": "after existing fast exit, exact safe bytes b'/' and 1 < input length < 32 use original Python route",
         "accounting": "wait4 direct child; monotonic external wall; ru_maxrss and ru_nswap; workloads have no descendants; rustup launcher may spawn rustc and its wait4 CPU excludes that child",
@@ -166,8 +168,8 @@ def main() -> None:
         {"id": "setup-1", "outcome": "first complete search call succeeded and returned JSON; runner truncated stdout at 300 bytes before digest parse; stopped before second workload call"},
         {"id": "diagnostic-0", "outcome": "first full run used an earlier guard ordering; summary ratios were inspected, but raw records were overwritten by the corrected run", "missing_raw_attempt_count": 36, "total_lane_cpu_complete": False},
     ]
-    save(data)
-    prepare(data)
+    save(args.evidence, data)
+    prepare(data, args.evidence)
     if args.prepare_only:
         return
     for task in EXPECTED:
@@ -180,11 +182,11 @@ def main() -> None:
                 for position, side in enumerate(order):
                     result = workload(task, side, f"{group_id}-{position}")
                     data["attempts"].append(result)
-                    save(data)
+                    save(args.evidence, data)
                     if not result["valid"]:
                         raise RuntimeError(f"invalid {result['id']}")
     data["host_final"] = host()
-    save(data)
+    save(args.evidence, data)
 
 
 if __name__ == "__main__":

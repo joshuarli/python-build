@@ -1,5 +1,6 @@
 """Measure the current optional IPv4 guard on one accepted CPython executable."""
 
+import argparse
 import hashlib
 import json
 import os
@@ -8,8 +9,9 @@ import re
 import shutil
 import statistics
 import subprocess
-import sys
 import time
+
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 LANE = Path(__file__).resolve().parents[1]
@@ -18,6 +20,7 @@ PATCH = LANE / 'patches/0006-rust-ipv4-scan.patch'
 WORKLOAD = LANE / 'experiments/ipaddress_v4_workload.py'
 SCRATCH = LANE / 'work/ipv4-current-guard-measure-20260925'
 DATA = LANE / 'experiments/data/ipv4-current-guard-measure-20260925.json'
+EVIDENCE = DATA
 EXPECTED_DIGEST = '71b21698342ecd72171e968712cf7218d0272ea3cbc856e94797a428a0218180'
 PURE_SHA = '6e800cb5727ac9ea045d406873a7dfb37f1be01ef5a8a1df52d6399635995a79'
 
@@ -27,9 +30,7 @@ def sha(path):
 
 
 def checkpoint(data):
-    temporary = DATA.with_suffix('.json.tmp')
-    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
-    temporary.replace(DATA)
+    checkpoint_evidence(EVIDENCE, data, sort_keys=True)
 
 
 def host():
@@ -73,10 +74,14 @@ def measure(command, env, attempt_id, kind):
     return record
 
 
-def main():
-    if DATA.exists():
-        raise FileExistsError(DATA)
-    SCRATCH.mkdir(parents=True, exist_ok=True)
+def main(evidence_path, scratch_path):
+    global EVIDENCE, SCRATCH
+    EVIDENCE = evidence_path
+    SCRATCH = scratch_path
+    if SCRATCH.exists():
+        raise FileExistsError(f'scratch already exists: {SCRATCH}; choose a new --scratch path')
+    reserve_evidence(EVIDENCE)
+    SCRATCH.mkdir(parents=True)
     data = {'recipe': {}, 'build': {}, 'attempts': [], 'pairs': [], 'host_before': host()}
     checkpoint(data)
     try:
@@ -202,10 +207,14 @@ def main():
         checkpoint(data)
 
 
-def followup():
-    data = json.loads(DATA.read_text())
+def followup(source_evidence, evidence_path, scratch_path):
+    global EVIDENCE, SCRATCH
+    SCRATCH = scratch_path
+    data = json.loads(source_evidence.read_text())
     if 'followup' in data:
         raise ValueError('follow-up already exists')
+    EVIDENCE = evidence_path
+    reserve_evidence(EVIDENCE)
     follow = {'attempts': [], 'memory_pairs': [], 'host_before': host(),
               'measurement': '/usr/bin/time -l -p child resource fields for compiler process trees and workload physical footprint'}
     data['followup'] = follow
@@ -325,9 +334,17 @@ def timed(command, env, attempt_id, workload):
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['--followup']:
-        followup()
-    elif len(sys.argv) == 1:
-        main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--followup', action='store_true')
+    parser.add_argument('--source-evidence', type=Path, default=DATA,
+                        help='earlier evidence used by --followup')
+    parser.add_argument('--evidence', type=Path,
+                        help='unique JSON output path for this run')
+    parser.add_argument('--scratch', type=Path, default=SCRATCH,
+                        help='unique scratch path for a new run, or earlier scratch for --followup')
+    args = parser.parse_args()
+    if args.followup:
+        followup(args.source_evidence, args.evidence or DATA.with_name(DATA.stem + '-followup.json'),
+                 args.scratch)
     else:
-        raise SystemExit('expected no arguments or --followup')
+        main(args.evidence or DATA, args.scratch)

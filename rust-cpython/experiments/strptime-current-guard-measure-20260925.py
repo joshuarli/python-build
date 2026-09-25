@@ -1,5 +1,6 @@
 """Bounded source-only measurement of the current numeric strptime guard."""
 
+import argparse
 import hashlib
 import json
 import os
@@ -10,6 +11,8 @@ import statistics
 import subprocess
 import time
 
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
+
 LANE = Path(__file__).resolve().parents[1]
 BASE = Path('/Users/josh/d/python-build/rust-cpython/stage')
 PINNED = Path('/Users/josh/d/python-build/rust-cpython/work/source-inspect/cpython-b812b4a7b9efaca46b98544a8633b7d7e454166b/Lib/_strptime.py')
@@ -18,6 +21,7 @@ MANIFEST = LANE / 'patches/manifest.json'
 WORKLOAD = LANE / 'experiments/strptime_numeric_workload.py'
 SCRATCH = LANE / 'work/strptime-current-guard-measure-20260925'
 DATA = LANE / 'experiments/data/strptime-current-guard-measure-20260925.json'
+EVIDENCE = DATA
 EXPECTED = 'bb2b012282c2f8f0bad78f553fe946f3f093c96bfb8eca6a5077b5ee2e1a9473'
 RUSTC = Path('/Users/josh/.rustup/toolchains/nightly-2026-09-15-aarch64-apple-darwin/bin/rustc')
 CLANG = Path('/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang')
@@ -28,9 +32,7 @@ def sha(path):
 
 
 def checkpoint(data):
-    path = DATA.with_suffix('.json.tmp')
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
-    path.replace(DATA)
+    checkpoint_evidence(EVIDENCE, data, sort_keys=True)
 
 
 def host():
@@ -89,9 +91,13 @@ def attempt(command, env, name, kind, side=None):
     return item
 
 
-def main():
-    if DATA.exists() or SCRATCH.exists():
-        raise FileExistsError('run path already exists; preserve previous evidence')
+def main(evidence_path, scratch_path):
+    global EVIDENCE, SCRATCH
+    EVIDENCE = evidence_path
+    SCRATCH = scratch_path
+    if SCRATCH.exists():
+        raise FileExistsError(f'scratch already exists: {SCRATCH}; choose a new --scratch path')
+    reserve_evidence(EVIDENCE)
     SCRATCH.mkdir(parents=True)
     data = {'recipe': {}, 'attempts': [], 'pairs': [], 'host_before': host()}
     checkpoint(data)
@@ -239,12 +245,14 @@ def main():
         checkpoint(data)
 
 
-def resume():
-    if not DATA.exists():
-        raise FileNotFoundError(DATA)
-    data = json.loads(DATA.read_text())
+def resume(source_evidence, evidence_path, scratch_path):
+    global EVIDENCE, SCRATCH
+    SCRATCH = scratch_path
+    data = json.loads(source_evidence.read_text())
     if data.get('pairs'):
         raise ValueError('measurement pairs already started')
+    EVIDENCE = evidence_path
+    reserve_evidence(EVIDENCE)
     data['recovered_failure'] = data.pop('failure', None)
     data['resume_host_before'] = host()
     checkpoint(data)
@@ -329,8 +337,17 @@ def resume():
 
 
 if __name__ == '__main__':
-    import sys
-    if sys.argv[1:] == ['--resume']:
-        resume()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--source-evidence', type=Path, default=DATA,
+                        help='earlier evidence used by --resume')
+    parser.add_argument('--evidence', type=Path,
+                        help='unique JSON output path for this run')
+    parser.add_argument('--scratch', type=Path, default=SCRATCH,
+                        help='unique scratch path for a new run, or earlier scratch for --resume')
+    args = parser.parse_args()
+    if args.resume:
+        resume(args.source_evidence, args.evidence or DATA.with_name(DATA.stem + '-resume.json'),
+               args.scratch)
     else:
-        main()
+        main(args.evidence or DATA, args.scratch)

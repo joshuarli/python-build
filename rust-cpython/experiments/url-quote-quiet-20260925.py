@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import time
+
+from evidence_checkpoint import checkpoint_evidence, reserve_evidence
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +84,11 @@ def run(task: str, side: str, attempt_id: str) -> dict[str, object]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--evidence", type=Path, default=DATA,
+                        help="unique JSON output path for this run")
+    args = parser.parse_args()
+    reserve_evidence(args.evidence)
     identities = {
         "patch_sha256": sha256(PATCH), "interpreter_sha256": sha256(PYTHON),
         "stage_parse_sha256": sha256(STAGE_PARSE),
@@ -105,7 +113,7 @@ def main() -> None:
         "accounting": "os.wait4 direct workload child; monotonic wall includes a host sample during the run; no workload descendants; ru_maxrss is lifetime peak, ru_nswap is child swaps; host ps RSS is sampled, physical footprint unavailable",
         "host_initial": host(), "attempts": [], "groups": [],
     }
-    DATA.write_text(json.dumps(evidence, indent=2) + "\n")
+    checkpoint_evidence(args.evidence, evidence)
     groups = evidence["groups"]
     attempts = evidence["attempts"]
     assert isinstance(groups, list) and isinstance(attempts, list)
@@ -122,11 +130,11 @@ def main() -> None:
                 for position, side in enumerate(order):
                     record = run(task, side, f"{group_id}-{position}")
                     attempts.append(record)
-                    DATA.write_text(json.dumps(evidence, indent=2) + "\n")
+                    checkpoint_evidence(args.evidence, evidence)
                     if not record["valid"]:
                         raise SystemExit(f"invalid attempt {record['id']}")
     evidence["host_final"] = host()
-    DATA.write_text(json.dumps(evidence, indent=2) + "\n")
+    checkpoint_evidence(args.evidence, evidence)
 
 
 if __name__ == "__main__":
