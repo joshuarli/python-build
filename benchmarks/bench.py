@@ -480,8 +480,9 @@ def main(argv: list[str] | None = None) -> int:
     fetch = sub.add_parser("fetch")
     fetch.add_argument(
         "--target",
-        choices=("x86_64-unknown-linux-musl", "aarch64-apple-darwin"),
-        help="product/reference target; macOS timing runs fetch only the matching PBS archive",
+        choices=("x86_64-unknown-linux-musl", "aarch64-apple-darwin", "x86_64-unknown-linux-gnu"),
+        help="product/reference target; macOS timing runs fetch only the matching PBS archive; "
+             "x86_64-unknown-linux-gnu fetches only the Rust-for-CPython 3.16 Django wheels",
     )
     sub.add_parser("prepare")
     run = sub.add_parser("run")
@@ -507,7 +508,7 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--perf-stat", action="store_true", help="optional separate Linux perf stat diagnostics")
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
         command.add_argument("--timing-only", action="store_true",
-                             help="local Apple Silicon timing run without the external RSS pass")
+                             help="local timing run without the separate memory passes")
     run.add_argument("--preset", choices=("pbs",))
     run.add_argument("--container", action="store_true", help="use offline container (the default)")
     run.add_argument(
@@ -540,6 +541,11 @@ def main(argv: list[str] | None = None) -> int:
             from buildsys.targets import native_target
 
             target = args.target or native_target().triple
+            if target == "x86_64-unknown-linux-gnu":
+                from benchmarks.harness.inputs import LINUX_CP316_LOCK_PATH
+
+                print(fetch_inputs(load_lock(LINUX_CP316_LOCK_PATH), groups={"django"}))
+                return 0
             if target == "aarch64-apple-darwin":
                 from benchmarks.harness.inputs import MACOS_CP316_LOCK_PATH
 

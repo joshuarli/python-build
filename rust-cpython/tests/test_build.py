@@ -240,6 +240,29 @@ class ToolchainIsolationTests(unittest.TestCase):
         self.assertEqual(env["CARGO_NET_OFFLINE"], "true")
 
 
+class SignalTests(unittest.TestCase):
+    def test_inherited_ignored_interrupts_are_restored_for_children(self) -> None:
+        signal = build.signal
+        saved = (signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGQUIT))
+        try:
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+            build.restore_default_signals()
+            self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+            self.assertEqual(signal.getsignal(signal.SIGQUIT), signal.SIG_DFL)
+            if build.IS_LINUX:
+                child = build.subprocess.run(
+                    ["sh", "-c", "grep SigIgn /proc/self/status"],
+                    capture_output=True, text=True,
+                )
+                ignored = int(child.stdout.split()[1], 16)
+                self.assertFalse(ignored & (1 << (signal.SIGINT - 1)))
+                self.assertFalse(ignored & (1 << (signal.SIGQUIT - 1)))
+        finally:
+            signal.signal(signal.SIGINT, saved[0])
+            signal.signal(signal.SIGQUIT, saved[1])
+
+
 class VariantTests(unittest.TestCase):
     def test_variant_outputs_do_not_overlap_the_default_candidate(self) -> None:
         names = ("VARIANT", "SOURCE", "BUILD", "STAGE", "LOGS", "BUILD_REPORT",

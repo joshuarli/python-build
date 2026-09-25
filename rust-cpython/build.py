@@ -15,6 +15,7 @@ import platform
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -1656,7 +1657,22 @@ def clean() -> int:
     return 0
 
 
+def restore_default_signals() -> None:
+    """Undo an inherited ignored SIGINT/SIGQUIT before running build commands.
+
+    A shell starts background jobs with SIGINT and SIGQUIT ignored, and
+    ignored dispositions survive exec. CPython then leaves SIGINT ignored, so
+    the PGO task's signal tests fail and the recorded profile would depend on
+    how the builder was launched. Handlers reset to default across exec.
+    """
+    if signal.getsignal(signal.SIGINT) == signal.SIG_IGN:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+    if signal.getsignal(signal.SIGQUIT) == signal.SIG_IGN:
+        signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+
+
 def main(argv: list[str] | None = None) -> int:
+    restore_default_signals()
     parser = argparse.ArgumentParser(description="Isolated Rust-for-CPython 3.16 experiment")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name, help_text in (

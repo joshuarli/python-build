@@ -91,6 +91,7 @@ def _run(arguments: list[str], *, cwd: Path, env: dict[str, str], log: Path, san
 
 
 def main() -> int:
+    BUILD_LANE.restore_default_signals()
     BUILD_LANE._require_host()
     doctor = BUILD_LANE.doctor_report()
     if not doctor["ok"]:

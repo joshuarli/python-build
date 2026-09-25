@@ -278,6 +278,7 @@ def build(jobs: int | None = None) -> None:
 
 
 def main() -> int:
+    FORK.restore_default_signals()
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     fetch_parser = sub.add_parser("fetch", help="verify and cache upstream source and locked LLVM")

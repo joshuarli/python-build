@@ -29,6 +29,7 @@ DEFAULT_WHEELHOUSE = BENCHMARKS / ".cache" / "wheelhouse"
 DEFAULT_REFERENCE_CACHE = BENCHMARKS / ".cache" / "references"
 LOCK_PATH = BENCHMARKS / "inputs.lock.json"
 MACOS_CP316_LOCK_PATH = BENCHMARKS / "inputs.macos-cp316.lock.json"
+LINUX_CP316_LOCK_PATH = BENCHMARKS / "inputs.linux-cp316.lock.json"
 SOURCES_LOCK_PATH = REPOSITORY / "sources.lock.json"
 
 
