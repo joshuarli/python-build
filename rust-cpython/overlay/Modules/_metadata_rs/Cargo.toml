@@ -1,0 +1,17 @@
+[package]
+name = "_metadata_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "PSF-2.0"
+
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+mailparse = "=0.17.0"
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_metadata_rs"
+crate-type = ["cdylib", "rlib"]

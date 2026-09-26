@@ -80,7 +80,7 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **45 complete targets**. Do not carry
+module. The strict count is now **49 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
@@ -117,7 +117,13 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `binascii` — public hex conversion and checksums reach Rust
   (`481f5dd`). Full `test_binascii`, `test_base64`, `test_email`, and
   `test_zipfile`: 2,712 run/22 skipped; integrated full suite passed.
-- [ ] `zlib` — compression and decompression on public streams and one-shot calls.
+- [x] `zlib` — public one-shot and streaming compression and decompression
+  reach Rust on macOS arm64 (`be46e24`). Full `test_zlib`, `test_codecs`,
+  `test_gzip`, `test_tarfile`, `test_zipfile`, `test_zipimport`,
+  `test_zipimport_support`, `test_zipapp`, `test_shutil`, `test_logging`,
+  `test_sqlite3`, and `test_ensurepip`: 3,060 run/121 skipped;
+  `test_zipfile64` was resource-denied at baseline. Integrated full suite
+  passed.
 - [x] `gzip` — public file, stream, and one-shot compression/decompression
   reach Rust (`8c2b4a1`). Full `test_gzip`, `test_tarfile`, `test_xmlrpc`,
   and `test_zlib`: 1,027 run/15 skipped; integrated full suite passed.
@@ -129,13 +135,20 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `tarfile` — public USTAR header read and write reach Rust
   (`a4aef06`). Full `test_tarfile`, `test_shutil`, and `test_zipfile`:
   1,587 run/84 skipped; integrated full suite passed.
-- [ ] `pathlib` — public path parsing and common filesystem operations.
+- [x] `pathlib` — public path parsing and `exists`, `is_dir`, and `is_file`
+  reach Rust (`d74abd7`). Full `test_pathlib`, `test_shutil`, and `test_glob`:
+  1,644 run/485 skipped; integrated full suite passed.
 - [x] `os.path` — public normalization, joining, splitting, and root splitting
   reach Rust on macOS arm64 (`23dbe42`). Full `test_posixpath`,
   `test_genericpath`, `test_pathlib`, `test_os`, and `test_faulthandler`:
   2,113 run/519 skipped; integrated full suite passed.
-- [ ] `shutil` — file copying, tree operations, and archive handling.
-- [ ] `importlib.metadata` — distribution discovery and metadata access.
+- [x] `shutil` — public `copyfileobj` and eligible default `copytree` reach
+  Rust; ZIP archive handling uses the qualified Rust-backed `zipfile` route
+  (`9062434`). Full `test_shutil`, `test_zipfile`, and `test_tarfile`:
+  1,587 run/84 skipped; integrated full suite passed.
+- [x] `importlib.metadata` — public metadata parsing and distribution
+  discovery reach Rust (`4af83b5`). Full `test_importlib` and `test_zoneinfo`:
+  1,486 run/39 skipped; integrated full suite passed.
 - [x] `hashlib` — public digest updates and finalization reach Rust for
   supported algorithms (`afd1d2c`). Full `test_hashlib`, `test_hmac`, and
   `test_uuid`: 354 run/33 skipped; integrated full suite passed.

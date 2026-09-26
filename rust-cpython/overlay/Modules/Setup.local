@@ -24,13 +24,16 @@ _hmac_rs _hmac_rs/Cargo.toml _hmac_rs/src/lib.rs
 _html_parser_rs _html_parser_rs/Cargo.toml _html_parser_rs/src/lib.rs
 _importlib_resources_rs _importlib_resources_rs/Cargo.toml _importlib_resources_rs/src/lib.rs
 _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
+_pathlib_rs _pathlib_rs/Cargo.toml _pathlib_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs
 _logging_rs _logging_rs/Cargo.toml _logging_rs/src/lib.rs
 _lzma_rs _lzma_rs/Cargo.toml _lzma_rs/src/lib.rs
+_metadata_rs _metadata_rs/Cargo.toml _metadata_rs/src/lib.rs
 _plistlib_rs _plistlib_rs/Cargo.toml _plistlib_rs/src/lib.rs
 _posixpath_rs _posixpath_rs/Cargo.toml _posixpath_rs/src/lib.rs
 _random_rs _random_rs/Cargo.toml _random_rs/src/lib.rs
 _shlex_rs _shlex_rs/Cargo.toml _shlex_rs/src/lib.rs
+_shutil_rs _shutil_rs/Cargo.toml _shutil_rs/src/lib.rs
 _statistics_rs _statistics_rs/Cargo.toml _statistics_rs/src/lib.rs
 _strptime_rs _strptime_rs/Cargo.toml _strptime_rs/src/lib.rs
 _struct_rs _struct_rs/Cargo.toml _struct_rs/src/lib.rs
@@ -43,4 +46,5 @@ _urllib_parse_rs _urllib_parse_rs/Cargo.toml _urllib_parse_rs/src/lib.rs
 _uuid_rs _uuid_rs/Cargo.toml _uuid_rs/src/lib.rs
 _warnings_rs _warnings_rs/Cargo.toml _warnings_rs/src/lib.rs
 _zip_rs _zip_rs/Cargo.toml _zip_rs/src/lib.rs
+_zlib_rs _zlib_rs/Cargo.toml _zlib_rs/src/lib.rs
 _zstd_rs _zstd_rs/Cargo.toml _zstd_rs/src/lib.rs
