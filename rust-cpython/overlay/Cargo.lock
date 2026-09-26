@@ -498,6 +498,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "_zipimport_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "flate2",
+]
+
+[[package]]
 name = "_zlib_rs"
 version = "0.1.0"
 dependencies = [
