@@ -6,10 +6,12 @@ _bisect_rs _bisect_rs/Cargo.toml _bisect_rs/src/lib.rs
 _binascii_rs _binascii_rs/Cargo.toml _binascii_rs/src/lib.rs
 _bz2_rs _bz2_rs/Cargo.toml _bz2_rs/src/lib.rs
 _collections_rs _collections_rs/Cargo.toml _collections_rs/src/lib.rs
+_codecs_rs _codecs_rs/Cargo.toml _codecs_rs/src/lib.rs
 _configparser_rs _configparser_rs/Cargo.toml _configparser_rs/src/lib.rs
 _contextlib_rs _contextlib_rs/Cargo.toml _contextlib_rs/src/lib.rs
 _csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs
 _dataclasses_rs _dataclasses_rs/Cargo.toml _dataclasses_rs/src/lib.rs
+_decimal_rs _decimal_rs/Cargo.toml _decimal_rs/src/lib.rs
 _difflib_rs _difflib_rs/Cargo.toml _difflib_rs/src/lib.rs
 _elementtree_rs _elementtree_rs/Cargo.toml _elementtree_rs/src/lib.rs
 _email_rs _email_rs/Cargo.toml _email_rs/src/lib.rs
@@ -20,6 +22,7 @@ _glob_rs _glob_rs/Cargo.toml _glob_rs/src/lib.rs
 _gzip_rs _gzip_rs/Cargo.toml _gzip_rs/src/lib.rs
 _hashlib_rs _hashlib_rs/Cargo.toml _hashlib_rs/src/lib.rs
 _heapq_rs _heapq_rs/Cargo.toml _heapq_rs/src/lib.rs
+_http_client_rs _http_client_rs/Cargo.toml _http_client_rs/src/lib.rs
 _hmac_rs _hmac_rs/Cargo.toml _hmac_rs/src/lib.rs
 _html_parser_rs _html_parser_rs/Cargo.toml _html_parser_rs/src/lib.rs
 _importlib_resources_rs _importlib_resources_rs/Cargo.toml _importlib_resources_rs/src/lib.rs
@@ -32,8 +35,10 @@ _metadata_rs _metadata_rs/Cargo.toml _metadata_rs/src/lib.rs
 _plistlib_rs _plistlib_rs/Cargo.toml _plistlib_rs/src/lib.rs
 _posixpath_rs _posixpath_rs/Cargo.toml _posixpath_rs/src/lib.rs
 _random_rs _random_rs/Cargo.toml _random_rs/src/lib.rs
+_re_rs _re_rs/Cargo.toml _re_rs/src/lib.rs
 _shlex_rs _shlex_rs/Cargo.toml _shlex_rs/src/lib.rs
 _shutil_rs _shutil_rs/Cargo.toml _shutil_rs/src/lib.rs
+_sqlite3_rs _sqlite3_rs/Cargo.toml _sqlite3_rs/src/lib.rs
 _statistics_rs _statistics_rs/Cargo.toml _statistics_rs/src/lib.rs
 _strptime_rs _strptime_rs/Cargo.toml _strptime_rs/src/lib.rs
 _struct_rs _struct_rs/Cargo.toml _struct_rs/src/lib.rs

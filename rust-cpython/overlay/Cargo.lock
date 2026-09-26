@@ -64,6 +64,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_codecs_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_configparser_rs"
 version = "0.1.0"
 dependencies = [
@@ -95,6 +103,15 @@ version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
  "cpython-sys",
+]
+
+[[package]]
+name = "_decimal_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "num-bigint",
 ]
 
 [[package]]
@@ -185,6 +202,15 @@ version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
  "cpython-sys",
+]
+
+[[package]]
+name = "_http_client_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "httparse",
 ]
 
 [[package]]
@@ -296,6 +322,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "_re_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "regex",
+]
+
+[[package]]
 name = "_shlex_rs"
 version = "0.1.0"
 dependencies = [
@@ -306,6 +341,14 @@ dependencies = [
 
 [[package]]
 name = "_shutil_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
+name = "_sqlite3_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
@@ -891,6 +934,12 @@ checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
 dependencies = [
  "digest 0.11.3",
 ]
+
+[[package]]
+name = "httparse"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
 name = "hybrid-array"

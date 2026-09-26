@@ -80,7 +80,7 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **49 complete targets**. Do not carry
+module. The strict count is now **54 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
@@ -110,7 +110,9 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `xml.etree.ElementTree` — complete-document parsing and XML writing
   reach Rust (`bab729d`). Full `test_xml_etree` and `test_xml_etree_c`:
   480 run/12 skipped; integrated full suite passed.
-- [ ] `re` — compile and search common patterns through `re`.
+- [x] `re` — public compilation and search of supported ASCII patterns reach
+  Rust (`68ff4d1`). Full `test_re`: 169 run/3 skipped; integrated full suite
+  passed.
 - [x] `base64` — public encode and decode functions reach Rust (`5024bbf`).
   Full `test_base64`, `test_binascii`, and `test_email`: 2,123 run/19
   skipped; integrated full suite passed.
@@ -160,14 +162,24 @@ Each checked line records its focused-suite result and combined qualification.
   Full `test_uuid` and `test_os`: 667 run/120 skipped; integrated full
   suite passed.
 - [ ] `datetime` — parse, format, and arithmetic on public date/time objects.
-- [ ] `decimal` — arithmetic on public `Decimal` values.
-- [ ] `sqlite3` — statement execution and row conversion through public cursors.
+- [x] `decimal` — eligible public `Decimal` addition and multiplication of
+  exact nonnegative integers reach Rust (`7d23831`). Full `test_decimal`,
+  `test_fractions`, `test_statistics`, and `test_numeric_tower`: 1,194 run/14
+  skipped; integrated full suite passed.
+- [x] `sqlite3` — public cursor statement stepping and ordinary column
+  conversion reach Rust (`3df4e0a`). Full `test_sqlite3`,
+  `test_dbm_sqlite3`, `test_dbm`, and `test_shelve`: 954 run/14 skipped;
+  integrated full suite passed.
 - [ ] `io` — buffered and text stream reads and writes.
 - [x] `logging` — public record creation, formatting, and handler dispatch
   reach Rust (`a0dd573`). Full `test_logging` and `test__interpreters`:
   354 run/7 skipped; integrated full suite passed.
 - [ ] `asyncio` — task scheduling and event-loop operations on public APIs.
-- [ ] `http.client` — parse and send HTTP messages through public connections.
+- [x] `http.client` — public response status parsing and request-line sending
+  reach Rust (`d2aca96`). Full `test_httplib`, `test_httpservers`,
+  `test_urllib`, `test_urllib2`, `test_urllib2_localnet`,
+  `test_http_cookiejar`, and `test_urllib_response`: 538 run/13 skipped;
+  integrated full suite passed.
 - [x] `ipaddress` — IPv4/IPv6 string parsing and network bounds reach Rust on
   macOS arm64 (`249d0cb`). Full `test_ipaddress`, `test_socket`, and
   `test_concurrent_futures`: 1,363 run/284 skipped. Integrated default-resource
@@ -199,7 +211,10 @@ Each checked line records its focused-suite result and combined qualification.
   longest-match discovery for supported built-in sequences (`2ed801f`).
   Eight full focused suites: 4,119 run/8 skipped; `test_peg_generator`
   was resource-denied at baseline. Integrated full suite passed.
-- [ ] `codecs` — encode/decode dispatch and incremental conversion.
+- [x] `codecs` — public standard UTF-8 one-shot and incremental conversion
+  reach Rust (`54d5d7e`). Full `test_codecs`, `test_multibytecodec`,
+  `test_charmapcodec`, `test_capi`, and `test_io`: 2,864 run/352 skipped,
+  matching the clean-stage focused run; integrated full suite passed.
 - [ ] `unicodedata` — Unicode property lookup and normalization.
 - [x] `bz2` — public one-shot and incremental compression/decompression
   reach Rust (`540b0dd`). Full `test_bz2`, `test_tarfile`, `test_fileinput`,
