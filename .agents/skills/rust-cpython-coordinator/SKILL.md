@@ -74,7 +74,9 @@ are complete.
    exercise a representative public call there. A single-phase private
    extension may reject subinterpreter loading; make its use lazy with a
    compatible Python fallback or implement the extension's multi-phase
-   loading contract correctly. Public module imports must remain usable.
+   loading contract correctly. Audit this before the first build: an own-GIL
+   child requires per-interpreter-GIL support (module slot value 2), not just
+   shared-GIL support. Public module imports must remain usable.
    `_interpreters.run_string()` returns an exception namespace when code in
    the child fails without making the parent process exit nonzero: assert its
    result is `None`, rather than checking only the process exit status.

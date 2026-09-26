@@ -80,7 +80,7 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **40 complete targets**. Do not carry
+module. The strict count is now **45 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
@@ -103,7 +103,10 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `tomllib` — complete TOML documents reach Rust (`76fbdb4`). Full
   `test_tomllib` and `test_inspect`: 400 run/0 skipped; integrated full
   suite passed.
-- [ ] `email` — parse and serialize messages and headers.
+- [x] `email` — public message and header parsing reaches Rust for supported
+  input, with serialization and other cases preserved by Python (`aa0c120`).
+  Full `test_email`, `test_mailbox`, `test_http_cookiejar`, and `test_urllib2`:
+  2,362 run/7 skipped; integrated full suite passed.
 - [x] `xml.etree.ElementTree` — complete-document parsing and XML writing
   reach Rust (`bab729d`). Full `test_xml_etree` and `test_xml_etree_c`:
   480 run/12 skipped; integrated full suite passed.
@@ -127,10 +130,15 @@ Each checked line records its focused-suite result and combined qualification.
   (`a4aef06`). Full `test_tarfile`, `test_shutil`, and `test_zipfile`:
   1,587 run/84 skipped; integrated full suite passed.
 - [ ] `pathlib` — public path parsing and common filesystem operations.
-- [ ] `os.path` — path normalization, joining, and splitting via the platform module.
+- [x] `os.path` — public normalization, joining, splitting, and root splitting
+  reach Rust on macOS arm64 (`23dbe42`). Full `test_posixpath`,
+  `test_genericpath`, `test_pathlib`, `test_os`, and `test_faulthandler`:
+  2,113 run/519 skipped; integrated full suite passed.
 - [ ] `shutil` — file copying, tree operations, and archive handling.
 - [ ] `importlib.metadata` — distribution discovery and metadata access.
-- [ ] `hashlib` — public digest updates and finalization.
+- [x] `hashlib` — public digest updates and finalization reach Rust for
+  supported algorithms (`afd1d2c`). Full `test_hashlib`, `test_hmac`, and
+  `test_uuid`: 354 run/33 skipped; integrated full suite passed.
 - [x] `hmac` — public keyed digest operations reach Rust (`dd10097`, with
   hash-availability guard in `ada4895`). Full `test_hmac` and `test_hashlib`:
   234 run/17 skipped; `test_imaplib` and `test_support` regression suites
@@ -142,7 +150,9 @@ Each checked line records its focused-suite result and combined qualification.
 - [ ] `decimal` — arithmetic on public `Decimal` values.
 - [ ] `sqlite3` — statement execution and row conversion through public cursors.
 - [ ] `io` — buffered and text stream reads and writes.
-- [ ] `logging` — record creation, formatting, and handler dispatch.
+- [x] `logging` — public record creation, formatting, and handler dispatch
+  reach Rust (`a0dd573`). Full `test_logging` and `test__interpreters`:
+  354 run/7 skipped; integrated full suite passed.
 - [ ] `asyncio` — task scheduling and event-loop operations on public APIs.
 - [ ] `http.client` — parse and send HTTP messages through public connections.
 - [x] `ipaddress` — IPv4/IPv6 string parsing and network bounds reach Rust on
@@ -239,7 +249,9 @@ Each checked line records its focused-suite result and combined qualification.
   (`aab81e7`). Full `test_dataclasses`, `test_inspect`, and `test_typing`:
   1,405 run/0 skipped; integrated full suite passed.
 - [ ] `inspect` — signatures and object inspection.
-- [ ] `ast` — parse-tree walking and transformation helpers.
+- [x] `ast` — public parse-tree walking and transformation helpers reach Rust
+  (`daf807b`). Full `test_ast` and `test_compile`: 407 run/3 skipped;
+  integrated full suite passed.
 - [x] `argparse` — public argument parsing uses Rust option scans
   (`21d506a`). Full `test_argparse`, `test_optparse`, and `test_pydoc`:
   2,233 run; integrated full suite passed.

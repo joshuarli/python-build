@@ -1,10 +1,10 @@
 [workspace]
 resolver = "3"
 members = [
-    "Modules/_argparse_rs", "Modules/_base64", "Modules/_binascii_rs", "Modules/_bisect_rs", "Modules/_bz2_rs", "Modules/_collections_rs", "Modules/_configparser_rs", "Modules/_contextlib_rs",
-    "Modules/_csv_rs", "Modules/_dataclasses_rs", "Modules/_difflib_rs", "Modules/_elementtree_rs", "Modules/_fnmatch_rs", "Modules/_fractions_rs",
-    "Modules/_functools_rs", "Modules/_glob_rs", "Modules/_gzip_rs", "Modules/_heapq_rs", "Modules/_hmac_rs", "Modules/_html_parser_rs", "Modules/_importlib_resources_rs", "Modules/_ipaddress_rs",
-    "Modules/_json_rs", "Modules/_lzma_rs", "Modules/_plistlib_rs", "Modules/_posixpath_rs", "Modules/_random_rs",
+    "Modules/_argparse_rs", "Modules/_ast_rs", "Modules/_base64", "Modules/_binascii_rs", "Modules/_bisect_rs", "Modules/_bz2_rs", "Modules/_collections_rs", "Modules/_configparser_rs", "Modules/_contextlib_rs",
+    "Modules/_csv_rs", "Modules/_dataclasses_rs", "Modules/_difflib_rs", "Modules/_elementtree_rs", "Modules/_email_rs", "Modules/_fnmatch_rs", "Modules/_fractions_rs",
+    "Modules/_functools_rs", "Modules/_glob_rs", "Modules/_gzip_rs", "Modules/_hashlib_rs", "Modules/_heapq_rs", "Modules/_hmac_rs", "Modules/_html_parser_rs", "Modules/_importlib_resources_rs", "Modules/_ipaddress_rs",
+    "Modules/_json_rs", "Modules/_logging_rs", "Modules/_lzma_rs", "Modules/_plistlib_rs", "Modules/_posixpath_rs", "Modules/_random_rs",
     "Modules/_shlex_rs", "Modules/_statistics_rs", "Modules/_strptime_rs", "Modules/_struct_rs", "Modules/_tarfile_rs", "Modules/_tempfile_rs", "Modules/_textwrap_rs",
     "Modules/_tokenize_rs", "Modules/_tomllib_rs",
     "Modules/_urllib_parse_rs", "Modules/_uuid_rs", "Modules/_warnings_rs", "Modules/_zip_rs", "Modules/_zstd_rs",

@@ -36,8 +36,11 @@ _posixpath_rs_attempted = False
 def _load_posixpath_rs():
     global _posixpath_rs, _posixpath_rs_attempted
     if not _posixpath_rs_attempted:
+        module = sys.modules.get(__name__)
         site = sys.modules.get('site')
-        if site is not None and getattr(site.__spec__, '_initializing', False):
+        if (getattr(getattr(module, '__spec__', None), '_initializing', False)
+                or (not sys.flags.no_site and
+                    (site is None or getattr(site.__spec__, '_initializing', False)))):
             # Path operations used to initialize the interpreter must not
             # preload an extension into otherwise extension-free programs.
             return None
