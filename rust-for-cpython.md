@@ -64,6 +64,14 @@ Baseline on macOS arm64 (2026-09-25): the pinned fork's debug build passed
 The runner found 505 test files, ran 496, denied nine for resources, and
 reported 50,158 individual tests run, 2,703 skipped, and zero failures.
 
+Baseline on Linux x86-64 (Ubuntu 24.04, glibc 2.39, 2026-09-28): the pristine
+fork's debug build (empty overlay) ran 496/505 files with the same nine
+resource denials and reported 50,782 tests run, 2,828 skipped. Its only
+failure is `test_socket`'s `ThreadedVSOCKSocketStreamTest.testStream` (two
+errors): the host kernel lacks `CONFIG_VSOCKETS_LOOPBACK`, so a VSOCK connect
+to the local CID fails with `ENODEV` for any interpreter, including the host's
+Python 3.12. That test is a host baseline failure, not a coverage failure.
+
 ## Coverage checklist
 
 These are 71 named public-behavior targets, not claims that every line of
@@ -86,6 +94,8 @@ their performance ranking into this coverage phase.
 The latest combined macOS arm64 debug run passed 50,158 tests with 2,703
 skipped and zero failures; 496/505 files ran and nine were resource-denied.
 Each checked line records its focused-suite result and combined qualification.
+The same 71 targets are separately qualified on Linux x86-64; see
+[Linux x86-64 qualification](#linux-x86-64-qualification).
 
 ### Priority 0: common application paths
 
@@ -363,3 +373,132 @@ Each checked line records its focused-suite result and combined qualification.
   dispatch, and response processor dispatch reach Rust (`c8ef0e3`). Twelve
   full default-resource suites: 1,113 run/34 skipped; `test_urllib2net` and
   `test_urllibnet` were resource-denied. Integrated full suite passed.
+
+## Linux x86-64 qualification
+
+All 71 targets are qualified on native Linux x86-64 (Ubuntu 24.04, glibc
+2.39, locked LLVM 23.1.2; `x86_64-unknown-linux-gnu`) at commit `4710c23`,
+on top of the macOS integration `1ffb365`. Linux needed four shared-overlay
+repairs. None of them changes a claimed Rust-owned behavior:
+
+- `b0888dd`: the Linux builder compiles the root lock's mpdecimal 4.0.0 into
+  a private static library, so `_decimal` and its Rust route are built.
+  Ubuntu 24.04 has no first-party libmpdec. The `uuid` Python fallback
+  used by own-GIL children now formats strings and applies versions as
+  pristine CPython does. `encodings.utf_8` imports `_codecs_rs` at
+  startup; a lazy import added syscalls to the first file read, which
+  `test_io.test_fileio`'s Linux-only strace checks reject.
+- `499308e`: socket `send`/`recv` reach Rust from the C socket methods
+  instead of Python wrappers. Remote debuggers saw the wrapper frame and
+  `test_external_inspection` failed.
+- `4710c23`: `Python/stdlib_module_names.h` is regenerated with the fork's
+  generator to list the 69 overlay crates. `faulthandler` had reported the
+  startup-loaded `_codecs_rs` as a third-party extension.
+
+These changes also apply to macOS arm64, where the macOS results above
+predate them. Rerun the macOS integrated suite before relying on them there.
+
+A per-item public-call probe ran in the main interpreter and in an
+isolated own-GIL child. In all 71 targets the named public behavior reached
+Rust in the main interpreter, and every child run returned `None` from
+`_interpreters.run_string()`. In 60 targets the Rust function was observed
+being called; 10 C-level routes loaded their Rust module. `io` uses the
+statically linked Rust library, which the probe cannot observe.
+
+Integrated default-resource suite (`python3 rust-cpython/build.py test --all
+--jobs 4`): 50,782 run/2,828 skipped, 496/505 files, nine resource-denied.
+The only failure is the baseline VSOCK host test. Run and skip counts and
+the skipped and denied file lists equal the pristine Linux baseline.
+
+Each row ran `python3 rust-cpython/build.py test --jobs 4 --suite ...` with
+the complete suites named on that item's checklist line or in its
+implementation commit. Some sets were never fully recorded; these were
+run with the following suites:
+
+- `io`: `test_io`, `test_bz2`, `test_codecs`, `test_csv`, `test_fileinput`, `test_gzip`, `test_interpreters`, `test_lzma`, `test_pathlib`, `test_shutil`, `test_socket`, `test_ssl`, `test_tarfile`, `test_tokenize`, `test_zipfile`
+- `asyncio`: `test_asyncio`, `test_context`, `test_contextlib`, `test_contextlib_async`, `test_coroutines`, `test_interpreters`, `test_selectors`, `test_unittest`
+- `socket`: `test_socket`, `test_asyncio`, `test_httplib`, `test_selectors`, `test_socketserver`, `test_ssl`, `test_urllib2_localnet`
+- `ssl`: `test_ssl`, `test__interpreters`, `test_asyncio`, `test_embed`, `test_ftplib`, `test_httplib`, `test_httpservers`, `test_imaplib`, `test_interpreters`, `test_logging`, `test_poplib`, `test_smtplib`, `test_socket`, `test_support`, `test_urllib`, `test_urllib2`, `test_urllib2_localnet`, `test_venv`, `test_xmlrpc`
+- `subprocess`: `test_subprocess`, `test__interpreters`, `test_asyncio`, `test_audit`, `test_concurrent_futures`, `test_interpreters`, `test_multiprocessing_fork`, `test_multiprocessing_forkserver`, `test_multiprocessing_main_handling`, `test_multiprocessing_spawn`, `test_os`, `test_pty`, `test_signal`
+- `multiprocessing`: `test_multiprocessing_fork`, `test_multiprocessing_forkserver`, `test_multiprocessing_main_handling`, `test_multiprocessing_spawn`, `test_concurrent_futures`, `test_logging`
+- `itertools`: `test_itertools`, `test_asyncio`, `test_collections`, `test_email`, `test_fnmatch`, `test_heapq`, `test_math`, `test_statistics`, `test_zipfile`
+- `threading`: `test_threading`, `test_threading_local`, `test_interpreters`, `test__interpreters`, `test_concurrent_futures`
+- `difflib` (chosen for Linux): `test_difflib`, `test_doctest`, `test_unittest`, `test_pydoc`, `test_filecmp`, `test_interpreters`, `test_tools`, `test_peg_generator`
+- `urllib.request` (chosen for Linux): `test_urllib2`, `test_urllib`, `test_urllib2_localnet`, `test_urllib2net`, `test_urllibnet`, `test_urllib_response`, `test_urlparse`, `test_robotparser`, `test_http_cookiejar`, `test_httplib`, `test_httpservers`, `test_interpreters`
+
+"VSOCK host failure only" marks sets that include `test_socket`. Their only
+failure was the baseline `ThreadedVSOCKSocketStreamTest.testStream`.
+
+| Target | Suites | Run | Skipped | Notes |
+| --- | --- | ---: | ---: | --- |
+| `urllib.parse` | 8 suites | 2,635 | 420 |  |
+| `json` | `test_interpreters`, `test_json` | 402 | 11 |  |
+| `pickle` | 7 suites | 4,169 | 119 |  |
+| `csv` | `test_csv` | 134 | 0 |  |
+| `tomllib` | `test_inspect`, `test_tomllib` | 400 | 0 |  |
+| `email` | `test_email`, `test_http_cookiejar`, `test_mailbox`, `test_urllib2` | 2,362 | 5 |  |
+| `xml.etree.ElementTree` | `test_xml_etree`, `test_xml_etree_c` | 480 | 12 |  |
+| `re` | `test_re` | 169 | 3 |  |
+| `base64` | `test_base64`, `test_binascii`, `test_email` | 2,123 | 19 |  |
+| `binascii` | `test_base64`, `test_binascii`, `test_email`, `test_zipfile` | 2,712 | 22 |  |
+| `zlib` | 13 suites | 3,067 | 94 | denied: `test_zipfile64` |
+| `gzip` | `test_gzip`, `test_tarfile`, `test_xmlrpc`, `test_zlib` | 1,027 | 14 |  |
+| `zipfile` | 5 suites | 956 | 64 | denied: `test_zipfile64` |
+| `tarfile` | `test_shutil`, `test_tarfile`, `test_zipfile` | 1,587 | 59 |  |
+| `pathlib` | `test_glob`, `test_pathlib`, `test_shutil` | 1,644 | 455 |  |
+| `os.path` | 5 suites | 2,113 | 474 |  |
+| `shutil` | `test_shutil`, `test_tarfile`, `test_zipfile` | 1,587 | 59 |  |
+| `importlib.metadata` | `test_importlib`, `test_zoneinfo` | 1,486 | 47 |  |
+| `hashlib` | `test_hashlib`, `test_hmac`, `test_uuid` | 354 | 36 |  |
+| `hmac` | `test_hashlib`, `test_hmac`, `test_imaplib`, `test_support` | 553 | 22 |  |
+| `uuid` | `test_os`, `test_uuid` | 667 | 84 |  |
+| `datetime` | 7 suites | 2,753 | 313 |  |
+| `decimal` | `test_decimal`, `test_fractions`, `test_numeric_tower`, `test_statistics` | 1,194 | 14 |  |
+| `sqlite3` | `test_dbm`, `test_dbm_sqlite3`, `test_shelve`, `test_sqlite3` | 1,062 | 15 |  |
+| `io` | 15 suites | 6,099 | 805 | VSOCK host failure only |
+| `logging` | `test__interpreters`, `test_logging` | 354 | 10 |  |
+| `asyncio` | 8 suites | 4,497 | 87 |  |
+| `http.client` | 7 suites | 538 | 10 |  |
+| `ipaddress` | `test_concurrent_futures`, `test_ipaddress`, `test_socket` | 1,363 | 298 | VSOCK host failure only |
+| `socket` | 7 suites | 4,033 | 376 | denied: `test_socketserver`; VSOCK host failure only |
+| `ssl` | 19 suites | 5,532 | 389 | VSOCK host failure only |
+| `subprocess` | 13 suites | 5,814 | 383 |  |
+| `multiprocessing` | 6 suites | 2,074 | 228 |  |
+| `concurrent.futures` | `test_concurrent_futures`, `test_interpreters` | 570 | 30 |  |
+| `configparser` | `test_configparser`, `test_logging` | 642 | 12 |  |
+| `plistlib` | `test_plistlib` | 71 | 2 |  |
+| `struct` | 7 suites | 3,235 | 336 | VSOCK host failure only |
+| `marshal` | 6 suites | 1,602 | 39 |  |
+| `html.parser` | `test_html`, `test_htmlparser` | 70 | 2 |  |
+| `difflib` | 8 suites | 1,619 | 15 | denied: `test_peg_generator` |
+| `codecs` | 5 suites | 2,881 | 354 |  |
+| `unicodedata` | 6 suites | 420 | 191 |  |
+| `bz2` | 5 suites | 1,235 | 18 |  |
+| `lzma` | `test_lzma` | 123 | 0 |  |
+| `compression.zstd` | 6 suites | 2,274 | 73 |  |
+| `zipimport` | `test_importlib`, `test_zipimport` | 1,352 | 28 |  |
+| `glob` | `test_glob` | 22 | 2 |  |
+| `fnmatch` | `test_fnmatch`, `test_glob`, `test_shutil` | 275 | 54 |  |
+| `importlib.resources` | `test_importlib`, `test_interpreters`, `test_pathlib`, `test_zipimport` | 2,917 | 437 |  |
+| `tempfile` | 5 suites | 1,915 | 470 |  |
+| `fractions` | 6 suites | 830 | 16 |  |
+| `statistics` | `test_fractions`, `test_math`, `test_random`, `test_statistics` | 654 | 10 |  |
+| `random` | `test_random`, `test_statistics`, `test_uuid` | 635 | 26 |  |
+| `collections` | 7 suites | 666 | 3 |  |
+| `heapq` | `test_heapq`, `test_queue`, `test_sched` | 243 | 6 |  |
+| `bisect` | `test_bisect`, `test_datetime`, `test_free_threading`, `test_statistics` | 1,606 | 38 |  |
+| `itertools` | 9 suites | 6,027 | 50 |  |
+| `functools` | `test_functools`, `test_list`, `test_sort`, `test_userlist` | 479 | 0 |  |
+| `contextlib` | `test_asyncio`, `test_contextlib` | 2,880 | 31 |  |
+| `dataclasses` | `test_dataclasses`, `test_inspect`, `test_typing` | 1,405 | 0 |  |
+| `inspect` | `test_enum`, `test_inspect`, `test_pydoc`, `test_unittest` | 2,688 | 11 |  |
+| `ast` | `test_ast`, `test_compile` | 407 | 3 |  |
+| `argparse` | `test_argparse`, `test_optparse`, `test_pydoc` | 2,233 | 48 |  |
+| `tokenize` | `test_inspect`, `test_tokenize` | 518 | 0 |  |
+| `_strptime` | 5 suites | 1,416 | 228 |  |
+| `shlex` | `test_mimetypes`, `test_shlex`, `test_webbrowser` | 128 | 21 |  |
+| `textwrap` | 6 suites | 2,871 | 78 |  |
+| `threading` | 5 suites | 906 | 38 |  |
+| `typing` | `test_annotationlib`, `test_dataclasses`, `test_inspect`, `test_typing` | 1,522 | 0 |  |
+| `warnings` | 5 suites | 1,803 | 24 |  |
+| `urllib.request` | 12 suites | 899 | 24 | denied: `test_urllib2net`, `test_urllibnet` |
