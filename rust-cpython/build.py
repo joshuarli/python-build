@@ -1268,7 +1268,11 @@ def test(suites: list[str], *, all_suites: bool = False, jobs: int | None = None
     env = _test_environment(toolchain)
     build_python = _build_python()
     scope = "all" if all_suites else "suite"
-    log = LOGS / ("cpython-all.log" if all_suites else f"cpython-{'-'.join(suites)}.log")
+    name = "all" if all_suites else "-".join(suites)
+    if len(name) > 160:
+        # Keep long suite lists within the filesystem's file-name limit.
+        name = f"{'-'.join(suites[:3])}-{hashlib.sha256(name.encode()).hexdigest()[:16]}"
+    log = LOGS / f"cpython-{name}.log"
     workers = jobs if jobs is not None else _test_jobs()
     result = _run_python_test(
         [str(build_python), "-m", "test", "-j", str(workers), "--timeout=900", *suites],

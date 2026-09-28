@@ -52,6 +52,8 @@ the setsockopt() and getsockopt() methods.
 import _socket
 from _socket import *
 
+# Importing _socket_rs here also enables the Rust route of the C socket
+# send() and recv() methods, which find it in sys.modules.
 try:
     import _socket_rs
 except ImportError:
@@ -289,35 +291,6 @@ class socket(_socket.socket):
     def __exit__(self, *args):
         if not self._closed:
             self.close()
-
-    def send(self, data, flags=0, /):
-        while (_socket_rs is not None and type(self) is socket
-               and type(data) in (bytes, bytearray)
-               and type(flags) is int and flags == 0
-               and self.gettimeout() is None and len(data) != 0):
-            fd = self.fileno()
-            if fd < 0:
-                break
-            sent = _socket_rs.send(fd, data)
-            if sent != -2:
-                return sent
-        return _socket.socket.send(self, data, flags)
-
-    def recv(self, bufsize, flags=0, /):
-        while (_socket_rs is not None and type(self) is socket
-               and type(bufsize) is int and bufsize > 0
-               and type(flags) is int and flags == 0
-               and self.gettimeout() is None):
-            fd = self.fileno()
-            if fd < 0:
-                break
-            data = _socket_rs.recv(fd, bufsize)
-            if data is not None:
-                return data
-        return _socket.socket.recv(self, bufsize, flags)
-
-    send.__doc__ = _socket.socket.send.__doc__
-    recv.__doc__ = _socket.socket.recv.__doc__
 
     def __repr__(self):
         """Wrap __repr__() to reveal the real class name and socket
