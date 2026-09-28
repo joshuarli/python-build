@@ -34,6 +34,7 @@ _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
 _pathlib_rs _pathlib_rs/Cargo.toml _pathlib_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs
 _logging_rs _logging_rs/Cargo.toml _logging_rs/src/lib.rs
+_multiprocessing_rs _multiprocessing_rs/Cargo.toml _multiprocessing_rs/src/lib.rs
 _lzma_rs _lzma_rs/Cargo.toml _lzma_rs/src/lib.rs
 _metadata_rs _metadata_rs/Cargo.toml _metadata_rs/src/lib.rs
 _pickle_rs _pickle_rs/Cargo.toml _pickle_rs/src/lib.rs

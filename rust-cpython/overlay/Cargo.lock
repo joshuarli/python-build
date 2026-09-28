@@ -319,6 +319,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_multiprocessing_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_pathlib_rs"
 version = "0.1.0"
 dependencies = [
