@@ -80,7 +80,7 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **60 complete targets**. Do not carry
+module. The strict count is now **65 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
@@ -185,7 +185,10 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `logging` — public record creation, formatting, and handler dispatch
   reach Rust (`a0dd573`). Full `test_logging` and `test__interpreters`:
   354 run/7 skipped; integrated full suite passed.
-- [ ] `asyncio` — task scheduling and event-loop operations on public APIs.
+- [x] `asyncio` — public non-debug ready-handle dispatch and due-timer
+  promotion reach Rust (`41892d3`). Full `test_asyncio` and seven
+  neighboring suites: 4,497 run/122 skipped, with two Windows-only files;
+  integrated full suite passed.
 - [x] `http.client` — public response status parsing and request-line sending
   reach Rust (`d2aca96`). Full `test_httplib`, `test_httpservers`,
   `test_urllib`, `test_urllib2`, `test_urllib2_localnet`,
@@ -196,7 +199,10 @@ Each checked line records its focused-suite result and combined qualification.
   `test_concurrent_futures`: 1,363 run/284 skipped. Integrated default-resource
   suite: 50,158 run/2,703 skipped, zero failures (496/505 files; nine
   resource-denied).
-- [ ] `socket` — public address conversion and I/O operations.
+- [x] `socket` — public IPv4/IPv6 `inet_pton`/`inet_ntop` and eligible blocking
+  socket `send`/`recv` reach Rust (`609b503`). Full `test_socket` and six
+  neighboring suites: 4,033 run/396 skipped; `test_socketserver` was
+  resource-denied at baseline. Integrated full suite passed.
 - [x] `ssl` — public TLS context setup and MemoryBIO handshake/read/write
   steps reach Rust (`8ab7252`). Full `test_ssl` and 18 neighboring suites:
   5,532 run/403 skipped, including two Windows-only asyncio files;
@@ -229,7 +235,11 @@ Each checked line records its focused-suite result and combined qualification.
   reach Rust (`54d5d7e`). Full `test_codecs`, `test_multibytecodec`,
   `test_charmapcodec`, `test_capi`, and `test_io`: 2,864 run/352 skipped,
   matching the clean-stage focused run; integrated full suite passed.
-- [ ] `unicodedata` — Unicode property lookup and normalization.
+- [x] `unicodedata` — public category, combining, normalization, and
+  normalized-state queries reach ICU4X-backed Rust (`ecf5a04`). Full
+  `test_unicodedata`, `test__locale`, `test_re`, `test_str`,
+  `test_unicode_file`, and `test_unicode_file_functions`: 420 run/99 skipped;
+  integrated full suite passed.
 - [x] `bz2` — public one-shot and incremental compression/decompression
   reach Rust (`540b0dd`). Full `test_bz2`, `test_tarfile`, `test_fileinput`,
   and `test_codecs`: 1,235 run/18 skipped; the GIL-enabled
@@ -294,7 +304,10 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `dataclasses` — public class and field processing reaches Rust
   (`aab81e7`). Full `test_dataclasses`, `test_inspect`, and `test_typing`:
   1,405 run/0 skipped; integrated full suite passed.
-- [ ] `inspect` — signatures and object inspection.
+- [x] `inspect` — public exact `Signature.bind`/`bind_partial` and member
+  lookup reach Rust in the main interpreter (`d54262d`); own-GIL children
+  retain a Python route. Full `test_inspect`, `test_enum`, `test_pydoc`, and
+  `test_unittest`: 2,688 run/11 skipped; integrated full suite passed.
 - [x] `ast` — public parse-tree walking and transformation helpers reach Rust
   (`daf807b`). Full `test_ast` and `test_compile`: 407 run/3 skipped;
   integrated full suite passed.
@@ -327,4 +340,7 @@ Each checked line records its focused-suite result and combined qualification.
   reach Rust (`8e08c96`). Full `test_warnings`, `test_logging`,
   `test_unittest`, `test_context`, and `test_interpreters`: 1,803 run/21
   skipped; integrated full suite passed.
-- [ ] `urllib.request` — request opening and response handling.
+- [x] `urllib.request` — public `urlopen` request preprocessing, handler
+  dispatch, and response processor dispatch reach Rust (`c8ef0e3`). Twelve
+  full default-resource suites: 1,113 run/34 skipped; `test_urllib2net` and
+  `test_urllibnet` were resource-denied. Integrated full suite passed.
