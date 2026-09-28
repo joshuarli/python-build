@@ -56,6 +56,7 @@ _tomllib_rs _tomllib_rs/Cargo.toml _tomllib_rs/src/lib.rs
 _typing_rs _typing_rs/Cargo.toml _typing_rs/src/lib.rs
 _unicodedata_rs _unicodedata_rs/Cargo.toml _unicodedata_rs/src/lib.rs
 _urllib_parse_rs _urllib_parse_rs/Cargo.toml _urllib_parse_rs/src/lib.rs
+_urllib_request_rs _urllib_request_rs/Cargo.toml _urllib_request_rs/src/lib.rs
 _uuid_rs _uuid_rs/Cargo.toml _uuid_rs/src/lib.rs
 _warnings_rs _warnings_rs/Cargo.toml _warnings_rs/src/lib.rs
 _zip_rs _zip_rs/Cargo.toml _zip_rs/src/lib.rs

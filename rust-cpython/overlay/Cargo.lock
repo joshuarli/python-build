@@ -505,6 +505,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_urllib_request_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_uuid_rs"
 version = "0.1.0"
 dependencies = [
