@@ -1,0 +1,18 @@
+[package]
+name = "_unicodedata_rs"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "PSF-2.0"
+
+[dependencies]
+icu_normalizer = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
+icu_properties = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
+cpython-sys = { path = "../cpython-sys" }
+
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
+[lib]
+name = "_unicodedata_rs"
+crate-type = ["cdylib", "rlib"]

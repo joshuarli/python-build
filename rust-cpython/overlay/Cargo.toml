@@ -7,7 +7,7 @@ members = [
     "Modules/_json_rs", "Modules/_logging_rs", "Modules/_lzma_rs", "Modules/_metadata_rs", "Modules/_pathlib_rs", "Modules/_pickle_rs", "Modules/_plistlib_rs", "Modules/_posixpath_rs", "Modules/_random_rs", "Modules/_re_rs",
     "Modules/_shlex_rs", "Modules/_shutil_rs", "Modules/_sqlite3_rs", "Modules/_socket_rs", "Modules/_ssl_rs", "Modules/_statistics_rs", "Modules/_strptime_rs", "Modules/_struct_rs", "Modules/_tarfile_rs", "Modules/_tempfile_rs", "Modules/_textwrap_rs",
     "Modules/_tokenize_rs", "Modules/_tomllib_rs", "Modules/_typing_rs",
-    "Modules/_urllib_parse_rs", "Modules/_uuid_rs", "Modules/_warnings_rs", "Modules/_zip_rs", "Modules/_zipimport_rs", "Modules/_zlib_rs", "Modules/_zstd_rs",
+    "Modules/_unicodedata_rs", "Modules/_urllib_parse_rs", "Modules/_uuid_rs", "Modules/_warnings_rs", "Modules/_zip_rs", "Modules/_zipimport_rs", "Modules/_zlib_rs", "Modules/_zstd_rs",
     "Modules/cpython-build-helper",
     "Modules/cpython-rust-staticlib", "Modules/cpython-sys"
 ]
