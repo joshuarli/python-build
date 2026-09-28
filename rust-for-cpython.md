@@ -80,10 +80,10 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **65 complete targets**. Do not carry
+module. The strict count is now **71 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
-The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
+The latest combined macOS arm64 debug run passed 50,158 tests with 2,703
 skipped and zero failures; 496/505 files ran and nine were resource-denied.
 Each checked line records its focused-suite result and combined qualification.
 
@@ -207,9 +207,17 @@ Each checked line records its focused-suite result and combined qualification.
   steps reach Rust (`8ab7252`). Full `test_ssl` and 18 neighboring suites:
   5,532 run/403 skipped, including two Windows-only asyncio files;
   integrated full suite passed.
-- [ ] `subprocess` — command launch and communication.
-- [ ] `multiprocessing` — interprocess queues and pools.
-- [ ] `concurrent.futures` — executor scheduling and result handling.
+- [x] `subprocess` — eligible POSIX launches and ready-pipe communication
+  reach Rust (`0032df8`). Full `test_subprocess` and 12 neighboring suites:
+  5,370 run/412 skipped, including baseline Windows and macOS fork skips;
+  integrated full suite passed.
+- [x] `multiprocessing` — public queue and pipe framing and Pool task
+  batching reach Rust (`99fce8e`). Full fork, spawn, forkserver, main
+  handling, futures, and logging suites: 1,630 run/163 skipped, including
+  four baseline macOS fork files; integrated full suite passed.
+- [x] `concurrent.futures` — public `Future` scheduling and publication
+  transitions reach Rust (`5126933`). Full `test_concurrent_futures` and
+  `test_interpreters`: 570 run/30 skipped; integrated full suite passed.
 
 ### Priority 1: broad supporting surface
 
@@ -223,7 +231,13 @@ Each checked line records its focused-suite result and combined qualification.
   (`9844a6a`). Full `test_struct`, `test_array`, `test_buffer`, `test_call`,
   `test_float`, `test_pickle`, and `test_socket`: 3,235 run/311 skipped;
   integrated full suite passed.
-- [ ] `marshal` — serialize and load supported Python code/data records.
+- [x] `marshal` — public version-6 serialization and loading of supported
+  code/data records, including cycles, reach Rust (`112a4d2`). Cached
+  bytecode imports stay extension-free (`1e399a2`); their valid marshal
+  bytes match public Rust output but differ from pristine CPython's
+  selective-reference output. Full `test_faulthandler`, `test_marshal`,
+  `test_importlib`, `test_py_compile`, `test_compile`, and `test_audit`:
+  1,602 run/29 skipped; integrated full suite passed.
 - [x] `html.parser` — public HTML token scanning reaches Rust (`d64846f`).
   Full `test_htmlparser` and `test_html`: 70 run/2 skipped; integrated full
   suite passed.
@@ -294,7 +308,10 @@ Each checked line records its focused-suite result and combined qualification.
   `test_bisect`: 46 run/0 skipped; full `test_statistics`, `test_datetime`,
   and `test_free_threading`: 1,560 run/38 skipped; integrated full suite
   passed.
-- [ ] `itertools` — core iterator transformations.
+- [x] `itertools` — public `chain`, `compress`, `dropwhile`, `filterfalse`,
+  `islice`, `starmap`, and `takewhile` steps reach Rust (`3fc5b6d`). Nine
+  full relevant suites: 6,027 run/84 skipped, including two Windows-only
+  files; integrated full suite passed.
 - [x] `functools` — public `cmp_to_key` ordering comparisons reach Rust
   (`953946d`). Full `test_functools`, `test_sort`, `test_list`, and
   `test_userlist`: 479 run; integrated full suite passed.
@@ -331,7 +348,9 @@ Each checked line records its focused-suite result and combined qualification.
   subinterpreter repair: 638 run/30 skipped. Integrated default-resource
   suite: 50,158 run/2,703 skipped, zero failures (496/505 files; nine
   resource-denied).
-- [ ] `threading` — public thread coordination and synchronization.
+- [x] `threading` — public `Barrier` state transitions reach Rust
+  (`5fe006a`). Full threading, interpreter, and futures suites: 906
+  run/38 skipped; integrated full suite passed.
 - [x] `typing` — public `get_origin` and `get_args` generic inspection reach
   Rust (`848ea2d`). Full `test_typing`, `test_annotationlib`,
   `test_dataclasses`, and `test_inspect`: 1,522 run/0 skipped; integrated full

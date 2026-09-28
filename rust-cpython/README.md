@@ -1,10 +1,10 @@
 # Rust-for-CPython coverage lane
 
 This isolated lane builds the pinned Rust-for-CPython CPython **3.16.0a0** fork.
-Its current goal is 71 named public-behavior coverage targets, each gated by
-the complete relevant CPython Python module suites, as defined in
-[`rust-for-cpython.md`](../rust-for-cpython.md). Performance work is deferred
-until that checklist is complete; see the inactive
+All 71 named public-behavior coverage targets in
+[`rust-for-cpython.md`](../rust-for-cpython.md) passed their complete relevant
+CPython Python module suites and the combined default-resource suite on
+macOS arm64. Performance work has its separate plan in
 [`rust-for-cpython-perf.md`](../rust-for-cpython-perf.md).
 
 The production CPython 3.14.6 build, packaging, and frozen Linux recipes are
