@@ -8,6 +8,7 @@ _binascii_rs _binascii_rs/Cargo.toml _binascii_rs/src/lib.rs
 _bz2_rs _bz2_rs/Cargo.toml _bz2_rs/src/lib.rs
 _collections_rs _collections_rs/Cargo.toml _collections_rs/src/lib.rs
 _codecs_rs _codecs_rs/Cargo.toml _codecs_rs/src/lib.rs
+_concurrent_futures_rs _concurrent_futures_rs/Cargo.toml _concurrent_futures_rs/src/lib.rs
 _configparser_rs _configparser_rs/Cargo.toml _configparser_rs/src/lib.rs
 _contextlib_rs _contextlib_rs/Cargo.toml _contextlib_rs/src/lib.rs
 _csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs

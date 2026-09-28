@@ -80,6 +80,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_concurrent_futures_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_configparser_rs"
 version = "0.1.0"
 dependencies = [
