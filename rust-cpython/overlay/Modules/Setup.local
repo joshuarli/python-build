@@ -11,6 +11,7 @@ _configparser_rs _configparser_rs/Cargo.toml _configparser_rs/src/lib.rs
 _contextlib_rs _contextlib_rs/Cargo.toml _contextlib_rs/src/lib.rs
 _csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs
 _dataclasses_rs _dataclasses_rs/Cargo.toml _dataclasses_rs/src/lib.rs
+_datetime_rs _datetime_rs/Cargo.toml _datetime_rs/src/lib.rs
 _decimal_rs _decimal_rs/Cargo.toml _decimal_rs/src/lib.rs
 _difflib_rs _difflib_rs/Cargo.toml _difflib_rs/src/lib.rs
 _elementtree_rs _elementtree_rs/Cargo.toml _elementtree_rs/src/lib.rs

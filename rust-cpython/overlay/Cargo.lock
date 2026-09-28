@@ -106,6 +106,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_datetime_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_decimal_rs"
 version = "0.1.0"
 dependencies = [
