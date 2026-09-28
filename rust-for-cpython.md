@@ -80,7 +80,7 @@ commit and completed checklist line. A private extension, a narrow proof, or
 passing a subset of a module's tests does not complete an item.
 
 Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **54 complete targets**. Do not carry
+module. The strict count is now **60 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
 The latest combined macOS arm64 debug run passed 50,158 tests with 2,754
@@ -96,7 +96,11 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `json` — public default encode and decode of complete documents reach
   Rust (`7c37dd0`). Full `test_json` and `test_interpreters`: 402 run/11
   skipped; integrated full suite passed.
-- [ ] `pickle` — dump and load common object graphs.
+- [x] `pickle` — public `dumps`/`loads` and `BytesIO` `dump`/`load` of
+  supported graphs reach Rust (`771cf8f`, with source-inspection cleanup in
+  `ced130b`). Full `test_pickle`, `test_picklebuffer`, `test_pickletools`,
+  `test_shelve`, `test_email`, and `test_ctypes`: 4,079 run/121 skipped;
+  `test_pyclbr` also passed after the cleanup. Integrated full suite passed.
 - [x] `csv` — default Excel records reach Rust through public reader and
   writer (`e49c5e1`). Full `test_csv`: 134 run/0 skipped; integrated full
   suite passed.
@@ -161,7 +165,11 @@ Each checked line records its focused-suite result and combined qualification.
 - [x] `uuid` — parse, format, and common generation reach Rust (`6517691`).
   Full `test_uuid` and `test_os`: 667 run/120 skipped; integrated full
   suite passed.
-- [ ] `datetime` — parse, format, and arithmetic on public date/time objects.
+- [x] `datetime` — public ISO parsing and formatting plus date and datetime
+  timedelta arithmetic reach Rust (`da628d1`). Full `test_datetime`,
+  `test_strptime`, `test_time`, `test_calendar`, `test_locale`,
+  `test_zoneinfo`, and `test_pickle`: 2,776 run/235 skipped; integrated full
+  suite passed.
 - [x] `decimal` — eligible public `Decimal` addition and multiplication of
   exact nonnegative integers reach Rust (`7d23831`). Full `test_decimal`,
   `test_fractions`, `test_statistics`, and `test_numeric_tower`: 1,194 run/14
@@ -170,7 +178,10 @@ Each checked line records its focused-suite result and combined qualification.
   conversion reach Rust (`3df4e0a`). Full `test_sqlite3`,
   `test_dbm_sqlite3`, `test_dbm`, and `test_shelve`: 954 run/14 skipped;
   integrated full suite passed.
-- [ ] `io` — buffered and text stream reads and writes.
+- [x] `io` — public buffered byte transfers and line scans, plus text newline
+  normalization and write-policy scans, reach Rust (`1e06fcf`). Full `test_io`:
+  1,031 run/27 skipped; 14 neighboring suites: 5,052 run/792 skipped;
+  integrated full suite passed.
 - [x] `logging` — public record creation, formatting, and handler dispatch
   reach Rust (`a0dd573`). Full `test_logging` and `test__interpreters`:
   354 run/7 skipped; integrated full suite passed.
@@ -186,7 +197,10 @@ Each checked line records its focused-suite result and combined qualification.
   suite: 50,158 run/2,703 skipped, zero failures (496/505 files; nine
   resource-denied).
 - [ ] `socket` — public address conversion and I/O operations.
-- [ ] `ssl` — public TLS context and stream operations.
+- [x] `ssl` — public TLS context setup and MemoryBIO handshake/read/write
+  steps reach Rust (`8ab7252`). Full `test_ssl` and 18 neighboring suites:
+  5,532 run/403 skipped, including two Windows-only asyncio files;
+  integrated full suite passed.
 - [ ] `subprocess` — command launch and communication.
 - [ ] `multiprocessing` — interprocess queues and pools.
 - [ ] `concurrent.futures` — executor scheduling and result handling.
@@ -229,7 +243,11 @@ Each checked line records its focused-suite result and combined qualification.
   and one-shot calls reach Rust (`503d673`). Full `test_zstd`, `test_zipfile`,
   `test_tarfile`, `test_shutil`, `test_zipimport`, and `test_profiling`:
   2,274 run/178 skipped; integrated full suite passed.
-- [ ] `zipimport` — module discovery and loading from ZIP archives.
+- [x] `zipimport` — public ZIP discovery, candidate matching, and stored or
+  DEFLATE payload extraction reach Rust in the main interpreter (`1196638`);
+  own-GIL children retain the Python route. Seven full suites including
+  `test_zipimport` and `test_importlib`: 3,146 run/347 skipped; integrated
+  full suite passed.
 - [x] `glob` — public nonrecursive text pathname expansion reaches Rust
   (`cd43075`). Full `test_glob`: 22 run/2 macOS skips; integrated full suite
   passed.
@@ -301,7 +319,10 @@ Each checked line records its focused-suite result and combined qualification.
   suite: 50,158 run/2,703 skipped, zero failures (496/505 files; nine
   resource-denied).
 - [ ] `threading` — public thread coordination and synchronization.
-- [ ] `typing` — runtime annotation and generic operations.
+- [x] `typing` — public `get_origin` and `get_args` generic inspection reach
+  Rust (`848ea2d`). Full `test_typing`, `test_annotationlib`,
+  `test_dataclasses`, and `test_inspect`: 1,522 run/0 skipped; integrated full
+  suite passed.
 - [x] `warnings` — public filter insertion and warning display formatting
   reach Rust (`8e08c96`). Full `test_warnings`, `test_logging`,
   `test_unittest`, `test_context`, and `test_interpreters`: 1,803 run/21
