@@ -374,6 +374,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_socket_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_ssl_rs"
 version = "0.1.0"
 dependencies = [
