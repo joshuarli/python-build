@@ -1,5 +1,6 @@
 *shared*
 _ast_rs _ast_rs/Cargo.toml _ast_rs/src/lib.rs
+_asyncio_rs _asyncio_rs/Cargo.toml _asyncio_rs/src/lib.rs
 _argparse_rs _argparse_rs/Cargo.toml _argparse_rs/src/lib.rs
 _bz2 _bz2module.c -DPYTHON_RUST_BZ2
 _bisect_rs _bisect_rs/Cargo.toml _bisect_rs/src/lib.rs

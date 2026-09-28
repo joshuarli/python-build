@@ -20,6 +20,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_asyncio_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_base64"
 version = "0.1.0"
 dependencies = [
