@@ -27,6 +27,7 @@ _http_client_rs _http_client_rs/Cargo.toml _http_client_rs/src/lib.rs
 _hmac_rs _hmac_rs/Cargo.toml _hmac_rs/src/lib.rs
 _html_parser_rs _html_parser_rs/Cargo.toml _html_parser_rs/src/lib.rs
 _importlib_resources_rs _importlib_resources_rs/Cargo.toml _importlib_resources_rs/src/lib.rs
+_inspect_rs _inspect_rs/Cargo.toml _inspect_rs/src/lib.rs
 _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
 _pathlib_rs _pathlib_rs/Cargo.toml _pathlib_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs

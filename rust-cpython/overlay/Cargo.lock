@@ -251,6 +251,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_inspect_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_ipaddress_rs"
 version = "0.1.0"
 dependencies = [
