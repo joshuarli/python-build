@@ -428,6 +428,11 @@ run with the following suites:
 
 "VSOCK host failure only" marks sets that include `test_socket`. Their only
 failure was the baseline `ThreadedVSOCKSocketStreamTest.testStream`.
+The same 71 suite sets were also run on the pristine Linux build, and every
+row's run and skip counts matched it. Skips in `test_os` vary between runs
+on this host. The first `uuid` comparison differed by two `test_os` skips,
+and a rerun matched at 667 run/84 skipped on both builds. Verbose skip lists
+for the `unicodedata` suites (191) and `test_os` (63) are also identical.
 
 | Target | Suites | Run | Skipped | Notes |
 | --- | --- | ---: | ---: | --- |
