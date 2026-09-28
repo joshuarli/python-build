@@ -458,6 +458,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "_threading_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+]
+
+[[package]]
 name = "_tokenize_rs"
 version = "0.1.0"
 dependencies = [
