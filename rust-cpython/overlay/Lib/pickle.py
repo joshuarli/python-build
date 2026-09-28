@@ -2016,6 +2016,7 @@ for _rust_wrapper, _cpython_function in (
         (load, _cpython_load), (loads, _cpython_loads)):
     _rust_wrapper.__doc__ = _cpython_function.__doc__
     _rust_wrapper.__module__ = _cpython_function.__module__
+del _rust_wrapper, _cpython_function
 
 
 def _main(args=None):
