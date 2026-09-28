@@ -48,6 +48,7 @@ _ssl_rs _ssl_rs/Cargo.toml _ssl_rs/src/lib.rs
 _statistics_rs _statistics_rs/Cargo.toml _statistics_rs/src/lib.rs
 _strptime_rs _strptime_rs/Cargo.toml _strptime_rs/src/lib.rs
 _struct_rs _struct_rs/Cargo.toml _struct_rs/src/lib.rs
+_subprocess_rs _subprocess_rs/Cargo.toml _subprocess_rs/src/lib.rs
 _tarfile_rs _tarfile_rs/Cargo.toml _tarfile_rs/src/lib.rs
 _tempfile_rs _tempfile_rs/Cargo.toml _tempfile_rs/src/lib.rs
 _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs

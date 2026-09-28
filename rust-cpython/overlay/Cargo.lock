@@ -432,6 +432,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "_subprocess_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "libc",
+]
+
+[[package]]
 name = "_tarfile_rs"
 version = "0.1.0"
 dependencies = [
