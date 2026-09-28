@@ -13,12 +13,16 @@ import codecs
 encode = codecs.utf_8_encode
 _buffer_decode = codecs.utf_8_decode
 
+# Import eagerly: the path importer is ready before the startup encodings are
+# imported, and a lazy import would add extension-loading system calls to the
+# first user file read or write.
+try:
+    import _codecs_rs as _rust
+except ImportError:
+    _rust = None
+
 def _rust_codecs():
-    try:
-        import _codecs_rs
-    except ImportError:
-        return None
-    return _codecs_rs
+    return _rust
 
 def _rust_encode(input, errors):
     if (codecs.utf_8_encode is encode and type(input) is str and

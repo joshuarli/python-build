@@ -114,17 +114,6 @@ _RFC_4122_VERSION_5_FLAGS = ((5 << 76) | (0x8000 << 48))
 _RFC_4122_VERSION_6_FLAGS = ((6 << 76) | (0x8000 << 48))
 _RFC_4122_VERSION_7_FLAGS = ((7 << 76) | (0x8000 << 48))
 _RFC_4122_VERSION_8_FLAGS = ((8 << 76) | (0x8000 << 48))
-_RFC_4122_VERSION_FLAGS = (
-    None,
-    _RFC_4122_VERSION_1_FLAGS,
-    None,
-    _RFC_4122_VERSION_3_FLAGS,
-    _RFC_4122_VERSION_4_FLAGS,
-    _RFC_4122_VERSION_5_FLAGS,
-    _RFC_4122_VERSION_6_FLAGS,
-    _RFC_4122_VERSION_7_FLAGS,
-    _RFC_4122_VERSION_8_FLAGS,
-)
 
 
 def _normalize(data):
@@ -138,8 +127,9 @@ def _set_version(data, version):
         return _uuid_rs.set_version(data, bytes_((version,)))
     if not 1 <= version <= 8:
         raise ValueError('illegal version number')
-    value = int_.from_bytes(data)
-    value = (value & _RFC_4122_CLEARFLAGS_MASK) | _RFC_4122_VERSION_FLAGS[version]
+    value = int_.from_bytes(data) & _RFC_4122_CLEARFLAGS_MASK
+    # Set the variant to RFC 4122/9562 and the version number.
+    value |= 0x8000_0000_0000_0000 | (version << 76)
     return value.to_bytes(16)
 
 
@@ -376,7 +366,8 @@ class UUID:
 
     def __str__(self):
         if _uuid_rs is None:
-            return '%08x-%04x-%04x-%04x-%012x' % self.fields
+            x = self.hex
+            return f'{x[:8]}-{x[8:12]}-{x[12:16]}-{x[16:20]}-{x[20:]}'
         return _uuid_rs.format(self.bytes).decode('ascii')
 
     @property
@@ -815,8 +806,8 @@ def uuid3(namespace, name):
         name = bytes(name, "utf-8")
     if _uuid_rs is None:
         import hashlib
-        digest = hashlib.md5(namespace.bytes + name).digest()
-        return UUID(bytes=digest, version=3)
+        h = hashlib.md5(namespace.bytes + name, usedforsecurity=False)
+        return UUID(bytes=h.digest(), version=3)
     return UUID(bytes=_uuid_rs.uuid3(namespace.bytes + name))
 
 def uuid4():
@@ -831,8 +822,8 @@ def uuid5(namespace, name):
         name = bytes(name, "utf-8")
     if _uuid_rs is None:
         import hashlib
-        digest = hashlib.sha1(namespace.bytes + name).digest()
-        return UUID(bytes=digest, version=5)
+        h = hashlib.sha1(namespace.bytes + name, usedforsecurity=False)
+        return UUID(bytes=h.digest()[:16], version=5)
     return UUID(bytes=_uuid_rs.uuid5(namespace.bytes + name))
 
 

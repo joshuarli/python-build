@@ -80,6 +80,8 @@ raw test logs remain ignored. Avoid per-attempt reports and coordinator
 bookkeeping commits.
 
 `linux-toolchain.lock.json` pins the x86-64 LLVM and Ubuntu package inputs.
+Ubuntu 24.04 has no first-party libmpdec, so the Linux build compiles the
+root lock's `mpdecimal` source into a private static library for `_decimal`.
 The macOS lane uses the root `bootstrap.lock.json` LLVM 23.1.2 and Xcode SDK
 identity. `fetch` verifies inputs; build and install use an offline boundary
 with a network-denial self-test. The Linux boundary uses user and network

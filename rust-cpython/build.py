@@ -8,6 +8,7 @@ x86_64 glibc Linux (`x86_64-unknown-linux-gnu`); the host selects the target.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
@@ -80,6 +81,17 @@ STAGE = LANE / "stage"
 LOGS = LANE / "logs"
 RESULTS = LANE / "results"
 BUILD_REPORT = RESULTS / "build.json"
+# Ubuntu 24.04 ships no libmpdec-dev, and the pinned 3.16 sources no longer
+# bundle libmpdec. The Linux lane builds the product's locked mpdecimal source
+# into a private static prefix so `_decimal` (and its Rust route) is built.
+PRODUCT_SOURCE_LOCK = REPO / "sources.lock.json"
+MPDECIMAL_PREFIX = WORK / "deps" / "mpdecimal"
+# Byte-identical Ubuntu orig tarball of the locked upstream archive; the cache
+# verifies it against the root lock's digest like any other route.
+MPDECIMAL_MIRROR = (
+    "http://archive.ubuntu.com/ubuntu/pool/universe/m/mpdecimal/"
+    "mpdecimal_{version}.orig.tar.gz"
+)
 
 
 class LaneError(Exception):
@@ -218,6 +230,27 @@ def _rust_identity(rustup: str | None) -> dict[str, Any]:
             [rustup, "show", "active-toolchain"], env=env
         )["output"],
     }
+
+
+def _mpdecimal_input() -> Input:
+    try:
+        entries = [entry for entry in load_lock(PRODUCT_SOURCE_LOCK) if entry.name == "mpdecimal"]
+    except (OSError, InputError) as error:
+        raise LaneError(f"cannot read the locked mpdecimal source: {error}") from error
+    if len(entries) != 1 or entries[0].role != "source":
+        raise LaneError(f"{PRODUCT_SOURCE_LOCK}: expected one mpdecimal source entry")
+    return entries[0]
+
+
+def _mpdecimal_cached() -> bool:
+    input_ = _mpdecimal_input()
+    if not _object_path(CACHE_ROOT, input_).is_file():
+        return False
+    try:
+        Cache(CACHE_ROOT).require(input_)
+    except InputError:
+        return False
+    return True
 
 
 def _object_path(cache_root: Path, input_: Input) -> Path:
@@ -378,6 +411,8 @@ def _linux_doctor_report(
         failures.append("the pinned CPython archive is not verified in .cache; run fetch")
     if not llvm_ready:
         failures.append("the locked LLVM 23.1.2 toolchain is not provisioned; run fetch")
+    if not _mpdecimal_cached():
+        failures.append("the locked mpdecimal source is not verified in .cache; run fetch")
     return {
         "host": {
             "os": platform.system(),
@@ -719,6 +754,20 @@ def fetch() -> int:
     print(f"OK    source archive ({route}) -> {source_blob}")
     _fetch_llvm(toolchain)
     print(f"OK    LLVM {toolchain.llvm_version} -> {toolchain.llvm_prefix}")
+    if IS_LINUX:
+        mpdecimal = _mpdecimal_input()
+        mirror = dataclasses.replace(
+            mpdecimal, url=MPDECIMAL_MIRROR.format(version=mpdecimal.version))
+        errors = []
+        for route in (mpdecimal, mirror):
+            try:
+                blob = Cache(CACHE_ROOT).fetch(route)
+                break
+            except (InputError, OSError) as error:
+                errors.append(f"{route.url}: {error}")
+        else:
+            raise LaneError("cannot fetch the locked mpdecimal source: " + "; ".join(errors))
+        print(f"OK    mpdecimal {mpdecimal.version} -> {blob}")
     WORK.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="cargo-fetch-", dir=WORK) as temporary:
         source = _source_root(safe_extract(source_blob, Path(temporary) / "source"))
@@ -1029,6 +1078,39 @@ def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(found)
 
 
+def _build_mpdecimal(toolchain, target, jobs: int, sandbox) -> dict[str, str]:
+    """Static, position-independent libmpdec for the Linux `_decimal` module."""
+    input_ = _mpdecimal_input()
+    blob = Cache(CACHE_ROOT).require(input_)
+    sources = WORK / "deps" / "src"
+    for path in (sources, MPDECIMAL_PREFIX):
+        if path.exists():
+            shutil.rmtree(path)
+    source = safe_extract(blob, sources) / f"mpdecimal-{input_.version}"
+    if not (source / "configure").is_file():
+        raise LaneError(f"locked mpdecimal archive has no configure script under {source}")
+    env = _environment(toolchain, offline=True)
+    env.update(_platform_flags(toolchain, target))
+    env.update({"CC": str(toolchain.llvm_prefix / "bin" / "clang"), "LDFLAGS": "-fuse-ld=lld"})
+    env = sandbox.environment(env)
+    _require_command(
+        [str(source / "configure"), f"--prefix={MPDECIMAL_PREFIX}",
+         "--disable-shared", "--enable-static", "--disable-cxx"],
+        cwd=source, env=env, log=LOGS / "mpdecimal-configure.log", sealed=sandbox,
+    )
+    _require_command([str(toolchain.make), f"-j{jobs}"], cwd=source, env=env,
+                     log=LOGS / "mpdecimal-build.log", sealed=sandbox)
+    _require_command([str(toolchain.make), "install"], cwd=source, env=env,
+                     log=LOGS / "mpdecimal-install.log", sealed=sandbox)
+    library = MPDECIMAL_PREFIX / "lib" / "libmpdec.a"
+    if not library.is_file():
+        raise LaneError(f"mpdecimal build did not produce {library}")
+    return {
+        "LIBMPDEC_CFLAGS": f"-I{MPDECIMAL_PREFIX / 'include'}",
+        "LIBMPDEC_LIBS": f"{library} -lm",
+    }
+
+
 def _configure_source(source: Path, toolchain, target, jobs: int,
                       sandbox: SealedRun, overlay: dict[str, Any]) -> dict[str, Any]:
     rustup = _require_nightly()
@@ -1038,6 +1120,8 @@ def _configure_source(source: Path, toolchain, target, jobs: int,
             shutil.rmtree(path)
         path.mkdir(parents=True)
     args, env = _configuration(toolchain, target)
+    if IS_LINUX:
+        env.update(_build_mpdecimal(toolchain, target, jobs, sandbox))
     env.update({
         "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
         "PY_CPPFLAGS": env["CPPFLAGS"],
