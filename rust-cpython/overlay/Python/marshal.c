@@ -116,6 +116,7 @@ typedef struct {
     _Py_hashtable_t *hashtable;
     int version;
     int allow_code;
+    int force_refs;
 } WFILE;
 
 #define w_byte(c, p) do {                               \
@@ -388,7 +389,7 @@ w_ref(PyObject *v, char *flag, WFILE *p)
      * But we use TYPE_REF always for interned string, to PYC file stable
      * as possible.
      */
-    if (_PyObject_IsUniquelyReferenced(v) &&
+    if (!p->force_refs && _PyObject_IsUniquelyReferenced(v) &&
             !(PyUnicode_CheckExact(v) && PyUnicode_CHECK_INTERNED(v))) {
         return 0;
     }
@@ -437,7 +438,7 @@ w_complete(PyObject *v, WFILE *p)
     if (p->version < 3 || p->hashtable == NULL) {
         return;
     }
-    if (_PyObject_IsUniquelyReferenced(v)) {
+    if (!p->force_refs && _PyObject_IsUniquelyReferenced(v)) {
         return;
     }
 
@@ -1904,7 +1905,8 @@ PyMarshal_ReadObjectFromString(const char *str, Py_ssize_t len)
 }
 
 static PyObject *
-marshal_write_object_to_string_no_audit(PyObject *x, int version, int allow_code)
+marshal_write_object_to_string_no_audit(PyObject *x, int version, int allow_code,
+                                        int force_refs)
 {
     WFILE wf;
 
@@ -1917,6 +1919,7 @@ marshal_write_object_to_string_no_audit(PyObject *x, int version, int allow_code
     wf.error = WFERR_OK;
     wf.version = version;
     wf.allow_code = allow_code;
+    wf.force_refs = force_refs;
     if (w_init_refs(&wf, version)) {
         Py_DECREF(wf.str);
         return NULL;
@@ -1959,7 +1962,7 @@ _PyMarshal_WriteObjectToString(PyObject *x, int version, int allow_code)
     if (PySys_Audit("marshal.dumps", "Oi", x, version) < 0) {
         return NULL;
     }
-    return marshal_write_object_to_string_no_audit(x, version, allow_code);
+    return marshal_write_object_to_string_no_audit(x, version, allow_code, 0);
 }
 
 PyObject *
@@ -2139,7 +2142,7 @@ marshal_dump_impl(PyObject *module, PyObject *value, PyObject *file,
     if (rust_status < 0)
         return NULL;
     if (rust_status == 0) {
-        s = marshal_write_object_to_string_no_audit(value, version, allow_code);
+        s = marshal_write_object_to_string_no_audit(value, version, allow_code, 0);
         if (s == NULL)
             return NULL;
     }
@@ -2242,7 +2245,7 @@ marshal_dumps_impl(PyObject *module, PyObject *value, int version,
         return NULL;
     if (rust_status > 0)
         return result;
-    return marshal_write_object_to_string_no_audit(value, version, allow_code);
+    return marshal_write_object_to_string_no_audit(value, version, allow_code, 0);
 }
 
 /*[clinic input]
@@ -2294,11 +2297,39 @@ marshal_loads_impl(PyObject *module, Py_buffer *bytes, int allow_code)
     return result;
 }
 
+/* Importlib's bytecode cache must not import an extension while importing
+   ordinary Python modules.  These entry points retain marshal's audit events
+   and allow code objects without loading the public Rust codec. */
+static PyObject *
+marshal_loads_importlib_bytecode(PyObject *module, PyObject *data)
+{
+    Py_buffer bytes;
+    if (PyObject_GetBuffer(data, &bytes, PyBUF_SIMPLE) < 0) {
+        return NULL;
+    }
+    PyObject *result = PyMarshal_ReadObjectFromString(bytes.buf, bytes.len);
+    PyBuffer_Release(&bytes);
+    return result;
+}
+
+static PyObject *
+marshal_dumps_importlib_bytecode(PyObject *module, PyObject *code)
+{
+    if (PySys_Audit("marshal.dumps", "Oi", code, Py_MARSHAL_VERSION) < 0) {
+        return NULL;
+    }
+    /* Match public Rust bytecode output without importing its extension. */
+    return marshal_write_object_to_string_no_audit(code, Py_MARSHAL_VERSION,
+                                                    1, 1);
+}
+
 static PyMethodDef marshal_methods[] = {
     MARSHAL_DUMP_METHODDEF
     MARSHAL_LOAD_METHODDEF
     MARSHAL_DUMPS_METHODDEF
     MARSHAL_LOADS_METHODDEF
+    {"_loads_importlib_bytecode", marshal_loads_importlib_bytecode, METH_O, NULL},
+    {"_dumps_importlib_bytecode", marshal_dumps_importlib_bytecode, METH_O, NULL},
     {NULL,              NULL}           /* sentinel */
 };
 
