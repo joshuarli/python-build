@@ -113,6 +113,11 @@ _zstd_set_c_level(ZstdCompressor *self, int level)
     /* Save for generating ZSTD_CDICT */
     self->compression_level = level;
 
+    /* The Rust route has no C context; the level reaches it at creation. */
+    if (self->cctx == NULL) {
+        return 0;
+    }
+
     /* Set compressionLevel to compression context */
     size_t zstd_ret = ZSTD_CCtx_setParameter(
         self->cctx, ZSTD_c_compressionLevel, level);
@@ -193,6 +198,42 @@ _zstd_set_c_parameters(ZstdCompressor *self, PyObject *options)
             set_parameter_error(1, key_v, value_v);
             return -1;
         }
+    }
+    return 0;
+}
+
+/* Turn the Rust route's RuntimeError into the ZstdError the C route raises. */
+static void
+set_rust_error(ZstdCompressor *self, const char *prefix)
+{
+    if (!PyErr_ExceptionMatches(PyExc_RuntimeError)) {
+        return;
+    }
+    PyObject *exc = PyErr_GetRaisedException();
+    PyObject *msg = PyObject_Str(exc);
+    Py_DECREF(exc);
+    if (msg == NULL) {
+        return;
+    }
+    _zstd_state *mod_state = PyType_GetModuleState(Py_TYPE(self));
+    if (mod_state != NULL) {
+        PyErr_Format(mod_state->ZstdError, "%s%U", prefix, msg);
+    }
+    Py_DECREF(msg);
+}
+
+/* Create the C compression context, used when the Rust route is not. */
+static int
+_zstd_create_cctx(ZstdCompressor *self)
+{
+    self->cctx = ZSTD_createCCtx();
+    if (self->cctx == NULL) {
+        _zstd_state* mod_state = PyType_GetModuleState(Py_TYPE(self));
+        if (mod_state != NULL) {
+            PyErr_SetString(mod_state->ZstdError,
+                            "Unable to create ZSTD_CCtx instance.");
+        }
+        return -1;
     }
     return 0;
 }
@@ -355,16 +396,13 @@ _zstd_ZstdCompressor_new_impl(PyTypeObject *type, PyObject *level,
     self->dict = NULL;
     self->rust_module = NULL;
     self->rust_encoder = NULL;
+    self->cctx = NULL;
     self->lock = (PyMutex){0};
 
-    /* Compression context */
-    self->cctx = ZSTD_createCCtx();
-    if (self->cctx == NULL) {
-        _zstd_state* mod_state = PyType_GetModuleState(Py_TYPE(self));
-        if (mod_state != NULL) {
-            PyErr_SetString(mod_state->ZstdError,
-                            "Unable to create ZSTD_CCtx instance.");
-        }
+    /* Dictionaries and options are handled by the C context; the default,
+       dictionary-free stream is handled by Rust alone. */
+    int use_c = (options != Py_None || zstd_dict != Py_None);
+    if (use_c && _zstd_create_cctx(self) < 0) {
         goto error;
     }
 
@@ -414,8 +452,7 @@ _zstd_ZstdCompressor_new_impl(PyTypeObject *type, PyObject *level,
         self->dict = zstd_dict;
     }
 
-    /* Keep the C path available when the Rust extension cannot be imported. */
-    if (options == Py_None && zstd_dict == Py_None) {
+    if (!use_c) {
         PyObject *module = PyImport_ImportModule("_zstd_rs");
         if (module != NULL) {
             PyObject *encoder = PyObject_CallMethod(
@@ -431,6 +468,16 @@ _zstd_ZstdCompressor_new_impl(PyTypeObject *type, PyObject *level,
         }
         else {
             PyErr_Clear();
+        }
+        /* Keep the C path when the Rust extension cannot be used, such as
+           in a subinterpreter. */
+        if (self->rust_encoder == NULL) {
+            if (_zstd_create_cctx(self) < 0) {
+                goto error;
+            }
+            if (level != Py_None && _zstd_set_c_level(self, self->compression_level) < 0) {
+                goto error;
+            }
         }
     }
 
@@ -469,10 +516,40 @@ ZstdCompressor_dealloc(PyObject *ob)
 }
 
 static PyObject *
+compress_rust_lock_held(ZstdCompressor *self, Py_buffer *data,
+                        ZSTD_EndDirective end_directive)
+{
+    assert(PyMutex_IsLocked(&self->lock));
+    PyObject *ret;
+    if (data != NULL) {
+        ret = PyObject_CallMethod(
+            self->rust_module, "encoder_compress", "OOi",
+            self->rust_encoder, data->obj, (int)end_directive);
+    }
+    else {
+        ret = PyObject_CallMethod(
+            self->rust_module, "encoder_flush", "Oi",
+            self->rust_encoder, (int)end_directive);
+    }
+    if (ret == NULL) {
+        set_rust_error(self, "Unable to compress Zstandard data: ");
+    }
+    return ret;
+}
+
+static PyObject *
 compress_lock_held(ZstdCompressor *self, Py_buffer *data,
                    ZSTD_EndDirective end_directive)
 {
     assert(PyMutex_IsLocked(&self->lock));
+    if (self->rust_encoder != NULL) {
+        return compress_rust_lock_held(self, data, end_directive);
+    }
+    if (self->cctx == NULL) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "ZstdCompressor has no compression context");
+        return NULL;
+    }
     ZSTD_inBuffer in;
     ZSTD_outBuffer out;
     _BlocksOutputBuffer buffer = {.writer = NULL};
@@ -534,36 +611,6 @@ compress_lock_held(ZstdCompressor *self, Py_buffer *data,
     /* Return a bytes object */
     ret = _OutputBuffer_Finish(&buffer, &out);
     if (ret != NULL) {
-        if (self->rust_encoder != NULL) {
-            PyObject *input = NULL;
-            PyObject *rust_ret;
-            if (data != NULL) {
-                input = PyBytes_FromStringAndSize(data->buf, data->len);
-                if (input == NULL) {
-                    PyErr_Clear();
-                    Py_CLEAR(self->rust_encoder);
-                    Py_CLEAR(self->rust_module);
-                    return ret;
-                }
-                rust_ret = PyObject_CallMethod(
-                    self->rust_module, "encoder_compress", "OOi",
-                    self->rust_encoder, input, (int)end_directive);
-                Py_DECREF(input);
-            }
-            else {
-                rust_ret = PyObject_CallMethod(
-                    self->rust_module, "encoder_flush", "Oi",
-                    self->rust_encoder, (int)end_directive);
-            }
-            if (rust_ret != NULL) {
-                Py_SETREF(ret, rust_ret);
-            }
-            else {
-                PyErr_Clear();
-                Py_CLEAR(self->rust_encoder);
-                Py_CLEAR(self->rust_module);
-            }
-        }
         return ret;
     }
 
@@ -693,7 +740,9 @@ _zstd_ZstdCompressor_compress_impl(ZstdCompressor *self, Py_buffer *data,
         self->last_mode = ZSTD_e_end;
 
         /* Resetting cctx's session never fail */
-        ZSTD_CCtx_reset(self->cctx, ZSTD_reset_session_only);
+        if (self->cctx != NULL) {
+            ZSTD_CCtx_reset(self->cctx, ZSTD_reset_session_only);
+        }
     }
     PyMutex_Unlock(&self->lock);
 
@@ -741,7 +790,9 @@ _zstd_ZstdCompressor_flush_impl(ZstdCompressor *self, int mode)
         self->last_mode = ZSTD_e_end;
 
         /* Resetting cctx's session never fail */
-        ZSTD_CCtx_reset(self->cctx, ZSTD_reset_session_only);
+        if (self->cctx != NULL) {
+            ZSTD_CCtx_reset(self->cctx, ZSTD_reset_session_only);
+        }
     }
     PyMutex_Unlock(&self->lock);
 
@@ -790,6 +841,25 @@ _zstd_ZstdCompressor_set_pledged_input_size_impl(ZstdCompressor *self,
     }
 
     /* Set pledged content size */
+    if (self->rust_encoder != NULL) {
+        PyObject *ret = PyObject_CallMethod(
+            self->rust_module, "encoder_set_pledged", "OK",
+            self->rust_encoder, size);
+        PyMutex_Unlock(&self->lock);
+        if (ret == NULL) {
+            set_rust_error(self,
+                "Unable to set pledged uncompressed content size: ");
+            return NULL;
+        }
+        Py_DECREF(ret);
+        Py_RETURN_NONE;
+    }
+    if (self->cctx == NULL) {
+        PyMutex_Unlock(&self->lock);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "ZstdCompressor has no compression context");
+        return NULL;
+    }
     size_t zstd_ret = ZSTD_CCtx_setPledgedSrcSize(self->cctx, size);
     PyMutex_Unlock(&self->lock);
     if (ZSTD_isError(zstd_ret)) {
@@ -797,9 +867,6 @@ _zstd_ZstdCompressor_set_pledged_input_size_impl(ZstdCompressor *self,
         set_zstd_error(mod_state, ERR_SET_PLEDGED_INPUT_SIZE, zstd_ret);
         return NULL;
     }
-
-    Py_CLEAR(self->rust_encoder);
-    Py_CLEAR(self->rust_module);
 
     Py_RETURN_NONE;
 }
