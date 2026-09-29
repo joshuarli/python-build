@@ -17,7 +17,67 @@ Use quiet, paired runs and self-comparison noise bounds. A microbenchmark
 alone does not establish a practical gain. A coverage port may remain even
 when a later performance result is negative; record that debt plainly.
 
-## Measurement contract to resume later
+## Fast-iteration harness (no PGO, no ThinLTO)
+
+Coverage is complete under the strict suite rule in
+[rust-for-cpython.md](rust-for-cpython.md), so this phase opens with a
+fast-iteration harness. Both interpreters are built with the same locked
+LLVM 23.1.2 compiler, the same `-O2` target flags, and the same macOS SDK;
+GIL-enabled; no `--enable-optimizations` (no PGO profile task), no
+`--with-lto`, no debug info, and test modules left enabled. `-O2` compiles
+markedly faster than `-O3` while staying a fair matched comparison; the
+checked-in standard stays there. Anything leaner (notably a Cargo `dev`
+profile) is explicitly not comparable. The only deliberate difference
+between the two interpreters is the source overlay. The builder is
+`rust-cpython/perf.py`; it installs into
+`rust-cpython/stage-perf-<name>/` with build trees under
+`rust-cpython/work/perf/<name>/`, leaving the coverage `work/build` and
+`stage` trees untouched. Timing baselines require an otherwise quiet host:
+do not run perf builds or benchmark passes while a coverage build or suite
+is active.
+
+- Control `perf-upstream`: the pinned fork source with an empty overlay
+  (pristine fork, no Rust overlay crates). The fork source still carries its
+  built-in `Modules/_base64` Rust extension and Cargo scaffolding, which
+  public `base64` never reached during coverage; that residue is disclosed,
+  not hidden. A byte-exact CPython-upstream control at the fork base is a
+  later follow-up, not this baseline.
+- Candidate `perf-rust`: the same source with the full committed overlay
+  applied (all 71 coverage routes).
+- Both use Cargo `release` for the compiled Rust members. A `dev` profile
+  would punish the Rust routes artificially and is not a performance result.
+
+Run repository-owned application workloads first; targeted kernels explain
+mechanisms only. The first baseline set on native macOS arm64
+(`--local`, `--profile standard`) is `python_startup`,
+`serialization_roundtrip`, `zlib_decode_1m`, `gzip_extract_1m`,
+`django_wsgi_request`, `django_template_realistic`, and `import_django`:
+stdlib-only workloads need no wheelhouse, and the Django workloads use the
+committed `benchmarks/inputs.macos-cp316.lock.json` closure. Each run pairs
+baseline and candidate invocations on the same host with the controller's
+alternating order, keeps wall latency and kernel process-tree CPU from the
+uninstrumented timing pass separate from the sampled RSS/physical-footprint
+memory pass, and records per-workload noise from repeated rounds plus a
+`self-compare` calibration of the control. Allocation tracing stays
+unavailable on macOS (unknown, never zero); installed size comes from each
+stage prefix. Baselines are checked in with explicit
+`--record-baseline benchmarks/baselines/rust-cp316-perf-<workload>.json`
+paths; raw run directories stay ignored. Broad pyperformance follows only
+after these representative comparisons read clean.
+
+Granularity runs both directions. For module focus, `perf.py test --name
+perf-rust --suite test_zlib` runs one CPython suite on a perf build, and
+`bench.py run --local --workload zlib_decode_1m` measures one workload;
+substitute any workload or suite name. For the whole picture,
+`perf.py test --name perf-rust --all` runs every default-resource CPython
+suite, and `--suite realworld` runs the workload set. Note the 3.16
+input closure covers Django plus package-free workloads only, so a bare
+`--suite realworld` on 3.16 stops at four workloads needing other inputs
+(`pylint_source`, `pycparser_source`, `import_app_stack`,
+`pip_install_wheelhouse`); the 23-workload eligible subset is the entire
+suite for this lane until those closures exist.
+A focused win never overrides a full-suite regression: judge each workload
+separately.
 
 - Build matched optimized GIL-enabled interpreters with the same compiler,
   PGO task, ThinLTO, target flags, source revision, and Python dependencies.
