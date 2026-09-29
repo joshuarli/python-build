@@ -184,17 +184,30 @@ JOBS: <N>
 ATTEMPTS: <explore attempts before qualifying or giving up; default 6>
 ```
 
-## Unquiet host (memory-first fallback)
+## Unquiet host (memory phase)
 
 Memory metrics (load footprint, working peak) do not depend on host load the
-way CPU does, so when the host cannot be made quiet, climb memory. Calibrate,
-gate, and acceptance verdicts still need a quiet host and are never waived:
-a lane that finishes without one reports `RESULT: INCONCLUSIVE` with its
-per-metric table, and you re-gate it when the host is quiet. Tell each
-climber in `HYPOTHESIS`: read the memory rows of the explore table even when
-the decision line says `quiet=no`; use `goals --min-idle 0` and read memory
-rows only; never wait for quiet during explore. Integrate only after a quiet
-gate, and record any memory result taken on an unquiet host as provisional.
+way CPU does, so the memory phase does not wait for a quiet host, and a memory
+lane may integrate on an unquiet host (the user's decision). Tell each
+climber in `HYPOTHESIS`: read the memory rows even when the decision line says
+`quiet=no`; use `goals --min-idle 0` and read memory rows only; never wait for
+quiet during explore.
+
+A memory lane or batch integrates on an unquiet host when all of these hold in
+the gate's own table (a gate that reads INCONCLUSIVE only for `quiet=no`
+qualifies):
+- every target memory metric reads `improved` in both runs (a wide interval
+  that reads `neutral` on one target metric is fine when the other target
+  improved and the metric's point ratio is below 1.0 in both runs);
+- no row of any kind (CPU, memory, workload wall, CPU, or peak) reads
+  `regressed` in either run, and no output mismatch;
+- the lane's clean-build suites and the `perf-merge` full suite pass.
+
+Record such an integration as provisional in the ledger. Still require a
+`quiet=yes` verdict for calibration, for `--record-baselines`, and for every
+CPU-phase lane. When the memory phase ends, rerun one full `goals` and the
+`@control` versus `@incumbent` gate on a quiet host (wait for it) to confirm
+the provisional rows, and treat any that fail as new memory lanes.
 
 ## Unattended operation
 
@@ -218,8 +231,9 @@ Never, without a person: push; remove a Rust route or weaken a suite; edit
 gap, Lanes rule); touch `main` history other than adding commits. Record the
 blocked step under the debt list or a finding and continue with other work.
 
-**Quiet host.** Only verdicts with `quiet=yes` count for gates, `goals`, and
-baselines. Before each gate, calibration, or `--record-baselines` run, wait:
+**Quiet host.** In the CPU phase, and for calibration and baselines, only
+verdicts with `quiet=yes` count. (Memory-phase integrations follow the Unquiet
+host rule instead.) Before each such run, wait:
 `python3 .claude/skills/rust-cpython-perf/wait_quiet.py 180` with
 `run_in_background: true` (exit 0 = quiet, 1 = 180 minutes without a quiet
 sample). Recalibrate (`calibrate --ref @control --gate`) at session start,
@@ -228,8 +242,8 @@ with `quiet=yes` is required first. A verdict that reads INCONCLUSIVE only
 for `quiet=no` is neither a failure nor an empty batch: keep the branch and
 its worktree and re-gate later. If four consecutive waits time out, stop and
 report `host never quiet` with the branches waiting for a gate. Memory
-metrics may steer explore runs on an unquiet host (Unquiet host section);
-they never justify integrating.
+metrics steer explore runs and, under the Unquiet host rule, memory
+integrations; a CPU result on an unquiet host never counts.
 
 **State and recovery.** After every change to lanes, branches, worktrees, or
 counts, rewrite `rust-cpython/results/coordinator-state.json` (ignored by Git):
@@ -270,8 +284,10 @@ affected modules.
 
 ## Integration
 
-Each climber returns a handoff block. Integrate only `RESULT: ACCEPT`
-lanes whose gate verdict you have read in the `GATE:` file.
+Each climber returns a handoff block. Integrate only `RESULT: ACCEPT` lanes
+whose gate verdict you have read in the `GATE:` file. In the memory phase, a
+lane that returns `INCONCLUSIVE` only for `quiet=no` also qualifies when its
+table meets the Unquiet host criteria.
 
 1. Rebase or merge the accepted lane branches onto `main` in one batch and
    reconcile shared files. Regenerate one `Cargo.lock` when crates changed
@@ -286,14 +302,17 @@ lanes whose gate verdict you have read in the `GATE:` file.
    interacting lane, and repeat.
 3. `perf.py bench --baseline @incumbent --candidate perf-merge --gate
    --module <each lane module> [--workload <lane workloads>]`. The batch
-   integrates only on ACCEPT.
+   integrates only on ACCEPT (memory phase: or an INCONCLUSIVE for `quiet=no`
+   alone whose table meets the Unquiet host criteria, recorded as provisional).
    On REJECT, bisect by lane; a lane that regresses a guard when combined
    goes back to its owner or is dropped.
 4. Commit the integration on `main` (message below). Rebuild `perf-rust`
    clean at the new HEAD; `perf.py clean --name perf-merge`.
-5. `perf.py goals --module <each lane module>` and `perf.py bench --baseline
-   @control --candidate @incumbent --gate --all-workloads
-   --record-baselines`, then update the ledger and the goal table in
+5. `perf.py goals --min-idle 0 --module <each lane module>` (memory phase; add
+   `--min-idle` default in the CPU phase) and, when the host is quiet,
+   `perf.py bench --baseline @control --candidate @incumbent --gate
+   --all-workloads --record-baselines` (in the memory phase, defer this to the
+   end-of-phase quiet confirmation), then update the ledger and the goal table in
    `rust-for-cpython-perf.md`. Commit the refreshed
    `benchmarks/baselines/rust-cp316-perf-*.json`, ledger, and goal table
    together. Run a full `perf.py goals` every third integration to catch
