@@ -359,7 +359,10 @@ class TextWrapper:
         """
         if (_textwrap_rs is not None and
                 _rust_wrap_eligible(self, text)):
-            return _textwrap_rs.wrap(text, self.width)
+            try:
+                return _textwrap_rs.wrap(text, self.width)
+            except ValueError:
+                pass  # outside the Rust domain: use the general algorithm
         chunks = self._split_chunks(text)
         if self.fix_sentence_endings:
             self._fix_sentence_endings(chunks)
@@ -415,14 +418,17 @@ def shorten(text, width, **kwargs):
         'Hello [...]'
     """
     w = TextWrapper(width=width, max_lines=1, **kwargs)
-    text = ' '.join(text.strip().split())
     if _textwrap_rs is not None and _rust_shorten_eligible(w, text):
-        return _textwrap_rs.shorten(text, width, w.placeholder)
+        try:
+            return _textwrap_rs.shorten(text, width, w.placeholder)
+        except ValueError:
+            pass  # outside the Rust domain: use the general algorithm
+    text = ' '.join(text.strip().split())
     return w.fill(text)
 
 
 def _rust_wrap_eligible(wrapper, text):
-    """Keep the Rust route to text whose wrapping semantics match CPython."""
+    """Keep the Rust route to default options; Rust checks the text domain."""
     if (type(wrapper) is not TextWrapper or type(text) is not str or
             type(wrapper.width) is not int or not 0 < wrapper.width < 2**63 or
             wrapper.initial_indent != "" or wrapper.subsequent_indent != "" or
@@ -434,17 +440,11 @@ def _rust_wrap_eligible(wrapper, text):
             wrapper.break_on_hyphens is not True or wrapper.tabsize != 8 or
             wrapper.max_lines is not None or wrapper.placeholder != ' [...]'):
         return False
-    if not text or not text.isascii() or '-' in text:
-        return False
-    if any(char != ' ' and not '!' <= char <= '~' for char in text):
-        return False
-    if text.startswith(' ') or text.endswith(' ') or '  ' in text:
-        return False
-    return all(len(word) <= wrapper.width for word in text.split(' '))
+    return True
 
 
 def _rust_shorten_eligible(wrapper, text):
-    """Keep shortening in Rust only for its ASCII, default-option domain."""
+    """Keep shortening in Rust to default options; Rust checks the text domain."""
     if (type(wrapper) is not TextWrapper or type(text) is not str or
             type(wrapper.width) is not int or not 0 < wrapper.width < 2**63 or
             wrapper.initial_indent != "" or wrapper.subsequent_indent != "" or
@@ -456,19 +456,7 @@ def _rust_shorten_eligible(wrapper, text):
             wrapper.break_on_hyphens is not True or wrapper.tabsize != 8 or
             wrapper.max_lines != 1 or type(wrapper.placeholder) is not str):
         return False
-    if not text.isascii() or '-' in text:
-        return False
-    if any(not (char == ' ' or '\t' <= char <= '\r' or '!' <= char <= '~')
-           for char in text):
-        return False
-    if not wrapper.placeholder.isascii():
-        return False
-    if any(not (char == ' ' or '\t' <= char <= '\r' or '!' <= char <= '~')
-           for char in wrapper.placeholder):
-        return False
-    if len(wrapper.placeholder.lstrip()) > wrapper.width:
-        return False
-    return all(len(word) <= wrapper.width for word in text.split())
+    return True
 
 
 # -- Loosely related functionality -------------------------------------

@@ -142,7 +142,7 @@ fn is_printable(byte: u8) -> bool {
 }
 
 fn is_ascii_space(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\t' | b'\n' | 0x0c | b'\r')
+    byte == b' ' || (b'\t'..=b'\r').contains(&byte)
 }
 
 fn is_plain_ascii_paragraph(text: &[u8], width: usize) -> bool {
@@ -244,6 +244,38 @@ fn next_word(text: &[u8], mut pos: usize) -> Option<(usize, usize)> {
     Some((start, pos))
 }
 
+/// The default-option ASCII domain: printable text without hyphens, a
+/// placeholder of whitespace and printable bytes that fits after its leading
+/// whitespace is trimmed, and no word wider than `width`.
+fn shorten_domain_ok(text: &[u8], width: usize, placeholder: &[u8]) -> bool {
+    if !text
+        .iter()
+        .all(|&byte| is_ascii_space(byte) || (is_printable(byte) && byte != b'-'))
+        || !placeholder
+            .iter()
+            .all(|&byte| is_ascii_space(byte) || is_printable(byte))
+        || placeholder.len() - leading_space(placeholder) > width
+    {
+        return false;
+    }
+    let mut pos = 0;
+    while let Some((start, end)) = next_word(text, pos) {
+        if end - start > width {
+            return false;
+        }
+        pos = end;
+    }
+    true
+}
+
+fn leading_space(text: &[u8]) -> usize {
+    let mut skip = 0;
+    while skip < text.len() && is_ascii_space(text[skip]) {
+        skip += 1;
+    }
+    skip
+}
+
 const STACK_BYTES: usize = 1024;
 
 unsafe fn shorten_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObject {
@@ -260,12 +292,7 @@ unsafe fn shorten_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyOb
     let Some(placeholder) = (unsafe { read_unicode(*args.add(2)) }) else {
         return ptr::null_mut();
     };
-    if !text.is_ascii()
-        || text.contains(&b'-')
-        || !placeholder
-            .iter()
-            .all(|&byte| is_ascii_space(byte) || is_printable(byte))
-    {
+    if !shorten_domain_ok(text, width, placeholder) {
         set_value_error(c"text is outside the supported shortening domain");
         return ptr::null_mut();
     }
@@ -299,11 +326,7 @@ unsafe fn shorten_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyOb
         pos = end;
     }
     if kept == 0 {
-        let mut skip = 0;
-        while skip < placeholder.len() && is_ascii_space(placeholder[skip]) {
-            skip += 1;
-        }
-        return unsafe { new_unicode(&placeholder[skip..]) };
+        return unsafe { new_unicode(&placeholder[leading_space(placeholder)..]) };
     }
     unsafe { join_words(text, kept, placeholder) }
 }
