@@ -1,10 +1,10 @@
 # Rust-for-CPython performance phase
 
-**Deferred. Do not start this phase until every module in
-[rust-for-cpython.md](rust-for-cpython.md) is complete under its strict
-Python-suite coverage rule.** The old experiment archive was removed from
-the active tree; its detailed reports and raw data remain recoverable from
-Git history at commit `f0f8690`.
+**Active.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+are complete under its strict Python-suite coverage rule, and those rules
+still bind every performance change. The old experiment archive was
+removed from the active tree; its detailed reports and raw data remain
+recoverable from Git history at commit `f0f8690`.
 
 ## Objective after coverage
 
@@ -16,6 +16,43 @@ allocation activity, installed native size, and build complexity separate.
 Use quiet, paired runs and self-comparison noise bounds. A microbenchmark
 alone does not establish a practical gain. A coverage port may remain even
 when a later performance result is negative; record that debt plainly.
+
+## Goals
+
+Every one of the 71 checklist routes, judged on its own, must use **no
+more CPU and no more memory than the pristine control, and should reach
+0.9x of it**: each ratio (Rust candidate over control) belongs in the band
+0.9x to 1.0x.
+
+- **Measured per module.** `rust-cpython/perf_modules.py` holds one kernel
+  per checklist route that exercises the public behavior the checklist says
+  reaches Rust, with deterministic inputs and an output digest both
+  interpreters must match. Each sample is a fresh process. The three
+  metrics are kernel CPU per iteration (`time.process_time()`), fixed load
+  footprint (imports, lazily loaded extensions, and first-call caches,
+  estimated as a first setup-and-call's footprint growth minus a
+  second's), and working peak footprint over the kernel loop (the kernel's
+  `ri_interval_max_phys_footprint`, reset at loop start). Memory values
+  below 64 KiB (load) or 256 KiB (working peak) are raised to that floor
+  before a ratio is taken, so negligible memory compares as equal.
+- **Status per module** from `python3 rust-cpython/perf.py goals`: two
+  independent runs of five alternating-order rounds each. A metric is
+  **OVER** when both runs' 95% intervals sit above 1.01x, **BEYOND** when
+  both sit below 0.9x, **MET** when the pooled median is at most 1.01x,
+  and **UNCLEAR** otherwise. A module takes its worst metric's status and
+  is BEYOND only when every metric is. Output mismatches read MISMATCH.
+- **Done for a module** means MET or BEYOND on all three metrics. OVER
+  modules are the climb's targets, largest ratio first; UNCLEAR modules get
+  more rounds before any lane. A MET module is climbed toward 0.9x only
+  after no OVER module remains. Climbing stops on a metric once it is
+  BEYOND.
+- **Application workloads guard.** The seven baseline-set workloads run as
+  guards on every gated step; a module win that regresses a guard is
+  rejected. Kernel results are the goal; application results keep it
+  honest.
+- A route that cannot reach 1.0x after two failed lanes is recorded as
+  debt in the ledger. Removing a Rust route to meet a goal needs the
+  user's decision; coverage still holds.
 
 ## Fast-iteration harness (no PGO, no ThinLTO)
 
@@ -33,8 +70,10 @@ between the two interpreters is the source overlay. The builder is
 `rust-cpython/stage-perf-<name>/` with build trees under
 `rust-cpython/work/perf/<name>/`, leaving the coverage `work/build` and
 `stage` trees untouched. Timing baselines require an otherwise quiet host:
-do not run perf builds or benchmark passes while a coverage build or suite
-is active.
+`perf.py` builds, suites, and profiles share a repository-wide host lease
+that its measurements hold exclusively, across every worktree. The
+coverage `build.py` does not take the lease; do not run it during the
+climb.
 
 - Control `perf-upstream`: the pinned fork source with an empty overlay
   (pristine fork, no Rust overlay crates). The fork source still carries its
@@ -46,6 +85,15 @@ is active.
   applied (all 71 coverage routes).
 - Both use Cargo `release` for the compiled Rust members. A `dev` profile
   would punish the Rust routes artificially and is not a performance result.
+  Configure selects `dev` whenever `--enable-optimizations` is absent, and
+  each Rust extension rule moves its artifact out of the Cargo target
+  directory, so a `make install` without the override rebuilds and installs
+  `dev` artifacts. `perf.py` passes `CARGO_PROFILE=release
+  CARGO_TARGET_DIR=release` to both `make` and `make install`, fails if
+  either log shows `--profile dev` or a `debug` Cargo tree exists, and
+  proves every installed Rust extension byte-identical to a release
+  artifact. Its report records the stage-tree digest, and `bench` refuses a
+  stage that changed after its build.
 
 Run repository-owned application workloads first; targeted kernels explain
 mechanisms only. The first baseline set on native macOS arm64
@@ -67,22 +115,70 @@ after these representative comparisons read clean.
 
 Granularity runs both directions. For module focus, `perf.py test --name
 perf-rust --suite test_zlib` runs one CPython suite on a perf build, and
-`bench.py run --local --workload zlib_decode_1m` measures one workload;
-substitute any workload or suite name. For the whole picture,
-`perf.py test --name perf-rust --all` runs every default-resource CPython
-suite, and `--suite realworld` runs the workload set. Note the 3.16
-input closure covers Django plus package-free workloads only, so a bare
-`--suite realworld` on 3.16 stops at four workloads needing other inputs
-(`pylint_source`, `pycparser_source`, `import_app_stack`,
-`pip_install_wheelhouse`); the 23-workload eligible subset is the entire
-suite for this lane until those closures exist.
-A focused win never overrides a full-suite regression: judge each workload
-separately.
+`perf.py bench --baseline @control --candidate @incumbent --workload
+zlib_decode_1m` measures one workload; substitute any workload or suite
+name. For the whole picture, `perf.py test --name perf-rust --all` runs
+every default-resource CPython suite, and `perf.py bench ... --gate
+--all-workloads` runs every workload with locked 3.16 inputs. The 3.16
+input closure covers Django plus package-free workloads only, so four
+registered workloads (`pylint_source`, `pycparser_source`,
+`import_app_stack`, `pip_install_wheelhouse`) are unavailable; the
+23-workload eligible subset is the entire suite for this lane until those
+closures exist. A focused win never overrides a full-suite regression:
+judge each workload separately.
+
+## Hill-climbing loop
+
+A Sonnet 5.5 coordinator runs the climb with the repository skill
+[`.claude/skills/rust-cpython-perf`](.claude/skills/rust-cpython-perf/SKILL.md);
+climber subagents (`.claude/agents/rust-perf-climber*.md`, pinned to
+`claude-sonnet-5-5` at `high` or `xhigh` effort, each in its own worktree)
+follow [`.claude/skills/rust-cpython-perf-climber`](.claude/skills/rust-cpython-perf-climber/SKILL.md).
+`perf.py goals` supplies the debt map (OVER modules first). One lane tests
+one hypothesis about one module route: profile its kernel, edit,
+incremental build, primary suite, and an exploratory bench against the
+incumbent; then a clean build, every relevant suite, a gated verdict with
+the application guards, and the route's goal row. The coordinator
+integrates accepted lanes in batches, runs the full suite and a batch gate
+against the incumbent, promotes the batch to `perf-rust`, and re-measures
+goals and workloads against the control.
+
+`perf.py bench` decides each attempt in code (`rust-cpython/perf_verdict.py`).
+Per module kernel it classifies CPU, load footprint, and working peak, and
+per workload wall time and kernel CPU per operation, from the bootstrap
+95% interval of the paired candidate/baseline median; workload peak memory
+uses the controller's repeatability bound. Each is held to a 1% practical
+floor. Outputs that differ from the baseline reject the attempt
+(`compileall_source` against the control is the documented marshal byte
+difference and is reported instead). A metric is `improved` or `regressed` only when every
+independent run agrees, and `unstable` when runs disagree. The decision is
+REJECT on any replicated regression, INCONCLUSIVE on an unquiet host
+(below 80% CPU idle around the runs, or on battery; `calibrate` proves the threshold on a given host), unstable metrics, or a
+gate with one run, ACCEPT on a replicated target improvement, and NEUTRAL
+otherwise. `--gate` also requires clean builds of committed overlays, a
+challenger containing the incumbent commit, the memory pass, two runs, and
+the seven baseline-set workloads as guards. `perf.py calibrate` applies the
+same rules to one build against itself; every workload must read neutral
+before a session climbs.
+
+### Ledger
+
+One row per integration, maintained by the coordinator. Ratios are
+candidate over baseline for the batch targets.
+
+| Date | Commit | Lanes | vs previous incumbent | Goal status vs control |
+| --- | --- | --- | --- | --- |
+
+## Release-grade confirmation (later)
+
+The fast-iteration harness is the climbing standard. Before claiming a
+release-grade result, repeat the key comparisons on matched `-O3` PGO and
+ThinLTO builds of both sides, and keep these rules throughout:
 
 - Build matched optimized GIL-enabled interpreters with the same compiler,
   PGO task, ThinLTO, target flags, source revision, and Python dependencies.
-  Restore the historical optimized recipe from Git history when this phase
-  begins; the active coverage builder deliberately exposes only debug builds.
+  Restore the historical optimized recipe from Git history for that step;
+  the coverage builder deliberately exposes only debug builds.
 - Run repository-owned complete application workloads first: Django
   WSGI/ASGI/ORM, startup/import, tooling, packaging and archive operations,
   serialization, and multiprocessing. Use targeted kernels only to explain
@@ -102,43 +198,50 @@ separately.
   clear regression. Compare native binary size and maintenance cost after
   correctness and resource results.
 
-## First baseline (2026-09-29, macOS arm64)
+## Baseline (2026-09-29, macOS arm64, provisional)
 
-Both sides built from the pinned fork source with locked LLVM 23.1.2,
-`-O2 -mcpu=apple-m1`, macOS SDK 26.5, GIL-enabled, no PGO, no ThinLTO,
-Cargo `release`: control `stage-perf-upstream` (empty overlay) versus
-candidate `stage-perf-rust` (329 overlay files, all 71 routes). Seven
-`--local --profile standard` paired runs plus control `self-compare`
-calibration on Apple M1 Pro (MacBookPro18,3). Baselines checked in as
-`benchmarks/baselines/rust-cp316-perf-<workload>.json`; the control
-repeatability runs refreshed the `darwin-arm64-*-self-*.json` files.
-Timing verdicts use the controller's paired noise bounds; allocation
-tracing is unavailable on macOS.
+**Correction.** The numbers first recorded here (`d41b580`) measured a
+candidate whose installed Rust extensions were Cargo `dev` artifacts:
+`make install` ran without the release override, rebuilt every Rust member
+in `dev`, and installed those (the installed `_json_rs` was byte-identical
+to the 1,158,912-byte `dev` artifact, not the 570,096-byte release one).
+Its decompression headline (8.7x, "9x to 24x against system zlib") and its
+338 MB size figure described unoptimized Rust. Those results and the
+`benchmarks/baselines/rust-cp316-perf-*.json` files recorded with them are
+superseded; refresh the baselines with the coordinator's gated
+`--record-baselines` run.
 
-| Workload | Wall vs control | Timing | Peak RSS vs control | Memory |
-| --- | --- | --- | --- | --- |
-| `python_startup` | +1.5% (noise bound 24.9%) | pass | +4.2% (+590 KB) | fail |
-| `serialization_roundtrip` | +2.3% (bound 5.0%) | pass | +16.4% | fail |
-| `zlib_decode_1m` | +773.6% | fail | +41.5% | fail |
-| `gzip_extract_1m` | +59.9% (bound 18.8%) | fail | +25.3% | fail |
-| `django_wsgi_request` | +8.3% (bound 9.8%) | pass | +12.6% | fail |
-| `django_template_realistic` | +16.5% (bound 5.0%) | fail | +11.8% | fail |
-| `import_django` | +33.6% (bound 53.8%) | pass | +17.9% | fail |
+Verified pair: `perf-upstream` (1 release Rust extension, `_base64`) and
+`perf-rust` (70 release Rust extensions, each byte-identical to its release
+artifact), both at `d41b580`, -O2, no PGO, no LTO. Installed size: 278.1 MB
+to 306.7 MB (+10.3%).
 
-Control `self-compare` ratios sit at 1.00–1.03 with timing pass, so the
-candidate gaps are real effects, not runner noise. Installed size grows
-285 MB to 338 MB (+18.6%) with the 69 extra release-built extensions.
+Per-module goals (`perf.py goals`, two runs of five rounds, 833 s): **63
+OVER, 6 UNCLEAR, 2 MET** of 71 routes. The host was in interactive use
+(67% to 74% CPU idle), so the run is flagged not quiet; rerun on a quiet
+host before recording statuses in the ledger.
 
-Two debts carry forward. First, decompression throughput: the port uses
-`flate2` with its pure-Rust backend instead of system zlib, and the
-one-shot wrapper loops over 64 KB chunks with an unreserved output vector
-and an order-n input drain each round; scaling runs show 9x at 1 KB
-widening to 24x at 1 MB against system zlib, so backend and growth
-strategy stack. Second, resident memory grows on every workload (+4 to
-+42%), consistent with dozens of additional mapped extensions plus larger
-working buffers; the next step is attributing it per workload rather than
-treating the single peak number as one cause. Neither debt revokes any
-coverage item.
+- CPU: 16 routes are at or under 1.0x. Nine are already BEYOND (below 0.9x):
+  `statistics` 0.13x, `shlex` 0.32x, `urllib.parse` 0.37x, `ipaddress`
+  0.48x, `tomllib` 0.60x, `tarfile` 0.68x, `codecs` 0.77x, `textwrap`
+  0.78x, `importlib.metadata` 0.85x. The largest CPU debts: `decimal`
+  5.9x, `functools` 5.0x, `json` 4.7x, `os.path` 4.7x, `sqlite3` 3.9x,
+  `bisect` 3.9x, `fractions` 3.3x, `datetime` 3.3x, `base64` 3.2x, `csv`
+  3.1x.
+- Load footprint: only 6 routes are at or under 1.0x. The largest absolute
+  debts: `lzma` +59 MiB (100 MB against 40 MB), `compression.zstd` +12 MiB,
+  `plistlib` +5.1 MiB, `bz2` +3.0 MiB, `tomllib` +2.8 MiB, `zlib` +2.4
+  MiB, `re` +1.9 MiB, `gzip` +1.3 MiB, `configparser` +1.2 MiB, `json`
+  +1.1 MiB; about 107 MiB across all routes.
+- Working peak is OVER for `asyncio`, `glob`, `plistlib`, and
+  `xml.etree.ElementTree`.
+
+Application workloads: a single exploratory run puts `zlib_decode_1m` at
+1.96x wall and 1.37x CPU against the control (not 8.7x). The seven-workload
+self-calibration read neutral on every workload and metric. The full gated
+workload comparison is pending a quiet host. `compileall_source` output
+differs from the control by design (the checklist's marshal note), so it
+is reported, not timed, against the control.
 
 ## Historical findings
 

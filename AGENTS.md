@@ -22,7 +22,11 @@ integration; no more than 16 coverage subagents run concurrently. The
 active loop uses debug builds and complete Python-level module suites;
 the coordinator also runs all default-resource CPython test modules on
 integrated work.
-Performance work waits until `rust-for-cpython.md` is complete.
+Coverage is complete; performance work follows `rust-for-cpython-perf.md`
+through the repo-local `.claude/skills/rust-cpython-perf/SKILL.md`
+coordinator skill and the `rust-perf-climber` agents. Sonnet 5.5
+(`claude-sonnet-5-5`) is the only authorized model for that work, at
+`high` effort, or `xhigh` for the difficult lanes the skill names.
 For this isolated coverage lane, vetted Rust crates may be added without
 per-crate approval when their versions and checksums are pinned in the
 committed overlay `Cargo.lock`, their licenses are recorded and compatible,

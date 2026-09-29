@@ -60,7 +60,9 @@ Python strings or patch hunks. An edited `Cargo.lock` is an ordinary overlay
 file and `fetch` caches its approved dependencies; `build` checks it
 offline. The overlay refuses changes under `Lib/test/`, keeping the CPython
 suite unchanged. The generated build report records one digest for the overlay.
-The active builder has no PGO or benchmark mode.
+The coverage builder has no PGO or benchmark mode; optimized builds,
+profiles, and paired measurements for the performance phase use
+`perf.py` (`python3 rust-cpython/perf.py --help`).
 
 ## Porting and evidence
 
