@@ -5,7 +5,6 @@
 # Copyright (C) 2002 Python Software Foundation.
 # Written by Greg Ward <gward@python.net>
 
-import re
 try:
     import _textwrap_rs
 except ImportError:
@@ -17,6 +16,65 @@ __all__ = ['TextWrapper', 'wrap', 'fill', 'dedent', 'indent', 'shorten']
 # whitespace characters.  The main reason for doing this is that
 # some Unicode spaces (like \u00a0) are non-breaking whitespaces.
 _whitespace = '\t\n\x0b\x0c\r '
+
+class _LazyRegex:
+    """Class attribute holding a regex that is compiled on first access."""
+
+    def __set_name__(self, owner, name):
+        self._owner = owner
+        self._name = name
+
+    def __get__(self, instance, owner=None):
+        regex = _compile_regex(self._name)
+        setattr(self._owner, self._name, regex)
+        return regex
+
+
+def _compile_regex(name):
+    import re
+
+    if name == 'wordsep_re':
+        # This funky little regex is just the trick for splitting
+        # text up into word-wrappable chunks.  E.g.
+        #   "Hello there -- you goof-ball, use the -b option!"
+        # splits into
+        #   Hello/ /there/ /--/ /you/ /goof-/ball,/ /use/ /the/ /-b/ /option!
+        # (after stripping out empty strings).
+        word_punct = r'[\w!"\'&.,?]'
+        letter = r'[\w--\d]'
+        whitespace = r'[%s]' % re.escape(_whitespace)
+        nowhitespace = '[^' + whitespace[1:]
+        return re.compile(r'''
+            ( # any whitespace
+              %(ws)s+
+            | # em-dash between words
+              (?<=%(wp)s) -{2,} (?=\w)
+            | # word, possibly hyphenated
+              %(nws)s+? (?:
+                # hyphenated word
+                  -(?: (?<=%(lt)s{2}-) | (?<=%(lt)s-%(lt)s-))
+                  (?= %(lt)s -? %(lt)s)
+                | # end of word
+                  (?=%(ws)s|\z)
+                | # em-dash
+                  (?<=%(wp)s) (?=-{2,}\w)
+                )
+            )''' % {'wp': word_punct, 'lt': letter,
+                    'ws': whitespace, 'nws': nowhitespace},
+            re.VERBOSE)
+    if name == 'wordsep_simple_re':
+        # This less funky little regex just split on recognized spaces. E.g.
+        #   "Hello there -- you goof-ball, use the -b option!"
+        # splits into
+        #   Hello/ /there/ /--/ /you/ /goof-ball,/ /use/ /the/ /-b/ /option!/
+        return re.compile(r'([%s]+)' % re.escape(_whitespace))
+    # XXX this is not locale- or charset-aware -- string.lowercase
+    # is US-ASCII only (and therefore English-only)
+    return re.compile(r'[a-z]'             # lowercase letter
+                      r'[\.\!\?]'          # sentence-ending punct.
+                      r'[\"\']?'           # optional end-of-quote
+                      r'\z')               # end of chunk
+
 
 class TextWrapper:
     """
@@ -69,49 +127,11 @@ class TextWrapper:
 
     unicode_whitespace_trans = dict.fromkeys(map(ord, _whitespace), ord(' '))
 
-    # This funky little regex is just the trick for splitting
-    # text up into word-wrappable chunks.  E.g.
-    #   "Hello there -- you goof-ball, use the -b option!"
-    # splits into
-    #   Hello/ /there/ /--/ /you/ /goof-/ball,/ /use/ /the/ /-b/ /option!
-    # (after stripping out empty strings).
-    word_punct = r'[\w!"\'&.,?]'
-    letter = r'[\w--\d]'
-    whitespace = r'[%s]' % re.escape(_whitespace)
-    nowhitespace = '[^' + whitespace[1:]
-    wordsep_re = re.compile(r'''
-        ( # any whitespace
-          %(ws)s+
-        | # em-dash between words
-          (?<=%(wp)s) -{2,} (?=\w)
-        | # word, possibly hyphenated
-          %(nws)s+? (?:
-            # hyphenated word
-              -(?: (?<=%(lt)s{2}-) | (?<=%(lt)s-%(lt)s-))
-              (?= %(lt)s -? %(lt)s)
-            | # end of word
-              (?=%(ws)s|\z)
-            | # em-dash
-              (?<=%(wp)s) (?=-{2,}\w)
-            )
-        )''' % {'wp': word_punct, 'lt': letter,
-                'ws': whitespace, 'nws': nowhitespace},
-        re.VERBOSE)
-    del word_punct, letter, nowhitespace
-
-    # This less funky little regex just split on recognized spaces. E.g.
-    #   "Hello there -- you goof-ball, use the -b option!"
-    # splits into
-    #   Hello/ /there/ /--/ /you/ /goof-ball,/ /use/ /the/ /-b/ /option!/
-    wordsep_simple_re = re.compile(r'(%s+)' % whitespace)
-    del whitespace
-
-    # XXX this is not locale- or charset-aware -- string.lowercase
-    # is US-ASCII only (and therefore English-only)
-    sentence_end_re = re.compile(r'[a-z]'             # lowercase letter
-                                 r'[\.\!\?]'          # sentence-ending punct.
-                                 r'[\"\']?'           # optional end-of-quote
-                                 r'\z')               # end of chunk
+    # The splitting regexes are compiled on first use (see _compile_regex),
+    # so wrapping that is handled in Rust never pays for them.
+    wordsep_re = _LazyRegex()
+    wordsep_simple_re = _LazyRegex()
+    sentence_end_re = _LazyRegex()
 
     def __init__(self,
                  width=70,
@@ -359,7 +379,10 @@ class TextWrapper:
         """
         if (_textwrap_rs is not None and
                 _rust_wrap_eligible(self, text)):
-            return _textwrap_rs.wrap(text, self.width)
+            try:
+                return _textwrap_rs.wrap(text, self.width)
+            except ValueError:
+                pass  # outside the Rust domain: use the general algorithm
         chunks = self._split_chunks(text)
         if self.fix_sentence_endings:
             self._fix_sentence_endings(chunks)
@@ -415,14 +438,17 @@ def shorten(text, width, **kwargs):
         'Hello [...]'
     """
     w = TextWrapper(width=width, max_lines=1, **kwargs)
-    text = ' '.join(text.strip().split())
     if _textwrap_rs is not None and _rust_shorten_eligible(w, text):
-        return _textwrap_rs.shorten(text, width, w.placeholder)
+        try:
+            return _textwrap_rs.shorten(text, width, w.placeholder)
+        except ValueError:
+            pass  # outside the Rust domain: use the general algorithm
+    text = ' '.join(text.strip().split())
     return w.fill(text)
 
 
 def _rust_wrap_eligible(wrapper, text):
-    """Keep the Rust route to text whose wrapping semantics match CPython."""
+    """Keep the Rust route to default options; Rust checks the text domain."""
     if (type(wrapper) is not TextWrapper or type(text) is not str or
             type(wrapper.width) is not int or not 0 < wrapper.width < 2**63 or
             wrapper.initial_indent != "" or wrapper.subsequent_indent != "" or
@@ -434,17 +460,11 @@ def _rust_wrap_eligible(wrapper, text):
             wrapper.break_on_hyphens is not True or wrapper.tabsize != 8 or
             wrapper.max_lines is not None or wrapper.placeholder != ' [...]'):
         return False
-    if not text or not text.isascii() or '-' in text:
-        return False
-    if any(char != ' ' and not '!' <= char <= '~' for char in text):
-        return False
-    if text.startswith(' ') or text.endswith(' ') or '  ' in text:
-        return False
-    return all(len(word) <= wrapper.width for word in text.split(' '))
+    return True
 
 
 def _rust_shorten_eligible(wrapper, text):
-    """Keep shortening in Rust only for its ASCII, default-option domain."""
+    """Keep shortening in Rust to default options; Rust checks the text domain."""
     if (type(wrapper) is not TextWrapper or type(text) is not str or
             type(wrapper.width) is not int or not 0 < wrapper.width < 2**63 or
             wrapper.initial_indent != "" or wrapper.subsequent_indent != "" or
@@ -456,19 +476,7 @@ def _rust_shorten_eligible(wrapper, text):
             wrapper.break_on_hyphens is not True or wrapper.tabsize != 8 or
             wrapper.max_lines != 1 or type(wrapper.placeholder) is not str):
         return False
-    if not text.isascii() or '-' in text:
-        return False
-    if any(not (char == ' ' or '\t' <= char <= '\r' or '!' <= char <= '~')
-           for char in text):
-        return False
-    if not wrapper.placeholder.isascii():
-        return False
-    if any(not (char == ' ' or '\t' <= char <= '\r' or '!' <= char <= '~')
-           for char in wrapper.placeholder):
-        return False
-    if len(wrapper.placeholder.lstrip()) > wrapper.width:
-        return False
-    return all(len(word) <= wrapper.width for word in text.split())
+    return True
 
 
 # -- Loosely related functionality -------------------------------------
