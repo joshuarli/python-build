@@ -48,18 +48,23 @@ def _check_name(name: str) -> str:
     return name
 
 
+def _tag(name: str) -> str:
+    return name if name.startswith("perf-") else f"perf-{name}"
+
+
 def _paths(name: str) -> dict[str, Path]:
-    work = lb.WORK / "perf" / name
+    tag = _tag(name)
+    work = lb.WORK / "perf" / tag
     return {
         "work": work,
         "source_parent": work / "source",
         "build": work / "build",
-        "stage": LANE / f"stage-perf-{name}",
-        "configure_log": lb.LOGS / f"perf-{name}-configure.log",
-        "build_log": lb.LOGS / f"perf-{name}-build.log",
-        "install_log": lb.LOGS / f"perf-{name}-install.log",
-        "cargo_log": lb.LOGS / f"perf-{name}-cargo-offline-check.log",
-        "report": lb.RESULTS / f"perf-{name}.json",
+        "stage": LANE / f"stage-{tag}",
+        "configure_log": lb.LOGS / f"{tag}-configure.log",
+        "build_log": lb.LOGS / f"{tag}-build.log",
+        "install_log": lb.LOGS / f"{tag}-install.log",
+        "cargo_log": lb.LOGS / f"{tag}-cargo-offline-check.log",
+        "report": lb.RESULTS / f"{tag}.json",
     }
 
 
@@ -186,17 +191,26 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None) -> int:
         build_setup_local.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(setup_local, build_setup_local)
     workers = jobs if jobs is not None else max(1, (os.cpu_count() or 4) - 1)
-    make = [str(toolchain.make), f"-j{workers}"]
+    # Configure ties the Cargo profile to its own PGO flag, so a no-PGO
+    # build defaults to dev. The release profile is selected here on the
+    # make command line instead: command-line variables override the
+    # Makefile defaults, and both profile and target directory move
+    # together so artifact paths stay coherent. No source file changes.
+    make = [str(toolchain.make), f"-j{workers}",
+            "CARGO_PROFILE=release", "CARGO_TARGET_DIR=release"]
     lb._require_command(make, cwd=paths["build"], env=env,
                         log=paths["build_log"], sealed=sandbox)
+    if "--profile release" not in paths["build_log"].read_text(errors="replace"):
+        raise LaneError("perf build did not invoke cargo with --profile release")
     lb._require_command([str(toolchain.make), "install"], cwd=paths["build"], env=env,
                         log=paths["install_log"], sealed=sandbox)
     python = paths["stage"] / "bin" / "python3.16"
     if not python.is_file():
         raise LaneError(f"perf install did not produce {python}")
     cargo_profile = lb._make_value(paths["build"] / "Makefile", "CARGO_PROFILE")
-    if cargo_profile != "release":
-        raise LaneError(f"perf build Cargo profile is {cargo_profile!r}; expected 'release'")
+    if cargo_profile != "dev":
+        raise LaneError(f"unexpected configured Cargo default {cargo_profile!r}; expected 'dev'")
+    cargo_profile = "release"
     cargo_env = dict(env)
     cargo_env.update({
         "CARGO_TARGET_DIR": str(paths["build"] / "target"),
@@ -227,6 +241,8 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None) -> int:
         "configure_arguments": configure,
         "cflags": env["CFLAGS"],
         "cargo_profile": cargo_profile,
+        "cargo_profile_selected_by": "make command-line override "
+            "(configure defaults to dev without its PGO flag)",
         "pgo": False,
         "lto": False,
         "interpreter": module,
@@ -268,7 +284,7 @@ def test(*, name: str, suites: list[str], all_suites: bool = False,
     label = "all" if all_suites else "-".join(suites)
     if len(label) > 160:
         label = f"{'-'.join(suites[:3])}-{hashlib.sha256(label.encode()).hexdigest()[:16]}"
-    log = lb.LOGS / f"perf-{name}-{label}.log"
+    log = lb.LOGS / f"{_tag(name)}-{label}.log"
     workers = jobs if jobs is not None else lb._test_jobs()
     result = lb._run_python_test(
         [str(build_python), "-m", "test", "-j", str(workers), "--timeout=900", *suites],
