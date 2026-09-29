@@ -976,112 +976,20 @@ def _serialize_xml(write, elem, qnames, namespaces,
 _RUST_ORIGINAL_SERIALIZE_XML = _serialize_xml
 
 
-def _xml_event_field(output, value):
-    if not isinstance(value, str) or "\0" in value:
-        return False
-    try:
-        encoded = str.encode(value, "utf-8")
-    except UnicodeEncodeError:
-        return False
-    output.extend(encoded)
-    output.append(0)
-    return True
-
-
-def _xml_event(output, code, *fields):
-    output.extend(code)
-    output.append(0)
-    return all(_xml_event_field(output, field) for field in fields)
-
-
 def _serialize_xml_rust(write, elem, qnames, namespaces,
                         short_empty_elements, **kwargs):
     if (_elementtree_rs is None
             or _escape_cdata is not _RUST_DEFAULT_ESCAPE_CDATA
-            or _escape_attrib is not _RUST_DEFAULT_ESCAPE_ATTRIB):
+            or _escape_attrib is not _RUST_DEFAULT_ESCAPE_ATTRIB
+            or not _elementtree_rs.serialize(
+                elem, qnames,
+                sorted(namespaces.items(), key=lambda item: item[1])
+                if namespaces else (),
+                short_empty_elements, write, Comment, ProcessingInstruction)):
         return _RUST_ORIGINAL_SERIALIZE_XML(
             write, elem, qnames, namespaces,
             short_empty_elements=short_empty_elements,
         )
-
-    events = bytearray()
-
-    def append_element(element, root=False):
-        tag = element.tag
-        text = element.text
-        if tag is Comment or tag is ProcessingInstruction:
-            if not isinstance(text, str):
-                return False
-            event = b"C" if tag is Comment else b"P"
-            if not _xml_event(events, event, text):
-                return False
-        elif tag is None:
-            if text and not _xml_event(events, b"T", _escape_cdata(text)):
-                return False
-            for child in element:
-                if not append_element(child):
-                    return False
-        else:
-            name = qnames[tag]
-            if name is None:
-                if text and not _xml_event(events, b"T", _escape_cdata(text)):
-                    return False
-                for child in element:
-                    if not append_element(child):
-                        return False
-            else:
-                attributes = []
-                if root and namespaces:
-                    for uri, prefix in sorted(namespaces.items(),
-                                              key=lambda item: item[1]):
-                        key = "xmlns:" + prefix if prefix else "xmlns"
-                        attributes.append((key, _escape_attrib(uri)))
-                for key, value in list(element.items()):
-                    if isinstance(key, QName):
-                        key = key.text
-                    key = qnames[key]
-                    if isinstance(value, QName):
-                        value = qnames[value.text]
-                    else:
-                        value = _escape_attrib(value)
-                    attributes.append((key, value))
-                if any(not isinstance(key, str) or not isinstance(value, str)
-                       for key, value in attributes):
-                    return False
-                event = b"S" if text or len(element) or not short_empty_elements else b"V"
-                if not _xml_event(events, event, name, str(len(attributes))):
-                    return False
-                for key, value in attributes:
-                    if not (_xml_event_field(events, key) and
-                            _xml_event_field(events, value)):
-                        return False
-                if event == b"S":
-                    if text and not _xml_event(events, b"T", _escape_cdata(text)):
-                        return False
-                    for child in element:
-                        if not append_element(child):
-                            return False
-                    if not _xml_event(events, b"E", name):
-                        return False
-        if element.tail and not _xml_event(
-                events, b"T", _escape_cdata(element.tail)):
-            return False
-        return True
-
-    if not append_element(elem, root=True):
-        return _RUST_ORIGINAL_SERIALIZE_XML(
-            write, elem, qnames, namespaces,
-            short_empty_elements=short_empty_elements,
-        )
-    try:
-        serialized = _elementtree_rs.serialize(bytes(events)).decode("utf-8")
-    except ValueError:
-        return _RUST_ORIGINAL_SERIALIZE_XML(
-            write, elem, qnames, namespaces,
-            short_empty_elements=short_empty_elements,
-        )
-    for part in serialized.split("\0"):
-        write(part)
 
 _CDATA_CONTENT_ELEMENTS = {"script", "style", "xmp", "iframe", "noembed",
                            "noframes", "plaintext"}

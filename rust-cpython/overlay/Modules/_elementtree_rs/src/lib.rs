@@ -6,9 +6,7 @@ use std::ptr;
 use std::slice;
 use std::str;
 
-use cpython_sys::METH_O;
 use cpython_sys::PyBool_FromLong;
-use cpython_sys::PyBytes_FromStringAndSize;
 use cpython_sys::PyDict_Contains;
 use cpython_sys::PyDict_New;
 use cpython_sys::PyDict_SetItem;
@@ -21,24 +19,37 @@ use cpython_sys::PyUnicode_FromStringAndSize;
 use cpython_sys::PyUnicode_Type;
 use cpython_sys::Py_DecRef;
 use cpython_sys::Py_TYPE;
-use cpython_sys::PyErr_NoMemory;
 use cpython_sys::PyErr_SetString;
 use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyExc_ValueError;
 use cpython_sys::PyMethodDef;
 use cpython_sys::PyMethodDefFuncPointer;
 use cpython_sys::PyModuleDef;
 use cpython_sys::PyModuleDef_HEAD_INIT;
 use cpython_sys::PyModuleDef_Init;
 use cpython_sys::PyObject;
+use cpython_sys::PyDict_GetItemWithError;
+use cpython_sys::PyErr_Occurred;
+use cpython_sys::PyIter_Next;
+use cpython_sys::PyObject_CallNoArgs;
+use cpython_sys::PyObject_CallOneArg;
+use cpython_sys::PyObject_GetAttr;
+use cpython_sys::PyObject_GetIter;
+use cpython_sys::PyObject_IsTrue;
+use cpython_sys::PyObject_Size;
+use cpython_sys::PyTuple_GetItem;
+use cpython_sys::PyTuple_Size;
+use cpython_sys::PyTuple_Type;
+use cpython_sys::PyType_GetFlags;
+use cpython_sys::PyUnicode_InternFromString;
+use cpython_sys::Py_TPFLAGS_UNICODE_SUBCLASS;
+use cpython_sys::_Py_NoneStruct;
 use cpython_sys::PyObject_GetBuffer;
 use cpython_sys::PyBuffer_Release;
 use cpython_sys::Py_ssize_t;
 use cpython_sys::Py_buffer;
-use quick_xml::events::{BytesEnd, BytesPI, BytesStart, BytesText, Event};
+use quick_xml::events::Event;
 use quick_xml::name::ResolveResult;
 use quick_xml::reader::NsReader;
-use quick_xml::writer::Writer;
 use quick_xml::XmlVersion;
 
 const PYBUF_SIMPLE: c_int = 0;
@@ -67,24 +78,6 @@ impl Drop for BorrowedBuffer {
     fn drop(&mut self) {
         unsafe { PyBuffer_Release(&mut self.view) }
     }
-}
-
-fn new_bytes(bytes: &[u8]) -> *mut PyObject {
-    if bytes.len() > Py_ssize_t::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    unsafe { PyBytes_FromStringAndSize(bytes.as_ptr().cast::<c_char>(), bytes.len() as Py_ssize_t) }
-}
-
-fn invalid_event_stream() -> *mut PyObject {
-    unsafe {
-        PyErr_SetString(
-            PyExc_ValueError,
-            c"invalid ElementTree XML event stream".as_ptr(),
-        );
-    }
-    ptr::null_mut()
 }
 
 fn valid_xml_characters(value: &str) -> bool {
@@ -483,131 +476,223 @@ fn parse_document(input: &[u8], sink: &mut Sink) -> Parsed<()> {
     }
 }
 
-fn event_field<'a>(input: &'a [u8], position: &mut usize) -> Option<&'a str> {
-    if *position >= input.len() {
-        return None;
-    }
-    let remaining = &input[*position..];
-    let end = remaining.iter().position(|byte| *byte == 0)?;
-    let value = str::from_utf8(&remaining[..end]).ok()?;
-    *position += end + 1;
-    Some(value)
+const MAX_SERIALIZE_DEPTH: usize = 400;
+
+fn fallback<T>() -> Parsed<T> {
+    unsafe { PyErr_Clear() };
+    Err(Stop::Unsupported)
 }
 
-fn record_start_chunks(
-    writer: &Writer<Vec<u8>>,
-    start: usize,
-    end: usize,
-    name: &str,
-    attributes: &[(&str, &str)],
-    empty: bool,
-    chunks: &mut Vec<(usize, usize)>,
-) -> Result<(), ()> {
-    let output = writer.get_ref();
-    let mut position = start;
-    let name_end = position + 1 + name.len();
-    if name_end > end || &output[position..name_end] != format!("<{name}").as_bytes() {
-        return Err(());
-    }
-    chunks.push((position, name_end));
-    position = name_end;
-
-    for (key, value) in attributes {
-        let attribute = format!(" {key}=\"{value}\"");
-        let attribute_end = position + attribute.len();
-        if attribute_end > end || &output[position..attribute_end] != attribute.as_bytes() {
-            return Err(());
-        }
-        chunks.push((position, attribute_end));
-        position = attribute_end;
-    }
-
-    let ending = if empty { b" />".as_slice() } else { b">".as_slice() };
-    let ending_end = position + ending.len();
-    if ending_end != end || &output[position..ending_end] != ending {
-        return Err(());
-    }
-    chunks.push((position, ending_end));
-    Ok(())
+fn checked(raw: *mut PyObject) -> Parsed<Obj> {
+    if raw.is_null() { fallback() } else { Ok(Obj(raw)) }
 }
 
-fn write_start(
-    writer: &mut Writer<Vec<u8>>,
-    input: &[u8],
-    position: &mut usize,
-    empty: bool,
-    chunks: &mut Vec<(usize, usize)>,
-) -> Result<(), ()> {
-    let name = event_field(input, position).ok_or(())?;
-    let count = event_field(input, position).ok_or(())?.parse::<usize>().map_err(|_| ())?;
-    let mut element = BytesStart::new(name);
-    let mut attributes = Vec::with_capacity(count);
-    for _ in 0..count {
-        let key = event_field(input, position).ok_or(())?;
-        let value = event_field(input, position).ok_or(())?;
-        attributes.push((key, value));
-        element.push_attribute((key, value));
+fn is_none(object: *mut PyObject) -> bool {
+    object == ptr::addr_of_mut!(_Py_NoneStruct).cast::<PyObject>()
+}
+
+fn as_str<'a>(object: *mut PyObject) -> Parsed<&'a str> {
+    let flags = unsafe { PyType_GetFlags(Py_TYPE(object)) };
+    if flags & u64::from(Py_TPFLAGS_UNICODE_SUBCLASS) == 0 {
+        return Err(Stop::Unsupported);
     }
-    let start = writer.get_ref().len();
-    if empty {
-        writer.write_event(Event::Empty(element)).map_err(|_| ())?;
+    let mut length: Py_ssize_t = 0;
+    let bytes = unsafe { PyUnicode_AsUTF8AndSize(object, &mut length) };
+    if bytes.is_null() {
+        return fallback();
+    }
+    Ok(unsafe { str::from_utf8_unchecked(slice::from_raw_parts(bytes.cast::<u8>(), length as usize)) })
+}
+
+/// `None` and empty strings are absent; anything else must be a string.
+fn optional_text<'a>(object: *mut PyObject) -> Parsed<Option<&'a str>> {
+    if is_none(object) {
+        return Ok(None);
+    }
+    let text = as_str(object)?;
+    Ok(if text.is_empty() { None } else { Some(text) })
+}
+
+fn iterate(object: *mut PyObject) -> Parsed<Obj> {
+    checked(unsafe { PyObject_GetIter(object) })
+}
+
+fn next_item(iterator: &Obj) -> Parsed<Option<Obj>> {
+    let item = unsafe { PyIter_Next(iterator.0) };
+    if !item.is_null() {
+        return Ok(Some(Obj(item)));
+    }
+    if unsafe { PyErr_Occurred() }.is_null() {
+        Ok(None)
     } else {
-        writer.write_event(Event::Start(element)).map_err(|_| ())?;
+        fallback()
     }
-    let end = writer.get_ref().len();
-    record_start_chunks(writer, start, end, name, &attributes, empty, chunks)
 }
 
-fn serialize_events(input: &[u8]) -> Result<Vec<u8>, ()> {
-    let mut writer = Writer::new(Vec::new());
-    writer.config_mut().add_space_before_slash_in_empty_elements = true;
-    let mut chunks = Vec::new();
-    let mut position = 0;
-    while position < input.len() {
-        let Some(event) = event_field(input, &mut position) else {
-            return Err(());
-        };
-        match event {
-            "S" => write_start(&mut writer, input, &mut position, false, &mut chunks)?,
-            "V" => write_start(&mut writer, input, &mut position, true, &mut chunks)?,
-            "E" => {
-                let name = event_field(input, &mut position).ok_or(())?;
-                let start = writer.get_ref().len();
-                writer.write_event(Event::End(BytesEnd::new(name))).map_err(|_| ())?;
-                chunks.push((start, writer.get_ref().len()));
-            }
-            "T" => {
-                let text = event_field(input, &mut position).ok_or(())?;
-                let start = writer.get_ref().len();
-                writer.write_event(Event::Text(BytesText::from_escaped(text.to_owned())))
-                    .map_err(|_| ())?;
-                chunks.push((start, writer.get_ref().len()));
-            }
-            "C" => {
-                let text = event_field(input, &mut position).ok_or(())?;
-                let start = writer.get_ref().len();
-                writer.write_event(Event::Comment(BytesText::from_escaped(text)))
-                    .map_err(|_| ())?;
-                chunks.push((start, writer.get_ref().len()));
-            }
-            "P" => {
-                let text = event_field(input, &mut position).ok_or(())?;
-                let start = writer.get_ref().len();
-                writer.write_event(Event::PI(BytesPI::new(text))).map_err(|_| ())?;
-                chunks.push((start, writer.get_ref().len()));
-            }
-            _ => return Err(()),
+fn pair(object: *mut PyObject) -> Parsed<(*mut PyObject, *mut PyObject)> {
+    if unsafe { Py_TYPE(object) } != ptr::addr_of_mut!(PyTuple_Type) || unsafe { PyTuple_Size(object) } != 2 {
+        return Err(Stop::Unsupported);
+    }
+    Ok(unsafe { (PyTuple_GetItem(object, 0), PyTuple_GetItem(object, 1)) })
+}
+
+struct Serializer {
+    qnames: *mut PyObject,
+    comment: *mut PyObject,
+    instruction: *mut PyObject,
+    short_empty: bool,
+    tag: Obj,
+    text: Obj,
+    tail: Obj,
+    items: Obj,
+    out: Vec<u8>,
+    ends: Vec<usize>,
+}
+
+impl Serializer {
+    fn mark(&mut self) {
+        self.ends.push(self.out.len());
+    }
+
+    fn raw(&mut self, value: &str) {
+        self.out.extend_from_slice(value.as_bytes());
+    }
+
+    fn escaped(&mut self, value: &str, attribute: bool) {
+        let bytes = value.as_bytes();
+        let mut start = 0;
+        for (index, byte) in bytes.iter().enumerate() {
+            let replacement: &[u8] = match byte {
+                b'&' => b"&amp;",
+                b'<' => b"&lt;",
+                b'>' => b"&gt;",
+                b'"' if attribute => b"&quot;",
+                b'\r' if attribute => b"&#13;",
+                b'\n' if attribute => b"&#10;",
+                b'\t' if attribute => b"&#09;",
+                _ => continue,
+            };
+            self.out.extend_from_slice(&bytes[start..index]);
+            self.out.extend_from_slice(replacement);
+            start = index + 1;
+        }
+        self.out.extend_from_slice(&bytes[start..]);
+    }
+
+    fn qname<'a>(&self, key: *mut PyObject) -> Parsed<Option<&'a str>> {
+        let value = unsafe { PyDict_GetItemWithError(self.qnames, key) };
+        if value.is_null() {
+            return fallback();
+        }
+        if is_none(value) {
+            return Ok(None);
+        }
+        as_str(value).map(Some)
+    }
+
+    fn children(&mut self, element: *mut PyObject, depth: usize) -> Parsed<()> {
+        let iterator = iterate(element)?;
+        while let Some(child) = next_item(&iterator)? {
+            self.element(child.0, &[], depth + 1)?;
+        }
+        Ok(())
+    }
+
+    fn cdata(&mut self, text: Option<&str>) {
+        if let Some(text) = text {
+            self.escaped(text, false);
+            self.mark();
         }
     }
-    let output = writer.into_inner();
-    let mut chunked = Vec::with_capacity(output.len() + chunks.len());
-    for (index, (start, end)) in chunks.into_iter().enumerate() {
-        if index > 0 {
-            chunked.push(0);
+
+    fn element(&mut self, element: *mut PyObject, namespaces: &[(String, String)], depth: usize) -> Parsed<()> {
+        if depth > MAX_SERIALIZE_DEPTH {
+            return Err(Stop::Unsupported);
         }
-        chunked.extend_from_slice(&output[start..end]);
+        let tag = checked(unsafe { PyObject_GetAttr(element, self.tag.0) })?;
+        let text = checked(unsafe { PyObject_GetAttr(element, self.text.0) })?;
+        if tag.0 == self.comment || tag.0 == self.instruction {
+            let (open, close) = if tag.0 == self.comment { ("<!--", "-->") } else { ("<?", "?>") };
+            let text = as_str(text.0)?;
+            self.raw(open);
+            self.raw(text);
+            self.raw(close);
+            self.mark();
+        } else {
+            let text = optional_text(text.0)?;
+            match self.qname(tag.0)? {
+                None => {
+                    self.cdata(text);
+                    self.children(element, depth)?;
+                }
+                Some(name) => {
+                    self.raw("<");
+                    self.raw(name);
+                    self.mark();
+                    for (uri, prefix) in namespaces {
+                        if prefix.is_empty() {
+                            self.raw(" xmlns=\"");
+                        } else {
+                            self.raw(" xmlns:");
+                            self.raw(prefix);
+                            self.raw("=\"");
+                        }
+                        self.escaped(uri, true);
+                        self.raw("\"");
+                        self.mark();
+                    }
+                    let method = checked(unsafe { PyObject_GetAttr(element, self.items.0) })?;
+                    let items = checked(unsafe { PyObject_CallNoArgs(method.0) })?;
+                    let iterator = iterate(items.0)?;
+                    while let Some(item) = next_item(&iterator)? {
+                        let (key, value) = pair(item.0)?;
+                        let Some(key) = self.qname(key)? else {
+                            return Err(Stop::Unsupported);
+                        };
+                        let value = as_str(value)?;
+                        self.raw(" ");
+                        self.raw(key);
+                        self.raw("=\"");
+                        self.escaped(value, true);
+                        self.raw("\"");
+                        self.mark();
+                    }
+                    let length = unsafe { PyObject_Size(element) };
+                    if length < 0 {
+                        return fallback();
+                    }
+                    if text.is_some() || length > 0 || !self.short_empty {
+                        self.raw(">");
+                        self.mark();
+                        self.cdata(text);
+                        self.children(element, depth)?;
+                        self.raw("</");
+                        self.raw(name);
+                        self.raw(">");
+                        self.mark();
+                    } else {
+                        self.raw(" />");
+                        self.mark();
+                    }
+                }
+            }
+        }
+        let tail = checked(unsafe { PyObject_GetAttr(element, self.tail.0) })?;
+        let tail = optional_text(tail.0)?;
+        self.cdata(tail);
+        Ok(())
     }
-    Ok(chunked)
+
+    fn emit(&self, write: *mut PyObject) -> Parsed<()> {
+        let mut start = 0;
+        for &end in &self.ends {
+            let chunk = str::from_utf8(&self.out[start..end]).map_err(|_| Stop::Unsupported)?;
+            let text = new_str(chunk)?;
+            drop(Obj::new(unsafe { PyObject_CallOneArg(write, text.0) })?);
+            start = end;
+        }
+        Ok(())
+    }
 }
 
 unsafe extern "C" fn parse(
@@ -647,15 +732,53 @@ unsafe extern "C" fn parse(
 
 unsafe extern "C" fn serialize(
     _module: *mut PyObject,
-    input: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    let Some(input) = (unsafe { BorrowedBuffer::from_object(input) }) else {
+    if nargs != 7 {
+        unsafe {
+            PyErr_SetString(
+                PyExc_TypeError,
+                c"serialize expects (element, qnames, namespaces, short_empty, write, comment, pi)".as_ptr(),
+            )
+        };
         return ptr::null_mut();
-    };
-    match serialize_events(input.bytes()) {
-        Ok(output) => new_bytes(&output),
-        Err(()) => invalid_event_stream(),
     }
+    let args = unsafe { slice::from_raw_parts(args, 7) };
+    let outcome = unsafe { serialize_tree(args) };
+    match outcome {
+        Ok(()) => unsafe { PyBool_FromLong(1) },
+        Err(Stop::Unsupported) => unsafe { PyBool_FromLong(0) },
+        Err(Stop::PyError) => ptr::null_mut(),
+    }
+}
+
+unsafe fn serialize_tree(args: &[*mut PyObject]) -> Parsed<()> {
+    let attr = |name: &CStr| checked(unsafe { PyUnicode_InternFromString(name.as_ptr()) });
+    let mut namespaces = Vec::new();
+    let iterator = iterate(args[2])?;
+    while let Some(item) = next_item(&iterator)? {
+        let (uri, prefix) = pair(item.0)?;
+        namespaces.push((as_str(uri)?.to_owned(), as_str(prefix)?.to_owned()));
+    }
+    let short_empty = match unsafe { PyObject_IsTrue(args[3]) } {
+        -1 => return fallback(),
+        value => value != 0,
+    };
+    let mut serializer = Serializer {
+        qnames: args[1],
+        comment: args[5],
+        instruction: args[6],
+        short_empty,
+        tag: attr(c"tag")?,
+        text: attr(c"text")?,
+        tail: attr(c"tail")?,
+        items: attr(c"items")?,
+        out: Vec::new(),
+        ends: Vec::new(),
+    };
+    serializer.element(args[0], &namespaces, 0)?;
+    serializer.emit(args[4])
 }
 
 pub extern "C" fn _elementtree_rs_clear(_object: *mut PyObject) -> c_int {
@@ -686,9 +809,9 @@ pub static _ELEMENTTREE_RS_MODULE_METHODS: [PyMethodDef; 3] = {
         },
         PyMethodDef {
             ml_name: c"serialize".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: serialize },
-            ml_flags: METH_O,
-            ml_doc: c"Serialize ElementTree XML events.".as_ptr() as *mut c_char,
+            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: serialize },
+            ml_flags: METH_FASTCALL,
+            ml_doc: c"Serialize an ElementTree element tree to write callbacks.".as_ptr() as *mut c_char,
         },
         PyMethodDef::zeroed(),
     ]
