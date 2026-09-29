@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -40,6 +41,28 @@ class RustLauncherTests(unittest.TestCase):
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "cargo\npinned-rustc\n")
+
+
+class MacOSDeploymentProbeTests(unittest.TestCase):
+    def test_new_sdk_posix_functions_are_disabled_below_their_introduction(self):
+        toolchain = SimpleNamespace(deployment_target="26.0", sdkroot=Path("/SDK"))
+        target = SimpleNamespace(cpu_baseline_cflag="-mcpu=apple-m1")
+        with mock.patch.object(perf.lb, "IS_LINUX", False), \
+                mock.patch.object(perf.lb, "_brew_pkg_config_path", return_value=""):
+            for flags in (perf.lb._platform_flags(toolchain, target),
+                          perf._perf_flags(toolchain, target)):
+                self.assertEqual(flags.get("ac_cv_func_dup3"), "no")
+                self.assertEqual(flags.get("ac_cv_func_pipe2"), "no")
+
+    def test_supported_posix_functions_remain_probeable_at_their_introduction(self):
+        toolchain = SimpleNamespace(deployment_target="27.0", sdkroot=Path("/SDK"))
+        target = SimpleNamespace(cpu_baseline_cflag="-mcpu=apple-m1")
+        with mock.patch.object(perf.lb, "IS_LINUX", False), \
+                mock.patch.object(perf.lb, "_brew_pkg_config_path", return_value=""):
+            for flags in (perf.lb._platform_flags(toolchain, target),
+                          perf._perf_flags(toolchain, target)):
+                self.assertNotIn("ac_cv_func_dup3", flags)
+                self.assertNotIn("ac_cv_func_pipe2", flags)
 
 
 if __name__ == "__main__":

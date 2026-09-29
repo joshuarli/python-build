@@ -61,7 +61,7 @@ import perf_verdict  # noqa: E402  (lane directory is on sys.path via build.py)
 CONTROL = "perf-upstream"
 INCUMBENT = "perf-rust"
 ALIASES = {"@control": CONTROL, "@incumbent": INCUMBENT}
-# The rust-for-cpython-perf.md baseline set: stdlib-only workloads plus the
+# The gate guards use stdlib-only workloads plus the
 # Django workloads covered by benchmarks/inputs.macos-cp316.lock.json.
 GATE_WORKLOADS = (
     "python_startup",
@@ -289,6 +289,7 @@ def _perf_flags(toolchain, target) -> dict[str, str]:
         "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
         "LDFLAGS": f"-mmacosx-version-min={toolchain.deployment_target}",
         "PKG_CONFIG_PATH": lb._brew_pkg_config_path(),
+        **lb._macos_deployment_cache(toolchain.deployment_target),
     }
 
 

@@ -803,6 +803,14 @@ def _brew_pkg_config_path() -> str:
     return ":".join(dict.fromkeys(found))
 
 
+def _macos_deployment_cache(deployment_target: str) -> dict[str, str]:
+    # New SDKs expose these symbols to configure's link probes, but an
+    # unguarded call cannot run below macOS 27. Keep the older POSIX paths.
+    if tuple(int(part) for part in deployment_target.split(".")) < (27, 0):
+        return {"ac_cv_func_dup3": "no", "ac_cv_func_pipe2": "no"}
+    return {}
+
+
 def _platform_flags(toolchain, target, prefix: Path | None = None) -> dict[str, str]:
     """C, C++, preprocessor, linker and pkg-config inputs for the host target.
 
@@ -834,6 +842,7 @@ def _platform_flags(toolchain, target, prefix: Path | None = None) -> dict[str, 
         "PY_CPPFLAGS": f"-isysroot {toolchain.sdkroot}",
         "LDFLAGS": f"-mmacosx-version-min={toolchain.deployment_target}",
         "PKG_CONFIG_PATH": _brew_pkg_config_path(),
+        **_macos_deployment_cache(toolchain.deployment_target),
     }
 
 

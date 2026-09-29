@@ -17,6 +17,9 @@ passed with LLVM 23.1.2: arm64, minos 26.0, SDK 27.0, verified bitcode and
 a successful executable run. Doctor reports no missing prerequisites.
 The private Cargo home now provides both Cargo and rustc launchers for the
 pinned nightly; they work without Homebrew compiler proxies on PATH.
+The isolated lane disables configure probes for `dup3` and `pipe2` below
+macOS 27, using the existing POSIX paths at its 26.0 deployment floor even
+with SDK 27. Both pristine and overlay builds use this same cache policy.
 Rebuild both performance interpreters, recalibrate, and record fresh
 baselines before accepting measurements under this toolchain. The older
 handoff below describes historical builds, not local stage availability.
