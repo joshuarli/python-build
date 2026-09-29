@@ -45,8 +45,15 @@ def glob(pathname, *, root_dir=None, dir_fd=None, recursive=False,
     If `recursive` is true, the pattern '**' will match any files and
     zero or more directories and subdirectories.
     """
-    return list(iglob(pathname, root_dir=root_dir, dir_fd=dir_fd, recursive=recursive,
-                      include_hidden=include_hidden))
+    sys.audit("glob.glob", pathname, recursive)
+    sys.audit("glob.glob/2", pathname, recursive, root_dir, dir_fd)
+    if (_glob_rs is not None and root_dir is None and dir_fd is None
+            and not recursive and type(pathname) is str):
+        matches = _glob_rs.expand(pathname, include_hidden)
+        if matches is not None:
+            return matches
+    return list(_iglob_python(pathname, root_dir, dir_fd, recursive,
+                              include_hidden))
 
 def iglob(pathname, *, root_dir=None, dir_fd=None, recursive=False,
           include_hidden=False):
@@ -77,21 +84,19 @@ def iglob(pathname, *, root_dir=None, dir_fd=None, recursive=False,
     """
     sys.audit("glob.glob", pathname, recursive)
     sys.audit("glob.glob/2", pathname, recursive, root_dir, dir_fd)
-    use_rust = (
-        _glob_rs is not None
-        and root_dir is None
-        and dir_fd is None
-        and not recursive
-        and type(pathname) is str
-    )
+    return _iglob_start(pathname, root_dir, dir_fd, recursive, include_hidden)
+
+def _iglob_start(pathname, root_dir, dir_fd, recursive, include_hidden):
+    if (_glob_rs is not None and root_dir is None and dir_fd is None
+            and not recursive and type(pathname) is str):
+        return _rust_iglob(pathname, include_hidden)
+    return _iglob_python(pathname, root_dir, dir_fd, recursive, include_hidden)
+
+def _iglob_python(pathname, root_dir, dir_fd, recursive, include_hidden):
     if root_dir is not None:
         root_dir = os.fspath(root_dir)
     else:
         root_dir = pathname[:0]
-    if use_rust:
-        rust_pattern = _rust_pattern(pathname)
-        if rust_pattern is not None:
-            return _rust_iglob(pathname, rust_pattern, include_hidden)
     it = _iglob(pathname, root_dir, dir_fd, recursive, False,
                 include_hidden=include_hidden)
     if not pathname or recursive and _isrecursive(pathname[:2]):
@@ -103,55 +108,12 @@ def iglob(pathname, *, root_dir=None, dir_fd=None, recursive=False,
             pass
     return it
 
-def _rust_pattern(pathname):
-    """Prepare non-recursive text patterns for the Rust filesystem walker."""
-    if not has_magic(pathname) or "\0" in pathname or pathname.endswith(os.sep):
-        return None
-    try:
-        pathname.encode("utf-8")
-    except UnicodeEncodeError:
-        return None
-
-    parts = pathname.split(os.sep)
-    if any(not part and index != 0 for index, part in enumerate(parts)):
-        return None
-    if any(part in (".", "..") for part in parts):
-        return None
-    for index, part in enumerate(parts):
-        if "**" not in part:
-            continue
-        if part != "**":
-            return None
-        # Without recursive=True, CPython treats this as an ordinary star.
-        parts[index] = "*"
-    return os.sep.join(parts)
-
-def _rust_iglob(pathname, rust_pattern, include_hidden):
-    try:
-        matches = _glob_rs.expand(rust_pattern)
-    except ValueError:
-        yield from _iglob(pathname, pathname[:0], None, False, False,
-                          include_hidden=include_hidden)
-        return
-
-    pattern_parts = pathname.split(os.sep)
-    for path in matches:
-        path_parts = path.split(os.sep)
-        # scandir never reports the synthetic entries '.' and '..'.
-        if any(part in (".", "..") for part in path_parts):
-            continue
-        if include_hidden:
-            yield path
-            continue
-        if len(pattern_parts) != len(path_parts):
-            yield path
-            continue
-        # CPython excludes hidden names unless that path component starts with '.'.
-        if all(
-            not name.startswith(".") or pattern.startswith(".")
-            for pattern, name in zip(pattern_parts, path_parts)
-        ):
-            yield path
+def _rust_iglob(pathname, include_hidden):
+    matches = _glob_rs.expand(pathname, include_hidden)
+    if matches is None:
+        yield from _iglob_python(pathname, None, None, False, include_hidden)
+    else:
+        yield from matches
 
 def _iglob(pathname, root_dir, dir_fd, recursive, dironly,
            include_hidden=False):
