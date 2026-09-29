@@ -41,6 +41,7 @@ dependencies = [
 name = "_binascii_rs"
 version = "0.1.0"
 dependencies = [
+ "_base64",
  "cpython-build-helper",
  "cpython-sys",
  "crc32fast",
@@ -438,7 +439,6 @@ name = "_statistics_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
- "cpython-sys",
 ]
 
 [[package]]
