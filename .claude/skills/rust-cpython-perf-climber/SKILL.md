@@ -46,9 +46,11 @@ is a build in your worktree. Use your `LANE` value as your build name.
 
 ## Setup
 
-1. `git rev-parse HEAD` must equal `INCUMBENT` from the brief, and
-   `perf.py status` must show the primary `perf-rust` at that commit with
-   `verified=True`. Otherwise stop with `RESULT: BLOCKED`.
+1. `INCUMBENT` from the brief must be an ancestor of `HEAD`, and
+   `git diff --quiet INCUMBENT HEAD -- rust-cpython benchmarks` must pass
+   (later commits touched only skills or docs). `perf.py status` must show
+   the primary `perf-rust` at `INCUMBENT` with `verified=True`. Otherwise
+   stop with `RESULT: BLOCKED`.
 2. `python3 rust-cpython/perf.py setup-worktree`.
 3. `python3 rust-cpython/perf.py build --name <LANE> --jobs <JOBS>`.
 4. `perf.py bench --baseline @incumbent --candidate <LANE> --module
