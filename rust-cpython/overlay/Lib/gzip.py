@@ -12,13 +12,29 @@ import struct
 import sys
 import time
 import weakref
-import zlib
 from compression._common import _streams
 
 try:
     import _gzip_rs
 except ImportError:
     _gzip_rs = None
+
+# zlib is only needed when the Rust codec is missing, and for the exception
+# class raised on invalid data, so it is imported on demand.
+_MAX_WBITS = 15
+_Z_SYNC_FLUSH = 2
+_Z_FINISH = 4
+
+if _gzip_rs is None:
+    import zlib
+    _crc32 = zlib.crc32
+else:
+    _crc32 = _gzip_rs.crc32
+
+
+def _zlib_error(message):
+    import zlib
+    return zlib.error(message)
 
 __all__ = ["BadGzipFile", "GzipFile", "open", "compress", "decompress"]
 
@@ -38,14 +54,14 @@ _WRITE_BUFFER_SIZE = 4 * io.DEFAULT_BUFFER_SIZE
 def _new_compressor(compresslevel):
     if _gzip_rs is None:
         return zlib.compressobj(compresslevel, zlib.DEFLATED,
-                                -zlib.MAX_WBITS, zlib.DEF_MEM_LEVEL, 0)
+                                -_MAX_WBITS, zlib.DEF_MEM_LEVEL, 0)
     return _RustCompressor(compresslevel)
 
 
-def _new_decompressor(wbits=-zlib.MAX_WBITS):
+def _new_decompressor(wbits=-_MAX_WBITS, size_hint=0):
     if _gzip_rs is None:
         return zlib._ZlibDecompressor(wbits=wbits)
-    return _RustDecompressor(wbits=wbits)
+    return _RustDecompressor(wbits=wbits, size_hint=size_hint)
 
 
 if _gzip_rs is not None:
@@ -54,29 +70,30 @@ if _gzip_rs is not None:
             try:
                 self._state = _gzip_rs.compressor(compresslevel)
             except ValueError as error:
-                raise zlib.error(str(error)) from None
+                raise _zlib_error(str(error)) from None
 
         def compress(self, data):
             try:
                 return _gzip_rs.compress(self._state, data)
             except ValueError as error:
-                raise zlib.error(str(error)) from None
+                raise _zlib_error(str(error)) from None
 
-        def flush(self, mode=zlib.Z_FINISH):
+        def flush(self, mode=_Z_FINISH):
             try:
                 return _gzip_rs.flush(self._state, mode)
             except ValueError as error:
-                raise zlib.error(str(error)) from None
+                raise _zlib_error(str(error)) from None
 
 
     class _RustDecompressor:
-        def __init__(self, wbits=-zlib.MAX_WBITS):
-            if wbits != -zlib.MAX_WBITS:
+        def __init__(self, wbits=-_MAX_WBITS, size_hint=0):
+            if wbits != -_MAX_WBITS:
+                import zlib
                 self._native = zlib._ZlibDecompressor(wbits=wbits)
                 self._state = None
             else:
                 self._native = None
-                self._state = _gzip_rs.decompressor()
+                self._state = _gzip_rs.decompressor(size_hint)
 
         @property
         def eof(self):
@@ -102,7 +119,7 @@ if _gzip_rs is not None:
             try:
                 return _gzip_rs.decompress(self._state, data, max_length)
             except ValueError as error:
-                raise zlib.error(str(error)) from None
+                raise _zlib_error(str(error)) from None
 
 
 def open(filename, mode="rb", compresslevel=_COMPRESS_LEVEL_TRADEOFF,
@@ -341,7 +358,7 @@ class GzipFile(_streams.BaseStream):
 
     def _init_write(self, filename):
         self.name = filename
-        self.crc = zlib.crc32(b"")
+        self.crc = _crc32(b"")
         self.size = 0
         self.offset = 0  # Current file offset for seek(), tell(), etc
 
@@ -407,7 +424,7 @@ class GzipFile(_streams.BaseStream):
         if length > 0:
             self.fileobj.write(self.compress.compress(data))
             self.size += length
-            self.crc = zlib.crc32(data, self.crc)
+            self.crc = _crc32(data, self.crc)
             self.offset += length
 
         return length
@@ -478,7 +495,7 @@ class GzipFile(_streams.BaseStream):
             self.myfileobj = None
             myfileobj.close()
 
-    def flush(self,zlib_mode=zlib.Z_SYNC_FLUSH):
+    def flush(self,zlib_mode=_Z_SYNC_FLUSH):
         self._check_not_closed()
         if self.mode == WRITE:
             self._buffer.flush()
@@ -573,7 +590,7 @@ def _read_until_null(fp, crc=None):
     else:
         while True:
             s = fp.read(1)
-            crc = zlib.crc32(s, crc)
+            crc = _crc32(s, crc)
             if not s or s == b'\000':
                 break
     return crc
@@ -607,7 +624,7 @@ def _read_gzip_header(fp):
 
     # Processing for more complex flags. Save header parts for FHCRC checking.
     if flag & FHCRC:
-        crc = zlib.crc32(magic + base_header)
+        crc = _crc32(magic + base_header)
     else:
         crc = None
     if flag & FEXTRA:
@@ -615,8 +632,8 @@ def _read_gzip_header(fp):
         extra_len, = struct.unpack("<H", extra_len_bytes)
         extra = _read_exact(fp, extra_len)
         if crc is not None:
-            crc = zlib.crc32(extra_len_bytes, crc)
-            crc = zlib.crc32(extra, crc)
+            crc = _crc32(extra_len_bytes, crc)
+            crc = _crc32(extra, crc)
     if flag & FNAME:
         crc = _read_until_null(fp, crc)
     if flag & FCOMMENT:
@@ -634,13 +651,13 @@ def _read_gzip_header(fp):
 class _GzipReader(_streams.DecompressReader):
     def __init__(self, fp):
         super().__init__(_PaddedFile(fp), _new_decompressor,
-                         wbits=-zlib.MAX_WBITS)
+                         wbits=-_MAX_WBITS)
         # Set flag indicating start of a new member
         self._new_member = True
         self._last_mtime = None
 
     def _init_read(self):
-        self._crc = zlib.crc32(b"")
+        self._crc = _crc32(b"")
         self._stream_size = 0  # Decompressed size of unconcatenated stream
 
     def _read_gzip_header(self):
@@ -698,7 +715,7 @@ class _GzipReader(_streams.DecompressReader):
                 raise EOFError("Compressed file ended before the "
                                "end-of-stream marker was reached")
 
-        self._crc = zlib.crc32(uncompress, self._crc)
+        self._crc = _crc32(uncompress, self._crc)
         self._stream_size += len(uncompress)
         self._pos += len(uncompress)
         return uncompress
@@ -740,8 +757,13 @@ def compress(data, compresslevel=_COMPRESS_LEVEL_TRADEOFF, *, mtime=0):
         mtime = time.time()
     if not 0 <= mtime < 2**32:
         mtime = 0
+    if _gzip_rs is not None:
+        try:
+            return _gzip_rs.compress_member(data, compresslevel, int(mtime))
+        except ValueError as error:
+            raise _zlib_error(str(error)) from None
     compressor = _new_compressor(compresslevel)
-    deflated = compressor.compress(data) + compressor.flush(zlib.Z_FINISH)
+    deflated = compressor.compress(data) + compressor.flush(_Z_FINISH)
     if compresslevel == _COMPRESS_LEVEL_BEST:
         xfl = 2
     elif compresslevel == _COMPRESS_LEVEL_FAST:
@@ -750,7 +772,7 @@ def compress(data, compresslevel=_COMPRESS_LEVEL_TRADEOFF, *, mtime=0):
         xfl = 0
     header = struct.pack("<4sLBB", b"\037\213\010\000", int(mtime), xfl, 255)
     data_size = memoryview(data).nbytes
-    trailer = struct.pack("<II", zlib.crc32(data), data_size & 0xffffffff)
+    trailer = struct.pack("<II", _crc32(data), data_size & 0xffffffff)
     return header + deflated + trailer
 
 
@@ -764,14 +786,16 @@ def decompress(data):
         if _read_gzip_header(fp) is None:
             return b"".join(decompressed_members)
         # Use a zlib raw deflate compressor
-        do = _new_decompressor(wbits=-zlib.MAX_WBITS)
+        # The last member's trailer stores its decompressed size.
+        do = _new_decompressor(wbits=-_MAX_WBITS,
+                               size_hint=int.from_bytes(data[-4:], "little"))
         # Read all the data except the header
-        decompressed = do.decompress(data[fp.tell():])
+        decompressed = do.decompress(memoryview(data)[fp.tell():])
         if not do.eof or len(do.unused_data) < 8:
             raise EOFError("Compressed file ended before the end-of-stream "
                            "marker was reached")
         crc, length = struct.unpack("<II", do.unused_data[:8])
-        if crc != zlib.crc32(decompressed):
+        if crc != _crc32(decompressed):
             raise BadGzipFile("CRC check failed")
         if length != (len(decompressed) & 0xffffffff):
             raise BadGzipFile("Incorrect length of data produced")
