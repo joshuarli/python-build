@@ -57,7 +57,12 @@ The climb runs in two phases, in order; never start the second early.
    not cost CPU. The phase ends when a full `perf.py goals` reads every
    module's load footprint and working peak MET or BEYOND, or the module is
    on the debt list for memory (two consecutive lanes on it integrated
-   nothing). Brief `GOAL NOW` and `HYPOTHESIS` with memory rows only.
+   nothing), and, on a quiet `@control` versus `@incumbent` gate over all
+   workloads, every workload's `peak_rss` reads `neutral` or `improved` or is
+   on the debt list. Workload peak RSS is interpreter-wide memory (imports of
+   Rust routes at startup and first use); brief workload memory lanes from
+   `perf.py profile --workload W --tool importtime` and sample stacks,
+   comparing `@control`. Brief `GOAL NOW` and `HYPOTHESIS` with memory rows only.
 2. **CPU phase.** Starts only after the memory phase ends. Targets are kernel
    CPU per module, then the workload guards that read above `@control`.
    Memory rows become guards: a CPU win that regresses a memory metric that
