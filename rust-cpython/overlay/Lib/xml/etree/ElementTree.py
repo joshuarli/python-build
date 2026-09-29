@@ -115,41 +115,17 @@ def _rust_parse(data):
     if _elementtree_rs is None:
         return _RUST_PARSE_UNAVAILABLE
     if isinstance(data, str):
-        try:
-            data = str.encode(data, "utf-8")
-        except UnicodeEncodeError:
-            return _RUST_PARSE_UNAVAILABLE
+        if type(data) is not str:
+            try:
+                data = str.encode(data, "utf-8")
+            except UnicodeEncodeError:
+                return _RUST_PARSE_UNAVAILABLE
     elif not isinstance(data, bytes):
         return _RUST_PARSE_UNAVAILABLE
 
-    events = _elementtree_rs.parse(data)
-    if not events:
-        return _RUST_PARSE_UNAVAILABLE
-    fields = events.split(b"\0")
-    index = 0
-
-    def field():
-        nonlocal index
-        value = fields[index].decode("utf-8")
-        index += 1
-        return value
-
     target = TreeBuilder()
-    while index < len(fields) - 1:
-        event = field()
-        if event == "S":
-            tag = field()
-            count = int(field())
-            attrs = {field(): field() for _ in range(count)}
-            target.start(tag, attrs)
-        elif event == "E":
-            target.end(field())
-        elif event == "T":
-            target.data(field())
-        elif event == "C":
-            target.comment(field())
-        else:
-            return _RUST_PARSE_UNAVAILABLE
+    if not _elementtree_rs.parse(data, target):
+        return _RUST_PARSE_UNAVAILABLE
     return target.close()
 
 

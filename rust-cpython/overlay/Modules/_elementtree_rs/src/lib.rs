@@ -1,13 +1,29 @@
+use std::borrow::Cow;
 use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
+use std::collections::HashMap;
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
 use std::str;
 
 use cpython_sys::METH_O;
+use cpython_sys::PyBool_FromLong;
 use cpython_sys::PyBytes_FromStringAndSize;
+use cpython_sys::PyDict_Contains;
+use cpython_sys::PyDict_New;
+use cpython_sys::PyDict_SetItem;
+use cpython_sys::PyErr_Clear;
+use cpython_sys::METH_FASTCALL;
+use cpython_sys::PyObject_GetAttrString;
+use cpython_sys::PyObject_Vectorcall;
+use cpython_sys::PyUnicode_AsUTF8AndSize;
+use cpython_sys::PyUnicode_FromStringAndSize;
+use cpython_sys::PyUnicode_Type;
+use cpython_sys::Py_DecRef;
+use cpython_sys::Py_TYPE;
 use cpython_sys::PyErr_NoMemory;
 use cpython_sys::PyErr_SetString;
+use cpython_sys::PyExc_TypeError;
 use cpython_sys::PyExc_ValueError;
 use cpython_sys::PyMethodDef;
 use cpython_sys::PyMethodDefFuncPointer;
@@ -69,19 +85,6 @@ fn invalid_event_stream() -> *mut PyObject {
         );
     }
     ptr::null_mut()
-}
-
-fn push_field(output: &mut Vec<u8>, value: &str) {
-    output.extend_from_slice(value.as_bytes());
-    output.push(0);
-}
-
-fn push_event(output: &mut Vec<u8>, code: u8, fields: &[&str]) {
-    output.push(code);
-    output.push(0);
-    for field in fields {
-        push_field(output, field);
-    }
 }
 
 fn valid_xml_characters(value: &str) -> bool {
@@ -180,33 +183,124 @@ fn common_document(text: &str) -> bool {
     true
 }
 
-fn expanded_name(result: ResolveResult<'_>, local: &str) -> Option<String> {
+fn expanded_name<'a>(result: ResolveResult<'_>, local: &'a str) -> Option<Cow<'a, str>> {
     match result {
-        ResolveResult::Unbound => Some(local.to_owned()),
-        ResolveResult::Bound(namespace) => Some(format!("{{{}}}{local}", namespace.0)),
+        ResolveResult::Unbound => Some(Cow::Borrowed(local)),
+        ResolveResult::Bound(namespace) => Some(Cow::Owned(format!("{{{}}}{local}", namespace.0))),
         ResolveResult::Unknown(_) => None,
     }
 }
 
-fn start_event(
-    output: &mut Vec<u8>,
-    name: &str,
-    attrs: &[(String, String)],
-) {
-    let count = attrs.len().to_string();
-    push_event(output, b'S', &[name, &count]);
-    for (key, value) in attrs {
-        push_field(output, key);
-        push_field(output, value);
+struct Obj(*mut PyObject);
+
+impl Obj {
+    fn new(raw: *mut PyObject) -> Parsed<Self> {
+        if raw.is_null() { Err(Stop::PyError) } else { Ok(Self(raw)) }
     }
 }
 
-fn parse_document(input: &[u8]) -> Vec<u8> {
+impl Drop for Obj {
+    fn drop(&mut self) {
+        unsafe { Py_DecRef(self.0) }
+    }
+}
+
+enum Stop {
+    Unsupported,
+    PyError,
+}
+
+type Parsed<T> = Result<T, Stop>;
+
+fn new_str(value: &str) -> Parsed<Obj> {
+    Obj::new(unsafe {
+        PyUnicode_FromStringAndSize(value.as_ptr().cast::<c_char>(), value.len() as Py_ssize_t)
+    })
+}
+
+/// Feeds parsed events straight into a Python `TreeBuilder`.
+struct Sink {
+    start: Obj,
+    end: Obj,
+    data: Obj,
+    comment: Obj,
+    // Tag and attribute-name objects are shared by every occurrence.
+    names: HashMap<Box<str>, Obj>,
+    open: Vec<*mut PyObject>,
+    pending: String,
+}
+
+impl Sink {
+    fn new(target: *mut PyObject) -> Parsed<Self> {
+        let method = |name: &CStr| Obj::new(unsafe { PyObject_GetAttrString(target, name.as_ptr()) });
+        Ok(Self {
+            start: method(c"start")?,
+            end: method(c"end")?,
+            data: method(c"data")?,
+            comment: method(c"comment")?,
+            names: HashMap::new(),
+            open: Vec::new(),
+            pending: String::new(),
+        })
+    }
+
+    fn name(&mut self, key: &str) -> Parsed<*mut PyObject> {
+        if let Some(name) = self.names.get(key) {
+            return Ok(name.0);
+        }
+        let object = new_str(key)?;
+        let raw = object.0;
+        self.names.insert(key.into(), object);
+        Ok(raw)
+    }
+
+    fn call(callable: &Obj, args: &[*mut PyObject]) -> Parsed<()> {
+        let result = Obj::new(unsafe {
+            PyObject_Vectorcall(callable.0, args.as_ptr(), args.len(), ptr::null_mut())
+        })?;
+        drop(result);
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Parsed<()> {
+        if self.pending.is_empty() {
+            return Ok(());
+        }
+        let text = new_str(&self.pending)?;
+        self.pending.clear();
+        Self::call(&self.data, &[text.0])
+    }
+
+    fn text(&mut self, value: &str) {
+        self.pending.push_str(value);
+    }
+
+    fn comment(&mut self, value: &str) -> Parsed<()> {
+        self.flush()?;
+        let text = new_str(value)?;
+        Self::call(&self.comment, &[text.0])
+    }
+
+    fn start(&mut self, name: &str, attrs: Obj) -> Parsed<()> {
+        self.flush()?;
+        let tag = self.name(name)?;
+        self.open.push(tag);
+        Self::call(&self.start, &[tag, attrs.0])
+    }
+
+    fn end(&mut self) -> Parsed<()> {
+        self.flush()?;
+        let tag = self.open.pop().ok_or(Stop::Unsupported)?;
+        Self::call(&self.end, &[tag])
+    }
+}
+
+fn parse_document(input: &[u8], sink: &mut Sink) -> Parsed<()> {
     let Ok(text) = str::from_utf8(input) else {
-        return Vec::new();
+        return Err(Stop::Unsupported);
     };
     if !common_document(text) || !valid_xml_characters(text) {
-        return Vec::new();
+        return Err(Stop::Unsupported);
     }
     let declaration_at_start = xml_declaration_end(text).is_some_and(|end| end != 0);
 
@@ -214,7 +308,6 @@ fn parse_document(input: &[u8]) -> Vec<u8> {
     reader.config_mut().check_end_names = true;
     reader.config_mut().check_comments = true;
     let mut buffer = Vec::new();
-    let mut output = Vec::new();
     let mut depth = 0usize;
     let mut saw_root = false;
     let mut saw_prior_event = false;
@@ -222,7 +315,7 @@ fn parse_document(input: &[u8]) -> Vec<u8> {
     loop {
         let (resolved, event) = match reader.read_resolved_event_into(&mut buffer) {
             Ok(event) => event,
-            Err(_) => return Vec::new(),
+            Err(_) => return Err(Stop::Unsupported),
         };
         if !matches!(&event, Event::Decl(_) | Event::Eof) {
             saw_prior_event = true;
@@ -237,26 +330,26 @@ fn parse_document(input: &[u8]) -> Vec<u8> {
                 let element_name = element.name();
                 let raw_name = element_name.as_ref();
                 if !valid_qname(raw_name) {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
                 let Some(name) = expanded_name(resolved, raw_name.rsplit(':').next().unwrap_or(raw_name)) else {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 };
                 if depth == 0 {
                     if saw_root {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     }
                     saw_root = true;
                 }
-                let mut attrs = Vec::new();
+                let attrs = Obj::new(unsafe { PyDict_New() })?;
                 let mut attributes = element.attributes();
                 attributes.with_checks(true);
                 for attribute in attributes {
                     let Ok(attribute) = attribute else {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     };
                     if attribute.value.contains('<') {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     }
                     let raw_key = attribute.key.as_ref();
                     if raw_key == "xmlns" || raw_key.starts_with("xmlns:") {
@@ -270,109 +363,111 @@ fn parse_document(input: &[u8]) -> Vec<u8> {
                                     | "http://www.w3.org/2000/xmlns/"
                             )
                         {
-                            return Vec::new();
+                            return Err(Stop::Unsupported);
                         }
                         continue;
                     }
                     if !valid_qname(raw_key) {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     }
                     let (namespace, local) = reader.resolver().resolve_attribute(attribute.key);
                     let Some(key) = expanded_name(namespace, local.as_ref()) else {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     };
-                    if attrs.iter().any(|(existing, _)| existing == &key) {
-                        return Vec::new();
+                    let key = sink.name(&key)?;
+                    match unsafe { PyDict_Contains(attrs.0, key) } {
+                        0 => {}
+                        -1 => return Err(Stop::PyError),
+                        _ => return Err(Stop::Unsupported),
                     }
                     let Ok(value) = attribute.normalized_value(XmlVersion::Implicit1_0) else {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     };
                     if !valid_xml_characters(&value) {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     }
-                    attrs.push((key, value.into_owned()));
+                    let value = new_str(&value)?;
+                    if unsafe { PyDict_SetItem(attrs.0, key, value.0) } != 0 {
+                        return Err(Stop::PyError);
+                    }
                 }
-                start_event(&mut output, &name, &attrs);
+                sink.start(&name, attrs)?;
                 if empty {
-                    push_event(&mut output, b'E', &[&name]);
+                    sink.end()?;
                 } else {
                     depth += 1;
                 }
             }
             Event::End(element) => {
                 if depth == 0 {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
                 let element_name = element.name();
-                let raw_name = element_name.as_ref();
-                if !valid_qname(raw_name) {
-                    return Vec::new();
+                if !valid_qname(element_name.as_ref()) || matches!(resolved, ResolveResult::Unknown(_)) {
+                    return Err(Stop::Unsupported);
                 }
-                let Some(name) = expanded_name(resolved, raw_name.rsplit(':').next().unwrap_or(raw_name)) else {
-                    return Vec::new();
-                };
-                push_event(&mut output, b'E', &[&name]);
+                sink.end()?;
                 depth -= 1;
             }
             Event::Text(text) => {
                 let value = text.xml_content(XmlVersion::Implicit1_0);
                 if !valid_xml_characters(&value) {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
                 if depth == 0 {
                     if !value.chars().all(|ch| matches!(ch, ' ' | '\t' | '\n' | '\r')) {
-                        return Vec::new();
+                        return Err(Stop::Unsupported);
                     }
-                } else if !value.is_empty() {
-                    push_event(&mut output, b'T', &[value.as_ref()]);
+                } else {
+                    sink.text(&value);
                 }
             }
             Event::CData(text) => {
                 if depth == 0 {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
                 let value = text.xml_content(XmlVersion::Implicit1_0);
                 if !valid_xml_characters(&value) {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
-                if !value.is_empty() {
-                    push_event(&mut output, b'T', &[value.as_ref()]);
-                }
+                sink.text(&value);
             }
             Event::Comment(comment) => {
                 let value = comment.xml_content(XmlVersion::Implicit1_0);
                 if !valid_xml_characters(&value) {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
-                push_event(&mut output, b'C', &[value.as_ref()]);
+                sink.comment(&value)?;
             }
             Event::PI(instruction) => {
                 let target = instruction.target();
                 if !valid_qname(target) || target.eq_ignore_ascii_case("xml") {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
             }
-            Event::DocType(_) => return Vec::new(),
+            Event::DocType(_) => return Err(Stop::Unsupported),
             Event::GeneralRef(reference) => {
                 if depth == 0 {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
-                let value = match reference.as_ref() {
-                    "amp" => "&".to_owned(),
-                    "lt" => "<".to_owned(),
-                    "gt" => ">".to_owned(),
-                    "apos" => "'".to_owned(),
-                    "quot" => "\"".to_owned(),
+                match reference.as_ref() {
+                    "amp" => sink.text("&"),
+                    "lt" => sink.text("<"),
+                    "gt" => sink.text(">"),
+                    "apos" => sink.text("'"),
+                    "quot" => sink.text("\""),
                     _ => match reference.resolve_char_ref() {
-                        Ok(Some(ch)) if valid_xml_characters(&ch.to_string()) => ch.to_string(),
-                        _ => return Vec::new(),
+                        Ok(Some(ch)) if valid_xml_characters(&ch.to_string()) => {
+                            let mut utf8 = [0u8; 4];
+                            sink.text(ch.encode_utf8(&mut utf8));
+                        }
+                        _ => return Err(Stop::Unsupported),
                     },
-                };
-                push_event(&mut output, b'T', &[&value]);
+                }
             }
             Event::Decl(_) => {
                 if !declaration_at_start || saw_prior_event {
-                    return Vec::new();
+                    return Err(Stop::Unsupported);
                 }
                 saw_prior_event = true;
             }
@@ -382,9 +477,9 @@ fn parse_document(input: &[u8]) -> Vec<u8> {
     }
 
     if !saw_root || depth != 0 {
-        Vec::new()
+        Err(Stop::Unsupported)
     } else {
-        output
+        Ok(())
     }
 }
 
@@ -517,13 +612,37 @@ fn serialize_events(input: &[u8]) -> Result<Vec<u8>, ()> {
 
 unsafe extern "C" fn parse(
     _module: *mut PyObject,
-    input: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    let Some(input) = (unsafe { BorrowedBuffer::from_object(input) }) else {
+    if nargs != 2 {
+        unsafe { PyErr_SetString(PyExc_TypeError, c"parse expects (document, target)".as_ptr()) };
+        return ptr::null_mut();
+    }
+    let (data, target) = unsafe { (*args, *args.add(1)) };
+    let Ok(mut sink) = Sink::new(target) else {
         return ptr::null_mut();
     };
-    let output = parse_document(input.bytes());
-    new_bytes(&output)
+    let outcome = if unsafe { Py_TYPE(data) } == ptr::addr_of_mut!(PyUnicode_Type) {
+        let mut length: Py_ssize_t = 0;
+        let bytes = unsafe { PyUnicode_AsUTF8AndSize(data, &mut length) };
+        if bytes.is_null() {
+            unsafe { PyErr_Clear() };
+            Err(Stop::Unsupported)
+        } else {
+            parse_document(unsafe { slice::from_raw_parts(bytes.cast::<u8>(), length as usize) }, &mut sink)
+        }
+    } else {
+        let Some(input) = (unsafe { BorrowedBuffer::from_object(data) }) else {
+            return ptr::null_mut();
+        };
+        parse_document(input.bytes(), &mut sink)
+    };
+    match outcome {
+        Ok(()) => unsafe { PyBool_FromLong(1) },
+        Err(Stop::Unsupported) => unsafe { PyBool_FromLong(0) },
+        Err(Stop::PyError) => ptr::null_mut(),
+    }
 }
 
 unsafe extern "C" fn serialize(
@@ -561,8 +680,8 @@ pub static _ELEMENTTREE_RS_MODULE_METHODS: [PyMethodDef; 3] = {
     [
         PyMethodDef {
             ml_name: c"parse".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: parse },
-            ml_flags: METH_O,
+            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse },
+            ml_flags: METH_FASTCALL,
             ml_doc: c"Parse a supported complete XML document.".as_ptr() as *mut c_char,
         },
         PyMethodDef {
