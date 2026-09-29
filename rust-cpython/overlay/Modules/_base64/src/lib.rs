@@ -9,13 +9,14 @@ use base64::engine::general_purpose::{
     URL_SAFE_NO_PAD,
 };
 use base64::engine::DecodePaddingMode;
-use base64::{alphabet, Engine};
+use base64::{alphabet, DecodeSliceError, Engine};
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::Py_DecRef;
 use cpython_sys::Py_buffer;
 use cpython_sys::Py_ssize_t;
 use cpython_sys::PyBuffer_Release;
 use cpython_sys::PyBytes_AsString;
+use cpython_sys::_PyBytes_Resize;
 use cpython_sys::PyBytes_FromStringAndSize;
 use cpython_sys::PyErr_NoMemory;
 use cpython_sys::PyErr_SetString;
@@ -141,31 +142,79 @@ unsafe fn none_ref() -> *mut PyObject {
     unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
 }
 
+/// Allocate an uninitialized bytes object of `len` bytes.
+unsafe fn new_bytes(len: usize) -> Result<(*mut PyObject, *mut u8), ()> {
+    if len > isize::MAX as usize {
+        unsafe { PyErr_NoMemory() };
+        return Err(());
+    }
+    let result = unsafe { PyBytes_FromStringAndSize(ptr::null(), len as Py_ssize_t) };
+    if result.is_null() {
+        return Err(());
+    }
+    Ok((result, unsafe { PyBytes_AsString(result) }.cast::<u8>()))
+}
+
+/// Shrink a freshly built bytes object to `len` bytes.
+unsafe fn shrink_bytes(result: *mut PyObject, len: usize) -> *mut PyObject {
+    let mut result = result;
+    if unsafe { _PyBytes_Resize(&mut result, len as Py_ssize_t) } != 0 {
+        return ptr::null_mut();
+    }
+    result
+}
+
 fn encode_data_encoding(
     source: &PyObject,
     encoding: &'static Encoding,
 ) -> *mut PyObject {
-    let (buffer, input) = match borrowed_bytes(source, b"base encoding argument has negative length\0") {
-        Ok(data) => data,
+    let buffer = match BorrowedBuffer::from_object(source) {
+        Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    drop(buffer);
-    let output = encoding.encode(&input);
-    bytes_from_slice(output.as_bytes())
+    let Some(input) = buffer.as_slice() else {
+        unsafe {
+            PyErr_SetString(PyExc_TypeError, c"base encoding argument has negative length".as_ptr())
+        };
+        return ptr::null_mut();
+    };
+    let output_len = encoding.encode_len(input.len());
+    let Ok((result, dest_ptr)) = (unsafe { new_bytes(output_len) }) else {
+        return ptr::null_mut();
+    };
+    let dest = unsafe { slice::from_raw_parts_mut(dest_ptr, output_len) };
+    encoding.encode_mut(input, dest);
+    result
 }
 
 fn decode_data_encoding(
     source: &PyObject,
     encoding: &'static Encoding,
 ) -> *mut PyObject {
-    let (buffer, input) = match borrowed_bytes(source, b"base decoding argument has negative length\0") {
-        Ok(data) => data,
+    let buffer = match BorrowedBuffer::from_object(source) {
+        Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    drop(buffer);
-    match encoding.decode(&input) {
-        Ok(output) => bytes_from_vec(output),
-        Err(_) => unsafe { none_ref() },
+    let Some(input) = buffer.as_slice() else {
+        unsafe {
+            PyErr_SetString(PyExc_TypeError, c"base decoding argument has negative length".as_ptr())
+        };
+        return ptr::null_mut();
+    };
+    let Ok(capacity) = encoding.decode_len(input.len()) else {
+        return unsafe { none_ref() };
+    };
+    let Ok((result, dest_ptr)) = (unsafe { new_bytes(capacity) }) else {
+        return ptr::null_mut();
+    };
+    let dest = unsafe { slice::from_raw_parts_mut(dest_ptr, capacity) };
+    match encoding.decode_mut(input, dest) {
+        Ok(written) if written == capacity => result,
+        Ok(written) => unsafe { shrink_bytes(result, written) },
+        Err(_) => {
+            unsafe { Py_DecRef(result) };
+            unsafe { none_ref() }
+        }
     }
 }
 
@@ -614,40 +663,65 @@ pub unsafe extern "C" fn b64decode(
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    let input_len = buffer.len();
-    if input_len < 0 {
+    let Some(input) = buffer.as_slice() else {
         unsafe {
             PyErr_SetString(PyExc_TypeError, c"base64 decode argument has negative length".as_ptr());
         }
         return ptr::null_mut();
-    }
-    let input = unsafe { slice::from_raw_parts(buffer.as_ptr(), input_len as usize) };
+    };
 
-    let mut cleaned = Vec::with_capacity(input.len());
-    for &byte in input {
-        let standard_character = byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/');
-        if standard_character || (padded && byte == b'=') {
-            cleaned.push(byte);
-        } else if validate {
-            return unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) };
-        }
-    }
+    // Discarded characters are rare: decode straight from the caller's
+    // buffer when every byte is part of the alphabet, and only build a
+    // cleaned copy when something has to be dropped.
+    let is_clean = |byte: u8| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/') || (padded && byte == b'=')
+    };
+    let cleaned;
+    let input = if input.iter().all(|&byte| is_clean(byte)) {
+        input
+    } else if validate {
+        return unsafe { none_ref() };
+    } else {
+        cleaned = input.iter().copied().filter(|&byte| is_clean(byte)).collect::<Vec<u8>>();
+        &cleaned[..]
+    };
 
     let engine = if padded {
         &STANDARD_COMPAT
     } else {
         &STANDARD_NO_PAD_COMPAT
     };
-    match engine.decode(&cleaned) {
-        Ok(decoded) if decoded.len() <= isize::MAX as usize => unsafe {
-            PyBytes_FromStringAndSize(decoded.as_ptr().cast(), decoded.len() as Py_ssize_t)
-        },
-        Ok(_) => unsafe {
-            PyErr_NoMemory();
-            ptr::null_mut()
-        },
-        Err(_) => unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) },
+    // Size the result exactly so a valid decode needs no shrink (a shrinking
+    // realloc of a large bytes object can copy it); the crate's estimate is a
+    // fallback if this count is ever too small.
+    let estimate = (input.len() / 4 + usize::from(input.len() % 4 != 0)).saturating_mul(3);
+    let exact = match input.len() % 4 {
+        0 if padded => {
+            let padding = input.iter().rev().take(2).take_while(|&&byte| byte == b'=').count();
+            estimate - padding.min(estimate)
+        }
+        2 if !padded => estimate - 2,
+        3 if !padded => estimate - 1,
+        _ => estimate,
+    };
+    for capacity in [exact, estimate] {
+        let Ok((result, dest_ptr)) = (unsafe { new_bytes(capacity) }) else {
+            return ptr::null_mut();
+        };
+        let dest = unsafe { slice::from_raw_parts_mut(dest_ptr, capacity) };
+        match engine.decode_slice(input, dest) {
+            Ok(written) if written == capacity => return result,
+            Ok(written) => return unsafe { shrink_bytes(result, written) },
+            Err(DecodeSliceError::OutputSliceTooSmall) if capacity != estimate => {
+                unsafe { Py_DecRef(result) };
+            }
+            Err(_) => {
+                unsafe { Py_DecRef(result) };
+                return unsafe { none_ref() };
+            }
+        }
     }
+    unsafe { none_ref() }
 }
 
 fn truthy(value: *mut PyObject) -> Result<bool, ()> {
@@ -683,6 +757,14 @@ impl BorrowedBuffer {
 
     fn as_ptr(&self) -> *const u8 {
         self.view.buf.cast::<u8>() as *const u8
+    }
+
+    /// The bytes of the view, or `None` for a negative length.
+    fn as_slice(&self) -> Option<&[u8]> {
+        if self.view.len < 0 {
+            return None;
+        }
+        Some(unsafe { slice::from_raw_parts(self.as_ptr(), self.view.len as usize) })
     }
 }
 
