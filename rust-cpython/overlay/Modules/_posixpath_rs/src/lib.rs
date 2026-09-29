@@ -10,6 +10,9 @@ use cpython_sys::PyBytes_AsString;
 use cpython_sys::PyBytes_FromStringAndSize;
 use cpython_sys::PyBytes_Size;
 use cpython_sys::PyErr_Clear;
+use cpython_sys::PyErr_NoMemory;
+use cpython_sys::PyMem_Free;
+use cpython_sys::PyMem_Malloc;
 use cpython_sys::PyMethodDef;
 use cpython_sys::PyMethodDefFuncPointer;
 use cpython_sys::PyModuleDef;
@@ -29,9 +32,11 @@ unsafe extern "C" {
 }
 
 /// Path units that fit in the on-stack scratch buffer; longer paths borrow
-/// a heap buffer for that one call. Every operation works in a single
-/// scratch buffer, so the common path never touches the C heap.
-const STACK_UNITS: usize = 2048;
+/// a buffer from Python's allocator for that one call. Every operation works
+/// in a single scratch buffer, so the common path never allocates. Nothing
+/// here can panic or unwind, which keeps Rust's panic runtime out of the
+/// extension image.
+const STACK_UNITS: usize = 512;
 const PY_UNICODE_4BYTE_KIND: c_int = 4;
 
 /// A path code unit: a UCS4 character for `str`, a byte for `bytes`.
@@ -85,42 +90,26 @@ impl Unit for u8 {
     }
 }
 
-struct Scratch<T: Copy> {
-    stack: [MaybeUninit<T>; STACK_UNITS],
-    heap: Vec<MaybeUninit<T>>,
-}
-
-impl<T: Copy> Scratch<T> {
-    fn new() -> Self {
-        Self {
-            stack: [const { MaybeUninit::uninit() }; STACK_UNITS],
-            heap: Vec::new(),
-        }
+/// Run `body` with a scratch buffer of `capacity` units: on the stack when it
+/// fits, otherwise from Python's allocator for that one call.
+unsafe fn with_scratch<T: Unit>(
+    capacity: usize,
+    body: impl FnOnce(*mut T) -> *mut PyObject,
+) -> *mut PyObject {
+    if capacity <= STACK_UNITS {
+        let mut stack = [const { MaybeUninit::<T>::uninit() }; STACK_UNITS];
+        return body(stack.as_mut_ptr().cast());
     }
-
-    fn units(&mut self, capacity: usize) -> *mut T {
-        if capacity <= STACK_UNITS {
-            self.stack.as_mut_ptr().cast()
-        } else {
-            self.heap.reserve_exact(capacity);
-            self.heap.as_mut_ptr().cast()
-        }
+    let Some(bytes) = capacity.checked_mul(size_of::<T>()) else {
+        return unsafe { PyErr_NoMemory() };
+    };
+    let heap = unsafe { PyMem_Malloc(bytes) }.cast::<T>();
+    if heap.is_null() {
+        return unsafe { PyErr_NoMemory() };
     }
-}
-
-/// Load `value` into a scratch buffer with `extra` spare units after it.
-unsafe fn load<T: Unit>(
-    scratch: &mut Scratch<T>,
-    value: *mut PyObject,
-    length: usize,
-    extra: usize,
-) -> Option<*mut T> {
-    let buffer = scratch.units(length + extra);
-    if unsafe { T::read(value, buffer, length) } {
-        Some(buffer)
-    } else {
-        None
-    }
+    let result = body(heap);
+    unsafe { PyMem_Free(heap.cast()) };
+    result
 }
 
 /// Call `text` for a `str` value and `bytes` for a `bytes` value, passing the
@@ -144,23 +133,23 @@ unsafe fn with_kind(
 
 unsafe fn tuple_of<const N: usize>(items: [*mut PyObject; N]) -> *mut PyObject {
     if items.iter().any(|item| item.is_null()) {
-        for item in items {
+        for item in items.iter() {
             if !item.is_null() {
-                unsafe { Py_DecRef(item) };
+                unsafe { Py_DecRef(*item) };
             }
         }
         return ptr::null_mut();
     }
     let result = unsafe { PyTuple_New(N as Py_ssize_t) };
     if result.is_null() {
-        for item in items {
-            unsafe { Py_DecRef(item) };
+        for item in items.iter() {
+            unsafe { Py_DecRef(*item) };
         }
         return ptr::null_mut();
     }
-    for (index, item) in items.into_iter().enumerate() {
+    for (index, item) in items.iter().enumerate() {
         // PyTuple_SetItem steals the reference even when it fails.
-        unsafe { PyTuple_SetItem(result, index as Py_ssize_t, item) };
+        unsafe { PyTuple_SetItem(result, index as Py_ssize_t, *item) };
     }
     result
 }
@@ -204,15 +193,16 @@ unsafe fn normpath_in_place<T: Unit>(buffer: *mut T, length: usize) -> usize {
             && unsafe { *buffer.add(first + 1) } == T::DOT;
         if component != 0 && !is_dot {
             if is_parent {
-                let kept = unsafe { slice::from_raw_parts(buffer, written) };
-                let last_start = kept[root..]
+                let last_start = unsafe { slice::from_raw_parts(buffer.add(root), written - root) }
                     .iter()
                     .rposition(|unit| *unit == T::SEPARATOR)
                     .map(|position| root + position + 1);
                 let relative_leading_parent = root == 0 && written == 0;
                 let repeated_parent = written > root && {
                     let from = last_start.unwrap_or(root);
-                    written - from == 2 && kept[from] == T::DOT && kept[from + 1] == T::DOT
+                    written - from == 2
+                        && unsafe { *buffer.add(from) } == T::DOT
+                        && unsafe { *buffer.add(from + 1) } == T::DOT
                 };
                 if relative_leading_parent || repeated_parent {
                     if written > root {
@@ -252,77 +242,87 @@ unsafe fn normpath_in_place<T: Unit>(buffer: *mut T, length: usize) -> usize {
 }
 
 unsafe fn normpath_impl<T: Unit>(value: *mut PyObject, length: usize) -> *mut PyObject {
-    let mut scratch = Scratch::<T>::new();
-    let Some(buffer) = (unsafe { load(&mut scratch, value, length, 1) }) else {
-        return ptr::null_mut();
-    };
-    let written = unsafe { normpath_in_place(buffer, length) };
-    unsafe { T::make(buffer, written) }
+    unsafe {
+        with_scratch::<T>(length + 1, |buffer| {
+            if !T::read(value, buffer, length) {
+                return ptr::null_mut();
+            }
+            let written = normpath_in_place(buffer, length);
+            T::make(buffer, written)
+        })
+    }
 }
 
 unsafe fn split_impl<T: Unit>(value: *mut PyObject, length: usize) -> *mut PyObject {
-    let mut scratch = Scratch::<T>::new();
-    let Some(buffer) = (unsafe { load(&mut scratch, value, length, 0) }) else {
-        return ptr::null_mut();
-    };
-    let path = unsafe { slice::from_raw_parts(buffer, length) };
-    let split_at = path
-        .iter()
-        .rposition(|unit| *unit == T::SEPARATOR)
-        .map_or(0, |index| index + 1);
-    let mut head = split_at;
-    if head != 0 && !path[..head].iter().all(|unit| *unit == T::SEPARATOR) {
-        while head != 0 && path[head - 1] == T::SEPARATOR {
-            head -= 1;
-        }
-    }
     unsafe {
-        tuple_of([
-            T::make(buffer, head),
-            T::make(buffer.add(split_at), length - split_at),
-        ])
+        with_scratch::<T>(length, |buffer| {
+            if !T::read(value, buffer, length) {
+                return ptr::null_mut();
+            }
+            let path = slice::from_raw_parts(buffer, length);
+            let split_at = path
+                .iter()
+                .rposition(|unit| *unit == T::SEPARATOR)
+                .map_or(0, |index| index + 1);
+            let mut head = split_at;
+            if head != 0
+                && !slice::from_raw_parts(buffer, head)
+                    .iter()
+                    .all(|unit| *unit == T::SEPARATOR)
+            {
+                while head != 0 && *buffer.add(head - 1) == T::SEPARATOR {
+                    head -= 1;
+                }
+            }
+            tuple_of([
+                T::make(buffer, head),
+                T::make(buffer.add(split_at), length - split_at),
+            ])
+        })
     }
 }
 
 unsafe fn splitroot_impl<T: Unit>(value: *mut PyObject, length: usize) -> *mut PyObject {
-    let mut scratch = Scratch::<T>::new();
-    let Some(buffer) = (unsafe { load(&mut scratch, value, length, 0) }) else {
-        return ptr::null_mut();
-    };
-    let root = root_length(unsafe { slice::from_raw_parts(buffer, length) });
     unsafe {
-        tuple_of([
-            T::make(buffer, 0),
-            T::make(buffer, root),
-            T::make(buffer.add(root), length - root),
-        ])
+        with_scratch::<T>(length, |buffer| {
+            if !T::read(value, buffer, length) {
+                return ptr::null_mut();
+            }
+            let root = root_length(slice::from_raw_parts(buffer, length));
+            tuple_of([
+                T::make(buffer, 0),
+                T::make(buffer, root),
+                T::make(buffer.add(root), length - root),
+            ])
+        })
     }
 }
 
 unsafe fn splitext_impl<T: Unit>(value: *mut PyObject, length: usize) -> *mut PyObject {
-    let mut scratch = Scratch::<T>::new();
-    let Some(buffer) = (unsafe { load(&mut scratch, value, length, 0) }) else {
-        return ptr::null_mut();
-    };
-    let path = unsafe { slice::from_raw_parts(buffer, length) };
-    let separator_index = path.iter().rposition(|unit| *unit == T::SEPARATOR);
-    let mut split_at = length;
-    if let Some(dot_index) = path.iter().rposition(|unit| *unit == T::DOT)
-        && separator_index.is_none_or(|index| dot_index > index)
-    {
-        let filename_start = separator_index.map_or(0, |index| index + 1);
-        if path[filename_start..dot_index]
-            .iter()
-            .any(|unit| *unit != T::DOT)
-        {
-            split_at = dot_index;
-        }
-    }
     unsafe {
-        tuple_of([
-            T::make(buffer, split_at),
-            T::make(buffer.add(split_at), length - split_at),
-        ])
+        with_scratch::<T>(length, |buffer| {
+            if !T::read(value, buffer, length) {
+                return ptr::null_mut();
+            }
+            let path = slice::from_raw_parts(buffer, length);
+            let separator_index = path.iter().rposition(|unit| *unit == T::SEPARATOR);
+            let mut split_at = length;
+            if let Some(dot_index) = path.iter().rposition(|unit| *unit == T::DOT)
+                && separator_index.is_none_or(|index| dot_index > index)
+            {
+                let filename_start = separator_index.map_or(0, |index| index + 1);
+                if slice::from_raw_parts(buffer.add(filename_start), dot_index - filename_start)
+                    .iter()
+                    .any(|unit| *unit != T::DOT)
+                {
+                    split_at = dot_index;
+                }
+            }
+            tuple_of([
+                T::make(buffer, split_at),
+                T::make(buffer.add(split_at), length - split_at),
+            ])
+        })
     }
 }
 
@@ -339,23 +339,24 @@ unsafe fn join_impl<T: Unit>(
         return type_error(c"path components must have the same type");
     }
     let right_length = right_length as usize;
-    let mut scratch = Scratch::<T>::new();
-    let buffer = scratch.units(left_length + right_length + 1);
     let gap = left_length + 1;
-    if !unsafe { T::read(left, buffer, left_length) }
-        || !unsafe { T::read(right, buffer.add(gap), right_length) }
-    {
-        return ptr::null_mut();
-    }
-    if left_length == 0 || (right_length != 0 && unsafe { *buffer.add(gap) } == T::SEPARATOR) {
-        return unsafe { T::make(buffer.add(gap), right_length) };
-    }
-    if unsafe { *buffer.add(left_length - 1) } == T::SEPARATOR {
-        unsafe { ptr::copy(buffer.add(gap), buffer.add(left_length), right_length) };
-        unsafe { T::make(buffer, left_length + right_length) }
-    } else {
-        unsafe { *buffer.add(left_length) = T::SEPARATOR };
-        unsafe { T::make(buffer, gap + right_length) }
+    unsafe {
+        with_scratch::<T>(gap + right_length, |buffer| {
+            if !T::read(left, buffer, left_length) || !T::read(right, buffer.add(gap), right_length)
+            {
+                return ptr::null_mut();
+            }
+            if left_length == 0 || (right_length != 0 && *buffer.add(gap) == T::SEPARATOR) {
+                return T::make(buffer.add(gap), right_length);
+            }
+            if *buffer.add(left_length - 1) == T::SEPARATOR {
+                ptr::copy(buffer.add(gap), buffer.add(left_length), right_length);
+                T::make(buffer, left_length + right_length)
+            } else {
+                *buffer.add(left_length) = T::SEPARATOR;
+                T::make(buffer, gap + right_length)
+            }
+        })
     }
 }
 
