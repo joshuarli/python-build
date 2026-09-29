@@ -1971,10 +1971,45 @@ PyMarshal_WriteObjectToString(PyObject *x, int version)
     return _PyMarshal_WriteObjectToString(x, version, 1);
 }
 
+/* Entry points and helpers for the Rust codec (_marshal_rs).  The codec
+   exports a capsule holding two functions; they are looked up once, so a
+   marshal call reaches Rust without an import, a method lookup, or an
+   argument tuple.  A NULL result without an exception means the value is not
+   one the codec handles, and the caller falls back to the C reader/writer. */
+typedef struct {
+    PyObject *(*dumps)(PyObject *value, int allow_code);
+    PyObject *(*loads)(const char *data, Py_ssize_t size, int allow_code);
+} _PyMarshalRustApi;
+
+typedef struct {
+    /* argcount, posonlyargcount, kwonlyargcount, stacksize, flags, firstlineno */
+    int ints[6];
+    /* code, consts, names, localsplusnames, localspluskinds, filename, name,
+       qualname, linetable, exceptiontable */
+    PyObject *objs[10];
+} _PyMarshalRustCode;
+
+/* Nonzero when the writer must track the object as a possibly shared
+   reference: anything referenced more than once, and interned strings. */
 PyAPI_FUNC(int)
-_PyMarshal_RustUnicodeIsInterned(PyObject *value)
+_PyMarshal_RustShared(PyObject *value)
 {
-    return PyUnicode_CheckExact(value) && PyUnicode_CHECK_INTERNED(value);
+    return !_PyObject_IsUniquelyReferenced(value)
+           || (PyUnicode_CheckExact(value) && PyUnicode_CHECK_INTERNED(value));
+}
+
+/* Bit 0: the string is ASCII and *data/*len describe its bytes.
+   Bit 1: the string is interned. */
+PyAPI_FUNC(int)
+_PyMarshal_RustUnicode(PyObject *value, const char **data, Py_ssize_t *len)
+{
+    int info = PyUnicode_CHECK_INTERNED(value) ? 2 : 0;
+    if (PyUnicode_IS_COMPACT_ASCII(value)) {
+        *data = (const char *)PyUnicode_1BYTE_DATA(value);
+        *len = PyUnicode_GET_LENGTH(value);
+        info |= 1;
+    }
+    return info;
 }
 
 PyAPI_FUNC(void)
@@ -1987,81 +2022,55 @@ _PyMarshal_RustTupleSetItem(PyObject *tuple, Py_ssize_t index, PyObject *item)
     PyTuple_SET_ITEM(tuple, index, item);
 }
 
-PyAPI_FUNC(PyObject *)
-_PyMarshal_RustCodeFields(PyObject *value)
+/* Fill the fixed-order fields of a code object.  objs[0] is a new reference
+   to the bytecode; the other objects are borrowed from the code object. */
+PyAPI_FUNC(int)
+_PyMarshal_RustCodeParts(PyObject *value, _PyMarshalRustCode *parts)
 {
     PyCodeObject *code_object = (PyCodeObject *)value;
     PyObject *code = _PyCode_GetCode(code_object);
     if (code == NULL) {
-        return NULL;
+        return -1;
     }
-    PyObject *fields = PyTuple_New(16);
-    if (fields == NULL) {
-        Py_DECREF(code);
-        return NULL;
-    }
-    /* The Rust codec traverses code records in marshal's fixed field order. */
-#define SET_CODE_FIELD(index, field) \
-    PyTuple_SET_ITEM(fields, index, Py_NewRef(code_object->field))
-    PyTuple_SET_ITEM(fields, 0, PyLong_FromLong(code_object->co_argcount));
-    PyTuple_SET_ITEM(fields, 1, PyLong_FromLong(code_object->co_posonlyargcount));
-    PyTuple_SET_ITEM(fields, 2, PyLong_FromLong(code_object->co_kwonlyargcount));
-    PyTuple_SET_ITEM(fields, 3, PyLong_FromLong(code_object->co_stacksize));
-    PyTuple_SET_ITEM(fields, 4, PyLong_FromLong(code_object->co_flags));
-    PyTuple_SET_ITEM(fields, 5, code);
-    SET_CODE_FIELD(6, co_consts);
-    SET_CODE_FIELD(7, co_names);
-    SET_CODE_FIELD(8, co_localsplusnames);
-    SET_CODE_FIELD(9, co_localspluskinds);
-    SET_CODE_FIELD(10, co_filename);
-    SET_CODE_FIELD(11, co_name);
-    SET_CODE_FIELD(12, co_qualname);
-    PyTuple_SET_ITEM(fields, 13, PyLong_FromLong(code_object->co_firstlineno));
-    SET_CODE_FIELD(14, co_linetable);
-    SET_CODE_FIELD(15, co_exceptiontable);
-#undef SET_CODE_FIELD
-    for (Py_ssize_t index = 0; index < 16; index++) {
-        if (PyTuple_GET_ITEM(fields, index) == NULL) {
-            Py_DECREF(fields);
-            return NULL;
-        }
-    }
-    return fields;
+    parts->ints[0] = code_object->co_argcount;
+    parts->ints[1] = code_object->co_posonlyargcount;
+    parts->ints[2] = code_object->co_kwonlyargcount;
+    parts->ints[3] = code_object->co_stacksize;
+    parts->ints[4] = code_object->co_flags;
+    parts->ints[5] = code_object->co_firstlineno;
+    parts->objs[0] = code;
+    parts->objs[1] = code_object->co_consts;
+    parts->objs[2] = code_object->co_names;
+    parts->objs[3] = code_object->co_localsplusnames;
+    parts->objs[4] = code_object->co_localspluskinds;
+    parts->objs[5] = code_object->co_filename;
+    parts->objs[6] = code_object->co_name;
+    parts->objs[7] = code_object->co_qualname;
+    parts->objs[8] = code_object->co_linetable;
+    parts->objs[9] = code_object->co_exceptiontable;
+    return 0;
 }
 
 PyAPI_FUNC(PyObject *)
-_PyMarshal_RustBuildCode(PyObject *fields)
+_PyMarshal_RustBuildCode(const _PyMarshalRustCode *parts)
 {
-    if (!PyTuple_CheckExact(fields) || PyTuple_GET_SIZE(fields) != 16) {
-        PyErr_SetString(PyExc_TypeError, "invalid Rust marshal code fields");
-        return NULL;
-    }
-    long argcount = PyLong_AsLong(PyTuple_GET_ITEM(fields, 0));
-    long posonlyargcount = PyLong_AsLong(PyTuple_GET_ITEM(fields, 1));
-    long kwonlyargcount = PyLong_AsLong(PyTuple_GET_ITEM(fields, 2));
-    long stacksize = PyLong_AsLong(PyTuple_GET_ITEM(fields, 3));
-    long flags = PyLong_AsLong(PyTuple_GET_ITEM(fields, 4));
-    long firstlineno = PyLong_AsLong(PyTuple_GET_ITEM(fields, 13));
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
     struct _PyCodeConstructor constructor = {
-        .filename = PyTuple_GET_ITEM(fields, 10),
-        .name = PyTuple_GET_ITEM(fields, 11),
-        .qualname = PyTuple_GET_ITEM(fields, 12),
-        .flags = (int)flags,
-        .code = PyTuple_GET_ITEM(fields, 5),
-        .firstlineno = (int)firstlineno,
-        .linetable = PyTuple_GET_ITEM(fields, 14),
-        .consts = PyTuple_GET_ITEM(fields, 6),
-        .names = PyTuple_GET_ITEM(fields, 7),
-        .localsplusnames = PyTuple_GET_ITEM(fields, 8),
-        .localspluskinds = PyTuple_GET_ITEM(fields, 9),
-        .argcount = (int)argcount,
-        .posonlyargcount = (int)posonlyargcount,
-        .kwonlyargcount = (int)kwonlyargcount,
-        .stacksize = (int)stacksize,
-        .exceptiontable = PyTuple_GET_ITEM(fields, 15),
+        .filename = parts->objs[5],
+        .name = parts->objs[6],
+        .qualname = parts->objs[7],
+        .flags = parts->ints[4],
+        .code = parts->objs[0],
+        .firstlineno = parts->ints[5],
+        .linetable = parts->objs[8],
+        .consts = parts->objs[1],
+        .names = parts->objs[2],
+        .localsplusnames = parts->objs[3],
+        .localspluskinds = parts->objs[4],
+        .argcount = parts->ints[0],
+        .posonlyargcount = parts->ints[1],
+        .kwonlyargcount = parts->ints[2],
+        .stacksize = parts->ints[3],
+        .exceptiontable = parts->objs[9],
     };
     if (_PyCode_Validate(&constructor) < 0) {
         return NULL;
@@ -2069,29 +2078,25 @@ _PyMarshal_RustBuildCode(PyObject *fields)
     return (PyObject *)_PyCode_New(&constructor);
 }
 
+static _PyMarshalRustApi *marshal_rust_api_cache;
+
+/* Returns 1 with *api set, 0 when the codec is unavailable, -1 on error. */
 static int
-marshal_rust_codec(const char *method_name, PyObject *value, int version,
-                   int allow_code, PyObject **result)
+marshal_rust_api(_PyMarshalRustApi **api)
 {
-    PyObject *module = PyImport_ImportModule("_marshal_rs");
-    if (module == NULL) {
-        if (PyErr_ExceptionMatches(PyExc_ImportError)) {
-            PyErr_Clear();
-            return 0;
+    _PyMarshalRustApi *cached = _Py_atomic_load_ptr(&marshal_rust_api_cache);
+    if (cached == NULL) {
+        cached = PyCapsule_Import("_marshal_rs._api", 0);
+        if (cached == NULL) {
+            if (PyErr_ExceptionMatches(PyExc_ImportError)) {
+                PyErr_Clear();
+                return 0;
+            }
+            return -1;
         }
-        return -1;
+        _Py_atomic_store_ptr(&marshal_rust_api_cache, cached);
     }
-    PyObject *candidate = PyObject_CallMethod(module, method_name, "Oii",
-                                             value, version, allow_code);
-    Py_DECREF(module);
-    if (candidate == NULL) {
-        return -1;
-    }
-    if (candidate == Py_NotImplemented) {
-        Py_DECREF(candidate);
-        return 0;
-    }
-    *result = candidate;
+    *api = cached;
     return 1;
 }
 
@@ -2102,8 +2107,34 @@ marshal_rust_dumps(PyObject *value, int version, int allow_code,
     if (version != Py_MARSHAL_VERSION) {
         return 0;
     }
-    return marshal_rust_codec("dumps_if_supported", value, version,
-                              allow_code, result);
+    _PyMarshalRustApi *api;
+    int status = marshal_rust_api(&api);
+    if (status <= 0) {
+        return status;
+    }
+    PyObject *candidate = api->dumps(value, allow_code);
+    if (candidate == NULL) {
+        return PyErr_Occurred() ? -1 : 0;
+    }
+    *result = candidate;
+    return 1;
+}
+
+static int
+marshal_rust_loads(const char *data, Py_ssize_t size, int allow_code,
+                   PyObject **result)
+{
+    _PyMarshalRustApi *api;
+    int status = marshal_rust_api(&api);
+    if (status <= 0) {
+        return status;
+    }
+    PyObject *candidate = api->loads(data, size, allow_code);
+    if (candidate == NULL) {
+        return PyErr_Occurred() ? -1 : 0;
+    }
+    *result = candidate;
+    return 1;
 }
 
 /* And an interface for Python programs... */
@@ -2273,13 +2304,7 @@ marshal_loads_impl(PyObject *module, Py_buffer *bytes, int allow_code)
     PyObject* result;
     if (PySys_Audit("marshal.loads", "y#", s, n) < 0)
         return NULL;
-    PyObject *input = PyBytes_FromStringAndSize(s, n);
-    if (input == NULL)
-        return NULL;
-    int rust_status = marshal_rust_codec("loads_if_supported", input,
-                                         Py_MARSHAL_VERSION, allow_code,
-                                         &result);
-    Py_DECREF(input);
+    int rust_status = marshal_rust_loads(s, n, allow_code, &result);
     if (rust_status < 0)
         return NULL;
     if (rust_status > 0)
@@ -2318,9 +2343,10 @@ marshal_dumps_importlib_bytecode(PyObject *module, PyObject *code)
     if (PySys_Audit("marshal.dumps", "Oi", code, Py_MARSHAL_VERSION) < 0) {
         return NULL;
     }
-    /* Match public Rust bytecode output without importing its extension. */
+    /* Same selective references as public marshal.dumps, without importing
+       the Rust extension. */
     return marshal_write_object_to_string_no_audit(code, Py_MARSHAL_VERSION,
-                                                    1, 1);
+                                                    1, 0);
 }
 
 static PyMethodDef marshal_methods[] = {

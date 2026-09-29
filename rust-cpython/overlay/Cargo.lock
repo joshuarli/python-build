@@ -92,7 +92,6 @@ dependencies = [
 name = "_configparser_rs"
 version = "0.1.0"
 dependencies = [
- "configparser",
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -778,15 +777,6 @@ name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
-
-[[package]]
-name = "configparser"
-version = "3.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "031ad3d167622974ed636505ae4556267ed4aa2aea0464122fa6bc9698a32825"
-dependencies = [
- "indexmap",
-]
 
 [[package]]
 name = "const-oid"
