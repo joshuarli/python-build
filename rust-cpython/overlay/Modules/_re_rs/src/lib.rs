@@ -12,7 +12,7 @@ use cpython_sys::{
     PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
     PyUnicode_AsUTF8AndSize, Py_DecRef, Py_ssize_t,
 };
-use regex::Regex;
+use regex::bytes::{Regex, RegexBuilder};
 
 const CACHE_LIMIT: usize = 512;
 
@@ -50,7 +50,9 @@ fn portable_expression(pattern: &str) -> Option<Regex> {
         }
     }
 
-    let expression = Regex::new(pattern).ok()?;
+    // Patterns and subjects are ASCII, so byte-mode ASCII classes match exactly
+    // what the Unicode classes would, without Unicode tables or their NFAs.
+    let expression = RegexBuilder::new(pattern).unicode(false).build().ok()?;
     let mut cache = regex_cache()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -224,7 +226,7 @@ unsafe fn search_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObj
     let Some(expression) = portable_expression(&pattern) else {
         return unsafe { search_result(0, 0, 0) };
     };
-    match expression.find(&subject) {
+    match expression.find(subject.as_bytes()) {
         Some(found) => unsafe { search_result(2, found.start(), found.end()) },
         None => unsafe { search_result(1, 0, 0) },
     }
