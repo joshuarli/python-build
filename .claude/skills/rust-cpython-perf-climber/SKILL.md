@@ -121,11 +121,20 @@ changes keep reading ACCEPT), or when the attempts are spent.
    module and make a representative call in a subinterpreter with
    `rust-cpython/stage-perf-<LANE>/bin/python3.16`, and assert
    `_interpreters.run_string()` returns `None`.
-5. Gate: `perf.py bench --baseline @incumbent --candidate <LANE> --module
+5. Incumbent check, right before the gate: `perf.py status` shows the primary
+   `perf-rust` commit (the coordinator rebuilds it after every integration
+   and may not message you). If `git merge-base --is-ancestor <that commit>
+   HEAD` fails, `git merge main`, then redo the clean build and the suites
+   before gating, since the gate needs a challenger that contains it. Lane
+   gates run from long worktree paths and can bias startup-bound guards
+   (`import_django`, `python_startup`) by 1% to 3% against the primary-path
+   incumbent; if that is the only regressed row, say so in FINDINGS and
+   report the gate as is.
+6. Gate: `perf.py bench --baseline @incumbent --candidate <LANE> --module
    <ROUTE> [--workload <W>] --gate`. Report its DECISION as your RESULT. A
    NEUTRAL or REJECT gate after an ACCEPT explore is a real outcome: report
    it; do not rerun the gate hoping for a different draw.
-6. Goal: `perf.py goals --candidate <LANE> --module <ROUTE>`; report the row.
+7. Goal: `perf.py goals --candidate <LANE> --module <ROUTE>`; report the row.
 
 When you change code, a real check must exercise it before you report it
 done: the incremental build, the suite, and the bench above. A command
