@@ -1,4 +1,5 @@
-use std::cell::UnsafeCell;
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::{Cell, UnsafeCell};
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::mem::MaybeUninit;
 use std::ptr;
@@ -32,6 +33,62 @@ use cpython_sys::PyTuple_New;
 use cpython_sys::PyTuple_SetItem;
 use cpython_sys::Py_buffer;
 use cpython_sys::Py_ssize_t;
+
+// libbz2-rs-sys requests its block-sort tables through `alloc_zeroed`: about
+// 7 MiB per level-9 compressor and 3.6 MiB per decompressor. The system
+// allocator satisfies that from its recycled-block cache with a full memset,
+// which makes every page resident even when the input needs a fraction of
+// them. The reference C libbzip2 uses plain `malloc` and writes every table
+// entry before reading it, and this port mirrors that code path for path, so
+// inside a codec call large "zeroed" requests are served without the memset.
+// The relaxed mode is scoped to the calling thread and to the codec calls
+// below; every other allocation keeps the exact `GlobalAlloc` contract.
+struct CodecAllocator;
+
+const UNZEROED_THRESHOLD: usize = 128 * 1024;
+
+thread_local! {
+    static IN_CODEC: Cell<bool> = const { Cell::new(false) };
+}
+
+struct CodecScope(bool);
+
+impl CodecScope {
+    fn enter() -> Self {
+        Self(IN_CODEC.replace(true))
+    }
+}
+
+impl Drop for CodecScope {
+    fn drop(&mut self) {
+        IN_CODEC.set(self.0);
+    }
+}
+
+unsafe impl GlobalAlloc for CodecAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        unsafe { System.alloc(layout) }
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        if layout.size() >= UNZEROED_THRESHOLD && IN_CODEC.get() {
+            unsafe { System.alloc(layout) }
+        } else {
+            unsafe { System.alloc_zeroed(layout) }
+        }
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        unsafe { System.dealloc(pointer, layout) }
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        unsafe { System.realloc(pointer, layout, new_size) }
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: CodecAllocator = CodecAllocator;
 
 const PYBUF_SIMPLE: c_int = 0;
 const OUTPUT_CHUNK: usize = 16 * 1024;
@@ -180,7 +237,10 @@ fn compress_into(
         let before_in = state.codec.total_in();
         let before_out = state.codec.total_out();
         let mut buffer = [0u8; OUTPUT_CHUNK];
-        let status = state.codec.compress(chunk, &mut buffer, action)?;
+        let status = {
+            let _codec = CodecScope::enter();
+            state.codec.compress(chunk, &mut buffer, action)?
+        };
         let consumed = (state.codec.total_in() - before_in) as usize;
         let produced = (state.codec.total_out() - before_out) as usize;
         input_offset += consumed;
@@ -208,6 +268,7 @@ unsafe extern "C" fn compressor_new(_module: *mut PyObject, level: *mut PyObject
     if !(1..=9).contains(&level) {
         return set_value_error(c"compresslevel must be between 1 and 9");
     }
+    let _codec = CodecScope::enter();
     capsule(
         CompressorState {
             codec: Compress::new(Compression::new(level as u32), 30),
@@ -258,6 +319,7 @@ unsafe extern "C" fn compressor_finish(_module: *mut PyObject, capsule: *mut PyO
 }
 
 unsafe extern "C" fn decompressor_new(_module: *mut PyObject, _ignored: *mut PyObject) -> *mut PyObject {
+    let _codec = CodecScope::enter();
     capsule(
         DecompressorState {
             codec: Decompress::new(false),
@@ -298,7 +360,10 @@ fn decompress_into(
         let before_in = state.codec.total_in();
         let before_out = state.codec.total_out();
         let mut buffer = vec![0u8; room];
-        let status = state.codec.decompress(chunk, &mut buffer)?;
+        let status = {
+            let _codec = CodecScope::enter();
+            state.codec.decompress(chunk, &mut buffer)?
+        };
         let consumed = (state.codec.total_in() - before_in) as usize;
         let produced = (state.codec.total_out() - before_out) as usize;
         consumed_total += consumed;
