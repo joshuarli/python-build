@@ -41,6 +41,10 @@ more CPU and no more memory than the pristine control, and should reach
   both sit below 0.9x, **MET** when the pooled median is at most 1.01x,
   and **UNCLEAR** otherwise. A module takes its worst metric's status and
   is BEYOND only when every metric is. Output mismatches read MISMATCH.
+- **Sequencing.** The climb is memory-first. Only load footprint and working
+  peak are targeted until every module reads MET or BEYOND on both (or is on
+  the debt list); kernel CPU must not regress meanwhile. CPU lanes start
+  after that. Up to 8 lanes run concurrently for memory, 4 for CPU.
 - **Done for a module** means MET or BEYOND on all three metrics. OVER
   modules are the climb's targets, largest ratio first; UNCLEAR modules get
   more rounds before any lane. A MET module is climbed toward 0.9x only
@@ -168,6 +172,7 @@ candidate over baseline for the batch targets.
 
 | Date | Commit | Lanes | vs previous incumbent | Goal status vs control |
 | --- | --- | --- | --- | --- |
+| 2026-09-29 | `59ec0b8` | etree-mem, zstd-mem (memory phase) | Gate ACCEPT, quiet=yes, guards neutral. `xml.etree.ElementTree` cpu 0.313x, load 0.750x, peak 0.250x (all improved). `compression.zstd` cpu 0.934x improved, load 0.721x and peak 0.403x (neutral by interval, points below 1.0). | `xml.etree.ElementTree` OVER: cpu 0.92x MET, load 1.21x OVER (+176 KiB, from `_re_rs`/contextlib imports outside the lane; see `re-mem`), peak 1.34x UNCLEAR. `compression.zstd` OVER: cpu 1.94x OVER (CPU phase), load 1.45x UNCLEAR, peak 0.79x MET; open lead: `_zstd/*.c` runs C libzstd first and Rust on a copy. `goals --min-idle 0`, memory rows only. |
 
 ## Release-grade confirmation (later)
 
