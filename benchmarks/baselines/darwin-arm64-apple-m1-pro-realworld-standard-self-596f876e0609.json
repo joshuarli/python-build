@@ -1,7 +1,7 @@
 {
   "comparison_role": "self_control_calibration",
   "pyperformance": null,
-  "recorded_at_utc": "2026-09-29T01:51:25.445539+00:00",
+  "recorded_at_utc": "2026-09-29T01:51:21.778727+00:00",
   "reference_interpreter": {
     "abi": "cpython-316-darwin",
     "compiler": "Clang 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22",
@@ -31,9 +31,9 @@
     "hardware_model": "MacBookPro18,3",
     "kernel_release": "25.5.0",
     "load_average": [
-      5.23095703125,
-      5.59033203125,
-      5.85302734375
+      5.09130859375,
+      5.57666015625,
+      5.85205078125
     ],
     "logical_cpu_count": 10,
     "machine": "arm64",
@@ -57,7 +57,7 @@
     "offline_boundary": "local diagnostic; network not denied",
     "profile": "standard",
     "suite": "realworld",
-    "timestamp_utc": "2026-09-29T01:51:25.445539+00:00"
+    "timestamp_utc": "2026-09-29T01:51:21.778727+00:00"
   },
   "workloads": [
     {
@@ -66,8 +66,8 @@
         "rounds": [],
         "status": "not_run"
       },
-      "category": "compression",
-      "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+      "category": "web",
+      "digest": "b609c04885f4c3ca00a0535939258e2f5595ee991874540da00d20f0d29806cf",
       "memory_bytes": {
         "peak_private": {
           "max": null,
@@ -84,11 +84,11 @@
           "stdev": null
         },
         "peak_rss": {
-          "max": 45858816,
-          "median": 39174144,
-          "min": 38649856,
+          "max": 76529664,
+          "median": 76480512,
+          "min": 76447744,
           "sample_count": 3,
-          "stdev": 4019303.87704405
+          "stdev": 41232.162462491986
         },
         "postload_pss": {
           "max": null,
@@ -102,7 +102,7 @@
           {
             "peak_private": null,
             "peak_pss": null,
-            "peak_rss": 38649856,
+            "peak_rss": 76529664,
             "peak_swap": null,
             "postload_pss": null,
             "process_count": 1,
@@ -111,7 +111,7 @@
           {
             "peak_private": null,
             "peak_pss": null,
-            "peak_rss": 39174144,
+            "peak_rss": 76480512,
             "peak_swap": null,
             "postload_pss": null,
             "process_count": 1,
@@ -120,7 +120,7 @@
           {
             "peak_private": null,
             "peak_pss": null,
-            "peak_rss": 45858816,
+            "peak_rss": 76447744,
             "peak_swap": null,
             "postload_pss": null,
             "process_count": 1,
@@ -135,15 +135,15 @@
           "stdev": null
         }
       },
-      "name": "zlib_decode_1m",
-      "operation": "decoded byte",
-      "operation_count": 33554432,
+      "name": "django_wsgi_request",
+      "operation": "request",
+      "operation_count": 30,
       "timing_seconds": {
-        "max": 0.008064333000220358,
-        "median": 0.007770833908580244,
-        "min": 0.0071807499043643475,
+        "max": 0.03262587497010827,
+        "median": 0.032109458930790424,
+        "min": 0.030804165988229215,
         "sample_count": 5,
-        "stdev": 0.0003458927155598663
+        "stdev": 0.0006795266082142634
       }
     }
   ]

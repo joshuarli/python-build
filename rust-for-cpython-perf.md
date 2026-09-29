@@ -102,6 +102,44 @@ separately.
   clear regression. Compare native binary size and maintenance cost after
   correctness and resource results.
 
+## First baseline (2026-09-29, macOS arm64)
+
+Both sides built from the pinned fork source with locked LLVM 23.1.2,
+`-O2 -mcpu=apple-m1`, macOS SDK 26.5, GIL-enabled, no PGO, no ThinLTO,
+Cargo `release`: control `stage-perf-upstream` (empty overlay) versus
+candidate `stage-perf-rust` (329 overlay files, all 71 routes). Seven
+`--local --profile standard` paired runs plus control `self-compare`
+calibration on Apple M1 Pro (MacBookPro18,3). Baselines checked in as
+`benchmarks/baselines/rust-cp316-perf-<workload>.json`; the control
+repeatability runs refreshed the `darwin-arm64-*-self-*.json` files.
+Timing verdicts use the controller's paired noise bounds; allocation
+tracing is unavailable on macOS.
+
+| Workload | Wall vs control | Timing | Peak RSS vs control | Memory |
+| --- | --- | --- | --- | --- |
+| `python_startup` | +1.5% (noise bound 24.9%) | pass | +4.2% (+590 KB) | fail |
+| `serialization_roundtrip` | +2.3% (bound 5.0%) | pass | +16.4% | fail |
+| `zlib_decode_1m` | +773.6% | fail | +41.5% | fail |
+| `gzip_extract_1m` | +59.9% (bound 18.8%) | fail | +25.3% | fail |
+| `django_wsgi_request` | +8.3% (bound 9.8%) | pass | +12.6% | fail |
+| `django_template_realistic` | +16.5% (bound 5.0%) | fail | +11.8% | fail |
+| `import_django` | +33.6% (bound 53.8%) | pass | +17.9% | fail |
+
+Control `self-compare` ratios sit at 1.00–1.03 with timing pass, so the
+candidate gaps are real effects, not runner noise. Installed size grows
+285 MB to 338 MB (+18.6%) with the 69 extra release-built extensions.
+
+Two debts carry forward. First, decompression throughput: the port uses
+`flate2` with its pure-Rust backend instead of system zlib, and the
+one-shot wrapper loops over 64 KB chunks with an unreserved output vector
+and an order-n input drain each round; scaling runs show 9x at 1 KB
+widening to 24x at 1 MB against system zlib, so backend and growth
+strategy stack. Second, resident memory grows on every workload (+4 to
++42%), consistent with dozens of additional mapped extensions plus larger
+working buffers; the next step is attributing it per workload rather than
+treating the single peak number as one cause. Neither debt revokes any
+coverage item.
+
 ## Historical findings
 
 The previous performance-first loop produced many narrow Rust kernels but
