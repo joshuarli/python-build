@@ -1,10 +1,241 @@
 # Rust-for-CPython performance phase
 
-**Active.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+**Active; memory phase in progress, CPU phase not started. See [Handoff](#handoff-2026-09-29) first.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
 are complete under its strict Python-suite coverage rule, and those rules
 still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
 recoverable from Git history at commit `f0f8690`.
+
+## Handoff (2026-09-29)
+
+Written when the session wound down. The memory phase (load footprint and
+working peak first, CPU only after) is **not finished**; the CPU phase has not
+started. Read this before touching anything.
+
+### State
+
+- `main` is at `e41f4fb`. `perf-rust` is built there (verified, clean);
+  `perf-upstream` (pristine control) is at `d41b580`. No worktrees remain except
+  the primary checkout. Check `python3 rust-cpython/perf.py status` and
+  `git log --oneline -1` match before starting; rebuild `perf-rust` if not.
+- 23 lane changes are integrated over 12 ledger rows (see the ledger): `etree`,
+  `zstd` (Rust side, then the C glue), `lzma`, `re`, `bz2`, `asyncio`, `os.path`,
+  `json`, `tomllib`, `plistlib`, `zlib`, `binascii`/`base64`, `statistics`,
+  `marshal`, `configparser`, `zipfile`/`zipimport`, `glob`, `concurrent.futures`,
+  `gzip`, `shlex`, `urllib.parse`, `textwrap`.
+- Last full `perf.py goals` (host quiet at start, `e41f4fb`): **OVER 44,
+  UNCLEAR 17, MET 10** of 71 (first baseline: 63 / 6 / 2). MET: `urllib.parse`,
+  `json`, `re`, `zipfile`, `html.parser`, `zipimport`, `shutil`,
+  `compression.zstd`, `configparser`, `concurrent.futures`. Working peak is MET
+  or noise-bound on nearly every module; the remaining memory debt is mostly
+  **load footprint** (about 50 modules, 16 KiB to 700 KiB over control), and
+  most of it is other Rust routes' dylibs on each module's import path.
+- **Provisional integrations.** The ledger rows `f7a0121`, `3ce7286` and `e41f4fb`
+  (`zipfile`/`zipimport`/`glob`, `concurrent.futures`, and `gzip`/`shlex`/`urllib.parse`/`textwrap`)
+  were integrated under the memory-phase unquiet-host rule (gate `INCONCLUSIVE` for `quiet=no` only, every
+  target improved, no row regressed, full suite passed). They have **not** had a
+  quiet-host confirmation. Baselines under `benchmarks/baselines/` were recorded
+  at `3f5846f` (quiet); the workload picture (peak RSS regressed on 21 of 23
+  workloads at that point) has **not** been re-measured since. The earlier
+  ledger rows (`59ec0b8` through `a97f52a`) were gated at `quiet=yes` in the
+  primary checkout, except `59ec0b8` and `3f5846f`, whose lane gates were
+  `quiet=yes` on the same code.
+- Skills, agents, and the harness are committed and current:
+  `.claude/skills/rust-cpython-perf` (coordinator), `.../rust-cpython-perf-climber`,
+  `.claude/agents/rust-perf-climber*.md`, `.claude/skills/rust-cpython-perf/wait_quiet.py`.
+  The coordinator's working state file `rust-cpython/results/coordinator-state.json`
+  is git-ignored and may be stale or absent; rebuild state from `git`, `perf.py
+  status`, and this ledger.
+
+### Do these first (in order)
+
+1. `python3 .claude/skills/rust-cpython-perf/wait_quiet.py 180`, then
+   `python3 rust-cpython/perf.py calibrate --ref @control --gate`; continue only on
+   `CALIBRATION-OK` with `quiet=yes`.
+2. Confirm the provisional batches and refresh the workload picture:
+   `python3 rust-cpython/perf.py bench --baseline @control --candidate @incumbent
+   --gate --all-workloads --record-baselines`. Any module or workload row that
+   regressed against the previous incumbent becomes a repair lane; commit the
+   refreshed baselines and add a ledger row. Watch `python_startup` (wall read
+   1.237 with interval [1.000, 1.289] at `e41f4fb` on an unquiet host).
+3. `python3 rust-cpython/perf.py goals`; for UNCLEAR rows use
+   `goals --module M --profile rigorous` once (rule in the skill: pooled median
+   above 1.01x counts as OVER, otherwise MET). Memory rows are noisy (below).
+4. Then the memory phase ends only when every module's load footprint and
+   working peak are MET or BEYOND (or debt-listed) **and** every workload's
+   `peak_rss` is neutral or improved against `@control`. Only then start CPU
+   lanes (largest ratios: `decimal` 5.7x, `functools` 5.0x, `sqlite3` 3.9x,
+   `bisect` 3.9x, `fractions` 3.5x, `datetime` 3.3x, `csv` 3.0x, `base64` 2.9x,
+   `itertools` 2.8x, `unicodedata` 2.5x, `argparse` 2.4x).
+
+### What is left, and what to try
+
+- **The per-dylib floor (biggest remaining lever).** Measured by the `dylib-mem`
+  lane: every dlopen'd Rust extension dirties `__DATA_CONST` + `__DATA` (32 KiB)
+  at import, 16 KiB with `-Wl,-no_data_const`, and costs 48 to 96 KiB resident
+  and about 0.65 ms of dlopen; `asyncio` imports 14 of them and `import_django`
+  35. `panic = "abort"`, `-Wl,-x`/strip and `opt-level=s` do not change
+  footprint. Static linking all 67 modules through `cpython-rust-staticlib`
+  builds first try and lowers import-heavy load rows 2% to 7% but adds about
+  +150 KiB dirty `__DATA_CONST` to every process at startup (libpython 7.5 ->
+  13.9 MB), so the plan is a **hybrid**: link the tiny `no_std` modules plus the
+  hot mid-size ones statically, keep `_re_rs` and `_sqlite3_rs` shared, and judge
+  it on `python_startup` private/PSS. Conflict to solve: every `no_std` route
+  defines its own `#[panic_handler]`, which collides with the std-based
+  staticlib; gate the handler behind a cargo feature enabled only by the shared
+  build. Mechanism (Setup.local `*static*`, an entry in
+  `overlay/Modules/cpython-rust-staticlib/Cargo.toml` and its `Cargo.lock`
+  package, re-export `PyInit_*`) is on branch `dylib-mem-static-wip`
+  (`118133a`, not integrable as is). A `no_data_const` line already lives in
+  each `no_std` route's `build.rs`; the shared-helper version
+  (`worktree-agent-abf87d8fae69689c8`, `410e46b`) read NEUTRAL and is redundant.
+- **Lazy imports in overlay wrappers.** Several wins came from importing less
+  (`re`, `ipaddress`, `threading`, `pathlib`, `shutil`, `contextlib`, `zlib`)
+  in `overlay/Lib/*.py` wrappers, not from Rust changes. Look at every wrapper
+  whose module still reads OVER on load with `-X importtime` against `@control`.
+- **Startup.** `_codecs_rs` still loads at interpreter startup through
+  `encodings.utf_8` (1.75 ms, the largest startup import; control has none). The
+  `startup-mem` lane (branch `worktree-agent-a6c344f4467798c81`, `55bcd49619`)
+  made it lazy and statically linked, read `NEUTRAL` (below the 1% floor), and
+  is one failed lane on that route. It needs the static-link work above to pay.
+  Linux `test_io.test_fileio` (an strace check) was not run on that branch.
+- **Candidate lanes (memory, none tried yet):** `fnmatch` (+190 KiB), `fractions`,
+  `functools`, `decimal`, `datetime`, `struct`, `socket`, `uuid`, `warnings`,
+  `_strptime`, `tempfile`, `xml.etree.ElementTree` (peak 1.28x, load 1.19x),
+  `tarfile` (load 1.49x), `logging`, `email`, `importlib.metadata`,
+  `importlib.resources`, `multiprocessing`, `urllib.request`, `http.client`,
+  `sqlite3`, `unicodedata`, `argparse`, `typing`, `random`, `tokenize`,
+  `contextlib`, `difflib`, `inspect`, `pickle`. Use the `no_std` recipe below
+  where the route is small.
+- **`pickle` WIP.** Branch `worktree-agent-abe893d6765eee240` (`0ec6bed`):
+  `_pickle_rs` rewritten `#![no_std]` (709 KB -> 38 KB) with no Rust allocation,
+  built and smoke-tested, **no suite run**. The kernel graph (tuples) always
+  declines to C `_pickle`, so the extra load is the image and the peak is the old
+  encoder's transient allocations. Finish: run `test_pickle`, `test_picklebuffer`,
+  `test_pickletools`, `test_copy`, `test_copyreg`, `test_shelve`, `test_dbm`,
+  `test_zipfile`, then gate with `--module pickle --workload serialization_roundtrip`.
+- **Remaining CPU debt** is untouched (memory phase first). `base64` (2.9x),
+  `binascii` (1.6x; `crc_hqx` is bit by bit) and `lzma` (1.37x, `lzma-rust2`
+  speed; a different crate is a valid experiment) were noted by their lanes.
+
+### Review items owed (behavior or risk the lanes introduced)
+
+- **`bz2`**: a codec-scoped allocator serves large "zeroed" block-sort tables
+  without the libmalloc memset; safe only because `libbz2-rs-sys` never reads
+  a table entry before writing it (MallocScribble runs matched control). Prefer a
+  patched local copy if this ever changes.
+- **`_re_rs`**: a global allocator with a 60 KiB static scratch arena confined to
+  one thread and one parse scope; reviewed once by the coordinator (arena
+  pointers are never freed, nothing escapes the scope, panic resets via `Drop`).
+- **Workspace `panic = "abort"`** in `overlay/Cargo.toml` (needed by `no_std`
+  routes; no overlay crate uses `catch_unwind`; gated across eight modules).
+- **`marshal`**: glue in `overlay/Python/marshal.c` reaches Rust through a cached
+  `_marshal_rs._api` capsule; public `marshal.dumps` bytes now match pristine
+  CPython (`FLAG_REF` only on shared or interned objects); `force_refs` is always
+  0 and can be removed.
+- **`zstd`**: `_zstd/compressor.c` and `decompressor.c` no longer run libzstd
+  first and Rust on a copy; the C path remains for dictionaries, options, and
+  when `_zstd_rs` cannot load (subinterpreters).
+- **`plistlib`**: equal XML dict keys share one `str`; `load()` reads a file object
+  whole; module-level helper names `binascii`, `struct`, `re`, `itertools`,
+  `ParserCreate` no longer exist on `plistlib` (private test helpers resolve
+  through `__getattr__`); pure-Python code moved to `Lib/_plistlib_py.py`.
+- **`zipfile`** imports `zipfile._path`, `shutil`, `bz2`, `lzma`,
+  `compression.zstd`, `binascii` lazily (PEP 810 `lazy import`) and uses
+  `_thread.RLock()`; `_codec_missing()` and `mock.patch('zipfile.bz2', None)`
+  still work.
+- **`concurrent.futures`**: `_FutureCondition` subclasses `threading.Condition`
+  and depends on `_lock`, `_waiters`, and the RLock's `_is_owned`,
+  `_release_save`, `_acquire_restore`; re-check it if `threading` changes.
+- **`gzip`** keeps a process-global (atomic) ~300 KiB DEFLATE state block
+  resident after the first compress; error text for a bad level now matches C.
+- **`glob`** returns `readdir` order (sorted order was the crate's, `glob`
+  documents order as undefined). **`textwrap`**: `\x0b` is whitespace in
+  placeholders. **`urllib.parse`**: `re`, `ipaddress`, `math`, `warnings` import
+  on first use; `urllib.parse.re` stays resolvable via `__getattr__`.
+- **Skip counts** read a few higher than the checklist (release build vs the
+  debug build the checklist ran: `test_bz2` refleak, `Py_DEBUG`-only tests);
+  total skips across the full suite are identical to the incumbent
+  (2,748), so nothing new was introduced.
+- All lane commits keep their differential fuzz results in their handoffs
+  (`glob` 2.1M pairs, `shlex` 800k, `textwrap` 30k, `configparser` 20k,
+  `plistlib` 15k, `tomllib` 280k, `os.path` 42k); scripts were not committed.
+
+### Playbook (what worked)
+
+1. **Drop Rust `std` from small extensions.** `#![no_std]`, no `cpython-sys`, a
+   `#[panic_handler]` that calls libc `abort`, hand-declared `extern "C"` entry
+   points and `PyModuleDef`/`PyMethodDef` layouts; on macOS put
+   `#[cfg_attr(target_vendor = "apple", link(name = "System"))]` on the extern
+   block (rustc passes `-nodefaultlibs`); `PyMem_Malloc`/`PyMem_Free` instead of
+   `Vec`. Images fell 408 KiB -> 35 to 70 KiB, and imports cost about 16 to 32
+   KiB. Worked examples: `_statistics_rs`, `_glob_rs`, `_posixpath_rs`,
+   `_marshal_rs`, `_shlex_rs`, `_textwrap_rs`, `_urllib_parse_rs`. For recursive
+   routes that keep `std`, declaring only the recursive entry points `unsafe
+   extern "C"` lets LLVM infer `nounwind` and drops landing pads.
+2. **Write straight into the result object** (`bytes`/`str` sized exactly, resized
+   in place), build Python objects directly from borrowed input, no intermediate
+   `Vec`/tree/copy. Track shared objects in a `PyMem` table.
+3. **Every first allocation of a new size class in a Rust first call dirties a
+   fresh 16 KiB `MALLOC_SMALL` page** that stays resident; use one pre-sized
+   buffer, a stack buffer with a `PyMem` fallback, or a scratch arena.
+4. **libmalloc memsets large `alloc_zeroed` blocks**; avoid zeroed requests.
+5. **Intern attribute names once** in per-module state and call with
+   `PyObject_VectorcallMethod`; no temporary `str` per lookup.
+6. **Swap `flate2`/`miniz_oxide` for `libz-rs-sys` (zlib-rs)** driving the zlib C
+   API (`zlib`, `gzip`, `zipfile`, `zipimport`).
+7. **Import less** in overlay wrappers (lazy `re`, `ipaddress`, `threading`, ...).
+8. **Remove duplicate work in C glue** (`zstd` ran C then Rust; `configparser`
+   parsed in Rust, re-serialized, parsed again in Python).
+9. Attribute residue with the macOS `footprint` tool on a single probe process
+   (probes only; benches and suites go through `perf.py`).
+
+### Process lessons (pitfalls hit this session)
+
+- **Worktree-path bias.** Lane builds sit at long paths; their gates read
+  `import_django` / `python_startup` (and any startup-bound guard) 1% to 3% off
+  against the primary-path `@incumbent`, producing false `REJECT`s
+  (`zstd-glue`, `tomllib`, `plistlib`). Batches are built and gated in the
+  **primary checkout** on a temporary `integrate-N` branch; that gate decides.
+  Identical builds can read up to about 300 KiB apart in startup footprint by
+  stage directory.
+- **Spawn lanes only while the primary is on `main`** with `perf-rust` built from
+  `main`'s overlay: worktrees branch from the primary's HEAD, and a lane spawned
+  during an integration window starts from unaccepted commits and blocks.
+- **`Cargo.lock`.** Lanes hand-edit it; two edits merge textually but can fail
+  `cargo fetch --locked`. Fix: in `work/perf/perf-merge/source/cpython-*/` run
+  `env CARGO_HOME=<primary>/rust-cpython/.cargo-home <cargo-home>/bin/cargo
+  metadata --offline --format-version 1` (no `--locked`), copy that `Cargo.lock`
+  to `overlay/Cargo.lock`, commit, rebuild. Check the build printed `OK` before
+  chaining a gate or suite behind it.
+- **Do not `pkill -f` a build command string**: it also matches chain shells
+  that contain it. Kill by PID.
+- **Memory rows are noisy and quantized.** Load moves in 16 KiB steps and is
+  often bimodal; control working peak swings 16 KiB to 1.7 MiB run to run on some
+  kernels (`shutil`, `zlib`, `lzma`); floors are 64 KiB (load) and 256 KiB (peak).
+  Use replicated benches, `goals --profile rigorous`, and a 30-sample
+  `perf_modules.py measure` spread before believing a single row. The kernel
+  harness imports `json` before `measure()`, so probes that skip it look about
+  400 KiB better than the harness reports; and the kernel setup imports `tempfile`
+  for some kernels, so residual load rows include other routes' dylibs.
+- Agents cannot be resumed once the user stops them; relaunch a new climber from
+  the stopped branch (WIP commit first). `/tmp` is shared between lanes; use
+  lane-unique probe file names.
+- The host lease serializes measurements; builds and suites share it. With eight
+  lanes, a lane's clean build plus suites plus gate took 40 to 90 minutes.
+
+### Repository housekeeping
+
+- Kept branches: `dylib-mem-static-wip`, `worktree-agent-a6c344f4467798c81`
+  (startup), `worktree-agent-abe893d6765eee240` (pickle WIP),
+  `worktree-agent-abf87d8fae69689c8` (dylib shared helper). Superseded and safe
+  to delete: `worktree-agent-aae84e8e51f23d329` (old lzma), `worktree-agent-a88d705ab31f64e28`
+  (old plistlib WIP).
+- Decisions recorded in `AGENTS.md`: any Rust crate is allowed for the perf lane
+  (pinned in `Cargo.lock`, license noted); the climb is memory-first with up to
+  8 lanes; memory-phase lanes may integrate on an unquiet host when no row
+  regresses (provisional until a quiet gate).
+- Nothing was pushed. Do not push without the user.
 
 ## Objective after coverage
 
@@ -181,6 +412,9 @@ candidate over baseline for the batch targets.
 | 2026-09-29 | `6c153ab` | binascii-mem (memory phase) | Gate ACCEPT, quiet=yes, primary path, guards neutral. `binascii` cpu 0.894x, peak 0.414x improved, load 0.818x neutral. `base64` cpu 0.907x improved, load 0.684x and peak 0.309x neutral. | `base64` OVER on cpu only (2.90x; memory MET: load 0.94x, peak 1.00x). `binascii` OVER on cpu (1.67x); load 1.01x UNCLEAR, peak 0.95x MET. Full `goals` at `6c153ab`: OVER 54, UNCLEAR 12, MET 5. Row noise: control working peak swings 16 KiB to 1.7 MiB between runs on some kernels (`shutil`), so UNCLEAR rows get a rigorous rerun before a lane. |
 | 2026-09-29 | `358d7cf` | statistics-mem (memory phase) | Gate ACCEPT, quiet=yes, primary path, guards neutral. `statistics` cpu 0.605x improved, load 0.557x and peak 0.668x neutral (points below 1.0). Also confirms the workspace-wide `panic = "abort"` profile (needed for `no_std`): eight modules that import many dylibs read neutral on every metric. | `statistics` UNCLEAR at the floor: cpu 0.08x BEYOND, load 1.03x (744/696 KiB), peak MET. Residual load is `import statistics` loading `_fractions_rs`, `_itertools_rs`, `_bisect_rs`, `_re_rs` (per-dylib cost). Image 408 KiB -> 70 KiB. |
 | 2026-09-29 | `a97f52a` | marshal-mem, configparser-mem (memory phase) | Gate ACCEPT, quiet=yes, primary path, guards neutral. `marshal` cpu 0.345x improved, load 0.902x and peak 1.000x neutral. `configparser` cpu 0.175x, load 0.296x, peak 0.856x improved. Public `marshal.dumps` bytes now match pristine CPython (FLAG_REF only on shared/interned objects). | `marshal` UNCLEAR at the floor (cpu 0.88x BEYOND, load 1.05x, peak MET). `configparser` MET (cpu 0.22x BEYOND, load 0.88x, peak 0.87x BEYOND). Full `goals` at `a97f52a`: OVER 52, UNCLEAR 12, MET 7 (63/6/2 at the first baseline). Working peak is MET or near it on nearly every module; the remaining debt is mostly load footprint from other routes' dylibs on each import path. |
+| 2026-09-29 | `f7a0121` | zip-mem, glob-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; every target improved, nothing regressed, guards neutral, full suite ok (provisional). `zipfile` cpu 0.497x, load 0.248x; `zipimport` cpu 0.928x, load 0.824x; `glob` cpu 0.514x, load 0.733x, peak 0.697x; `zip_read_wheel` wall 0.574x. | Final `goals`: `zipfile` MET (cpu 0.65x, load 0.51x BEYOND), `zipimport` MET, `glob` UNCLEAR (cpu 0.64x BEYOND, load 1.09x, peak MET). `zipfile` gets its win from lazy imports in `Lib/zipfile` (PEP 810 `lazy import`, `_thread.RLock`); `glob` `_glob_rs` is `no_std` (433 -> 35 KiB) and returns readdir order. |
+| 2026-09-29 | `3ce7286` | cf-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; all three metrics improved (provisional). `concurrent.futures` cpu 0.576x, load 0.508x, peak 0.276x. | `concurrent.futures` MET (cpu 0.72x, load 0.53x BEYOND, peak 0.26x). Cost was per-`Future` bytes from `threading.Condition.__init__` (about 1.7 KB); `_FutureCondition` is lazy (about 520 B) and depends on `threading.Condition` internals. |
+| 2026-09-29 | `e41f4fb` | gzip-mem, shlex-mem, urlparse-mem, textwrap-mem (memory phase, final) | Gate INCONCLUSIVE for quiet=no only; every target improved or points below 1.0, nothing regressed, guards neutral (`python_startup` wall 1.237 [1.000,1.289] flagged), full suite ok (provisional). `gzip` cpu 0.475x; `shlex` cpu 0.881x, load 0.759x; `textwrap` cpu 0.047x, load 0.488x; `urllib.parse` cpu 0.592x, load 0.333x; `gzip_extract_1m` wall 0.545x. | Full `goals` at `e41f4fb`: **OVER 44, UNCLEAR 17, MET 10** (63/6/2 at the first baseline). `urllib.parse` MET (load 0.51x BEYOND). `gzip`, `textwrap`, `shlex` still UNCLEAR/OVER on load (one to three pages above control: the extension's own dirtied `__DATA` page plus other routes' dylibs on the import path). flate2, adler2, miniz_oxide left the lock. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
