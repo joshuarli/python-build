@@ -147,7 +147,6 @@ ConfigParser -- responsible for parsing a list of
 
 from collections.abc import Iterable, MutableMapping
 from collections import ChainMap as _ChainMap
-import contextlib
 import functools
 import io
 import itertools
@@ -164,6 +163,28 @@ __all__ = ("NoSectionError", "DuplicateOptionError", "DuplicateSectionError",
            "Interpolation", "BasicInterpolation",  "ExtendedInterpolation",
            "SectionProxy", "ConverterMapping",
            "DEFAULTSECT", "MAX_INTERPOLATION_DEPTH", "UNNAMED_SECTION")
+
+class _LazyRegex:
+    """Class attribute compiled on first access.
+
+    Most parsers never match these patterns, so `re` compiles nothing until
+    one is needed. The first access replaces the descriptor with the compiled
+    pattern, leaving an ordinary class attribute.
+    """
+
+    def __init__(self, pattern, flags=0):
+        self.pattern = pattern
+        self.flags = flags
+
+    def __set_name__(self, owner, name):
+        self.owner = owner
+        self.name = name
+
+    def __get__(self, instance, owner=None):
+        compiled = re.compile(self.pattern, self.flags)
+        setattr(self.owner, self.name, compiled)
+        return compiled
+
 
 _default_dict = dict
 DEFAULTSECT = "DEFAULT"
@@ -332,8 +353,10 @@ class ParsingError(Error):
         Combine any number of ParsingErrors into one and raise it.
         """
         exceptions = iter(exceptions)
-        with contextlib.suppress(StopIteration):
+        try:
             raise next(exceptions).combine(exceptions)
+        except StopIteration:
+            pass
 
 
 
@@ -426,7 +449,7 @@ class BasicInterpolation(Interpolation):
     a configuration file, she can escape it by writing %%. Other % usage
     is considered a user error and raises `InterpolationSyntaxError`."""
 
-    _KEYCRE = re.compile(r"%\(([^)]+)\)s")
+    _KEYCRE = _LazyRegex(r"%\(([^)]+)\)s")
 
     def before_get(self, parser, section, option, value, defaults):
         L = []
@@ -487,7 +510,7 @@ class ExtendedInterpolation(Interpolation):
     """Advanced variant of interpolation, supports the syntax used by
     `zc.buildout`. Enables interpolation between sections."""
 
-    _KEYCRE = re.compile(r"\$\{([^}]+)\}")
+    _KEYCRE = _LazyRegex(r"\$\{([^}]+)\}")
 
     def before_get(self, parser, section, option, value, defaults):
         L = []
@@ -597,7 +620,14 @@ class _CommentSpec:
             fr'(^|\s)({re.escape(prefix)}.*)'
             for prefix in inline_prefixes
         )
-        self.pattern = re.compile('|'.join(itertools.chain(full_patterns, inline_patterns)))
+        self.source = '|'.join(itertools.chain(full_patterns, inline_patterns))
+        self._pattern = None
+
+    @property
+    def pattern(self):
+        if self._pattern is None:
+            self._pattern = re.compile(self.source)
+        return self._pattern
 
     def strip(self, text):
         return self.pattern.sub('', text).rstrip()
@@ -639,14 +669,14 @@ class RawConfigParser(MutableMapping):
     # Interpolation algorithm to be used if the user does not specify another
     _DEFAULT_INTERPOLATION = Interpolation()
     # Compiled regular expression for matching sections
-    SECTCRE = re.compile(_SECT_TMPL, re.VERBOSE)
+    SECTCRE = _LazyRegex(_SECT_TMPL, re.VERBOSE)
     # Compiled regular expression for matching options with typical separators
-    OPTCRE = re.compile(_OPT_TMPL.format(delim="=|:"), re.VERBOSE)
+    OPTCRE = _LazyRegex(_OPT_TMPL.format(delim="=|:"), re.VERBOSE)
     # Compiled regular expression for matching options with optional values
     # delimited using typical separators
-    OPTCRE_NV = re.compile(_OPT_NV_TMPL.format(delim="=|:"), re.VERBOSE)
+    OPTCRE_NV = _LazyRegex(_OPT_NV_TMPL.format(delim="=|:"), re.VERBOSE)
     # Compiled regular expression for matching leading whitespace in a line
-    NONSPACECRE = re.compile(r"\S")
+    NONSPACECRE = _LazyRegex(r"\S")
     # Possible boolean values in the configuration.
     BOOLEAN_STATES = {'1': True, 'yes': True, 'true': True, 'on': True,
                       '0': False, 'no': False, 'false': False, 'off': False}
@@ -666,8 +696,10 @@ class RawConfigParser(MutableMapping):
         self._proxies = self._dict()
         self._proxies[default_section] = SectionProxy(self, default_section)
         self._delimiters = tuple(delimiters)
+        self._optcre_value = None
+        self._optcre_no_value = allow_no_value
         if delimiters == ('=', ':'):
-            self._optcre = self.OPTCRE_NV if allow_no_value else self.OPTCRE
+            pass  # compiled on first use, see _optcre
         else:
             d = "|".join(re.escape(d) for d in delimiters)
             if allow_no_value:
@@ -696,6 +728,18 @@ class RawConfigParser(MutableMapping):
         if defaults:
             self._read_defaults(defaults)
         self._allow_unnamed_section = allow_unnamed_section
+
+    @property
+    def _optcre(self):
+        optcre = self._optcre_value
+        if optcre is None:
+            optcre = self.OPTCRE_NV if self._optcre_no_value else self.OPTCRE
+            self._optcre_value = optcre
+        return optcre
+
+    @_optcre.setter
+    def _optcre(self, value):
+        self._optcre_value = value
 
     def defaults(self):
         return self._defaults
@@ -1373,16 +1417,22 @@ class ConverterMapping(MutableMapping):
     section proxies to find and use the implementation on the parser class.
     """
 
-    GETTERCRE = re.compile(r"^get(?P<name>.+)$")
+    GETTERCRE = _LazyRegex(r"^get(?P<name>.+)$")
 
     def __init__(self, parser):
         self._parser = parser
         self._data = {}
         for getter in dir(self._parser):
-            m = self.GETTERCRE.match(getter)
-            if not m or not callable(getattr(self._parser, getter)):
+            if '\n' in getter:
+                m = self.GETTERCRE.match(getter)
+                name = m.group('name') if m else None
+            elif getter.startswith('get') and len(getter) > 3:
+                name = getter[3:]
+            else:
                 continue
-            self._data[m.group('name')] = None   # See class docstring.
+            if name is None or not callable(getattr(self._parser, getter)):
+                continue
+            self._data[name] = None   # See class docstring.
 
     def __getitem__(self, key):
         return self._data[key]
@@ -1445,7 +1495,7 @@ def _uses_standard_rust_backend(parser):
         return False
     if parser._delimiters != ('=', ':'):
         return False
-    if parser._comments.pattern.pattern != _STANDARD_COMMENT_PATTERN:
+    if getattr(parser._comments, 'source', None) != _STANDARD_COMMENT_PATTERN:
         return False
     if parser._allow_no_value or not parser._strict:
         return False
@@ -1462,51 +1512,6 @@ def _uses_standard_rust_backend(parser):
     return True
 
 
-def _rust_source_is_unambiguous(parser, lines):
-    sections = set()
-    options = set()
-    current_section = None
-    option_count = 0
-
-    for raw_line in lines:
-        if not isinstance(raw_line, str):
-            return False
-        line = raw_line.strip()
-        if not line or line.startswith(('#', ';')):
-            continue
-        if raw_line[0].isspace():
-            return False
-        if line.startswith('['):
-            if not line.endswith(']') or line.count(']') != 1:
-                return False
-            closing = line.rfind(']')
-            if closing <= 1:
-                return False
-            current_section = line[1:closing]
-            if current_section != current_section.strip() or current_section in sections:
-                return False
-            sections.add(current_section)
-            continue
-        if current_section is None:
-            return False
-        delimiters = [line.find(delimiter) for delimiter in parser._delimiters]
-        delimiters = [position for position in delimiters if position >= 0]
-        if not delimiters:
-            return False
-        delimiter_at = min(delimiters)
-        option = line[:delimiter_at].rstrip()
-        if not option:
-            return False
-        key = parser.optionxform(option)
-        identity = current_section, key
-        if identity in options:
-            return False
-        options.add(identity)
-        option_count += 1
-
-    return option_count > 0
-
-
 def _read_with_rust_backend(self, fp, fpname):
     if (not _uses_standard_rust_backend(self)
             or type(fp) not in (io.StringIO, io.TextIOWrapper)):
@@ -1515,65 +1520,24 @@ def _read_with_rust_backend(self, fp, fpname):
     if backend is None:
         return _PYTHON_READ(self, fp, fpname)
 
-    lines = list(fp)
-    if not _rust_source_is_unambiguous(self, lines):
+    lines = backend.read_ini(fp, self.default_section, self._sections,
+                             self._proxies, self._defaults, SectionProxy,
+                             self, str.lower)
+    if lines is not None:
+        # Not a plain file: the Python parser reads every line itself.
         return _PYTHON_READ(self, iter(lines), fpname)
-
-    source = ''.join(
-        line if line.endswith(('\n', '\r')) else line + '\n'
-        for line in lines
-    )
-    normalized = backend.parse_ini(source, self.default_section)
-    if normalized is None:
-        return _PYTHON_READ(self, iter(lines), fpname)
-    return _PYTHON_READ(self, io.StringIO(normalized), fpname)
-
-
-def _rust_write_is_unambiguous(self, fp, space_around_delimiters):
-    if (not _uses_standard_rust_backend(self)
-            or type(fp) not in (io.StringIO, io.TextIOWrapper)
-            or type(space_around_delimiters) is not bool):
-        return False
-    for section, options in self._sections.items():
-        if (type(section) is not str or section != section.strip()
-                or '\n' in section or '\r' in section or ']' in section):
-            return False
-        for option, value in options.items():
-            if (type(option) is not str or option != option.strip()
-                    or '\n' in option or '\r' in option
-                    or type(value) is not str and value is not None):
-                return False
-            if type(value) is str and (
-                    '\n' in value or '\r' in value or not value
-                    or value != value.strip()):
-                return False
-    for option, value in self._defaults.items():
-        if (type(option) is not str or option != option.strip()
-                or '\n' in option or '\r' in option
-                or type(value) is not str and value is not None):
-            return False
-        if type(value) is str and (
-                '\n' in value or '\r' in value or not value
-                or value != value.strip()):
-            return False
-    return True
 
 
 def _write_with_rust_backend(self, fp, space_around_delimiters=True):
-    if not _rust_write_is_unambiguous(self, fp, space_around_delimiters):
-        return _PYTHON_WRITE(self, fp, space_around_delimiters)
-    backend = _rust_backend()
-    if backend is None:
-        return _PYTHON_WRITE(self, fp, space_around_delimiters)
-
-    temporary = io.StringIO()
-    _PYTHON_WRITE(self, temporary, space_around_delimiters)
-    output = backend.write_ini(
-        temporary.getvalue(), self.default_section, space_around_delimiters
-    )
-    if output is None:
-        return _PYTHON_WRITE(self, fp, space_around_delimiters)
-    fp.write(output)
+    if (_uses_standard_rust_backend(self)
+            and type(fp) in (io.StringIO, io.TextIOWrapper)
+            and type(space_around_delimiters) is bool):
+        backend = _rust_backend()
+        if backend is not None and backend.write_ini(
+                fp.write, self._defaults, self._sections,
+                self.default_section, space_around_delimiters):
+            return
+    return _PYTHON_WRITE(self, fp, space_around_delimiters)
 
 
 RawConfigParser._read = _read_with_rust_backend
