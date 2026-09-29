@@ -1,112 +1,639 @@
+use std::borrow::Cow;
+use std::cell::Cell;
+use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_void};
+use std::hash::{BuildHasherDefault, Hasher};
 use std::ptr;
 
 use cpython_sys::{
-    METH_FASTCALL, PyErr_Clear, PyErr_SetString, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize,
-    Py_ssize_t,
+    METH_FASTCALL, PyBool_FromLong, PyDict_GetItemWithError, PyDict_New, PyDict_SetDefaultRef,
+    PyDict_SetItem, PyDict_Type, PyErr_Clear, PyErr_ExceptionMatches, PyErr_Occurred,
+    PyErr_SetString, PyFloat_FromString, PyImport_ImportModule, PyList_Append, PyList_GetItem,
+    PyList_New, PyList_Size, PyList_Type, PyLong_FromLongLong, PyLong_FromString, PyModuleDef,
+    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyObject_CallOneArg,
+    PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_DecRef,
+    Py_IS_TYPE, Py_ssize_t,
 };
-use serde::Serialize;
-use serde_json::Value as JsonValue;
-use toml_edit::{ArrayOfTables, DocumentMut, Formatted, Item, Table, Value};
+use toml_parser::decoder::{Encoding, IntegerRadix, ScalarKind};
+use toml_parser::lexer::{Token, TokenKind};
+use toml_parser::parser::{EventReceiver, RecursionGuard, ValidateWhitespace, parse_document};
+use toml_parser::{ErrorSink, ParseError, Raw, Source, Span};
 
-const TAG_TABLE: u64 = 0;
-const TAG_ARRAY: u64 = 1;
-const TAG_STRING: u64 = 2;
-const TAG_INTEGER: u64 = 3;
-const TAG_FLOAT: u64 = 4;
-const TAG_BOOLEAN: u64 = 5;
-const TAG_DATETIME: u64 = 6;
+/// Deepest inline nesting parsed here; deeper documents fall back to Python.
+const MAX_DEPTH: u32 = 80;
+/// Tokens buffered before parsing the complete statements gathered so far.
+const CHUNK_TOKENS: usize = 1024;
+/// Longest dotted key handled here; Python reports the recursion-limit error
+/// for longer ones.
+const MAX_KEY_PARTS: usize = 128;
 
-fn raw_float(value: &Formatted<f64>) -> String {
-    value
-        .as_repr()
-        .and_then(|repr| repr.as_raw().as_str())
-        .map(str::to_owned)
-        .unwrap_or_else(|| value.value().to_string())
+/// Table declared by a header (or dotted key) and not reopenable by a header.
+const EXPLICIT: u8 = 1;
+/// Inline table or array: immutable, along with everything inside it.
+const FROZEN: u8 = 2;
+
+#[derive(Clone, Copy)]
+enum Fail {
+    /// The Python parser must handle the document (or raise its error).
+    Fallback,
+    /// A Python exception is set and must propagate.
+    Error,
 }
 
-fn raw_datetime(value: &Formatted<toml_edit::Datetime>) -> String {
-    value
-        .as_repr()
-        .and_then(|repr| repr.as_raw().as_str())
-        .map(str::to_owned)
-        .unwrap_or_else(|| value.value().to_string())
-}
+type Built = Result<*mut PyObject, Fail>;
 
-fn tagged(tag: u64, payload: JsonValue) -> JsonValue {
-    JsonValue::Array(vec![JsonValue::from(tag), payload])
-}
+#[derive(Default)]
+struct PointerHasher(u64);
 
-fn convert_table(table: &Table) -> JsonValue {
-    let mut entries = Vec::new();
-    for (key, value) in table.iter() {
-        if let Some(value) = convert_item(value) {
-            entries.push(JsonValue::Array(vec![
-                JsonValue::String(key.to_owned()),
-                value,
-            ]));
+impl Hasher for PointerHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.0 = (self.0 ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
-    tagged(TAG_TABLE, JsonValue::Array(entries))
-}
 
-fn convert_array_of_tables(tables: &ArrayOfTables) -> JsonValue {
-    tagged(
-        TAG_ARRAY,
-        JsonValue::Array(tables.iter().map(convert_table).collect()),
-    )
-}
-
-fn convert_item(item: &Item) -> Option<JsonValue> {
-    match item {
-        Item::None => None,
-        Item::Value(value) => Some(convert_value(value)),
-        Item::Table(table) => Some(convert_table(table)),
-        Item::ArrayOfTables(tables) => Some(convert_array_of_tables(tables)),
+    fn write_usize(&mut self, value: usize) {
+        self.0 = ((value >> 4) as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
     }
 }
 
-fn convert_value(value: &Value) -> JsonValue {
-    match value {
-        Value::String(value) => tagged(TAG_STRING, JsonValue::String(value.value().clone())),
-        Value::Integer(value) => tagged(
-            TAG_INTEGER,
-            JsonValue::Number((*value.value()).into()),
-        ),
-        Value::Float(value) => tagged(TAG_FLOAT, JsonValue::String(raw_float(value))),
-        Value::Boolean(value) => tagged(TAG_BOOLEAN, JsonValue::Bool(*value.value())),
-        Value::Datetime(value) => {
-            let datetime = value.value();
-            let kind = if datetime.date.is_some() && datetime.time.is_some() {
-                2
-            } else if datetime.date.is_some() {
-                0
-            } else {
-                1
-            };
-            tagged(
-                TAG_DATETIME,
-                JsonValue::Array(vec![
-                    JsonValue::from(kind),
-                    JsonValue::String(raw_datetime(value)),
-                ]),
-            )
-        }
-        Value::Array(array) => tagged(
-            TAG_ARRAY,
-            JsonValue::Array(array.iter().map(convert_value).collect()),
-        ),
-        Value::InlineTable(table) => {
-            let mut entries = Vec::new();
-            for (key, value) in table.iter() {
-                entries.push(JsonValue::Array(vec![
-                    JsonValue::String(key.to_owned()),
-                    convert_value(value),
-                ]));
+type Flags = HashMap<usize, u8, BuildHasherDefault<PointerHasher>>;
+type Strings = HashMap<String, *mut PyObject, BuildHasherDefault<PointerHasher>>;
+
+fn check(object: *mut PyObject) -> Built {
+    if object.is_null() { Err(Fail::Error) } else { Ok(object) }
+}
+
+unsafe fn new_str(text: &str) -> Built {
+    check(unsafe {
+        PyUnicode_FromStringAndSize(text.as_ptr().cast::<c_char>(), text.len() as Py_ssize_t)
+    })
+}
+
+unsafe fn is_dict(object: *mut PyObject) -> bool {
+    unsafe { Py_IS_TYPE(object, ptr::addr_of_mut!(PyDict_Type)) != 0 }
+}
+
+unsafe fn is_list(object: *mut PyObject) -> bool {
+    unsafe { Py_IS_TYPE(object, ptr::addr_of_mut!(PyList_Type)) != 0 }
+}
+
+enum FrameKind {
+    Array,
+    Table,
+}
+
+/// An open array or inline table, owning the object under construction.
+struct Frame<'i> {
+    kind: FrameKind,
+    object: *mut PyObject,
+    /// Key parts of the pending key/value pair (inline tables only).
+    keys: Vec<Cow<'i, str>>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Header {
+    None,
+    Table,
+    Array,
+}
+
+/// Turns parser events straight into Python objects, applying the table
+/// rules of `tomllib`: no redefinition, immutable inline values, and
+/// dotted-key tables that a later header cannot reopen.
+struct Builder<'i, 'f> {
+    input: &'i str,
+    stop: &'f Cell<bool>,
+    fail: Option<Fail>,
+    root: *mut PyObject,
+    current: *mut PyObject,
+    frames: Vec<Frame<'i>>,
+    keys: Vec<Cow<'i, str>>,
+    header: Header,
+    flags: Flags,
+    pending: Vec<*mut PyObject>,
+    /// One shared Python string per distinct key, so repeated keys such as
+    /// those of an array of tables cost one object.
+    strings: Strings,
+    /// Null when the default `float` is in use.
+    parse_float: *mut PyObject,
+    datetime: *mut PyObject,
+    /// `fromisoformat` of `date`, `time`, and `datetime`, loaded on first use.
+    constructors: [*mut PyObject; 3],
+}
+
+impl Drop for Builder<'_, '_> {
+    fn drop(&mut self) {
+        unsafe {
+            for frame in &self.frames {
+                Py_DecRef(frame.object);
             }
-            tagged(TAG_TABLE, JsonValue::Array(entries))
+            for key in self.strings.values() {
+                Py_DecRef(*key);
+            }
+            for constructor in self.constructors {
+                if !constructor.is_null() {
+                    Py_DecRef(constructor);
+                }
+            }
+            if !self.datetime.is_null() {
+                Py_DecRef(self.datetime);
+            }
+            if !self.root.is_null() {
+                Py_DecRef(self.root);
+            }
         }
+    }
+}
+
+impl<'i, 'f> Builder<'i, 'f> {
+    fn record<T>(&mut self, result: Result<T, Fail>) -> Option<T> {
+        match result {
+            Ok(value) => Some(value),
+            Err(fail) => {
+                self.fail.get_or_insert(fail);
+                self.stop.set(true);
+                None
+            }
+        }
+    }
+
+    fn syntax_error(&mut self) {
+        self.fail.get_or_insert(Fail::Fallback);
+        self.stop.set(true);
+    }
+
+    fn raw(&self, span: Span, encoding: Option<Encoding>) -> Option<Raw<'i>> {
+        let text = self.input.get(span.start()..span.end())?;
+        Some(Raw::new_unchecked(text, encoding, span))
+    }
+
+    /// A line break or comment inside an inline table is fine around values
+    /// and separators, but the Python parser rejects one between a key and
+    /// the end of its value, which the event parser tolerates.
+    fn line_break(&mut self) {
+        if let Some(Frame { kind: FrameKind::Table, keys, .. }) = self.frames.last() {
+            if !keys.is_empty() {
+                self.syntax_error();
+            }
+        }
+    }
+
+    fn top_keys(&mut self) -> &mut Vec<Cow<'i, str>> {
+        match self.frames.last_mut() {
+            Some(frame) => &mut frame.keys,
+            None => &mut self.keys,
+        }
+    }
+
+    unsafe fn make_float(&self, raw: &str) -> Built {
+        let text = unsafe { new_str(raw)? };
+        let result = if self.parse_float.is_null() {
+            let result = unsafe { PyFloat_FromString(text) };
+            if result.is_null() && unsafe { PyErr_ExceptionMatches(cpython_sys::PyExc_ValueError) } != 0 {
+                unsafe {
+                    PyErr_Clear();
+                    Py_DecRef(text);
+                }
+                return Err(Fail::Fallback);
+            }
+            result
+        } else {
+            unsafe { PyObject_CallOneArg(self.parse_float, text) }
+        };
+        unsafe { Py_DecRef(text) };
+        check(result)
+    }
+
+    unsafe fn make_integer(&self, digits: &str, radix: IntegerRadix) -> Built {
+        if let Ok(value) = i64::from_str_radix(digits, radix.value()) {
+            return check(unsafe { PyLong_FromLongLong(value) });
+        }
+        let mut text = Vec::with_capacity(digits.len() + 1);
+        text.extend_from_slice(digits.as_bytes());
+        text.push(0);
+        let result = unsafe {
+            PyLong_FromString(text.as_ptr().cast::<c_char>(), ptr::null_mut(), radix.value() as c_int)
+        };
+        if result.is_null() && unsafe { PyErr_ExceptionMatches(cpython_sys::PyExc_ValueError) } != 0 {
+            // Malformed digits, or past the interpreter's integer size limit:
+            // the Python parser reports it.
+            unsafe { PyErr_Clear() };
+            return Err(Fail::Fallback);
+        }
+        check(result)
+    }
+
+    unsafe fn make_datetime(&mut self, decoded: &str, raw: &str) -> Built {
+        let Ok(parsed) = decoded.parse::<toml_datetime::Datetime>() else {
+            return Err(Fail::Fallback);
+        };
+        let kind = if parsed.date.is_some() && parsed.time.is_some() {
+            2
+        } else if parsed.date.is_some() {
+            0
+        } else {
+            1
+        };
+        if self.constructors[kind].is_null() {
+            if self.datetime.is_null() {
+                self.datetime = check(unsafe { PyImport_ImportModule(c"datetime".as_ptr()) })?;
+            }
+            let name = [c"date", c"time", c"datetime"][kind];
+            let class = check(unsafe { PyObject_GetAttrString(self.datetime, name.as_ptr()) })?;
+            let method = unsafe { PyObject_GetAttrString(class, c"fromisoformat".as_ptr()) };
+            unsafe { Py_DecRef(class) };
+            self.constructors[kind] = check(method)?;
+        }
+        let mut text = raw.to_owned();
+        if kind == 2 {
+            if let Some(index) = text.find('t') {
+                text.replace_range(index..=index, "T");
+            }
+            if text.ends_with(['z', 'Z']) {
+                text.truncate(text.len() - 1);
+                text.push_str("+00:00");
+            }
+        }
+        let text = unsafe { new_str(&text)? };
+        let result = unsafe { PyObject_CallOneArg(self.constructors[kind], text) };
+        unsafe { Py_DecRef(text) };
+        if result.is_null() {
+            if unsafe { PyErr_ExceptionMatches(cpython_sys::PyExc_ValueError) } != 0 {
+                unsafe { PyErr_Clear() };
+                return Err(Fail::Fallback);
+            }
+            return Err(Fail::Error);
+        }
+        Ok(result)
+    }
+
+    /// The shared Python string for `part` (borrowed from the key cache).
+    unsafe fn key_object(&mut self, part: &str) -> Built {
+        if let Some(key) = self.strings.get(part) {
+            return Ok(*key);
+        }
+        let key = unsafe { new_str(part)? };
+        self.strings.insert(part.to_owned(), key);
+        Ok(key)
+    }
+
+    /// The key object for `part` and the existing entry of `dict` under it
+    /// (both borrowed), the entry being null when absent.
+    unsafe fn lookup(
+        &mut self,
+        dict: *mut PyObject,
+        part: &str,
+    ) -> Result<(*mut PyObject, *mut PyObject), Fail> {
+        let key = unsafe { self.key_object(part)? };
+        let found = unsafe { PyDict_GetItemWithError(dict, key) };
+        if found.is_null() && !unsafe { PyErr_Occurred() }.is_null() {
+            return Err(Fail::Error);
+        }
+        Ok((key, found))
+    }
+
+    /// Add a fresh empty dict under the borrowed `key`.
+    unsafe fn add_dict(dict: *mut PyObject, key: *mut PyObject) -> Built {
+        let child = unsafe { PyDict_New() };
+        if child.is_null() {
+            return Err(Fail::Error);
+        }
+        let status = unsafe { PyDict_SetItem(dict, key, child) };
+        if status != 0 {
+            unsafe { Py_DecRef(child) };
+            return Err(Fail::Error);
+        }
+        // The dict holds the reference now; hand back a borrowed pointer.
+        unsafe { Py_DecRef(child) };
+        Ok(child)
+    }
+
+    fn flags_of(&self, object: *mut PyObject) -> u8 {
+        self.flags.get(&(object as usize)).copied().unwrap_or(0)
+    }
+
+    fn mark(&mut self, object: *mut PyObject, flag: u8) {
+        *self.flags.entry(object as usize).or_insert(0) |= flag;
+    }
+
+    /// Store `value` (owned, consumed) at the dotted `keys` below `dict`.
+    unsafe fn insert(
+        &mut self,
+        dict: *mut PyObject,
+        keys: &[Cow<'i, str>],
+        value: *mut PyObject,
+        frozen: bool,
+        document: bool,
+    ) -> Result<(), Fail> {
+        let result = unsafe { self.insert_inner(dict, keys, value, frozen, document) };
+        unsafe { Py_DecRef(value) };
+        result
+    }
+
+    unsafe fn insert_inner(
+        &mut self,
+        dict: *mut PyObject,
+        keys: &[Cow<'i, str>],
+        value: *mut PyObject,
+        frozen: bool,
+        document: bool,
+    ) -> Result<(), Fail> {
+        let Some((stem, parents)) = keys.split_last() else {
+            return Err(Fail::Fallback);
+        };
+        let mut container = dict;
+        for part in parents {
+            let (key, found) = unsafe { self.lookup(container, part)? };
+            let next = if found.is_null() {
+                unsafe { Self::add_dict(container, key)? }
+            } else {
+                let flags = self.flags_of(found);
+                if flags & FROZEN != 0 || !unsafe { is_dict(found) } {
+                    return Err(Fail::Fallback);
+                }
+                if document && flags & EXPLICIT != 0 {
+                    return Err(Fail::Fallback);
+                }
+                found
+            };
+            if document {
+                self.pending.push(next);
+            }
+            container = next;
+        }
+        if frozen {
+            self.mark(value, FROZEN);
+        }
+        let key = unsafe { self.key_object(stem)? };
+        let mut existing = ptr::null_mut();
+        let status = unsafe { PyDict_SetDefaultRef(container, key, value, &mut existing) };
+        match status {
+            0 => {
+                unsafe { Py_DecRef(existing) };
+                Ok(())
+            }
+            1 => {
+                unsafe { Py_DecRef(existing) };
+                Err(Fail::Fallback)
+            }
+            _ => Err(Fail::Error),
+        }
+    }
+
+    /// Finish one value: append to the open array, or store under the
+    /// pending key of the open inline table or of the current table.
+    unsafe fn value_done(&mut self, value: *mut PyObject, frozen: bool) -> Result<(), Fail> {
+        match self.frames.last_mut() {
+            Some(Frame { kind: FrameKind::Array, object, .. }) => {
+                let list = *object;
+                let status = unsafe { PyList_Append(list, value) };
+                unsafe { Py_DecRef(value) };
+                if status != 0 { Err(Fail::Error) } else { Ok(()) }
+            }
+            Some(Frame { kind: FrameKind::Table, object, keys }) => {
+                let dict = *object;
+                let keys_taken = std::mem::take(keys);
+                let result = unsafe { self.insert(dict, &keys_taken, value, frozen, false) };
+                let mut keys_taken = keys_taken;
+                keys_taken.clear();
+                if let Some(frame) = self.frames.last_mut() {
+                    frame.keys = keys_taken;
+                }
+                result
+            }
+            None => {
+                let keys_taken = std::mem::take(&mut self.keys);
+                let current = self.current;
+                let result = unsafe { self.insert(current, &keys_taken, value, frozen, true) };
+                let mut keys_taken = keys_taken;
+                keys_taken.clear();
+                self.keys = keys_taken;
+                result
+            }
+        }
+    }
+
+    /// Apply a `[table]` or `[[array]]` header to the current-table state.
+    unsafe fn apply_header(&mut self, array: bool) -> Result<(), Fail> {
+        for object in std::mem::take(&mut self.pending) {
+            self.mark(object, EXPLICIT);
+        }
+        let keys = std::mem::take(&mut self.keys);
+        let result = unsafe { self.apply_header_keys(&keys, array) };
+        let mut keys = keys;
+        keys.clear();
+        self.keys = keys;
+        result
+    }
+
+    unsafe fn apply_header_keys(&mut self, keys: &[Cow<'i, str>], array: bool) -> Result<(), Fail> {
+        let Some((stem, parents)) = keys.split_last() else {
+            return Err(Fail::Fallback);
+        };
+        let mut container = self.root;
+        for part in parents {
+            let (key, found) = unsafe { self.lookup(container, part)? };
+            let mut next = if found.is_null() {
+                unsafe { Self::add_dict(container, key)? }
+            } else {
+                if self.flags_of(found) & FROZEN != 0 {
+                    return Err(Fail::Fallback);
+                }
+                found
+            };
+            if unsafe { is_list(next) } {
+                let size = unsafe { PyList_Size(next) };
+                if size <= 0 {
+                    return Err(Fail::Fallback);
+                }
+                next = unsafe { PyList_GetItem(next, size - 1) };
+            }
+            if next.is_null() || !unsafe { is_dict(next) } {
+                return Err(Fail::Fallback);
+            }
+            container = next;
+        }
+        let (key, found) = unsafe { self.lookup(container, stem)? };
+        if array {
+            let list = if found.is_null() {
+                let list = unsafe { PyList_New(0) };
+                if list.is_null() {
+                    return Err(Fail::Error);
+                }
+                let status = unsafe { PyDict_SetItem(container, key, list) };
+                unsafe { Py_DecRef(list) };
+                if status != 0 {
+                    return Err(Fail::Error);
+                }
+                self.mark(list, EXPLICIT);
+                list
+            } else {
+                if self.flags_of(found) & FROZEN != 0 || !unsafe { is_list(found) } {
+                    return Err(Fail::Fallback);
+                }
+                found
+            };
+            let element = unsafe { PyDict_New() };
+            if element.is_null() {
+                return Err(Fail::Error);
+            }
+            let status = unsafe { PyList_Append(list, element) };
+            unsafe { Py_DecRef(element) };
+            if status != 0 {
+                return Err(Fail::Error);
+            }
+            self.current = element;
+        } else {
+            let table = if found.is_null() {
+                unsafe { Self::add_dict(container, key)? }
+            } else {
+                if self.flags_of(found) & (FROZEN | EXPLICIT) != 0 || !unsafe { is_dict(found) } {
+                    return Err(Fail::Fallback);
+                }
+                found
+            };
+            self.mark(table, EXPLICIT);
+            self.current = table;
+        }
+        Ok(())
+    }
+
+    unsafe fn scalar_value(&mut self, span: Span, encoding: Option<Encoding>) -> Result<(), Fail> {
+        let raw = self.raw(span, encoding).ok_or(Fail::Fallback)?;
+        let mut decoded: Cow<'i, str> = Cow::Borrowed("");
+        let mut bad = false;
+        let kind = {
+            let mut sink = |_error: ParseError| bad = true;
+            raw.decode_scalar(&mut decoded, &mut sink)
+        };
+        if bad {
+            return Err(Fail::Fallback);
+        }
+        let value = match kind {
+            ScalarKind::String => unsafe { new_str(&decoded)? },
+            ScalarKind::Boolean(value) => check(unsafe { PyBool_FromLong(c_int::from(value).into()) })?,
+            ScalarKind::DateTime => unsafe { self.make_datetime(&decoded, raw.as_str())? },
+            ScalarKind::Float => unsafe { self.make_float(raw.as_str())? },
+            ScalarKind::Integer(radix) => unsafe { self.make_integer(&decoded, radix)? },
+        };
+        unsafe { self.value_done(value, false) }
+    }
+
+    unsafe fn open(&mut self, kind: FrameKind) -> Result<(), Fail> {
+        let object = match kind {
+            FrameKind::Array => unsafe { PyList_New(0) },
+            FrameKind::Table => unsafe { PyDict_New() },
+        };
+        let object = check(object)?;
+        self.frames.push(Frame { kind, object, keys: Vec::new() });
+        Ok(())
+    }
+
+    unsafe fn close(&mut self) -> Result<(), Fail> {
+        let Some(frame) = self.frames.pop() else {
+            return Err(Fail::Fallback);
+        };
+        unsafe { self.value_done(frame.object, true) }
+    }
+}
+
+macro_rules! guarded {
+    ($self:ident, $body:expr) => {
+        if $self.stop.get() {
+            return;
+        }
+        let result = $body;
+        $self.record(result);
+    };
+}
+
+impl<'i, 'f> EventReceiver for Builder<'i, 'f> {
+    fn std_table_open(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.header = Header::Table;
+    }
+
+    fn std_table_close(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        guarded!(self, unsafe { self.apply_header(false) });
+        self.header = Header::None;
+    }
+
+    fn array_table_open(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.header = Header::Array;
+    }
+
+    fn array_table_close(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        guarded!(self, unsafe { self.apply_header(true) });
+        self.header = Header::None;
+    }
+
+    fn inline_table_open(&mut self, _span: Span, _error: &mut dyn ErrorSink) -> bool {
+        if !self.stop.get() {
+            let result = unsafe { self.open(FrameKind::Table) };
+            self.record(result);
+        }
+        true
+    }
+
+    fn inline_table_close(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        guarded!(self, unsafe { self.close() });
+    }
+
+    fn array_open(&mut self, _span: Span, _error: &mut dyn ErrorSink) -> bool {
+        if !self.stop.get() {
+            let result = unsafe { self.open(FrameKind::Array) };
+            self.record(result);
+        }
+        true
+    }
+
+    fn array_close(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        guarded!(self, unsafe { self.close() });
+    }
+
+    fn simple_key(&mut self, span: Span, encoding: Option<Encoding>, _error: &mut dyn ErrorSink) {
+        if self.stop.get() {
+            return;
+        }
+        let Some(raw) = self.raw(span, encoding) else {
+            self.syntax_error();
+            return;
+        };
+        let mut key: Cow<'i, str> = Cow::Borrowed("");
+        let mut bad = false;
+        {
+            let mut sink = |_error: ParseError| bad = true;
+            raw.decode_key(&mut key, &mut sink);
+        }
+        if bad {
+            self.syntax_error();
+            return;
+        }
+        let keys = self.top_keys();
+        keys.push(key);
+        if keys.len() > MAX_KEY_PARTS {
+            self.syntax_error();
+        }
+    }
+
+    fn scalar(&mut self, span: Span, encoding: Option<Encoding>, _error: &mut dyn ErrorSink) {
+        guarded!(self, unsafe { self.scalar_value(span, encoding) });
+    }
+
+    fn newline(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.line_break();
+    }
+
+    fn comment(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.line_break();
+    }
+
+    fn error(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.syntax_error();
     }
 }
 
@@ -116,7 +643,37 @@ unsafe fn py_none() -> *mut PyObject {
     none
 }
 
-unsafe fn parse_document(source: *mut PyObject) -> *mut PyObject {
+/// Lex and parse in bounded batches of whole statements, so neither the token
+/// list nor an intermediate document tree is ever held for the full input.
+fn run(source: &str, builder: &mut Builder<'_, '_>, stop: &Cell<bool>) {
+    let source = Source::new(source);
+    let mut sink = |_error: ParseError| stop.set(true);
+    let mut whitespace = ValidateWhitespace::new(builder, source);
+    let mut receiver = RecursionGuard::new(&mut whitespace, MAX_DEPTH);
+    let mut tokens: Vec<Token> = Vec::with_capacity(CHUNK_TOKENS + 64);
+    let mut depth = 0i32;
+    for token in source.lex() {
+        let kind = token.kind();
+        tokens.push(token);
+        match kind {
+            TokenKind::LeftSquareBracket | TokenKind::LeftCurlyBracket => depth += 1,
+            TokenKind::RightSquareBracket | TokenKind::RightCurlyBracket => {
+                depth = (depth - 1).max(0);
+            }
+            TokenKind::Newline if depth == 0 && tokens.len() >= CHUNK_TOKENS => {
+                parse_document(&tokens, &mut receiver, &mut sink);
+                tokens.clear();
+                if stop.get() {
+                    return;
+                }
+            }
+            _ => {}
+        }
+    }
+    parse_document(&tokens, &mut receiver, &mut sink);
+}
+
+unsafe fn parse_source(source: *mut PyObject, parse_float: *mut PyObject) -> *mut PyObject {
     let mut source_len: Py_ssize_t = 0;
     let source_ptr = unsafe { PyUnicode_AsUTF8AndSize(source, &mut source_len) };
     if source_ptr.is_null() {
@@ -138,47 +695,62 @@ unsafe fn parse_document(source: *mut PyObject) -> *mut PyObject {
             return ptr::null_mut();
         }
     };
-    let document = match source.parse::<DocumentMut>() {
-        Ok(document) => document,
-        Err(_) => return unsafe { py_none() },
-    };
 
-    let values = convert_table(document.as_table());
-    let mut json = Vec::new();
-    let mut serializer = serde_json::Serializer::new(&mut json);
-    if values.serialize(&mut serializer).is_err() {
-        unsafe {
-            PyErr_SetString(
-                cpython_sys::PyExc_RuntimeError,
-                c"could not serialize parsed TOML values".as_ptr(),
-            );
-        }
+    // The Python parser rejects a byte order mark and any carriage return that
+    // is left after its \r\n normalization, which the lexer would accept.
+    if source.starts_with('\u{feff}') || source.as_bytes().contains(&b'\r') {
+        return unsafe { py_none() };
+    }
+    let root = unsafe { PyDict_New() };
+    if root.is_null() {
         return ptr::null_mut();
     }
-
-    unsafe { PyUnicode_FromStringAndSize(json.as_ptr().cast::<c_char>(), json.len() as Py_ssize_t) }
+    let float_type = ptr::addr_of_mut!(cpython_sys::PyFloat_Type).cast::<PyObject>();
+    let stop = Cell::new(false);
+    let mut builder = Builder {
+        input: source,
+        stop: &stop,
+        fail: None,
+        root,
+        current: root,
+        frames: Vec::new(),
+        keys: Vec::new(),
+        header: Header::None,
+        flags: Flags::default(),
+        pending: Vec::new(),
+        strings: Strings::default(),
+        parse_float: if parse_float == float_type { ptr::null_mut() } else { parse_float },
+        datetime: ptr::null_mut(),
+        constructors: [ptr::null_mut(); 3],
+    };
+    run(source, &mut builder, &stop);
+    match builder.fail {
+        Some(Fail::Error) => ptr::null_mut(),
+        Some(Fail::Fallback) => unsafe { py_none() },
+        None if stop.get() || !builder.frames.is_empty() || builder.header != Header::None => unsafe {
+            py_none()
+        },
+        None => std::mem::replace(&mut builder.root, ptr::null_mut()),
+    }
 }
 
-/// Parse one complete TOML document into recursively tagged JSON values.
-///
-/// Every TOML value is wrapped with its type so legal strings and keys cannot
-/// collide with the boundary representation. Parsing and building the complete
-/// TOML value tree happen in toml_edit.
+/// Parse one complete TOML document into Python objects, or return None when
+/// the Python parser must handle it. Floats go through `parse_float`.
 pub unsafe extern "C" fn loads(
     _module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    if nargs != 1 {
+    if nargs != 2 {
         unsafe {
             PyErr_SetString(
                 cpython_sys::PyExc_TypeError,
-                c"_tomllib_rs.loads() takes exactly one argument".as_ptr(),
+                c"_tomllib_rs.loads() takes exactly two arguments".as_ptr(),
             );
         }
         return ptr::null_mut();
     }
-    unsafe { parse_document(*args) }
+    unsafe { parse_source(*args, *args.add(1)) }
 }
 
 pub extern "C" fn _tomllib_rs_clear(_obj: *mut PyObject) -> c_int {
@@ -206,7 +778,7 @@ pub static _TOMLLIB_RS_MODULE_METHODS: [cpython_sys::PyMethodDef; 2] = [
             PyCFunctionFast: loads,
         },
         ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse a complete TOML document using toml_edit".as_ptr() as *mut c_char,
+        ml_doc: c"Parse a complete TOML document into Python objects".as_ptr() as *mut c_char,
     },
     cpython_sys::PyMethodDef::zeroed(),
 ];
