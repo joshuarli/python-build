@@ -386,7 +386,9 @@ impl<'a> XmlLoader<'a> {
         {
             self.position += 1;
         }
-        if self.position == start || self.data[start].is_ascii_digit() {
+        if self.position == start
+            || !(self.data[start].is_ascii_alphabetic() || matches!(self.data[start], b'_' | b':'))
+        {
             return Err(Decline);
         }
         Ok(&self.data[start..self.position])

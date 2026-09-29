@@ -58,17 +58,31 @@ __all__ = [
     "InvalidFileException", "FMT_XML", "FMT_BINARY", "load", "dump", "loads", "dumps", "UID"
 ]
 
-import binascii
 import codecs
 import datetime
 import enum
 from io import BytesIO
-import itertools
-import math
 import os
-import re
-import struct
-from xml.parsers.expat import ParserCreate
+
+
+class _LazyModule(type(os)):
+    # The Rust reader and writer handle the common case without these
+    # modules; the Python fallback imports each on first use.
+    def __getattr__(self, attribute):
+        module = __import__(self.__name__)
+        globals()["_" + self.__name__] = module
+        return getattr(module, attribute)
+
+
+_binascii = _LazyModule("binascii")
+_itertools = _LazyModule("itertools")
+_re = _LazyModule("re")
+_struct = _LazyModule("struct")
+
+
+def _parser_create():
+    from xml.parsers.expat import ParserCreate
+    return ParserCreate()
 
 
 PlistFormat = enum.Enum('PlistFormat', 'FMT_XML FMT_BINARY', module=__name__)
@@ -117,30 +131,47 @@ PLISTHEADER = b"""\
 """
 
 
-# Regex to find any control chars, except for \t \n and \r
-_controlCharPat = re.compile(
-    r"[\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
-    r"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f]")
+def _control_char_pattern():
+    # Regex to find any control chars, except for \t \n and \r
+    pattern = _re.compile(
+        r"[\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
+        r"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f]")
+    globals()["_controlCharPat"] = pattern
+    return pattern
+
+
+def _date_pattern():
+    # Contents should conform to a subset of ISO 8601
+    # (in particular, YYYY '-' MM '-' DD 'T' HH ':' MM ':' SS 'Z'.  Smaller units
+    # may be omitted with #  a loss of precision)
+    pattern = _re.compile(r"(?P<year>\d\d\d\d)(?:-(?P<month>\d\d)(?:-(?P<day>\d\d)(?:T(?P<hour>\d\d)(?::(?P<minute>\d\d)(?::(?P<second>\d\d))?)?)?)?)?Z", _re.ASCII)
+    globals()["_dateParser"] = pattern
+    return pattern
+
+
+def __getattr__(name):
+    # The regular expressions compile on first use, keeping `re` out of import.
+    if name == "_controlCharPat":
+        return _control_char_pattern()
+    if name == "_dateParser":
+        return _date_pattern()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 def _encode_base64(s, maxlinelength=76):
-    return binascii.b2a_base64(s, wrapcol=maxlinelength, newline=False)
+    return _binascii.b2a_base64(s, wrapcol=maxlinelength, newline=False)
 
 def _decode_base64(s):
     if isinstance(s, str):
-        return binascii.a2b_base64(s.encode("utf-8"))
+        return _binascii.a2b_base64(s.encode("utf-8"))
 
     else:
-        return binascii.a2b_base64(s)
-
-# Contents should conform to a subset of ISO 8601
-# (in particular, YYYY '-' MM '-' DD 'T' HH ':' MM ':' SS 'Z'.  Smaller units
-# may be omitted with #  a loss of precision)
-_dateParser = re.compile(r"(?P<year>\d\d\d\d)(?:-(?P<month>\d\d)(?:-(?P<day>\d\d)(?:T(?P<hour>\d\d)(?::(?P<minute>\d\d)(?::(?P<second>\d\d))?)?)?)?)?Z", re.ASCII)
-
+        return _binascii.a2b_base64(s)
 
 def _date_from_string(s, aware_datetime):
     order = ('year', 'month', 'day', 'hour', 'minute', 'second')
-    gd = _dateParser.match(s).groupdict()
+    gd = globals().get("_dateParser") or _date_pattern()
+    gd = gd.match(s).groupdict()
     lst = []
     for key in order:
         val = gd[key]
@@ -161,7 +192,7 @@ def _date_to_string(d, aware_datetime):
     )
 
 def _escape(text):
-    m = _controlCharPat.search(text)
+    m = (globals().get("_controlCharPat") or _control_char_pattern()).search(text)
     if m is not None:
         raise ValueError("strings can't contain control characters; "
                          "use bytes instead")
@@ -181,7 +212,7 @@ class _PlistParser:
         self._aware_datetime = aware_datetime
 
     def parse(self, fileobj):
-        self.parser = ParserCreate()
+        self.parser = _parser_create()
         self.parser.StartElementHandler = self.handle_begin_element
         self.parser.EndElementHandler = self.handle_end_element
         self.parser.CharacterDataHandler = self.handle_data
@@ -379,7 +410,7 @@ class _PlistWriter(_DumbXMLWriter):
         self._indent_level -= 1
         wrapcol = 76 - len((self.indent * self._indent_level).expandtabs())
         wrapcol = max(16, wrapcol)
-        encoded = binascii.b2a_base64(data, wrapcol=wrapcol, newline=False)
+        encoded = _binascii.b2a_base64(data, wrapcol=wrapcol, newline=False)
         for line in encoded.split(b"\n"):
             if line:
                 self.writeln(line)
@@ -485,13 +516,13 @@ class _BinaryPlistParser:
             (
                 offset_size, self._ref_size, num_objects, top_object,
                 offset_table_offset
-            ) = struct.unpack('>6xBBQQQ', trailer)
+            ) = _struct.unpack('>6xBBQQQ', trailer)
             self._fp.seek(offset_table_offset)
             self._object_offsets = self._read_ints(num_objects, offset_size)
             self._objects = [_undefined] * num_objects
             return self._read_object(top_object)
 
-        except (OSError, IndexError, struct.error, OverflowError,
+        except (OSError, IndexError, _struct.error, OverflowError,
                 ValueError):
             raise InvalidFileException()
 
@@ -501,7 +532,7 @@ class _BinaryPlistParser:
             m = self._fp.read(1)[0] & 0x3
             s = 1 << m
             f = '>' + _BINARY_FORMAT[s]
-            return struct.unpack(f, self._fp.read(s))[0]
+            return _struct.unpack(f, self._fp.read(s))[0]
 
         return tokenL
 
@@ -520,7 +551,7 @@ class _BinaryPlistParser:
     def _read_ints(self, n, size):
         data = self._read(size * n)
         if size in _BINARY_FORMAT:
-            return struct.unpack(f'>{n}{_BINARY_FORMAT[size]}', data)
+            return _struct.unpack(f'>{n}{_BINARY_FORMAT[size]}', data)
         else:
             if not size:
                 raise InvalidFileException()
@@ -565,13 +596,13 @@ class _BinaryPlistParser:
                                     'big', signed=tokenL >= 3)
 
         elif token == 0x22: # real
-            result = struct.unpack('>f', self._fp.read(4))[0]
+            result = _struct.unpack('>f', self._fp.read(4))[0]
 
         elif token == 0x23: # real
-            result = struct.unpack('>d', self._fp.read(8))[0]
+            result = _struct.unpack('>d', self._fp.read(8))[0]
 
         elif token == 0x33:  # date
-            f = struct.unpack('>d', self._fp.read(8))[0]
+            f = _struct.unpack('>d', self._fp.read(8))[0]
             # timestamp 0 of binary plists corresponds to 1/1/2001
             # (year of Mac OS X 10.0), instead of 1/1/1970.
             if self._aware_datime:
@@ -686,7 +717,7 @@ class _BinaryPlistWriter (object):
         offset_table_offset = self._fp.tell()
         offset_size = _count_to_size(offset_table_offset)
         offset_format = '>' + _BINARY_FORMAT[offset_size] * num_objects
-        self._fp.write(struct.pack(offset_format, *self._object_offsets))
+        self._fp.write(_struct.pack(offset_format, *self._object_offsets))
 
         # Write trailer
         sort_version = 0
@@ -694,7 +725,7 @@ class _BinaryPlistWriter (object):
             sort_version, offset_size, self._ref_size, num_objects,
             top_object, offset_table_offset
         )
-        self._fp.write(struct.pack('>5xBBBQQQ', *trailer))
+        self._fp.write(_struct.pack('>5xBBBQQQ', *trailer))
 
     def _flatten(self, value):
         # First check if the object is in the object table, not used for
@@ -731,7 +762,7 @@ class _BinaryPlistWriter (object):
                 keys.append(k)
                 values.append(v)
 
-            for o in itertools.chain(keys, values):
+            for o in _itertools.chain(keys, values):
                 self._flatten(o)
 
         elif isinstance(value, (list, tuple)):
@@ -746,19 +777,19 @@ class _BinaryPlistWriter (object):
 
     def _write_size(self, token, size):
         if size < 15:
-            self._fp.write(struct.pack('>B', token | size))
+            self._fp.write(_struct.pack('>B', token | size))
 
         elif size < 1 << 8:
-            self._fp.write(struct.pack('>BBB', token | 0xF, 0x10, size))
+            self._fp.write(_struct.pack('>BBB', token | 0xF, 0x10, size))
 
         elif size < 1 << 16:
-            self._fp.write(struct.pack('>BBH', token | 0xF, 0x11, size))
+            self._fp.write(_struct.pack('>BBH', token | 0xF, 0x11, size))
 
         elif size < 1 << 32:
-            self._fp.write(struct.pack('>BBL', token | 0xF, 0x12, size))
+            self._fp.write(_struct.pack('>BBL', token | 0xF, 0x12, size))
 
         else:
-            self._fp.write(struct.pack('>BBQ', token | 0xF, 0x13, size))
+            self._fp.write(_struct.pack('>BBQ', token | 0xF, 0x13, size))
 
     def _write_object(self, value):
         ref = self._getrefnum(value)
@@ -775,24 +806,24 @@ class _BinaryPlistWriter (object):
         elif isinstance(value, int):
             if value < 0:
                 try:
-                    self._fp.write(struct.pack('>Bq', 0x13, value))
-                except struct.error:
+                    self._fp.write(_struct.pack('>Bq', 0x13, value))
+                except _struct.error:
                     raise OverflowError(value) from None
             elif value < 1 << 8:
-                self._fp.write(struct.pack('>BB', 0x10, value))
+                self._fp.write(_struct.pack('>BB', 0x10, value))
             elif value < 1 << 16:
-                self._fp.write(struct.pack('>BH', 0x11, value))
+                self._fp.write(_struct.pack('>BH', 0x11, value))
             elif value < 1 << 32:
-                self._fp.write(struct.pack('>BL', 0x12, value))
+                self._fp.write(_struct.pack('>BL', 0x12, value))
             elif value < 1 << 63:
-                self._fp.write(struct.pack('>BQ', 0x13, value))
+                self._fp.write(_struct.pack('>BQ', 0x13, value))
             elif value < 1 << 64:
                 self._fp.write(b'\x14' + value.to_bytes(16, 'big', signed=True))
             else:
                 raise OverflowError(value)
 
         elif isinstance(value, float):
-            self._fp.write(struct.pack('>Bd', 0x23, value))
+            self._fp.write(_struct.pack('>Bd', 0x23, value))
 
         elif isinstance(value, datetime.datetime):
             if self._aware_datetime:
@@ -801,7 +832,7 @@ class _BinaryPlistWriter (object):
                 f = offset.total_seconds()
             else:
                 f = (value - datetime.datetime(2001, 1, 1)).total_seconds()
-            self._fp.write(struct.pack('>Bd', 0x33, f))
+            self._fp.write(_struct.pack('>Bd', 0x33, f))
 
         elif isinstance(value, (bytes, bytearray)):
             self._write_size(0x40, len(value))
@@ -821,13 +852,13 @@ class _BinaryPlistWriter (object):
             if value.data < 0:
                 raise ValueError("UIDs must be positive")
             elif value.data < 1 << 8:
-                self._fp.write(struct.pack('>BB', 0x80, value))
+                self._fp.write(_struct.pack('>BB', 0x80, value))
             elif value.data < 1 << 16:
-                self._fp.write(struct.pack('>BH', 0x81, value))
+                self._fp.write(_struct.pack('>BH', 0x81, value))
             elif value.data < 1 << 32:
-                self._fp.write(struct.pack('>BL', 0x83, value))
+                self._fp.write(_struct.pack('>BL', 0x83, value))
             elif value.data < 1 << 64:
-                self._fp.write(struct.pack('>BQ', 0x87, value))
+                self._fp.write(_struct.pack('>BQ', 0x87, value))
             else:
                 raise OverflowError(value)
 
@@ -835,7 +866,7 @@ class _BinaryPlistWriter (object):
             refs = [self._getrefnum(o) for o in value]
             s = len(refs)
             self._write_size(0xA0, s)
-            self._fp.write(struct.pack('>' + self._ref_format * s, *refs))
+            self._fp.write(_struct.pack('>' + self._ref_format * s, *refs))
 
         elif isinstance(value, (dict, frozendict)):
             keyRefs, valRefs = [], []
@@ -855,8 +886,8 @@ class _BinaryPlistWriter (object):
 
             s = len(keyRefs)
             self._write_size(0xD0, s)
-            self._fp.write(struct.pack('>' + self._ref_format * s, *keyRefs))
-            self._fp.write(struct.pack('>' + self._ref_format * s, *valRefs))
+            self._fp.write(_struct.pack('>' + self._ref_format * s, *keyRefs))
+            self._fp.write(_struct.pack('>' + self._ref_format * s, *valRefs))
 
         else:
             raise TypeError(value)
