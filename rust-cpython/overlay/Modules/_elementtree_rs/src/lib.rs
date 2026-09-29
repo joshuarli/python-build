@@ -501,7 +501,12 @@ fn as_str<'a>(object: *mut PyObject) -> Parsed<&'a str> {
     if bytes.is_null() {
         return fallback();
     }
-    Ok(unsafe { str::from_utf8_unchecked(slice::from_raw_parts(bytes.cast::<u8>(), length as usize)) })
+    let text = unsafe { slice::from_raw_parts(bytes.cast::<u8>(), length as usize) };
+    // NUL separates output chunks, so text containing one stays on the Python path.
+    if text.contains(&0) {
+        return Err(Stop::Unsupported);
+    }
+    Ok(unsafe { str::from_utf8_unchecked(text) })
 }
 
 /// `None` and empty strings are absent; anything else must be a string.
@@ -545,13 +550,13 @@ struct Serializer {
     text: Obj,
     tail: Obj,
     items: Obj,
+    /// Output chunks, each terminated by NUL.
     out: Vec<u8>,
-    ends: Vec<usize>,
 }
 
 impl Serializer {
     fn mark(&mut self) {
-        self.ends.push(self.out.len());
+        self.out.push(0);
     }
 
     fn raw(&mut self, value: &str) {
@@ -684,12 +689,9 @@ impl Serializer {
     }
 
     fn emit(&self, write: *mut PyObject) -> Parsed<()> {
-        let mut start = 0;
-        for &end in &self.ends {
-            let chunk = str::from_utf8(&self.out[start..end]).map_err(|_| Stop::Unsupported)?;
-            let text = new_str(chunk)?;
+        for chunk in self.out.split(|byte| *byte == 0).filter(|chunk| !chunk.is_empty()) {
+            let text = new_str(str::from_utf8(chunk).map_err(|_| Stop::Unsupported)?)?;
             drop(Obj::new(unsafe { PyObject_CallOneArg(write, text.0) })?);
-            start = end;
         }
         Ok(())
     }
@@ -775,7 +777,6 @@ unsafe fn serialize_tree(args: &[*mut PyObject]) -> Parsed<()> {
         tail: attr(c"tail")?,
         items: attr(c"items")?,
         out: Vec::new(),
-        ends: Vec::new(),
     };
     serializer.element(args[0], &namespaces, 0)?;
     serializer.emit(args[4])
