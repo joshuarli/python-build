@@ -3,11 +3,12 @@ use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
 use cpython_sys::{
-    METH_FASTCALL, Py_DecRef, PyErr_Occurred, PyErr_SetString, PyExc_TypeError, Py_GetConstant,
-    PyIter_Next, PyLong_FromLong, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
-    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyModuleDef_Slot, PyObject,
-    PyObject_CallOneArg, PyObject_GetAttrString, PyObject_GetIter,
-    PyObject_IsTrue, PyObject_SetAttrString, Py_ssize_t,
+    METH_FASTCALL, Py_DecRef, Py_IS_TYPE, PyErr_Occurred, PyErr_SetString, PyExc_TypeError, Py_GetConstant,
+    PyIter_Next, PyList_GetItemRef, PyList_Size, PyList_Type, PyLong_FromLong, PyMethodDef,
+    PyMethodDefFuncPointer, PyModule_GetState, PyModuleDef, PyModuleDef_HEAD_INIT,
+    PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyObject_GetAttr, PyObject_GetIter,
+    PyObject_IsTrue, PyObject_SetAttr, PyObject_VectorcallMethod, PyUnicode_InternFromString,
+    Py_ssize_t,
 };
 
 unsafe extern "C" {
@@ -38,19 +39,34 @@ impl Drop for Owned {
     }
 }
 
-unsafe fn get_attr(object: *mut PyObject, name: &'static std::ffi::CStr) -> Option<Owned> {
-    unsafe { Owned::from_owned(PyObject_GetAttrString(object, name.as_ptr())) }
+/// Interned attribute and method names, one set per module object, so a
+/// transition never builds a temporary `str` for an attribute lookup.
+struct State {
+    state: *mut PyObject,
+    waiters: *mut PyObject,
+    result: *mut PyObject,
+    exception: *mut PyObject,
+    add_result: *mut PyObject,
+    add_exception: *mut PyObject,
+    add_cancelled: *mut PyObject,
 }
 
-unsafe fn set_attr(
-    object: *mut PyObject,
-    name: &'static std::ffi::CStr,
-    value: *mut PyObject,
-) -> bool {
-    unsafe { PyObject_SetAttrString(object, name.as_ptr(), value) == 0 }
+unsafe fn names<'a>(module: *mut PyObject) -> &'a State {
+    unsafe { &*(PyModule_GetState(module) as *const State) }
+}
+
+unsafe fn get_attr(object: *mut PyObject, name: *mut PyObject) -> Option<Owned> {
+    unsafe { Owned::from_owned(PyObject_GetAttr(object, name)) }
+}
+
+unsafe fn set_attr(object: *mut PyObject, name: *mut PyObject, value: *mut PyObject) -> bool {
+    unsafe { PyObject_SetAttr(object, name, value) == 0 }
 }
 
 unsafe fn equal(left: *mut PyObject, right: *mut PyObject) -> Option<bool> {
+    if left == right {
+        return Some(true);
+    }
     let comparison = unsafe { Owned::from_owned(PyObject_RichCompare(left, right, PY_EQ)) }?;
     match unsafe { PyObject_IsTrue(comparison.as_ptr()) } {
         -1 => None,
@@ -58,27 +74,50 @@ unsafe fn equal(left: *mut PyObject, right: *mut PyObject) -> Option<bool> {
     }
 }
 
-unsafe fn notify_waiters(future: *mut PyObject, method_name: &'static std::ffi::CStr) -> bool {
-    let Some(waiters) = (unsafe { get_attr(future, c"_waiters") }) else {
+unsafe fn notify_one(waiter: *mut PyObject, method: *mut PyObject, future: *mut PyObject) -> bool {
+    let args = [waiter, future];
+    let notified = unsafe { PyObject_VectorcallMethod(method, args.as_ptr(), 2, ptr::null_mut()) };
+    if notified.is_null() {
+        return false;
+    }
+    unsafe { Py_DecRef(notified) };
+    true
+}
+
+unsafe fn notify_waiters(future: *mut PyObject, names: &State, method: *mut PyObject) -> bool {
+    let Some(waiters) = (unsafe { get_attr(future, names.waiters) }) else {
         return false;
     };
+    if unsafe { Py_IS_TYPE(waiters.as_ptr(), ptr::addr_of_mut!(PyList_Type)) } != 0 {
+        // The stdlib keeps waiters in a plain list; index it so no iterator
+        // object is built for the common empty or short list.
+        let mut index: Py_ssize_t = 0;
+        loop {
+            if index >= unsafe { PyList_Size(waiters.as_ptr()) } {
+                return true;
+            }
+            let Some(waiter) =
+                (unsafe { Owned::from_owned(PyList_GetItemRef(waiters.as_ptr(), index)) })
+            else {
+                return false;
+            };
+            if !unsafe { notify_one(waiter.as_ptr(), method, future) } {
+                return false;
+            }
+            index += 1;
+        }
+    }
     let Some(iterator) = (unsafe { Owned::from_owned(PyObject_GetIter(waiters.as_ptr())) }) else {
         return false;
     };
-
     loop {
         let waiter = unsafe { PyIter_Next(iterator.as_ptr()) };
         let Some(waiter) = (unsafe { Owned::from_owned(waiter) }) else {
             return unsafe { PyErr_Occurred() }.is_null();
         };
-        let Some(method) = (unsafe { get_attr(waiter.as_ptr(), method_name) }) else {
-            return false;
-        };
-        let notified = unsafe { PyObject_CallOneArg(method.as_ptr(), future) };
-        if notified.is_null() {
+        if !unsafe { notify_one(waiter.as_ptr(), method, future) } {
             return false;
         }
-        unsafe { Py_DecRef(notified) };
     }
 }
 
@@ -92,15 +131,16 @@ unsafe fn arity_error(expected: Py_ssize_t) -> *mut PyObject {
 }
 
 unsafe extern "C" fn set_running_or_notify_cancel(
-    _module: *mut PyObject,
+    module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     if nargs != 5 {
         return unsafe { arity_error(5) };
     }
+    let names = unsafe { names(module) };
     let future = unsafe { *args };
-    let Some(state) = (unsafe { get_attr(future, c"_state") }) else {
+    let Some(state) = (unsafe { get_attr(future, names.state) }) else {
         return ptr::null_mut();
     };
     let cancelled = match unsafe { equal(state.as_ptr(), *args.add(3)) } {
@@ -109,25 +149,24 @@ unsafe extern "C" fn set_running_or_notify_cancel(
     };
 
     let status = if cancelled {
-        if !unsafe { set_attr(future, c"_state", *args.add(4)) } {
+        if !unsafe { set_attr(future, names.state, *args.add(4)) } {
             return ptr::null_mut();
         }
-        if !unsafe { notify_waiters(future, c"add_cancelled") } {
+        if !unsafe { notify_waiters(future, names, names.add_cancelled) } {
             return ptr::null_mut();
         }
         0
     } else {
-        let Some(current_state) = (unsafe { get_attr(future, c"_state") }) else {
-            return ptr::null_mut();
-        };
-        let pending = match unsafe { equal(current_state.as_ptr(), *args.add(1)) } {
+        // The state was read once under the future's condition lock and
+        // nothing has run since, so it is still current.
+        let pending = match unsafe { equal(state.as_ptr(), *args.add(1)) } {
             Some(value) => value,
             None => return ptr::null_mut(),
         };
         if !pending {
             2
         } else {
-            if !unsafe { set_attr(future, c"_state", *args.add(2)) } {
+            if !unsafe { set_attr(future, names.state, *args.add(2)) } {
                 return ptr::null_mut();
             }
             1
@@ -137,15 +176,16 @@ unsafe extern "C" fn set_running_or_notify_cancel(
 }
 
 unsafe fn complete_future(
+    names: &State,
     future: *mut PyObject,
     value: *mut PyObject,
     finished: *mut PyObject,
-    result_attribute: &'static std::ffi::CStr,
-    waiter_method: &'static std::ffi::CStr,
+    result_attribute: *mut PyObject,
+    waiter_method: *mut PyObject,
 ) -> *mut PyObject {
     if !unsafe { set_attr(future, result_attribute, value) }
-        || !unsafe { set_attr(future, c"_state", finished) }
-        || !unsafe { notify_waiters(future, waiter_method) }
+        || !unsafe { set_attr(future, names.state, finished) }
+        || !unsafe { notify_waiters(future, names, waiter_method) }
     {
         return ptr::null_mut();
     }
@@ -153,31 +193,43 @@ unsafe fn complete_future(
 }
 
 unsafe extern "C" fn set_result(
-    _module: *mut PyObject,
+    module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     if nargs != 3 {
         return unsafe { arity_error(3) };
     }
-    unsafe { complete_future(*args, *args.add(1), *args.add(2), c"_result", c"add_result") }
-}
-
-unsafe extern "C" fn set_exception(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 3 {
-        return unsafe { arity_error(3) };
-    }
+    let names = unsafe { names(module) };
     unsafe {
         complete_future(
+            names,
             *args,
             *args.add(1),
             *args.add(2),
-            c"_exception",
-            c"add_exception",
+            names.result,
+            names.add_result,
+        )
+    }
+}
+
+unsafe extern "C" fn set_exception(
+    module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 3 {
+        return unsafe { arity_error(3) };
+    }
+    let names = unsafe { names(module) };
+    unsafe {
+        complete_future(
+            names,
+            *args,
+            *args.add(1),
+            *args.add(2),
+            names.exception,
+            names.add_exception,
         )
     }
 }
@@ -209,7 +261,54 @@ static METHODS: [PyMethodDef; 4] = [
     PyMethodDef::zeroed(),
 ];
 
-unsafe extern "C" fn exec_module(_module: *mut PyObject) -> c_int {
+unsafe extern "C" fn module_clear(module: *mut PyObject) -> c_int {
+    let names = unsafe { PyModule_GetState(module) as *mut State };
+    if !names.is_null() {
+        unsafe {
+            for slot in [
+                &mut (*names).state,
+                &mut (*names).waiters,
+                &mut (*names).result,
+                &mut (*names).exception,
+                &mut (*names).add_result,
+                &mut (*names).add_exception,
+                &mut (*names).add_cancelled,
+            ] {
+                let object = std::mem::replace(slot, ptr::null_mut());
+                if !object.is_null() {
+                    Py_DecRef(object);
+                }
+            }
+        }
+    }
+    0
+}
+
+unsafe extern "C" fn module_free(module: *mut c_void) {
+    unsafe { module_clear(module as *mut PyObject) };
+}
+
+unsafe extern "C" fn exec_module(module: *mut PyObject) -> c_int {
+    let names = unsafe { PyModule_GetState(module) as *mut State };
+    if names.is_null() {
+        return -1;
+    }
+    unsafe {
+        for (slot, name) in [
+            (&mut (*names).state, c"_state"),
+            (&mut (*names).waiters, c"_waiters"),
+            (&mut (*names).result, c"_result"),
+            (&mut (*names).exception, c"_exception"),
+            (&mut (*names).add_result, c"add_result"),
+            (&mut (*names).add_exception, c"add_exception"),
+            (&mut (*names).add_cancelled, c"add_cancelled"),
+        ] {
+            *slot = PyUnicode_InternFromString(name.as_ptr());
+            if (*slot).is_null() {
+                return -1;
+            }
+        }
+    }
     0
 }
 
@@ -240,12 +339,12 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_concurrent_futures_rs".as_ptr() as *mut c_char,
     m_doc: c"Rust Future scheduling and result state transitions.".as_ptr() as *mut c_char,
-    m_size: 0,
+    m_size: std::mem::size_of::<State>() as Py_ssize_t,
     m_methods: METHODS.as_ptr() as *mut PyMethodDef,
     m_slots: SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
     m_traverse: None,
-    m_clear: None,
-    m_free: None,
+    m_clear: Some(module_clear),
+    m_free: Some(module_free),
 }));
 
 #[unsafe(no_mangle)]
