@@ -5,7 +5,6 @@
 # Copyright (C) 2002 Python Software Foundation.
 # Written by Greg Ward <gward@python.net>
 
-import re
 try:
     import _textwrap_rs
 except ImportError:
@@ -17,6 +16,65 @@ __all__ = ['TextWrapper', 'wrap', 'fill', 'dedent', 'indent', 'shorten']
 # whitespace characters.  The main reason for doing this is that
 # some Unicode spaces (like \u00a0) are non-breaking whitespaces.
 _whitespace = '\t\n\x0b\x0c\r '
+
+class _LazyRegex:
+    """Class attribute holding a regex that is compiled on first access."""
+
+    def __set_name__(self, owner, name):
+        self._owner = owner
+        self._name = name
+
+    def __get__(self, instance, owner=None):
+        regex = _compile_regex(self._name)
+        setattr(self._owner, self._name, regex)
+        return regex
+
+
+def _compile_regex(name):
+    import re
+
+    if name == 'wordsep_re':
+        # This funky little regex is just the trick for splitting
+        # text up into word-wrappable chunks.  E.g.
+        #   "Hello there -- you goof-ball, use the -b option!"
+        # splits into
+        #   Hello/ /there/ /--/ /you/ /goof-/ball,/ /use/ /the/ /-b/ /option!
+        # (after stripping out empty strings).
+        word_punct = r'[\w!"\'&.,?]'
+        letter = r'[\w--\d]'
+        whitespace = r'[%s]' % re.escape(_whitespace)
+        nowhitespace = '[^' + whitespace[1:]
+        return re.compile(r'''
+            ( # any whitespace
+              %(ws)s+
+            | # em-dash between words
+              (?<=%(wp)s) -{2,} (?=\w)
+            | # word, possibly hyphenated
+              %(nws)s+? (?:
+                # hyphenated word
+                  -(?: (?<=%(lt)s{2}-) | (?<=%(lt)s-%(lt)s-))
+                  (?= %(lt)s -? %(lt)s)
+                | # end of word
+                  (?=%(ws)s|\z)
+                | # em-dash
+                  (?<=%(wp)s) (?=-{2,}\w)
+                )
+            )''' % {'wp': word_punct, 'lt': letter,
+                    'ws': whitespace, 'nws': nowhitespace},
+            re.VERBOSE)
+    if name == 'wordsep_simple_re':
+        # This less funky little regex just split on recognized spaces. E.g.
+        #   "Hello there -- you goof-ball, use the -b option!"
+        # splits into
+        #   Hello/ /there/ /--/ /you/ /goof-ball,/ /use/ /the/ /-b/ /option!/
+        return re.compile(r'([%s]+)' % re.escape(_whitespace))
+    # XXX this is not locale- or charset-aware -- string.lowercase
+    # is US-ASCII only (and therefore English-only)
+    return re.compile(r'[a-z]'             # lowercase letter
+                      r'[\.\!\?]'          # sentence-ending punct.
+                      r'[\"\']?'           # optional end-of-quote
+                      r'\z')               # end of chunk
+
 
 class TextWrapper:
     """
@@ -69,49 +127,11 @@ class TextWrapper:
 
     unicode_whitespace_trans = dict.fromkeys(map(ord, _whitespace), ord(' '))
 
-    # This funky little regex is just the trick for splitting
-    # text up into word-wrappable chunks.  E.g.
-    #   "Hello there -- you goof-ball, use the -b option!"
-    # splits into
-    #   Hello/ /there/ /--/ /you/ /goof-/ball,/ /use/ /the/ /-b/ /option!
-    # (after stripping out empty strings).
-    word_punct = r'[\w!"\'&.,?]'
-    letter = r'[\w--\d]'
-    whitespace = r'[%s]' % re.escape(_whitespace)
-    nowhitespace = '[^' + whitespace[1:]
-    wordsep_re = re.compile(r'''
-        ( # any whitespace
-          %(ws)s+
-        | # em-dash between words
-          (?<=%(wp)s) -{2,} (?=\w)
-        | # word, possibly hyphenated
-          %(nws)s+? (?:
-            # hyphenated word
-              -(?: (?<=%(lt)s{2}-) | (?<=%(lt)s-%(lt)s-))
-              (?= %(lt)s -? %(lt)s)
-            | # end of word
-              (?=%(ws)s|\z)
-            | # em-dash
-              (?<=%(wp)s) (?=-{2,}\w)
-            )
-        )''' % {'wp': word_punct, 'lt': letter,
-                'ws': whitespace, 'nws': nowhitespace},
-        re.VERBOSE)
-    del word_punct, letter, nowhitespace
-
-    # This less funky little regex just split on recognized spaces. E.g.
-    #   "Hello there -- you goof-ball, use the -b option!"
-    # splits into
-    #   Hello/ /there/ /--/ /you/ /goof-ball,/ /use/ /the/ /-b/ /option!/
-    wordsep_simple_re = re.compile(r'(%s+)' % whitespace)
-    del whitespace
-
-    # XXX this is not locale- or charset-aware -- string.lowercase
-    # is US-ASCII only (and therefore English-only)
-    sentence_end_re = re.compile(r'[a-z]'             # lowercase letter
-                                 r'[\.\!\?]'          # sentence-ending punct.
-                                 r'[\"\']?'           # optional end-of-quote
-                                 r'\z')               # end of chunk
+    # The splitting regexes are compiled on first use (see _compile_regex),
+    # so wrapping that is handled in Rust never pays for them.
+    wordsep_re = _LazyRegex()
+    wordsep_simple_re = _LazyRegex()
+    sentence_end_re = _LazyRegex()
 
     def __init__(self,
                  width=70,
