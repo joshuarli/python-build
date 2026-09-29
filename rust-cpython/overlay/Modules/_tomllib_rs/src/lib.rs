@@ -62,6 +62,7 @@ impl Hasher for PointerHasher {
 }
 
 type Flags = HashMap<usize, u8, BuildHasherDefault<PointerHasher>>;
+type Strings = HashMap<String, *mut PyObject, BuildHasherDefault<PointerHasher>>;
 
 fn check(object: *mut PyObject) -> Built {
     if object.is_null() { Err(Fail::Error) } else { Ok(object) }
@@ -115,6 +116,9 @@ struct Builder<'i, 'f> {
     header: Header,
     flags: Flags,
     pending: Vec<*mut PyObject>,
+    /// One shared Python string per distinct key, so repeated keys such as
+    /// those of an array of tables cost one object.
+    strings: Strings,
     /// Null when the default `float` is in use.
     parse_float: *mut PyObject,
     datetime: *mut PyObject,
@@ -127,6 +131,9 @@ impl Drop for Builder<'_, '_> {
         unsafe {
             for frame in &self.frames {
                 Py_DecRef(frame.object);
+            }
+            for key in self.strings.values() {
+                Py_DecRef(*key);
             }
             for constructor in self.constructors {
                 if !constructor.is_null() {
@@ -247,26 +254,38 @@ impl<'i, 'f> Builder<'i, 'f> {
         Ok(result)
     }
 
-    /// Existing entry of `dict` (borrowed) or null when absent.
-    unsafe fn lookup(dict: *mut PyObject, key: &str) -> Result<(*mut PyObject, *mut PyObject), Fail> {
-        let key = unsafe { new_str(key)? };
+    /// The shared Python string for `part` (borrowed from the key cache).
+    unsafe fn key_object(&mut self, part: &str) -> Built {
+        if let Some(key) = self.strings.get(part) {
+            return Ok(*key);
+        }
+        let key = unsafe { new_str(part)? };
+        self.strings.insert(part.to_owned(), key);
+        Ok(key)
+    }
+
+    /// The key object for `part` and the existing entry of `dict` under it
+    /// (both borrowed), the entry being null when absent.
+    unsafe fn lookup(
+        &mut self,
+        dict: *mut PyObject,
+        part: &str,
+    ) -> Result<(*mut PyObject, *mut PyObject), Fail> {
+        let key = unsafe { self.key_object(part)? };
         let found = unsafe { PyDict_GetItemWithError(dict, key) };
         if found.is_null() && !unsafe { PyErr_Occurred() }.is_null() {
-            unsafe { Py_DecRef(key) };
             return Err(Fail::Error);
         }
         Ok((key, found))
     }
 
-    /// Add a fresh empty dict under `key` (an owned key object, consumed).
+    /// Add a fresh empty dict under the borrowed `key`.
     unsafe fn add_dict(dict: *mut PyObject, key: *mut PyObject) -> Built {
         let child = unsafe { PyDict_New() };
         if child.is_null() {
-            unsafe { Py_DecRef(key) };
             return Err(Fail::Error);
         }
         let status = unsafe { PyDict_SetItem(dict, key, child) };
-        unsafe { Py_DecRef(key) };
         if status != 0 {
             unsafe { Py_DecRef(child) };
             return Err(Fail::Error);
@@ -311,11 +330,10 @@ impl<'i, 'f> Builder<'i, 'f> {
         };
         let mut container = dict;
         for part in parents {
-            let (key, found) = unsafe { Self::lookup(container, part)? };
+            let (key, found) = unsafe { self.lookup(container, part)? };
             let next = if found.is_null() {
                 unsafe { Self::add_dict(container, key)? }
             } else {
-                unsafe { Py_DecRef(key) };
                 let flags = self.flags_of(found);
                 if flags & FROZEN != 0 || !unsafe { is_dict(found) } {
                     return Err(Fail::Fallback);
@@ -333,10 +351,9 @@ impl<'i, 'f> Builder<'i, 'f> {
         if frozen {
             self.mark(value, FROZEN);
         }
-        let key = unsafe { new_str(stem)? };
+        let key = unsafe { self.key_object(stem)? };
         let mut existing = ptr::null_mut();
         let status = unsafe { PyDict_SetDefaultRef(container, key, value, &mut existing) };
-        unsafe { Py_DecRef(key) };
         match status {
             0 => {
                 unsafe { Py_DecRef(existing) };
@@ -402,11 +419,10 @@ impl<'i, 'f> Builder<'i, 'f> {
         };
         let mut container = self.root;
         for part in parents {
-            let (key, found) = unsafe { Self::lookup(container, part)? };
+            let (key, found) = unsafe { self.lookup(container, part)? };
             let mut next = if found.is_null() {
                 unsafe { Self::add_dict(container, key)? }
             } else {
-                unsafe { Py_DecRef(key) };
                 if self.flags_of(found) & FROZEN != 0 {
                     return Err(Fail::Fallback);
                 }
@@ -424,26 +440,21 @@ impl<'i, 'f> Builder<'i, 'f> {
             }
             container = next;
         }
-        let (key, found) = unsafe { Self::lookup(container, stem)? };
+        let (key, found) = unsafe { self.lookup(container, stem)? };
         if array {
             let list = if found.is_null() {
                 let list = unsafe { PyList_New(0) };
                 if list.is_null() {
-                    unsafe { Py_DecRef(key) };
                     return Err(Fail::Error);
                 }
                 let status = unsafe { PyDict_SetItem(container, key, list) };
-                unsafe {
-                    Py_DecRef(key);
-                    Py_DecRef(list);
-                }
+                unsafe { Py_DecRef(list) };
                 if status != 0 {
                     return Err(Fail::Error);
                 }
                 self.mark(list, EXPLICIT);
                 list
             } else {
-                unsafe { Py_DecRef(key) };
                 if self.flags_of(found) & FROZEN != 0 || !unsafe { is_list(found) } {
                     return Err(Fail::Fallback);
                 }
@@ -463,7 +474,6 @@ impl<'i, 'f> Builder<'i, 'f> {
             let table = if found.is_null() {
                 unsafe { Self::add_dict(container, key)? }
             } else {
-                unsafe { Py_DecRef(key) };
                 if self.flags_of(found) & (FROZEN | EXPLICIT) != 0 || !unsafe { is_dict(found) } {
                     return Err(Fail::Fallback);
                 }
@@ -677,6 +687,7 @@ unsafe fn parse_source(source: *mut PyObject, parse_float: *mut PyObject) -> *mu
         header: Header::None,
         flags: Flags::default(),
         pending: Vec::new(),
+        strings: Strings::default(),
         parse_float: if parse_float == float_type { ptr::null_mut() } else { parse_float },
         datetime: ptr::null_mut(),
         constructors: [ptr::null_mut(); 3],
