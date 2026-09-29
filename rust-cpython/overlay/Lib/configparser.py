@@ -147,7 +147,6 @@ ConfigParser -- responsible for parsing a list of
 
 from collections.abc import Iterable, MutableMapping
 from collections import ChainMap as _ChainMap
-import contextlib
 import functools
 import io
 import itertools
@@ -164,6 +163,28 @@ __all__ = ("NoSectionError", "DuplicateOptionError", "DuplicateSectionError",
            "Interpolation", "BasicInterpolation",  "ExtendedInterpolation",
            "SectionProxy", "ConverterMapping",
            "DEFAULTSECT", "MAX_INTERPOLATION_DEPTH", "UNNAMED_SECTION")
+
+class _LazyRegex:
+    """Class attribute compiled on first access.
+
+    Most parsers never match these patterns, so `re` compiles nothing until
+    one is needed. The first access replaces the descriptor with the compiled
+    pattern, leaving an ordinary class attribute.
+    """
+
+    def __init__(self, pattern, flags=0):
+        self.pattern = pattern
+        self.flags = flags
+
+    def __set_name__(self, owner, name):
+        self.owner = owner
+        self.name = name
+
+    def __get__(self, instance, owner=None):
+        compiled = re.compile(self.pattern, self.flags)
+        setattr(self.owner, self.name, compiled)
+        return compiled
+
 
 _default_dict = dict
 DEFAULTSECT = "DEFAULT"
@@ -332,8 +353,10 @@ class ParsingError(Error):
         Combine any number of ParsingErrors into one and raise it.
         """
         exceptions = iter(exceptions)
-        with contextlib.suppress(StopIteration):
+        try:
             raise next(exceptions).combine(exceptions)
+        except StopIteration:
+            pass
 
 
 
@@ -426,7 +449,7 @@ class BasicInterpolation(Interpolation):
     a configuration file, she can escape it by writing %%. Other % usage
     is considered a user error and raises `InterpolationSyntaxError`."""
 
-    _KEYCRE = re.compile(r"%\(([^)]+)\)s")
+    _KEYCRE = _LazyRegex(r"%\(([^)]+)\)s")
 
     def before_get(self, parser, section, option, value, defaults):
         L = []
@@ -487,7 +510,7 @@ class ExtendedInterpolation(Interpolation):
     """Advanced variant of interpolation, supports the syntax used by
     `zc.buildout`. Enables interpolation between sections."""
 
-    _KEYCRE = re.compile(r"\$\{([^}]+)\}")
+    _KEYCRE = _LazyRegex(r"\$\{([^}]+)\}")
 
     def before_get(self, parser, section, option, value, defaults):
         L = []
@@ -597,7 +620,14 @@ class _CommentSpec:
             fr'(^|\s)({re.escape(prefix)}.*)'
             for prefix in inline_prefixes
         )
-        self.pattern = re.compile('|'.join(itertools.chain(full_patterns, inline_patterns)))
+        self.source = '|'.join(itertools.chain(full_patterns, inline_patterns))
+        self._pattern = None
+
+    @property
+    def pattern(self):
+        if self._pattern is None:
+            self._pattern = re.compile(self.source)
+        return self._pattern
 
     def strip(self, text):
         return self.pattern.sub('', text).rstrip()
@@ -639,14 +669,14 @@ class RawConfigParser(MutableMapping):
     # Interpolation algorithm to be used if the user does not specify another
     _DEFAULT_INTERPOLATION = Interpolation()
     # Compiled regular expression for matching sections
-    SECTCRE = re.compile(_SECT_TMPL, re.VERBOSE)
+    SECTCRE = _LazyRegex(_SECT_TMPL, re.VERBOSE)
     # Compiled regular expression for matching options with typical separators
-    OPTCRE = re.compile(_OPT_TMPL.format(delim="=|:"), re.VERBOSE)
+    OPTCRE = _LazyRegex(_OPT_TMPL.format(delim="=|:"), re.VERBOSE)
     # Compiled regular expression for matching options with optional values
     # delimited using typical separators
-    OPTCRE_NV = re.compile(_OPT_NV_TMPL.format(delim="=|:"), re.VERBOSE)
+    OPTCRE_NV = _LazyRegex(_OPT_NV_TMPL.format(delim="=|:"), re.VERBOSE)
     # Compiled regular expression for matching leading whitespace in a line
-    NONSPACECRE = re.compile(r"\S")
+    NONSPACECRE = _LazyRegex(r"\S")
     # Possible boolean values in the configuration.
     BOOLEAN_STATES = {'1': True, 'yes': True, 'true': True, 'on': True,
                       '0': False, 'no': False, 'false': False, 'off': False}
@@ -666,8 +696,10 @@ class RawConfigParser(MutableMapping):
         self._proxies = self._dict()
         self._proxies[default_section] = SectionProxy(self, default_section)
         self._delimiters = tuple(delimiters)
+        self._optcre_value = None
+        self._optcre_no_value = allow_no_value
         if delimiters == ('=', ':'):
-            self._optcre = self.OPTCRE_NV if allow_no_value else self.OPTCRE
+            pass  # compiled on first use, see _optcre
         else:
             d = "|".join(re.escape(d) for d in delimiters)
             if allow_no_value:
@@ -696,6 +728,18 @@ class RawConfigParser(MutableMapping):
         if defaults:
             self._read_defaults(defaults)
         self._allow_unnamed_section = allow_unnamed_section
+
+    @property
+    def _optcre(self):
+        optcre = self._optcre_value
+        if optcre is None:
+            optcre = self.OPTCRE_NV if self._optcre_no_value else self.OPTCRE
+            self._optcre_value = optcre
+        return optcre
+
+    @_optcre.setter
+    def _optcre(self, value):
+        self._optcre_value = value
 
     def defaults(self):
         return self._defaults
@@ -1373,16 +1417,22 @@ class ConverterMapping(MutableMapping):
     section proxies to find and use the implementation on the parser class.
     """
 
-    GETTERCRE = re.compile(r"^get(?P<name>.+)$")
+    GETTERCRE = _LazyRegex(r"^get(?P<name>.+)$")
 
     def __init__(self, parser):
         self._parser = parser
         self._data = {}
         for getter in dir(self._parser):
-            m = self.GETTERCRE.match(getter)
-            if not m or not callable(getattr(self._parser, getter)):
+            if '\n' in getter:
+                m = self.GETTERCRE.match(getter)
+                name = m.group('name') if m else None
+            elif getter.startswith('get') and len(getter) > 3:
+                name = getter[3:]
+            else:
                 continue
-            self._data[m.group('name')] = None   # See class docstring.
+            if name is None or not callable(getattr(self._parser, getter)):
+                continue
+            self._data[name] = None   # See class docstring.
 
     def __getitem__(self, key):
         return self._data[key]
@@ -1445,7 +1495,7 @@ def _uses_standard_rust_backend(parser):
         return False
     if parser._delimiters != ('=', ':'):
         return False
-    if parser._comments.pattern.pattern != _STANDARD_COMMENT_PATTERN:
+    if getattr(parser._comments, 'source', None) != _STANDARD_COMMENT_PATTERN:
         return False
     if parser._allow_no_value or not parser._strict:
         return False
