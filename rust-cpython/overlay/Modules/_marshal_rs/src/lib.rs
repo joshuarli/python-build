@@ -15,18 +15,18 @@ use cpython_sys::{
     PyBool_Type, PyBytes_FromStringAndSize, PyBytes_Type, PyCapsule_New, PyComplex_FromDoubles,
     PyComplex_ImagAsDouble, PyComplex_RealAsDouble, PyComplex_Type, PyCode_Type, Py_DecRef,
     Py_IncRef, PyDict_New, PyDict_Next, PyDict_SetItem, PyDict_Type, PyErr_Clear, PyErr_Occurred,
-    PyFloat_AsDouble, PyFloat_FromDouble, PyFloat_Type, PyFrozenSet_New, PyFrozenSet_Type,
+    PyFloat_FromDouble, PyFloat_Type, PyFrozenSet_New, PyFrozenSet_Type,
     PyIter_Next, PyList_Append, PyList_GetItem, PyList_New, PyList_SetItem, PyList_Sort,
     PyList_Type, PyLong_AsLongLongAndOverflow, PyLong_Export, PyLong_FreeExport,
     PyLong_FromLongLong, PyLong_GetNativeLayout, PyLong_Type, PyLongExport, PyLongWriter_Create,
-    PyLongWriter_Discard, PyLongWriter_Finish, PyMem_Calloc, PyMem_Free, PyModule_Add,
+    PyLongWriter_Discard, PyLongWriter_Finish, PyMem_Calloc, PyMem_Free, PyMem_Realloc, PyModule_Add,
     PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyModuleDef_Slot, PyObject,
     PyObject_GetIter, PyObject_IsTrue, PySet_Add, PySet_New, PySet_Type, PyTuple_GetItem,
     PyTuple_New, PyTuple_SetItem, PyTuple_Type, PyTypeObject, PyUnicode_AsEncodedString,
     PyUnicode_DecodeUTF8, PyUnicode_InternInPlace, PyUnicode_Type, Py_ssize_t, _Py_NoneStruct,
-    _PyBytes_Resize, _object,
+    _PyBytes_Resize, _object, PyFloatObject, PyListObject, PyTupleObject, PyVarObject, _longobject,
 };
-use cpython_sys::{PyBytes_AsString, PyBytes_Size, PyList_Size, PyTuple_Size};
+use cpython_sys::{PyBytes_AsString, PyBytes_Size, PyList_Size};
 
 const FLAG_REF: u8 = 0x80;
 const MAX_DEPTH: usize = 128;
@@ -47,7 +47,6 @@ struct CodeParts {
 }
 
 unsafe extern "C" {
-    fn _PyMarshal_RustShared(value: *mut PyObject) -> c_int;
     fn _PyMarshal_RustUnicode(
         value: *mut PyObject,
         data: *mut *const c_char,
@@ -125,6 +124,24 @@ fn kind_of(ty: *mut PyTypeObject) -> Option<Kind> {
         } else {
             None
         }
+    }
+}
+
+struct UnicodeInfo {
+    /// The bytes of an ASCII string, or null for any other string.
+    data: *const c_char,
+    length: usize,
+    interned: bool,
+}
+
+unsafe fn unicode_info(value: *mut PyObject) -> UnicodeInfo {
+    let mut data: *const c_char = ptr::null();
+    let mut length: Py_ssize_t = 0;
+    let bits = unsafe { _PyMarshal_RustUnicode(value, &mut data, &mut length) };
+    UnicodeInfo {
+        data: if bits & 1 != 0 { data } else { ptr::null() },
+        length: length as usize,
+        interned: bits & 2 != 0,
     }
 }
 
@@ -327,9 +344,19 @@ impl Encoder {
         }
         let kind = kind_of(ty).ok_or(())?;
 
+        // Anything referenced more than once may be shared, and interned
+        // strings always get a reference.
+        let unique = unsafe { (*value.cast::<_object>()).__bindgen_anon_1.ob_refcnt_full } == 1;
+        let mut text = None;
+        let mut shared = !unique;
+        if kind == Kind::Unicode {
+            let info = unsafe { unicode_info(value) };
+            shared |= info.interned;
+            text = Some(info);
+        }
         let mut flag = 0;
         let mut tracked = false;
-        if unsafe { _PyMarshal_RustShared(value) } != 0 {
+        if shared {
             match unsafe { self.track(value, kind == Kind::Code) }? {
                 Some(index) => {
                     unsafe { self.byte(b'r')? };
@@ -346,10 +373,7 @@ impl Encoder {
             match kind {
                 Kind::Int => self.write_int(value, flag)?,
                 Kind::Float => {
-                    let number = PyFloat_AsDouble(value);
-                    if number == -1.0 && !PyErr_Occurred().is_null() {
-                        return Err(());
-                    }
+                    let number = (*value.cast::<PyFloatObject>()).ob_fval;
                     self.byte(b'g' | flag)?;
                     self.put(&number.to_le_bytes())?;
                 }
@@ -375,7 +399,10 @@ impl Encoder {
                     let data = slice::from_raw_parts(data.cast::<u8>(), length as usize);
                     self.counted(b's', flag, data)?;
                 }
-                Kind::Unicode => self.write_unicode(value, flag)?,
+                Kind::Unicode => match text {
+                    Some(info) => self.write_unicode(value, flag, info)?,
+                    None => return Err(()),
+                },
                 Kind::Tuple => self.write_sequence(value, depth, flag, true)?,
                 Kind::List => self.write_sequence(value, depth, flag, false)?,
                 Kind::Dict => self.write_dict(value, depth, flag)?,
@@ -392,6 +419,18 @@ impl Encoder {
     }
 
     unsafe fn write_int(&mut self, value: *mut PyObject, flag: u8) -> Result<(), ()> {
+        // A compact int is one digit and a sign in its tag.
+        let long_value = unsafe { &(*value.cast::<_longobject>()).long_value };
+        if long_value.lv_tag < 16 {
+            let sign = 1 - (long_value.lv_tag & 3) as i64;
+            let small = sign * long_value.ob_digit[0] as i64;
+            if (i32::MIN as i64..=i32::MAX as i64).contains(&small) {
+                unsafe {
+                    self.byte(b'i' | flag)?;
+                    return self.i32(small as i32);
+                }
+            }
+        }
         let mut overflow: c_int = 0;
         let small = unsafe { PyLong_AsLongLongAndOverflow(value, &mut overflow) };
         if overflow == 0 {
@@ -498,13 +537,10 @@ impl Encoder {
         }
     }
 
-    unsafe fn write_unicode(&mut self, value: *mut PyObject, flag: u8) -> Result<(), ()> {
-        let mut data: *const c_char = ptr::null();
-        let mut length: Py_ssize_t = 0;
-        let info = unsafe { _PyMarshal_RustUnicode(value, &mut data, &mut length) };
-        let interned = info & 2 != 0;
-        if info & 1 != 0 {
-            let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), length as usize) };
+    unsafe fn write_unicode(&mut self, value: *mut PyObject, flag: u8, info: UnicodeInfo) -> Result<(), ()> {
+        let interned = info.interned;
+        if !info.data.is_null() {
+            let bytes = unsafe { slice::from_raw_parts(info.data.cast::<u8>(), info.length) };
             return unsafe { self.write_ascii(bytes, interned, flag) };
         }
         let encoded = unsafe {
@@ -542,11 +578,7 @@ impl Encoder {
         flag: u8,
         tuple: bool,
     ) -> Result<(), ()> {
-        let length = if tuple {
-            unsafe { PyTuple_Size(value) }
-        } else {
-            unsafe { PyList_Size(value) }
-        };
+        let length = unsafe { (*value.cast::<PyVarObject>()).ob_size };
         if length < 0 || length as usize > MAX_RECORD_SIZE / 4 {
             return Err(());
         }
@@ -560,10 +592,13 @@ impl Encoder {
             }
         }
         for index in 0..length {
-            let item = if tuple {
-                unsafe { PyTuple_GetItem(value, index) }
-            } else {
-                unsafe { PyList_GetItem(value, index) }
+            // No Python code runs while writing, so the items cannot change.
+            let item = unsafe {
+                if tuple {
+                    *(*value.cast::<PyTupleObject>()).ob_item.as_ptr().offset(index)
+                } else {
+                    *(*value.cast::<PyListObject>()).ob_item.offset(index)
+                }
             };
             if item.is_null() {
                 return Err(());
@@ -696,19 +731,28 @@ enum Decoded {
     DictEnd,
 }
 
-/// Reads one marshal record.  Back references live in a Python list whose
-/// unfinished (reserved) entries are `None`.
+/// Reads one marshal record.  Back references are owned in an array from
+/// Python's allocator; the entry of a record still being read is null.
 struct Decoder<'a> {
     input: &'a [u8],
     position: usize,
-    references: *mut PyObject,
-    count: Py_ssize_t,
+    references: *mut *mut PyObject,
+    count: usize,
+    capacity: usize,
     allow_code: bool,
 }
 
 impl Drop for Decoder<'_> {
     fn drop(&mut self) {
-        unsafe { Py_DecRef(self.references) }
+        unsafe {
+            for index in 0..self.count {
+                let object = *self.references.add(index);
+                if !object.is_null() {
+                    Py_DecRef(object);
+                }
+            }
+            PyMem_Free(self.references.cast::<c_void>());
+        }
     }
 }
 
@@ -746,26 +790,39 @@ impl<'a> Decoder<'a> {
         Ok(count as usize)
     }
 
-    unsafe fn reserve(&mut self, flag: bool) -> Result<Option<Py_ssize_t>, ()> {
-        if !flag {
-            return Ok(None);
-        }
+    /// Append an entry (owning `value`, or null while reserved).
+    unsafe fn push(&mut self, value: *mut PyObject) -> Result<usize, ()> {
         let index = self.count;
         if index >= 0x7fff_fffe {
             return Err(());
         }
-        if unsafe { PyList_Append(self.references, ptr::addr_of_mut!(_Py_NoneStruct)) } != 0 {
-            return Err(());
+        if index == self.capacity {
+            let capacity = if self.capacity == 0 { 64 } else { self.capacity * 2 };
+            let bytes = capacity * std::mem::size_of::<*mut PyObject>();
+            let grown = unsafe { PyMem_Realloc(self.references.cast::<c_void>(), bytes) };
+            if grown.is_null() {
+                return Err(());
+            }
+            self.references = grown.cast::<*mut PyObject>();
+            self.capacity = capacity;
         }
+        unsafe { *self.references.add(index) = value };
         self.count += 1;
-        Ok(Some(index))
+        Ok(index)
     }
 
-    unsafe fn insert(&mut self, index: Option<Py_ssize_t>, value: *mut PyObject) -> Result<(), ()> {
+    unsafe fn reserve(&mut self, flag: bool) -> Result<Option<usize>, ()> {
+        if !flag {
+            return Ok(None);
+        }
+        Ok(Some(unsafe { self.push(ptr::null_mut()) }?))
+    }
+
+    unsafe fn insert(&mut self, index: Option<usize>, value: *mut PyObject) -> Result<(), ()> {
         if let Some(index) = index {
-            unsafe { Py_IncRef(value) };
-            if unsafe { PyList_SetItem(self.references, index, value) } != 0 {
-                return Err(());
+            unsafe {
+                Py_IncRef(value);
+                *self.references.add(index) = value;
             }
         }
         Ok(())
@@ -774,12 +831,11 @@ impl<'a> Decoder<'a> {
     unsafe fn finish_ref(&mut self, flag: bool, value: *mut PyObject) -> Result<Decoded, ()> {
         let value = unsafe { PyRef::from_raw(value) }?;
         if flag {
-            if self.count >= 0x7fff_fffe
-                || unsafe { PyList_Append(self.references, value.as_ptr()) } != 0
-            {
+            unsafe { Py_IncRef(value.as_ptr()) };
+            if unsafe { self.push(value.as_ptr()) }.is_err() {
+                unsafe { Py_DecRef(value.as_ptr()) };
                 return Err(());
             }
-            self.count += 1;
         }
         Ok(Decoded::Object(value))
     }
@@ -1036,12 +1092,11 @@ impl<'a> Decoder<'a> {
             }
             b'r' if !flag => {
                 let index = self.size()?;
-                let value = unsafe { PyList_GetItem(self.references, index as Py_ssize_t) };
-                if value.is_null() {
-                    unsafe { PyErr_Clear() };
+                if index >= self.count {
                     return Err(());
                 }
-                if value == ptr::addr_of_mut!(_Py_NoneStruct) {
+                let value = unsafe { *self.references.add(index) };
+                if value.is_null() {
                     return Err(());
                 }
                 unsafe { Py_IncRef(value) };
@@ -1076,11 +1131,6 @@ unsafe extern "C" fn api_dumps(value: *mut PyObject, allow_code: c_int) -> *mut 
 /// Read a supported record; NULL without an exception when the data is not
 /// one this codec accepts.
 unsafe extern "C" fn api_loads(data: *const c_char, size: Py_ssize_t, allow_code: c_int) -> *mut PyObject {
-    let references = unsafe { PyList_New(0) };
-    if references.is_null() {
-        unsafe { PyErr_Clear() };
-        return ptr::null_mut();
-    }
     let input = if size > 0 {
         unsafe { slice::from_raw_parts(data.cast::<u8>(), size as usize) }
     } else {
@@ -1089,8 +1139,9 @@ unsafe extern "C" fn api_loads(data: *const c_char, size: Py_ssize_t, allow_code
     let mut decoder = Decoder {
         input,
         position: 0,
-        references,
+        references: ptr::null_mut(),
         count: 0,
+        capacity: 0,
         allow_code: allow_code != 0,
     };
     match unsafe { decoder.decode(0) } {
