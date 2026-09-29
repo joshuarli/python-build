@@ -3,10 +3,7 @@ name = "_textwrap_rs"
 version = "0.1.0"
 edition = "2024"
 rust-version.workspace = true
-
-[dependencies]
-cpython-sys = { path = "../cpython-sys" }
-textwrap = { version = "=0.16.4", default-features = false }
+license = "PSF-2.0"
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }
