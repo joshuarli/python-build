@@ -172,6 +172,17 @@ impl<'i, 'f> Builder<'i, 'f> {
         Some(Raw::new_unchecked(text, encoding, span))
     }
 
+    /// A line break or comment inside an inline table is fine around values
+    /// and separators, but the Python parser rejects one between a key and
+    /// the end of its value, which the event parser tolerates.
+    fn line_break(&mut self) {
+        if let Some(Frame { kind: FrameKind::Table, keys, .. }) = self.frames.last() {
+            if !keys.is_empty() {
+                self.syntax_error();
+            }
+        }
+    }
+
     fn top_keys(&mut self) -> &mut Vec<Cow<'i, str>> {
         match self.frames.last_mut() {
             Some(frame) => &mut frame.keys,
@@ -611,6 +622,14 @@ impl<'i, 'f> EventReceiver for Builder<'i, 'f> {
 
     fn scalar(&mut self, span: Span, encoding: Option<Encoding>, _error: &mut dyn ErrorSink) {
         guarded!(self, unsafe { self.scalar_value(span, encoding) });
+    }
+
+    fn newline(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.line_break();
+    }
+
+    fn comment(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
+        self.line_break();
     }
 
     fn error(&mut self, _span: Span, _error: &mut dyn ErrorSink) {
