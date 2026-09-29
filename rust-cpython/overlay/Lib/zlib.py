@@ -1,26 +1,32 @@
 """Compression and decompression using zlib-compatible DEFLATE streams."""
 
-import importlib.machinery
-import importlib.util
-import os
 import sys
+
+# The frozen bootstrap modules are already loaded; using them directly keeps
+# this wrapper from importing importlib, importlib.util, types, or os.path.
+import _frozen_importlib as _bootstrap
+import _frozen_importlib_external as _bootstrap_external
 
 
 def _load_native_zlib():
+    isfile = _bootstrap_external._path_isfile
+    join = _bootstrap_external._path_join
     for directory in sys.path:
         if not isinstance(directory, str):
             continue
         if not directory:
+            import os
+
             directory = os.getcwd()
-        for suffix in importlib.machinery.EXTENSION_SUFFIXES:
-            path = os.path.join(directory, "zlib" + suffix)
-            if not os.path.isfile(path):
+        for suffix in _bootstrap_external.EXTENSION_SUFFIXES:
+            path = join(directory, "zlib" + suffix)
+            if not isfile(path):
                 continue
-            loader = importlib.machinery.ExtensionFileLoader(__name__, path)
-            spec = importlib.util.spec_from_file_location(
+            loader = _bootstrap_external.ExtensionFileLoader(__name__, path)
+            spec = _bootstrap_external.spec_from_file_location(
                 __name__, path, loader=loader
             )
-            module = importlib.util.module_from_spec(spec)
+            module = _bootstrap.module_from_spec(spec)
             loader.exec_module(module)
             return module
     raise ImportError("cannot locate the native zlib extension")
