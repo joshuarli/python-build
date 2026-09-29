@@ -64,7 +64,6 @@ import datetime
 import enum
 from io import BytesIO
 import itertools
-import json
 import math
 import os
 import re
@@ -886,7 +885,6 @@ _FORMATS=frozendict({
 
 
 _RUST_UNAVAILABLE = object()
-_RUST_MAX_DEPTH = 64
 
 
 def _rust_module():
@@ -896,37 +894,6 @@ def _rust_module():
     except ImportError:
         return None
     return _plistlib_rs
-
-
-def _same_object_graph(original, candidate):
-    original_to_candidate = {}
-    candidate_to_original = {}
-    pending = [(original, candidate)]
-    while pending:
-        left, right = pending.pop()
-        if type(left) is not type(right):
-            return False
-        left_id = id(left)
-        right_id = id(right)
-        if left_id in original_to_candidate:
-            if original_to_candidate[left_id] != right_id:
-                return False
-            continue
-        if right_id in candidate_to_original:
-            return False
-        original_to_candidate[left_id] = right_id
-        candidate_to_original[right_id] = left_id
-        if isinstance(left, dict):
-            if list(left) != list(right):
-                return False
-            for left_key, right_key in zip(left, right):
-                pending.append((left_key, right_key))
-                pending.append((left[left_key], right[right_key]))
-        elif isinstance(left, list):
-            if len(left) != len(right):
-                return False
-            pending.extend(zip(left, right))
-    return True
 
 
 def _try_rust_load(data, fmt):
@@ -984,7 +951,7 @@ def load(fp, *, fmt=None, dict_type=dict, aware_datetime=False):
         return result
     candidate = _try_rust_load(data, fmt)
     if candidate is not _RUST_UNAVAILABLE and candidate == result:
-        if _same_object_graph(result, candidate):
+        if _rust_module().same_graph(result, candidate):
             return candidate
     return result
 
@@ -1011,106 +978,20 @@ def _dump_python(value, fp, *, fmt, sort_keys, skipkeys, aware_datetime):
     writer.write(value)
 
 
-def _to_rust_value(value, *, fmt, sort_keys, skipkeys, aware_datetime,
-                   depth=0, active=None, seen_containers=None):
-    if depth > _RUST_MAX_DEPTH:
-        return _RUST_UNAVAILABLE
-    if active is None:
-        active = set()
-    if seen_containers is None:
-        seen_containers = set()
-    if type(value) is bool:
-        return ["b", value]
-    if type(value) is int:
-        return ["i", str(value)]
-    if type(value) is float:
-        if not math.isfinite(value):
-            return _RUST_UNAVAILABLE
-        return ["f", repr(value)]
-    if type(value) is str:
-        try:
-            value.encode("utf-8")
-        except UnicodeEncodeError:
-            return _RUST_UNAVAILABLE
-        return ["s", value]
-    if type(value) in (bytes, bytearray):
-        return ["d", binascii.hexlify(value).decode("ascii")]
-    if type(value) is datetime.datetime:
-        try:
-            return ["t", _date_to_string(value, aware_datetime)]
-        except (OverflowError, TypeError, ValueError):
-            return _RUST_UNAVAILABLE
-    if type(value) is UID:
-        if fmt != FMT_BINARY or type(value.data) is not int:
-            return _RUST_UNAVAILABLE
-        if not 0 <= value.data < 1 << 64:
-            return _RUST_UNAVAILABLE
-        return ["u", str(value.data)]
-    if type(value) in (dict, frozendict):
-        value_id = id(value)
-        if value_id in active or (fmt == FMT_BINARY and value_id in seen_containers):
-            return _RUST_UNAVAILABLE
-        active.add(value_id)
-        seen_containers.add(value_id)
-        items = list(value.items())
-        if sort_keys:
-            items.sort()
-        entries = []
-        for key, item in items:
-            if not isinstance(key, str):
-                if skipkeys:
-                    continue
-                return _RUST_UNAVAILABLE
-            if type(key) is not str:
-                return _RUST_UNAVAILABLE
-            encoded = _to_rust_value(
-                item, fmt=fmt, sort_keys=sort_keys, skipkeys=skipkeys,
-                aware_datetime=aware_datetime, depth=depth + 1,
-                active=active, seen_containers=seen_containers,
-            )
-            if encoded is _RUST_UNAVAILABLE:
-                return _RUST_UNAVAILABLE
-            entries.append([key, encoded])
-        active.remove(value_id)
-        return ["o", entries]
-    if type(value) in (list, tuple):
-        value_id = id(value)
-        if value_id in active or (fmt == FMT_BINARY and value_id in seen_containers):
-            return _RUST_UNAVAILABLE
-        active.add(value_id)
-        seen_containers.add(value_id)
-        items = []
-        for item in value:
-            encoded = _to_rust_value(
-                item, fmt=fmt, sort_keys=sort_keys, skipkeys=skipkeys,
-                aware_datetime=aware_datetime, depth=depth + 1,
-                active=active, seen_containers=seen_containers,
-            )
-            if encoded is _RUST_UNAVAILABLE:
-                return _RUST_UNAVAILABLE
-            items.append(encoded)
-        active.remove(value_id)
-        return ["a", items]
-    return _RUST_UNAVAILABLE
-
-
 def _try_rust_dump(value, *, fmt, sort_keys, skipkeys, aware_datetime):
     if fmt not in _FORMATS:
-        return _RUST_UNAVAILABLE
-    tagged = _to_rust_value(
-        value, fmt=fmt, sort_keys=sort_keys, skipkeys=skipkeys,
-        aware_datetime=aware_datetime,
-    )
-    if tagged is _RUST_UNAVAILABLE:
         return _RUST_UNAVAILABLE
     module = _rust_module()
     if module is None:
         return _RUST_UNAVAILABLE
     try:
-        payload = json.dumps(tagged, ensure_ascii=False, separators=(",", ":"))
-        return module.dumps(payload, 0 if fmt == FMT_XML else 1)
-    except (IndexError, TypeError, ValueError, json.JSONDecodeError):
+        result = module.dumps(
+            value, 0 if fmt == FMT_XML else 1, sort_keys, skipkeys, UID,
+            frozendict, datetime.datetime,
+            lambda date: _date_to_string(date, aware_datetime))
+    except (IndexError, OverflowError, TypeError, ValueError):
         return _RUST_UNAVAILABLE
+    return _RUST_UNAVAILABLE if result is None else result
 
 
 def _dump_bytes(value, *, fmt, skipkeys, sort_keys, aware_datetime):

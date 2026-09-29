@@ -368,7 +368,6 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "plist",
- "serde_json",
 ]
 
 [[package]]
