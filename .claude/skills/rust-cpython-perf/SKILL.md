@@ -317,6 +317,12 @@ table meets the Unquiet host criteria.
    `benchmarks/baselines/rust-cp316-perf-*.json`, ledger, and goal table
    together. Run a full `perf.py goals` every third integration to catch
    cross-module drift.
+   Lanes still running when `main` advances (continuous lanes): right after
+   the commit, rebuild `perf-rust` and message every running climber with the
+   new `INCUMBENT`, telling it to `git merge main` before Qualify (its gate
+   requires a challenger that contains the incumbent commit). New lanes use
+   the new `INCUMBENT`; the climber setup check accepts any `main` whose
+   overlay diff against `INCUMBENT` is empty.
 6. Clean up every lane's worktree as soon as its branch is merged (or
    abandoned), in the same integration, before spawning the next batch. Each
    worktree carries its own APFS-cloned caches, Cargo home, build trees
