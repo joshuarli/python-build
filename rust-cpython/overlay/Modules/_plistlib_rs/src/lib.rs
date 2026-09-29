@@ -14,7 +14,7 @@ use std::io::Write;
 use std::ptr;
 
 use cpython_sys::{
-    METH_FASTCALL, PyBool_FromLong, PyBool_Type, PyByteArray_AsString, PyByteArray_Size,
+    METH_FASTCALL, PyBytes_AsString, _PyBytes_Resize, PyBool_FromLong, PyBool_Type, PyByteArray_AsString, PyByteArray_Size,
     PyByteArray_Type, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyBytes_Type,
     PyDict_New, PyDict_Next, PyDict_SetItem, PyDict_Type, PyErr_Clear, PyErr_Occurred, PyFloat_AsDouble,
     PyFloat_FromDouble, PyFloat_FromString, PyFloat_Type, PyList_Append, PyList_GetItem,
@@ -129,6 +129,103 @@ fn bytes_of<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
 }
 
 const MAX_DEPTH: usize = 200;
+
+/// A growable byte buffer that lives in the result `bytes` object itself, so
+/// finishing needs no copy and the peak holds one buffer instead of two.
+struct PyBuf {
+    object: *mut PyObject,
+    length: usize,
+    capacity: usize,
+}
+
+impl PyBuf {
+    fn new(capacity: usize) -> PyBuf {
+        let object = unsafe { PyBytes_FromStringAndSize(ptr::null(), capacity as Py_ssize_t) };
+        if object.is_null() {
+            unsafe { PyErr_Clear() };
+            return PyBuf { object, length: 0, capacity: 0 };
+        }
+        PyBuf { object, length: 0, capacity }
+    }
+
+    fn len(&self) -> usize {
+        self.length
+    }
+
+    fn reserve(&mut self, extra: usize) -> bool {
+        if self.object.is_null() {
+            return false;
+        }
+        let needed = self.length + extra;
+        if needed > self.capacity {
+            let capacity = needed.max(self.capacity * 2);
+            if unsafe { _PyBytes_Resize(&mut self.object, capacity as Py_ssize_t) } != 0 {
+                unsafe { PyErr_Clear() };
+                self.object = ptr::null_mut();
+                self.length = 0;
+                self.capacity = 0;
+                return false;
+            }
+            self.capacity = capacity;
+        }
+        true
+    }
+
+    fn extend_from_slice(&mut self, data: &[u8]) {
+        if self.reserve(data.len()) {
+            unsafe {
+                let start = PyBytes_AsString(self.object).cast::<u8>().add(self.length);
+                ptr::copy_nonoverlapping(data.as_ptr(), start, data.len());
+            }
+            self.length += data.len();
+        }
+    }
+
+    fn push(&mut self, byte: u8) {
+        self.extend_from_slice(&[byte]);
+    }
+
+    fn repeat(&mut self, byte: u8, count: usize) {
+        if self.reserve(count) {
+            unsafe {
+                let start = PyBytes_AsString(self.object).cast::<u8>().add(self.length);
+                ptr::write_bytes(start, byte, count);
+            }
+            self.length += count;
+        }
+    }
+
+    fn finish(mut self) -> R<Owned> {
+        if self.object.is_null() {
+            return Err(Decline);
+        }
+        if unsafe { _PyBytes_Resize(&mut self.object, self.length as Py_ssize_t) } != 0 {
+            unsafe { PyErr_Clear() };
+            return Err(Decline);
+        }
+        let object = std::mem::replace(&mut self.object, ptr::null_mut());
+        Ok(Owned(object))
+    }
+}
+
+impl Drop for PyBuf {
+    fn drop(&mut self) {
+        if !self.object.is_null() {
+            unsafe { Py_DecRef(self.object) };
+        }
+    }
+}
+
+impl Write for PyBuf {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
 
 fn big_endian(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0u64, |value, &byte| (value << 8) | u64::from(byte))
@@ -342,6 +439,8 @@ struct XmlLoader<'a> {
     data: &'a [u8],
     position: usize,
     date_factory: *mut PyObject,
+    /// One `str` per distinct dictionary key, shared across the document.
+    keys: HashMap<String, Owned>,
 }
 
 fn is_space(byte: u8) -> bool {
@@ -599,10 +698,18 @@ impl<'a> XmlLoader<'a> {
                     if key.is_empty() {
                         return Err(Decline);
                     }
-                    let key = new_str(&key)?;
+                    let key = match self.keys.get(&*key) {
+                        Some(shared) => shared.ptr(),
+                        None => {
+                            let created = new_str(&key)?;
+                            let object = created.ptr();
+                            self.keys.insert(key.into_owned(), created);
+                            object
+                        }
+                    };
                     self.skip_space();
                     let value = self.value(depth + 1)?;
-                    if unsafe { PyDict_SetItem(dict.ptr(), key.ptr(), value.ptr()) } != 0 {
+                    if unsafe { PyDict_SetItem(dict.ptr(), key, value.ptr()) } != 0 {
                         unsafe { PyErr_Clear() };
                         return Err(Decline);
                     }
@@ -780,7 +887,7 @@ fn load_xml(data: &[u8], date_factory: *mut PyObject) -> R<Owned> {
     {
         return Err(Decline);
     }
-    let mut loader = XmlLoader { data, position: 0, date_factory };
+    let mut loader = XmlLoader { data, position: 0, date_factory, keys: HashMap::new() };
     loader.root()
 }
 
@@ -948,18 +1055,18 @@ impl Context {
 
 struct XmlWriter<'a> {
     context: &'a Context,
-    out: Vec<u8>,
+    out: PyBuf,
 }
 
-fn base64_encode(data: &[u8], line: usize, out: &mut Vec<u8>, level: usize) {
+fn base64_encode(data: &[u8], line: usize, out: &mut PyBuf, level: usize) {
     let mut column = 0;
-    let start_line = |out: &mut Vec<u8>| {
-        out.extend(std::iter::repeat_n(b'\t', level));
+    let start_line = |out: &mut PyBuf| {
+        out.repeat(b'\t', level);
     };
     if !data.is_empty() {
         start_line(out);
     }
-    let mut emit = |symbol: u8, out: &mut Vec<u8>| {
+    let mut emit = |symbol: u8, out: &mut PyBuf| {
         if column == line {
             out.push(b'\n');
             start_line(out);
@@ -984,7 +1091,7 @@ fn base64_encode(data: &[u8], line: usize, out: &mut Vec<u8>, level: usize) {
 
 impl XmlWriter<'_> {
     fn indent(&mut self, level: usize) {
-        self.out.extend(std::iter::repeat_n(b'\t', level));
+        self.out.repeat(b'\t', level);
     }
 
     fn escaped(&mut self, text: &str) -> R<()> {
@@ -1136,13 +1243,13 @@ impl XmlWriter<'_> {
 const XML_HEADER: &[u8] = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
 <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
 
-fn dump_xml(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
-    let mut writer = XmlWriter { context, out: Vec::with_capacity(4096) };
+fn dump_xml(context: &Context, value: *mut PyObject) -> R<Owned> {
+    let mut writer = XmlWriter { context, out: PyBuf::new(4096) };
     writer.out.extend_from_slice(XML_HEADER);
     writer.out.extend_from_slice(b"<plist version=\"1.0\">\n");
     writer.value(value, 0)?;
     writer.out.extend_from_slice(b"</plist>\n");
-    Ok(writer.out)
+    writer.out.finish()
 }
 
 // ----------------------------------------------------------------- binary dump
@@ -1151,14 +1258,19 @@ enum Node {
     Pending,
     None,
     Bool(bool),
-    Int(i128),
+    Int(i64),
+    /// An integer in `2**63..2**64`.
+    Big(u64),
     Float(f64),
     Date(f64),
     Bytes(*const u8, usize),
     Str(*const u8, usize),
     Uid(u64),
-    List(Vec<u32>),
-    Dict(Vec<u32>, Vec<u32>),
+    /// `(start, count)` into `Flattener::refs`: the item references.
+    List(u32, u32),
+    /// `(start, count)` into `Flattener::refs`: `count` key references
+    /// followed by `count` value references.
+    Dict(u32, u32),
 }
 
 /// Flattens the object graph in `plistlib`'s order, deduplicating scalars by
@@ -1166,6 +1278,10 @@ enum Node {
 struct Flattener<'a> {
     context: &'a Context,
     nodes: Vec<Node>,
+    /// Container child references, in node order.
+    refs: Vec<u32>,
+    /// References of the containers being flattened, above each one's base.
+    scratch: Vec<u32>,
     strings: HashMap<&'static [u8], u32>,
     byte_strings: HashMap<&'static [u8], u32>,
     integers: HashMap<i128, u32>,
@@ -1181,6 +1297,15 @@ impl Flattener<'_> {
     fn add(&mut self, node: Node) -> u32 {
         self.nodes.push(node);
         (self.nodes.len() - 1) as u32
+    }
+
+    /// Move the references gathered above `base` into `refs` and return the
+    /// container node describing them.
+    fn settle(&mut self, base: usize, count: usize, dict: bool) -> Node {
+        let start = self.refs.len() as u32;
+        self.refs.extend_from_slice(&self.scratch[base..]);
+        self.scratch.truncate(base);
+        if dict { Node::Dict(start, count as u32) } else { Node::List(start, count as u32) }
     }
 
     fn flatten(&mut self, object: *mut PyObject, depth: usize) -> R<u32> {
@@ -1225,7 +1350,11 @@ impl Flattener<'_> {
                 if let Some(&existing) = self.integers.get(&value) {
                     return Ok(existing);
                 }
-                let reference = self.add(Node::Int(value));
+                let node = match i64::try_from(value) {
+                    Ok(small) => Node::Int(small),
+                    Err(_) => Node::Big(value as u64),
+                };
+                let reference = self.add(node);
                 self.integers.insert(value, reference);
                 Ok(reference)
             }
@@ -1309,7 +1438,7 @@ impl Flattener<'_> {
                 let length = unsafe {
                     if is_list { PyList_Size(object) } else { PyTuple_Size(object) }
                 };
-                let mut refs = Vec::with_capacity(length.max(0) as usize);
+                let base = self.scratch.len();
                 for index in 0..length.max(0) {
                     let item = unsafe {
                         if is_list { PyList_GetItem(object, index) } else { PyTuple_GetItem(object, index) }
@@ -1318,9 +1447,11 @@ impl Flattener<'_> {
                         unsafe { PyErr_Clear() };
                         return Err(Decline);
                     }
-                    refs.push(self.flatten(item, depth + 1)?);
+                    let child = self.flatten(item, depth + 1)?;
+                    self.scratch.push(child);
                 }
-                self.nodes[reference as usize] = Node::List(refs);
+                let node = self.settle(base, self.scratch.len() - base, false);
+                self.nodes[reference as usize] = node;
                 Ok(reference)
             }
             Kind::Dict | Kind::Frozen => {
@@ -1334,15 +1465,17 @@ impl Flattener<'_> {
                 if let Some(owner) = owner {
                     self.keep.push(owner);
                 }
-                let mut keys = Vec::with_capacity(entries.len());
-                let mut values = Vec::with_capacity(entries.len());
+                let base = self.scratch.len();
                 for &(key, _) in &entries {
-                    keys.push(self.flatten(key, depth + 1)?);
+                    let child = self.flatten(key, depth + 1)?;
+                    self.scratch.push(child);
                 }
                 for &(_, value) in &entries {
-                    values.push(self.flatten(value, depth + 1)?);
+                    let child = self.flatten(value, depth + 1)?;
+                    self.scratch.push(child);
                 }
-                self.nodes[reference as usize] = Node::Dict(keys, values);
+                let node = self.settle(base, entries.len(), true);
+                self.nodes[reference as usize] = node;
                 Ok(reference)
             }
             Kind::Other => {
@@ -1373,11 +1506,11 @@ fn count_to_size(count: u64) -> usize {
     }
 }
 
-fn push_sized(out: &mut Vec<u8>, value: u64, size: usize) {
+fn push_sized(out: &mut PyBuf, value: u64, size: usize) {
     out.extend_from_slice(&value.to_be_bytes()[8 - size..]);
 }
 
-fn write_size(out: &mut Vec<u8>, token: u8, size: usize) {
+fn write_size(out: &mut PyBuf, token: u8, size: usize) {
     let size = size as u64;
     if size < 15 {
         out.push(token | size as u8);
@@ -1395,10 +1528,12 @@ fn write_size(out: &mut Vec<u8>, token: u8, size: usize) {
     }
 }
 
-fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
+fn dump_binary(context: &Context, value: *mut PyObject) -> R<Owned> {
     let mut flattener = Flattener {
         context,
         nodes: Vec::new(),
+        refs: Vec::new(),
+        scratch: Vec::new(),
         strings: HashMap::new(),
         byte_strings: HashMap::new(),
         integers: HashMap::new(),
@@ -1410,8 +1545,9 @@ fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
     };
     let top = flattener.flatten(value, 0)?;
     let nodes = std::mem::take(&mut flattener.nodes);
+    let refs = std::mem::take(&mut flattener.refs);
     let ref_size = count_to_size(nodes.len() as u64);
-    let mut out = Vec::with_capacity(4096);
+    let mut out = PyBuf::new(4096);
     out.extend_from_slice(b"bplist00");
     let mut offsets = Vec::with_capacity(nodes.len());
     for node in &nodes {
@@ -1425,7 +1561,7 @@ fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
                 let value = *value;
                 if value < 0 {
                     out.push(0x13);
-                    out.extend_from_slice(&(value as i64).to_be_bytes());
+                    out.extend_from_slice(&value.to_be_bytes());
                 } else if value < 1 << 8 {
                     out.push(0x10);
                     push_sized(&mut out, value as u64, 1);
@@ -1435,13 +1571,14 @@ fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
                 } else if value < 1 << 32 {
                     out.push(0x12);
                     push_sized(&mut out, value as u64, 4);
-                } else if value < 1 << 63 {
+                } else {
                     out.push(0x13);
                     push_sized(&mut out, value as u64, 8);
-                } else {
-                    out.push(0x14);
-                    out.extend_from_slice(&value.to_be_bytes());
                 }
+            }
+            Node::Big(value) => {
+                out.push(0x14);
+                out.extend_from_slice(&i128::from(*value).to_be_bytes());
             }
             Node::Float(value) => {
                 out.push(0x23);
@@ -1463,9 +1600,8 @@ fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
                     write_size(&mut out, 0x50, text.len());
                     out.extend_from_slice(text.as_bytes());
                 } else {
-                    let units: Vec<u16> = text.encode_utf16().collect();
-                    write_size(&mut out, 0x60, units.len());
-                    for unit in units {
+                    write_size(&mut out, 0x60, text.encode_utf16().count());
+                    for unit in text.encode_utf16() {
                         out.extend_from_slice(&unit.to_be_bytes());
                     }
                 }
@@ -1485,15 +1621,15 @@ fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
                     push_sized(&mut out, *value, 8);
                 }
             }
-            Node::List(refs) => {
-                write_size(&mut out, 0xA0, refs.len());
-                for &reference in refs {
+            Node::List(start, count) => {
+                write_size(&mut out, 0xA0, *count as usize);
+                for &reference in &refs[*start as usize..(*start + *count) as usize] {
                     push_sized(&mut out, u64::from(reference), ref_size);
                 }
             }
-            Node::Dict(keys, values) => {
-                write_size(&mut out, 0xD0, keys.len());
-                for &reference in keys.iter().chain(values) {
+            Node::Dict(start, count) => {
+                write_size(&mut out, 0xD0, *count as usize);
+                for &reference in &refs[*start as usize..(*start + 2 * *count) as usize] {
                     push_sized(&mut out, u64::from(reference), ref_size);
                 }
             }
@@ -1509,7 +1645,7 @@ fn dump_binary(context: &Context, value: *mut PyObject) -> R<Vec<u8>> {
     out.extend_from_slice(&(nodes.len() as u64).to_be_bytes());
     out.extend_from_slice(&u64::from(top).to_be_bytes());
     out.extend_from_slice(&table.to_be_bytes());
-    Ok(out)
+    out.finish()
 }
 
 unsafe extern "C" fn dumps(
@@ -1540,7 +1676,7 @@ unsafe extern "C" fn dumps(
         BINARY_FORMAT => dump_binary(&context, arguments[0]),
         _ => Err(Decline),
     };
-    match result.and_then(|output| new_bytes(&output)) {
+    match result {
         Ok(object) => object.into_raw(),
         Err(Decline) => declined(),
     }
