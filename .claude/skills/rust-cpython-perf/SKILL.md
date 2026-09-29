@@ -160,6 +160,18 @@ JOBS: <N>
 ATTEMPTS: <explore attempts before qualifying or giving up; default 6>
 ```
 
+## Unquiet host (memory-first fallback)
+
+Memory metrics (load footprint, working peak) do not depend on host load the
+way CPU does, so when the host cannot be made quiet, climb memory. Calibrate,
+gate, and acceptance verdicts still need a quiet host and are never waived:
+a lane that finishes without one reports `RESULT: INCONCLUSIVE` with its
+per-metric table, and you re-gate it when the host is quiet. Tell each
+climber in `HYPOTHESIS`: read the memory rows of the explore table even when
+the decision line says `quiet=no`; use `goals --min-idle 0` and read memory
+rows only; never wait for quiet during explore. Integrate only after a quiet
+gate, and record any memory result taken on an unquiet host as provisional.
+
 ## Integration
 
 Each climber returns a handoff block. Integrate only `RESULT: ACCEPT`
