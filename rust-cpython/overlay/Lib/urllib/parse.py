@@ -33,16 +33,20 @@ It serves as a useful guide when making changes.
 
 from collections import namedtuple
 import functools
-import math
-import re
 import types
-import warnings
-import ipaddress
 
 try:
     import _urllib_parse_rs as _rust_parse
 except ImportError:
     _rust_parse = None
+
+def __getattr__(name):
+    # Modules imported on first use keep resolving as attributes.
+    if name in ('math', 're', 'warnings', 'ipaddress'):
+        module = __import__(name)
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = ["urlparse", "urlunparse", "urljoin", "urldefrag",
            "urlsplit", "urlunsplit", "urlencode", "parse_qs",
@@ -550,9 +554,11 @@ def _check_bracketed_netloc(netloc):
 # https://www.rfc-editor.org/rfc/rfc3986#page-49 and https://url.spec.whatwg.org/
 def _check_bracketed_host(hostname):
     if hostname.startswith(('v', 'V')):
+        import re
         if not re.match(r"\A[vV][a-fA-F0-9]+\..+\z", hostname):
             raise ValueError(f"IPvFuture address is invalid")
     else:
+        import ipaddress
         ip = ipaddress.ip_address(hostname) # Throws Value Error if not IPv6 or IPv4
         if isinstance(ip, ipaddress.IPv4Address):
             raise ValueError(f"An IPv4 address cannot be in brackets")
@@ -828,9 +834,13 @@ def _unquote_impl(string: bytes | bytearray | str) -> bytes | bytearray:
             append(item)
     return res
 
-_asciire = re.compile('([\x00-\x7f]+)')
+_asciire = None
 
 def _generate_unquoted_parts(string, encoding, errors):
+    global _asciire
+    if _asciire is None:
+        import re
+        _asciire = re.compile('([\x00-\x7f]+)')
     previous_match_end = 0
     for ascii_match in _asciire.finditer(string):
         start, end = ascii_match.span()
@@ -860,6 +870,12 @@ def unquote(string, encoding='utf-8', errors='replace'):
         encoding = 'utf-8'
     if errors is None:
         errors = 'replace'
+    if (_rust_parse is not None and type(string) is str
+            and type(encoding) is str and encoding == 'utf-8'
+            and type(errors) is str and errors == 'replace'):
+        result = _rust_parse.unquote_str(string)
+        if result is not None:
+            return result
     return ''.join(_generate_unquoted_parts(string, encoding, errors))
 
 
@@ -952,6 +968,7 @@ def parse_qsl(qs, keep_blank_values=False, strict_parsing=False,
             qs = bytes(memoryview(qs))
         except TypeError:
             if not qs:
+                import warnings
                 warnings.warn(f"Accepting {type(qs).__name__} objects with "
                               f"false value in urllib.parse.parse_qsl() is "
                               f"deprecated as of 3.14",
@@ -1172,6 +1189,7 @@ def quote_from_bytes(bs, safe='/'):
         return ''.join(map(quoter, bs))
     else:
         # This saves memory - https://github.com/python/cpython/issues/95865
+        import math
         chunk_size = math.isqrt(bs_len)
         chunks = [''.join(map(quoter, bs[i:i+chunk_size]))
                   for i in range(0, bs_len, chunk_size)]
@@ -1258,6 +1276,7 @@ def urlencode(query, doseq=False, safe='', encoding=None, errors=None,
 
 
 def to_bytes(url):
+    import warnings
     warnings.warn("urllib.parse.to_bytes() is deprecated as of 3.8",
                   DeprecationWarning, stacklevel=2)
     return _to_bytes(url)
@@ -1291,6 +1310,7 @@ def unwrap(url):
 
 
 def splittype(url):
+    import warnings
     warnings.warn("urllib.parse.splittype() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1302,6 +1322,7 @@ def _splittype(url):
     """splittype('type:opaquestring') --> 'type', 'opaquestring'."""
     global _typeprog
     if _typeprog is None:
+        import re
         _typeprog = re.compile('([^/:]+):(.*)', re.DOTALL)
 
     match = _typeprog.match(url)
@@ -1312,6 +1333,7 @@ def _splittype(url):
 
 
 def splithost(url):
+    import warnings
     warnings.warn("urllib.parse.splithost() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1323,6 +1345,7 @@ def _splithost(url):
     """splithost('//host[:port]/path') --> 'host[:port]', '/path'."""
     global _hostprog
     if _hostprog is None:
+        import re
         _hostprog = re.compile('//([^/#?]*)(.*)', re.DOTALL)
 
     match = _hostprog.match(url)
@@ -1335,6 +1358,7 @@ def _splithost(url):
 
 
 def splituser(host):
+    import warnings
     warnings.warn("urllib.parse.splituser() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1348,6 +1372,7 @@ def _splituser(host):
 
 
 def splitpasswd(user):
+    import warnings
     warnings.warn("urllib.parse.splitpasswd() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1361,6 +1386,7 @@ def _splitpasswd(user):
 
 
 def splitport(host):
+    import warnings
     warnings.warn("urllib.parse.splitport() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1373,6 +1399,7 @@ def _splitport(host):
     """splitport('host:port') --> 'host', 'port'."""
     global _portprog
     if _portprog is None:
+        import re
         _portprog = re.compile('(.*):([0-9]*)', re.DOTALL)
 
     match = _portprog.fullmatch(host)
@@ -1384,6 +1411,7 @@ def _splitport(host):
 
 
 def splitnport(host, defport=-1):
+    import warnings
     warnings.warn("urllib.parse.splitnport() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1408,6 +1436,7 @@ def _splitnport(host, defport=-1):
 
 
 def splitquery(url):
+    import warnings
     warnings.warn("urllib.parse.splitquery() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1423,6 +1452,7 @@ def _splitquery(url):
 
 
 def splittag(url):
+    import warnings
     warnings.warn("urllib.parse.splittag() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1438,6 +1468,7 @@ def _splittag(url):
 
 
 def splitattr(url):
+    import warnings
     warnings.warn("urllib.parse.splitattr() is deprecated as of 3.8, "
                   "use urllib.parse.urlsplit() instead",
                   DeprecationWarning, stacklevel=2)
@@ -1452,6 +1483,7 @@ def _splitattr(url):
 
 
 def splitvalue(attr):
+    import warnings
     warnings.warn("urllib.parse.splitvalue() is deprecated as of 3.8, "
                   "use urllib.parse.parse_qsl() instead",
                   DeprecationWarning, stacklevel=2)
