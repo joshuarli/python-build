@@ -7,7 +7,7 @@
 import binascii
 # Keep the stdlib module usable when an interpreter rejects this extension.
 try:
-    import _base64 as _rust_base64
+    import _binascii_rs as _rust_base64
 except ImportError:
     _rust_base64 = None
 
