@@ -252,6 +252,8 @@ impl Drop for Dir {
 struct Walk {
     path: [u8; PATH_CAPACITY],
     length: usize,
+    /// Where the reported path starts: after the `root_dir` prefix.
+    origin: usize,
     include_hidden: bool,
     result: *mut PyObject,
 }
@@ -280,8 +282,8 @@ impl Walk {
     fn append(&mut self) -> Result<(), Stop> {
         let item = unsafe {
             PyUnicode_FromStringAndSize(
-                self.path.as_ptr().cast::<c_char>(),
-                self.length as Py_ssize_t,
+                self.path.as_ptr().add(self.origin).cast::<c_char>(),
+                (self.length - self.origin) as Py_ssize_t,
             )
         };
         if item.is_null() {
@@ -394,7 +396,7 @@ unsafe extern "C" fn expand(
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     let none = || unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) };
-    if nargs != 2 {
+    if nargs != 3 {
         return none();
     }
     let include_hidden = unsafe { PyObject_IsTrue(*args.add(1)) };
@@ -412,6 +414,16 @@ unsafe extern "C" fn expand(
     if !supported(pattern) {
         return none();
     }
+    let mut root_size: Py_ssize_t = 0;
+    let root_data = unsafe { PyUnicode_AsUTF8AndSize(*args.add(2), &mut root_size) };
+    if root_data.is_null() {
+        unsafe { PyErr_Clear() };
+        return none();
+    }
+    let root = unsafe { core::slice::from_raw_parts(root_data.cast::<u8>(), root_size as usize) };
+    if root.contains(&0) {
+        return none();
+    }
     let result = unsafe { PyList_New(0) };
     if result.is_null() {
         return ptr::null_mut();
@@ -419,16 +431,33 @@ unsafe extern "C" fn expand(
     let mut walk = Walk {
         path: [0; PATH_CAPACITY],
         length: 0,
+        origin: 0,
         include_hidden: include_hidden != 0,
         result,
     };
     let rest = match pattern.strip_prefix(b"/") {
         Some(rest) => {
+            // An absolute pattern ignores `root_dir`.
             walk.path[0] = b'/';
             walk.length = 1;
             rest
         }
-        None => pattern,
+        None => {
+            if !root.is_empty() {
+                let separator = usize::from(root[root.len() - 1] != b'/');
+                if root.len() + separator + 1 > PATH_CAPACITY {
+                    unsafe { Py_DecRef(result) };
+                    return none();
+                }
+                walk.path[..root.len()].copy_from_slice(root);
+                if separator != 0 {
+                    walk.path[root.len()] = b'/';
+                }
+                walk.length = root.len() + separator;
+                walk.origin = walk.length;
+            }
+            pattern
+        }
     };
     match walk.walk(rest) {
         Ok(()) => result,
@@ -466,7 +495,7 @@ static METHODS: [PyMethodDef; 2] = [
             PyCFunctionFast: expand,
         },
         ml_flags: METH_FASTCALL,
-        ml_doc: c"Expand a supported text pathname pattern, or return None.".as_ptr()
+        ml_doc: c"Expand a supported text pathname pattern under a root, or return None.".as_ptr()
             as *mut c_char,
     },
     PyMethodDef {
