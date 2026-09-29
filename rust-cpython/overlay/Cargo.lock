@@ -64,7 +64,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "_collections_rs"
+name = "_codecs_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
@@ -72,7 +72,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "_codecs_rs"
+name = "_collections_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
@@ -229,15 +229,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "_http_client_rs"
-version = "0.1.0"
-dependencies = [
- "cpython-build-helper",
- "cpython-sys",
- "httparse",
-]
-
-[[package]]
 name = "_hmac_rs"
 version = "0.1.0"
 dependencies = [
@@ -256,6 +247,15 @@ version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
  "cpython-sys",
+]
+
+[[package]]
+name = "_http_client_rs"
+version = "0.1.0"
+dependencies = [
+ "cpython-build-helper",
+ "cpython-sys",
+ "httparse",
 ]
 
 [[package]]
@@ -413,7 +413,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "_sqlite3_rs"
+name = "_socket_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
@@ -421,7 +421,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "_socket_rs"
+name = "_sqlite3_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
@@ -1604,7 +1604,6 @@ version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
- "indexmap",
  "itoa",
  "memchr",
  "serde",
