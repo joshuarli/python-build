@@ -317,7 +317,15 @@ table meets the Unquiet host criteria.
    merge --ff-only integrate-N`. A lane REJECT whose only regressed rows are
    1% to 3% `import_django` (or other startup-bound guards) with no
    plausible mechanism is re-decided by that primary-path batch gate.
-2. `perf.py build --name perf-merge`, then `perf.py test --name perf-merge
+2. `perf.py build --name perf-merge`; check that it printed `OK` (never chain
+   a gate or suite behind an unchecked build; both refuse a failed one).
+   Lanes hand-edit `overlay/Cargo.lock`, and two edits in different places
+   merge textually but can leave a lock that `cargo fetch --locked` rejects
+   (`cannot update the lock file`). Fix: in `work/perf/perf-merge/source/cpython-*/`
+   run `env CARGO_HOME=<primary>/rust-cpython/.cargo-home <cargo-home>/bin/cargo
+   metadata --offline --format-version 1` (no `--locked`), copy that
+   `Cargo.lock` to `overlay/Cargo.lock`, commit it, and rebuild. Then
+   `perf.py test --name perf-merge
    --all`. On failure, bisect the batch at `xhigh`, drop or repair the
    interacting lane, and repeat.
 3. `perf.py bench --baseline @incumbent --candidate perf-merge --gate
