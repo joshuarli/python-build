@@ -1,11 +1,156 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void, CString};
+//! Exact rational arithmetic without a separate standard runtime or heap.
+#![no_std]
+#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use cpython_sys::{
-    METH_FASTCALL, Py_DecRef, PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
-    PyExc_ZeroDivisionError, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
-    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, Py_ssize_t,
+extern crate alloc;
+
+use alloc::{ffi::CString, format, vec};
+use core::alloc::{GlobalAlloc, Layout};
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+
+// These C layouts describe the 64-bit, GIL-enabled CPython module boundary.
+type Py_ssize_t = isize;
+
+#[repr(C)]
+pub struct PyObject {
+    ob_refcnt: Py_ssize_t,
+    ob_type: *mut c_void,
+}
+
+#[repr(C)]
+pub union PyMethodDefFuncPointer {
+    PyCFunctionFast: unsafe extern "C" fn(*mut PyObject, *mut *mut PyObject, Py_ssize_t) -> *mut PyObject,
+    Void: *mut c_void,
+}
+
+#[repr(C)]
+pub struct PyMethodDef {
+    ml_name: *mut c_char,
+    ml_meth: PyMethodDefFuncPointer,
+    ml_flags: c_int,
+    ml_doc: *mut c_char,
+}
+
+impl PyMethodDef {
+    const fn zeroed() -> Self {
+        Self {
+            ml_name: core::ptr::null_mut(),
+            ml_meth: PyMethodDefFuncPointer { Void: core::ptr::null_mut() },
+            ml_flags: 0,
+            ml_doc: core::ptr::null_mut(),
+        }
+    }
+}
+
+unsafe impl Sync for PyMethodDef {}
+
+#[repr(C)]
+struct PyModuleDef_Base {
+    ob_base: PyObject,
+    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
+    m_index: Py_ssize_t,
+    m_copy: *mut PyObject,
+}
+
+#[repr(C)]
+struct PyModuleDef {
+    m_base: PyModuleDef_Base,
+    m_name: *const c_char,
+    m_doc: *const c_char,
+    m_size: Py_ssize_t,
+    m_methods: *mut PyMethodDef,
+    m_slots: *mut c_void,
+    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
+    m_clear: Option<unsafe extern "C" fn(*mut PyObject) -> c_int>,
+    m_free: Option<unsafe extern "C" fn(*mut c_void)>,
+}
+
+const METH_FASTCALL: c_int = 0x0080;
+// Immortal reference count and static allocation flags in the 64-bit GIL ABI.
+const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
+    ob_base: PyObject {
+        ob_refcnt: (3_isize << 30) | (5_isize << 48),
+        ob_type: core::ptr::null_mut(),
+    },
+    m_init: None,
+    m_index: 0,
+    m_copy: core::ptr::null_mut(),
 };
+
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    static mut PyExc_TypeError: *mut PyObject;
+    static mut PyExc_ValueError: *mut PyObject;
+    static mut PyExc_ZeroDivisionError: *mut PyObject;
+    fn Py_DecRef(object: *mut PyObject);
+    fn PyErr_NoMemory() -> *mut PyObject;
+    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
+    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
+    fn PyMem_Malloc(size: usize) -> *mut c_void;
+    fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
+    fn PyMem_Free(pointer: *mut c_void);
+    fn abort() -> !;
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
+
+// All arithmetic runs under the GIL and all temporary buffers die before the
+// C entry point returns. Reusing Python's small-block pools avoids retaining
+// a second allocator's size classes after the first rational operation.
+struct PythonAllocator;
+
+unsafe impl GlobalAlloc for PythonAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if layout.align() <= core::mem::align_of::<usize>() {
+            return unsafe { PyMem_Malloc(layout.size()).cast() };
+        }
+        let Some(size) = layout.size().checked_add(layout.align()) else {
+            return core::ptr::null_mut();
+        };
+        let base = unsafe { PyMem_Malloc(size).cast::<u8>() };
+        if base.is_null() {
+            return base;
+        }
+        let offset = layout.align() - (base as usize % layout.align());
+        let aligned = unsafe { base.add(offset) };
+        unsafe { aligned.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().write(base) };
+        aligned
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        let base = if layout.align() <= core::mem::align_of::<usize>() {
+            pointer
+        } else {
+            unsafe { pointer.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().read() }
+        };
+        unsafe { PyMem_Free(base.cast()) };
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+        if layout.align() <= core::mem::align_of::<usize>() {
+            return unsafe { PyMem_Realloc(pointer.cast(), size).cast() };
+        }
+        let Ok(replacement_layout) = Layout::from_size_align(size, layout.align()) else {
+            return core::ptr::null_mut();
+        };
+        let replacement = unsafe { self.alloc(replacement_layout) };
+        if !replacement.is_null() {
+            unsafe {
+                core::ptr::copy_nonoverlapping(pointer, replacement, layout.size().min(size));
+                self.dealloc(pointer, layout);
+            }
+        }
+        replacement
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: PythonAllocator = PythonAllocator;
+
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_rational::BigRational;
@@ -32,7 +177,7 @@ unsafe fn set_error(exception: *mut PyObject, message: &str) {
 
 unsafe fn integer_from_object(object: *mut PyObject) -> Result<BigInt, ()> {
     const LITTLE_ENDIAN: c_int = 1;
-    let size = unsafe { PyLong_AsNativeBytes(object, std::ptr::null_mut(), 0, LITTLE_ENDIAN) };
+    let size = unsafe { PyLong_AsNativeBytes(object, core::ptr::null_mut(), 0, LITTLE_ENDIAN) };
     if size < 0 {
         return Err(());
     }
@@ -83,14 +228,14 @@ unsafe fn result_tuple(values: &[BigInt]) -> *mut PyObject {
         let item = unsafe { result_integer(value) };
         if item.is_null() {
             unsafe { Py_DecRef(tuple) };
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
         if unsafe { PyTuple_SetItem(tuple, index as Py_ssize_t, item) } != 0 {
             unsafe {
                 Py_DecRef(item);
                 Py_DecRef(tuple);
             }
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
     }
     tuple
@@ -127,11 +272,11 @@ unsafe extern "C" fn normalize(
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     if !unsafe { check_arity(nargs, 2) } {
-        return std::ptr::null_mut();
+        return core::ptr::null_mut();
     }
     let ratio = match unsafe { ratio_from_args(args) } {
         Ok(ratio) => ratio,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     unsafe { result_tuple(&[ratio.numer().clone(), ratio.denom().clone()]) }
 }
@@ -142,39 +287,39 @@ unsafe extern "C" fn parse_parts(
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     if !unsafe { check_arity(nargs, 8) } {
-        return std::ptr::null_mut();
+        return core::ptr::null_mut();
     }
     let sign = match unsafe { integer_from_object(*args) } {
         Ok(value) => value,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let mut numerator = match unsafe { integer_from_object(*args.add(1)) } {
         Ok(value) => value,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let denominator = match unsafe { integer_from_object(*args.add(2)) } {
         Ok(value) => value,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let decimal = match unsafe { integer_from_object(*args.add(3)) } {
         Ok(value) => value,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let decimal_places = match unsafe { integer_from_object(*args.add(4)) } {
         Ok(value) => value,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let exponent = match unsafe { integer_from_object(*args.add(5)) } {
         Ok(value) => value,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let has_denominator = match unsafe { integer_from_object(*args.add(6)) } {
         Ok(value) => value != BigInt::from(0),
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     let has_decimal = match unsafe { integer_from_object(*args.add(7)) } {
         Ok(value) => value != BigInt::from(0),
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
 
     let mut denominator = if has_denominator { denominator } else { BigInt::from(1) };
@@ -184,7 +329,7 @@ unsafe extern "C" fn parse_parts(
             Ok(value) => value,
             Err(_) => {
                 unsafe { PyErr_NoMemory() };
-                return std::ptr::null_mut();
+                return core::ptr::null_mut();
             }
         };
         let scale = BigInt::from(10).pow(places);
@@ -196,7 +341,7 @@ unsafe extern "C" fn parse_parts(
         Ok(value) => value,
         Err(_) => {
             unsafe { PyErr_NoMemory() };
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
     };
     if exponent >= 0 {
@@ -210,7 +355,7 @@ unsafe extern "C" fn parse_parts(
     if denominator == BigInt::from(0) {
         let message = format!("Fraction({}, 0)", numerator);
         unsafe { set_error(PyExc_ZeroDivisionError, &message) };
-        return std::ptr::null_mut();
+        return core::ptr::null_mut();
     }
     let ratio = BigRational::new(numerator, denominator);
     unsafe { result_tuple(&[ratio.numer().clone(), ratio.denom().clone()]) }
@@ -222,12 +367,12 @@ unsafe fn binary_result(
     operation: &str,
 ) -> *mut PyObject {
     if !unsafe { check_arity(nargs, 4) } {
-        return std::ptr::null_mut();
+        return core::ptr::null_mut();
     }
     let right_args = unsafe { args.add(2) };
     let (left, right) = match unsafe { ratio_pair(args, right_args) } {
         Ok(pair) => pair,
-        Err(()) => return std::ptr::null_mut(),
+        Err(()) => return core::ptr::null_mut(),
     };
     match operation {
         "add" => {
@@ -245,7 +390,7 @@ unsafe fn binary_result(
         "truediv" => {
             if right.numer() == &BigInt::from(0) {
                 unsafe { PyErr_SetString(PyExc_ZeroDivisionError, c"Fraction division by zero".as_ptr()) };
-                return std::ptr::null_mut();
+                return core::ptr::null_mut();
             }
             let result = left / right;
             unsafe { result_tuple(&[result.numer().clone(), result.denom().clone()]) }
@@ -253,7 +398,7 @@ unsafe fn binary_result(
         "floordiv" | "mod" | "divmod" => {
             if right.numer() == &BigInt::from(0) {
                 unsafe { PyErr_SetString(PyExc_ZeroDivisionError, c"Fraction division by zero".as_ptr()) };
-                return std::ptr::null_mut();
+                return core::ptr::null_mut();
             }
             let quotient = left.clone() / right.clone();
             let integer = quotient.numer().div_floor(quotient.denom());
@@ -340,7 +485,7 @@ pub static FRACTIONS_MODULE: ModuleDef = ModuleDef {
         m_doc: c"Exact rational arithmetic support for fractions.Fraction.".as_ptr() as *mut _,
         m_size: 0,
         m_methods: &FRACTIONS_METHODS as *const PyMethodDef as *mut _,
-        m_slots: std::ptr::null_mut(),
+        m_slots: core::ptr::null_mut(),
         m_traverse: None,
         m_clear: Some(module_clear),
         m_free: Some(module_free),

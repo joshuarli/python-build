@@ -177,7 +177,6 @@ name = "_fractions_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
- "cpython-sys",
  "num-bigint",
  "num-integer",
  "num-rational",
