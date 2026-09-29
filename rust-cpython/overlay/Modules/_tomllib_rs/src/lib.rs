@@ -205,9 +205,16 @@ impl<'i, 'f> Builder<'i, 'f> {
         let mut text = Vec::with_capacity(digits.len() + 1);
         text.extend_from_slice(digits.as_bytes());
         text.push(0);
-        check(unsafe {
+        let result = unsafe {
             PyLong_FromString(text.as_ptr().cast::<c_char>(), ptr::null_mut(), radix.value() as c_int)
-        })
+        };
+        if result.is_null() && unsafe { PyErr_ExceptionMatches(cpython_sys::PyExc_ValueError) } != 0 {
+            // Malformed digits, or past the interpreter's integer size limit:
+            // the Python parser reports it.
+            unsafe { PyErr_Clear() };
+            return Err(Fail::Fallback);
+        }
+        check(result)
     }
 
     unsafe fn make_datetime(&mut self, decoded: &str, raw: &str) -> Built {
@@ -670,6 +677,11 @@ unsafe fn parse_source(source: *mut PyObject, parse_float: *mut PyObject) -> *mu
         }
     };
 
+    // The Python parser rejects a byte order mark and any carriage return that
+    // is left after its \r\n normalization, which the lexer would accept.
+    if source.starts_with('\u{feff}') || source.as_bytes().contains(&b'\r') {
+        return unsafe { py_none() };
+    }
     let root = unsafe { PyDict_New() };
     if root.is_null() {
         return ptr::null_mut();
