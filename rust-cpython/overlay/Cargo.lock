@@ -579,8 +579,7 @@ version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
  "cpython-sys",
- "crc32fast",
- "flate2",
+ "libz-rs-sys",
 ]
 
 [[package]]
@@ -589,7 +588,7 @@ version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
  "cpython-sys",
- "flate2",
+ "libz-rs-sys",
 ]
 
 [[package]]
