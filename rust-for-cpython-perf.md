@@ -1,6 +1,6 @@
 # Rust-for-CPython performance phase
 
-**Active; memory phase in progress, CPU phase not started. See [Handoff](#handoff-2026-09-29) first.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+**Active; memory phase in progress, CPU phase not started. See [Codex resumption](#codex-resumption-2026-09-29) first.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
 are complete under its strict Python-suite coverage rule, and those rules
 still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
@@ -24,9 +24,155 @@ The macOS lane now exposes Homebrew mpdecimal pkg-config metadata, so
 `_decimal` and the C-backed decimal tests are present. mpdecimal 4.0.1
 is provisioned for this experimental lane; production dependency recipes
 and frozen Linux inputs are unchanged.
-Rebuild both performance interpreters, recalibrate, and record fresh
-baselines before accepting measurements under this toolchain. The older
-handoff below describes historical builds, not local stage availability.
+Both performance interpreters have been rebuilt and qualified under this
+toolchain; the resumption below records the fresh calibration, goals, and
+baselines. The older handoff describes historical builds.
+
+## Codex resumption (2026-09-29)
+
+The separate Codex coordinator and climber skills live under `.agents/skills/`;
+the Claude skills remain intact. Every Codex lane uses `gpt-6.1-sol` at
+`medium` effort. Eight memory lanes are active: `bisect`, `fnmatch`,
+`fractions`, `socket`, `tarfile`, `random`, `uuid`, and `datetime`.
+Memory exploration does not wait for host quietness. CPU remains a guard;
+CPU-targeted lanes have not started.
+
+Qualified source commit: `7351620`. Both clean interpreters are verified
+release builds. The incumbent full suite passed **50,158 run / 2,748 skipped**,
+with no failures. The pristine decimal/fractions/numeric/statistics suites
+passed **1,194 run / 14 skipped**. All 30 Rust harness tests passed.
+Quiet replicated calibration read **CALIBRATION-OK**: all seven workloads
+neutral on every metric in both runs.
+
+Fresh quiet replicated goals read **OVER 51 / UNCLEAR 6 / MET 13 / BEYOND 1**.
+Those overall statuses include CPU debt; the memory phase uses the individual
+load and working-peak rows below. No module output mismatch was observed.
+The quiet all-workload gate against pristine control read REJECT because
+**22 of 23 workloads regress peak RSS**; `zlib_decode_1m` improves.
+This is outstanding absolute debt, not a verdict on a new optimization.
+The committed baseline snapshots are refreshed from that run.
+
+Historical provisional batches `f7a0121`, `3ce7286`, and `e41f4fb` remain
+provisional. Fresh absolute goals and workload measurements do not establish
+their improvement against their previous incumbents; those original paired
+comparisons still need quiet confirmation before memory completion.
+
+Local evidence (ignored result files): calibration `20260929T224548Z-calibrate-perf-upstream`,
+workloads `20260929T224734Z-perf-upstream-vs-perf-rust`, and goals
+`20260929T225352Z-goals-perf-upstream-vs-perf-rust` under
+`rust-cpython/results/perf-bench/`.
+
+### Current module goal table
+
+Ratios compare the incumbent with pristine control. Each cell records the
+pooled ratio and replicated goal status; small memory values use harness floors.
+
+| Module | CPU | Load footprint | Working peak | Overall |
+| --- | --- | --- | --- | --- |
+| `_strptime` | 1.694x OVER | 1.169x OVER | 1.000x MET | OVER |
+| `argparse` | 2.345x OVER | 1.287x OVER | 1.000x MET | OVER |
+| `ast` | 1.371x OVER | 1.041x OVER | 1.000x MET | OVER |
+| `asyncio` | 1.130x OVER | 1.069x OVER | 1.000x MET | OVER |
+| `base64` | 2.932x OVER | 1.081x OVER | 1.000x MET | OVER |
+| `binascii` | 1.645x OVER | 1.000x MET | 1.000x MET | OVER |
+| `bisect` | 3.944x OVER | 2.000x OVER | 1.000x MET | OVER |
+| `bz2` | 1.011x UNCLEAR | 1.013x UNCLEAR | 1.000x MET | UNCLEAR |
+| `codecs` | 0.766x BEYOND | 0.900x MET | 1.000x MET | MET |
+| `collections` | 1.053x OVER | 1.000x MET | 1.000x MET | OVER |
+| `compression.zstd` | 0.897x MET | 0.760x BEYOND | 1.000x MET | MET |
+| `concurrent.futures` | 0.740x BEYOND | 0.513x BEYOND | 0.258x BEYOND | BEYOND |
+| `configparser` | 0.221x BEYOND | 0.838x MET | 0.896x BEYOND | MET |
+| `contextlib` | 1.134x OVER | 1.081x OVER | 1.000x MET | OVER |
+| `csv` | 3.011x OVER | 0.969x MET | 1.000x MET | OVER |
+| `dataclasses` | 1.007x MET | 1.011x UNCLEAR | 0.993x MET | UNCLEAR |
+| `datetime` | 3.017x OVER | 1.192x OVER | 1.000x MET | OVER |
+| `decimal` | 5.710x OVER | 1.250x OVER | 1.000x MET | OVER |
+| `difflib` | 1.151x OVER | 1.108x UNCLEAR | 1.000x MET | OVER |
+| `email` | 1.039x OVER | 0.929x MET | 1.032x UNCLEAR | OVER |
+| `fnmatch` | 1.443x OVER | 1.955x OVER | 1.000x MET | OVER |
+| `fractions` | 3.482x OVER | 1.650x OVER | 1.000x MET | OVER |
+| `functools` | 4.996x OVER | 1.348x OVER | 1.000x MET | OVER |
+| `glob` | 0.614x BEYOND | 1.062x OVER | 1.000x MET | OVER |
+| `gzip` | 0.613x BEYOND | 0.689x BEYOND | 1.000x MET | MET |
+| `hashlib` | 1.036x OVER | 1.006x MET | 1.000x MET | OVER |
+| `heapq` | 1.746x OVER | 1.000x MET | 1.000x MET | OVER |
+| `hmac` | 1.449x OVER | 1.029x UNCLEAR | 1.000x MET | OVER |
+| `html.parser` | 0.979x MET | 1.145x UNCLEAR | 1.000x MET | UNCLEAR |
+| `http.client` | 1.047x OVER | 1.037x UNCLEAR | 1.000x MET | OVER |
+| `importlib.metadata` | 0.738x BEYOND | 1.006x MET | 1.000x MET | MET |
+| `importlib.resources` | 1.026x OVER | 1.043x OVER | 1.000x MET | OVER |
+| `inspect` | 1.390x OVER | 1.072x OVER | 1.000x MET | OVER |
+| `io` | 1.553x OVER | 1.000x MET | 1.000x MET | OVER |
+| `ipaddress` | 0.485x BEYOND | 0.988x MET | 1.000x MET | MET |
+| `itertools` | 2.826x OVER | 1.000x MET | 1.000x MET | OVER |
+| `json` | 0.712x BEYOND | 0.476x BEYOND | 1.000x MET | MET |
+| `logging` | 1.005x MET | 1.097x OVER | 1.037x UNCLEAR | OVER |
+| `lzma` | 1.360x OVER | 0.116x BEYOND | 1.000x MET | OVER |
+| `marshal` | 0.882x MET | 1.056x OVER | 1.000x MET | OVER |
+| `multiprocessing` | 1.009x MET | 1.212x OVER | 1.000x MET | OVER |
+| `os.path` | 1.727x OVER | 1.250x OVER | 1.000x MET | OVER |
+| `pathlib` | 0.957x MET | 1.182x OVER | 1.000x MET | OVER |
+| `pickle` | 1.002x MET | 1.045x UNCLEAR | 1.000x MET | UNCLEAR |
+| `plistlib` | 0.078x BEYOND | 0.683x MET | 1.000x MET | MET |
+| `random` | 1.517x OVER | 1.303x OVER | 1.000x MET | OVER |
+| `re` | 1.002x MET | 1.000x MET | 1.000x MET | MET |
+| `shlex` | 0.285x BEYOND | 1.091x OVER | 1.000x MET | OVER |
+| `shutil` | 1.006x MET | 0.718x BEYOND | 1.000x MET | MET |
+| `socket` | 1.256x OVER | 1.318x OVER | 1.000x MET | OVER |
+| `sqlite3` | 3.900x OVER | 1.088x OVER | 1.000x MET | OVER |
+| `ssl` | 1.001x MET | 1.061x UNCLEAR | 1.000x MET | UNCLEAR |
+| `statistics` | 0.077x BEYOND | 1.276x OVER | 1.000x MET | OVER |
+| `struct` | 2.108x OVER | 1.004x MET | 1.000x MET | OVER |
+| `subprocess` | 1.010x MET | 1.145x OVER | 1.000x MET | OVER |
+| `tarfile` | 0.673x BEYOND | 1.312x OVER | 1.000x MET | OVER |
+| `tempfile` | 1.022x UNCLEAR | 1.226x OVER | 1.000x MET | OVER |
+| `textwrap` | 0.037x BEYOND | 0.915x MET | 1.000x MET | MET |
+| `threading` | 1.950x OVER | 1.000x MET | 1.000x MET | OVER |
+| `tokenize` | 1.114x OVER | 1.018x OVER | 1.000x MET | OVER |
+| `tomllib` | 0.072x BEYOND | 1.100x UNCLEAR | 1.000x MET | UNCLEAR |
+| `typing` | 1.524x OVER | 1.143x OVER | 1.000x MET | OVER |
+| `unicodedata` | 2.468x OVER | 1.222x UNCLEAR | 1.000x MET | OVER |
+| `urllib.parse` | 0.223x BEYOND | 0.514x BEYOND | 1.000x MET | MET |
+| `urllib.request` | 1.130x OVER | 1.070x UNCLEAR | 1.000x MET | OVER |
+| `uuid` | 1.395x OVER | 1.177x OVER | 1.000x MET | OVER |
+| `warnings` | 1.097x OVER | 1.390x OVER | 1.000x MET | OVER |
+| `xml.etree.ElementTree` | 0.927x MET | 1.194x OVER | 1.125x UNCLEAR | OVER |
+| `zipfile` | 0.672x BEYOND | 0.678x BEYOND | 1.000x MET | MET |
+| `zipimport` | 0.989x MET | 1.096x OVER | 1.000x MET | OVER |
+| `zlib` | 0.624x BEYOND | 1.095x OVER | 1.000x MET | OVER |
+
+### Current workload picture
+
+| Workload | Wall | CPU | Peak RSS |
+| --- | --- | --- | --- |
+| `catalog_json_export` | 0.954x improved | 0.999x neutral | 1.058x regressed |
+| `catalog_request_path` | 0.710x improved | 0.843x improved | 1.116x regressed |
+| `catalog_search_form` | 0.413x improved | 0.463x improved | 1.100x regressed |
+| `catalog_url_normalize` | 0.898x improved | 0.912x improved | 1.092x regressed |
+| `compileall_source` | 1.004x neutral | 1.211x regressed | 1.106x regressed |
+| `difflib_unified_mostly_equal` | 3.496x regressed | 3.226x regressed | 1.100x regressed |
+| `difflib_unified_reordered` | 1.344x regressed | 1.335x regressed | 1.097x regressed |
+| `django_asgi_request` | 1.021x regressed | 1.139x regressed | 1.061x regressed |
+| `django_orm_10k` | 2.015x regressed | 1.205x regressed | 1.063x regressed |
+| `django_template_realistic` | 1.079x regressed | 1.150x regressed | 1.060x regressed |
+| `django_wsgi_first_request` | 1.240x regressed | 1.247x regressed | 1.105x regressed |
+| `django_wsgi_request` | 1.029x regressed | 1.147x regressed | 1.067x regressed |
+| `gzip_extract_1m` | 0.495x improved | 1.221x regressed | 1.041x regressed |
+| `import_django` | 1.278x regressed | 1.292x regressed | 1.090x regressed |
+| `multiprocess_pool` | 0.993x neutral | 1.001x neutral | 1.074x regressed |
+| `python_startup` | 1.000x neutral | 1.099x regressed | 1.028x regressed |
+| `rust_base64_large` | 0.611x improved | 1.134x regressed | 1.085x regressed |
+| `rust_base64_small` | 0.894x improved | 1.205x regressed | 1.083x regressed |
+| `serialization_roundtrip` | 1.009x neutral | 1.071x regressed | 1.089x regressed |
+| `zip_read_wheel` | 0.987x neutral | 1.260x regressed | 1.065x regressed |
+| `zipimport_cold` | 1.203x regressed | 1.250x regressed | 1.087x regressed |
+| `zlib_decode_1m` | 0.567x improved | 1.193x regressed | 0.978x improved |
+| `zlib_stream_4k` | 0.688x improved | 1.231x regressed | 1.074x regressed |
+
+The next acceptance evidence must compare lane or integrated challenger
+against the qualified incumbent, include complete suites, and retain the
+application guards. The memory phase stays open until its absolute workload
+condition and module/debt condition both pass.
 
 ## Handoff (2026-09-29)
 
