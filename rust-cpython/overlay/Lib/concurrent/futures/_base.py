@@ -319,12 +319,57 @@ def _result_or_cancel(fut, timeout=None):
         del fut
 
 
+class _FutureCondition(threading.Condition):
+    """A Condition over a private RLock for one Future.
+
+    Every Future owns one, and most are never waited on, so the bound lock
+    methods and the waiter queue that Condition.__init__ builds eagerly are
+    created on first use instead.
+    """
+
+    def __init__(self):
+        self._lock = threading.RLock()
+
+    def __getattr__(self, name):
+        if name == '_waiters':
+            value = self._waiters = collections.deque()
+        elif name in ('acquire', 'release', 'locked'):
+            value = getattr(self._lock, name)
+            setattr(self, name, value)
+        else:
+            raise AttributeError(name)
+        return value
+
+    def _release_save(self):
+        return self._lock._release_save()
+
+    def _acquire_restore(self, state):
+        self._lock._acquire_restore(state)
+
+    def _is_owned(self):
+        return self._lock._is_owned()
+
+    def notify(self, n=1):
+        # wait() creates the queue under the lock, so a missing queue means
+        # nobody has ever waited on this future.
+        if '_waiters' in self.__dict__:
+            super().notify(n)
+        elif not self._is_owned():
+            raise RuntimeError("cannot notify on un-acquired lock")
+
+    def notify_all(self):
+        if '_waiters' in self.__dict__:
+            super().notify_all()
+        elif not self._is_owned():
+            raise RuntimeError("cannot notify on un-acquired lock")
+
+
 class Future(object):
     """Represents the result of an asynchronous computation."""
 
     def __init__(self):
         """Initializes the future. Should not be called by clients."""
-        self._condition = threading.Condition()
+        self._condition = _FutureCondition()
         self._state = PENDING
         self._result = None
         self._exception = None
