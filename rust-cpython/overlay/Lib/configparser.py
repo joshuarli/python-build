@@ -1462,51 +1462,6 @@ def _uses_standard_rust_backend(parser):
     return True
 
 
-def _rust_source_is_unambiguous(parser, lines):
-    sections = set()
-    options = set()
-    current_section = None
-    option_count = 0
-
-    for raw_line in lines:
-        if not isinstance(raw_line, str):
-            return False
-        line = raw_line.strip()
-        if not line or line.startswith(('#', ';')):
-            continue
-        if raw_line[0].isspace():
-            return False
-        if line.startswith('['):
-            if not line.endswith(']') or line.count(']') != 1:
-                return False
-            closing = line.rfind(']')
-            if closing <= 1:
-                return False
-            current_section = line[1:closing]
-            if current_section != current_section.strip() or current_section in sections:
-                return False
-            sections.add(current_section)
-            continue
-        if current_section is None:
-            return False
-        delimiters = [line.find(delimiter) for delimiter in parser._delimiters]
-        delimiters = [position for position in delimiters if position >= 0]
-        if not delimiters:
-            return False
-        delimiter_at = min(delimiters)
-        option = line[:delimiter_at].rstrip()
-        if not option:
-            return False
-        key = parser.optionxform(option)
-        identity = current_section, key
-        if identity in options:
-            return False
-        options.add(identity)
-        option_count += 1
-
-    return option_count > 0
-
-
 def _read_with_rust_backend(self, fp, fpname):
     if (not _uses_standard_rust_backend(self)
             or type(fp) not in (io.StringIO, io.TextIOWrapper)):
@@ -1515,65 +1470,24 @@ def _read_with_rust_backend(self, fp, fpname):
     if backend is None:
         return _PYTHON_READ(self, fp, fpname)
 
-    lines = list(fp)
-    if not _rust_source_is_unambiguous(self, lines):
+    lines = backend.read_ini(fp, self.default_section, self._sections,
+                             self._proxies, self._defaults, SectionProxy,
+                             self, str.lower)
+    if lines is not None:
+        # Not a plain file: the Python parser reads every line itself.
         return _PYTHON_READ(self, iter(lines), fpname)
-
-    source = ''.join(
-        line if line.endswith(('\n', '\r')) else line + '\n'
-        for line in lines
-    )
-    normalized = backend.parse_ini(source, self.default_section)
-    if normalized is None:
-        return _PYTHON_READ(self, iter(lines), fpname)
-    return _PYTHON_READ(self, io.StringIO(normalized), fpname)
-
-
-def _rust_write_is_unambiguous(self, fp, space_around_delimiters):
-    if (not _uses_standard_rust_backend(self)
-            or type(fp) not in (io.StringIO, io.TextIOWrapper)
-            or type(space_around_delimiters) is not bool):
-        return False
-    for section, options in self._sections.items():
-        if (type(section) is not str or section != section.strip()
-                or '\n' in section or '\r' in section or ']' in section):
-            return False
-        for option, value in options.items():
-            if (type(option) is not str or option != option.strip()
-                    or '\n' in option or '\r' in option
-                    or type(value) is not str and value is not None):
-                return False
-            if type(value) is str and (
-                    '\n' in value or '\r' in value or not value
-                    or value != value.strip()):
-                return False
-    for option, value in self._defaults.items():
-        if (type(option) is not str or option != option.strip()
-                or '\n' in option or '\r' in option
-                or type(value) is not str and value is not None):
-            return False
-        if type(value) is str and (
-                '\n' in value or '\r' in value or not value
-                or value != value.strip()):
-            return False
-    return True
 
 
 def _write_with_rust_backend(self, fp, space_around_delimiters=True):
-    if not _rust_write_is_unambiguous(self, fp, space_around_delimiters):
-        return _PYTHON_WRITE(self, fp, space_around_delimiters)
-    backend = _rust_backend()
-    if backend is None:
-        return _PYTHON_WRITE(self, fp, space_around_delimiters)
-
-    temporary = io.StringIO()
-    _PYTHON_WRITE(self, temporary, space_around_delimiters)
-    output = backend.write_ini(
-        temporary.getvalue(), self.default_section, space_around_delimiters
-    )
-    if output is None:
-        return _PYTHON_WRITE(self, fp, space_around_delimiters)
-    fp.write(output)
+    if (_uses_standard_rust_backend(self)
+            and type(fp) in (io.StringIO, io.TextIOWrapper)
+            and type(space_around_delimiters) is bool):
+        backend = _rust_backend()
+        if backend is not None and backend.write_ini(
+                fp.write, self._defaults, self._sections,
+                self.default_section, space_around_delimiters):
+            return
+    return _PYTHON_WRITE(self, fp, space_around_delimiters)
 
 
 RawConfigParser._read = _read_with_rust_backend
