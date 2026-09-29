@@ -48,7 +48,7 @@ lanes.
 
 | Triple | Family | Toolchain | Notes |
 | --- | --- | --- | --- |
-| `aarch64-apple-darwin` | macos | Official LLVM 23.1.2 Apple Silicon archive (`bootstrap.lock.json`) + Xcode 26.x SDK | arm64 only, `-mcpu=apple-m1`, `-mmacosx-version-min=26.0`; host must run macOS 26.0+ |
+| `aarch64-apple-darwin` | macos | Official LLVM 23.1.2 Apple Silicon archive (`bootstrap.lock.json`) + Xcode 27.0 SDK | arm64 only, `-mcpu=apple-m1`, `-mmacosx-version-min=26.0`; host must run macOS 26.0+ |
 | `x86_64-unknown-linux-musl` | linux-musl | Alpine 3.24.1 container (`Dockerfile`), clang22/lld22 | `-march=x86-64`, loader `/lib/ld-musl-x86_64.so.1`; frozen, completed |
 | `aarch64-unknown-linux-musl` | linux-musl | Same, via `docker build --platform linux/arm64` | `-march=armv8-a`, loader `/lib/ld-musl-aarch64.so.1`; frozen, completed |
 

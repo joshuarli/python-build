@@ -488,17 +488,21 @@ def _require_nightly() -> str:
     return rustup
 
 
-def _cargo_wrapper(rustup: str) -> Path:
-    wrapper = CARGO_HOME / "bin" / "cargo"
-    wrapper.parent.mkdir(parents=True, exist_ok=True)
-    content = (
-        "#!/bin/sh\n"
-        f"exec {shlex.quote(rustup)} run {shlex.quote(RUST_CHANNEL)} cargo \"$@\"\n"
-    )
-    if not wrapper.is_file() or wrapper.read_text() != content:
-        wrapper.write_text(content)
-    wrapper.chmod(0o755)
-    return wrapper
+def _rust_tool_wrappers(rustup: str) -> Path:
+    # Cargo invokes rustc by name. Both launchers must be on the private
+    # PATH because Homebrew can install its proxies outside rustup's directory.
+    bin_dir = CARGO_HOME / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    for tool in ("cargo", "rustc"):
+        wrapper = bin_dir / tool
+        content = (
+            "#!/bin/sh\n"
+            f"exec {shlex.quote(rustup)} run {shlex.quote(RUST_CHANNEL)} {tool} \"$@\"\n"
+        )
+        if not wrapper.is_file() or wrapper.read_text() != content:
+            wrapper.write_text(content)
+        wrapper.chmod(0o755)
+    return bin_dir / "cargo"
 
 
 def _source_root(extraction: Path) -> Path:
@@ -744,7 +748,7 @@ def _fetch_cargo_dependencies(source: Path, toolchain) -> None:
 def fetch() -> int:
     _require_host()
     rustup = _require_nightly()
-    _cargo_wrapper(rustup)
+    _rust_tool_wrappers(rustup)
     metadata, source_input = _read_lock()
     toolchain, _target = _toolchain()
     try:
@@ -1114,7 +1118,7 @@ def _build_mpdecimal(toolchain, target, jobs: int, sandbox) -> dict[str, str]:
 def _configure_source(source: Path, toolchain, target, jobs: int,
                       sandbox: SealedRun, overlay: dict[str, Any]) -> dict[str, Any]:
     rustup = _require_nightly()
-    _cargo_wrapper(rustup)
+    _rust_tool_wrappers(rustup)
     for path in (BUILD, STAGE):
         if path.exists():
             shutil.rmtree(path)

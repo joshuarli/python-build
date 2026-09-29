@@ -1,7 +1,7 @@
 """Toolchain and trust roots for the macOS target.
 
 LLVM is fetched from the official release archive, whose bytes, license, and
-Sigstore provenance metadata are pinned in `bootstrap.lock.json`. A bounded
+Sigstore provenance metadata are pinned in the bootstrap lock. A bounded
 allowlist extracts only the compiler/runtime closure into `.cache`. Homebrew
 supplies make and pkgconf; Xcode supplies the SDK and Apple linker. This
 module checks the resulting tools against the lock and fails closed when a
@@ -15,10 +15,8 @@ Three things are deliberately *not* pinned here:
   from a different LLVM generation gets a bitcode-version rejection at link
   time, not a graceful fallback. The linker is recorded as an observation
   (see `linker_identity`) rather than named in the environment.
-- **pkgconf's digest.** The installed revision predates the current stable
-  bottle, so there is no published digest for the bytes actually present.
-  It is recorded by version and path, with the gap stated, rather than
-  claiming a pin that was not verified.
+- **pkgconf's digest.** The installed bytes have no verified digest.
+  The tool is recorded by version and path without claiming byte identity.
 - **Anything in Homebrew's prefix that could be linked into the payload.**
   HOME is scrubbed and `PKG_CONFIG_LIBDIR` is narrowed so the private
   dependency prefix is the only search root; no Homebrew library may appear

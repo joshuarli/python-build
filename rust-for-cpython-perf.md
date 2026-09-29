@@ -6,6 +6,21 @@ still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
 recoverable from Git history at commit `f0f8690`.
 
+## Toolchain refresh (2026-09-29)
+
+The macOS bootstrap now locks Xcode 27.0 (build `27A266a`) and SDK 27.0.
+Apple ld reports `ld-27037.1`; it remains observed rather than pinned.
+The bootstrap also records the installed pkgconf 3.0.7 and its Cellar path;
+GNU make remains pinned at 4.4.1 and has been provisioned at its locked path.
+The deployment floor remains macOS 26.0. The refreshed ThinLTO smoke gate
+passed with LLVM 23.1.2: arm64, minos 26.0, SDK 27.0, verified bitcode and
+a successful executable run. Doctor reports no missing prerequisites.
+The private Cargo home now provides both Cargo and rustc launchers for the
+pinned nightly; they work without Homebrew compiler proxies on PATH.
+Rebuild both performance interpreters, recalibrate, and record fresh
+baselines before accepting measurements under this toolchain. The older
+handoff below describes historical builds, not local stage availability.
+
 ## Handoff (2026-09-29)
 
 Written when the session wound down. The memory phase (load footprint and
