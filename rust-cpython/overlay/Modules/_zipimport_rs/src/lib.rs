@@ -1,25 +1,30 @@
 use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int};
-use std::mem::MaybeUninit;
+use std::mem::{self, MaybeUninit};
 use std::ptr;
 use std::slice;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::PyBool_FromLong;
-use cpython_sys::PyBytes_FromStringAndSize;
 use cpython_sys::PyBuffer_Release;
+use cpython_sys::PyBytes_AsString;
+use cpython_sys::PyBytes_FromStringAndSize;
+use cpython_sys::PyBytes_Type;
 use cpython_sys::PyDict_Contains;
 use cpython_sys::PyErr_NoMemory;
 use cpython_sys::PyErr_Occurred;
 use cpython_sys::PyErr_SetString;
 use cpython_sys::PyExc_TypeError;
 use cpython_sys::PyLong_AsLong;
+use cpython_sys::PyLong_AsSsize_t;
 use cpython_sys::PyMethodDef;
 use cpython_sys::PyMethodDefFuncPointer;
 use cpython_sys::PyModuleDef;
 use cpython_sys::PyModuleDef_HEAD_INIT;
 use cpython_sys::PyModuleDef_Init;
+use cpython_sys::Py_DecRef;
 use cpython_sys::Py_NewRef;
+use cpython_sys::Py_TYPE;
 use cpython_sys::PyObject;
 use cpython_sys::PyObject_GetBuffer;
 use cpython_sys::PyTuple_GetItem;
@@ -29,41 +34,36 @@ use cpython_sys::PyTuple_Size;
 use cpython_sys::PyUnicode_Concat;
 use cpython_sys::Py_buffer;
 use cpython_sys::Py_ssize_t;
+use cpython_sys::_PyBytes_Resize;
 use cpython_sys::_Py_NoneStruct;
-use flate2::{Decompress, FlushDecompress, Status};
+use libz_rs_sys::{
+    Z_BUF_ERROR, Z_FINISH, Z_MEM_ERROR, Z_NO_FLUSH, Z_OK, Z_STREAM_END, inflate, inflateEnd,
+    inflateInit2_, z_stream, zlibVersion,
+};
 
 const PYBUF_SIMPLE: c_int = 0;
-const OUTPUT_CHUNK_SIZE: usize = 64 * 1024;
 
+/// A borrowed `Py_buffer` over the caller's object; zlib reads it in place.
 struct BorrowedBuffer {
     view: Py_buffer,
 }
 
 impl BorrowedBuffer {
-    fn from_object(object: *mut PyObject) -> Result<Self, ()> {
+    fn from_object(object: *mut PyObject) -> Option<Self> {
         let mut view = MaybeUninit::<Py_buffer>::uninit();
         unsafe {
             if PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) != 0 {
-                return Err(());
+                return None;
             }
-            Ok(Self {
-                view: view.assume_init(),
-            })
+            Some(Self { view: view.assume_init() })
         }
     }
 
-    fn copy_bytes(&self) -> Option<Vec<u8>> {
-        if self.view.len < 0 {
-            unsafe { PyErr_SetString(cpython_sys::PyExc_ValueError, c"buffer length cannot be negative".as_ptr()) };
-            return None;
+    fn bytes(&self) -> &[u8] {
+        if self.view.len <= 0 {
+            return &[];
         }
-        if self.view.len == 0 {
-            return Some(Vec::new());
-        }
-        let bytes = unsafe {
-            slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize)
-        };
-        Some(bytes.to_vec())
+        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
     }
 }
 
@@ -75,14 +75,6 @@ impl Drop for BorrowedBuffer {
 
 fn set_type_error(message: &'static std::ffi::CStr) {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) }
-}
-
-unsafe fn read_buffer(argument: *mut PyObject) -> Option<Vec<u8>> {
-    let buffer = match BorrowedBuffer::from_object(argument) {
-        Ok(buffer) => buffer,
-        Err(()) => return None,
-    };
-    buffer.copy_bytes()
 }
 
 unsafe fn bytes_from_slice(bytes: &[u8]) -> *mut PyObject {
@@ -179,13 +171,107 @@ unsafe extern "C" fn is_directory(
     unsafe { PyBool_FromLong(if found == 0 { 0 } else { 1 }) }
 }
 
+
+/// One-shot raw inflate of `input` into a new `bytes`, sized from `hint` (the
+/// archive's recorded uncompressed size) and grown if the stream is longer.
+/// `None` (no exception set) means the stream is invalid or truncated.
+unsafe fn inflate_raw(input: &[u8], hint: usize) -> Result<Option<*mut PyObject>, ()> {
+    let mut z = Box::new(z_stream::default());
+    let init = unsafe {
+        inflateInit2_(&mut *z, -15, zlibVersion(), mem::size_of::<z_stream>() as c_int)
+    };
+    if init == Z_MEM_ERROR {
+        unsafe { PyErr_NoMemory() };
+        return Err(());
+    }
+    if init != Z_OK {
+        return Ok(None);
+    }
+    let mut cap = hint.max(1);
+    let mut object = unsafe { PyBytes_FromStringAndSize(ptr::null(), cap as Py_ssize_t) };
+    if object.is_null() {
+        unsafe { inflateEnd(&mut *z) };
+        return Err(());
+    }
+    let mut len = 0usize;
+    let mut offset = 0usize;
+    let outcome = loop {
+        let chunk = (input.len() - offset).min(u32::MAX as usize);
+        z.next_in = unsafe { input.as_ptr().add(offset) };
+        z.avail_in = chunk as u32;
+        let last = offset + chunk == input.len();
+        let mut end = false;
+        let mut failed = false;
+        loop {
+            if len == cap {
+                let Some(bigger) = cap.checked_mul(2).filter(|&c| c <= Py_ssize_t::MAX as usize)
+                else {
+                    unsafe { PyErr_NoMemory() };
+                    unsafe { inflateEnd(&mut *z) };
+                    unsafe { Py_DecRef(object) };
+                    return Err(());
+                };
+                if unsafe { _PyBytes_Resize(&mut object, bigger as Py_ssize_t) } != 0 {
+                    unsafe { inflateEnd(&mut *z) };
+                    return Err(());
+                }
+                cap = bigger;
+            }
+            let room = (cap - len).min(u32::MAX as usize);
+            z.next_out = unsafe { PyBytes_AsString(object).cast::<u8>().add(len) };
+            z.avail_out = room as u32;
+            let err = unsafe { inflate(&mut *z, if last { Z_FINISH } else { Z_NO_FLUSH }) };
+            len += room - z.avail_out as usize;
+            match err {
+                Z_STREAM_END => {
+                    end = true;
+                    break;
+                }
+                Z_OK | Z_BUF_ERROR => {
+                    if z.avail_out != 0 {
+                        // Input exhausted (or stuck) without finishing.
+                        failed = last;
+                        break;
+                    }
+                }
+                Z_MEM_ERROR => {
+                    unsafe { PyErr_NoMemory() };
+                    unsafe { inflateEnd(&mut *z) };
+                    unsafe { Py_DecRef(object) };
+                    return Err(());
+                }
+                _ => {
+                    failed = true;
+                    break;
+                }
+            }
+        }
+        if end {
+            break true;
+        }
+        if failed || last {
+            break false;
+        }
+        offset += chunk;
+    };
+    unsafe { inflateEnd(&mut *z) };
+    if !outcome {
+        unsafe { Py_DecRef(object) };
+        return Ok(None);
+    }
+    if len != cap && unsafe { _PyBytes_Resize(&mut object, len as Py_ssize_t) } != 0 {
+        return Err(());
+    }
+    Ok(Some(object))
+}
+
 unsafe extern "C" fn decompress_zip_data(
     _module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    if nargs != 2 {
-        set_type_error(c"decompress_zip_data() takes exactly two arguments");
+    if !(2..=3).contains(&nargs) {
+        set_type_error(c"decompress_zip_data() takes two or three arguments");
         return ptr::null_mut();
     }
     let compression = unsafe { PyLong_AsLong(*args) };
@@ -195,43 +281,37 @@ unsafe extern "C" fn decompress_zip_data(
     if compression != 0 && compression != 8 {
         return unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) };
     }
-    let Some(raw_data) = (unsafe { read_buffer(*args.add(1)) }) else {
-        return ptr::null_mut();
-    };
-    if compression == 0 {
-        return unsafe { bytes_from_slice(&raw_data) };
-    }
-
-    let mut decompressor = Decompress::new(false);
-    let mut consumed = 0usize;
-    let mut output = Vec::new();
-    loop {
-        let mut chunk = [0u8; OUTPUT_CHUNK_SIZE];
-        let before_in = decompressor.total_in();
-        let before_out = decompressor.total_out();
-        let status = match decompressor.decompress(
-            &raw_data[consumed..],
-            &mut chunk,
-            FlushDecompress::Finish,
-        ) {
-            Ok(status) => status,
-            Err(_) => return unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) },
-        };
-        let used = (decompressor.total_in() - before_in) as usize;
-        let written = (decompressor.total_out() - before_out) as usize;
-        consumed += used;
-        if output.try_reserve(written).is_err() {
-            unsafe { PyErr_NoMemory() };
+    let hint = if nargs == 3 {
+        let value = unsafe { PyLong_AsSsize_t(*args.add(2)) };
+        if value == -1 && !unsafe { PyErr_Occurred() }.is_null() {
             return ptr::null_mut();
         }
-        output.extend_from_slice(&chunk[..written]);
-
-        if status == Status::StreamEnd {
-            return unsafe { bytes_from_slice(&output) };
+        value.max(0) as usize
+    } else {
+        0
+    };
+    let raw = unsafe { *args.add(1) };
+    if compression == 0 {
+        // Stored data is already the payload: hand back the bytes object.
+        if unsafe { Py_TYPE(raw) } == ptr::addr_of_mut!(PyBytes_Type) {
+            return unsafe { Py_NewRef(raw) };
         }
-        if used == 0 && written == 0 {
-            return unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) };
-        }
+        let Some(input) = BorrowedBuffer::from_object(raw) else {
+            return ptr::null_mut();
+        };
+        return unsafe { bytes_from_slice(input.bytes()) };
+    }
+    let Some(input) = BorrowedBuffer::from_object(raw) else {
+        return ptr::null_mut();
+    };
+    let input = input.bytes();
+    // DEFLATE cannot expand more than 1032:1, so a larger recorded size is bogus.
+    let ceiling = input.len().saturating_mul(1032).saturating_add(64);
+    let hint = if hint == 0 { input.len().saturating_mul(4) } else { hint };
+    match unsafe { inflate_raw(input, hint.clamp(1, ceiling)) } {
+        Ok(Some(object)) => object,
+        Ok(None) => unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) },
+        Err(()) => ptr::null_mut(),
     }
 }
 

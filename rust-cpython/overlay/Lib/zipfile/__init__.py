@@ -3,14 +3,15 @@ Read and write ZIP files.
 
 XXX references to utf-8 need further investigation.
 """
-import binascii
+lazy import binascii
 import io
 import os
-import shutil
+lazy import shutil
 import stat
 import struct
 import sys
-import threading
+import _thread  # threading.RLock is _thread.RLock; skip importing threading
+lazy import threading
 import time
 
 try:
@@ -35,20 +36,17 @@ def crc32(data, value=0):
     return _crc32_impl(data, value)
 
 
-try:
-    import bz2 # We may need its compression method
-except ImportError:
-    bz2 = None
+# The optional compression methods are imported when first used.
+lazy import bz2
+lazy import lzma
+lazy from compression import zstd
 
-try:
-    import lzma # We may need its compression method
-except ImportError:
-    lzma = None
 
-try:
-    from compression import zstd # We may need its compression method
-except ImportError:
-    zstd = None
+def _codec_missing(name):
+    try:
+        return not getattr(sys.modules[__name__], name)
+    except ImportError:
+        return True
 
 __all__ = ["BadZipFile", "BadZipfile", "error",
            "ZIP_STORED", "ZIP_DEFLATED", "ZIP_BZIP2", "ZIP_LZMA",
@@ -866,15 +864,15 @@ def _check_compression(compression):
             raise RuntimeError(
                 "Compression requires the (missing) zlib module")
     elif compression == ZIP_BZIP2:
-        if not bz2:
+        if _codec_missing('bz2'):
             raise RuntimeError(
                 "Compression requires the (missing) bz2 module")
     elif compression == ZIP_LZMA:
-        if not lzma:
+        if _codec_missing('lzma'):
             raise RuntimeError(
                 "Compression requires the (missing) lzma module")
     elif compression == ZIP_ZSTANDARD:
-        if not zstd:
+        if _codec_missing('zstd'):
             raise RuntimeError(
                 "Compression requires the (missing) compression.zstd module")
     else:
@@ -2016,7 +2014,7 @@ class ZipFile:
             self.fp = file
             self.filename = getattr(file, 'name', None)
         self._fileRefCnt = 1
-        self._lock = threading.RLock()
+        self._lock = _thread.RLock()
         self._seekable = True
         self._writing = False
 
@@ -3013,7 +3011,7 @@ def main(args=None):
                 addToZip(zf, path, zippath)
 
 
-from ._path import (  # noqa: E402
+lazy from ._path import (  # noqa: E402
     Path,
 
     # used privately for tests

@@ -698,7 +698,7 @@ def _get_data(archive, toc_entry):
         case 0:  # stored
             rust_zipimport_module = _get_rust_zipimport_module()
             if rust_zipimport_module is not None:
-                data = rust_zipimport_module.decompress_zip_data(compress, raw_data)
+                data = rust_zipimport_module.decompress_zip_data(compress, raw_data, file_size)
                 if data is not None:
                     return data
             return raw_data
@@ -709,7 +709,7 @@ def _get_data(archive, toc_entry):
                 raise ZipImportError("can't decompress data; zlib not available")
             rust_zipimport_module = _get_rust_zipimport_module()
             if rust_zipimport_module is not None:
-                data = rust_zipimport_module.decompress_zip_data(compress, raw_data)
+                data = rust_zipimport_module.decompress_zip_data(compress, raw_data, file_size)
                 if data is not None:
                     return data
             return decompress(raw_data, -15)
