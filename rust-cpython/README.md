@@ -4,9 +4,13 @@ This isolated lane builds the pinned Rust-for-CPython CPython **3.16.0a0** fork.
 All 71 named public-behavior coverage targets in
 [`rust-for-cpython.md`](../rust-for-cpython.md) passed their complete relevant
 CPython Python module suites and the combined default-resource suite on
-macOS arm64 and on Linux x86-64. On Linux the only failure is one VSOCK
+Linux x86-64. On Linux the only failure is one VSOCK
 test that also fails on the pristine fork, because the host kernel has no
-VSOCK loopback. Performance work has its separate plan in
+VSOCK loopback. They also passed on macOS arm64, including rerun at
+`9329e1c` with the shared-overlay uuid, codec (`encodings.utf_8`), socket,
+and stdlib-module-list repairs included (`b0888dd`, `499308e`, `4710c23`):
+50,158 run/2,703 skipped with zero failures, matching the pre-repair counts
+exactly. Performance work has its separate plan in
 [`rust-for-cpython-perf.md`](../rust-for-cpython-perf.md).
 
 The production CPython 3.14.6 build, packaging, and frozen Linux recipes are

@@ -71,6 +71,10 @@ failure is `test_socket`'s `ThreadedVSOCKSocketStreamTest.testStream` (two
 errors): the host kernel lacks `CONFIG_VSOCKETS_LOOPBACK`, so a VSOCK connect
 to the local CID fails with `ENODEV` for any interpreter, including the host's
 Python 3.12. That test is a host baseline failure, not a coverage failure.
+On the Ubuntu lane host it clears with `sudo modprobe vsock_loopback`
+(the module registers the `VMADDR_CID_LOCAL` transport; persist via
+`/etc/modules-load.d/`), followed by rerunning `test_socket`. Containers
+share the host kernel, so no image or Dockerfile change can supply it.
 
 ## Coverage checklist
 
@@ -91,9 +95,13 @@ Earlier scanner and codec experiments were partial and do not qualify any
 module. The strict count is now **71 complete targets**. Do not carry
 their performance ranking into this coverage phase.
 
-The latest combined macOS arm64 debug run passed 50,158 tests with 2,703
-skipped and zero failures; 496/505 files ran and nine were resource-denied.
-Each checked line records its focused-suite result and combined qualification.
+The combined macOS arm64 debug run at `9329e1c`, with the uuid, codec
+(`encodings.utf_8`), socket, and stdlib-module-list shared-overlay repairs
+included, passed 50,158 tests with 2,703 skipped and zero failures;
+496/505 files ran and nine were resource-denied. Run, skip, and
+resource-denial counts match the pre-repair `1ffb365` run exactly, so the
+repairs introduce no macOS regression. Each checked line records its
+focused-suite result and combined qualification.
 The same 71 targets are separately qualified on Linux x86-64; see
 [Linux x86-64 qualification](#linux-x86-64-qualification).
 
@@ -395,8 +403,11 @@ repairs. None of them changes a claimed Rust-owned behavior:
   generator to list the 69 overlay crates. `faulthandler` had reported the
   startup-loaded `_codecs_rs` as a third-party extension.
 
-These changes also apply to macOS arm64, where the macOS results above
-predate them. Rerun the macOS integrated suite before relying on them there.
+The uuid, codec (`encodings.utf_8`), socket, and stdlib-list overlay changes
+above also apply to macOS arm64 (the mpdecimal static-library build step is
+Linux-only). The macOS integrated suite was rerun with them included at
+`9329e1c`: 50,158 run/2,703 skipped, zero failures, matching the pre-repair
+counts exactly.
 
 A per-item public-call probe ran in the main interpreter and in an
 isolated own-GIL child. In all 71 targets the named public behavior reached
