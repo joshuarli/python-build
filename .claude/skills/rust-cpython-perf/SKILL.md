@@ -18,6 +18,10 @@ load footprint, and working peak footprint of `@incumbent` over
 `@control` must reach the band 0.9x to 1.0x (see Goals in
 `rust-for-cpython-perf.md`). Application workloads guard every step.
 
+Scope: native macOS arm64 (`aarch64-apple-darwin`) only. Linux (x86_64 and
+arm64) is out of scope for this phase; do not build, measure, or brief lanes
+for it.
+
 Keep working through the loop below until a stop condition in
 [Stopping](#stopping) holds. Stop to ask only when you cannot go on
 without the user or before a risky step: pushing, deleting a branch that
@@ -181,9 +185,18 @@ lanes whose gate verdict you have read in the `GATE:` file.
    `benchmarks/baselines/rust-cp316-perf-*.json`, ledger, and goal table
    together. Run a full `perf.py goals` every third integration to catch
    cross-module drift.
-6. Remove integrated or abandoned worktrees (`git worktree remove`) and
-   delete their merged local branches. Keep a rejected branch only when its
-   finding changes the next decision.
+6. Clean up every lane's worktree as soon as its branch is merged (or
+   abandoned), in the same integration, before spawning the next batch. Each
+   worktree carries its own APFS-cloned caches, Cargo home, build trees
+   (`work/perf/<lane>/`), and stage prefix, so leftovers exhaust the disk.
+   For each lane: `git worktree remove --force <path>` (this deletes its
+   builds), `git branch -d <lane-branch>` (merged branches only), then
+   `git worktree prune` and confirm with `git worktree list`. Also
+   `perf.py clean --name perf-merge` in the primary checkout. Keep a
+   rejected branch (not its worktree) only when its finding changes the next
+   decision. Check `df -h .` at session start and after each integration; if
+   free space is under 50 GB, clean stale worktrees and perf builds before
+   continuing.
 
 After each integration, tell the user in two or three lines what was
 accepted, the gate ratios, and what the next batch targets.
