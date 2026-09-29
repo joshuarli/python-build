@@ -6,7 +6,7 @@ rust-version.workspace = true
 
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
-flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
+libz-rs-sys = { version = "=0.6.7", default-features = false, features = ["std", "rust-allocator"] }
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }
