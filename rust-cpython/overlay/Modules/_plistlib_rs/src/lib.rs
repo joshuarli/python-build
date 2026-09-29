@@ -8,8 +8,8 @@ use cpython_sys::{
     METH_FASTCALL, PyBool_FromLong, PyBool_Type, PyByteArray_AsString, PyByteArray_Size,
     PyByteArray_Type, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyBytes_Type,
     PyDict_New, PyDict_Next, PyDict_SetItem, PyDict_Size, PyDict_Type, PyErr_Clear, PyErr_Occurred,
-    PyFloat_AsDouble, PyFloat_FromDouble, PyFloat_Type, PyList_GetItem, PyList_New,
-    PyList_SetItem, PyList_Size, PyList_Type, PyLong_AsLongLong, PyLong_AsLongLongAndOverflow,
+    PyFloat_AsDouble, PyFloat_FromDouble, PyFloat_Type, PyList_Append, PyList_GetItem, PyList_New,
+    PyList_Size, PyList_Type, PyLong_AsLongLong, PyLong_AsLongLongAndOverflow,
     PyLong_AsUnsignedLongLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type,
     PyMapping_Items, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT,
     PyModuleDef_Init, PyObject, PyObject_CallOneArg, PyObject_GetAttrString,
@@ -17,6 +17,7 @@ use cpython_sys::{
     PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, PyUnicode_Type, Py_DecRef, Py_NewRef,
     Py_EQ, Py_ssize_t, _Py_NoneStruct, _Py_TrueStruct,
 };
+use plist::stream::{BinaryReader, Event, XmlReader};
 use plist::{Date, Dictionary, Integer, Uid, Value};
 
 const XML_FORMAT: i64 = 0;
@@ -45,104 +46,163 @@ unsafe fn none_result() -> *mut PyObject {
 
 const MAX_BUILD_DEPTH: usize = 256;
 
+struct Frame {
+    container: *mut PyObject,
+    is_dict: bool,
+    /// The pending dictionary key (an owned reference) or null.
+    key: *mut PyObject,
+}
+
+/// Builds Python objects straight from plist events. A failed build leaves a
+/// Python exception set only for genuine Python errors; otherwise the input is
+/// unsupported and the caller falls back to the Python parser.
 struct Builder {
     uid_class: *mut PyObject,
     date_parser: *mut PyObject,
+    stack: Vec<Frame>,
+    root: *mut PyObject,
 }
 
 impl Builder {
-    /// Build the Python object for `value`. A null result with no exception
-    /// set means the value is unsupported and the caller falls back to Python.
-    unsafe fn build(&self, value: &Value, depth: usize) -> *mut PyObject {
-        if depth > MAX_BUILD_DEPTH {
-            return ptr::null_mut();
+    fn new(uid_class: *mut PyObject, date_parser: *mut PyObject) -> Builder {
+        Builder { uid_class, date_parser, stack: Vec::new(), root: ptr::null_mut() }
+    }
+
+    /// Attach a new reference to the enclosing collection.
+    unsafe fn attach(&mut self, object: *mut PyObject, is_string: bool) -> Result<(), ()> {
+        if object.is_null() {
+            return Err(());
         }
-        match value {
-            Value::Array(values) => {
-                let list = unsafe { PyList_New(values.len() as Py_ssize_t) };
-                if list.is_null() {
-                    return list;
-                }
-                for (index, item) in values.iter().enumerate() {
-                    let object = unsafe { self.build(item, depth + 1) };
-                    if object.is_null() {
-                        unsafe { Py_DecRef(list) };
-                        return ptr::null_mut();
-                    }
-                    unsafe { PyList_SetItem(list, index as Py_ssize_t, object) };
-                }
-                list
+        let Some(frame) = self.stack.last_mut() else {
+            if !self.root.is_null() {
+                unsafe { Py_DecRef(object) };
+                return Err(());
             }
-            Value::Dictionary(values) => {
-                let dict = unsafe { PyDict_New() };
-                if dict.is_null() {
-                    return dict;
-                }
-                for (key, item) in values.iter() {
-                    let key = unsafe {
-                        PyUnicode_FromStringAndSize(
-                            key.as_ptr().cast::<c_char>(),
-                            key.len() as Py_ssize_t,
-                        )
-                    };
-                    if key.is_null() {
-                        unsafe { Py_DecRef(dict) };
-                        return ptr::null_mut();
-                    }
-                    let object = unsafe { self.build(item, depth + 1) };
-                    if object.is_null() {
-                        unsafe {
-                            Py_DecRef(key);
-                            Py_DecRef(dict);
-                        }
-                        return ptr::null_mut();
-                    }
-                    let status = unsafe { PyDict_SetItem(dict, key, object) };
+            self.root = object;
+            return Ok(());
+        };
+        if !frame.is_dict {
+            let status = unsafe { PyList_Append(frame.container, object) };
+            unsafe { Py_DecRef(object) };
+            return if status == 0 { Ok(()) } else { Err(()) };
+        }
+        if frame.key.is_null() {
+            if !is_string {
+                unsafe { Py_DecRef(object) };
+                return Err(());
+            }
+            frame.key = object;
+            return Ok(());
+        }
+        let status = unsafe { PyDict_SetItem(frame.container, frame.key, object) };
+        unsafe {
+            Py_DecRef(frame.key);
+            Py_DecRef(object);
+        }
+        frame.key = ptr::null_mut();
+        if status == 0 { Ok(()) } else { Err(()) }
+    }
+
+    unsafe fn open(&mut self, container: *mut PyObject, is_dict: bool) -> Result<(), ()> {
+        if container.is_null() {
+            return Err(());
+        }
+        if self.stack.len() >= MAX_BUILD_DEPTH {
+            unsafe { Py_DecRef(container) };
+            return Err(());
+        }
+        self.stack.push(Frame { container, is_dict, key: ptr::null_mut() });
+        Ok(())
+    }
+
+    unsafe fn event(&mut self, event: Event<'_>) -> Result<(), ()> {
+        match event {
+            Event::StartArray(_) => unsafe { self.open(PyList_New(0), false) },
+            Event::StartDictionary(_) => unsafe { self.open(PyDict_New(), true) },
+            Event::EndCollection => {
+                let Some(frame) = self.stack.pop() else {
+                    return Err(());
+                };
+                if !frame.key.is_null() {
                     unsafe {
-                        Py_DecRef(key);
-                        Py_DecRef(object);
+                        Py_DecRef(frame.key);
+                        Py_DecRef(frame.container);
                     }
-                    if status != 0 {
-                        unsafe { Py_DecRef(dict) };
-                        return ptr::null_mut();
-                    }
+                    return Err(());
                 }
-                dict
+                unsafe { self.attach(frame.container, false) }
             }
-            Value::Boolean(value) => unsafe { PyBool_FromLong(*value as _) },
-            Value::Data(value) => unsafe { python_result_bytes(value) },
-            Value::Date(value) => {
+            Event::Boolean(value) => unsafe { self.attach(PyBool_FromLong(value as _), false) },
+            Event::Data(value) => unsafe { self.attach(python_result_bytes(&value), false) },
+            Event::Date(value) => {
                 let text = value.to_xml_format();
                 let text = text.strip_suffix('Z').unwrap_or(&text);
                 let text = unsafe { python_result_str(text) };
                 if text.is_null() {
-                    return text;
+                    return Err(());
                 }
-                let result = unsafe { PyObject_CallOneArg(self.date_parser, text) };
+                let date = unsafe { PyObject_CallOneArg(self.date_parser, text) };
                 unsafe { Py_DecRef(text) };
-                result
+                unsafe { self.attach(date, false) }
             }
-            Value::Real(value) => unsafe { PyFloat_FromDouble(*value) },
-            Value::Integer(value) => {
-                if let Some(signed) = value.as_signed() {
+            Event::Real(value) => unsafe { self.attach(PyFloat_FromDouble(value), false) },
+            Event::Integer(value) => {
+                let object = if let Some(signed) = value.as_signed() {
                     unsafe { PyLong_FromLongLong(signed) }
                 } else if let Some(unsigned) = value.as_unsigned() {
                     unsafe { PyLong_FromUnsignedLongLong(unsigned) }
                 } else {
                     ptr::null_mut()
-                }
+                };
+                unsafe { self.attach(object, false) }
             }
-            Value::String(value) => unsafe { python_result_str(value) },
-            Value::Uid(value) => {
+            Event::String(value) => unsafe { self.attach(python_result_str(&value), true) },
+            Event::Uid(value) => {
                 let number = unsafe { PyLong_FromUnsignedLongLong(value.get()) };
                 if number.is_null() {
-                    return number;
+                    return Err(());
                 }
-                let result = unsafe { PyObject_CallOneArg(self.uid_class, number) };
+                let uid = unsafe { PyObject_CallOneArg(self.uid_class, number) };
                 unsafe { Py_DecRef(number) };
-                result
+                unsafe { self.attach(uid, false) }
             }
-            _ => ptr::null_mut(),
+            _ => Err(()),
+        }
+    }
+
+    unsafe fn run<I>(&mut self, events: I) -> Result<(), ()>
+    where
+        I: Iterator<Item = Result<Event<'static>, plist::Error>>,
+    {
+        for event in events {
+            let event = event.map_err(|_| ())?;
+            unsafe { self.event(event) }?;
+        }
+        if self.stack.is_empty() && !self.root.is_null() { Ok(()) } else { Err(()) }
+    }
+
+    /// The finished object (a new reference), or null after releasing
+    /// everything built so far.
+    unsafe fn finish(mut self, result: Result<(), ()>) -> *mut PyObject {
+        if result.is_ok() {
+            return std::mem::replace(&mut self.root, ptr::null_mut());
+        }
+        unsafe { self.release() };
+        ptr::null_mut()
+    }
+
+    unsafe fn release(&mut self) {
+        for frame in self.stack.drain(..) {
+            unsafe {
+                if !frame.key.is_null() {
+                    Py_DecRef(frame.key);
+                }
+                Py_DecRef(frame.container);
+            }
+        }
+        if !self.root.is_null() {
+            unsafe { Py_DecRef(self.root) };
+            self.root = ptr::null_mut();
         }
     }
 }
@@ -387,16 +447,6 @@ impl Walker {
     }
 }
 
-fn parse_plist(data: &[u8], format: i64) -> Option<Value> {
-    match format {
-        XML_FORMAT => Value::from_reader_xml(Cursor::new(data)).ok(),
-        BINARY_FORMAT if data.starts_with(b"bplist00") => {
-            Value::from_reader(Cursor::new(data)).ok()
-        }
-        _ => None,
-    }
-}
-
 unsafe extern "C" fn loads(
     _module: *mut PyObject,
     args: *mut *mut PyObject,
@@ -415,14 +465,15 @@ unsafe extern "C" fn loads(
     if format == -1 && !unsafe { PyErr_Occurred() }.is_null() {
         return ptr::null_mut();
     }
-    let Some(value) = parse_plist(data, format) else {
-        return unsafe { none_result() };
+    let mut builder = unsafe { Builder::new(*args.add(2), *args.add(3)) };
+    let result = match format {
+        XML_FORMAT => unsafe { builder.run(XmlReader::new(data)) },
+        BINARY_FORMAT if data.starts_with(b"bplist00") => unsafe {
+            builder.run(BinaryReader::new(Cursor::new(data)))
+        },
+        _ => Err(()),
     };
-    let builder = Builder {
-        uid_class: unsafe { *args.add(2) },
-        date_parser: unsafe { *args.add(3) },
-    };
-    let object = unsafe { builder.build(&value, 0) };
+    let object = unsafe { builder.finish(result) };
     if object.is_null() && unsafe { PyErr_Occurred() }.is_null() {
         return unsafe { none_result() };
     }
