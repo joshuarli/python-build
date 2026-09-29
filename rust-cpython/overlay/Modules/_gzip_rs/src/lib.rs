@@ -16,6 +16,8 @@ use cpython_sys::PyExc_TypeError;
 use cpython_sys::PyExc_ValueError;
 use cpython_sys::PyLong_AsLong;
 use cpython_sys::PyLong_AsLongLong;
+use cpython_sys::PyLong_AsUnsignedLongMask;
+use cpython_sys::PyLong_FromUnsignedLong;
 use cpython_sys::PyMethodDef;
 use cpython_sys::PyMethodDefFuncPointer;
 use cpython_sys::PyModuleDef;
@@ -29,8 +31,8 @@ use cpython_sys::Py_ssize_t;
 use cpython_sys::_PyBytes_Resize;
 use libz_rs_sys::{
     Z_BUF_ERROR, Z_DATA_ERROR, Z_FINISH, Z_MEM_ERROR, Z_NO_FLUSH, Z_OK, Z_STREAM_END,
-    Z_STREAM_ERROR, Z_SYNC_FLUSH, deflate, deflateEnd, deflateInit2_, inflate, inflateEnd,
-    inflateInit2_, z_stream, zlibVersion,
+    Z_STREAM_ERROR, Z_SYNC_FLUSH, crc32_z, deflate, deflateBound, deflateEnd, deflateInit2_,
+    inflate, inflateEnd, inflateInit2_, z_stream, zlibVersion,
 };
 
 const PYBUF_SIMPLE: c_int = 0;
@@ -230,13 +232,15 @@ struct Decompressor {
     live: bool,
     eof: bool,
     needs_input: bool,
+    /// The expected output size for the first unlimited call (0: unknown).
+    hint: usize,
     /// Input zlib has not consumed yet (kept between calls, as the C module does).
     pending: Vec<u8>,
     unused_data: Vec<u8>,
 }
 
 impl Decompressor {
-    fn new() -> Result<Self, c_int> {
+    fn new(hint: usize) -> Result<Self, c_int> {
         let mut z = Box::new(z_stream::default());
         let err = unsafe {
             inflateInit2_(&mut *z, -MAX_WBITS, zlibVersion(), mem::size_of::<z_stream>() as c_int)
@@ -249,6 +253,7 @@ impl Decompressor {
             live: true,
             eof: false,
             needs_input: true,
+            hint,
             pending: Vec::new(),
             unused_data: Vec::new(),
         })
@@ -564,16 +569,126 @@ unsafe extern "C" fn compressor_flush(
     out.finish()
 }
 
-unsafe extern "C" fn decompressor_new(
+/// One-shot gzip member: header, raw DEFLATE, and CRC32/size trailer, written
+/// into a single `bytes` object sized from `deflateBound`.
+unsafe extern "C" fn compress_member(
     _module: *mut PyObject,
-    _args: *mut *mut PyObject,
+    args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    if nargs != 0 {
-        set_type_error(c"decompressor() takes no arguments");
+    if nargs != 3 {
+        set_type_error(c"compress_member() takes exactly three arguments");
         return ptr::null_mut();
     }
-    match Decompressor::new() {
+    let Some(input) = BorrowedBuffer::from_object(unsafe { *args }) else {
+        return ptr::null_mut();
+    };
+    let level = unsafe { PyLong_AsLong(*args.add(1)) };
+    if level == -1 && !unsafe { PyErr_Occurred() }.is_null() {
+        return ptr::null_mut();
+    }
+    if !(-1..=9).contains(&level) {
+        set_value_error(c"compression level must be between 0 and 9");
+        return ptr::null_mut();
+    }
+    let mtime = unsafe { PyLong_AsLongLong(*args.add(2)) };
+    if mtime == -1 && !unsafe { PyErr_Occurred() }.is_null() {
+        return ptr::null_mut();
+    }
+    let Ok(mtime) = u32::try_from(mtime) else {
+        set_value_error(c"mtime out of range");
+        return ptr::null_mut();
+    };
+    let input = input.bytes();
+    let mut compressor = match Compressor::new(level as c_int) {
+        Ok(compressor) => compressor,
+        Err(err) => {
+            set_init_error(err, "while creating compression object");
+            return ptr::null_mut();
+        }
+    };
+    let bound = unsafe { deflateBound(&mut *compressor.z, input.len() as _) } as usize;
+    let Some(mut out) = PyBuf::new(bound.saturating_add(18)) else {
+        return ptr::null_mut();
+    };
+    let xfl = match level {
+        9 => 2u8,
+        1 => 4u8,
+        _ => 0u8,
+    };
+    let mut header = [0x1f, 0x8b, 8, 0, 0, 0, 0, 0, xfl, 255];
+    header[4..8].copy_from_slice(&mtime.to_le_bytes());
+    unsafe { ptr::copy_nonoverlapping(header.as_ptr(), out.ptr, header.len()) };
+    out.len = header.len();
+    match unsafe { deflate_run(&mut compressor, input, Z_FINISH, &mut out) } {
+        Ok(_) => {}
+        Err(Fail::Python) => return ptr::null_mut(),
+        Err(Fail::Zlib(err)) => {
+            set_zlib_error(&compressor.z, err, "while compressing data");
+            return ptr::null_mut();
+        }
+    }
+    let err = compressor.end();
+    if err != Z_OK {
+        set_zlib_error(&compressor.z, err, "while finishing compression");
+        return ptr::null_mut();
+    }
+    let crc = unsafe { crc32_z(0, input.as_ptr(), input.len()) } as u32;
+    let mut trailer = [0u8; 8];
+    trailer[..4].copy_from_slice(&crc.to_le_bytes());
+    trailer[4..].copy_from_slice(&(input.len() as u32).to_le_bytes());
+    if out.len + trailer.len() > out.cap && !out.resize(out.len + trailer.len()) {
+        return ptr::null_mut();
+    }
+    unsafe { ptr::copy_nonoverlapping(trailer.as_ptr(), out.ptr.add(out.len), trailer.len()) };
+    out.len += trailer.len();
+    out.finish()
+}
+
+/// `crc32(data, value=0)`, the running CRC-32 that the gzip trailer carries.
+unsafe extern "C" fn crc32_update(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if !(1..=2).contains(&nargs) {
+        set_type_error(c"crc32() takes one or two arguments");
+        return ptr::null_mut();
+    }
+    let mut crc: std::ffi::c_ulong = 0;
+    if nargs == 2 {
+        crc = unsafe { PyLong_AsUnsignedLongMask(*args.add(1)) };
+        if crc == std::ffi::c_ulong::MAX && !unsafe { PyErr_Occurred() }.is_null() {
+            return ptr::null_mut();
+        }
+        crc &= 0xffff_ffff;
+    }
+    let Some(data) = BorrowedBuffer::from_object(unsafe { *args }) else {
+        return ptr::null_mut();
+    };
+    let data = data.bytes();
+    let crc = unsafe { crc32_z(crc, data.as_ptr(), data.len()) };
+    unsafe { PyLong_FromUnsignedLong(crc) }
+}
+
+unsafe extern "C" fn decompressor_new(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs > 1 {
+        set_type_error(c"decompressor() takes at most one argument");
+        return ptr::null_mut();
+    }
+    let mut hint = 0usize;
+    if nargs == 1 {
+        let value = unsafe { PyLong_AsLongLong(*args) };
+        if value == -1 && !unsafe { PyErr_Occurred() }.is_null() {
+            return ptr::null_mut();
+        }
+        hint = value.max(0) as usize;
+    }
+    match Decompressor::new(hint) {
         Ok(decompressor) => unsafe {
             new_capsule(decompressor, DECOMPRESSOR_CAPSULE, free_decompressor)
         },
@@ -625,7 +740,14 @@ unsafe extern "C" fn decompressor_decompress(
         &held
     };
     let limit = if max_length == 0 { None } else { Some(max_length as usize) };
-    let mut estimate = decompress_estimate(input.len());
+    let mut estimate = match (limit, mem::take(&mut d.hint)) {
+        // The caller's size for the whole stream, kept within what DEFLATE can
+        // expand the input to, plus room for zlib to see the end of the stream.
+        (None, hint) if hint != 0 => {
+            hint.saturating_add(64).min(input.len().saturating_mul(1032).saturating_add(4096))
+        }
+        _ => decompress_estimate(input.len()),
+    };
     if let Some(limit) = limit {
         estimate = estimate.min(limit);
     }
@@ -734,7 +856,7 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-pub static _GZIP_RS_MODULE_METHODS: [PyMethodDef; 9] = [
+pub static _GZIP_RS_MODULE_METHODS: [PyMethodDef; 11] = [
     PyMethodDef {
         ml_name: c"compressor".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: compressor_new },
@@ -782,6 +904,18 @@ pub static _GZIP_RS_MODULE_METHODS: [PyMethodDef; 9] = [
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decompressor_unused_data },
         ml_flags: METH_FASTCALL,
         ml_doc: c"Return bytes following the DEFLATE stream.".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"compress_member".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: compress_member },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Compress data into one complete gzip member.".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"crc32".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: crc32_update },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Update a running CRC-32 with data.".as_ptr() as *mut c_char,
     },
     PyMethodDef::zeroed(),
 ];
