@@ -296,12 +296,21 @@ table meets the Unquiet host criteria.
 
 1. Rebase or merge the accepted lane branches onto `main` in one batch and
    reconcile shared files. Regenerate one `Cargo.lock` when crates changed
-   and inspect the package set before building. Do the merge in an
-   `integrate-N` worktree, not on `main` (fast-forward `main` only after the
+   and inspect the package set before building. Do the merge on an
+   `integrate-N` branch, not on `main` (fast-forward `main` only after the
    batch gate ACCEPTs); when crates changed, run `python3
    rust-cpython/build.py fetch` there to populate its cargo home, and after
    integrating copy that cargo home's new crates to the primary checkout the
    same way before rebuilding `perf-rust`.
+   **Where to integrate.** Lane builds sit at long worktree paths, and gates of
+   lane builds against the primary-path `@incumbent` showed a 1% to 3%
+   `import_django` wall/CPU bias (a `zstd-glue` REJECT on that guard vanished
+   when the same code was built and gated in the primary checkout). So build
+   and gate the batch (`perf-merge`) in the primary checkout on a temporary
+   `integrate-N` branch, not in a worktree; then `git checkout main && git
+   merge --ff-only integrate-N`. A lane REJECT whose only regressed rows are
+   1% to 3% `import_django` (or other startup-bound guards) with no
+   plausible mechanism is re-decided by that primary-path batch gate.
 2. `perf.py build --name perf-merge`, then `perf.py test --name perf-merge
    --all`. On failure, bisect the batch at `xhigh`, drop or repair the
    interacting lane, and repeat.
