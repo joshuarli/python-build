@@ -1,10 +1,12 @@
+use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
 use std::collections::{HashMap, VecDeque};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
 use std::str;
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use cpython_sys::{
     METH_FASTCALL, PyBool_FromLong, PyErr_Clear, PyErr_Occurred, PyLong_AsLong,
@@ -12,9 +14,153 @@ use cpython_sys::{
     PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
     PyUnicode_AsUTF8AndSize, Py_DecRef, Py_ssize_t,
 };
-use regex::Regex;
+use regex::bytes::{Regex, RegexBuilder};
 
 const CACHE_LIMIT: usize = 512;
+
+// Compiling a pattern parses it here and remembers that it was accepted. The
+// search engine is built when a search first needs it: most compiled patterns
+// are never searched through the module-level functions, so engines built at
+// compile time were retained heap for nothing.
+//
+// The parse is transient, so it runs in a scratch arena that lives in this
+// library's zero-filled data segment. That keeps its many differently sized
+// allocations off fresh malloc pages, which would stay dirty for the life of
+// the process.
+const ARENA_SIZE: usize = 60 * 1024;
+const MEMO_SLOTS: usize = 512;
+
+#[repr(C, align(16))]
+struct Scratch {
+    memo: [AtomicU64; MEMO_SLOTS],
+    arena: UnsafeCell<[u8; ARENA_SIZE]>,
+}
+
+unsafe impl Sync for Scratch {}
+
+static SCRATCH: Scratch = Scratch {
+    memo: [const { AtomicU64::new(0) }; MEMO_SLOTS],
+    arena: UnsafeCell::new([0; ARENA_SIZE]),
+};
+
+// Thread that owns the arena (0: none), and the bump offset inside it. Only
+// the owner allocates from the arena, and only between `ArenaScope::enter` and
+// its drop, so nothing allocated there can outlive the scope.
+static ARENA_OWNER: AtomicUsize = AtomicUsize::new(0);
+static ARENA_TOP: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" {
+    fn pthread_self() -> usize;
+}
+
+struct ScratchAllocator;
+
+fn arena_base() -> usize {
+    SCRATCH.arena.get() as usize
+}
+
+fn in_arena(pointer: *mut u8) -> bool {
+    let address = pointer as usize;
+    address >= arena_base() && address < arena_base() + ARENA_SIZE
+}
+
+fn arena_owned() -> bool {
+    let owner = ARENA_OWNER.load(Ordering::Acquire);
+    owner != 0 && owner == unsafe { pthread_self() }
+}
+
+fn arena_allocate(layout: Layout) -> Option<*mut u8> {
+    if layout.align() > 16 {
+        return None;
+    }
+    let start = ARENA_TOP.load(Ordering::Relaxed).next_multiple_of(layout.align());
+    let end = start.checked_add(layout.size())?;
+    if end > ARENA_SIZE {
+        return None;
+    }
+    ARENA_TOP.store(end, Ordering::Relaxed);
+    Some((arena_base() + start) as *mut u8)
+}
+
+unsafe impl GlobalAlloc for ScratchAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if arena_owned() {
+            if let Some(pointer) = arena_allocate(layout) {
+                return pointer;
+            }
+        }
+        unsafe { System.alloc(layout) }
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        if !in_arena(pointer) {
+            unsafe { System.dealloc(pointer, layout) };
+        }
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        if !in_arena(pointer) {
+            return unsafe { System.realloc(pointer, layout, new_size) };
+        }
+        let Ok(new_layout) = Layout::from_size_align(new_size, layout.align()) else {
+            return ptr::null_mut();
+        };
+        let replacement = unsafe { self.alloc(new_layout) };
+        if !replacement.is_null() {
+            unsafe {
+                ptr::copy_nonoverlapping(pointer, replacement, layout.size().min(new_size));
+            }
+        }
+        replacement
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: ScratchAllocator = ScratchAllocator;
+
+struct ArenaScope;
+
+impl ArenaScope {
+    fn enter() -> Option<Self> {
+        let me = unsafe { pthread_self() };
+        ARENA_OWNER
+            .compare_exchange(0, me, Ordering::AcqRel, Ordering::Acquire)
+            .ok()?;
+        ARENA_TOP.store(0, Ordering::Relaxed);
+        Some(Self)
+    }
+}
+
+impl Drop for ArenaScope {
+    fn drop(&mut self) {
+        ARENA_TOP.store(0, Ordering::Relaxed);
+        ARENA_OWNER.store(0, Ordering::Release);
+    }
+}
+
+fn pattern_hash(pattern: &str) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for &byte in pattern.as_bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    hash | 1
+}
+
+fn memo_slot(hash: u64) -> &'static AtomicU64 {
+    &SCRATCH.memo[(hash >> 32) as usize % MEMO_SLOTS]
+}
+
+fn parses(pattern: &str) -> bool {
+    let _scope = ArenaScope::enter();
+    let accepted = regex_syntax::ParserBuilder::new()
+        .unicode(false)
+        .utf8(false)
+        .build()
+        .parse(pattern)
+        .is_ok();
+    accepted
+}
 
 struct RegexCache {
     expressions: HashMap<String, Regex>,
@@ -32,28 +178,46 @@ impl RegexCache {
 
 static REGEX_CACHE: OnceLock<Mutex<RegexCache>> = OnceLock::new();
 
-fn regex_cache() -> &'static Mutex<RegexCache> {
-    REGEX_CACHE.get_or_init(|| Mutex::new(RegexCache::new()))
+fn regex_cache() -> MutexGuard<'static, RegexCache> {
+    REGEX_CACHE
+        .get_or_init(|| Mutex::new(RegexCache::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn supported_pattern(pattern: &str) -> bool {
+    pattern.is_ascii() && portable_syntax(pattern.as_bytes())
+}
+
+fn prepare_expression(pattern: &str) -> bool {
+    if !supported_pattern(pattern) {
+        return false;
+    }
+    let hash = pattern_hash(pattern);
+    let slot = memo_slot(hash);
+    if slot.load(Ordering::Relaxed) == hash {
+        return true;
+    }
+    // Patterns and subjects are ASCII, so byte-mode ASCII classes match exactly
+    // what the Unicode classes would, without Unicode tables or their NFAs.
+    let accepted = parses(pattern);
+    if accepted {
+        slot.store(hash, Ordering::Relaxed);
+    }
+    accepted
 }
 
 fn portable_expression(pattern: &str) -> Option<Regex> {
-    if !pattern.is_ascii() || !portable_syntax(pattern.as_bytes()) {
+    if !supported_pattern(pattern) {
         return None;
     }
 
-    {
-        let cache = regex_cache()
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(expression) = cache.expressions.get(pattern) {
-            return Some(expression.clone());
-        }
+    if let Some(expression) = regex_cache().expressions.get(pattern) {
+        return Some(expression.clone());
     }
 
-    let expression = Regex::new(pattern).ok()?;
-    let mut cache = regex_cache()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let expression = RegexBuilder::new(pattern).unicode(false).build().ok()?;
+    let mut cache = regex_cache();
     if let Some(cached) = cache.expressions.get(pattern) {
         return Some(cached.clone());
     }
@@ -62,9 +226,7 @@ fn portable_expression(pattern: &str) -> Option<Regex> {
             cache.expressions.remove(&oldest);
         }
     }
-    cache
-        .insertion_order
-        .push_back(pattern.to_owned());
+    cache.insertion_order.push_back(pattern.to_owned());
     cache
         .expressions
         .insert(pattern.to_owned(), expression.clone());
@@ -152,7 +314,9 @@ fn portable_syntax(pattern: &[u8]) -> bool {
     !in_class && group_depth == 0
 }
 
-unsafe fn ascii_unicode(object: *mut PyObject) -> Option<String> {
+// The result borrows the string's own buffer: callers use it only during the
+// call, while the argument is alive.
+unsafe fn ascii_unicode<'a>(object: *mut PyObject) -> Option<&'a str> {
     let mut length: Py_ssize_t = 0;
     let data = unsafe { PyUnicode_AsUTF8AndSize(object, &mut length) };
     if data.is_null() || length < 0 {
@@ -163,7 +327,7 @@ unsafe fn ascii_unicode(object: *mut PyObject) -> Option<String> {
     if !bytes.is_ascii() {
         return None;
     }
-    str::from_utf8(bytes).ok().map(str::to_owned)
+    str::from_utf8(bytes).ok()
 }
 
 unsafe fn supported_flags(object: *mut PyObject) -> bool {
@@ -183,10 +347,8 @@ unsafe fn prepare_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyOb
     let pattern = unsafe { ascii_unicode(*args) };
     let flags_ok = unsafe { supported_flags(*args.add(1)) };
     let prepared = pattern
-        .as_deref()
         .filter(|_| flags_ok)
-        .and_then(portable_expression)
-        .is_some();
+        .is_some_and(prepare_expression);
     unsafe { PyBool_FromLong(if prepared { 1 } else { 0 }) }
 }
 
@@ -221,10 +383,10 @@ unsafe fn search_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObj
     let Some((pattern, subject)) = pattern.zip(subject).filter(|_| flags_ok) else {
         return unsafe { search_result(0, 0, 0) };
     };
-    let Some(expression) = portable_expression(&pattern) else {
+    let Some(expression) = portable_expression(pattern) else {
         return unsafe { search_result(0, 0, 0) };
     };
-    match expression.find(&subject) {
+    match expression.find(subject.as_bytes()) {
         Some(found) => unsafe { search_result(2, found.start(), found.end()) },
         None => unsafe { search_result(1, 0, 0) },
     }

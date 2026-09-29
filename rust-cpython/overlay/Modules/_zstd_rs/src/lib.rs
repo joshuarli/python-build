@@ -1,7 +1,7 @@
 //! Rust-backed Zstandard operations used by the public compression wrapper.
 
 use std::cell::UnsafeCell;
-use std::ffi::{CStr, CString, c_char, c_int, c_void};
+use std::ffi::{CStr, CString, c_char, c_int, c_long, c_void};
 use std::io;
 use std::mem::MaybeUninit;
 use std::ptr;
@@ -16,6 +16,16 @@ use cpython_sys::PyCapsule_GetPointer;
 use cpython_sys::PyCapsule_New;
 use cpython_sys::PyErr_Clear;
 use cpython_sys::PyErr_Occurred;
+use cpython_sys::PyEval_RestoreThread;
+use cpython_sys::PyEval_SaveThread;
+use cpython_sys::PyExc_MemoryError;
+use cpython_sys::PyLong_AsSsize_t;
+use cpython_sys::PyLong_AsUnsignedLongLong;
+use cpython_sys::Py_IncRef;
+use cpython_sys::_Py_NoneStruct;
+use cpython_sys::PyLong_FromLong;
+use cpython_sys::PyTuple_New;
+use cpython_sys::PyTuple_SetItem;
 use cpython_sys::PyErr_SetString;
 use cpython_sys::PyExc_OverflowError;
 use cpython_sys::PyExc_RuntimeError;
@@ -74,10 +84,20 @@ impl Drop for BorrowedBuffer {
     }
 }
 
+/// Run `f` with the GIL released. `f` must not touch any Python object.
+fn without_gil<R>(f: impl FnOnce() -> R) -> R {
+    let state = unsafe { PyEval_SaveThread() };
+    let result = f();
+    unsafe { PyEval_RestoreThread(state) };
+    result
+}
+
 /// A `bytes` object that zstd writes into directly. The object is resized to
-/// the written length on success, so no intermediate copy is made.
+/// the written length on success, so no intermediate copy is made. The data
+/// pointer is cached so zstd can run without the GIL.
 struct PyBuf {
     object: *mut PyObject,
+    ptr: *mut u8,
     cap: usize,
     len: usize,
 }
@@ -94,7 +114,8 @@ impl PyBuf {
             unsafe { PyErr_Clear() };
             return Err(io::Error::from(io::ErrorKind::OutOfMemory));
         }
-        Ok(Self { object, cap, len: 0 })
+        let ptr = unsafe { PyBytes_AsString(object) }.cast::<u8>();
+        Ok(Self { object, ptr, cap, len: 0 })
     }
 
     fn resize(&mut self, cap: usize) -> io::Result<()> {
@@ -108,6 +129,7 @@ impl PyBuf {
             self.len = 0;
             return Err(io::Error::from(io::ErrorKind::OutOfMemory));
         }
+        self.ptr = unsafe { PyBytes_AsString(self.object) }.cast::<u8>();
         self.cap = cap;
         Ok(())
     }
@@ -116,11 +138,15 @@ impl PyBuf {
         self.len == self.cap
     }
 
-    fn grow(&mut self) -> io::Result<()> {
-        let cap = self
+    /// Double the capacity, but never past `limit`.
+    fn grow(&mut self, limit: Option<usize>) -> io::Result<()> {
+        let mut cap = self
             .cap
             .checked_mul(2)
             .ok_or_else(|| io::Error::from(io::ErrorKind::OutOfMemory))?;
+        if let Some(limit) = limit {
+            cap = cap.min(limit);
+        }
         self.resize(cap)
     }
 
@@ -147,7 +173,7 @@ impl Drop for PyBuf {
 
 unsafe impl WriteBuf for PyBuf {
     fn as_slice(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(PyBytes_AsString(self.object).cast::<u8>(), self.len) }
+        unsafe { slice::from_raw_parts(self.ptr, self.len) }
     }
 
     fn capacity(&self) -> usize {
@@ -155,7 +181,7 @@ unsafe impl WriteBuf for PyBuf {
     }
 
     fn as_mut_ptr(&mut self) -> *mut u8 {
-        unsafe { PyBytes_AsString(self.object).cast::<u8>() }
+        self.ptr
     }
 
     unsafe fn filled_until(&mut self, n: usize) {
@@ -169,7 +195,6 @@ fn zstd_error(code: usize) -> io::Error {
 
 struct StreamCompressor {
     cctx: CCtx<'static>,
-    frame_has_input: bool,
 }
 
 impl StreamCompressor {
@@ -177,10 +202,17 @@ impl StreamCompressor {
         let mut cctx = CCtx::create();
         cctx.set_parameter(CParameter::CompressionLevel(level))
             .map_err(zstd_error)?;
-        Ok(Self {
-            cctx,
-            frame_has_input: false,
-        })
+        Ok(Self { cctx })
+    }
+
+    fn reset(&mut self) {
+        let _ = self.cctx.reset(ResetDirective::SessionOnly);
+    }
+
+    fn set_pledged(&mut self, size: u64) -> io::Result<()> {
+        let size = if size == u64::MAX { None } else { Some(size) };
+        self.cctx.set_pledged_src_size(size).map_err(zstd_error)?;
+        Ok(())
     }
 
     fn compress(&mut self, data: &[u8], mode: i32) -> io::Result<*mut PyObject> {
@@ -192,21 +224,11 @@ impl StreamCompressor {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid compression mode"));
             }
         };
-        if mode == 2 && !self.frame_has_input {
-            self.cctx
-                .set_pledged_src_size(Some(data.len() as u64))
-                .map_err(zstd_error)?;
-        }
         // One call with the frame's directive lets libzstd compress straight
         // into the result without staging the input in the context.
-        let mut output = PyBuf::new(compress_bound(data.len()))?;
-        drive(&mut self.cctx, data, &mut output, directive)?;
-        self.frame_has_input |= !data.is_empty();
-        if mode == 2 {
-            self.cctx.reset(ResetDirective::SessionOnly).map_err(zstd_error)?;
-            self.frame_has_input = false;
-        }
-        output.into_object()
+        let result = PyBuf::new(compress_bound(data.len()))
+            .and_then(|mut output| drive(&mut self.cctx, data, &mut output, directive).map(|()| output));
+        self.finish(result, mode)
     }
 
     fn flush(&mut self, mode: i32) -> io::Result<*mut PyObject> {
@@ -215,89 +237,196 @@ impl StreamCompressor {
             2 => ZSTD_EndDirective::ZSTD_e_end,
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid flush mode")),
         };
-        let mut output = PyBuf::new(MIN_OUTPUT_SIZE)?;
-        drive(&mut self.cctx, &[], &mut output, directive)?;
-        if mode == 2 {
-            self.cctx.reset(ResetDirective::SessionOnly).map_err(zstd_error)?;
-            self.frame_has_input = false;
+        let result = PyBuf::new(MIN_OUTPUT_SIZE)
+            .and_then(|mut output| drive(&mut self.cctx, &[], &mut output, directive).map(|()| output));
+        self.finish(result, mode)
+    }
+
+    fn finish(&mut self, result: io::Result<PyBuf>, mode: i32) -> io::Result<*mut PyObject> {
+        match result {
+            Ok(output) => {
+                if mode == 2 {
+                    self.cctx.reset(ResetDirective::SessionOnly).map_err(zstd_error)?;
+                }
+                output.into_object()
+            }
+            Err(error) => {
+                // A failed call abandons the frame, as the C module does.
+                self.reset();
+                Err(error)
+            }
         }
-        output.into_object()
     }
 }
 
+/// What a decompress call reports besides its output.
+const FLAG_EOF: c_long = 1;
+const FLAG_NEEDS_INPUT: c_long = 2;
+
 struct StreamDecompressor {
     dctx: DCtx<'static>,
+    /// Input the last call left unconsumed, from `begin` on.
+    pending: Vec<u8>,
+    begin: usize,
     frame_started: bool,
-    frame_finished: bool,
+    eof: bool,
 }
 
 impl StreamDecompressor {
     fn new() -> io::Result<Self> {
         Ok(Self {
             dctx: DCtx::create(),
+            pending: Vec::new(),
+            begin: 0,
             frame_started: false,
-            frame_finished: false,
+            eof: false,
         })
     }
 
-    fn decompress(&mut self, data: &[u8]) -> io::Result<*mut PyObject> {
-        if data.is_empty() {
-            return Ok(unsafe { PyBytes_FromStringAndSize(c"".as_ptr(), 0) });
+    fn reset(&mut self) {
+        let _ = self.dctx.reset(ResetDirective::SessionOnly);
+        self.pending = Vec::new();
+        self.begin = 0;
+        self.frame_started = false;
+        self.eof = false;
+    }
+
+    fn unused_data(&self) -> *mut PyObject {
+        let tail = &self.pending[self.begin..];
+        unsafe { PyBytes_FromStringAndSize(tail.as_ptr().cast(), tail.len() as Py_ssize_t) }
+    }
+
+    fn decompress(&mut self, data: &[u8], max_length: i64) -> io::Result<(PyBuf, c_long)> {
+        let result = self.decompress_inner(data, usize::try_from(max_length).ok());
+        if result.is_err() {
+            self.reset();
         }
-        if self.frame_finished {
+        result
+    }
+
+    fn decompress_inner(
+        &mut self,
+        data: &[u8],
+        limit: Option<usize>,
+    ) -> io::Result<(PyBuf, c_long)> {
+        if self.eof {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "frame already finished"));
         }
+        let use_pending = self.begin < self.pending.len();
 
         // The first chunk of a frame usually carries the decompressed size.
-        // When it also holds the whole frame, decode it in one pass straight
-        // into an exactly sized result, without the context's window buffer.
+        // When it also holds the whole frame and the result fits, decode it in
+        // one pass straight into an exactly sized result, without the
+        // context's window buffer.
         let mut hint = None;
-        if !self.frame_started {
+        if !self.frame_started && !use_pending && !data.is_empty() {
             self.frame_started = true;
             if let Ok(Some(size)) = get_frame_content_size(data) {
                 if size <= MAX_SIZE_HINT {
                     hint = Some(size as usize);
-                    if let Ok(frame_len) = find_frame_compressed_size(data) {
-                        let mut output = PyBuf::new(size as usize)?;
-                        self.dctx
-                            .decompress(&mut output, &data[..frame_len])
+                    if limit.is_none_or(|limit| size as usize <= limit) {
+                        if let Ok(frame_len) = find_frame_compressed_size(data) {
+                            let mut output = PyBuf::new(size as usize)?;
+                            let ptr = output.ptr;
+                            let cap = output.cap;
+                            let written = without_gil(|| {
+                                // SAFETY: `ptr` addresses `cap` bytes owned by `output`.
+                                let dst = unsafe { slice::from_raw_parts_mut(ptr, cap) };
+                                self.dctx.decompress(dst, &data[..frame_len])
+                            })
                             .map_err(zstd_error)?;
-                        self.frame_finished = true;
-                        return output.into_object();
+                            output.len = written;
+                            self.eof = true;
+                            self.pending.clear();
+                            self.pending.extend_from_slice(&data[frame_len..]);
+                            self.begin = 0;
+                            return Ok((output, FLAG_EOF));
+                        }
                     }
                 }
             }
         }
 
-        let mut output =
-            PyBuf::new(hint.unwrap_or(data.len().saturating_mul(4)).max(MIN_OUTPUT_SIZE))?;
-        let mut input = InBuffer::around(data);
-        loop {
-            let before = (input.pos(), output.len);
-            let mut out = OutBuffer::around_pos(&mut output, before.1);
-            let remaining = self
-                .dctx
-                .decompress_stream(&mut out, &mut input)
-                .map_err(zstd_error)?;
-            drop(out);
-
-            if remaining == 0 {
-                self.frame_finished = true;
-                break;
+        if use_pending && !data.is_empty() {
+            if self.begin > 0 {
+                self.pending.drain(..self.begin);
+                self.begin = 0;
             }
-            if output.is_full() {
-                output.grow()?;
-                continue;
-            }
-            if input.pos() == data.len() {
-                break;
-            }
-            if before == (input.pos(), output.len) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "decoder made no progress"));
-            }
+            self.pending.extend_from_slice(data);
         }
-        output.into_object()
+        let input: &[u8] = if use_pending { &self.pending[self.begin..] } else { data };
+        let input_len = input.len();
+        let initial = hint.unwrap_or(input_len.saturating_mul(4)).max(MIN_OUTPUT_SIZE);
+        let (output, pos, eof) = stream_decode(&mut self.dctx, input, limit, initial)?;
+
+        self.eof = eof;
+        let mut flags = if eof { FLAG_EOF } else { 0 };
+        if pos == input_len {
+            if !eof && limit != Some(output.len) {
+                flags |= FLAG_NEEDS_INPUT;
+            }
+            if use_pending {
+                self.pending = Vec::new();
+                self.begin = 0;
+            }
+        } else if use_pending {
+            self.begin += pos;
+        } else {
+            self.pending.clear();
+            self.pending.extend_from_slice(&data[pos..]);
+            self.begin = 0;
+        }
+        Ok((output, flags))
     }
+}
+
+/// Decode `input` until it is consumed, the frame ends, or `limit` output
+/// bytes exist. Returns the output, the input consumed, and whether the frame
+/// ended.
+fn stream_decode(
+    dctx: &mut DCtx<'static>,
+    input_bytes: &[u8],
+    limit: Option<usize>,
+    initial: usize,
+) -> io::Result<(PyBuf, usize, bool)> {
+    let mut input = InBuffer::around(input_bytes);
+    if limit == Some(0) {
+        // Nothing may be returned, but zstd still consumes what it can.
+        let mut empty = [0u8; 0];
+        let mut out = OutBuffer::around(&mut empty[..]);
+        let remaining = dctx.decompress_stream(&mut out, &mut input).map_err(zstd_error)?;
+        drop(out);
+        return Ok((PyBuf::new(1)?, input.pos(), remaining == 0));
+    }
+    let cap = limit.map_or(initial, |limit| initial.min(limit));
+    let mut output = PyBuf::new(cap)?;
+    let mut eof = false;
+    loop {
+        let before = (input.pos(), output.len);
+        let mut out = OutBuffer::around_pos(&mut output, before.1);
+        let remaining = without_gil(|| dctx.decompress_stream(&mut out, &mut input))
+            .map_err(zstd_error)?;
+        drop(out);
+
+        if remaining == 0 {
+            eof = true;
+            break;
+        }
+        if output.is_full() {
+            if limit == Some(output.len) {
+                break;
+            }
+            output.grow(limit)?;
+            continue;
+        }
+        if input.pos() == input_bytes.len() {
+            break;
+        }
+        if before == (input.pos(), output.len) {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "decoder made no progress"));
+        }
+    }
+    Ok((output, input.pos(), eof))
 }
 
 fn drive(
@@ -310,9 +439,9 @@ fn drive(
     loop {
         let before = (input.pos(), output.len);
         let mut out = OutBuffer::around_pos(output, before.1);
-        let remaining = cctx
-            .compress_stream2(&mut out, &mut input, directive)
-            .map_err(zstd_error)?;
+        let remaining =
+            without_gil(|| cctx.compress_stream2(&mut out, &mut input, directive))
+                .map_err(zstd_error)?;
         drop(out);
 
         let done = if directive == ZSTD_EndDirective::ZSTD_e_continue {
@@ -324,11 +453,19 @@ fn drive(
             return Ok(());
         }
         if output.is_full() {
-            output.grow()?;
+            output.grow(None)?;
         } else if before == (input.pos(), output.len) {
             return Err(io::Error::new(io::ErrorKind::WriteZero, "encoder made no progress"));
         }
     }
+}
+
+fn io_error(error: io::Error) -> *mut PyObject {
+    if error.kind() == io::ErrorKind::OutOfMemory {
+        unsafe { PyErr_SetString(PyExc_MemoryError, c"out of memory".as_ptr()) };
+        return ptr::null_mut();
+    }
+    runtime_error(error)
 }
 
 fn runtime_error(error: impl std::fmt::Display) -> *mut PyObject {
@@ -397,7 +534,7 @@ unsafe extern "C" fn encoder_new(
     };
     let encoder = match StreamCompressor::new(level) {
         Ok(encoder) => Box::into_raw(Box::new(encoder)).cast::<c_void>(),
-        Err(error) => return runtime_error(error),
+        Err(error) => return io_error(error),
     };
     let capsule = unsafe {
         PyCapsule_New(encoder, ENCODER_CAPSULE_NAME.as_ptr(), Some(drop_encoder))
@@ -428,7 +565,7 @@ unsafe extern "C" fn encoder_compress(
     };
     match encoder.compress(buffer.bytes(), mode) {
         Ok(output) => output,
-        Err(error) => runtime_error(error),
+        Err(error) => io_error(error),
     }
 }
 
@@ -448,7 +585,7 @@ unsafe extern "C" fn encoder_flush(
     };
     match encoder.flush(mode) {
         Ok(output) => output,
-        Err(error) => runtime_error(error),
+        Err(error) => io_error(error),
     }
 }
 
@@ -462,7 +599,7 @@ unsafe extern "C" fn decoder_new(
     }
     let decoder = match StreamDecompressor::new() {
         Ok(decoder) => Box::into_raw(Box::new(decoder)).cast::<c_void>(),
-        Err(error) => return runtime_error(error),
+        Err(error) => return io_error(error),
     };
     let capsule = unsafe {
         PyCapsule_New(decoder, DECODER_CAPSULE_NAME.as_ptr(), Some(drop_decoder))
@@ -473,13 +610,38 @@ unsafe extern "C" fn decoder_new(
     capsule
 }
 
-unsafe extern "C" fn decoder_decompress(
+unsafe extern "C" fn encoder_set_pledged(
     _module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     if nargs != 2 {
-        return type_error(c"decoder_decompress() takes two arguments");
+        return type_error(c"encoder_set_pledged() takes two arguments");
+    }
+    let Some(encoder) = (unsafe { capsule_ref::<StreamCompressor>(*args, ENCODER_CAPSULE_NAME) }) else {
+        return ptr::null_mut();
+    };
+    let size = unsafe { PyLong_AsUnsignedLongLong(*args.add(1)) };
+    if size == u64::MAX && !unsafe { PyErr_Occurred() }.is_null() {
+        return ptr::null_mut();
+    }
+    match encoder.set_pledged(size) {
+        Ok(()) => unsafe {
+            let none = ptr::addr_of_mut!(_Py_NoneStruct).cast::<PyObject>();
+            Py_IncRef(none);
+            none
+        },
+        Err(error) => io_error(error),
+    }
+}
+
+unsafe extern "C" fn decoder_decompress(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 3 {
+        return type_error(c"decoder_decompress() takes three arguments");
     }
     let Some(decoder) = (unsafe { capsule_ref::<StreamDecompressor>(*args, DECODER_CAPSULE_NAME) }) else {
         return ptr::null_mut();
@@ -488,13 +650,54 @@ unsafe extern "C" fn decoder_decompress(
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    match decoder.decompress(buffer.bytes()) {
-        Ok(output) => output,
-        Err(error) => runtime_error(error),
+    let max_length = unsafe { PyLong_AsSsize_t(*args.add(2)) };
+    if max_length == -1 && !unsafe { PyErr_Occurred() }.is_null() {
+        return ptr::null_mut();
     }
+    let (output, flags) = match decoder.decompress(buffer.bytes(), max_length as i64) {
+        Ok(result) => result,
+        Err(error) => return io_error(error),
+    };
+    let output = match output.into_object() {
+        Ok(output) => output,
+        Err(error) => return io_error(error),
+    };
+    let flags = unsafe { PyLong_FromLong(flags) };
+    let result = unsafe { PyTuple_New(2) };
+    if flags.is_null() || result.is_null() {
+        unsafe {
+            Py_DecRef(output);
+            if !flags.is_null() {
+                Py_DecRef(flags);
+            }
+            if !result.is_null() {
+                Py_DecRef(result);
+            }
+        }
+        return ptr::null_mut();
+    }
+    unsafe {
+        PyTuple_SetItem(result, 0, output);
+        PyTuple_SetItem(result, 1, flags);
+    }
+    result
 }
 
-static METHODS: [PyMethodDef; 6] = [
+unsafe extern "C" fn decoder_unused_data(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 1 {
+        return type_error(c"decoder_unused_data() takes one argument");
+    }
+    let Some(decoder) = (unsafe { capsule_ref::<StreamDecompressor>(*args, DECODER_CAPSULE_NAME) }) else {
+        return ptr::null_mut();
+    };
+    decoder.unused_data()
+}
+
+static METHODS: [PyMethodDef; 8] = [
     PyMethodDef {
         ml_name: c"encoder_new".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: encoder_new },
@@ -514,6 +717,12 @@ static METHODS: [PyMethodDef; 6] = [
         ml_doc: c"Flush an incremental Zstandard encoder".as_ptr() as *mut c_char,
     },
     PyMethodDef {
+        ml_name: c"encoder_set_pledged".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: encoder_set_pledged },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Pledge the size of the next Zstandard frame".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
         ml_name: c"decoder_new".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decoder_new },
         ml_flags: METH_FASTCALL,
@@ -524,6 +733,12 @@ static METHODS: [PyMethodDef; 6] = [
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decoder_decompress },
         ml_flags: METH_FASTCALL,
         ml_doc: c"Decompress bytes with an incremental Zstandard decoder".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"decoder_unused_data".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decoder_unused_data },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Return the input left after the end of the frame".as_ptr() as *mut c_char,
     },
     PyMethodDef::zeroed(),
 ];

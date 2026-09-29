@@ -58,6 +58,42 @@ typedef struct {
 
 #include "clinic/decompressor.c.h"
 
+/* Turn the Rust route's RuntimeError into the ZstdError the C route raises. */
+static void
+set_rust_error(ZstdDecompressor *self, const char *prefix)
+{
+    if (!PyErr_ExceptionMatches(PyExc_RuntimeError)) {
+        return;
+    }
+    PyObject *exc = PyErr_GetRaisedException();
+    PyObject *msg = PyObject_Str(exc);
+    Py_DECREF(exc);
+    if (msg == NULL) {
+        return;
+    }
+    _zstd_state *mod_state = PyType_GetModuleState(Py_TYPE(self));
+    if (mod_state != NULL) {
+        PyErr_Format(mod_state->ZstdError, "%s%U", prefix, msg);
+    }
+    Py_DECREF(msg);
+}
+
+/* Create the C decompression context, used when the Rust route is not. */
+static int
+_zstd_create_dctx(ZstdDecompressor *self)
+{
+    self->dctx = ZSTD_createDCtx();
+    if (self->dctx == NULL) {
+        _zstd_state* mod_state = PyType_GetModuleState(Py_TYPE(self));
+        if (mod_state != NULL) {
+            PyErr_SetString(mod_state->ZstdError,
+                            "Unable to create ZSTD_DCtx instance.");
+        }
+        return -1;
+    }
+    return 0;
+}
+
 static inline ZSTD_DDict *
 _get_DDict(ZstdDict *self)
 {
@@ -300,7 +336,9 @@ decompressor_reset_session_lock_held(ZstdDecompressor *self)
     self->eof = 0;
 
     /* Resetting session is guaranteed to never fail */
-    ZSTD_DCtx_reset(self->dctx, ZSTD_reset_session_only);
+    if (self->dctx != NULL) {
+        ZSTD_DCtx_reset(self->dctx, ZSTD_reset_session_only);
+    }
 }
 
 static PyObject *
@@ -472,6 +510,40 @@ error:
 }
 
 
+/* The Rust route decodes and buffers unconsumed input itself; this only
+   mirrors its stream state into the public attributes. */
+static PyObject *
+rust_decompress_lock_held(ZstdDecompressor *self, Py_buffer *data,
+                          Py_ssize_t max_length)
+{
+    assert(PyMutex_IsLocked(&self->lock));
+
+    if (self->eof) {
+        PyErr_SetString(PyExc_EOFError,
+                        "Already at the end of a Zstandard frame.");
+        return NULL;
+    }
+
+    PyObject *result = PyObject_CallMethod(
+        self->rust_module, "decoder_decompress", "OOn",
+        self->rust_decoder, data->obj, max_length);
+    if (result == NULL) {
+        set_rust_error(self, "Unable to decompress Zstandard data: ");
+        /* Like the C route, a failure resets the stream. */
+        self->needs_input = 1;
+        self->eof = 0;
+        Py_CLEAR(self->unused_data);
+        return NULL;
+    }
+
+    PyObject *ret = Py_NewRef(PyTuple_GET_ITEM(result, 0));
+    long flags = PyLong_AsLong(PyTuple_GET_ITEM(result, 1));
+    Py_DECREF(result);
+    self->eof = (flags & 1) != 0;
+    self->needs_input = (flags & 2) != 0;
+    return ret;
+}
+
 /*[clinic input]
 @classmethod
 _zstd.ZstdDecompressor.__new__ as _zstd_ZstdDecompressor_new
@@ -510,14 +582,11 @@ _zstd_ZstdDecompressor_new_impl(PyTypeObject *type, PyObject *zstd_dict,
     /* needs_input flag */
     self->needs_input = 1;
 
-    /* Decompression context */
-    self->dctx = ZSTD_createDCtx();
-    if (self->dctx == NULL) {
-        _zstd_state* mod_state = PyType_GetModuleState(Py_TYPE(self));
-        if (mod_state != NULL) {
-            PyErr_SetString(mod_state->ZstdError,
-                            "Unable to create ZSTD_DCtx instance.");
-        }
+    /* Dictionaries and options are handled by the C context; the default,
+       dictionary-free stream is handled by Rust alone. */
+    self->dctx = NULL;
+    int use_c = (zstd_dict != Py_None || options != Py_None);
+    if (use_c && _zstd_create_dctx(self) < 0) {
         goto error;
     }
 
@@ -537,8 +606,7 @@ _zstd_ZstdDecompressor_new_impl(PyTypeObject *type, PyObject *zstd_dict,
         }
     }
 
-    /* Keep the C path available when the Rust extension cannot be imported. */
-    if (zstd_dict == Py_None && options == Py_None) {
+    if (!use_c) {
         PyObject *module = PyImport_ImportModule("_zstd_rs");
         if (module != NULL) {
             PyObject *decoder = PyObject_CallMethod(module, "decoder_new", NULL);
@@ -553,6 +621,11 @@ _zstd_ZstdDecompressor_new_impl(PyTypeObject *type, PyObject *zstd_dict,
         }
         else {
             PyErr_Clear();
+        }
+        /* Keep the C path when the Rust extension cannot be used, such as
+           in a subinterpreter. */
+        if (self->rust_decoder == NULL && _zstd_create_dctx(self) < 0) {
+            goto error;
         }
     }
 
@@ -621,7 +694,16 @@ _zstd_ZstdDecompressor_unused_data_get_impl(ZstdDecompressor *self)
     }
     else {
         if (self->unused_data == NULL) {
-            if (self->input_buffer == NULL) {
+            if (self->rust_decoder != NULL) {
+                self->unused_data = PyObject_CallMethod(
+                    self->rust_module, "decoder_unused_data", "O",
+                    self->rust_decoder);
+                if (self->unused_data == NULL) {
+                    PyMutex_Unlock(&self->lock);
+                    return NULL;
+                }
+            }
+            else if (self->input_buffer == NULL) {
                 self->unused_data = Py_GetConstant(Py_CONSTANT_EMPTY_BYTES);
             }
             else {
@@ -679,41 +761,18 @@ _zstd_ZstdDecompressor_decompress_impl(ZstdDecompressor *self,
     PyObject *ret;
     /* Thread-safe code */
     PyMutex_Lock(&self->lock);
-    ret = stream_decompress_lock_held(self, data, max_length);
-    PyMutex_Unlock(&self->lock);
-
     if (self->rust_decoder != NULL) {
-        if (ret == NULL || max_length >= 0) {
-            Py_CLEAR(self->rust_decoder);
-            Py_CLEAR(self->rust_module);
-        }
-        else {
-            PyObject *input = PyBytes_FromStringAndSize(data->buf, data->len);
-            PyObject *rust_ret = NULL;
-            if (input != NULL) {
-                rust_ret = PyObject_CallMethod(
-                    self->rust_module, "decoder_decompress", "OO",
-                    self->rust_decoder, input);
-                Py_DECREF(input);
-            }
-            if (rust_ret != NULL) {
-                int same = PyObject_RichCompareBool(rust_ret, ret, Py_EQ);
-                if (same == 1) {
-                    Py_SETREF(ret, rust_ret);
-                    return ret;
-                }
-                Py_DECREF(rust_ret);
-                if (same < 0) {
-                    PyErr_Clear();
-                }
-            }
-            else {
-                PyErr_Clear();
-            }
-            Py_CLEAR(self->rust_decoder);
-            Py_CLEAR(self->rust_module);
-        }
+        ret = rust_decompress_lock_held(self, data, max_length);
     }
+    else if (self->dctx != NULL) {
+        ret = stream_decompress_lock_held(self, data, max_length);
+    }
+    else {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "ZstdDecompressor has no decompression context");
+        ret = NULL;
+    }
+    PyMutex_Unlock(&self->lock);
     return ret;
 }
 
