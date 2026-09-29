@@ -41,6 +41,10 @@ more CPU and no more memory than the pristine control, and should reach
   both sit below 0.9x, **MET** when the pooled median is at most 1.01x,
   and **UNCLEAR** otherwise. A module takes its worst metric's status and
   is BEYOND only when every metric is. Output mismatches read MISMATCH.
+- **Sequencing.** The climb is memory-first. Only load footprint and working
+  peak are targeted until every module reads MET or BEYOND on both (or is on
+  the debt list); kernel CPU must not regress meanwhile. CPU lanes start
+  after that. Up to 8 lanes run concurrently for memory, 4 for CPU.
 - **Done for a module** means MET or BEYOND on all three metrics. OVER
   modules are the climb's targets, largest ratio first; UNCLEAR modules get
   more rounds before any lane. A MET module is climbed toward 0.9x only
@@ -168,6 +172,24 @@ candidate over baseline for the batch targets.
 
 | Date | Commit | Lanes | vs previous incumbent | Goal status vs control |
 | --- | --- | --- | --- | --- |
+| 2026-09-29 | `59ec0b8` | etree-mem, zstd-mem (memory phase) | Gate ACCEPT, quiet=yes, guards neutral. `xml.etree.ElementTree` cpu 0.313x, load 0.750x, peak 0.250x (all improved). `compression.zstd` cpu 0.934x improved, load 0.721x and peak 0.403x (neutral by interval, points below 1.0). | `xml.etree.ElementTree` OVER: cpu 0.92x MET, load 1.21x OVER (+176 KiB, from `_re_rs`/contextlib imports outside the lane; see `re-mem`), peak 1.34x UNCLEAR. `compression.zstd` OVER: cpu 1.94x OVER (CPU phase), load 1.45x UNCLEAR, peak 0.79x MET; open lead: `_zstd/*.c` runs C libzstd first and Rust on a copy. `goals --min-idle 0`, memory rows only. |
+| 2026-09-29 | `3f5846f` | lzma-mem (memory phase) | Gate ACCEPT, quiet=yes, guards neutral. `lzma` load 0.049x (improved), cpu 0.973x and peak 1.000x (neutral). | `lzma` memory MET: load 0.12x BEYOND (4.9 MiB vs 39.8 MiB), peak 1.00x MET; cpu 1.36x OVER (CPU phase: lzma-rust2 match-finder speed). Known limit: decoding streams with an 8 MiB dictionary still touches 8 MiB (crate zero-fills the declared dictionary); the kernel does not exercise it. |
+
+### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
+
+Recorded 2026-09-29 with `--record-baselines`; the baselines under
+`benchmarks/baselines/rust-cp316-perf-*.json` now cover every eligible
+workload. Peak RSS reads regressed on 21 of 23 workloads (+3% `python_startup`,
++9% to +17% on Django, catalog, and difflib, +32% `zip_read_wheel`), which is
+interpreter-wide memory overhead the per-module kernels do not isolate:
+imports of Rust routes at startup and first use. CPU/wall regressions to
+schedule in the CPU phase: `difflib_unified_mostly_equal` 3.3x cpu,
+`zlib_decode_1m` 1.4x cpu / 1.9x wall, `zlib_stream_4k` 1.4x / 2.0x,
+`zip_read_wheel` 1.4x / 1.6x, `django_orm_10k` 1.2x cpu / 2.0x wall, `import_django`
+1.3x, `zipimport_cold` 1.3x. Improved: `catalog_search_form` 0.42x wall,
+`rust_base64_large` 0.61x wall, `catalog_request_path` 0.81x wall,
+`gzip_extract_1m` 0.81x wall (but 1.34x cpu). `compileall_source` differs by
+design.
 
 ## Release-grade confirmation (later)
 

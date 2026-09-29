@@ -1,6 +1,6 @@
 use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int, c_void};
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 use std::mem::MaybeUninit;
 use std::ptr;
 use std::slice;
@@ -8,6 +8,7 @@ use std::slice;
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::PyBool_FromLong;
 use cpython_sys::PyBuffer_Release;
+use cpython_sys::PyBytes_AsString;
 use cpython_sys::PyBytes_FromStringAndSize;
 use cpython_sys::PyCapsule_GetPointer;
 use cpython_sys::PyCapsule_New;
@@ -22,16 +23,37 @@ use cpython_sys::PyModuleDef_HEAD_INIT;
 use cpython_sys::PyModuleDef_Init;
 use cpython_sys::PyObject;
 use cpython_sys::PyObject_GetBuffer;
+use cpython_sys::Py_DecRef;
+use cpython_sys::_PyBytes_Resize;
 use cpython_sys::Py_buffer;
 use cpython_sys::Py_ssize_t;
-use lzma_rust2::{XzOptions, XzReader, XzWriter};
+use lzma_rust2::{DICT_SIZE_MIN, XzOptions, XzReader, XzWriter};
 
 const PYBUF_SIMPLE: c_int = 0;
 const XZ_MAGIC: &[u8; 6] = b"\xfd7zXZ\0";
 const COMPRESSOR_CAPSULE_NAME: &std::ffi::CStr = c"_lzma_rs.Compressor";
 
+/// The compressor defers creating the XZ writer until the input size is known
+/// (at flush) or as large as the preset dictionary, so small inputs do not
+/// allocate and touch tables sized for the full preset dictionary.
 struct CompressionState {
+    preset: u32,
+    dict_size: u32,
+    pending: Vec<u8>,
     writer: Option<XzWriter<Vec<u8>>>,
+    finished: bool,
+}
+
+impl CompressionState {
+    fn start_writer(&mut self, dict_size: u32) -> Result<(), ()> {
+        let mut options = XzOptions::with_preset(self.preset);
+        options.lzma_options.dict_size = dict_size;
+        let mut writer = XzWriter::new(Vec::new(), options).map_err(|_| ())?;
+        let pending = std::mem::take(&mut self.pending);
+        writer.write_all(&pending).map_err(|_| ())?;
+        self.writer = Some(writer);
+        Ok(())
+    }
 }
 
 struct BorrowedBuffer {
@@ -86,22 +108,6 @@ fn declined() -> *mut PyObject {
     unsafe { PyBool_FromLong(0) }
 }
 
-unsafe fn read_input(argument: *mut PyObject) -> Option<Vec<u8>> {
-    let buffer = match BorrowedBuffer::from_object(argument) {
-        Ok(buffer) => buffer,
-        Err(()) => {
-            unsafe { PyErr_Clear() };
-            return None;
-        }
-    };
-    buffer.bytes().map(<[u8]>::to_vec)
-}
-
-unsafe fn read_input_strict(argument: *mut PyObject) -> Option<Vec<u8>> {
-    let buffer = BorrowedBuffer::from_object(argument).ok()?;
-    buffer.bytes().map(<[u8]>::to_vec)
-}
-
 unsafe fn compressor_state(capsule: *mut PyObject) -> Option<&'static mut CompressionState> {
     let pointer = unsafe {
         PyCapsule_GetPointer(capsule, COMPRESSOR_CAPSULE_NAME.as_ptr())
@@ -143,13 +149,12 @@ unsafe extern "C" fn compressor_new(
         return declined();
     }
 
-    let options = XzOptions::with_preset(preset);
-    let writer = match XzWriter::new(Vec::new(), options) {
-        Ok(writer) => writer,
-        Err(_) => return declined(),
-    };
     let state = Box::new(CompressionState {
-        writer: Some(writer),
+        preset,
+        dict_size: XzOptions::with_preset(preset).lzma_options.dict_size,
+        pending: Vec::new(),
+        writer: None,
+        finished: false,
     });
     let pointer = Box::into_raw(state).cast::<c_void>();
     let capsule = unsafe {
@@ -173,16 +178,32 @@ unsafe extern "C" fn compressor_compress(
     if nargs != 2 {
         return declined();
     }
-    let Some(input) = (unsafe { read_input_strict(*args.add(1)) }) else {
+    let Ok(buffer) = BorrowedBuffer::from_object(unsafe { *args.add(1) }) else {
+        return ptr::null_mut();
+    };
+    let Some(input) = buffer.bytes() else {
         return ptr::null_mut();
     };
     let Some(state) = (unsafe { compressor_state(*args) }) else {
         return ptr::null_mut();
     };
-    let Some(writer) = state.writer.as_mut() else {
+    if state.finished {
         return declined();
+    }
+    let Some(writer) = state.writer.as_mut() else {
+        state.pending.extend_from_slice(input);
+        if state.pending.len() >= state.dict_size as usize {
+            let dict_size = state.dict_size;
+            if state.start_writer(dict_size).is_err() {
+                unsafe { PyErr_NoMemory() };
+                return ptr::null_mut();
+            }
+            let writer = state.writer.as_mut().expect("writer started");
+            return bytes_from_slice(&std::mem::take(writer.inner_mut()));
+        }
+        return bytes_from_slice(&[]);
     };
-    if writer.write_all(&input).is_err() {
+    if writer.write_all(input).is_err() {
         return declined();
     }
     let output = std::mem::take(writer.inner_mut());
@@ -200,6 +221,17 @@ unsafe extern "C" fn compressor_flush(
     let Some(state) = (unsafe { compressor_state(*args) }) else {
         return ptr::null_mut();
     };
+    if state.finished {
+        return declined();
+    }
+    state.finished = true;
+    if state.writer.is_none() {
+        let dict_size = (state.pending.len().min(state.dict_size as usize) as u32).max(DICT_SIZE_MIN);
+        if state.start_writer(dict_size).is_err() {
+            unsafe { PyErr_NoMemory() };
+            return ptr::null_mut();
+        }
+    }
     let Some(writer) = state.writer.take() else {
         return declined();
     };
@@ -217,19 +249,62 @@ unsafe extern "C" fn decompress_xz(
     if nargs != 1 {
         return declined();
     }
-    let Some(input) = (unsafe { read_input(*args) }) else {
+    let buffer = match BorrowedBuffer::from_object(unsafe { *args }) {
+        Ok(buffer) => buffer,
+        Err(()) => {
+            unsafe { PyErr_Clear() };
+            return declined();
+        }
+    };
+    let Some(input) = buffer.bytes() else {
         return declined();
     };
     if !input.starts_with(XZ_MAGIC) {
         return declined();
     }
 
-    let mut reader = XzReader::new(Cursor::new(input), true);
-    let mut output = Vec::new();
-    if reader.read_to_end(&mut output).is_err() {
-        return declined();
+    let mut reader = XzReader::new(input, true);
+    // Decode straight into a bytes object and shrink it, rather than growing
+    // a Vec by doubling and copying it into the result.
+    let mut capacity = input.len().saturating_mul(3).clamp(4096, 1 << 26);
+    let mut result = unsafe { PyBytes_FromStringAndSize(ptr::null(), capacity as Py_ssize_t) };
+    if result.is_null() {
+        return ptr::null_mut();
     }
-    bytes_from_slice(&output)
+    let mut length = 0usize;
+    loop {
+        if length == capacity {
+            capacity = capacity.saturating_mul(2);
+            if capacity > Py_ssize_t::MAX as usize {
+                unsafe {
+                    Py_DecRef(result);
+                    PyErr_NoMemory();
+                }
+                return ptr::null_mut();
+            }
+            if unsafe { _PyBytes_Resize(&mut result, capacity as Py_ssize_t) } != 0 {
+                return ptr::null_mut();
+            }
+        }
+        let destination = unsafe {
+            slice::from_raw_parts_mut(
+                PyBytes_AsString(result).cast::<u8>().add(length),
+                capacity - length,
+            )
+        };
+        match reader.read(destination) {
+            Ok(0) => break,
+            Ok(count) => length += count,
+            Err(_) => {
+                unsafe { Py_DecRef(result) };
+                return declined();
+            }
+        }
+    }
+    if length != capacity && unsafe { _PyBytes_Resize(&mut result, length as Py_ssize_t) } != 0 {
+        return ptr::null_mut();
+    }
+    result
 }
 
 pub extern "C" fn _lzma_rs_clear(_object: *mut PyObject) -> c_int {
