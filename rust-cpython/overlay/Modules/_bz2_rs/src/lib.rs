@@ -102,6 +102,8 @@ unsafe extern "C" {
         destructor: Option<unsafe extern "C" fn(*mut PyObject)>,
     ) -> *mut PyObject;
     fn PyCapsule_GetPointer(capsule: *mut PyObject, name: *const c_char) -> *mut c_void;
+    fn PyBytes_AsString(object: *mut PyObject) -> *mut c_char;
+    fn _PyBytes_Resize(object: *mut *mut PyObject, size: Py_ssize_t) -> c_int;
 }
 
 struct BorrowedBuffer {
@@ -334,64 +336,171 @@ unsafe extern "C" fn decompressor_new(_module: *mut PyObject, _ignored: *mut PyO
     )
 }
 
-fn decompress_into(
+/// A `bytes` object filled in place. Decompressed output is written straight
+/// into it and trimmed at the end, so no second copy of the result exists.
+struct OutBytes {
+    object: *mut PyObject,
+    len: usize,
+    cap: usize,
+}
+
+impl OutBytes {
+    /// On failure the Python exception is already set.
+    unsafe fn with_capacity(cap: usize) -> Option<Self> {
+        let object = unsafe { PyBytes_FromStringAndSize(ptr::null(), cap as Py_ssize_t) };
+        (!object.is_null()).then_some(Self { object, len: 0, cap })
+    }
+
+    unsafe fn spare(&mut self) -> &mut [u8] {
+        unsafe {
+            let start = PyBytes_AsString(self.object).cast::<u8>().add(self.len);
+            slice::from_raw_parts_mut(start, self.cap - self.len)
+        }
+    }
+
+    unsafe fn resize(&mut self, cap: usize) -> bool {
+        let mut object = self.object;
+        if unsafe { _PyBytes_Resize(&mut object, cap as Py_ssize_t) } != 0 {
+            // The object was released and the exception set.
+            self.object = ptr::null_mut();
+            return false;
+        }
+        self.object = object;
+        self.cap = cap;
+        true
+    }
+
+    unsafe fn finish(mut self) -> *mut PyObject {
+        if self.cap != self.len && !unsafe { self.resize(self.len) } {
+            return ptr::null_mut();
+        }
+        std::mem::replace(&mut self.object, ptr::null_mut())
+    }
+}
+
+impl Drop for OutBytes {
+    fn drop(&mut self) {
+        if !self.object.is_null() {
+            unsafe { cpython_sys::Py_DecRef(self.object) };
+        }
+    }
+}
+
+enum Failure {
+    Codec(Error),
+    /// A Python exception is already set.
+    Python,
+}
+
+impl From<Error> for Failure {
+    fn from(error: Error) -> Self {
+        Self::Codec(error)
+    }
+}
+
+const SCRATCH: usize = 1024;
+
+unsafe fn decompress_into(
     state: &mut DecompressorState,
+    fresh: &[u8],
     max_length: Py_ssize_t,
-) -> Result<Vec<u8>, Error> {
-    let mut output = Vec::new();
+) -> Result<*mut PyObject, Failure> {
     if max_length == 0 {
+        state.input.extend_from_slice(fresh);
         state.needs_input = state.input.is_empty();
-        return Ok(output);
+        return Ok(unsafe { PyBytes_FromStringAndSize(ptr::null(), 0) });
     }
     let limit = if max_length < 0 {
-        usize::MAX
+        isize::MAX as usize
     } else {
         max_length as usize
     };
+    // Input left over from earlier calls is kept ahead of the new bytes;
+    // otherwise the caller's buffer is decoded in place without a copy.
+    let owned = !state.input.is_empty();
+    if owned {
+        state.input.extend_from_slice(fresh);
+    }
+    let DecompressorState { codec, input, .. } = &mut *state;
+    let source: &[u8] = if owned { input } else { fresh };
+    let mut output = unsafe { OutBytes::with_capacity(limit.min(OUTPUT_CHUNK)) }
+        .ok_or(Failure::Python)?;
     let mut consumed_total = 0usize;
+    let mut eof = false;
     loop {
-        let input = &state.input[consumed_total..];
-        let chunk_end = input.len().min(u32::MAX as usize);
-        let chunk = &input[..chunk_end];
-        let room = OUTPUT_CHUNK.min(limit.saturating_sub(output.len()));
-        if room == 0 {
+        let remaining = limit - output.len;
+        if remaining == 0 {
             break;
         }
-        let before_in = state.codec.total_in();
-        let before_out = state.codec.total_out();
-        let mut buffer = vec![0u8; room];
-        let status = {
-            let _codec = CodecScope::enter();
-            state.codec.decompress(chunk, &mut buffer)?
-        };
-        let consumed = (state.codec.total_in() - before_in) as usize;
-        let produced = (state.codec.total_out() - before_out) as usize;
+        let rest = &source[consumed_total..];
+        let chunk = &rest[..rest.len().min(u32::MAX as usize)];
+        let before_in = codec.total_in();
+        let before_out = codec.total_out();
+        let spare = output.cap - output.len;
+        let (status, room, scratch);
+        let mut probe = [0u8; SCRATCH];
+        if spare > 0 {
+            room = spare.min(remaining);
+            status = {
+                let _codec = CodecScope::enter();
+                codec.decompress(chunk, &mut unsafe { output.spare() }[..room])?
+            };
+            scratch = 0;
+        } else {
+            // The buffer is exactly full: probe with a small scratch area so
+            // the buffer only grows when more output really exists.
+            room = SCRATCH.min(remaining);
+            status = {
+                let _codec = CodecScope::enter();
+                codec.decompress(chunk, &mut probe[..room])?
+            };
+            scratch = (codec.total_out() - before_out) as usize;
+        }
+        let consumed = (codec.total_in() - before_in) as usize;
+        let produced = (codec.total_out() - before_out) as usize;
         consumed_total += consumed;
-        output.extend_from_slice(&buffer[..produced]);
+        if scratch > 0 {
+            let grown = output.cap.saturating_mul(2).min(limit).max(output.len + scratch);
+            if !unsafe { output.resize(grown) } {
+                return Err(Failure::Python);
+            }
+            let room = unsafe { output.spare() };
+            room[..scratch].copy_from_slice(&probe[..scratch]);
+        }
+        output.len += produced;
 
         if status == Status::StreamEnd {
-            state.eof = true;
+            eof = true;
             break;
         }
-        if max_length >= 0 && output.len() == limit {
+        if max_length >= 0 && output.len == limit {
             break;
         }
         if consumed == 0 && produced == 0 {
             break;
         }
-        if consumed_total == state.input.len() && produced < room {
+        if consumed_total == source.len() && produced < room {
             break;
         }
     }
-    state.input.drain(..consumed_total);
-    if state.eof {
+    if owned {
+        input.drain(..consumed_total);
+    } else {
+        input.extend_from_slice(&fresh[consumed_total..]);
+    }
+    if eof {
+        state.eof = true;
         state.unused_data.extend_from_slice(&state.input);
         state.input.clear();
         state.needs_input = false;
     } else {
         state.needs_input = state.input.is_empty();
     }
-    Ok(output)
+    let result = unsafe { output.finish() };
+    if result.is_null() {
+        return Err(Failure::Python);
+    }
+    Ok(result)
 }
 
 unsafe extern "C" fn decompressor_decompress(
@@ -419,14 +528,16 @@ unsafe extern "C" fn decompressor_decompress(
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    state.input.extend_from_slice(buffer.bytes());
-    match decompress_into(state, max_length) {
-        Ok(result) => unsafe { new_bytes(&result) },
-        Err(error) => {
+    match unsafe { decompress_into(state, buffer.bytes(), max_length) } {
+        Ok(result) => result,
+        Err(failure) => {
             state.failed = true;
             state.needs_input = false;
             state.input.clear();
-            codec_error(error)
+            match failure {
+                Failure::Codec(error) => codec_error(error),
+                Failure::Python => ptr::null_mut(),
+            }
         }
     }
 }
