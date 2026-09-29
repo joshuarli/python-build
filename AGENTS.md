@@ -27,11 +27,15 @@ through the repo-local `.claude/skills/rust-cpython-perf/SKILL.md`
 coordinator skill and the `rust-perf-climber` agents. Sonnet 5.5
 (`claude-sonnet-5-5`) is the only authorized model for that work, at
 `high` effort, or `xhigh` for the difficult lanes the skill names.
-For this isolated coverage lane, vetted Rust crates may be added without
-per-crate approval when their versions and checksums are pinned in the
-committed overlay `Cargo.lock`, their licenses are recorded and compatible,
-and they add no production dependency or platform. Other new dependencies
-still require consultation.
+For this isolated coverage and perf lane, any Rust crate may be added for
+experiments without per-crate approval (the user's decision, 2026-09-29) when
+its version and checksum are pinned in the committed overlay `Cargo.lock`, its
+license is recorded in the route's `THIRD_PARTY_LICENSES.md`, and it adds no
+production dependency or platform. Other new dependencies (C libraries,
+system tools) still require consultation. The perf phase runs memory-first:
+no CPU-targeted lane starts until every module's load footprint and working
+peak are MET or BEYOND (or on the debt list), with up to 8 concurrent memory
+lanes.
 
 ## Product targets (`buildsys/targets.py` owns production target branching)
 

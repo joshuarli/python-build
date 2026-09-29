@@ -41,6 +41,10 @@ more CPU and no more memory than the pristine control, and should reach
   both sit below 0.9x, **MET** when the pooled median is at most 1.01x,
   and **UNCLEAR** otherwise. A module takes its worst metric's status and
   is BEYOND only when every metric is. Output mismatches read MISMATCH.
+- **Sequencing.** The climb is memory-first. Only load footprint and working
+  peak are targeted until every module reads MET or BEYOND on both (or is on
+  the debt list); kernel CPU must not regress meanwhile. CPU lanes start
+  after that. Up to 8 lanes run concurrently for memory, 4 for CPU.
 - **Done for a module** means MET or BEYOND on all three metrics. OVER
   modules are the climb's targets, largest ratio first; UNCLEAR modules get
   more rounds before any lane. A MET module is climbed toward 0.9x only

@@ -23,9 +23,11 @@ arm64) is out of scope for this phase; do not build, measure, or brief lanes
 for it.
 
 Keep working through the loop below until a stop condition in
-[Stopping](#stopping) holds. Stop to ask only when you cannot go on
-without the user or before a risky step: pushing, deleting a branch that
-is not merged, removing a coverage route, or adding a non-crate dependency.
+[Stopping](#stopping) holds. Follow [Unattended operation](#unattended-operation):
+the run may have no one to answer, so never ask a question or wait for a
+reply. Never push, delete an unmerged branch, remove a coverage route, or add
+a non-crate dependency; record the blocked step as debt or a finding and go
+on with other work.
 
 ## Models and effort
 
@@ -44,6 +46,25 @@ is not merged, removing a coverage route, or adding a non-crate dependency.
   state; changes allocation strategy or the interpreter-wide
   startup/import path; or when a `high` lane on the same target came back
   NEUTRAL or INCONCLUSIVE twice. Everything else is `high`.
+
+## Phases
+
+The climb runs in two phases, in order; never start the second early.
+
+1. **Memory phase.** Targets are only load footprint and working peak. Every
+   lane and every ACCEPT is judged on those; kernel CPU is not a target, but
+   the gate still REJECTs a replicated CPU regression, so a memory win may
+   not cost CPU. The phase ends when a full `perf.py goals` reads every
+   module's load footprint and working peak MET or BEYOND, or the module is
+   on the debt list for memory (two consecutive lanes on it integrated
+   nothing). Brief `GOAL NOW` and `HYPOTHESIS` with memory rows only.
+2. **CPU phase.** Starts only after the memory phase ends. Targets are kernel
+   CPU per module, then the workload guards that read above `@control`.
+   Memory rows become guards: a CPU win that regresses a memory metric that
+   was MET is rejected by the same gate.
+
+Until the memory phase ends, do not spawn a lane whose hypothesis is CPU, even
+when an OVER CPU row is the largest ratio on the table.
 
 ## Harness
 
@@ -132,9 +153,12 @@ first batch.
 - Reserve owned overlay paths per lane before spawning. Two lanes never
   edit the same route. Shared `overlay/Cargo.toml`, `overlay/Cargo.lock`,
   and `overlay/Modules/Setup.local` edits are allowed; you reconcile them.
-- Run at most **4** climbers at once by default (the repository cap is 16).
-  Measurements serialize through the host lease, so extra lanes add queue
-  time, not throughput. Give each lane `--jobs` of `max(2, 9 // lanes)`.
+- Run at most **8** climbers at once in the memory phase and **4** in the
+  CPU phase (the repository cap is 16). Measurements serialize through the
+  host lease, so extra lanes add queue time, not throughput; memory lanes
+  spend most of their time in builds and suites, which is why they can run
+  wider. Give each lane `--jobs` of `max(2, 9 // lanes)`. Each worktree costs
+  about 3 GB; keep the disk rule in Integration step 6.
 - Climbers never edit `benchmarks/` or `rust-cpython/perf_modules.py`: they
   are the measuring stick. If a kernel misses part of its route's
   checklist behavior, fix the kernel yourself in a separate commit before
@@ -172,6 +196,78 @@ the decision line says `quiet=no`; use `goals --min-idle 0` and read memory
 rows only; never wait for quiet during explore. Integrate only after a quiet
 gate, and record any memory result taken on an unquiet host as provisional.
 
+## Unattended operation
+
+The run may go for days with no one watching. These rules replace any step
+that would wait for a person.
+
+**Pre-authorized decisions.** Climbers and you may, without asking:
+- add any Rust crate from crates.io for a lane (see the climber skill for
+  pinning); record its license in the lane's `THIRD_PARTY_LICENSES.md`;
+- edit `overlay/Modules/**/*.c` glue so the route's Rust code runs *instead
+  of* a duplicate C path, when the public behavior still reaches Rust and the
+  module's full suites pass (for example `_zstd/compressor.c` running the C
+  route first and Rust on a copy);
+- relaunch a lane as a new climber from a dead or stopped lane's branch: the
+  harness cannot resume a stopped agent. Commit its uncommitted edits as a WIP
+  commit, then brief the new lane with the branch name and "treat the WIP as
+  unverified".
+
+Never, without a person: push; remove a Rust route or weaken a suite; edit
+`Lib/test/`, `benchmarks/`, or `perf_modules.py` (except fixing a kernel
+gap, Lanes rule); touch `main` history other than adding commits. Record the
+blocked step under the debt list or a finding and continue with other work.
+
+**Quiet host.** Only verdicts with `quiet=yes` count for gates, `goals`, and
+baselines. Before each gate, calibration, or `--record-baselines` run, wait:
+`python3 .claude/skills/rust-cpython-perf/wait_quiet.py 180` with
+`run_in_background: true` (exit 0 = quiet, 1 = 180 minutes without a quiet
+sample). Recalibrate (`calibrate --ref @control --gate`) at session start,
+after every 6 hours of wall time, and after any host change; `CALIBRATION-OK`
+with `quiet=yes` is required first. A verdict that reads INCONCLUSIVE only
+for `quiet=no` is neither a failure nor an empty batch: keep the branch and
+its worktree and re-gate later. If four consecutive waits time out, stop and
+report `host never quiet` with the branches waiting for a gate. Memory
+metrics may steer explore runs on an unquiet host (Unquiet host section);
+they never justify integrating.
+
+**State and recovery.** After every change to lanes, branches, worktrees, or
+counts, rewrite `rust-cpython/results/coordinator-state.json` (ignored by Git):
+
+```json
+{"phase": "memory", "batch": 3, "lanes": [{"name": "json-mem", "agent": "<id>",
+  "branch": "<branch>", "worktree": "<path>", "status": "running|waiting-gate|integrated|failed",
+  "module": "json", "kind": "memory|cpu"}], "failed_lanes": {"json": 1},
+  "debt": ["lzma"], "last_calibration": "<UTC time>", "notes": ""}
+```
+
+At session start and after any context loss, rebuild your picture from that
+file, `git worktree list`, `git branch --list 'worktree-agent-*' 'integrate-*'`,
+`perf.py status`, and the ledger, then continue. A stale worktree with no live
+agent and no `waiting-gate` entry is swept: WIP-commit anything valuable to its
+branch first, then remove it. Sweep at session start and before each batch.
+
+**Failed lanes.** A lane counts as failed when its handoff is NEUTRAL, REJECT,
+or BLOCKED, or its gate is INCONCLUSIVE for a reason other than `quiet=no`
+(unstable metrics after a quiet re-gate); a climber that dies without a
+handoff is relaunched once, then counted. A module goes on the debt list after
+two consecutive failed lanes that integrated nothing. A lane that integrates
+resets that module's count, even when the module is still OVER.
+
+**UNCLEAR rows.** Rerun `goals --module M --profile rigorous` once. Still
+UNCLEAR: treat it as OVER when the pooled median exceeds 1.01x and brief a
+lane, otherwise as MET and note it in the ledger. Never loop on it.
+
+**Budget and disk.** Stop and report after 150 lanes in a session. Never
+spawn a lane when `df -h .` shows under 20 GB free; sweep first, and stop and
+report if the sweep cannot recover space.
+
+**Shared costs.** When a lane's FINDINGS name another route's import or
+first-call cost that shows up in three or more modules (for example `_re_rs`
+loading at import), brief one lane at `rust-perf-climber-xhigh` owning that
+route, ahead of the per-module lanes it would help, then rerun `goals` for the
+affected modules.
+
 ## Integration
 
 Each climber returns a handoff block. Integrate only `RESULT: ACCEPT`
@@ -179,7 +275,12 @@ lanes whose gate verdict you have read in the `GATE:` file.
 
 1. Rebase or merge the accepted lane branches onto `main` in one batch and
    reconcile shared files. Regenerate one `Cargo.lock` when crates changed
-   and inspect the package set before building.
+   and inspect the package set before building. Do the merge in an
+   `integrate-N` worktree, not on `main` (fast-forward `main` only after the
+   batch gate ACCEPTs); when crates changed, run `python3
+   rust-cpython/build.py fetch` there to populate its cargo home, and after
+   integrating copy that cargo home's new crates to the primary checkout the
+   same way before rebuilding `perf-rust`.
 2. `perf.py build --name perf-merge`, then `perf.py test --name perf-merge
    --all`. On failure, bisect the batch at `xhigh`, drop or repair the
    interacting lane, and repeat.
@@ -230,12 +331,23 @@ accepted, the gate ratios, and what the next batch targets.
 
 ## Stopping
 
-Stop and report when either holds:
+A memory-only goal stops at the end of the memory phase. The full goal ends
+after the CPU phase. Stop and report when any of these holds:
 
-- Every module reads MET or BEYOND in a full `perf.py goals` run, or is on
-  the debt list after two failed lanes, and every gate workload reads
-  `neutral` or `improved` against `@control`; or
-- Two consecutive batches integrate nothing.
+- Every module reads MET or BEYOND on the phase's metrics in a full
+  `perf.py goals` run (memory: load footprint and working peak; CPU phase:
+  all three), or is on the debt list, and, in the CPU phase, every gate
+  workload reads `neutral` or `improved` against `@control` or has had two
+  failed workload lanes; or
+- Two consecutive batches integrate nothing, not counting a batch whose only
+  outcome was INCONCLUSIVE for `quiet=no` (those branches wait for a gate);
+  or
+- `host never quiet`, the lane budget, or the disk floor from Unattended
+  operation.
+
+A workload that reads above `@control` in the CPU phase gets its own lane
+(for example `zlib_decode_1m` through the zlib and gzip routes); a module win
+does not close it.
 
 Report the final goal table, the `@control` versus `@incumbent` workload
 table, the ledger rows added this session, open debts, and any lane

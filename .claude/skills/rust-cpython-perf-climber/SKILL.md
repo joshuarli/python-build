@@ -30,9 +30,19 @@ is a build in your worktree. Use your `LANE` value as your build name.
   say so under FINDINGS.
 - Edit only your `OWNED PATHS`, plus `overlay/Cargo.toml`,
   `overlay/Cargo.lock`, or `overlay/Modules/Setup.local` when the change
-  needs them. Vetted Rust crates are allowed when pinned in the overlay
-  `Cargo.lock` with a compatible license you name in the commit; any other
-  new dependency is a BLOCKED finding.
+  needs them. Any Rust crate from crates.io is allowed for experiments: pin
+  it exactly in the overlay `Cargo.lock` (builds run `cargo fetch --locked
+  --offline`), populate your worktree's own `.cargo-home` with
+  `python3 rust-cpython/build.py fetch` (the only online step; it writes only
+  your worktree's cargo home), record the crate, version, and license in the
+  route's `THIRD_PARTY_LICENSES.md` and the commit, and run a clean build,
+  since incremental builds refuse Cargo changes. Under FINDINGS, give the
+  exact commands you used the first time so the coordinator can document
+  them. A non-crate dependency (a C library, a system tool) is still a
+  BLOCKED finding.
+- In the memory phase (the brief says MEMORY ONLY), the goals are load
+  footprint and working peak. Kernel CPU is not a target but must not
+  regress: the gate REJECTs a replicated CPU regression.
 - Use only `perf.py` for builds, suites, profiles, and measurements. Do not
   run `bench.py`, the coverage `build.py build`/`test`, or anything that
   loads the host during someone else's measurement. Never modify a
