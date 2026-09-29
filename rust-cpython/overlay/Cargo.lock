@@ -394,6 +394,7 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "regex",
+ "regex-syntax",
 ]
 
 [[package]]
