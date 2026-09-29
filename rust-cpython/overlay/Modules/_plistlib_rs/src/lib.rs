@@ -4,10 +4,12 @@ use std::io::Cursor;
 use std::ptr;
 
 use cpython_sys::{
-    METH_FASTCALL, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyErr_Occurred,
+    METH_FASTCALL, PyBool_FromLong, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize,
+    PyDict_New, PyDict_SetItem, PyErr_Occurred, PyFloat_FromDouble, PyList_New,
+    PyList_SetItem, PyLong_AsLongLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong,
     PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, PyObject, PyLong_AsLongLong, Py_NewRef, PyUnicode_AsUTF8AndSize,
-    PyUnicode_FromStringAndSize, Py_ssize_t, _Py_NoneStruct,
+    PyModuleDef_Init, PyObject, PyObject_CallOneArg, PyUnicode_AsUTF8AndSize,
+    PyUnicode_FromStringAndSize, Py_DecRef, Py_NewRef, Py_ssize_t, _Py_NoneStruct,
 };
 use plist::{Date, Dictionary, Integer, Uid, Value};
 use serde_json::{Value as JsonValue, json};
@@ -15,14 +17,13 @@ use serde_json::{Value as JsonValue, json};
 const XML_FORMAT: i64 = 0;
 const BINARY_FORMAT: i64 = 1;
 
-unsafe fn python_bytes(object: *mut PyObject) -> Option<Vec<u8>> {
+unsafe fn python_bytes<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
     let mut data = ptr::null_mut();
     let mut length: Py_ssize_t = 0;
     if unsafe { PyBytes_AsStringAndSize(object, &mut data, &mut length) } != 0 || length < 0 {
         return None;
     }
-    let bytes = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), length as usize) };
-    Some(bytes.to_vec())
+    Some(unsafe { std::slice::from_raw_parts(data.cast::<u8>(), length as usize) })
 }
 
 unsafe fn python_string(object: *mut PyObject) -> Option<String> {
@@ -47,40 +48,107 @@ unsafe fn none_result() -> *mut PyObject {
     unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
 }
 
-fn encoded_value(value: &Value) -> Option<JsonValue> {
-    match value {
-        Value::Array(values) => Some(json!([
-            "a",
-            values.iter().map(encoded_value).collect::<Option<Vec<_>>>()?
-        ])),
-        Value::Dictionary(values) => Some(json!([
-            "o",
-            values
-                .iter()
-                .map(|(key, item)| Some(json!([key, encoded_value(item)?])))
-                .collect::<Option<Vec<_>>>()?
-        ])),
-        Value::Boolean(value) => Some(json!(["b", value])),
-        Value::Data(value) => {
-            let mut encoded = String::with_capacity(value.len() * 2);
-            for byte in value {
-                use std::fmt::Write;
-                write!(&mut encoded, "{byte:02x}").ok()?;
-            }
-            Some(json!(["d", encoded]))
+const MAX_BUILD_DEPTH: usize = 256;
+
+struct Builder {
+    uid_class: *mut PyObject,
+    date_parser: *mut PyObject,
+}
+
+impl Builder {
+    /// Build the Python object for `value`. A null result with no exception
+    /// set means the value is unsupported and the caller falls back to Python.
+    unsafe fn build(&self, value: &Value, depth: usize) -> *mut PyObject {
+        if depth > MAX_BUILD_DEPTH {
+            return ptr::null_mut();
         }
-        Value::Date(value) => Some(json!(["t", value.to_xml_format()])),
-        Value::Real(value) => Some(json!(["f", value.to_string()])),
-        Value::Integer(value) => {
-            if let Some(signed) = value.as_signed() {
-                Some(json!(["i", signed.to_string()]))
-            } else {
-                Some(json!(["i", value.as_unsigned()?.to_string()]))
+        match value {
+            Value::Array(values) => {
+                let list = unsafe { PyList_New(values.len() as Py_ssize_t) };
+                if list.is_null() {
+                    return list;
+                }
+                for (index, item) in values.iter().enumerate() {
+                    let object = unsafe { self.build(item, depth + 1) };
+                    if object.is_null() {
+                        unsafe { Py_DecRef(list) };
+                        return ptr::null_mut();
+                    }
+                    unsafe { PyList_SetItem(list, index as Py_ssize_t, object) };
+                }
+                list
             }
+            Value::Dictionary(values) => {
+                let dict = unsafe { PyDict_New() };
+                if dict.is_null() {
+                    return dict;
+                }
+                for (key, item) in values.iter() {
+                    let key = unsafe {
+                        PyUnicode_FromStringAndSize(
+                            key.as_ptr().cast::<c_char>(),
+                            key.len() as Py_ssize_t,
+                        )
+                    };
+                    if key.is_null() {
+                        unsafe { Py_DecRef(dict) };
+                        return ptr::null_mut();
+                    }
+                    let object = unsafe { self.build(item, depth + 1) };
+                    if object.is_null() {
+                        unsafe {
+                            Py_DecRef(key);
+                            Py_DecRef(dict);
+                        }
+                        return ptr::null_mut();
+                    }
+                    let status = unsafe { PyDict_SetItem(dict, key, object) };
+                    unsafe {
+                        Py_DecRef(key);
+                        Py_DecRef(object);
+                    }
+                    if status != 0 {
+                        unsafe { Py_DecRef(dict) };
+                        return ptr::null_mut();
+                    }
+                }
+                dict
+            }
+            Value::Boolean(value) => unsafe { PyBool_FromLong(*value as _) },
+            Value::Data(value) => unsafe { python_result_bytes(value) },
+            Value::Date(value) => {
+                let text = value.to_xml_format();
+                let text = text.strip_suffix('Z').unwrap_or(&text);
+                let text = unsafe { python_result_json(text) };
+                if text.is_null() {
+                    return text;
+                }
+                let result = unsafe { PyObject_CallOneArg(self.date_parser, text) };
+                unsafe { Py_DecRef(text) };
+                result
+            }
+            Value::Real(value) => unsafe { PyFloat_FromDouble(*value) },
+            Value::Integer(value) => {
+                if let Some(signed) = value.as_signed() {
+                    unsafe { PyLong_FromLongLong(signed) }
+                } else if let Some(unsigned) = value.as_unsigned() {
+                    unsafe { PyLong_FromUnsignedLongLong(unsigned) }
+                } else {
+                    ptr::null_mut()
+                }
+            }
+            Value::String(value) => unsafe { python_result_json(value) },
+            Value::Uid(value) => {
+                let number = unsafe { PyLong_FromUnsignedLongLong(value.get()) };
+                if number.is_null() {
+                    return number;
+                }
+                let result = unsafe { PyObject_CallOneArg(self.uid_class, number) };
+                unsafe { Py_DecRef(number) };
+                result
+            }
+            _ => ptr::null_mut(),
         }
-        Value::String(value) => Some(json!(["s", value])),
-        Value::Uid(value) => Some(json!(["u", value.get().to_string()])),
-        _ => None,
     }
 }
 
@@ -154,7 +222,7 @@ unsafe extern "C" fn loads(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    if nargs != 2 {
+    if nargs != 4 {
         unsafe { return none_result() };
     }
     let Some(data) = (unsafe { python_bytes(*args) }) else {
@@ -167,16 +235,18 @@ unsafe extern "C" fn loads(
     if format == -1 && !unsafe { PyErr_Occurred() }.is_null() {
         return ptr::null_mut();
     }
-    let Some(value) = parse_plist(&data, format) else {
+    let Some(value) = parse_plist(data, format) else {
         return unsafe { none_result() };
     };
-    let Some(encoded) = encoded_value(&value) else {
-        return unsafe { none_result() };
+    let builder = Builder {
+        uid_class: unsafe { *args.add(2) },
+        date_parser: unsafe { *args.add(3) },
     };
-    match serde_json::to_string(&encoded) {
-        Ok(json) => unsafe { python_result_json(&json) },
-        Err(_) => unsafe { none_result() },
+    let object = unsafe { builder.build(&value, 0) };
+    if object.is_null() && unsafe { PyErr_Occurred() }.is_null() {
+        return unsafe { none_result() };
     }
+    object
 }
 
 unsafe extern "C" fn dumps(

@@ -898,36 +898,6 @@ def _rust_module():
     return _plistlib_rs
 
 
-def _restore_rust_value(value, dict_type, aware_datetime):
-    tag, payload = value
-    if tag == "a":
-        return [_restore_rust_value(item, dict_type, aware_datetime)
-                for item in payload]
-    if tag == "o":
-        result = dict_type()
-        for key, item in payload:
-            result[key] = _restore_rust_value(item, dict_type, aware_datetime)
-        return result
-    if tag == "b":
-        return payload
-    if tag == "d":
-        return binascii.unhexlify(payload)
-    if tag == "f":
-        return float(payload)
-    if tag == "i":
-        return int(payload)
-    if tag == "s":
-        return payload
-    if tag == "t":
-        value = datetime.datetime.fromisoformat(payload[:-1] + "+00:00")
-        if aware_datetime:
-            return value
-        return value.replace(tzinfo=None)
-    if tag == "u":
-        return UID(int(payload))
-    raise ValueError("unsupported Rust property-list value")
-
-
 def _same_object_graph(original, candidate):
     original_to_candidate = {}
     candidate_to_original = {}
@@ -964,12 +934,11 @@ def _try_rust_load(data, fmt):
     if module is None:
         return _RUST_UNAVAILABLE
     try:
-        encoded = module.loads(data, 0 if fmt == FMT_XML else 1)
-        if encoded is None:
-            return _RUST_UNAVAILABLE
-        return _restore_rust_value(json.loads(encoded), dict, False)
-    except (IndexError, TypeError, ValueError, json.JSONDecodeError):
+        result = module.loads(data, 0 if fmt == FMT_XML else 1, UID,
+                              datetime.datetime.fromisoformat)
+    except (IndexError, TypeError, ValueError):
         return _RUST_UNAVAILABLE
+    return _RUST_UNAVAILABLE if result is None else result
 
 
 def _snapshot_for_rust(fp):
