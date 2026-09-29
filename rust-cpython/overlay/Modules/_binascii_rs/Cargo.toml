@@ -7,6 +7,7 @@ license = "PSF-2.0"
 
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
+_base64 = { path = "../_base64" }
 crc32fast = "=1.5.2" # MIT OR Apache-2.0
 
 [build-dependencies]

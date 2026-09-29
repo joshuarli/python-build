@@ -5,7 +5,8 @@ use std::ptr;
 use std::slice;
 
 use cpython_sys::{
-    METH_FASTCALL, METH_KEYWORDS, Py_DecRef, Py_buffer, PyBytes_FromStringAndSize,
+    METH_FASTCALL, METH_KEYWORDS, Py_DecRef, Py_buffer, PyBytes_AsString,
+    PyBytes_FromStringAndSize, _PyBytes_Resize,
     PyBuffer_Release, PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
     PyImport_AddModule, PyLong_AsSsize_t, PyLong_AsUnsignedLongMask, PyMethodDef,
     PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_Slot, PyModuleDef_HEAD_INIT, PyModuleDef_Init,
@@ -133,19 +134,6 @@ unsafe fn set_binascii_error(message: &CStr) {
     }
     unsafe { PyErr_SetString(exception, message.as_ptr()) };
     unsafe { Py_DecRef(exception) };
-}
-
-unsafe fn bytes_from_slice(data: &[u8]) -> *mut PyObject {
-    if data.len() > isize::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    let source = if data.is_empty() {
-        c"".as_ptr()
-    } else {
-        data.as_ptr().cast::<c_char>()
-    };
-    unsafe { PyBytes_FromStringAndSize(source, data.len() as Py_ssize_t) }
 }
 
 unsafe fn call_arguments(
@@ -377,20 +365,43 @@ unsafe fn encode_hex(
         unsafe { PyErr_NoMemory() };
         return ptr::null_mut();
     };
-    let mut output = Vec::new();
-    if output.try_reserve_exact(output_len).is_err() {
-        unsafe { PyErr_NoMemory() };
+    let Ok((result, dest_ptr)) = (unsafe { new_bytes(output_len) }) else {
         return ptr::null_mut();
+    };
+    let output = unsafe { slice::from_raw_parts_mut(dest_ptr, output_len) };
+    if !separated {
+        for (pair, byte) in output.chunks_exact_mut(2).zip(input.iter().copied()) {
+            pair[0] = HEX[(byte >> 4) as usize];
+            pair[1] = HEX[(byte & 0x0f) as usize];
+        }
+        return result;
     }
+    let sep = sep.unwrap();
+    let mut position = 0;
     for (index, byte) in input.iter().copied().enumerate() {
-        if separated && index == first_separator {
-            output.push(sep.unwrap());
+        if index == first_separator {
+            output[position] = sep;
+            position += 1;
             first_separator = first_separator.saturating_add(group);
         }
-        output.push(HEX[(byte >> 4) as usize]);
-        output.push(HEX[(byte & 0x0f) as usize]);
+        output[position] = HEX[(byte >> 4) as usize];
+        output[position + 1] = HEX[(byte & 0x0f) as usize];
+        position += 2;
     }
-    unsafe { bytes_from_slice(&output) }
+    result
+}
+
+/// Allocate an uninitialized bytes object of `len` bytes.
+unsafe fn new_bytes(len: usize) -> Result<(*mut PyObject, *mut u8), ()> {
+    if len > isize::MAX as usize {
+        unsafe { PyErr_NoMemory() };
+        return Err(());
+    }
+    let result = unsafe { PyBytes_FromStringAndSize(ptr::null(), len as Py_ssize_t) };
+    if result.is_null() {
+        return Err(());
+    }
+    Ok((result, unsafe { PyBytes_AsString(result) }.cast::<u8>()))
 }
 
 unsafe fn decode_hex(
@@ -428,13 +439,16 @@ unsafe fn decode_hex(
         }
     };
     let ignored = ignorechars.as_ref().map_or(&[][..], Buffer::as_slice);
-    let mut output = Vec::new();
-    if output.try_reserve_exact(source.buffer.as_slice().len() / 2).is_err() {
-        unsafe { PyErr_NoMemory() };
+    let input = source.buffer.as_slice();
+    // Ignored characters only shorten the result: size for none, shrink after.
+    let capacity = input.len() / 2;
+    let Ok((result, dest_ptr)) = (unsafe { new_bytes(capacity) }) else {
         return ptr::null_mut();
-    }
+    };
+    let output = unsafe { slice::from_raw_parts_mut(dest_ptr, capacity) };
+    let mut written = 0;
     let mut high_nibble = None;
-    for byte in source.buffer.as_slice().iter().copied() {
+    for byte in input.iter().copied() {
         let digit = match byte {
             b'0'..=b'9' => Some(byte - b'0'),
             b'a'..=b'f' => Some(byte - b'a' + 10),
@@ -445,20 +459,30 @@ unsafe fn decode_hex(
             if ignored.contains(&byte) {
                 continue;
             }
+            unsafe { Py_DecRef(result) };
             unsafe { set_binascii_error(c"Non-hexadecimal digit found") };
             return ptr::null_mut();
         };
         if let Some(high) = high_nibble.take() {
-            output.push((high << 4) | digit);
+            output[written] = (high << 4) | digit;
+            written += 1;
         } else {
             high_nibble = Some(digit);
         }
     }
     if high_nibble.is_some() {
+        unsafe { Py_DecRef(result) };
         unsafe { set_binascii_error(c"Odd number of hexadecimal digits") };
         return ptr::null_mut();
     }
-    unsafe { bytes_from_slice(&output) }
+    if written == capacity {
+        return result;
+    }
+    let mut result = result;
+    if unsafe { _PyBytes_Resize(&mut result, written as Py_ssize_t) } != 0 {
+        return ptr::null_mut();
+    }
+    result
 }
 
 unsafe fn checksum_args(
@@ -602,13 +626,43 @@ macro_rules! module_method {
     };
 }
 
-static METHODS: [PyMethodDef; 7] = [
+/// Entries for the public `base64` module's engines, which the `_base64`
+/// crate implements; serving them from this image saves loading a second one.
+macro_rules! base64_method {
+    ($name:expr, $function:path, $doc:expr) => {
+        PyMethodDef {
+            ml_name: $name.as_ptr() as *mut c_char,
+            ml_meth: PyMethodDefFuncPointer {
+                PyCFunctionFast: $function,
+            },
+            ml_flags: METH_FASTCALL,
+            ml_doc: $doc.as_ptr() as *mut c_char,
+        }
+    };
+}
+
+static METHODS: [PyMethodDef; 22] = [
     module_method!(c"b2a_hex", b2a_hex, c"b2a_hex($module, data, /, sep=None, bytes_per_sep=1)\n--\n\nHexadecimal representation of binary data."),
     module_method!(c"hexlify", hexlify, c"hexlify($module, data, /, sep=None, bytes_per_sep=1)\n--\n\nHexadecimal representation of binary data."),
     module_method!(c"a2b_hex", a2b_hex, c"a2b_hex($module, hexstr, /, *, ignorechars=b'')\n--\n\nBinary data of hexadecimal representation."),
     module_method!(c"unhexlify", unhexlify, c"unhexlify($module, hexstr, /, *, ignorechars=b'')\n--\n\nBinary data of hexadecimal representation."),
     module_method!(c"crc32", crc32, c"crc32($module, data, crc=0, /)\n--\n\nCompute CRC-32 incrementally."),
     module_method!(c"crc_hqx", crc_hqx, c"crc_hqx($module, data, crc, /)\n--\n\nCompute CRC-CCITT incrementally."),
+    base64_method!(c"standard_b64encode", _base64::standard_b64encode, c"Encode with the standard Base64 alphabet"),
+    base64_method!(c"urlsafe_b64encode", _base64::urlsafe_b64encode, c"Encode with the URL-safe Base64 alphabet"),
+    base64_method!(c"b64decode", _base64::b64decode, c"Decode Base64 data for the public base64 module"),
+    base64_method!(c"b16encode", _base64::b16encode, c"Encode with the Base16 alphabet"),
+    base64_method!(c"b16decode", _base64::b16decode, c"Decode Base16 data for the public base64 module"),
+    base64_method!(c"b32encode", _base64::b32encode, c"Encode with the Base32 alphabet"),
+    base64_method!(c"b32decode", _base64::b32decode, c"Decode Base32 data for the public base64 module"),
+    base64_method!(c"b32hexencode", _base64::b32hexencode, c"Encode with the Base32hex alphabet"),
+    base64_method!(c"b32hexdecode", _base64::b32hexdecode, c"Decode Base32hex data for the public base64 module"),
+    base64_method!(c"b85encode", _base64::b85encode, c"Encode with the Base85 alphabet"),
+    base64_method!(c"b85decode", _base64::b85decode, c"Decode Base85 data for the public base64 module"),
+    base64_method!(c"z85encode", _base64::z85encode, c"Encode with the Z85 alphabet"),
+    base64_method!(c"z85decode", _base64::z85decode, c"Decode Z85 data for the public base64 module"),
+    base64_method!(c"a85encode", _base64::a85encode, c"Encode with the Ascii85 alphabet"),
+    base64_method!(c"a85decode", _base64::a85decode, c"Decode Ascii85 data for the public base64 module"),
     PyMethodDef::zeroed(),
 ];
 
