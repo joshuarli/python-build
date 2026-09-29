@@ -364,6 +364,14 @@ judge each workload separately.
 
 ## Hill-climbing loop
 
+Codex sessions use the separate
+[Codex coordinator](.agents/skills/rust-cpython-perf/SKILL.md) and
+[Codex climber](.agents/skills/rust-cpython-perf-climber/SKILL.md), with
+`gpt-6.1-sol` at `medium` effort for every agent. The Codex quiet-host helper
+is `.agents/skills/rust-cpython-perf/scripts/wait_quiet.py`. The handoff's
+pending quiet confirmation and memory-first order apply to both workflows.
+The Claude workflow below remains available with its own model policy.
+
 A Sonnet 5.5 coordinator runs the climb with the repository skill
 [`.claude/skills/rust-cpython-perf`](.claude/skills/rust-cpython-perf/SKILL.md);
 climber subagents (`.claude/agents/rust-perf-climber*.md`, pinned to
