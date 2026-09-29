@@ -440,7 +440,6 @@ name = "_statistics_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
- "cpython-sys",
 ]
 
 [[package]]
