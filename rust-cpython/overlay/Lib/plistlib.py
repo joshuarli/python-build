@@ -884,45 +884,77 @@ _FORMATS=frozendict({
 })
 
 
-_RUST_UNAVAILABLE = object()
+_rust = None
 
 
 def _rust_module():
     # Keep import-time bootstrap independent of the optional extension.
-    try:
-        import _plistlib_rs
-    except ImportError:
-        return None
-    return _plistlib_rs
+    global _rust
+    if _rust is None:
+        try:
+            import _plistlib_rs
+        except ImportError:
+            _rust = False
+        else:
+            _rust = _plistlib_rs
+    return _rust
 
 
-def _try_rust_load(data, fmt):
+def _aware_xml_date(*fields):
+    return datetime.datetime(*fields, tzinfo=datetime.UTC)
+
+
+def _naive_binary_date(seconds):
+    return datetime.datetime(2001, 1, 1) + datetime.timedelta(seconds=seconds)
+
+
+def _aware_binary_date(seconds):
+    epoch = datetime.datetime(2001, 1, 1, tzinfo=datetime.UTC)
+    return epoch + datetime.timedelta(seconds=seconds)
+
+
+def _date_to_seconds(d, aware_datetime):
+    if aware_datetime:
+        d = d.astimezone(datetime.UTC)
+        return (d - datetime.datetime(2001, 1, 1, tzinfo=datetime.UTC)).total_seconds()
+    return (d - datetime.datetime(2001, 1, 1)).total_seconds()
+
+
+def _rust_loads(module, data, fmt, aware_datetime):
+    # NotImplemented means the input is outside what the Rust reader handles;
+    # the Python parser then reads it and raises the exact exceptions.
+    if aware_datetime:
+        xml_date, binary_date = _aware_xml_date, _aware_binary_date
+    else:
+        xml_date, binary_date = datetime.datetime, _naive_binary_date
+    return module.loads(data, 0 if fmt is FMT_XML else 1, UID, xml_date, binary_date)
+
+
+def _rust_load(fp, fmt, aware_datetime):
     module = _rust_module()
-    if module is None:
-        return _RUST_UNAVAILABLE
-    try:
-        result = module.loads(data, 0 if fmt == FMT_XML else 1, UID,
-                              datetime.datetime.fromisoformat)
-    except (IndexError, TypeError, ValueError):
-        return _RUST_UNAVAILABLE
-    return _RUST_UNAVAILABLE if result is None else result
-
-
-def _snapshot_for_rust(fp):
+    if not module:
+        return NotImplemented
     if isinstance(fp, BytesIO):
-        return fp.getvalue()
-    try:
-        position = fp.tell()
-    except (AttributeError, OSError, ValueError):
-        return _RUST_UNAVAILABLE
-    if position != 0:
-        return _RUST_UNAVAILABLE
-    try:
-        data = fp.read()
-        fp.seek(position)
-    except (AttributeError, OSError, ValueError, TypeError):
-        return _RUST_UNAVAILABLE
-    return data if isinstance(data, bytes) else _RUST_UNAVAILABLE
+        if fp.tell() != 0:
+            return NotImplemented
+        data = fp.getvalue()
+    else:
+        try:
+            if fp.tell() != 0:
+                return NotImplemented
+            data = fp.read()
+        except (AttributeError, OSError, ValueError, TypeError):
+            return NotImplemented
+        if type(data) is not bytes:
+            fp.seek(0)
+            return NotImplemented
+    result = _rust_loads(module, data, fmt, aware_datetime)
+    if result is NotImplemented:
+        if not isinstance(fp, BytesIO):
+            fp.seek(0)
+    elif isinstance(fp, BytesIO):
+        fp.seek(0, os.SEEK_END)
+    return result
 
 
 def load(fp, *, fmt=None, dict_type=dict, aware_datetime=False):
@@ -944,16 +976,12 @@ def load(fp, *, fmt=None, dict_type=dict, aware_datetime=False):
     else:
         P = _FORMATS[fmt]['parser']
 
-    data = _snapshot_for_rust(fp)
+    if dict_type is dict:
+        result = _rust_load(fp, fmt, aware_datetime)
+        if result is not NotImplemented:
+            return result
     p = P(dict_type=dict_type, aware_datetime=aware_datetime)
-    result = p.parse(fp)
-    if (data is _RUST_UNAVAILABLE or dict_type is not dict or aware_datetime):
-        return result
-    candidate = _try_rust_load(data, fmt)
-    if candidate is not _RUST_UNAVAILABLE and candidate == result:
-        if _rust_module().same_graph(result, candidate):
-            return candidate
-    return result
+    return p.parse(fp)
 
 
 def loads(value, *, fmt=None, dict_type=dict, aware_datetime=False):
@@ -965,47 +993,42 @@ def loads(value, *, fmt=None, dict_type=dict, aware_datetime=False):
             raise TypeError("value must be bytes-like object when fmt is "
                             "FMT_BINARY")
         value = value.encode()
+    if type(value) is bytes and dict_type is dict:
+        module = _rust_module()
+        if module:
+            if fmt is None:
+                header = value[:32]
+                if _is_fmt_xml(header):
+                    fmt = FMT_XML
+                elif _is_fmt_binary(header):
+                    fmt = FMT_BINARY
+            if fmt is FMT_XML or fmt is FMT_BINARY:
+                result = _rust_loads(module, value, fmt, aware_datetime)
+                if result is not NotImplemented:
+                    return result
     fp = BytesIO(value)
     return load(fp, fmt=fmt, dict_type=dict_type, aware_datetime=aware_datetime)
 
 
-def _dump_python(value, fp, *, fmt, sort_keys, skipkeys, aware_datetime):
+def _dump_bytes(value, *, fmt, skipkeys, sort_keys, aware_datetime):
     if fmt not in _FORMATS:
         raise ValueError("Unsupported format: %r"%(fmt,))
 
+    module = _rust_module()
+    if module:
+        binary = fmt is FMT_BINARY
+        result = module.dumps(
+            value, 1 if binary else 0, bool(sort_keys), bool(skipkeys),
+            bool(aware_datetime), UID, frozendict, datetime.datetime,
+            _date_to_seconds if binary else _date_to_string)
+        if result is not NotImplemented:
+            return result
+
+    fp = BytesIO()
     writer = _FORMATS[fmt]["writer"](fp, sort_keys=sort_keys, skipkeys=skipkeys,
                                      aware_datetime=aware_datetime)
     writer.write(value)
-
-
-def _try_rust_dump(value, *, fmt, sort_keys, skipkeys, aware_datetime):
-    if fmt not in _FORMATS:
-        return _RUST_UNAVAILABLE
-    module = _rust_module()
-    if module is None:
-        return _RUST_UNAVAILABLE
-    try:
-        result = module.dumps(
-            value, 0 if fmt == FMT_XML else 1, sort_keys, skipkeys, UID,
-            frozendict, datetime.datetime,
-            lambda date: _date_to_string(date, aware_datetime))
-    except (IndexError, OverflowError, TypeError, ValueError):
-        return _RUST_UNAVAILABLE
-    return _RUST_UNAVAILABLE if result is None else result
-
-
-def _dump_bytes(value, *, fmt, skipkeys, sort_keys, aware_datetime):
-    fp = BytesIO()
-    _dump_python(value, fp, fmt=fmt, skipkeys=skipkeys,
-                 sort_keys=sort_keys, aware_datetime=aware_datetime)
-    python_result = fp.getvalue()
-    rust_result = _try_rust_dump(
-        value, fmt=fmt, sort_keys=sort_keys, skipkeys=skipkeys,
-        aware_datetime=aware_datetime,
-    )
-    if rust_result is not _RUST_UNAVAILABLE and rust_result == python_result:
-        return rust_result
-    return python_result
+    return fp.getvalue()
 
 
 def dump(value, fp, *, fmt=FMT_XML, sort_keys=True, skipkeys=False,

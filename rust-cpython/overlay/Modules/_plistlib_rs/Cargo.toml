@@ -6,7 +6,6 @@ rust-version.workspace = true
 
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
-plist = { version = "=1.10.1", default-features = false, features = ["enable_unstable_features_that_may_break_with_minor_version_bumps"] }
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }
