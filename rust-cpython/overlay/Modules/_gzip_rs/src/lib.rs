@@ -1,8 +1,9 @@
 use std::cell::UnsafeCell;
-use std::ffi::{CStr, CString, c_char, c_int, c_void};
+use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_void};
 use std::mem::{self, MaybeUninit};
 use std::ptr;
 use std::slice;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::PyBool_FromLong;
@@ -191,9 +192,62 @@ struct Compressor {
     finished: bool,
 }
 
+const BLOCK_HEADER: usize = 16;
+/// Blocks at least this large are kept for the next compressor.
+const CACHE_MIN: usize = 64 * 1024;
+static CACHED_BLOCK: AtomicPtr<u8> = AtomicPtr::new(ptr::null_mut());
+
+unsafe extern "C" {
+    fn malloc(size: usize) -> *mut c_void;
+    fn free(pointer: *mut c_void);
+}
+
+/// zlib allocator for the DEFLATE state (one block of about 300 KiB). The
+/// freed block is kept for the next compressor instead of going back to the
+/// system, where the large block would be returned and touched again each
+/// time. Each block records its size in a header.
+unsafe extern "C" fn zalloc_cached(_opaque: *mut c_void, items: c_uint, size: c_uint) -> *mut c_void {
+    let total = items as usize * size as usize;
+    if total == 0 {
+        return ptr::null_mut();
+    }
+    if total >= CACHE_MIN {
+        let block = CACHED_BLOCK.swap(ptr::null_mut(), Ordering::AcqRel);
+        if !block.is_null() {
+            if unsafe { block.cast::<usize>().read() } == total {
+                return unsafe { block.add(BLOCK_HEADER) }.cast();
+            }
+            unsafe { free(block.cast()) };
+        }
+    }
+    let block = unsafe { malloc(total + BLOCK_HEADER) }.cast::<u8>();
+    if block.is_null() {
+        return ptr::null_mut();
+    }
+    unsafe { block.cast::<usize>().write(total) };
+    unsafe { block.add(BLOCK_HEADER) }.cast()
+}
+
+unsafe extern "C" fn zfree_cached(_opaque: *mut c_void, pointer: *mut c_void) {
+    if pointer.is_null() {
+        return;
+    }
+    let block = unsafe { pointer.cast::<u8>().sub(BLOCK_HEADER) };
+    if unsafe { block.cast::<usize>().read() } >= CACHE_MIN {
+        let old = CACHED_BLOCK.swap(block, Ordering::AcqRel);
+        if !old.is_null() {
+            unsafe { free(old.cast()) };
+        }
+    } else {
+        unsafe { free(block.cast()) };
+    }
+}
+
 impl Compressor {
     fn new(level: c_int) -> Result<Self, c_int> {
         let mut z = Box::new(z_stream::default());
+        z.zalloc = Some(zalloc_cached);
+        z.zfree = Some(zfree_cached);
         let err = unsafe {
             deflateInit2_(
                 &mut *z,
@@ -466,7 +520,7 @@ unsafe extern "C" fn compressor_new(
         return ptr::null_mut();
     }
     if !(-1..=9).contains(&level) {
-        set_value_error(c"compression level must be between 0 and 9");
+        set_value_error(c"Bad compression level");
         return ptr::null_mut();
     }
     match Compressor::new(level as c_int) {
@@ -588,7 +642,7 @@ unsafe extern "C" fn compress_member(
         return ptr::null_mut();
     }
     if !(-1..=9).contains(&level) {
-        set_value_error(c"compression level must be between 0 and 9");
+        set_value_error(c"Bad compression level");
         return ptr::null_mut();
     }
     let mtime = unsafe { PyLong_AsLongLong(*args.add(2)) };
