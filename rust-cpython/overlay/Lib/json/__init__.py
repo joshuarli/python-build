@@ -104,8 +104,13 @@ __author__ = 'Bob Ippolito <bob@redivi.com>'
 
 from .decoder import JSONDecoder, JSONDecodeError
 from .encoder import JSONEncoder
-from . import _rust
 import codecs
+try:
+    import _json_rs
+except ImportError:  # the extension does not exist yet while CPython builds
+    class _json_rs:
+        dumps = staticmethod(lambda obj: None)
+        loads = staticmethod(lambda s: NotImplemented)
 
 _default_encoder = JSONEncoder(
     skipkeys=False,
@@ -168,7 +173,7 @@ def dump(obj, fp, *, skipkeys=False, ensure_ascii=True, check_circular=True,
         check_circular and allow_nan and
         cls is None and indent is None and separators is None and
         default is None and not sort_keys and not kw):
-        encoded = _rust.dumps(obj)
+        encoded = _json_rs.dumps(obj)
         iterable = (encoded,) if encoded is not None else _default_encoder.iterencode(obj)
     else:
         if cls is None:
@@ -233,7 +238,7 @@ def dumps(obj, *, skipkeys=False, ensure_ascii=True, check_circular=True,
         check_circular and allow_nan and
         cls is None and indent is None and separators is None and
         default is None and not sort_keys and not kw):
-        encoded = _rust.dumps(obj)
+        encoded = _json_rs.dumps(obj)
         if encoded is not None:
             return encoded
         return _default_encoder.encode(obj)
@@ -373,8 +378,8 @@ def loads(s, *, cls=None, object_hook=None, parse_float=None,
             parse_int is None and parse_float is None and
             parse_constant is None and object_pairs_hook is None
             and array_hook is None and not kw):
-        handled, value = _rust.loads(s)
-        if handled:
+        value = _json_rs.loads(s)
+        if value is not NotImplemented:
             return value
         return _default_decoder.decode(s)
     if cls is None:
