@@ -15,3 +15,11 @@ members = [
 [workspace.package]
 # Make sure to also update the Rust toolchains in GitHub Actions whenever this version is modified
 rust-version = "1.95"
+
+# A `no_std` extension cannot link Rust's unwinding panic runtime; no crate
+# here catches a panic (extern "C" entry points abort on unwind already).
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
