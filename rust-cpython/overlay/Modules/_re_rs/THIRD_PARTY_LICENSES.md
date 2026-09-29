@@ -1,8 +1,10 @@
 # Rust regular expression dependency licenses
 
-The `_re_rs` bridge uses the locked `regex` crate with its default Unicode and
-standard-library features. The complete dependency closure is pinned in the
-overlay `Cargo.lock`:
+The `_re_rs` bridge uses the locked `regex` crate with its standard-library and
+performance features but no Unicode features (patterns and subjects are ASCII,
+so it builds byte-mode ASCII expressions), and `regex-syntax` directly to
+parse patterns at compile time. The complete dependency closure is pinned in
+the overlay `Cargo.lock`:
 
 | Crate | Version | Declared license |
 | --- | --- | --- |
