@@ -168,6 +168,12 @@ first batch.
   are the measuring stick. If a kernel misses part of its route's
   checklist behavior, fix the kernel yourself in a separate commit before
   the lane starts, rerun `goals --module M`, and say so in the ledger.
+- New agent worktrees branch from the primary checkout's current HEAD. Spawn
+  lanes only while the primary is on `main` and `perf-rust` was built from
+  `main`'s current overlay; never during an integration window (primary on an
+  `integrate-N` branch), or the lane starts from unaccepted commits and its
+  setup check fails BLOCKED. If a slot frees mid-window, queue the lane and
+  spawn it after the batch lands and `perf-rust` is rebuilt.
 - Before spawning a batch, commit on `main` everything the lanes need and
   confirm `perf-rust` is built at `main` HEAD: worktrees branch from `main`
   and the gate check requires the challenger to contain the incumbent
@@ -296,13 +302,30 @@ table meets the Unquiet host criteria.
 
 1. Rebase or merge the accepted lane branches onto `main` in one batch and
    reconcile shared files. Regenerate one `Cargo.lock` when crates changed
-   and inspect the package set before building. Do the merge in an
-   `integrate-N` worktree, not on `main` (fast-forward `main` only after the
+   and inspect the package set before building. Do the merge on an
+   `integrate-N` branch, not on `main` (fast-forward `main` only after the
    batch gate ACCEPTs); when crates changed, run `python3
    rust-cpython/build.py fetch` there to populate its cargo home, and after
    integrating copy that cargo home's new crates to the primary checkout the
    same way before rebuilding `perf-rust`.
-2. `perf.py build --name perf-merge`, then `perf.py test --name perf-merge
+   **Where to integrate.** Lane builds sit at long worktree paths, and gates of
+   lane builds against the primary-path `@incumbent` showed a 1% to 3%
+   `import_django` wall/CPU bias (a `zstd-glue` REJECT on that guard vanished
+   when the same code was built and gated in the primary checkout). So build
+   and gate the batch (`perf-merge`) in the primary checkout on a temporary
+   `integrate-N` branch, not in a worktree; then `git checkout main && git
+   merge --ff-only integrate-N`. A lane REJECT whose only regressed rows are
+   1% to 3% `import_django` (or other startup-bound guards) with no
+   plausible mechanism is re-decided by that primary-path batch gate.
+2. `perf.py build --name perf-merge`; check that it printed `OK` (never chain
+   a gate or suite behind an unchecked build; both refuse a failed one).
+   Lanes hand-edit `overlay/Cargo.lock`, and two edits in different places
+   merge textually but can leave a lock that `cargo fetch --locked` rejects
+   (`cannot update the lock file`). Fix: in `work/perf/perf-merge/source/cpython-*/`
+   run `env CARGO_HOME=<primary>/rust-cpython/.cargo-home <cargo-home>/bin/cargo
+   metadata --offline --format-version 1` (no `--locked`), copy that
+   `Cargo.lock` to `overlay/Cargo.lock`, commit it, and rebuild. Then
+   `perf.py test --name perf-merge
    --all`. On failure, bisect the batch at `xhigh`, drop or repair the
    interacting lane, and repeat.
 3. `perf.py bench --baseline @incumbent --candidate perf-merge --gate

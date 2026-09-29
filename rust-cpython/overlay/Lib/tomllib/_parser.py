@@ -160,24 +160,16 @@ def loads(s: str, /, *, parse_float: ParseFloat = float) -> dict[str, Any]:
             f"Expected str object, not '{type(s).__qualname__}'"
         ) from None
     parse_float = make_safe_parse_float(parse_float)
-    encoded = None
     if type(src) is str:
         try:
             from _tomllib_rs import loads as rust_loads
 
-            encoded = rust_loads(src)
+            values = rust_loads(src, parse_float)
         except (ImportError, UnicodeEncodeError):
             pass
-    if encoded is not None:
-        import json
-
-        try:
-            values = json.loads(encoded)
-            _validate_rust_datetimes(values)
-        except (_RustDateConversionError, RecursionError):
-            pass
         else:
-            return _decode_rust_value(values, parse_float)
+            if values is not None:
+                return values
 
     pos = 0
     out = Output()
@@ -236,80 +228,6 @@ def loads(s: str, /, *, parse_float: ParseFloat = float) -> dict[str, Any]:
         pos += 1
 
     return out.data.dict
-
-
-# Each Rust value is wrapped with a numeric type tag, so user strings and
-# tables cannot be confused with TOML-specific scalar representations.
-_RUST_TABLE = 0
-_RUST_ARRAY = 1
-_RUST_STRING = 2
-_RUST_INTEGER = 3
-_RUST_FLOAT = 4
-_RUST_BOOLEAN = 5
-_RUST_DATETIME = 6
-
-
-class _RustDateConversionError(Exception):
-    pass
-
-
-def _decode_rust_datetime(kind: int, raw: str) -> Any:
-    import datetime
-
-    if kind == 0:
-        constructor = datetime.date.fromisoformat
-    elif kind == 1:
-        constructor = datetime.time.fromisoformat
-    elif kind == 2:
-        constructor = datetime.datetime.fromisoformat
-        raw = raw.replace("t", "T", 1)
-        if raw.endswith(("z", "Z")):
-            raw = raw[:-1] + "+00:00"
-    else:
-        raise AssertionError("unknown Rust TOML datetime marker")
-    try:
-        return constructor(raw)
-    except ValueError as error:
-        raise _RustDateConversionError from error
-
-
-def _validate_rust_datetimes(value: Any) -> None:
-    tag, payload = value
-    if tag == _RUST_DATETIME:
-        _decode_rust_datetime(*payload)
-    elif tag == _RUST_ARRAY:
-        for item in payload:
-            _validate_rust_datetimes(item)
-    elif tag == _RUST_TABLE:
-        for _key, item in payload:
-            _validate_rust_datetimes(item)
-
-
-def _decode_rust_value(value: Any, parse_float: ParseFloat) -> Any:
-    root: list[Any] = [None]
-    pending = [(value, root, 0)]
-    while pending:
-        encoded, parent, key = pending.pop()
-        tag, payload = encoded
-        if tag == _RUST_TABLE:
-            decoded: dict[str, Any] = {}
-            parent[key] = decoded
-            for name, item in reversed(payload):
-                pending.append((item, decoded, name))
-        elif tag == _RUST_ARRAY:
-            decoded = [None] * len(payload)
-            parent[key] = decoded
-            for index in reversed(range(len(payload))):
-                pending.append((payload[index], decoded, index))
-        elif tag == _RUST_STRING or tag == _RUST_INTEGER or tag == _RUST_BOOLEAN:
-            parent[key] = payload
-        elif tag == _RUST_FLOAT:
-            parent[key] = parse_float(payload)
-        elif tag == _RUST_DATETIME:
-            parent[key] = _decode_rust_datetime(*payload)
-        else:
-            raise AssertionError("unknown Rust TOML value tag")
-    return root[0]
 
 
 class Flags:
