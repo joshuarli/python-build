@@ -43,6 +43,22 @@ class RustLauncherTests(unittest.TestCase):
             self.assertEqual(result.stdout, "cargo\npinned-rustc\n")
 
 
+class MacOSDependencyProbeTests(unittest.TestCase):
+    def test_mpdecimal_metadata_is_visible_to_configure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            pkgconfig = prefix / "lib" / "pkgconfig"
+            pkgconfig.mkdir(parents=True)
+            def command(argv):
+                if argv == ["brew", "--prefix", "mpdecimal"]:
+                    return {"returncode": 0, "output": str(prefix)}
+                return {"returncode": 1, "output": ""}
+            with mock.patch.object(perf.lb.shutil, "which", return_value="brew"), \
+                    mock.patch.object(perf.lb, "_command", side_effect=command):
+                found = perf.lb._brew_pkg_config_path().split(":")
+            self.assertIn(str(pkgconfig), found)
+
+
 class MacOSDeploymentProbeTests(unittest.TestCase):
     def test_new_sdk_posix_functions_are_disabled_below_their_introduction(self):
         toolchain = SimpleNamespace(deployment_target="26.0", sdkroot=Path("/SDK"))

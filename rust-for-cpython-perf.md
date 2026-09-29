@@ -20,6 +20,10 @@ pinned nightly; they work without Homebrew compiler proxies on PATH.
 The isolated lane disables configure probes for `dup3` and `pipe2` below
 macOS 27, using the existing POSIX paths at its 26.0 deployment floor even
 with SDK 27. Both pristine and overlay builds use this same cache policy.
+The macOS lane now exposes Homebrew mpdecimal pkg-config metadata, so
+`_decimal` and the C-backed decimal tests are present. mpdecimal 4.0.1
+is provisioned for this experimental lane; production dependency recipes
+and frozen Linux inputs are unchanged.
 Rebuild both performance interpreters, recalibrate, and record fresh
 baselines before accepting measurements under this toolchain. The older
 handoff below describes historical builds, not local stage availability.

@@ -793,7 +793,7 @@ def _brew_pkg_config_path() -> str:
     if not brew:
         return ""
     found: list[str] = []
-    for formula in ("openssl@3", "sqlite", "libffi", "xz", "bzip2", "zstd"):
+    for formula in ("openssl@3", "sqlite", "libffi", "xz", "bzip2", "zstd", "mpdecimal"):
         result = _command([brew, "--prefix", formula])
         if result["returncode"] != 0:
             continue
