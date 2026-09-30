@@ -35,6 +35,18 @@ assert re.search(pattern, 'ABC').span() == (0, 3)
 assert '_re_rs' not in sys.modules
 """)
 
+    def test_unsupported_native_search_flags_do_not_load_rust(self):
+        for flag in (2, 8, 16, 64, 98, 112, 256):
+            with self.subTest(flag=flag):
+                self.check_process(f"""
+import sys
+import re
+pattern = re._compiler.compile('abc', {flag})
+assert type(pattern.flags) is int
+assert re._rust_search(pattern, 'ABC') is re._RUST_SEARCH_UNSUPPORTED
+assert '_re_rs' not in sys.modules
+""")
+
     def test_supported_compile_and_search_execute_rust(self):
         self.check_process("""
 import re
@@ -88,6 +100,23 @@ class Text(str):
 assert re.search(Text('abc'), 'abc').span() == (0, 3)
 assert re.search(b'abc', b'abc').span() == (0, 3)
 assert '_re_rs' not in sys.modules
+""")
+
+    def test_own_gil_pattern_routes(self):
+        self.check_process("""
+import _interpreters
+interpreter = _interpreters.create()
+try:
+    result = _interpreters.run_string(interpreter, '''
+import sys
+import re
+assert re.search('abc', 'ABC', re.IGNORECASE).span() == (0, 3)
+assert '_re_rs' not in sys.modules
+assert re.search('ab[cd]+', 'abcd').span() == (0, 4)
+''')
+    assert result is None, result
+finally:
+    _interpreters.destroy(interpreter)
 """)
 
 
