@@ -34,8 +34,8 @@ Doctor/status passed on resumption. The verified incumbent remains `7cf55a6`
 (clean58, full50,158/2,748) and its overlay matches documentation HEAD
 `b43b5d4`; the pristine control remains `7351620`. Fresh full module memory goals read 10 OVER / 16 UNCLEAR / 45 MET or BEYOND.
 Memory-only self-calibration `20260930T233108Z` passed: all seven workload
-RSS rows neutral in both runs. The fresh absolute workload comparison is
-pending. The explicit harness policy is committed at `e32c713`; 43 focused
+RSS rows neutral in both runs. The fresh absolute workload comparison `20260930T233748Z` reads 16 RSS
+regressions, 3 neutral and 4 improved. The explicit harness policy is committed at `e32c713`; 43 focused
 contract tests pass. No new memory improvement is claimed yet.
 
 ## Latest handoff (2026-09-30)
@@ -626,44 +626,46 @@ SQLite and compression.zstd working peak. These findings do not waive workload
 RSS requirements. Remaining module rows and the full workload comparison stay
 visible below; CPU work has not started.
 
-### Latest completed absolute workload comparison
+### Latest completed absolute workload memory comparison
 
-Fresh quiet two-run primary control comparison at `a9a80e4`, evidence
-`20260930T204927Z`: **19 RSS regressions, 3 neutral, 1 improved** across all
-23 workloads. This supersedes the earlier `aec8c68` workload snapshot.
-The integration gate against the previous incumbent passed; this absolute
-comparison keeps the memory phase open and does not reject that improvement.
+Fresh replicated primary control comparison at `7cf55a6`, evidence
+`20260930T233748Z`, uses the explicit memory-only policy: **16 RSS regressions,
+3 neutral, 4 improved** across all 23 workloads. Host quietness is not checked;
+CPU and wall results are excluded. The decision is REJECT for the outstanding
+absolute memory debt, not for a newly proposed optimization. No output mismatch
+or unstable memory metric was observed. This replaces the older `a9a80e4`
+absolute memory picture; no baseline files were refreshed.
 
-| Workload | Wall | CPU | Peak RSS |
-| --- | --- | --- | --- |
-| `catalog_json_export` | 0.949x improved | 0.972x improved | 1.017x neutral |
-| `catalog_request_path` | 0.719x improved | 0.785x improved | 1.045x regressed |
-| `catalog_search_form` | 0.410x improved | 0.444x improved | 1.028x regressed |
-| `catalog_url_normalize` | 0.896x improved | 0.896x improved | 1.022x regressed |
-| `compileall_source` | 0.917x improved | 1.136x regressed | 1.089x regressed |
-| `difflib_unified_mostly_equal` | 1.532x regressed | 1.461x regressed | 1.021x regressed |
-| `difflib_unified_reordered` | 1.007x neutral | 0.998x neutral | 1.021x neutral |
-| `django_asgi_request` | 1.021x neutral | 1.108x regressed | 1.053x regressed |
-| `django_orm_10k` | 2.030x regressed | 1.170x regressed | 1.051x regressed |
-| `django_template_realistic` | 1.084x regressed | 1.115x regressed | 1.055x regressed |
-| `django_wsgi_first_request` | 1.158x regressed | 1.166x regressed | 1.086x regressed |
-| `django_wsgi_request` | 1.036x neutral | 1.119x regressed | 1.053x regressed |
-| `gzip_extract_1m` | 0.489x improved | 0.987x neutral | 0.994x neutral |
-| `import_django` | 1.176x regressed | 1.146x regressed | 1.059x regressed |
-| `multiprocess_pool` | 1.011x neutral | 0.966x neutral | 1.036x regressed |
-| `python_startup` | 1.002x neutral | 1.064x regressed | 1.030x regressed |
-| `rust_base64_large` | 0.612x improved | 0.929x improved | 1.025x regressed |
-| `rust_base64_small` | 0.894x improved | 0.970x improved | 1.010x regressed |
-| `serialization_roundtrip` | 1.007x neutral | 1.011x neutral | 1.056x regressed |
-| `zip_read_wheel` | 1.021x neutral | 1.050x regressed | 1.030x regressed |
-| `zipimport_cold` | 1.157x regressed | 1.173x regressed | 1.079x regressed |
-| `zlib_decode_1m` | 0.567x improved | 0.988x neutral | 0.940x improved |
-| `zlib_stream_4k` | 0.690x improved | 1.013x neutral | 1.031x regressed |
+| Workload | Peak RSS | Memory verdict |
+| --- | --- | --- |
+| `catalog_json_export` | 0.989x | neutral |
+| `catalog_request_path` | 1.034x | regressed |
+| `catalog_search_form` | 1.020x | regressed |
+| `catalog_url_normalize` | 1.010x | neutral |
+| `compileall_source` | 1.072x | regressed |
+| `difflib_unified_mostly_equal` | 0.949x | improved |
+| `difflib_unified_reordered` | 0.951x | improved |
+| `django_asgi_request` | 1.050x | regressed |
+| `django_orm_10k` | 1.048x | regressed |
+| `django_template_realistic` | 1.048x | regressed |
+| `django_wsgi_first_request` | 1.083x | regressed |
+| `django_wsgi_request` | 1.050x | regressed |
+| `gzip_extract_1m` | 0.981x | improved |
+| `import_django` | 1.051x | regressed |
+| `multiprocess_pool` | 1.023x | regressed |
+| `python_startup` | 1.019x | regressed |
+| `rust_base64_large` | 1.016x | regressed |
+| `rust_base64_small` | 1.000x | neutral |
+| `serialization_roundtrip` | 1.033x | regressed |
+| `zip_read_wheel` | 1.018x | regressed |
+| `zipimport_cold` | 1.058x | regressed |
+| `zlib_decode_1m` | 0.930x | improved |
+| `zlib_stream_4k` | 1.016x | regressed |
 
-The next acceptance evidence must compare the challenger against the
-qualified incumbent, include complete suites, and retain application guards.
-The memory phase stays open until its absolute workload condition and
-module/debt condition both pass.
+Candidate acceptance must compare against the qualified incumbent, retain
+replicated memory guards and output checks, and pass complete suites. The
+memory phase remains open until all module memory goals and every workload's
+absolute peak RSS pass; debt entries do not waive completion.
 
 ## Handoff (2026-09-29)
 
