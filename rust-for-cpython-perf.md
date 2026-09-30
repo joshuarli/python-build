@@ -428,44 +428,70 @@ import cost in its already built-in helper; validated native counters showed
 its callbacks unused by the affected kernels. These findings change no
 coverage routes or regression thresholds.
 
+### Qualified candidates awaiting primary integration
+
+Difflib `73141db` passed a clean build, complete suites (1,696 run/16 skipped,
+zero failures), and native/palette/interpreter-boundary checks. Its quiet
+all-workload two-run lane gate `20260930T211406Z` accepted load0.150x and
+both diff workloads' RSS0.941x/0.940x versus `a9a80e4`, with every remaining
+guard neutral. Lane control goals read load0.159x BEYOND and working peak MET.
+Primary qualification remains required before advancing `main`.
+
+The accepted argparse definition guard could invoke a user-defined equality
+method on a monkeypatched docstring and fail parser construction. The smallest
+isolated regression fails before the repair and passes against pristine CPython.
+The `9eb81f2` repair checks definition size, key presence and value identity;
+four staged regression tests, all seven complete suites (2,672/145, zero
+failures), and native/help/custom-formatter/interpreter checks pass. It makes
+no additional performance claim and is included in the primary trial.
+
+Collections, struct and SQLite linker experiments each removed a real dirty
+metadata page but remained neutral on actual module memory. CSV's smaller
+writer buffer improved CPU alone and was discarded. Regex's initialized
+metadata cannot fit one fewer page. All experiments were reverted; no page
+count or CPU-only result substitutes for a replicated memory improvement.
+The subsequent shared-image upper bound is 384 KiB across Django processes,
+below its approximately 758 KiB RSS floor, and startup loads no dynamic helper.
+Workload attribution continues with no change to the completion condition.
+
 ### Current workload picture
 
-Quiet two-run absolute comparison at `aec8c68`, recorded 2026-09-30
-(`20260930T151421Z-perf-upstream-vs-perf-rust`). Peak RSS remains
-regressed on 22 of 23 workloads; `zlib_decode_1m` improves. These rows
-describe the incumbent after memory batch 4; they do not establish acceptance
-of a subsequent challenger or complete the memory phase.
+Fresh quiet two-run primary control comparison at `a9a80e4`, evidence
+`20260930T204927Z`: **19 RSS regressions, 3 neutral, 1 improved** across all
+23 workloads. This supersedes the earlier `aec8c68` workload snapshot.
+The integration gate against the previous incumbent passed; this absolute
+comparison keeps the memory phase open and does not reject that improvement.
 
 | Workload | Wall | CPU | Peak RSS |
 | --- | --- | --- | --- |
-| `catalog_json_export` | 0.954x improved | 0.993x neutral | 1.053x regressed |
-| `catalog_request_path` | 0.712x improved | 0.816x improved | 1.093x regressed |
-| `catalog_search_form` | 0.410x improved | 0.453x improved | 1.071x regressed |
-| `catalog_url_normalize` | 0.903x improved | 0.912x improved | 1.073x regressed |
-| `compileall_source` | 0.923x improved | 1.135x regressed | 1.084x regressed |
-| `difflib_unified_mostly_equal` | 1.538x regressed | 1.495x regressed | 1.074x regressed |
-| `difflib_unified_reordered` | 1.007x regressed | 1.032x regressed | 1.074x regressed |
-| `django_asgi_request` | 1.032x regressed | 1.109x regressed | 1.052x regressed |
-| `django_orm_10k` | 2.014x regressed | 1.173x regressed | 1.051x regressed |
-| `django_template_realistic` | 1.081x regressed | 1.120x regressed | 1.050x regressed |
-| `django_wsgi_first_request` | 1.159x regressed | 1.169x regressed | 1.084x regressed |
-| `django_wsgi_request` | 1.041x regressed | 1.115x regressed | 1.051x regressed |
-| `gzip_extract_1m` | 0.496x improved | 1.115x regressed | 1.023x regressed |
-| `import_django` | 1.175x regressed | 1.186x regressed | 1.074x regressed |
-| `multiprocess_pool` | 1.025x neutral | 1.024x neutral | 1.065x regressed |
-| `python_startup` | 0.998x neutral | 1.064x regressed | 1.030x regressed |
-| `rust_base64_large` | 0.612x improved | 1.093x regressed | 1.075x regressed |
-| `rust_base64_small` | 0.890x improved | 1.154x regressed | 1.074x regressed |
-| `serialization_roundtrip` | 1.007x neutral | 1.046x regressed | 1.073x regressed |
-| `zip_read_wheel` | 0.995x neutral | 1.163x regressed | 1.051x regressed |
-| `zipimport_cold` | 1.162x regressed | 1.174x regressed | 1.075x regressed |
-| `zlib_decode_1m` | 0.571x improved | 1.097x regressed | 0.965x improved |
-| `zlib_stream_4k` | 0.689x improved | 1.125x regressed | 1.055x regressed |
+| `catalog_json_export` | 0.949x improved | 0.972x improved | 1.017x neutral |
+| `catalog_request_path` | 0.719x improved | 0.785x improved | 1.045x regressed |
+| `catalog_search_form` | 0.410x improved | 0.444x improved | 1.028x regressed |
+| `catalog_url_normalize` | 0.896x improved | 0.896x improved | 1.022x regressed |
+| `compileall_source` | 0.917x improved | 1.136x regressed | 1.089x regressed |
+| `difflib_unified_mostly_equal` | 1.532x regressed | 1.461x regressed | 1.021x regressed |
+| `difflib_unified_reordered` | 1.007x neutral | 0.998x neutral | 1.021x neutral |
+| `django_asgi_request` | 1.021x neutral | 1.108x regressed | 1.053x regressed |
+| `django_orm_10k` | 2.030x regressed | 1.170x regressed | 1.051x regressed |
+| `django_template_realistic` | 1.084x regressed | 1.115x regressed | 1.055x regressed |
+| `django_wsgi_first_request` | 1.158x regressed | 1.166x regressed | 1.086x regressed |
+| `django_wsgi_request` | 1.036x neutral | 1.119x regressed | 1.053x regressed |
+| `gzip_extract_1m` | 0.489x improved | 0.987x neutral | 0.994x neutral |
+| `import_django` | 1.176x regressed | 1.146x regressed | 1.059x regressed |
+| `multiprocess_pool` | 1.011x neutral | 0.966x neutral | 1.036x regressed |
+| `python_startup` | 1.002x neutral | 1.064x regressed | 1.030x regressed |
+| `rust_base64_large` | 0.612x improved | 0.929x improved | 1.025x regressed |
+| `rust_base64_small` | 0.894x improved | 0.970x improved | 1.010x regressed |
+| `serialization_roundtrip` | 1.007x neutral | 1.011x neutral | 1.056x regressed |
+| `zip_read_wheel` | 1.021x neutral | 1.050x regressed | 1.030x regressed |
+| `zipimport_cold` | 1.157x regressed | 1.173x regressed | 1.079x regressed |
+| `zlib_decode_1m` | 0.567x improved | 0.988x neutral | 0.940x improved |
+| `zlib_stream_4k` | 0.690x improved | 1.013x neutral | 1.031x regressed |
 
-The next acceptance evidence must compare lane or integrated challenger
-against the qualified incumbent, include complete suites, and retain the
-application guards. The memory phase stays open until its absolute workload
-condition and module/debt condition both pass.
+The next acceptance evidence must compare the challenger against the
+qualified incumbent, include complete suites, and retain application guards.
+The memory phase stays open until its absolute workload condition and
+module/debt condition both pass.
 
 ## Handoff (2026-09-29)
 
