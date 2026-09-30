@@ -4,7 +4,7 @@ import keyword
 lazy import itertools
 import annotationlib
 import abc
-from _thread import get_ident as _get_ident
+from _thread import get_ident as _get_ident, RLock as _RLock
 lazy import copy
 lazy import re
 
@@ -34,23 +34,34 @@ __all__ = ['dataclass',
            ]
 
 
+# Share only active representation keys so each generated method does not
+# retain an empty set. The lock keeps releasing empty storage atomic with
+# another thread entering a representation.
+_repr_running = set()
+_repr_lock = _RLock()
+
+
 # Dataclass representations need recursion protection without loading the
 # general bounded-representation machinery and its iterator dependency.
 def recursive_repr(fillvalue='...'):
     'Decorator to make a repr function return fillvalue for a recursive call'
 
     def decorating_function(user_function):
-        repr_running = set()
-
         def wrapper(self):
-            key = id(self), _get_ident()
-            if key in repr_running:
-                return fillvalue
-            repr_running.add(key)
+            # Each function has an independent recursion scope for the same
+            # object and thread.
+            key = id(self), _get_ident(), id(user_function)
+            with _repr_lock:
+                if key in _repr_running:
+                    return fillvalue
+                _repr_running.add(key)
             try:
                 result = user_function(self)
             finally:
-                repr_running.discard(key)
+                with _repr_lock:
+                    _repr_running.discard(key)
+                    if not _repr_running:
+                        _repr_running.clear()
             return result
 
         wrapper.__module__ = getattr(user_function, '__module__')
