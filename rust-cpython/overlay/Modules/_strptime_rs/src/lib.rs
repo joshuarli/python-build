@@ -500,15 +500,16 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
 
 fn convert_groups(
     groups: &DirectiveGroups<'_>,
-    locale: &LocaleData<'_>,
+    locale: Option<&LocaleData<'_>>,
 ) -> Option<[i64; 16]> {
-    if locale.full_weekdays.len() != 7
+    if let Some(locale) = locale
+        && (locale.full_weekdays.len() != 7
         || locale.short_weekdays.len() != 7
         || locale.full_months.len() != 13
         || locale.short_months.len() != 13
         || locale.am_pm.len() != 2
         || locale.timezones.len() != 2
-        || locale.tzname.len() != 2
+        || locale.tzname.len() != 2)
     {
         return None;
     }
@@ -534,10 +535,12 @@ fn convert_groups(
                 fields.has_month = true;
             }
             "B" => {
+                let locale = locale?;
                 fields.month = find_locale_name(value, locale.full_months.iter().skip(1))? + 1;
                 fields.has_month = true;
             }
             "b" => {
+                let locale = locale?;
                 fields.month = find_locale_name(value, locale.short_months.iter().skip(1))? + 1;
                 fields.has_month = true;
             }
@@ -550,6 +553,7 @@ fn convert_groups(
                 fields.has_hour = true;
             }
             "I" => {
+                let locale = locale?;
                 let mut hour = parse_decimal(value)?;
                 let lowercase = Lowercase::new(group_value(groups, "p").unwrap_or(""))?;
                 let am_pm = lowercase.text()?;
@@ -580,8 +584,8 @@ fn convert_groups(
                 fields.fraction = parse_decimal(&padded)?;
                 fields.has_fraction = true;
             }
-            "A" => fields.weekday = Some(find_locale_name(value, locale.full_weekdays.iter())?),
-            "a" => fields.weekday = Some(find_locale_name(value, locale.short_weekdays.iter())?),
+            "A" => fields.weekday = Some(find_locale_name(value, locale?.full_weekdays.iter())?),
+            "a" => fields.weekday = Some(find_locale_name(value, locale?.short_weekdays.iter())?),
             "w" => {
                 let day = parse_decimal(value)?;
                 fields.weekday = Some(if day == 0 { 6 } else { day - 1 });
@@ -601,6 +605,7 @@ fn convert_groups(
                 (fields.utc_offset, fields.utc_offset_fraction) = parse_utc_offset(value)?;
             }
             "Z" => {
+                let locale = locale?;
                 let lowercase = Lowercase::new(value)?;
                 let found_zone = lowercase.text()?;
                 for (index, timezone_names) in locale.timezones.iter().enumerate() {
@@ -760,7 +765,11 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
         tzname,
         daylight: daylight != 0,
     };
-    let fields = match convert_groups(&groups, &locale) {
+    unsafe { fields_tuple(convert_groups(&groups, Some(&locale))) }
+}
+
+unsafe fn fields_tuple(fields: Option<[i64; 16]>) -> *mut PyObject {
+    let fields = match fields {
         Some(fields) => fields,
         None => {
             if !unsafe { PyErr_Occurred() }.is_null() {
@@ -786,6 +795,27 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
         }
     }
     result
+}
+
+// Numeric directives need no locale snapshot. Unsupported locale names ask the
+// wrapper to call the full entry point; both paths share chrono conversion.
+unsafe extern "C" fn parse_numeric_groups(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 1 {
+        return unsafe { PyTuple_New(0) };
+    }
+    let owners = unsafe { slice::from_raw_parts(args, 1) };
+    let groups = match unsafe { read_groups(owners[0], owners) } {
+        Some(groups) => groups,
+        None => return unsafe { fields_tuple(None) },
+    };
+    if groups.iter().any(|(key, _)| matches!(key, "A" | "a" | "B" | "b" | "I" | "p" | "Z")) {
+        return unsafe { PyTuple_New(0) };
+    }
+    unsafe { fields_tuple(convert_groups(&groups, None)) }
 }
 
 unsafe extern "C" fn parse_groups(
@@ -827,7 +857,7 @@ static MODULE_SLOTS: ModuleSlots = ModuleSlots([
     PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
 ]);
 
-pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 2] = {
+pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 3] = {
     [
         PyMethodDef {
             ml_name: c"parse_groups".as_ptr() as *mut c_char,
@@ -836,6 +866,12 @@ pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 2] = {
             },
             ml_flags: METH_FASTCALL,
             ml_doc: c"Parse matched strptime directive fields.".as_ptr() as *mut c_char,
+        },
+        PyMethodDef {
+            ml_name: c"parse_numeric_groups".as_ptr() as *mut c_char,
+            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse_numeric_groups },
+            ml_flags: METH_FASTCALL,
+            ml_doc: c"Parse matched locale-independent strptime fields.".as_ptr() as *mut c_char,
         },
         PyMethodDef::zeroed(),
     ]

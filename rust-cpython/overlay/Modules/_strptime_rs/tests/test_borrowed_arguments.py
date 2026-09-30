@@ -55,3 +55,14 @@ for upper in ("İ", "ΟΣ"):
     locale = fresh_locale()
     months = ("", upper.lower(), *locale[2][2:])
     assert _strptime_rs.parse_groups((("B", upper),), *locale[:2], months, *locale[3:])[2] == 1
+
+# Both Rust entry points use the same numeric/calendar conversion contract.
+for groups in ((), (("Y", "2024"), ("m", "2"), ("d", "29")),
+               (("G", "2024"), ("V", "1"), ("u", "1")),
+               (("Y", "2024"), ("j", "60")),
+               (("f", "123"), ("z", "+01:02:03.4")),
+               (("Y", "2024"), ("m", "2"), ("d", "30")),
+               (("Y",),), (("unsupported", "1"),)):
+    assert _strptime_rs.parse_numeric_groups(groups) == _strptime_rs.parse_groups(groups, *fresh_locale())
+for key in ("A", "a", "B", "b", "I", "p", "Z"):
+    assert _strptime_rs.parse_numeric_groups(((key, "1"),)) == ()
