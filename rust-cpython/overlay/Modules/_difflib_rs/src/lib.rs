@@ -1,43 +1,32 @@
-use std::cell::UnsafeCell;
-use std::collections::{HashMap, HashSet};
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+#![no_std]
 
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::Py_DecRef;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_Occurred;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyExc_ValueError;
-use cpython_sys::PyList_GetItem;
-use cpython_sys::PyList_Size;
-use cpython_sys::PyLong_AsLongLong;
-use cpython_sys::PyLong_FromLongLong;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::PyTuple_New;
-use cpython_sys::PyTuple_SetItem;
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
-fn set_type_error(message: &'static std::ffi::CStr) {
+mod ffi;
+use ffi::*;
+mod buffer;
+use buffer::MatchBuffer;
+
+fn set_type_error(message: &'static core::ffi::CStr) {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
 }
 
-fn set_value_error(message: &'static std::ffi::CStr) {
+fn set_value_error(message: &'static core::ffi::CStr) {
     unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) };
 }
 
-unsafe fn read_integer_list(arg: *mut PyObject) -> Option<Vec<i64>> {
+unsafe fn read_integer_list(arg: *mut PyObject) -> Option<MatchBuffer<i64>> {
     let length = unsafe { PyList_Size(arg) };
     if length < 0 {
         return None;
     }
-    let mut values = Vec::with_capacity(length as usize);
+    let mut values = MatchBuffer::new();
+    if values.try_reserve_exact(length as usize).is_err() {
+        unsafe { PyErr_NoMemory() };
+        return None;
+    }
     for index in 0..length {
         let item = unsafe { PyList_GetItem(arg, index) };
         if item.is_null() {
@@ -64,53 +53,80 @@ unsafe fn read_bound(arg: *mut PyObject) -> Option<usize> {
     usize::try_from(value).ok()
 }
 
+unsafe extern "C" fn compare_tokens(left: *const c_void, right: *const c_void) -> c_int {
+    let left = unsafe { *left.cast::<i64>() };
+    let right = unsafe { *right.cast::<i64>() };
+    (left > right) as c_int - (left < right) as c_int
+}
+
+unsafe extern "C" fn compare_positions(left: *const c_void, right: *const c_void) -> c_int {
+    let left = unsafe { *left.cast::<(i64, usize)>() };
+    let right = unsafe { *right.cast::<(i64, usize)>() };
+    (left > right) as c_int - (left < right) as c_int
+}
+
 fn longest_match(
     a: &[i64],
     b: &[i64],
-    popular: &[i64],
+    popular: &mut [i64],
     alo: usize,
     ahi: usize,
     blo: usize,
     bhi: usize,
-) -> (usize, usize, usize) {
-    let popular = popular.iter().copied().collect::<HashSet<_>>();
-    let mut b2j = HashMap::<i64, Vec<usize>>::new();
-    for (index, &element) in b.iter().enumerate() {
-        if !popular.contains(&element) {
-            b2j.entry(element).or_default().push(index);
+) -> Option<(usize, usize, usize)> {
+    if popular.len() > 1 {
+        unsafe { qsort(popular.as_mut_ptr().cast(), popular.len(), core::mem::size_of::<i64>(), compare_tokens) };
+    }
+    let mut positions = MatchBuffer::new();
+    if positions.try_reserve_exact(bhi - blo).is_err() {
+        unsafe { PyErr_NoMemory() };
+        return None;
+    }
+    for index in blo..bhi {
+        if popular.binary_search(&b[index]).is_err() {
+            positions.push((b[index], index));
         }
     }
-
+    // Ordering by token then position preserves the earliest-position tie rule
+    // while keeping all occurrences in one buffer instead of separate heaps.
+    if positions.len() > 1 {
+        unsafe { qsort(positions.as_mut_ptr().cast(), positions.len(), core::mem::size_of::<(i64, usize)>(), compare_positions) };
+    }
     let mut best_i = alo;
     let mut best_j = blo;
     let mut best_size = 0;
-    let mut previous = HashMap::<usize, usize>::new();
-    let mut current = HashMap::<usize, usize>::new();
-
+    let mut previous = MatchBuffer::<(usize, usize)>::new();
+    let mut current = MatchBuffer::<(usize, usize)>::new();
     for i in alo..ahi {
         current.clear();
-        if let Some(indices) = b2j.get(&a[i]) {
-            for &j in indices {
-                if j < blo {
-                    continue;
+        let start = positions.partition_point(|&(token, _)| token < a[i]);
+        let end = positions.partition_point(|&(token, _)| token <= a[i]);
+        if current.try_reserve(end - start).is_err() {
+            unsafe { PyErr_NoMemory() };
+            return None;
+        }
+        let mut predecessor = 0;
+        for &(_, j) in &positions[start..end] {
+            let mut size = 1;
+            if j > blo {
+                // Both rows are in ascending position order. A forward join
+                // finds the preceding match length without hashing or clearing
+                // a dense row for positions that did not match.
+                while predecessor < previous.len() && previous[predecessor].0 < j - 1 {
+                    predecessor += 1;
                 }
-                if j >= bhi {
-                    break;
-                }
-                let size = if j > blo {
-                    previous.get(&(j - 1)).copied().unwrap_or(0) + 1
-                } else {
-                    1
-                };
-                current.insert(j, size);
-                if size > best_size {
-                    best_i = i + 1 - size;
-                    best_j = j + 1 - size;
-                    best_size = size;
+                if predecessor < previous.len() && previous[predecessor].0 == j - 1 {
+                    size += previous[predecessor].1;
                 }
             }
+            current.push((j, size));
+            if size > best_size {
+                best_i = i + 1 - size;
+                best_j = j + 1 - size;
+                best_size = size;
+            }
         }
-        std::mem::swap(&mut previous, &mut current);
+        core::mem::swap(&mut previous, &mut current);
     }
 
     // Popular elements are excluded only as match starting points. Python
@@ -127,7 +143,7 @@ fn longest_match(
         best_size += 1;
     }
 
-    (best_i, best_j, best_size)
+    Some((best_i, best_j, best_size))
 }
 
 unsafe fn new_result(values: (usize, usize, usize)) -> *mut PyObject {
@@ -177,7 +193,7 @@ unsafe extern "C" fn find_longest_match(
     let Some(b) = (unsafe { read_integer_list(*args.add(1)) }) else {
         return ptr::null_mut();
     };
-    let Some(popular) = (unsafe { read_integer_list(*args.add(2)) }) else {
+    let Some(mut popular) = (unsafe { read_integer_list(*args.add(2)) }) else {
         return ptr::null_mut();
     };
     let Some(alo) = (unsafe { read_bound(*args.add(3)) }) else {
@@ -197,7 +213,9 @@ unsafe extern "C" fn find_longest_match(
         return ptr::null_mut();
     }
 
-    let result = longest_match(&a, &b, &popular, alo, ahi, blo, bhi);
+    let Some(result) = longest_match(&a, &b, &mut popular, alo, ahi, blo, bhi) else {
+        return ptr::null_mut();
+    };
     unsafe { new_result(result) }
 }
 
