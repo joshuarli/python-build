@@ -11,6 +11,7 @@ EXPECTED_HASH_MODULE = os.environ.get("HASHLIB_EXPECTED_MODULE", "_hashlib_rs")
 ALGORITHMS = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512")
 
 
+@unittest.skipUnless(sys.version_info[:2] == (3, 16), "requires the staged Python 3.16 interpreter")
 class HashlibTypeLifetimeTests(unittest.TestCase):
     def hash_type(self, algorithm):
         context = getattr(hashlib, algorithm)(b"initial")
