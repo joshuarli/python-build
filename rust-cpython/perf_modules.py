@@ -1,8 +1,8 @@
 """Per-module kernels for the Rust-for-CPython performance goals.
 
-Each kernel exercises the public behavior that one `rust-for-cpython.md`
-checklist item routes to Rust, with deterministic inputs, so the pristine
-control and the Rust candidate do identical work. `perf.py modules` runs
+Each kernel exercises public behavior routed to Rust, with deterministic
+inputs, so the pristine control and the Rust candidate do identical work.
+The module runner runs
 this file under a stage interpreter, one fresh process per sample:
 
     python3.16 -s -P perf_modules.py measure <route> --iterations N
@@ -128,12 +128,19 @@ def k_pickle():
         graph = {"rows": [(i, str(i), float(i), [i, i + 1], {"k": i}) for i in range(2000)],
                  "text": _text(200)}
         data = pickle.dumps(graph)
+        compact = {"items": [None, True, False, -7, 42, 1.25, b"native", "rust ü"]}
 
         def run():
             stream = io.BytesIO()
             pickle.dump(graph, stream)
             stream.seek(0)
-            return len(pickle.dumps(graph)), pickle.loads(data)["rows"][-1], pickle.load(stream)["text"][-1]
+            compact_stream = io.BytesIO()
+            pickle.dump(compact, compact_stream)
+            compact_stream.seek(0)
+            return (len(pickle.dumps(graph)), pickle.loads(data)["rows"][-1],
+                    pickle.load(stream)["text"][-1],
+                    pickle.loads(pickle.dumps(compact))["items"],
+                    pickle.load(compact_stream)["items"])
         return run
     return ("pickle",), setup
 
@@ -680,7 +687,13 @@ def k_multiprocessing():
             for record in records[:200]:
                 queue.put(record)
                 queued.append(queue.get())
-            return received[-1], queued[-1]
+            pool = multiprocessing.Pool(processes=1)
+            try:
+                mapped = pool.map(abs, (-1,), chunksize=1)
+            finally:
+                pool.close()
+                pool.join()
+            return received[-1], queued[-1], tuple(mapped)
         return run
     return ("multiprocessing",), setup
 
@@ -949,7 +962,9 @@ def k_importlib_resources():
             entries = sorted(entry.name for entry in root.iterdir())
             data = root.joinpath("__init__.py").read_bytes()
             nested = importlib.resources.files("email.mime").joinpath("text.py").read_text()
-            return len(entries), len(data), len(nested)
+            functional_data = importlib.resources.read_binary("email", "__init__.py")
+            functional_text = importlib.resources.read_text("email.mime", "text.py", encoding="utf-8")
+            return len(entries), len(data), len(nested), len(functional_data), len(functional_text)
         return run
     return ("importlib.resources",), setup
 
@@ -1387,15 +1402,16 @@ def measure(route: str, iterations: int) -> dict[str, object]:
 
 
 def main(argv: list[str]) -> int:
-    import json
-
     if len(argv) == 1 and argv[0] == "list":
+        import json
         print(json.dumps(sorted(KERNELS)))
         return 0
     if len(argv) != 4 or argv[0] != "measure" or argv[2] != "--iterations":
         print("usage: perf_modules.py list | measure ROUTE --iterations N", file=sys.stderr)
         return 2
-    print(json.dumps(measure(argv[1], int(argv[3]))))
+    result = measure(argv[1], int(argv[3]))
+    import json
+    print(json.dumps(result))
     return 0
 
 
