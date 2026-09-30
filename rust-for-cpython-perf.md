@@ -341,31 +341,37 @@ rerun before lane selection.
 
 ### Current workload picture
 
+Quiet two-run absolute comparison at `aec8c68`, recorded 2026-09-30
+(`20260930T151421Z-perf-upstream-vs-perf-rust`). Peak RSS remains
+regressed on 22 of 23 workloads; `zlib_decode_1m` improves. These rows
+describe the incumbent after memory batch 4; they do not establish acceptance
+of a subsequent challenger or complete the memory phase.
+
 | Workload | Wall | CPU | Peak RSS |
 | --- | --- | --- | --- |
-| `catalog_json_export` | 0.954x improved | 0.999x neutral | 1.058x regressed |
-| `catalog_request_path` | 0.710x improved | 0.843x improved | 1.116x regressed |
-| `catalog_search_form` | 0.413x improved | 0.463x improved | 1.100x regressed |
-| `catalog_url_normalize` | 0.898x improved | 0.912x improved | 1.092x regressed |
-| `compileall_source` | 1.004x neutral | 1.211x regressed | 1.106x regressed |
-| `difflib_unified_mostly_equal` | 3.496x regressed | 3.226x regressed | 1.100x regressed |
-| `difflib_unified_reordered` | 1.344x regressed | 1.335x regressed | 1.097x regressed |
-| `django_asgi_request` | 1.021x regressed | 1.139x regressed | 1.061x regressed |
-| `django_orm_10k` | 2.015x regressed | 1.205x regressed | 1.063x regressed |
-| `django_template_realistic` | 1.079x regressed | 1.150x regressed | 1.060x regressed |
-| `django_wsgi_first_request` | 1.240x regressed | 1.247x regressed | 1.105x regressed |
-| `django_wsgi_request` | 1.029x regressed | 1.147x regressed | 1.067x regressed |
-| `gzip_extract_1m` | 0.495x improved | 1.221x regressed | 1.041x regressed |
-| `import_django` | 1.278x regressed | 1.292x regressed | 1.090x regressed |
-| `multiprocess_pool` | 0.993x neutral | 1.001x neutral | 1.074x regressed |
-| `python_startup` | 1.000x neutral | 1.099x regressed | 1.028x regressed |
-| `rust_base64_large` | 0.611x improved | 1.134x regressed | 1.085x regressed |
-| `rust_base64_small` | 0.894x improved | 1.205x regressed | 1.083x regressed |
-| `serialization_roundtrip` | 1.009x neutral | 1.071x regressed | 1.089x regressed |
-| `zip_read_wheel` | 0.987x neutral | 1.260x regressed | 1.065x regressed |
-| `zipimport_cold` | 1.203x regressed | 1.250x regressed | 1.087x regressed |
-| `zlib_decode_1m` | 0.567x improved | 1.193x regressed | 0.978x improved |
-| `zlib_stream_4k` | 0.688x improved | 1.231x regressed | 1.074x regressed |
+| `catalog_json_export` | 0.954x improved | 0.993x neutral | 1.053x regressed |
+| `catalog_request_path` | 0.712x improved | 0.816x improved | 1.093x regressed |
+| `catalog_search_form` | 0.410x improved | 0.453x improved | 1.071x regressed |
+| `catalog_url_normalize` | 0.903x improved | 0.912x improved | 1.073x regressed |
+| `compileall_source` | 0.923x improved | 1.135x regressed | 1.084x regressed |
+| `difflib_unified_mostly_equal` | 1.538x regressed | 1.495x regressed | 1.074x regressed |
+| `difflib_unified_reordered` | 1.007x regressed | 1.032x regressed | 1.074x regressed |
+| `django_asgi_request` | 1.032x regressed | 1.109x regressed | 1.052x regressed |
+| `django_orm_10k` | 2.014x regressed | 1.173x regressed | 1.051x regressed |
+| `django_template_realistic` | 1.081x regressed | 1.120x regressed | 1.050x regressed |
+| `django_wsgi_first_request` | 1.159x regressed | 1.169x regressed | 1.084x regressed |
+| `django_wsgi_request` | 1.041x regressed | 1.115x regressed | 1.051x regressed |
+| `gzip_extract_1m` | 0.496x improved | 1.115x regressed | 1.023x regressed |
+| `import_django` | 1.175x regressed | 1.186x regressed | 1.074x regressed |
+| `multiprocess_pool` | 1.025x neutral | 1.024x neutral | 1.065x regressed |
+| `python_startup` | 0.998x neutral | 1.064x regressed | 1.030x regressed |
+| `rust_base64_large` | 0.612x improved | 1.093x regressed | 1.075x regressed |
+| `rust_base64_small` | 0.890x improved | 1.154x regressed | 1.074x regressed |
+| `serialization_roundtrip` | 1.007x neutral | 1.046x regressed | 1.073x regressed |
+| `zip_read_wheel` | 0.995x neutral | 1.163x regressed | 1.051x regressed |
+| `zipimport_cold` | 1.162x regressed | 1.174x regressed | 1.075x regressed |
+| `zlib_decode_1m` | 0.571x improved | 1.097x regressed | 0.965x improved |
+| `zlib_stream_4k` | 0.689x improved | 1.125x regressed | 1.055x regressed |
 
 The next acceptance evidence must compare lane or integrated challenger
 against the qualified incumbent, include complete suites, and retain the
