@@ -42,7 +42,6 @@ import stat
 import time
 import struct
 import copy
-import re
 
 try:
     import _tarfile_rs
@@ -972,8 +971,9 @@ _NAMED_FILTERS = frozendict({
 # Sentinel for replace() defaults, meaning "don't change the attribute"
 _KEEP = object()
 
-# Header length is digits followed by a space.
-_header_length_prefix_re = re.compile(br"([0-9]{1,20}) ")
+# PAX header lengths are digits followed by a space. USTAR headers do not
+# need the regex parser, so load it only when extended headers are read.
+_header_length_prefix_re = None
 
 class TarInfo(object):
     """Informational class which holds the details about an
@@ -1579,6 +1579,11 @@ class TarInfo(object):
         """Process an extended or global header as described in
            POSIX.1-2008.
         """
+        global _header_length_prefix_re
+        if _header_length_prefix_re is None:
+            import re
+            _header_length_prefix_re = re.compile(br"([0-9]{1,20}) ")
+
         # Read the header information.
         buf = _safe_read(tarfile.fileobj, self._block(self.size))
 
