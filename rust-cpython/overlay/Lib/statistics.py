@@ -134,8 +134,6 @@ import numbers
 import random
 import sys
 
-from fractions import Fraction
-from decimal import Decimal
 from itertools import compress, count, groupby, repeat
 from bisect import bisect_left, bisect_right
 from math import hypot, sqrt, fabs, exp, erfc, tau, log, fsum, sumprod
@@ -147,6 +145,41 @@ from collections import Counter, namedtuple, defaultdict
 _SQRT2 = sqrt(2.0)
 _SQRT2PI = sqrt(tau)
 _random = random
+
+
+def _get_decimal_type():
+    # Integer summaries do not need the decimal extension. Keep its class
+    # available on demand, including callers that access the module attribute.
+    global Decimal
+    try:
+        return Decimal
+    except NameError:
+        from decimal import Decimal
+        return Decimal
+
+
+def _get_fraction_type():
+    # Only generic exact arithmetic needs Fraction's parser and native helpers.
+    # Rust integer summaries can convert their integer ratios directly.
+    global Fraction
+    try:
+        return Fraction
+    except NameError:
+        from fractions import Fraction
+        return Fraction
+
+
+def __getattr__(name):
+    if name == 'Decimal':
+        return _get_decimal_type()
+    if name == 'Fraction':
+        return _get_fraction_type()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__():
+    return sorted({*globals(), 'Decimal', 'Fraction'})
+
 
 _RUST_STATISTICS_NOT_LOADED = object()
 _rust_statistics = _RUST_STATISTICS_NOT_LOADED
@@ -183,6 +216,14 @@ def _median_indices(data):
         return None
     return result
 
+def _convert_integer_ratio(numerator, denominator):
+    # Exact-int summaries retain integral results as ints. Integer true
+    # division rounds nonintegral ratios without overflowing either operand
+    # through a float conversion, and does not need a normalized Fraction.
+    quotient, remainder = divmod(numerator, denominator)
+    return numerator / denominator if remainder else quotient
+
+
 ## Exceptions ##############################################################
 
 class StatisticsError(ValueError):
@@ -211,7 +252,7 @@ def mean(data):
     moments = _integer_moments(data)
     if moments is not None:
         total, _, n = moments
-        return _convert(Fraction(total, n), int)
+        return _convert_integer_ratio(total, n)
 
     T, total, n = _sum(data)
     if n < 1:
@@ -336,7 +377,7 @@ def harmonic_mean(data, weights=None):
         raise StatisticsError('harmonic_mean requires at least one data point')
     elif n == 1 and weights is None:
         x = data[0]
-        if isinstance(x, (numbers.Real, Decimal)):
+        if isinstance(x, (numbers.Real, _get_decimal_type())):
             if x < 0:
                 raise StatisticsError(errmsg)
             return x
@@ -619,7 +660,7 @@ def variance(data, xbar=None):
             total, squares, n = moments
             if n >= 2:
                 ssd = n * squares - total * total
-                return _convert(Fraction(ssd, n * (n - 1)), int)
+                return _convert_integer_ratio(ssd, n * (n - 1))
 
     T, ss, c, n = _ss(data, xbar)
     if n < 2:
@@ -670,7 +711,7 @@ def pvariance(data, mu=None):
             total, squares, n = moments
             if n:
                 ssd = n * squares - total * total
-                return _convert(Fraction(ssd, n * n), int)
+                return _convert_integer_ratio(ssd, n * n)
 
     T, ss, c, n = _ss(data, mu)
     if n < 1:
@@ -696,7 +737,7 @@ def stdev(data, xbar=None):
         mss_denominator = mss.denominator
     except AttributeError:
         raise ValueError('inf or nan encountered in data')
-    if issubclass(T, Decimal):
+    if issubclass(T, _get_decimal_type()):
         return _decimal_sqrt_of_frac(mss_numerator, mss_denominator)
     return _float_sqrt_of_frac(mss_numerator, mss_denominator)
 
@@ -719,7 +760,7 @@ def pstdev(data, mu=None):
         mss_denominator = mss.denominator
     except AttributeError:
         raise ValueError('inf or nan encountered in data')
-    if issubclass(T, Decimal):
+    if issubclass(T, _get_decimal_type()):
         return _decimal_sqrt_of_frac(mss_numerator, mss_denominator)
     return _float_sqrt_of_frac(mss_numerator, mss_denominator)
 
@@ -1555,6 +1596,7 @@ def _sum(data):
     allowed.
 
     """
+    Fraction = _get_fraction_type()
     count = 0
     types = set()
     partials = {}
@@ -1591,6 +1633,7 @@ def _ss(data, c=None):
         T, ssd, count = _sum((d := x - c) * d for x in data)
         return (T, ssd, c, count)
 
+    Fraction = _get_fraction_type()
     count = 0
     types = set()
     sx_partials = defaultdict(int)
@@ -1654,6 +1697,7 @@ def _coerce(T, S):
     if issubclass(T, int):  return S
     if issubclass(S, int):  return T
     # Mixed fraction & float coerces to float (or float subclass).
+    Fraction = _get_fraction_type()
     if issubclass(T, Fraction) and issubclass(S, float):
         return S
     if issubclass(T, float) and issubclass(S, Fraction):
@@ -1703,7 +1747,7 @@ def _convert(value, T):
         # FIXME: what do we do if this overflows?
         return T(value)
     except TypeError:
-        if issubclass(T, Decimal):
+        if issubclass(T, _get_decimal_type()):
             return T(value.numerator) / T(value.denominator)
         else:
             raise
@@ -1796,11 +1840,12 @@ def _float_sqrt_of_frac(n: int, m: int) -> float:
     return numerator / denominator   # Convert to float
 
 
-def _decimal_sqrt_of_frac(n: int, m: int) -> Decimal:
+def _decimal_sqrt_of_frac(n: int, m: int) -> _get_decimal_type():
     """Square root of n/m as a Decimal, correctly rounded."""
     # Premise:  For decimal, computing (n/m).sqrt() can be off
     #           by 1 ulp from the correctly rounded result.
     # Method:   Check the result, moving up or down a step if needed.
+    Decimal = _get_decimal_type()
     if n <= 0:
         if not n:
             return Decimal('0.0')
