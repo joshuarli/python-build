@@ -44,6 +44,40 @@ class ModuleRouteTests(unittest.TestCase):
         cls.kernels = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.kernels)
 
+    def test_re_compiles_and_searches_through_rust_and_keeps_pattern_search(self):
+        import re
+        import _re_rs
+
+        _, setup = self.kernels.k_re()
+        run = setup()
+        prepared = []
+        searches = []
+        original_prepare, original_search = _re_rs.prepare, _re_rs.search
+
+        def prepare(*args):
+            result = original_prepare(*args)
+            prepared.append(result)
+            return result
+
+        def search(*args):
+            result = original_search(*args)
+            searches.append(result[0])
+            return result
+
+        with mock.patch.object(_re_rs, "prepare", prepare), \
+                mock.patch.object(_re_rs, "search", search), \
+                mock.patch.object(re, "search", wraps=re.search) as public_search:
+            output = run()
+        self.assertTrue(prepared, "kernel must compile through Rust")
+        self.assertIn(True, prepared)
+        self.assertTrue(searches, "kernel must search through Rust")
+        self.assertTrue(public_search.called)
+        self.assertIn(0, searches, "kernel must retain unsupported-pattern fallback")
+        self.assertIn(1, searches)
+        self.assertIn(2, searches)
+        self.assertEqual(output[0], output[1])
+        self.assertEqual(output[0], [0, 1031, 0, 0, 1031, 0])
+
     def test_pickle_encodes_and_decodes_supported_values_and_keeps_fallbacks(self):
         import pickle
         import _pickle_rs
