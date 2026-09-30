@@ -8,6 +8,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::UnsafeCell;
 use core::ffi::{c_char, c_int, c_void};
+use core::mem::MaybeUninit;
 use core::ptr;
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -394,6 +395,47 @@ fn filename_units(object: *mut PyObject) -> Result<PatternKey, ()> {
     }
 }
 
+fn filename_matches(compiled: &Pattern, object: *mut PyObject) -> Result<bool, ()> {
+    // Short text filenames use stack storage so repeated conversion does not
+    // dirty new malloc size classes. Longer names keep the owned conversion.
+    const STACK_UNITS: usize = 256;
+    let length = unsafe { PyUnicode_GetLength(object) };
+    if length >= 0 && length as usize <= STACK_UNITS {
+        if compiled.kind != PatternKind::Text {
+            raise_type_error(c"cannot mix bytes and non-bytes patterns and filenames");
+            return Err(());
+        }
+        let mut units = [const { MaybeUninit::<u32>::uninit() }; STACK_UNITS];
+        for index in 0..length {
+            let character = unsafe { PyUnicode_ReadChar(object, index) };
+            if character > 0x10ffff {
+                return Err(());
+            }
+            units[index as usize].write(character);
+        }
+        // Every element of this prefix was initialized by the loop above.
+        let name = unsafe {
+            core::slice::from_raw_parts(units.as_ptr().cast::<u32>(), length as usize)
+        };
+        return Ok(matches(compiled, name));
+    }
+    if length < 0 {
+        unsafe { PyErr_Clear() };
+    }
+    let (kind, units) = match filename_units(object)? {
+        PatternKey::Text(value) => (PatternKind::Text, value),
+        PatternKey::Bytes(value) => (
+            PatternKind::Bytes,
+            value.into_iter().map(u32::from).collect(),
+        ),
+    };
+    if kind != compiled.kind {
+        raise_type_error(c"cannot mix bytes and non-bytes patterns and filenames");
+        return Err(());
+    }
+    Ok(matches(compiled, &units))
+}
+
 fn raise_type_error(message: &'static core::ffi::CStr) {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
 }
@@ -431,22 +473,11 @@ unsafe extern "C" fn matcher(
         Err(()) => return ptr::null_mut(),
     };
     let compiled = PATTERN_CACHE.get_or_insert(key);
-    let name = match filename_units(name) {
-        Ok(name) => name,
+    let matched = match filename_matches(&compiled, name) {
+        Ok(matched) => matched,
         Err(()) => return ptr::null_mut(),
     };
-    let (name_kind, name_units) = match name {
-        PatternKey::Text(value) => (PatternKind::Text, value),
-        PatternKey::Bytes(value) => (
-            PatternKind::Bytes,
-            value.into_iter().map(u32::from).collect(),
-        ),
-    };
-    if name_kind != compiled.kind {
-        raise_type_error(c"cannot mix bytes and non-bytes patterns and filenames");
-        return ptr::null_mut();
-    }
-    unsafe { PyBool_FromLong(matches(&compiled, &name_units) as _) }
+    unsafe { PyBool_FromLong(matched as _) }
 }
 
 fn push_text(output: &mut Vec<u32>, text: &str) {
