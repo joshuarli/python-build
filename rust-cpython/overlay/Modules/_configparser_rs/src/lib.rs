@@ -31,6 +31,7 @@ use cpython_sys::PyMethodDefFuncPointer;
 use cpython_sys::PyModuleDef;
 use cpython_sys::PyModuleDef_HEAD_INIT;
 use cpython_sys::PyModuleDef_Init;
+use cpython_sys::PyModuleDef_Slot;
 use cpython_sys::PyObject;
 use cpython_sys::PyObject_CallFunctionObjArgs;
 use cpython_sys::PyObject_CallOneArg;
@@ -39,6 +40,7 @@ use cpython_sys::PyObject_IsTrue;
 use cpython_sys::PyIter_Next;
 use cpython_sys::PyUnicode_AsUTF8AndSize;
 use cpython_sys::PyUnicode_FromStringAndSize;
+use cpython_sys::PyUnicode_InternInPlace;
 use cpython_sys::PyUnicode_Type;
 use cpython_sys::Py_DecRef;
 use cpython_sys::Py_IS_TYPE;
@@ -102,6 +104,16 @@ unsafe fn borrow_str<'a>(object: *mut PyObject) -> Option<&'a str> {
 
 unsafe fn new_str(text: &[u8]) -> *mut PyObject {
     unsafe { PyUnicode_FromStringAndSize(text.as_ptr().cast::<c_char>(), text.len() as Py_ssize_t) }
+}
+
+/// Equal names and values share their payload while parser graphs are alive.
+/// Mortal interning releases the entry when the last owning reference drops.
+unsafe fn new_shared_str(text: &[u8]) -> *mut PyObject {
+    let mut object = unsafe { new_str(text) };
+    if !object.is_null() {
+        unsafe { PyUnicode_InternInPlace(&mut object) };
+    }
+    object
 }
 
 unsafe fn none_result() -> *mut PyObject {
@@ -170,7 +182,7 @@ impl Reader {
         if name.starts_with(is_space) || name.ends_with(is_space) {
             return Step::Bail;
         }
-        let Some(name_object) = Obj::new(unsafe { new_str(name.as_bytes()) }) else {
+        let Some(name_object) = Obj::new(unsafe { new_shared_str(name.as_bytes()) }) else {
             return Step::Error;
         };
         let known = unsafe { PyDict_Contains(parser_sections, name_object.0) };
@@ -245,7 +257,7 @@ impl Reader {
         let Some(shared) = Obj::new(shared) else {
             return Step::Error;
         };
-        let Some(value_object) = Obj::new(unsafe { new_str(value.as_bytes()) }) else {
+        let Some(value_object) = Obj::new(unsafe { new_shared_str(value.as_bytes()) }) else {
             return Step::Error;
         };
         let mut existing = ptr::null_mut();
@@ -606,6 +618,26 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
+const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
+const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: usize = 2;
+
+struct ModuleSlots(UnsafeCell<[PyModuleDef_Slot; 2]>);
+
+unsafe impl Sync for ModuleSlots {}
+
+// The module retains no Python references or mutable process state. Mortal
+// intern entries belong to the current interpreter and end with their owners.
+static MODULE_SLOTS: ModuleSlots = ModuleSlots(UnsafeCell::new([
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED as *mut c_void,
+    },
+    PyModuleDef_Slot {
+        slot: 0,
+        value: ptr::null_mut(),
+    },
+]));
+
 pub static _CONFIGPARSER_RS_MODULE_METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
         ml_name: c"read_ini".as_ptr() as *mut c_char,
@@ -633,7 +665,7 @@ pub static _CONFIGPARSER_RS_MODULE: ModuleDef = ModuleDef {
         m_doc: c"Rust INI parsing and serialization".as_ptr() as *mut _,
         m_size: 0,
         m_methods: &_CONFIGPARSER_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: ptr::null_mut(),
+        m_slots: MODULE_SLOTS.0.get().cast(),
         m_traverse: None,
         m_clear: Some(_configparser_rs_clear),
         m_free: Some(_configparser_rs_free),
