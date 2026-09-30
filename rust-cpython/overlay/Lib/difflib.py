@@ -1155,6 +1155,11 @@ def _format_range_unified(start, stop):
         beginning -= 1        # empty ranges begin at line just before the range
     return '{},{}'.format(beginning, length)
 
+class _UncoloredDiffTheme:
+    # Plain unified diffs need empty styles without loading terminal themes.
+    added = context = header = hunk = removed = reset = ''
+
+
 def unified_diff(a, b, fromfile='', tofile='', fromfiledate='',
                  tofiledate='', n=3, lineterm='\n', *, color=False):
     r"""
@@ -1203,7 +1208,7 @@ def unified_diff(a, b, fromfile='', tofile='', fromfiledate='',
     if color and can_colorize():
         t = get_theme(force_color=True).difflib
     else:
-        t = get_theme(force_no_color=True).difflib
+        t = _UncoloredDiffTheme
 
     _check_types(a, b, fromfile, tofile, fromfiledate, tofiledate, lineterm)
     started = False
