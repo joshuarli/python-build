@@ -104,6 +104,32 @@ try:
 finally:
     configparser.SectionProxy.get = original_get
 
+original_proxy = configparser.SectionProxy
+original_getattribute = original_proxy.__getattribute__
+def observed_getattribute(self, name):
+    if name == 'get':
+        attributes = original_getattribute(self, '__dict__')
+        attributes['get_accesses'] = attributes.get('get_accesses', 0) + 1
+    return original_getattribute(self, name)
+
+class ObservedProxy(original_proxy):
+    __getattribute__ = observed_getattribute
+
+access_counts = []
+configparser.SectionProxy = ObservedProxy
+try:
+    parser = configparser.ConfigParser()
+    access_counts.append(parser['DEFAULT'].get_accesses)
+finally:
+    configparser.SectionProxy = original_proxy
+original_proxy.__getattribute__ = observed_getattribute
+try:
+    parser = configparser.ConfigParser()
+    access_counts.append(parser['DEFAULT'].get_accesses)
+finally:
+    original_proxy.__getattribute__ = original_getattribute
+assert access_counts == [3, 3], access_counts
+
 interp = _interpreters.create()
 try:
     result = _interpreters.run_string(interp, '''

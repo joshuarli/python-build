@@ -1361,8 +1361,10 @@ class SectionProxy(MutableMapping):
         self._name = name
         # Standard conversion partials can share their bound proxy getter.
         # Custom getters retain the separate attribute access per conversion.
-        proxy_get = (self.get if type(self) is SectionProxy
-                     and SectionProxy.get is _SECTION_PROXY_GET else None)
+        proxy_get = (self.get if type(self) is __class__
+                     and __class__.get is _SECTION_PROXY_GET
+                     and __class__.__getattribute__ is _SECTION_PROXY_GETATTRIBUTE
+                     else None)
         for conv in parser.converters:
             key = 'get' + conv
             getter = functools.partial(proxy_get if proxy_get is not None else self.get,
@@ -1428,6 +1430,7 @@ class SectionProxy(MutableMapping):
 
 
 _SECTION_PROXY_GET = SectionProxy.get
+_SECTION_PROXY_GETATTRIBUTE = SectionProxy.__getattribute__
 
 
 class ConverterMapping(MutableMapping):
