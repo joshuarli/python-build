@@ -151,7 +151,7 @@ unsafe impl GlobalAlloc for PythonAllocator {
 #[global_allocator]
 static ALLOCATOR: PythonAllocator = PythonAllocator;
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_rational::BigRational;
 
@@ -180,6 +180,20 @@ unsafe fn integer_from_object(object: *mut PyObject) -> Result<BigInt, ()> {
     let size = unsafe { PyLong_AsNativeBytes(object, core::ptr::null_mut(), 0, LITTLE_ENDIAN) };
     if size < 0 {
         return Err(());
+    }
+    // Small integers need no temporary heap byte buffer. The arbitrary
+    // precision path below handles every value that exceeds this capacity.
+    let mut stack = [0_u8; 64];
+    if size as usize <= stack.len() {
+        let written = unsafe {
+            PyLong_AsNativeBytes(object, stack.as_mut_ptr().cast(), stack.len() as Py_ssize_t, LITTLE_ENDIAN)
+        };
+        if written < 0 {
+            return Err(());
+        }
+        if written as usize <= stack.len() {
+            return Ok(BigInt::from_signed_bytes_le(&stack[..written as usize]));
+        }
     }
     let mut bytes = vec![0_u8; size as usize];
     let written = unsafe {
@@ -215,11 +229,30 @@ unsafe fn integer_from_object(object: *mut PyObject) -> Result<BigInt, ()> {
 
 unsafe fn result_integer(value: &BigInt) -> *mut PyObject {
     const LITTLE_ENDIAN: c_int = 1;
+    let size = value.bits() / 8 + 1;
+    let mut stack = [0_u8; 64];
+    if size <= stack.len() as u64 {
+        let size = size as usize;
+        for (index, digit) in value.iter_u64_digits().enumerate() {
+            let start = index * 8;
+            let count = (size - start).min(8);
+            stack[start..start + count].copy_from_slice(&digit.to_le_bytes()[..count]);
+        }
+        if value.sign() == Sign::Minus {
+            let mut carry = true;
+            for byte in &mut stack[..size] {
+                let (next, overflow) = (!*byte).overflowing_add(u8::from(carry));
+                *byte = next;
+                carry = overflow;
+            }
+        }
+        return unsafe { PyLong_FromNativeBytes(stack.as_ptr().cast(), size, LITTLE_ENDIAN) };
+    }
     let bytes = value.to_signed_bytes_le();
     unsafe { PyLong_FromNativeBytes(bytes.as_ptr().cast::<c_void>(), bytes.len(), LITTLE_ENDIAN) }
 }
 
-unsafe fn result_tuple(values: &[BigInt]) -> *mut PyObject {
+unsafe fn result_tuple(values: &[&BigInt]) -> *mut PyObject {
     let tuple = unsafe { PyTuple_New(values.len() as Py_ssize_t) };
     if tuple.is_null() {
         return tuple;
@@ -278,7 +311,7 @@ unsafe extern "C" fn normalize(
         Ok(ratio) => ratio,
         Err(()) => return core::ptr::null_mut(),
     };
-    unsafe { result_tuple(&[ratio.numer().clone(), ratio.denom().clone()]) }
+    unsafe { result_tuple(&[ratio.numer(), ratio.denom()]) }
 }
 
 unsafe extern "C" fn parse_parts(
@@ -358,7 +391,7 @@ unsafe extern "C" fn parse_parts(
         return core::ptr::null_mut();
     }
     let ratio = BigRational::new(numerator, denominator);
-    unsafe { result_tuple(&[ratio.numer().clone(), ratio.denom().clone()]) }
+    unsafe { result_tuple(&[ratio.numer(), ratio.denom()]) }
 }
 
 unsafe fn binary_result(
@@ -377,15 +410,15 @@ unsafe fn binary_result(
     match operation {
         "add" => {
             let result = left + right;
-            unsafe { result_tuple(&[result.numer().clone(), result.denom().clone()]) }
+            unsafe { result_tuple(&[result.numer(), result.denom()]) }
         }
         "sub" => {
             let result = left - right;
-            unsafe { result_tuple(&[result.numer().clone(), result.denom().clone()]) }
+            unsafe { result_tuple(&[result.numer(), result.denom()]) }
         }
         "mul" => {
             let result = left * right;
-            unsafe { result_tuple(&[result.numer().clone(), result.denom().clone()]) }
+            unsafe { result_tuple(&[result.numer(), result.denom()]) }
         }
         "truediv" => {
             if right.numer() == &BigInt::from(0) {
@@ -393,7 +426,7 @@ unsafe fn binary_result(
                 return core::ptr::null_mut();
             }
             let result = left / right;
-            unsafe { result_tuple(&[result.numer().clone(), result.denom().clone()]) }
+            unsafe { result_tuple(&[result.numer(), result.denom()]) }
         }
         "floordiv" | "mod" | "divmod" => {
             if right.numer() == &BigInt::from(0) {
@@ -407,9 +440,9 @@ unsafe fn binary_result(
             } else {
                 let remainder = left - right * BigRational::from_integer(integer.clone());
                 if operation == "mod" {
-                    unsafe { result_tuple(&[remainder.numer().clone(), remainder.denom().clone()]) }
+                    unsafe { result_tuple(&[remainder.numer(), remainder.denom()]) }
                 } else {
-                    unsafe { result_tuple(&[integer, remainder.numer().clone(), remainder.denom().clone()]) }
+                    unsafe { result_tuple(&[&integer, remainder.numer(), remainder.denom()]) }
                 }
             }
         }
