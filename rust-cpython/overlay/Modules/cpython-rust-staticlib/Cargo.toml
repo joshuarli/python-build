@@ -7,22 +7,17 @@ rust-version.workspace = true
 [dependencies]
 _asyncio_rs = { path = "../_asyncio_rs" }
 _base64 = { path = "../_base64" }
-_binascii_rs = { path = "../_binascii_rs" }
 _bisect_rs = { path = "../_bisect_rs" }
 _codecs_rs = { path = "../_codecs_rs" }
 _concurrent_futures_rs = { path = "../_concurrent_futures_rs" }
 _contextlib_rs = { path = "../_contextlib_rs" }
-_functools_rs = { path = "../_functools_rs" }
 _heapq_rs = { path = "../_heapq_rs" }
 _html_parser_rs = { path = "../_html_parser_rs" }
-_ipaddress_rs = { path = "../_ipaddress_rs" }
 _itertools_rs = { path = "../_itertools_rs" }
-_marshal_rs = { path = "../_marshal_rs" }
 _posixpath_rs = { path = "../_posixpath_rs" }
 _random_rs = { path = "../_random_rs", features = ["static-module"] }
 _ssl_rs = { path = "../_ssl_rs" }
 _tempfile_rs = { path = "../_tempfile_rs" }
-_threading_rs = { path = "../_threading_rs" }
 
 [lib]
 name = "cpython_rust_staticlib"
