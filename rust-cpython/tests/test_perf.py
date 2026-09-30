@@ -231,6 +231,23 @@ class IncrementalPlanTests(unittest.TestCase):
 
 
 class TreeAndArtifactTests(unittest.TestCase):
+    def test_built_members_survive_interleaved_cargo_progress(self):
+        with tempfile.TemporaryDirectory() as temp:
+            log = Path(temp) / "build.log"
+            log.write_text(
+                "CompilingCARGO_TARGET_DIR=/tmp/target make extension\n"
+                " _urllib_parse_rs v0.1.0 (/tmp/source)\n"
+                "Running `CARGO_PKG_NAME=_urllib_parse_rs /tmp/rustc "
+                "--crate-name _urllib_parse_rs --crate-type cdylib src/lib.rs`\n"
+                "Running `CARGO_PKG_NAME=_foreign_rs /tmp/rustc "
+                "--crate-name _foreign_rs src/lib.rs`\n"
+                "Fresh _json_rs v0.1.0 (/tmp/source)\n"
+            )
+            self.assertEqual(
+                perf._built_members(log, {"_urllib_parse_rs", "_json_rs"}),
+                ["_json_rs", "_urllib_parse_rs"],
+            )
+
     def test_tree_digest_tracks_bytes_modes_and_links(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
