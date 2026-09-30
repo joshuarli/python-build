@@ -21,7 +21,7 @@ class ArgparseFormatterDefinitionTests(unittest.TestCase):
             "    exec(compile(source.read(), argparse.__file__, 'exec'), argparse.__dict__)\n"
         )
         result = subprocess.run(
-            [sys.executable, "-I", "-S", "-c", loader + body],
+            [sys.executable, "-I", "-S", "-B", "-c", loader + body],
             capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
