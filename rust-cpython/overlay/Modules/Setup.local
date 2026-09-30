@@ -42,7 +42,6 @@ _metadata_rs _metadata_rs/Cargo.toml _metadata_rs/src/lib.rs
 _pickle_rs _pickle_rs/Cargo.toml _pickle_rs/src/lib.rs
 _plistlib_rs _plistlib_rs/Cargo.toml _plistlib_rs/src/lib.rs
 _posixpath_rs _posixpath_rs/Cargo.toml _posixpath_rs/src/lib.rs
-_random_rs _random_rs/Cargo.toml _random_rs/src/lib.rs
 _re_rs _re_rs/Cargo.toml _re_rs/src/lib.rs
 _shlex_rs _shlex_rs/Cargo.toml _shlex_rs/src/lib.rs
 _shutil_rs _shutil_rs/Cargo.toml _shutil_rs/src/lib.rs
@@ -69,3 +68,6 @@ _zip_rs _zip_rs/Cargo.toml _zip_rs/src/lib.rs
 _zipimport_rs _zipimport_rs/Cargo.toml _zipimport_rs/src/lib.rs
 _zlib_rs _zlib_rs/Cargo.toml _zlib_rs/src/lib.rs
 _zstd_rs _zstd_rs/Cargo.toml _zstd_rs/src/lib.rs
+
+*static*
+_random_rs
