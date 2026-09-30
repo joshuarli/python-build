@@ -16,7 +16,9 @@ class shlex:
     "A lexical analyzer class for simple shell-like syntaxes."
     def __init__(self, instream=None, infile=None, posix=False,
                  punctuation_chars=False):
-        from collections import deque  # deferred import for performance
+        # The input stacks need only the builtin deque; importing its defining
+        # module avoids retaining unrelated collection helpers.
+        from _collections import deque
 
         if isinstance(instream, str):
             instream = StringIO(instream)
