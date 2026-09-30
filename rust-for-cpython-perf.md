@@ -116,8 +116,9 @@ A shared `re` eligibility lane now tests whether unsupported flags can be
 rejected before loading `_re_rs`. Warnings' 200 `re.I` filters resolve to
 flags 34, while the Rust helper only accepts 0 or 32; the native profile
 shows the image loading solely to decline those calls. Supported regex calls
-must continue reaching Rust. Other active lanes include decimal, argparse,
-functools, UUID, contextlib, and strptime. Durable live lane state is in
+must continue reaching Rust. The current eight memory lanes target ast, threading, statistics, logging,
+ipaddress, configparser, subprocess, and difflib. Regex eligibility and
+strptime have qualified candidates awaiting primary-path judgment. Durable live lane state is in
 `rust-cpython/results/coordinator-state.json` (ignored).
 
 ### Second accepted Codex memory batch
@@ -158,92 +159,104 @@ successful native pickle dump/load round trips, functional resource reads,
 and Pool task batching to multiprocessing. Three fresh staged regressions
 failed before the route additions; all four route/boundary tests now pass.
 Complete outputs for all three corrected kernels match pristine control.
-No overlay source or CPython test was changed by this correction. Existing
-tables below are snapshots; a full goal refresh follows the next accepted
-integration before selecting further lanes.
+No overlay source or CPython test was changed by this correction. The current goal table below now uses a complete corrected-boundary refresh
+at the accepted incumbent.
+
+### Memory lane findings after the full refresh
+
+Contextlib and typing each completed a second unsuccessful memory lane:
+combining their native images into the existing Rust static archive left
+load and working peak neutral. Both are on the memory debt list, alongside
+decimal and codecs; this does not waive the workload memory completion gate.
+Inspect's six-attempt lane ended with neutral memory despite a CPU win;
+ElementTree's six attempts likewise produced no replicated memory gain.
+Their source branches and ignored evidence are retained, with no new acceptance.
+The fresh full table exposes logging working peak at 1.82x OVER and
+compression.zstd working peak at 1.25x OVER; the memory phase remains open.
 
 ### Current module goal table
 
 Ratios compare the measured candidate with pristine control. Each cell records
 the pooled ratio and replicated goal status; small memory values use harness
-floors. Fractions, tarfile, and random retain the first accepted batch snapshot.
-Fnmatch, tempfile, argparse, functools, and resources use the corrected
-boundary and second-batch goals. Other rows retain the initial full snapshot
-at `7351620`; a full refresh follows the incumbent rebuild.
+floors. All 71 rows use the corrected measurement boundary and the clean
+`bf28090` incumbent. Full paired goals completed at `20260930T055343Z`:
+OVER 51, UNCLEAR 7, MET 13 (overall statuses include CPU). Memory lanes
+continue independently of CPU statuses; UNCLEAR memory rows need one rigorous
+rerun before lane selection.
 
 | Module | CPU | Load footprint | Working peak | Overall |
 | --- | --- | --- | --- | --- |
-| `_strptime` | 1.694x OVER | 1.169x OVER | 1.000x MET | OVER |
-| `argparse` | 2.275x OVER | 1.160x OVER | 1.000x MET | OVER |
-| `ast` | 1.371x OVER | 1.041x OVER | 1.000x MET | OVER |
-| `asyncio` | 1.130x OVER | 1.069x OVER | 1.000x MET | OVER |
-| `base64` | 2.932x OVER | 1.081x OVER | 1.000x MET | OVER |
-| `binascii` | 1.645x OVER | 1.000x MET | 1.000x MET | OVER |
-| `bisect` | 3.944x OVER | 2.000x OVER | 1.000x MET | OVER |
-| `bz2` | 1.011x UNCLEAR | 1.013x UNCLEAR | 1.000x MET | UNCLEAR |
-| `codecs` | 0.766x BEYOND | 0.900x MET | 1.000x MET | MET |
-| `collections` | 1.053x OVER | 1.000x MET | 1.000x MET | OVER |
-| `compression.zstd` | 0.897x MET | 0.760x BEYOND | 1.000x MET | MET |
-| `concurrent.futures` | 0.740x BEYOND | 0.513x BEYOND | 0.258x BEYOND | BEYOND |
-| `configparser` | 0.221x BEYOND | 0.838x MET | 0.896x BEYOND | MET |
-| `contextlib` | 1.134x OVER | 1.081x OVER | 1.000x MET | OVER |
-| `csv` | 3.011x OVER | 0.969x MET | 1.000x MET | OVER |
-| `dataclasses` | 1.007x MET | 1.011x UNCLEAR | 0.993x MET | UNCLEAR |
-| `datetime` | 3.017x OVER | 1.192x OVER | 1.000x MET | OVER |
-| `decimal` | 5.710x OVER | 1.250x OVER | 1.000x MET | OVER |
-| `difflib` | 1.151x OVER | 1.108x UNCLEAR | 1.000x MET | OVER |
-| `email` | 1.039x OVER | 0.929x MET | 1.032x UNCLEAR | OVER |
-| `fnmatch` | 1.163x OVER | 0.389x BEYOND | 1.000x MET | OVER |
-| `fractions` | 3.299x OVER | 1.211x OVER | 1.000x MET | OVER |
-| `functools` | 4.890x OVER | 1.200x OVER | 1.000x MET | OVER |
-| `glob` | 0.614x BEYOND | 1.062x OVER | 1.000x MET | OVER |
-| `gzip` | 0.613x BEYOND | 0.689x BEYOND | 1.000x MET | MET |
-| `hashlib` | 1.036x OVER | 1.006x MET | 1.000x MET | OVER |
-| `heapq` | 1.746x OVER | 1.000x MET | 1.000x MET | OVER |
-| `hmac` | 1.449x OVER | 1.029x UNCLEAR | 1.000x MET | OVER |
-| `html.parser` | 0.979x MET | 1.145x UNCLEAR | 1.000x MET | UNCLEAR |
-| `http.client` | 1.047x OVER | 1.037x UNCLEAR | 1.000x MET | OVER |
-| `importlib.metadata` | 0.738x BEYOND | 1.006x MET | 1.000x MET | MET |
-| `importlib.resources` | 1.041x OVER | 0.912x MET | 1.000x MET | OVER |
-| `inspect` | 1.390x OVER | 1.072x OVER | 1.000x MET | OVER |
-| `io` | 1.553x OVER | 1.000x MET | 1.000x MET | OVER |
-| `ipaddress` | 0.485x BEYOND | 0.988x MET | 1.000x MET | MET |
-| `itertools` | 2.826x OVER | 1.000x MET | 1.000x MET | OVER |
-| `json` | 0.712x BEYOND | 0.476x BEYOND | 1.000x MET | MET |
-| `logging` | 1.005x MET | 1.097x OVER | 1.037x UNCLEAR | OVER |
-| `lzma` | 1.360x OVER | 0.116x BEYOND | 1.000x MET | OVER |
-| `marshal` | 0.882x MET | 1.056x OVER | 1.000x MET | OVER |
-| `multiprocessing` | 1.009x MET | 1.212x OVER | 1.000x MET | OVER |
-| `os.path` | 1.727x OVER | 1.250x OVER | 1.000x MET | OVER |
-| `pathlib` | 0.957x MET | 1.182x OVER | 1.000x MET | OVER |
-| `pickle` | 1.002x MET | 1.045x UNCLEAR | 1.000x MET | UNCLEAR |
-| `plistlib` | 0.078x BEYOND | 0.683x MET | 1.000x MET | MET |
-| `random` | 1.274x OVER | 1.000x MET | 1.000x MET | OVER |
-| `re` | 1.002x MET | 1.000x MET | 1.000x MET | MET |
-| `shlex` | 0.285x BEYOND | 1.091x OVER | 1.000x MET | OVER |
-| `shutil` | 1.006x MET | 0.718x BEYOND | 1.000x MET | MET |
-| `socket` | 1.256x OVER | 1.318x OVER | 1.000x MET | OVER |
-| `sqlite3` | 3.900x OVER | 1.088x OVER | 1.000x MET | OVER |
-| `ssl` | 1.001x MET | 1.061x UNCLEAR | 1.000x MET | UNCLEAR |
-| `statistics` | 0.077x BEYOND | 1.276x OVER | 1.000x MET | OVER |
-| `struct` | 2.108x OVER | 1.004x MET | 1.000x MET | OVER |
-| `subprocess` | 1.010x MET | 1.145x OVER | 1.000x MET | OVER |
-| `tarfile` | 0.393x BEYOND | 1.120x OVER | 1.000x MET | OVER |
-| `tempfile` | 1.020x UNCLEAR | 0.405x BEYOND | 1.000x MET | UNCLEAR |
-| `textwrap` | 0.037x BEYOND | 0.915x MET | 1.000x MET | MET |
-| `threading` | 1.950x OVER | 1.000x MET | 1.000x MET | OVER |
-| `tokenize` | 1.114x OVER | 1.018x OVER | 1.000x MET | OVER |
-| `tomllib` | 0.072x BEYOND | 1.100x UNCLEAR | 1.000x MET | UNCLEAR |
-| `typing` | 1.524x OVER | 1.143x OVER | 1.000x MET | OVER |
-| `unicodedata` | 2.468x OVER | 1.222x UNCLEAR | 1.000x MET | OVER |
-| `urllib.parse` | 0.223x BEYOND | 0.514x BEYOND | 1.000x MET | MET |
-| `urllib.request` | 1.130x OVER | 1.070x UNCLEAR | 1.000x MET | OVER |
-| `uuid` | 1.395x OVER | 1.177x OVER | 1.000x MET | OVER |
-| `warnings` | 1.097x OVER | 1.390x OVER | 1.000x MET | OVER |
-| `xml.etree.ElementTree` | 0.927x MET | 1.194x OVER | 1.125x UNCLEAR | OVER |
-| `zipfile` | 0.672x BEYOND | 0.678x BEYOND | 1.000x MET | MET |
-| `zipimport` | 0.989x MET | 1.096x OVER | 1.000x MET | OVER |
-| `zlib` | 0.624x BEYOND | 1.095x OVER | 1.000x MET | OVER |
+| `_strptime` | 1.686x OVER | 1.108x OVER | 1.000x MET | OVER |
+| `argparse` | 2.274x OVER | 1.166x OVER | 1.000x MET | OVER |
+| `ast` | 1.370x OVER | 1.045x OVER | 1.000x MET | OVER |
+| `asyncio` | 1.128x OVER | 1.115x OVER | 1.000x MET | OVER |
+| `base64` | 2.921x OVER | 1.098x OVER | 1.000x MET | OVER |
+| `binascii` | 1.642x OVER | 1.038x UNCLEAR | 1.015x UNCLEAR | OVER |
+| `bisect` | 3.897x OVER | 1.125x UNCLEAR | 1.000x MET | OVER |
+| `bz2` | 1.010x UNCLEAR | 0.999x MET | 1.000x MET | UNCLEAR |
+| `codecs` | 0.767x BEYOND | 1.000x MET | 1.000x MET | MET |
+| `collections` | 1.051x OVER | 1.250x UNCLEAR | 1.000x MET | OVER |
+| `compression.zstd` | 0.895x BEYOND | 0.803x BEYOND | 1.250x OVER | OVER |
+| `concurrent.futures` | 0.742x BEYOND | 0.750x BEYOND | 1.000x MET | MET |
+| `configparser` | 0.219x BEYOND | 1.092x OVER | 0.901x MET | OVER |
+| `contextlib` | 1.142x OVER | 1.084x OVER | 1.000x MET | OVER |
+| `csv` | 3.006x OVER | 1.066x UNCLEAR | 1.000x MET | OVER |
+| `dataclasses` | 1.006x MET | 1.143x OVER | 1.004x MET | OVER |
+| `datetime` | 3.003x OVER | 1.250x UNCLEAR | 1.000x MET | OVER |
+| `decimal` | 5.598x OVER | 1.834x OVER | 1.000x MET | OVER |
+| `difflib` | 1.147x OVER | 1.110x OVER | 1.000x MET | OVER |
+| `email` | 1.040x OVER | 0.939x MET | 0.886x MET | OVER |
+| `fnmatch` | 1.163x OVER | 0.388x BEYOND | 1.000x MET | OVER |
+| `fractions` | 3.294x OVER | 1.059x UNCLEAR | 1.000x MET | OVER |
+| `functools` | 4.883x OVER | 1.156x OVER | 1.000x MET | OVER |
+| `glob` | 0.600x BEYOND | 0.399x BEYOND | 1.000x MET | MET |
+| `gzip` | 0.603x BEYOND | 0.772x MET | 1.000x MET | MET |
+| `hashlib` | 1.035x OVER | 1.000x MET | 1.000x MET | OVER |
+| `heapq` | 1.751x OVER | 1.000x MET | 1.000x MET | OVER |
+| `hmac` | 1.445x OVER | 1.017x UNCLEAR | 1.000x MET | OVER |
+| `html.parser` | 0.979x MET | 1.096x OVER | 1.000x MET | OVER |
+| `http.client` | 1.053x OVER | 1.032x UNCLEAR | 1.000x MET | OVER |
+| `importlib.metadata` | 0.744x BEYOND | 0.915x MET | 1.000x MET | MET |
+| `importlib.resources` | 1.045x OVER | 0.911x MET | 1.000x MET | OVER |
+| `inspect` | 1.378x OVER | 1.048x UNCLEAR | 1.000x MET | OVER |
+| `io` | 1.556x OVER | 1.005x MET | 1.000x MET | OVER |
+| `ipaddress` | 0.482x BEYOND | 1.128x OVER | 1.000x MET | OVER |
+| `itertools` | 2.842x OVER | 1.000x MET | 1.000x MET | OVER |
+| `json` | 0.715x BEYOND | 0.961x MET | 1.000x MET | MET |
+| `logging` | 1.002x MET | 1.100x OVER | 1.821x OVER | OVER |
+| `lzma` | 1.361x OVER | 0.110x BEYOND | 1.000x MET | OVER |
+| `marshal` | 0.884x BEYOND | 1.025x OVER | 1.000x MET | OVER |
+| `multiprocessing` | 1.030x UNCLEAR | 1.048x OVER | 1.000x MET | OVER |
+| `os.path` | 1.740x OVER | 1.000x MET | 1.000x MET | OVER |
+| `pathlib` | 0.954x MET | 1.240x OVER | 1.000x MET | OVER |
+| `pickle` | 1.008x MET | 1.017x UNCLEAR | 1.000x MET | UNCLEAR |
+| `plistlib` | 0.079x BEYOND | 0.196x BEYOND | 0.925x MET | MET |
+| `random` | 1.276x OVER | 1.600x UNCLEAR | 1.000x MET | OVER |
+| `re` | 1.000x MET | 1.150x OVER | 1.000x MET | OVER |
+| `shlex` | 0.286x BEYOND | 1.085x UNCLEAR | 1.000x MET | UNCLEAR |
+| `shutil` | 1.002x MET | 0.847x BEYOND | 1.000x MET | MET |
+| `socket` | 1.247x OVER | 1.087x OVER | 1.000x MET | OVER |
+| `sqlite3` | 3.916x OVER | 1.100x UNCLEAR | 1.000x MET | OVER |
+| `ssl` | 0.998x MET | 1.024x UNCLEAR | 1.000x MET | UNCLEAR |
+| `statistics` | 0.077x BEYOND | 1.168x OVER | 1.000x MET | OVER |
+| `struct` | 2.110x OVER | 1.032x UNCLEAR | 1.000x MET | OVER |
+| `subprocess` | 1.015x UNCLEAR | 1.058x OVER | 1.000x MET | OVER |
+| `tarfile` | 0.392x BEYOND | 1.140x OVER | 1.000x MET | OVER |
+| `tempfile` | 1.022x UNCLEAR | 0.392x BEYOND | 1.000x MET | UNCLEAR |
+| `textwrap` | 0.037x BEYOND | 0.076x BEYOND | 1.000x MET | MET |
+| `threading` | 1.959x OVER | 1.900x OVER | 1.000x MET | OVER |
+| `tokenize` | 1.113x OVER | 1.070x OVER | 1.000x MET | OVER |
+| `tomllib` | 0.072x BEYOND | 0.062x BEYOND | 1.000x MET | MET |
+| `typing` | 1.487x OVER | 1.196x OVER | 1.000x MET | OVER |
+| `unicodedata` | 2.473x OVER | 1.000x MET | 1.000x MET | OVER |
+| `urllib.parse` | 0.223x BEYOND | 0.445x BEYOND | 1.000x MET | MET |
+| `urllib.request` | 1.135x OVER | 0.926x MET | 1.000x MET | OVER |
+| `uuid` | 1.394x OVER | 1.186x OVER | 1.000x MET | OVER |
+| `warnings` | 1.104x OVER | 1.029x UNCLEAR | 1.000x MET | OVER |
+| `xml.etree.ElementTree` | 0.924x MET | 1.069x UNCLEAR | 1.312x UNCLEAR | UNCLEAR |
+| `zipfile` | 0.672x BEYOND | 0.293x BEYOND | 1.000x MET | MET |
+| `zipimport` | 0.991x MET | 0.640x BEYOND | 1.000x MET | MET |
+| `zlib` | 0.631x BEYOND | 1.026x UNCLEAR | 1.121x UNCLEAR | UNCLEAR |
 
 ### Current workload picture
 
