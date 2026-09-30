@@ -127,6 +127,11 @@ def _convert_literal(node):
     raise ValueError(msg + f': {node!r}')
 
 
+class _UncoloredAstTheme:
+    # Plain dumps need no terminal theme or its dataclass dependencies.
+    node = field = attribute = keyword = number = string = reset = ''
+
+
 def dump(
     node, annotate_fields=True, include_attributes=False,
     *,
@@ -154,9 +159,11 @@ def dump(
     If show_empty is False, then empty lists and fields that are None
     will be omitted from the output for better readability.
     """
-    from _colorize import get_theme
-
-    t = get_theme(force_color=color, force_no_color=not color).ast
+    if color:
+        from _colorize import get_theme
+        t = get_theme(force_color=color, force_no_color=not color).ast
+    else:
+        t = _UncoloredAstTheme
 
     def _format(node, level=0):
         if indent is not None:
