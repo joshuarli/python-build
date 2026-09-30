@@ -2922,8 +2922,12 @@ class ArgumentParser(_AttributeHolder, _ActionsContainer):
         if self._cached_formatter is None:
             # Built-in validation expands placeholders without laying out text.
             # Custom formatter definitions retain their terminal-derived width.
+            # Value identity avoids running equality on user-supplied attributes.
             if (self.formatter_class is _builtin_help_formatter and
-                _builtin_help_formatter.__dict__ == _builtin_help_formatter_definition):
+                len(_builtin_help_formatter.__dict__) == len(_builtin_help_formatter_definition) and
+                all(name in _builtin_help_formatter.__dict__ and
+                    _builtin_help_formatter.__dict__[name] is value
+                    for name, value in _builtin_help_formatter_definition.items())):
                 formatter = self.formatter_class(prog=self.prog, width=80)
             else:
                 formatter = self.formatter_class(prog=self.prog)
