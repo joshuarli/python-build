@@ -59,8 +59,9 @@ using exact overlay snapshots and the locked current toolchain. All target
 memory improvements replicated; every application guard avoided regression.
 This confirms their original measuring contract, not absolute memory completion.
 
-The comparison evidence is in the `confirm-history` worktree's ignored
-`rust-cpython/results/perf-bench/` directories: `20260930T031254Z` (zip/glob),
+The comparison evidence was preserved under the primary checkout's ignored
+`rust-cpython/results/lane-handoffs/confirm-history/results/perf-bench/`
+before removing the clean historical worktree: `20260930T031254Z` (zip/glob),
 `20260930T033220Z` (futures), and `20260930T040005Z` (gzip/shlex/URL/textwrap).
 Historical previous, zip, and final snapshots each passed 50,158/2,791.
 The futures snapshot's full run had one asyncio stream-test failure; its
@@ -119,6 +120,25 @@ shows the image loading solely to decline those calls. Supported regex calls
 must continue reaching Rust. Other active lanes include decimal, argparse,
 functools, UUID, contextlib, and strptime. Durable live lane state is in
 `rust-cpython/results/coordinator-state.json` (ignored).
+
+### Corrected measurement boundary and native route coverage
+
+Commit `1faf2e4` moves JSON result serialization after all memory and timing
+snapshots. Previously JSON's encoder compiled supported regex patterns before
+the load baseline, preloading `_re_rs` and hiding some routes' import cost.
+The old comparisons remain evidence for their original boundary; future
+goals and acceptance comparisons use the corrected runner. The shared regex
+flag-eligibility experiment was rejected under the old boundary and its
+tested patch is preserved for a later corrected comparison.
+
+The same separate measuring-stick commit retains existing kernels and adds
+successful native pickle dump/load round trips, functional resource reads,
+and Pool task batching to multiprocessing. Three fresh staged regressions
+failed before the route additions; all four route/boundary tests now pass.
+Complete outputs for all three corrected kernels match pristine control.
+No overlay source or CPython test was changed by this correction. Existing
+tables below are snapshots; a full goal refresh follows the next accepted
+integration before selecting further lanes.
 
 ### Current module goal table
 
