@@ -241,10 +241,12 @@ class TreeAndArtifactTests(unittest.TestCase):
                 "--crate-name _urllib_parse_rs --crate-type cdylib src/lib.rs`\n"
                 "Running `CARGO_PKG_NAME=_foreign_rs /tmp/rustc "
                 "--crate-name _foreign_rs src/lib.rs`\n"
+                "Running `CARGO_PKG_NAME=_unbuilt_rs /tmp/rustc "
+                "--crate-name build_script_build build.rs`\n"
                 "Fresh _json_rs v0.1.0 (/tmp/source)\n"
             )
             self.assertEqual(
-                perf._built_members(log, {"_urllib_parse_rs", "_json_rs"}),
+                perf._built_members(log, {"_urllib_parse_rs", "_json_rs", "_unbuilt_rs"}),
                 ["_json_rs", "_urllib_parse_rs"],
             )
 
