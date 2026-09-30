@@ -339,6 +339,27 @@ rerun before lane selection.
 | `zipimport` | 0.990x MET | 0.640x BEYOND | 1.000x MET | MET |
 | `zlib` | 0.631x BEYOND | 1.037x OVER | 1.000x MET | OVER |
 
+### Focused goals after memory batch 5
+
+Quiet two-run primary measurements at source `4b76f58`
+(`20260930T162057Z-goals-perf-upstream-vs-perf-merge`):
+
+| Route | CPU | Load footprint | Working peak |
+| --- | --- | --- | --- |
+| `ast` | 1.37x OVER | 0.73x BEYOND | 1.00x MET |
+| `shlex` | 0.29x BEYOND | 0.44x BEYOND | 1.00x MET |
+| `configparser` | 0.22x BEYOND | 0.57x BEYOND | 0.71x BEYOND |
+| `logging` | 0.99x MET | 0.60x BEYOND | 1.50x UNCLEAR |
+
+The logging peak requires the single rigorous UNCLEAR follow-up. The full
+71-route table above remains the explicitly dated earlier snapshot.
+Configparser shares mortal section names and values, preserves custom
+proxy lookup behavior, and explicitly supports independent GILs. Distinct
+parse/discard diagnostics retained 207,552 bytes of intern-table capacity;
+strings themselves were released and candidate physical memory stayed below
+control throughout that diagnostic. This is retained table capacity, not a
+claim that all interning storage disappears on parser destruction.
+
 ### Current workload picture
 
 Quiet two-run absolute comparison at `aec8c68`, recorded 2026-09-30
@@ -799,6 +820,8 @@ candidate over baseline for the batch targets.
 | 2026-09-30 | `98c5362` (source) | Codex memory batch 2: fnmatch, tempfile, argparse, functools | Corrected-boundary primary quiet two-run gate ACCEPT; load **0.320x / 0.359x / 0.966x / 0.846x** improved both runs; working peaks and all seven workload guards neutral. Full suite **50,158/2,748**, zero failures; clean69 images. Resources guard load0.849x improved. | Control memory goals: fnmatch0.39x BEYOND, tempfile0.40x BEYOND, argparse1.16x OVER, functools1.20x OVER; resources0.91x MET, working peaks MET. UUID and decimal predecessors reverted after failed primary memory replication; no CPU-only candidate accepted. |
 | 2026-09-30 | `868fb4f` (source) | Codex memory batch 3: logging, statistics, subprocess, date parser and regex eligibility | Quiet two-run primary ACCEPT: load0.540x/0.517x/0.873x/0.914x; fractions0.922x and warnings0.953x cross-module wins. Logging working0.554x; other peaks and all seven workload guards neutral. Full50,158/2,748, zero failures; clean69. | Absolute refresh at bd886d2: statistics load BEYOND, subprocess load MET, logging load BEYOND but working peak OVER. Intermediate startup RSS rejection retained; threading static change reverted. Date parser and regex changes qualify jointly. |
 | 2026-09-30 | `2fd93ca` (source) | Codex memory batch 4: difflib, pathlib, tarfile and eleven shared-image registrations | Quiet primary two-run ACCEPT over sixteen modules/all23 workloads: load difflib0.909x, pathlib0.406x, tarfile0.739x, asyncio0.888x, bisect0.571x, contextlib0.970x, logging0.937x, tempfile0.875x, typing0.961x; asyncio working0.333x. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; native/GIL probes pass. | Absolute refresh pending. Logging peak and typing CPU rejected trials retained; both helpers remain shared. |
+
+| 2026-09-30 | `4b76f58` (source) | Codex memory batch 5: AST, shlex, configparser | Quiet primary two-run ACCEPT over twelve modules/all23 workloads: load AST0.701x, shlex0.402x, configparser0.519x; configparser working0.910x. Logging cross-route load0.945x; its working peak and typing CPU neutral. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; fresh native/capsule/GIL and configparser ownership/override probes pass. | Control memory: AST0.73x BEYOND, shlex0.44x BEYOND, configparser0.57x/peak0.71x BEYOND. Five additional shared-image registrations dropped after rejected logging peak/typing CPU trial; no causal attribution. Absolute all23 picture remains dated AEC and memory phase stays open. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
