@@ -30,7 +30,9 @@ __all__ = ['get_close_matches', 'ndiff', 'restore', 'SequenceMatcher',
            'Differ','IS_CHARACTER_JUNK', 'IS_LINE_JUNK', 'context_diff',
            'unified_diff', 'diff_bytes', 'HtmlDiff', 'Match']
 
-from heapq import nlargest as _nlargest
+# Heap selection is used only when ranking close matches; resolve this
+# private binding on its first use so sequence matching need not load it.
+lazy from heapq import nlargest as _nlargest
 from collections import namedtuple as _namedtuple
 from types import GenericAlias
 lazy from _colorize import can_colorize, get_theme
