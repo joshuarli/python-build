@@ -55,7 +55,6 @@ _subprocess_rs _subprocess_rs/Cargo.toml _subprocess_rs/src/lib.rs
 _tarfile_rs _tarfile_rs/Cargo.toml _tarfile_rs/src/lib.rs
 _tempfile_rs _tempfile_rs/Cargo.toml _tempfile_rs/src/lib.rs
 _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs
-_threading_rs _threading_rs/Cargo.toml _threading_rs/src/lib.rs
 _tokenize_rs _tokenize_rs/Cargo.toml _tokenize_rs/src/lib.rs
 _tomllib_rs _tomllib_rs/Cargo.toml _tomllib_rs/src/lib.rs
 _typing_rs _typing_rs/Cargo.toml _typing_rs/src/lib.rs
@@ -71,3 +70,4 @@ _zstd_rs _zstd_rs/Cargo.toml _zstd_rs/src/lib.rs
 
 *static*
 _random_rs
+_threading_rs

@@ -1,4 +1,5 @@
 pub use _base64::PyInit__base64;
 pub use _random_rs::PyInit__random_rs;
+pub use _threading_rs::PyInit__threading_rs;
 
 mod io;
