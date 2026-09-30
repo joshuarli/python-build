@@ -1,10 +1,39 @@
 # Rust-for-CPython performance phase
 
-**Wound down at the user’s request; memory phase incomplete, CPU phase not started. Read the [latest handoff](#latest-handoff-2026-09-30) first.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+**Resumed for memory-only completion; CPU phase not started. Read the current memory-only contract below, then the [latest handoff](#latest-handoff-2026-09-30).** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
 are complete under its strict Python-suite coverage rule, and those rules
 still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
 recoverable from Git history at commit `f0f8690`.
+
+## Current memory-only resumption (2026-09-30)
+
+The user resumed the handoff and requested achieving all memory goals first,
+without checking or gating on CPU or timing performance requirements. This
+contract supersedes the historical CPU guards, quiet-host requirements,
+module-debt completion exceptions, and stopped-session status below.
+
+- Acceptance targets and guards are module `load_footprint` / `working_peak`
+  and application memory, including `peak_rss`. CPU and wall results cannot
+  qualify, reject, or delay a memory change. Any incidental timing collected
+  by the shared workload harness is outside the memory decision.
+- Use the explicit `--memory-only` harness policy for goals, calibration and
+  acceptance. Preserve the existing memory samples, floors, independent-run
+  replication, output checks, verified clean builds and complete suites.
+  Host quietness is not a prerequisite for this memory work.
+- Completion requires all 71 modules' two memory goals to read MET or BEYOND
+  and every eligible workload's absolute peak RSS to be neutral or improved
+  against pristine control. A debt entry records an unresolved goal; it does
+  not satisfy that goal. CPU lanes remain out of scope.
+- The previous two empty attribution waves and 113 briefs remain historical
+  evidence. The renewed run starts a fresh lane budget and progress count;
+  revisit rejected candidates only with a distinct mechanism or an identified
+  CPU-only rejection now excluded by this contract.
+
+Doctor/status passed on resumption. The verified incumbent remains `7cf55a6`
+(clean58, full50,158/2,748) and its overlay matches documentation HEAD
+`b43b5d4`; the pristine control remains `7351620`. Fresh goals and workload
+memory comparisons are pending. No new memory improvement is claimed yet.
 
 ## Latest handoff (2026-09-30)
 

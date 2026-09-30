@@ -18,6 +18,22 @@ All commands run from your worktree root through
 `perf-rust` build and `@control` its pristine `perf-upstream`; a bare name
 is a build in your worktree. Use your `LANE` value as your build name.
 
+## Current memory-only override (2026-09-30)
+
+The user explicitly resumed work to achieve all memory goals without CPU or
+wall performance requirements. During this run, this section supersedes the
+older memory-phase CPU/timing guards and quiet-host prerequisites below.
+Use `perf.py bench`, `calibrate`, and `goals` with `--memory-only`. Judge
+module load footprint and working peak, and workload memory only. CPU/wall
+results cannot accept, reject, block setup, or delay work. Preserve the
+measurement workloads, memory floors, replication, output checks, verified
+clean builds, complete suites and Rust coverage. Do not wait for host quietness
+for memory calibration, qualification, or completion. Completion requires
+all module memory goals MET/BEYOND and all absolute workload peak RSS neutral
+or improved; debt entries remain unresolved goals. The renewed run resets
+its lane budget and empty-batch counter; historical evidence stays preserved.
+The separate Claude skills and CPU-phase policy remain unchanged.
+
 ## Rules
 
 - Use only `gpt-6.1-sol` at `medium` effort. Do not spawn subagents or switch
