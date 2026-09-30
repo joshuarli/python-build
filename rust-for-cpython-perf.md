@@ -182,8 +182,11 @@ output mismatch. The clean build verifies 58 shared Rust extensions; the
 full suite passes **50,158/2,748**, zero failures. Fresh public Rust calls,
 SSL capsule calls, and exact independent-GIL capability comparisons pass.
 
-Difflib, pathlib, and tarfile defer unused import closures. Eleven unchanged
-helpers use the existing Rust archive. Logging and typing remain shared:
+Difflib reuses the existing position dictionary and removes duplicate token
+caches. Its Rust matching uses fallible CPython-owned buffers and a local
+`no_std` boundary, preserving legacy conversion and mutation ordering.
+Difflib, pathlib, and tarfile also defer unused import closures. Eleven
+other unchanged helpers use the existing Rust archive. Logging and typing remain shared:
 the first trial at `1750f34` was rejected for logging working peak **1.083x**;
 the second at `acb5668` was rejected for typing CPU **1.033x**. Both rejected
 gates and their source/build/test evidence are preserved. Restoring these
@@ -240,6 +243,17 @@ limited decoding followed by EOF flush clears `unconsumed_tail` in Rust,
 where pristine C retains the trailing bytes. The mapping did not cause it.
 The fresh full table exposes logging working peak at 1.82x OVER and
 compression.zstd working peak at 1.25x OVER; the memory phase remains open.
+
+### Corrected regex search kernel
+
+Commit `70d1187` retains the original six compiled-pattern searches and adds
+module-level searches over the same 1,031 input lines. Previously the kernel
+compiled through Rust but searched through C `Pattern.search` only. The owned
+regression failed first with zero Rust search calls; all seven route tests
+now pass, including native matches, misses, and unsupported-pattern fallback.
+Pristine control and incumbent produce identical two-list results. The `re`
+row in the last full goal table is historical until its corrected refresh;
+regex optimizations remain on hold until that new goal is measured.
 
 ### Current module goal table
 
