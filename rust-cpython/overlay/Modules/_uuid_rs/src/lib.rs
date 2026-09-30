@@ -102,6 +102,9 @@ unsafe extern "C" {
     fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
     fn PyBytes_FromStringAndSize(data: *const c_char, size: Py_ssize_t) -> *mut PyObject;
     fn PyUnicode_FromStringAndSize(data: *const c_char, size: Py_ssize_t) -> *mut PyObject;
+    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
+    fn PyErr_ExceptionMatches(exception: *mut PyObject) -> c_int;
+    fn PyErr_Clear();
     fn PyObject_GetBuffer(object: *mut PyObject, view: *mut Py_buffer, flags: c_int) -> c_int;
     fn PyBuffer_Release(view: *mut Py_buffer);
     fn abort() -> !;
@@ -189,6 +192,19 @@ fn return_bytes(bytes: &[u8]) -> *mut PyObject {
     unsafe { PyBytes_FromStringAndSize(bytes.as_ptr().cast::<c_char>(), bytes.len() as Py_ssize_t) }
 }
 
+// Ordinary strings expose existing UTF-8 data without an encoded bytes
+// allocation. Buffer inputs retain the same validation for private callers.
+fn parse_bytes(data: &[u8]) -> *mut PyObject {
+    let text = match core::str::from_utf8(data) {
+        Ok(text) => text,
+        Err(_) => return value_error(c"invalid UUID hexadecimal data"),
+    };
+    match Uuid::parse_str(text) {
+        Ok(value) => return_bytes(value.as_bytes()),
+        Err(_) => value_error(c"invalid UUID hexadecimal data"),
+    }
+}
+
 /// # Safety
 /// `args` contains `nargs` valid Python object pointers supplied by CPython.
 pub unsafe extern "C" fn parse_hex(
@@ -199,18 +215,22 @@ pub unsafe extern "C" fn parse_hex(
     if nargs != 1 {
         return type_error(c"parse_hex() takes exactly one argument");
     }
-    let buffer = match BorrowedBuffer::from_object(unsafe { argument(args, 0) }) {
+    let object = unsafe { argument(args, 0) };
+    let mut length = 0;
+    let text = unsafe { PyUnicode_AsUTF8AndSize(object, &mut length) };
+    if !text.is_null() {
+        let data = unsafe { slice::from_raw_parts(text.cast::<u8>(), length as usize) };
+        return parse_bytes(data);
+    }
+    if unsafe { PyErr_ExceptionMatches(PyExc_TypeError) } == 0 {
+        return ptr::null_mut();
+    }
+    unsafe { PyErr_Clear() };
+    let buffer = match BorrowedBuffer::from_object(object) {
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    let text = match core::str::from_utf8(buffer.as_slice()) {
-        Ok(text) => text,
-        Err(_) => return value_error(c"invalid UUID hexadecimal data"),
-    };
-    match Uuid::parse_str(text) {
-        Ok(value) => return_bytes(value.as_bytes()),
-        Err(_) => value_error(c"invalid UUID hexadecimal data"),
-    }
+    parse_bytes(buffer.as_slice())
 }
 
 /// # Safety
@@ -381,7 +401,7 @@ pub static _UUID_RS_MODULE_METHODS: [PyMethodDef; 9] = [
         ml_name: c"parse_hex".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse_hex },
         ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse 32 hexadecimal UUID digits".as_ptr() as *mut c_char,
+        ml_doc: c"Parse hexadecimal UUID digits from str or a UTF-8 buffer".as_ptr() as *mut c_char,
     },
     PyMethodDef {
         ml_name: c"normalize".as_ptr() as *mut c_char,
