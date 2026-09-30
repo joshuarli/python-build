@@ -135,7 +135,6 @@ import random
 import sys
 
 from fractions import Fraction
-from decimal import Decimal
 from itertools import compress, count, groupby, repeat
 from bisect import bisect_left, bisect_right
 from math import hypot, sqrt, fabs, exp, erfc, tau, log, fsum, sumprod
@@ -147,6 +146,28 @@ from collections import Counter, namedtuple, defaultdict
 _SQRT2 = sqrt(2.0)
 _SQRT2PI = sqrt(tau)
 _random = random
+
+
+def _get_decimal_type():
+    # Integer summaries do not need the decimal extension. Keep its class
+    # available on demand, including callers that access the module attribute.
+    global Decimal
+    try:
+        return Decimal
+    except NameError:
+        from decimal import Decimal
+        return Decimal
+
+
+def __getattr__(name):
+    if name == 'Decimal':
+        return _get_decimal_type()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__():
+    return sorted({*globals(), 'Decimal'})
+
 
 _RUST_STATISTICS_NOT_LOADED = object()
 _rust_statistics = _RUST_STATISTICS_NOT_LOADED
@@ -336,7 +357,7 @@ def harmonic_mean(data, weights=None):
         raise StatisticsError('harmonic_mean requires at least one data point')
     elif n == 1 and weights is None:
         x = data[0]
-        if isinstance(x, (numbers.Real, Decimal)):
+        if isinstance(x, (numbers.Real, _get_decimal_type())):
             if x < 0:
                 raise StatisticsError(errmsg)
             return x
@@ -696,7 +717,7 @@ def stdev(data, xbar=None):
         mss_denominator = mss.denominator
     except AttributeError:
         raise ValueError('inf or nan encountered in data')
-    if issubclass(T, Decimal):
+    if issubclass(T, _get_decimal_type()):
         return _decimal_sqrt_of_frac(mss_numerator, mss_denominator)
     return _float_sqrt_of_frac(mss_numerator, mss_denominator)
 
@@ -719,7 +740,7 @@ def pstdev(data, mu=None):
         mss_denominator = mss.denominator
     except AttributeError:
         raise ValueError('inf or nan encountered in data')
-    if issubclass(T, Decimal):
+    if issubclass(T, _get_decimal_type()):
         return _decimal_sqrt_of_frac(mss_numerator, mss_denominator)
     return _float_sqrt_of_frac(mss_numerator, mss_denominator)
 
@@ -1703,7 +1724,7 @@ def _convert(value, T):
         # FIXME: what do we do if this overflows?
         return T(value)
     except TypeError:
-        if issubclass(T, Decimal):
+        if issubclass(T, _get_decimal_type()):
             return T(value.numerator) / T(value.denominator)
         else:
             raise
@@ -1796,11 +1817,12 @@ def _float_sqrt_of_frac(n: int, m: int) -> float:
     return numerator / denominator   # Convert to float
 
 
-def _decimal_sqrt_of_frac(n: int, m: int) -> Decimal:
+def _decimal_sqrt_of_frac(n: int, m: int) -> _get_decimal_type():
     """Square root of n/m as a Decimal, correctly rounded."""
     # Premise:  For decimal, computing (n/m).sqrt() can be off
     #           by 1 ulp from the correctly rounded result.
     # Method:   Check the result, moving up or down a step if needed.
+    Decimal = _get_decimal_type()
     if n <= 0:
         if not n:
             return Decimal('0.0')
