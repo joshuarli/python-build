@@ -379,6 +379,13 @@ resolve its UNCLEAR memory rows without repeated draws:
 | `ssl` | load | 1.050x | OVER | OVER |
 | `xml.etree.ElementTree` | working peak | 1.281x | UNCLEAR | OVER under greater-than-1.01x rule |
 | `shutil` | working peak | 0.735x | MET | MET; lane closed |
+| `plistlib` | working peak | 1.000x | MET | MET; lane closed |
+| `collections` | load | 1.250x | UNCLEAR | OVER under greater-than-1.01x rule |
+| `hashlib` | load | 1.008x | MET | MET; lane closed |
+| `struct` | load | 1.0105x | UNCLEAR | OVER under greater-than-1.01x rule |
+| `sqlite3` | load | 1.058x | OVER | OVER |
+| `csv` | load | 1.037x | UNCLEAR | OVER under greater-than-1.01x rule |
+| `binascii` | load | 1.019x | UNCLEAR | OVER under greater-than-1.01x rule |
 
 Pickle, marshal, functools, ElementTree and shutil used the rigorous profile.
 SSL's sole follow-up used the standard two-run profile and formally read
@@ -396,6 +403,30 @@ read peak RSS0.987x neutral; the source experiment was discarded. Optional
 local-symbol stripping likewise reduced native residency but remained startup
 RSS neutral and is not adopted. Own-GIL regex public tests exercised the C
 fallback, not Rust concurrency.
+
+### Batch 7: argparse validation footprint
+
+The primary clean `68cfb97` build passed all 50,158 tests (2,748 skipped,
+zero failures), followed by native dispatch, own-GIL fallback, custom formatter,
+and terminal-width help parity checks. Its quiet two-run primary gate
+`20260930T202154Z` accepted argparse load **0.709x** versus `0628c7b`;
+kernel CPU and working peak remained neutral. Fourteen of the 23 workloads
+showed replicated RSS improvements, with every regression guard passing.
+Built-in argument validation now uses an explicit width, avoiding the
+terminal-size import closure; custom formatters and rendered help keep their
+normal width behavior. Fresh primary control goals `20260930T203106Z` read
+load **0.81x BEYOND**, working peak **1.00x MET**, and CPU **2.28x OVER**.
+CPU remains outside the active memory phase.
+
+The later inspect disassembly-deferral experiment reduced load to 0.871x,
+but its all-workload gate regressed compileall wall time and two RSS rows;
+it was rejected and reverted. ElementTree's bounded serializer reserve growth
+regressed CPU and was discarded, completing its second unsuccessful memory
+lane and adding it to module memory debt. SSL's lazy-base64 experiment was
+neutral and discarded. The shared itertools attribution found no physical
+import cost in its already built-in helper; validated native counters showed
+its callbacks unused by the affected kernels. These findings change no
+coverage routes or regression thresholds.
 
 ### Current workload picture
 
@@ -859,6 +890,7 @@ candidate over baseline for the batch targets.
 | 2026-09-30 | `2fd93ca` (source) | Codex memory batch 4: difflib, pathlib, tarfile and eleven shared-image registrations | Quiet primary two-run ACCEPT over sixteen modules/all23 workloads: load difflib0.909x, pathlib0.406x, tarfile0.739x, asyncio0.888x, bisect0.571x, contextlib0.970x, logging0.937x, tempfile0.875x, typing0.961x; asyncio working0.333x. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; native/GIL probes pass. | Absolute refresh pending. Logging peak and typing CPU rejected trials retained; both helpers remain shared. |
 | 2026-09-30 | `4b76f58` (source) | Codex memory batch 5: AST, shlex, configparser | Quiet primary two-run ACCEPT over twelve modules/all23 workloads: load AST0.701x, shlex0.402x, configparser0.519x; configparser working0.910x. Logging cross-route load0.945x; its working peak and typing CPU neutral. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; fresh native/capsule/GIL and configparser ownership/override probes pass. | Control memory: AST0.73x BEYOND, shlex0.44x BEYOND, configparser0.57x/peak0.71x BEYOND. Five additional shared-image registrations dropped after rejected logging peak/typing CPU trial; no causal attribution. Absolute all23 picture remains dated AEC and memory phase stays open. |
 | 2026-09-30 | `49e61fe` (source) | Codex memory batch 6: dataclasses, inspect | Quiet primary two-run ACCEPT (`20260930T181726Z`) over six modules/all23 workloads: dataclasses load0.872x and working0.561x; inspect load0.973x, both improved. CPU and every application guard neutral; no mismatch or unstable metric. Full50,158/2,748, zero failures; clean58. Fresh dataclasses exception/concurrency/recursion/slot/subinterpreter checks and inspect native binding/member calls pass; inspect own-GIL uses its existing Python fallback. | Fresh full71 control memory: dataclasses load0.95x MET/peak0.56x BEYOND; inspect load1.03x OVER/peakMET. New incumbent clean58/full50,158/2,748 passes. Worktree Django wall rejections are retained; primary gate establishes acceptance. Workload RSS is now eligible as a target, with existing floors, replication and regression guards unchanged (30 controller tests pass). Memory phase stays open. |
+| 2026-09-30 | `68cfb97` (source) | Codex memory batch 7: argparse | Quiet primary two-run ACCEPT (`20260930T202154Z`): load0.709x improved; CPU0.999x and working1.000x neutral. Fourteen workload RSS rows improved; all23 regression guards pass, no mismatch or unstable metric. Clean58; full50,158/2,748, zero failures; native2500calls/custom formatters/help/own-GIL checks pass. | Fresh primary control memory: load0.81x BEYOND, working1.00x MET; CPU2.28x OVER. Explicit validation width avoids unused terminal-size imports while preserving customized formatter and rendered-help behavior. Memory phase remains open; baseline refresh deferred. |
 
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
