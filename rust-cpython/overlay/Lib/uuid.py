@@ -244,8 +244,7 @@ class UUID:
                 int = int_(hex, 16)
             else:
                 try:
-                    # Borrow ASCII text while preserving encoding hooks and errors.
-                    data = _uuid_rs.parse_hex(hex if type(hex) is str and hex.isascii() else hex.encode('ascii'))
+                    data = _uuid_rs.parse_hex(hex.encode('ascii'))
                 except (UnicodeEncodeError, ValueError):
                     # int() accepts a wider set of digit strings than UUID syntax.
                     int = int_(hex, 16)
@@ -369,7 +368,7 @@ class UUID:
         if _uuid_rs is None:
             x = self.hex
             return f'{x[:8]}-{x[8:12]}-{x[12:16]}-{x[16:20]}-{x[20:]}'
-        return _uuid_rs.format(self.bytes)
+        return _uuid_rs.format(self.bytes).decode('ascii')
 
     @property
     def bytes(self):
@@ -438,7 +437,7 @@ class UUID:
     def hex(self):
         if _uuid_rs is None:
             return '%032x' % self.int
-        return _uuid_rs.format_hex(self.bytes)
+        return _uuid_rs.format_hex(self.bytes).decode('ascii')
 
     @property
     def urn(self):
