@@ -56,6 +56,9 @@ is a build in your worktree. Use your `LANE` value as your build name.
   and output. Wait at most 60 seconds per call. If `functions.exec` yields
   a cell ID, resume it with `functions.wait` instead. `WAIT  host lease busy`
   means another lane is measuring; keep editing or reading while you wait.
+- Keep commands that use the same stage sequential. Inspect a pending test,
+  profile, goals, or bench command's completion before starting a build that
+  replaces its stage, even when both commands would wait on the host lease.
 - Commit only overlay source. Never commit `rust-cpython/results/`, logs,
   or stage trees.
 
