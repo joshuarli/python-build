@@ -336,12 +336,26 @@ class MemoryOnlyTests(unittest.TestCase):
             self.assertEqual(saved["decision"]["acceptance_policy"], "memory-only")
             self.assertEqual(saved["goals"]["json"]["status"], "MET")
 
-    def test_known_output_difference_still_rejects_memory_only(self):
+    def test_known_control_output_difference_remains_exempt_in_memory_only(self):
         entities = self.entities()
         entities["known"] = pv.entity_verdict([pv.mismatch_observation("workload")] * 2)
         decision = pv.decide(entities, targets=["json"], runs=2, quiet=False, gate=True,
                              known_mismatches=["known"], memory_only=True)
+        self.assertEqual(decision["decision"], pv.ACCEPT)
+        self.assertIn("documented output differences", " ".join(decision["reasons"]))
+        entities["unknown"] = pv.entity_verdict([pv.mismatch_observation("workload")] * 2)
+        decision = pv.decide(entities, targets=["json"], runs=2, quiet=False, gate=True,
+                             known_mismatches=["known"], memory_only=True)
         self.assertEqual(decision["decision"], pv.REJECT)
+        self.assertEqual(decision["mismatches"], ["unknown"])
+
+    def test_missing_memory_goal_renders_as_unavailable(self):
+        entities = self.entities()
+        del entities["json"]["metrics"]["working_peak"]
+        goals = {"json": pv.goal_status(entities["json"], memory_only=True)}
+        rendered = pv.render_goals(goals, entities)
+        self.assertIn("working_peak n/a UNCLEAR", rendered)
+        self.assertNotIn("working_peak 0.00x", rendered)
 
     def test_memory_only_and_timing_only_are_incompatible(self):
         with self.assertRaisesRegex(perf.LaneError, "requires the memory pass"):

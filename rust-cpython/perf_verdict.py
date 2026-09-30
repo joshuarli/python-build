@@ -279,7 +279,7 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
 
     Memory-only decisions select memory metrics for targets and guards,
     require both module rows and workload RSS, and ignore host quietness.
-    Even documented output mismatches reject a memory-only comparison.
+    Documented baseline output differences retain their existing exemption.
 
     REJECT: any evaluated entity regresses a metric in every run, or its
     outputs differ from the baseline (outside `known_mismatches`).
@@ -292,7 +292,7 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     regressions, unstable, mismatches = [], [], []
     for name, verdict in sorted(entities.items()):
         if verdict["mismatch"]:
-            if memory_only or name not in known_mismatches:
+            if name not in known_mismatches:
                 mismatches.append(name)
             continue
         for metric, detail in verdict["metrics"].items():
@@ -340,7 +340,7 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
         decision = NEUTRAL
         reasons.append("no target improved beyond the interval and practical floor")
     known = sorted(name for name in known_mismatches
-                   if not memory_only and entities.get(name, {}).get("mismatch"))
+                   if entities.get(name, {}).get("mismatch"))
     if known:
         reasons.append("documented output differences, not timed: " + ", ".join(known))
     if not gate:
@@ -465,11 +465,15 @@ def render_goals(goals: Mapping[str, Mapping[str, Any]],
             return f" ({cand * 1e3:.3g}/{base * 1e3:.3g} ms)"
         return f" ({cand / 1024:.0f}/{base / 1024:.0f} KiB)"
 
+    def ratio(pooled: Mapping[str, Any]) -> str:
+        median = pooled.get("median")
+        return "n/a" if median is None else f"{median:.2f}x"
+
     lines = []
     for name in sorted(goals, key=lambda item: (order[goals[item]["status"]], worst(item))):
         metrics = entities[name]["metrics"]
         body = " | ".join(
-            f"{metric} {(metrics.get(metric, {}).get('pooled', {}).get('median') or 0):.2f}x"
+            f"{metric} {ratio(metrics.get(metric, {}).get('pooled', {}))}"
             f"{absolute(metric, metrics.get(metric, {}).get('pooled', {}))}"
             f" {status}"
             for metric, status in goals[name]["metrics"].items()
