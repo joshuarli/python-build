@@ -297,12 +297,15 @@ unsafe extern "C" fn hash_repr(object: *mut PyObject) -> *mut PyObject {
 }
 
 unsafe extern "C" fn dealloc(object: *mut PyObject) {
+    let type_object = unsafe { (*object.cast::<cpython_sys::_object>()).ob_type };
     let hash_object = unsafe { &mut *object.cast::<HashObject>() };
     if !hash_object.state.is_null() {
         unsafe { drop(Box::from_raw(hash_object.state)) };
         hash_object.state = ptr::null_mut();
     }
     unsafe { PyObject_Free(object.cast::<c_void>()) };
+    // Generic allocation owns a heap-type reference until the object is freed.
+    unsafe { Py_DecRef(type_object.cast::<PyObject>()) };
 }
 
 unsafe extern "C" fn unhashable(object: *mut PyObject) -> isize {
