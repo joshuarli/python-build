@@ -112,6 +112,26 @@ class ModuleRouteTests(unittest.TestCase):
         self.assertGreater(spawn.call_count, 0)
         self.assertGreater(read.call_count, 0)
 
+    def test_tokenize_classifies_supported_lines_and_keeps_fallbacks(self):
+        import _tokenize_rs
+
+        _, setup = self.kernels.k_tokenize()
+        run = setup()
+        successes = []
+        fallbacks = []
+        original_scan = _tokenize_rs.scan_line
+
+        def scan_line(*args):
+            result = original_scan(*args)
+            (fallbacks if result is None else successes).append(args[0])
+            return result
+
+        with mock.patch.object(_tokenize_rs, "scan_line", scan_line):
+            output = run()
+        self.assertTrue(successes, "kernel must include successful Rust classification")
+        self.assertTrue(fallbacks, "kernel must retain unsupported Python syntax")
+        self.assertEqual(output, (6600, "\n", 385, "2"))
+
 
 if __name__ == "__main__":
     unittest.main()

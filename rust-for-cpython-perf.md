@@ -184,6 +184,17 @@ Complete outputs for all three corrected kernels match pristine control.
 No overlay source or CPython test was changed by this correction. The current goal table below now uses a complete corrected-boundary refresh
 at the accepted incumbent.
 
+### Tokenize kernel reachability correction
+
+The old tokenize kernel made one unsuccessful Rust scanner call and then
+produced all 6,600 tokens through fallback. A staged regression failed on
+zero successful native classifications. The corrected kernel retains that
+function-definition workload and adds 64 simple assignment lines within the
+native buffering limits. All six route/boundary checks pass; pristine control
+and the accepted Rust candidate both return `(6600, "\n", 385, "2")`.
+This is a separate measuring-stick correction, not a memory optimization.
+The tokenize goal row below is historical until refreshed with this kernel.
+
 ### Memory lane findings after the full refresh
 
 Contextlib and typing each completed a second unsuccessful memory lane:
@@ -193,6 +204,14 @@ decimal and codecs; this does not waive the workload memory completion gate.
 Inspect's six-attempt lane ended with neutral memory despite a CPU win;
 ElementTree's six attempts likewise produced no replicated memory gain.
 Their source branches and ignored evidence are retained, with no new acceptance.
+UUID and socket also finished second unsuccessful memory lanes and join the
+module debt list. Marshal remains OVER after an unchanged preparation lane:
+no retained native tables were found; its image footprint needs separate
+attribution before another patch. Zlib's large-allocation mapping experiment
+improved load but introduced working peak OVER against control, so it was
+discarded. A separate pre-existing zlib correctness finding remains open:
+limited decoding followed by EOF flush clears `unconsumed_tail` in Rust,
+where pristine C retains the trailing bytes. The mapping did not cause it.
 The fresh full table exposes logging working peak at 1.82x OVER and
 compression.zstd working peak at 1.25x OVER; the memory phase remains open.
 
