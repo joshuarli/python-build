@@ -95,6 +95,12 @@ is a build in your worktree. Use your `LANE` value as your build name.
    startup-bound wall/CPU regressions of 1% to 3%, when all other rows and
    outputs match. The same source, policy, artifact, and primary-path gate
    requirements apply; retain the real setup verdicts.
+   The coordinator may also resolve unchanged-route CPU setup drift using a
+   fresh primary-path paired guard comparison with unchanged route sources
+   and policy, matching outputs, and all route metrics neutral in both runs.
+   Preserve both worktree rejections and that primary evidence. This permits
+   exploration only; the changed route requires a primary batch memory win
+   and every acceptance guard.
 
 ## Understand before editing
 

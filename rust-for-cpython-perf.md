@@ -53,10 +53,28 @@ The quiet all-workload gate against pristine control read REJECT because
 This is outstanding absolute debt, not a verdict on a new optimization.
 The committed baseline snapshots are refreshed from that run.
 
-Historical provisional batches `f7a0121`, `3ce7286`, and `e41f4fb` remain
-provisional. Fresh absolute goals and workload measurements do not establish
-their improvement against their previous incumbents; those original paired
-comparisons still need quiet confirmation before memory completion.
+Historical batches `f7a0121`, `3ce7286`, and `e41f4fb` now have quiet,
+replicated confirmation against their recorded previous incumbent `a97f52a`,
+using exact overlay snapshots and the locked current toolchain. All target
+memory improvements replicated; every application guard avoided regression.
+This confirms their original measuring contract, not absolute memory completion.
+
+The comparison evidence was preserved under the primary checkout's ignored
+`rust-cpython/results/lane-handoffs/confirm-history/results/perf-bench/`
+before removing the clean historical worktree: `20260930T031254Z` (zip/glob),
+`20260930T033220Z` (futures), and `20260930T040005Z` (gzip/shlex/URL/textwrap).
+Historical previous, zip, and final snapshots each passed 50,158/2,791.
+The futures snapshot's full run had one asyncio stream-test failure; its
+complete asyncio rerun passed 2,780/65. Both logs are retained. The 43 extra
+historical skips are case/subtest skips, with unchanged test sources; path
+length limits are a possible cause, not a proved attribution. Current
+primary qualification remains 50,158/2,748, with no failures.
+
+Fresh partial goals put zipfile, gzip, urllib.parse, textwrap, and futures
+memory at MET or BEYOND. Zipimport load remains 1.10x OVER, shlex 1.08x OVER;
+glob's rigorous rerun resolves load to 1.06x OVER. These are snapshots under
+the original runner boundary; a discovered premeasurement JSON import
+preloads Rust regex and requires refreshed goals after correction.
 
 Local evidence (ignored result files): calibration `20260929T224548Z-calibrate-perf-upstream`,
 workloads `20260929T224734Z-perf-upstream-vs-perf-rust`, and goals
@@ -85,8 +103,7 @@ Their working peaks are MET. The evidence is
 `rust-cpython/results/perf-bench/`. Rigorous module sampling uses ten rounds;
 workload guards retain complete standard evidence sampling.
 
-Fnmatch and tempfile have qualified memory winners awaiting the next primary
-batch. Bisect's final memory gate was NEUTRAL despite its exploratory gain;
+Fnmatch and tempfile have now integrated in the second Codex batch. Bisect's final memory gate was NEUTRAL despite its exploratory gain;
 socket, datetime, and the new codec startup experiment likewise did not
 qualify memory gains. Those branches and ignored handoff evidence are
 preserved for later work. Codecs startup saved about 0.5% RSS, below the floor;
@@ -103,19 +120,61 @@ must continue reaching Rust. Other active lanes include decimal, argparse,
 functools, UUID, contextlib, and strptime. Durable live lane state is in
 `rust-cpython/results/coordinator-state.json` (ignored).
 
+### Second accepted Codex memory batch
+
+The primary batch integrates fnmatch, tempfile, argparse, and functools.
+The corrected-boundary quiet two-run gate accepts load ratios **0.320x**,
+**0.359x**, **0.966x**, and **0.846x**, respectively, with improvements in
+both runs. Working peaks and all seven workload guards are neutral; no
+output mismatch or regression occurs. The clean build verifies 69 Rust
+extension images; the full suite passes **50,158/2,748**, zero failures.
+Resources improves load to 0.849x as a cross-module guard and now reaches
+memory MET against control (0.91x). Fnmatch and tempfile reach BEYOND on
+load (0.39x/0.40x); argparse and functools remain OVER (1.16x/1.20x).
+All five working peaks are MET. CPU remains a guard, not the phase target.
+
+Evidence: `20260930T052640Z-perf-rust-vs-perf-merge/verdict.json` and
+`20260930T053642Z-goals-perf-upstream-vs-perf-merge/verdict.json`, under
+`rust-cpython/results/perf-bench/`. The build/gate source is `98c5362`;
+subsequent commits before integration change documentation only. UUID's
+memory improvement did not replicate under the corrected boundary; the
+original decimal candidate also failed primary memory confirmation. Both
+were reverted and their branches preserved. The separate decimal capsule
+lane improved CPU, but neutral memory and a zlib CPU guard regression
+prevented acceptance; decimal is now on memory debt after two failed lanes.
+
+### Corrected measurement boundary and native route coverage
+
+Commit `1faf2e4` moves JSON result serialization after all memory and timing
+snapshots. Previously JSON's encoder compiled supported regex patterns before
+the load baseline, preloading `_re_rs` and hiding some routes' import cost.
+The old comparisons remain evidence for their original boundary; future
+goals and acceptance comparisons use the corrected runner. The shared regex
+flag-eligibility experiment was rejected under the old boundary and its
+tested patch is preserved for a later corrected comparison.
+
+The same separate measuring-stick commit retains existing kernels and adds
+successful native pickle dump/load round trips, functional resource reads,
+and Pool task batching to multiprocessing. Three fresh staged regressions
+failed before the route additions; all four route/boundary tests now pass.
+Complete outputs for all three corrected kernels match pristine control.
+No overlay source or CPython test was changed by this correction. Existing
+tables below are snapshots; a full goal refresh follows the next accepted
+integration before selecting further lanes.
+
 ### Current module goal table
 
 Ratios compare the measured candidate with pristine control. Each cell records
 the pooled ratio and replicated goal status; small memory values use harness
-floors. Fractions, tarfile, and random are refreshed from the accepted primary
-batch. Other rows retain the initial full snapshot at `7351620` and have not
-yet been remeasured after this integration; cross-module drift is checked in
-every third integration and at memory completion.
+floors. Fractions, tarfile, and random retain the first accepted batch snapshot.
+Fnmatch, tempfile, argparse, functools, and resources use the corrected
+boundary and second-batch goals. Other rows retain the initial full snapshot
+at `7351620`; a full refresh follows the incumbent rebuild.
 
 | Module | CPU | Load footprint | Working peak | Overall |
 | --- | --- | --- | --- | --- |
 | `_strptime` | 1.694x OVER | 1.169x OVER | 1.000x MET | OVER |
-| `argparse` | 2.345x OVER | 1.287x OVER | 1.000x MET | OVER |
+| `argparse` | 2.275x OVER | 1.160x OVER | 1.000x MET | OVER |
 | `ast` | 1.371x OVER | 1.041x OVER | 1.000x MET | OVER |
 | `asyncio` | 1.130x OVER | 1.069x OVER | 1.000x MET | OVER |
 | `base64` | 2.932x OVER | 1.081x OVER | 1.000x MET | OVER |
@@ -134,9 +193,9 @@ every third integration and at memory completion.
 | `decimal` | 5.710x OVER | 1.250x OVER | 1.000x MET | OVER |
 | `difflib` | 1.151x OVER | 1.108x UNCLEAR | 1.000x MET | OVER |
 | `email` | 1.039x OVER | 0.929x MET | 1.032x UNCLEAR | OVER |
-| `fnmatch` | 1.443x OVER | 1.955x OVER | 1.000x MET | OVER |
+| `fnmatch` | 1.163x OVER | 0.389x BEYOND | 1.000x MET | OVER |
 | `fractions` | 3.299x OVER | 1.211x OVER | 1.000x MET | OVER |
-| `functools` | 4.996x OVER | 1.348x OVER | 1.000x MET | OVER |
+| `functools` | 4.890x OVER | 1.200x OVER | 1.000x MET | OVER |
 | `glob` | 0.614x BEYOND | 1.062x OVER | 1.000x MET | OVER |
 | `gzip` | 0.613x BEYOND | 0.689x BEYOND | 1.000x MET | MET |
 | `hashlib` | 1.036x OVER | 1.006x MET | 1.000x MET | OVER |
@@ -145,7 +204,7 @@ every third integration and at memory completion.
 | `html.parser` | 0.979x MET | 1.145x UNCLEAR | 1.000x MET | UNCLEAR |
 | `http.client` | 1.047x OVER | 1.037x UNCLEAR | 1.000x MET | OVER |
 | `importlib.metadata` | 0.738x BEYOND | 1.006x MET | 1.000x MET | MET |
-| `importlib.resources` | 1.026x OVER | 1.043x OVER | 1.000x MET | OVER |
+| `importlib.resources` | 1.041x OVER | 0.912x MET | 1.000x MET | OVER |
 | `inspect` | 1.390x OVER | 1.072x OVER | 1.000x MET | OVER |
 | `io` | 1.553x OVER | 1.000x MET | 1.000x MET | OVER |
 | `ipaddress` | 0.485x BEYOND | 0.988x MET | 1.000x MET | MET |
@@ -170,7 +229,7 @@ every third integration and at memory completion.
 | `struct` | 2.108x OVER | 1.004x MET | 1.000x MET | OVER |
 | `subprocess` | 1.010x MET | 1.145x OVER | 1.000x MET | OVER |
 | `tarfile` | 0.393x BEYOND | 1.120x OVER | 1.000x MET | OVER |
-| `tempfile` | 1.022x UNCLEAR | 1.226x OVER | 1.000x MET | OVER |
+| `tempfile` | 1.020x UNCLEAR | 0.405x BEYOND | 1.000x MET | UNCLEAR |
 | `textwrap` | 0.037x BEYOND | 0.915x MET | 1.000x MET | MET |
 | `threading` | 1.950x OVER | 1.000x MET | 1.000x MET | OVER |
 | `tokenize` | 1.114x OVER | 1.018x OVER | 1.000x MET | OVER |
@@ -633,9 +692,11 @@ candidate over baseline for the batch targets.
 | 2026-09-29 | `6c153ab` | binascii-mem (memory phase) | Gate ACCEPT, quiet=yes, primary path, guards neutral. `binascii` cpu 0.894x, peak 0.414x improved, load 0.818x neutral. `base64` cpu 0.907x improved, load 0.684x and peak 0.309x neutral. | `base64` OVER on cpu only (2.90x; memory MET: load 0.94x, peak 1.00x). `binascii` OVER on cpu (1.67x); load 1.01x UNCLEAR, peak 0.95x MET. Full `goals` at `6c153ab`: OVER 54, UNCLEAR 12, MET 5. Row noise: control working peak swings 16 KiB to 1.7 MiB between runs on some kernels (`shutil`), so UNCLEAR rows get a rigorous rerun before a lane. |
 | 2026-09-29 | `358d7cf` | statistics-mem (memory phase) | Gate ACCEPT, quiet=yes, primary path, guards neutral. `statistics` cpu 0.605x improved, load 0.557x and peak 0.668x neutral (points below 1.0). Also confirms the workspace-wide `panic = "abort"` profile (needed for `no_std`): eight modules that import many dylibs read neutral on every metric. | `statistics` UNCLEAR at the floor: cpu 0.08x BEYOND, load 1.03x (744/696 KiB), peak MET. Residual load is `import statistics` loading `_fractions_rs`, `_itertools_rs`, `_bisect_rs`, `_re_rs` (per-dylib cost). Image 408 KiB -> 70 KiB. |
 | 2026-09-29 | `a97f52a` | marshal-mem, configparser-mem (memory phase) | Gate ACCEPT, quiet=yes, primary path, guards neutral. `marshal` cpu 0.345x improved, load 0.902x and peak 1.000x neutral. `configparser` cpu 0.175x, load 0.296x, peak 0.856x improved. Public `marshal.dumps` bytes now match pristine CPython (FLAG_REF only on shared/interned objects). | `marshal` UNCLEAR at the floor (cpu 0.88x BEYOND, load 1.05x, peak MET). `configparser` MET (cpu 0.22x BEYOND, load 0.88x, peak 0.87x BEYOND). Full `goals` at `a97f52a`: OVER 52, UNCLEAR 12, MET 7 (63/6/2 at the first baseline). Working peak is MET or near it on nearly every module; the remaining debt is mostly load footprint from other routes' dylibs on each import path. |
-| 2026-09-29 | `f7a0121` | zip-mem, glob-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; every target improved, nothing regressed, guards neutral, full suite ok (provisional). `zipfile` cpu 0.497x, load 0.248x; `zipimport` cpu 0.928x, load 0.824x; `glob` cpu 0.514x, load 0.733x, peak 0.697x; `zip_read_wheel` wall 0.574x. | Final `goals`: `zipfile` MET (cpu 0.65x, load 0.51x BEYOND), `zipimport` MET, `glob` UNCLEAR (cpu 0.64x BEYOND, load 1.09x, peak MET). `zipfile` gets its win from lazy imports in `Lib/zipfile` (PEP 810 `lazy import`, `_thread.RLock`); `glob` `_glob_rs` is `no_std` (433 -> 35 KiB) and returns readdir order. |
-| 2026-09-29 | `3ce7286` | cf-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; all three metrics improved (provisional). `concurrent.futures` cpu 0.576x, load 0.508x, peak 0.276x. | `concurrent.futures` MET (cpu 0.72x, load 0.53x BEYOND, peak 0.26x). Cost was per-`Future` bytes from `threading.Condition.__init__` (about 1.7 KB); `_FutureCondition` is lazy (about 520 B) and depends on `threading.Condition` internals. |
-| 2026-09-29 | `e41f4fb` | gzip-mem, shlex-mem, urlparse-mem, textwrap-mem (memory phase, final) | Gate INCONCLUSIVE for quiet=no only; every target improved or points below 1.0, nothing regressed, guards neutral (`python_startup` wall 1.237 [1.000,1.289] flagged), full suite ok (provisional). `gzip` cpu 0.475x; `shlex` cpu 0.881x, load 0.759x; `textwrap` cpu 0.047x, load 0.488x; `urllib.parse` cpu 0.592x, load 0.333x; `gzip_extract_1m` wall 0.545x. | Full `goals` at `e41f4fb`: **OVER 44, UNCLEAR 17, MET 10** (63/6/2 at the first baseline). `urllib.parse` MET (load 0.51x BEYOND). `gzip`, `textwrap`, `shlex` still UNCLEAR/OVER on load (one to three pages above control: the extension's own dirtied `__DATA` page plus other routes' dylibs on the import path). flate2, adler2, miniz_oxide left the lock. |
+| 2026-09-29 | `f7a0121` | zip-mem, glob-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; every target improved, nothing regressed, guards neutral, full suite ok (originally provisional; quiet confirmed 2026-09-30: load glob0.710x, zipfile0.435x, zipimport0.825x; glob peak0.667x, no guard regressions). `zipfile` cpu 0.497x, load 0.248x; `zipimport` cpu 0.928x, load 0.824x; `glob` cpu 0.514x, load 0.733x, peak 0.697x; `zip_read_wheel` wall 0.574x. | Final `goals`: `zipfile` MET (cpu 0.65x, load 0.51x BEYOND), `zipimport` MET, `glob` UNCLEAR (cpu 0.64x BEYOND, load 1.09x, peak MET). `zipfile` gets its win from lazy imports in `Lib/zipfile` (PEP 810 `lazy import`, `_thread.RLock`); `glob` `_glob_rs` is `no_std` (433 -> 35 KiB) and returns readdir order. |
+| 2026-09-29 | `3ce7286` | cf-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; all three metrics improved (originally provisional; quiet confirmed 2026-09-30: load0.613x, peak0.136x, CPU0.594x, no guard regressions). `concurrent.futures` cpu 0.576x, load 0.508x, peak 0.276x. | `concurrent.futures` MET (cpu 0.72x, load 0.53x BEYOND, peak 0.26x). Cost was per-`Future` bytes from `threading.Condition.__init__` (about 1.7 KB); `_FutureCondition` is lazy (about 520 B) and depends on `threading.Condition` internals. |
+| 2026-09-29 | `e41f4fb` | gzip-mem, shlex-mem, urlparse-mem, textwrap-mem (memory phase, final) | Gate INCONCLUSIVE for quiet=no only; every target improved or points below 1.0, nothing regressed, guards neutral (`python_startup` wall 1.237 [1.000,1.289] flagged), full suite ok (originally provisional; quiet confirmed 2026-09-30: load gzip0.765x, shlex0.667x, textwrap0.508x, urllib.parse0.314x; peaks neutral, no guard regressions). `gzip` cpu 0.475x; `shlex` cpu 0.881x, load 0.759x; `textwrap` cpu 0.047x, load 0.488x; `urllib.parse` cpu 0.592x, load 0.333x; `gzip_extract_1m` wall 0.545x. | Full `goals` at `e41f4fb`: **OVER 44, UNCLEAR 17, MET 10** (63/6/2 at the first baseline). `urllib.parse` MET (load 0.51x BEYOND). `gzip`, `textwrap`, `shlex` still UNCLEAR/OVER on load (one to three pages above control: the extension's own dirtied `__DATA` page plus other routes' dylibs on the import path). flate2, adler2, miniz_oxide left the lock. |
+| 2026-09-29 | `284fa00` | Codex memory batch 1: fractions, tarfile, random | Primary quiet two-run gate ACCEPT; load **0.750x / 0.875x / 0.762x** improved in both runs, working peaks and all seven workload guards neutral. CPU guard ratios 0.943x / 0.583x / 0.838x improved. Full suite **50,158/2,748**, no failures; clean69 Rust images. | Control goals: fractions load1.21x OVER, tarfile1.12x OVER, random1.00x MET; working peaks MET. Source gate eb026a7; primary path resolves lane startup bias and establishes Random memory win. Baseline refresh deferred to memory completion. |
+| 2026-09-30 | `98c5362` (source) | Codex memory batch 2: fnmatch, tempfile, argparse, functools | Corrected-boundary primary quiet two-run gate ACCEPT; load **0.320x / 0.359x / 0.966x / 0.846x** improved both runs; working peaks and all seven workload guards neutral. Full suite **50,158/2,748**, zero failures; clean69 images. Resources guard load0.849x improved. | Control memory goals: fnmatch0.39x BEYOND, tempfile0.40x BEYOND, argparse1.16x OVER, functools1.20x OVER; resources0.91x MET, working peaks MET. UUID and decimal predecessors reverted after failed primary memory replication; no CPU-only candidate accepted. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
@@ -727,7 +788,6 @@ workload comparison is pending a quiet host. `compileall_source` output
 differs from the control by design (the checklist's marshal note), so it
 is reported, not timed, against the control.
 
-| 2026-09-29 | `284fa00` | Codex memory batch 1: fractions, tarfile, random | Primary quiet two-run gate ACCEPT; load **0.750x / 0.875x / 0.762x** improved in both runs, working peaks and all seven workload guards neutral. CPU guard ratios 0.943x / 0.583x / 0.838x improved. Full suite **50,158/2,748**, no failures; clean69 Rust images. | Control goals: fractions load1.21x OVER, tarfile1.12x OVER, random1.00x MET; working peaks MET. Source gate eb026a7; primary path resolves lane startup bias and establishes Random memory win. Baseline refresh deferred to memory completion. |
 
 ## Historical findings
 

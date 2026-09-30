@@ -1,11 +1,11 @@
 use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, PyErr_SetString, PyExc_TypeError, PyLong_FromLong,
     PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, Py_NewRef, PyObject, Py_ssize_t,
+    PyModuleDef_Init, PyModuleDef_Slot, Py_NewRef, PyObject, Py_ssize_t,
 };
 
 unsafe extern "C" {
@@ -143,13 +143,32 @@ struct ModuleDef(UnsafeCell<PyModuleDef>);
 
 unsafe impl Sync for ModuleDef {}
 
+const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
+const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: usize = 2;
+
+struct ModuleSlots(UnsafeCell<[PyModuleDef_Slot; 2]>);
+
+unsafe impl Sync for ModuleSlots {}
+
+// Comparisons retain no Python references beyond the current call.
+static MODULE_SLOTS: ModuleSlots = ModuleSlots(UnsafeCell::new([
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED as *mut c_void,
+    },
+    PyModuleDef_Slot {
+        slot: 0,
+        value: ptr::null_mut(),
+    },
+]));
+
 static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_functools_rs".as_ptr() as *mut c_char,
     m_doc: c"Rust comparison operations for functools ordering helpers.".as_ptr() as *mut c_char,
     m_size: 0,
     m_methods: METHODS.as_ptr() as *mut PyMethodDef,
-    m_slots: ptr::null_mut(),
+    m_slots: MODULE_SLOTS.0.get().cast(),
     m_traverse: None,
     m_clear: None,
     m_free: None,

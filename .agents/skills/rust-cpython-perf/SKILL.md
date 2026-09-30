@@ -203,6 +203,12 @@ first batch.
   and matching outputs. Verify identical source and compiler policy and each
   installed library against its own Cargo artifact. Preserve both REJECTs;
   acceptance still requires an actual primary-path batch gate.
+- A replicated CPU setup difference on an unchanged route may be resolved by
+  a fresh primary-path paired guard comparison. Verify unchanged route sources
+  and compiler policy, matching outputs, and every route metric neutral in
+  both primary runs. Preserve the worktree REJECTs and the primary evidence;
+  authorize exploration only. The changed route still needs its own primary
+  batch memory improvement, complete suites, and every regression guard.
 - Reserve owned overlay paths per lane before spawning. Two lanes never
   edit the same route. Shared `overlay/Cargo.toml`, `overlay/Cargo.lock`,
   and `overlay/Modules/Setup.local` edits are allowed; you reconcile them.

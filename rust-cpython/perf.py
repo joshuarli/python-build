@@ -306,11 +306,22 @@ def _overlay_members() -> set[str]:
 
 def _built_members(build_log: Path, members: set[str]) -> list[str]:
     pattern = re.compile(r"(?:Compiling|Fresh) ([^ ]+) v[^ ]+")
+    package_pattern = re.compile(r"\bCARGO_PKG_NAME=(?:'([^']+)'|([^\s]+))")
+    crate_pattern = re.compile(r"\brustc\s+--crate-name\s+(\S+)")
     found: set[str] = set()
     for line in build_log.read_text(errors="replace").splitlines():
         match = pattern.search(line)
         if match and match.group(1) in members:
             found.add(match.group(1))
+        # Parallel make output can split Cargo's progress line. Its verbose
+        # compiler command still identifies the package and library crate;
+        # a package's build script has a different crate name and cannot count.
+        package = package_pattern.search(line)
+        crate = crate_pattern.search(line)
+        if package and crate:
+            name = package.group(1) or package.group(2)
+            if name in members and crate.group(1) == name.replace("-", "_"):
+                found.add(name)
     return sorted(found)
 
 
