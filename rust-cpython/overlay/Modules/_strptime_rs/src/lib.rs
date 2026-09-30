@@ -111,6 +111,8 @@ unsafe extern "C" {
     fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
     fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
     fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
+    fn PyUnicode_FromStringAndSize(bytes: *const c_char, size: Py_ssize_t) -> *mut PyObject;
+    fn PyObject_CallMethod(object: *mut PyObject, name: *const c_char, format: *const c_char, ...) -> *mut PyObject;
     fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
     fn PyMem_Malloc(size: usize) -> *mut c_void;
     fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
@@ -124,7 +126,7 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 
 // Temporary strings live until conversion returns under the active interpreter's
-// GIL. Unicode casing and offset normalization reuse Python's pools for small
+// GIL. Offset normalization and fraction padding reuse Python's pools for small
 // allocations, keeping freed blocks in the interpreter's existing pools.
 struct PythonAllocator;
 
@@ -392,11 +394,43 @@ fn parse_decimal(value: &str) -> Option<i64> {
     value.parse().ok()
 }
 
+// Exact Unicode objects use CPython's casing tables without invoking an input
+// subclass override. Both temporary owners die under the calling interpreter's GIL.
+struct Lowercase(*mut PyObject);
+
+impl Lowercase {
+    fn new(value: &str) -> Option<Self> {
+        let source = unsafe { PyUnicode_FromStringAndSize(value.as_ptr().cast(), value.len().try_into().ok()?) };
+        if source.is_null() {
+            return None;
+        }
+        let result = unsafe { PyObject_CallMethod(source, c"lower".as_ptr(), ptr::null()) };
+        unsafe { Py_DecRef(source) };
+        (!result.is_null()).then_some(Self(result))
+    }
+
+    fn text(&self) -> Option<&str> {
+        let mut size = 0;
+        let bytes = unsafe { PyUnicode_AsUTF8AndSize(self.0, &mut size) };
+        if bytes.is_null() || size < 0 {
+            return None;
+        }
+        Some(unsafe { core::str::from_utf8_unchecked(slice::from_raw_parts(bytes.cast(), size as usize)) })
+    }
+}
+
+impl Drop for Lowercase {
+    fn drop(&mut self) {
+        unsafe { Py_DecRef(self.0) };
+    }
+}
+
 fn find_locale_name<'py>(
     value: &str,
     mut names: impl Iterator<Item = &'py str>,
 ) -> Option<i64> {
-    let value = value.to_lowercase();
+    let lowercase = Lowercase::new(value)?;
+    let value = lowercase.text()?;
     names
         .position(|name| name == value)
         .map(|index| index as i64)
@@ -517,7 +551,8 @@ fn convert_groups(
             }
             "I" => {
                 let mut hour = parse_decimal(value)?;
-                let am_pm = group_value(groups, "p").unwrap_or("").to_lowercase();
+                let lowercase = Lowercase::new(group_value(groups, "p").unwrap_or(""))?;
+                let am_pm = lowercase.text()?;
                 let is_pm = locale.am_pm.get(1).is_some_and(|pm| pm == am_pm);
                 if is_pm {
                     if hour != 12 {
@@ -566,7 +601,8 @@ fn convert_groups(
                 (fields.utc_offset, fields.utc_offset_fraction) = parse_utc_offset(value)?;
             }
             "Z" => {
-                let found_zone = value.to_lowercase();
+                let lowercase = Lowercase::new(value)?;
+                let found_zone = lowercase.text()?;
                 for (index, timezone_names) in locale.timezones.iter().enumerate() {
                     if timezone_names.iter().any(|name| name == found_zone) {
                         if locale.tzname.len() == 2
@@ -726,7 +762,12 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
     };
     let fields = match convert_groups(&groups, &locale) {
         Some(fields) => fields,
-        None => return unsafe { PyTuple_New(0) },
+        None => {
+            if !unsafe { PyErr_Occurred() }.is_null() {
+                return ptr::null_mut();
+            }
+            return unsafe { PyTuple_New(0) };
+        }
     };
 
     let result = unsafe { PyTuple_New(fields.len() as Py_ssize_t) };

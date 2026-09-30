@@ -49,3 +49,9 @@ except UnicodeEncodeError:
 else:
     raise AssertionError("surrogate input must retain UnicodeEncodeError")
 print("borrowed owners, Unicode locale, missing groups, malformed lengths, and public fallback parity passed")
+
+# Full Unicode lowercase preserves expansions and context-sensitive sigma.
+for upper in ("İ", "ΟΣ"):
+    locale = fresh_locale()
+    months = ("", upper.lower(), *locale[2][2:])
+    assert _strptime_rs.parse_groups((("B", upper),), *locale[:2], months, *locale[3:])[2] == 1
