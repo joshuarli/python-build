@@ -33,7 +33,8 @@ module-debt completion exceptions, and stopped-session status below.
 Doctor/status passed on resumption. The verified incumbent remains `7cf55a6`
 (clean58, full50,158/2,748) and its overlay matches documentation HEAD
 `b43b5d4`; the pristine control remains `7351620`. Fresh full module memory goals read 10 OVER / 16 UNCLEAR / 45 MET or BEYOND.
-Memory-only self-calibration and the fresh absolute workload comparison are
+Memory-only self-calibration `20260930T233108Z` passed: all seven workload
+RSS rows neutral in both runs. The fresh absolute workload comparison is
 pending. The explicit harness policy is committed at `e32c713`; 43 focused
 contract tests pass. No new memory improvement is claimed yet.
 
@@ -383,7 +384,8 @@ Fresh full 71-route measurements at `20260930T231721Z` compare the verified
 explicit harness policy was integrated; the table below reclassifies its
 unchanged raw memory evidence with `goal_status(memory_only=True)`. CPU rows
 are excluded. Memory counts are **10 OVER, 16 UNCLEAR, 44 MET, 1 BEYOND**.
-The memory-only self-calibration is pending; no candidate acceptance is claimed.
+Memory-only self-calibration `20260930T233108Z` passed with all seven workload
+RSS rows neutral in both runs; no candidate acceptance is claimed.
 Historical failed hypotheses remain findings, not completed goals.
 
 | Route | Load footprint | Working peak | Memory status |
