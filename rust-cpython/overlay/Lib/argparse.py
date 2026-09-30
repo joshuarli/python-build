@@ -804,6 +804,10 @@ class HelpFormatter(object):
         return action.dest
 
 
+_builtin_help_formatter = HelpFormatter
+_builtin_help_formatter_definition = dict(HelpFormatter.__dict__)
+
+
 class RawDescriptionHelpFormatter(HelpFormatter):
     """Help message formatter which retains any formatting in descriptions.
 
@@ -2916,7 +2920,13 @@ class ArgumentParser(_AttributeHolder, _ActionsContainer):
         # Validation never renders output, so force color off to avoid
         # importing _colorize during add_argument.
         if self._cached_formatter is None:
-            formatter = self.formatter_class(prog=self.prog)
+            # Built-in validation expands placeholders without laying out text.
+            # Custom formatter definitions retain their terminal-derived width.
+            if (self.formatter_class is _builtin_help_formatter and
+                _builtin_help_formatter.__dict__ == _builtin_help_formatter_definition):
+                formatter = self.formatter_class(prog=self.prog, width=80)
+            else:
+                formatter = self.formatter_class(prog=self.prog)
             formatter._set_color(False)
             self._cached_formatter = formatter
         return self._cached_formatter
