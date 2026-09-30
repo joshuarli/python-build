@@ -20,20 +20,20 @@ from _collections_abc import Sequence
 lazy import shutil
 lazy from glob import _StringGlobber, _no_recurse_symlinks
 
-try:
-    import pwd
-except ImportError:
-    pwd = None
-try:
-    import grp
-except ImportError:
-    grp = None
+lazy import pwd
+lazy import grp
 
-from pathlib._os import (
+lazy from pathlib._os import (
     vfsopen, vfspath,
     ensure_different_files, ensure_distinct_paths,
-    copyfile2, copyfileobj,
+    copyfileobj,
 )
+
+# Only Windows has CopyFile2; the other copying helpers are needed on demand.
+if os.name == 'nt':
+    from pathlib._os import copyfile2
+else:
+    copyfile2 = None
 
 try:
     import _pathlib_rs
@@ -1182,35 +1182,29 @@ class Path(PurePath):
 
         return self.with_segments(os.path.realpath(self, strict=strict))
 
-    if pwd:
-        def owner(self, *, follow_symlinks=True):
-            """
-            Return the login name of the file owner.
-            """
-            uid = self.stat(follow_symlinks=follow_symlinks).st_uid
-            return pwd.getpwuid(uid).pw_name
-    else:
-        def owner(self, *, follow_symlinks=True):
-            """
-            Return the login name of the file owner.
-            """
+    def owner(self, *, follow_symlinks=True):
+        """
+        Return the login name of the file owner.
+        """
+        try:
+            getpwuid = pwd.getpwuid
+        except ImportError:
             f = f"{type(self).__name__}.owner()"
-            raise UnsupportedOperation(f"{f} is unsupported on this system")
+            raise UnsupportedOperation(f"{f} is unsupported on this system") from None
+        uid = self.stat(follow_symlinks=follow_symlinks).st_uid
+        return getpwuid(uid).pw_name
 
-    if grp:
-        def group(self, *, follow_symlinks=True):
-            """
-            Return the group name of the file gid.
-            """
-            gid = self.stat(follow_symlinks=follow_symlinks).st_gid
-            return grp.getgrgid(gid).gr_name
-    else:
-        def group(self, *, follow_symlinks=True):
-            """
-            Return the group name of the file gid.
-            """
+    def group(self, *, follow_symlinks=True):
+        """
+        Return the group name of the file gid.
+        """
+        try:
+            getgrgid = grp.getgrgid
+        except ImportError:
             f = f"{type(self).__name__}.group()"
-            raise UnsupportedOperation(f"{f} is unsupported on this system")
+            raise UnsupportedOperation(f"{f} is unsupported on this system") from None
+        gid = self.stat(follow_symlinks=follow_symlinks).st_gid
+        return getgrgid(gid).gr_name
 
     if hasattr(os, "readlink"):
         def readlink(self):
