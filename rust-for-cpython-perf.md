@@ -103,8 +103,7 @@ Their working peaks are MET. The evidence is
 `rust-cpython/results/perf-bench/`. Rigorous module sampling uses ten rounds;
 workload guards retain complete standard evidence sampling.
 
-Fnmatch and tempfile have qualified memory winners awaiting the next primary
-batch. Bisect's final memory gate was NEUTRAL despite its exploratory gain;
+Fnmatch and tempfile have now integrated in the second Codex batch. Bisect's final memory gate was NEUTRAL despite its exploratory gain;
 socket, datetime, and the new codec startup experiment likewise did not
 qualify memory gains. Those branches and ignored handoff evidence are
 preserved for later work. Codecs startup saved about 0.5% RSS, below the floor;
@@ -120,6 +119,29 @@ shows the image loading solely to decline those calls. Supported regex calls
 must continue reaching Rust. Other active lanes include decimal, argparse,
 functools, UUID, contextlib, and strptime. Durable live lane state is in
 `rust-cpython/results/coordinator-state.json` (ignored).
+
+### Second accepted Codex memory batch
+
+The primary batch integrates fnmatch, tempfile, argparse, and functools.
+The corrected-boundary quiet two-run gate accepts load ratios **0.320x**,
+**0.359x**, **0.966x**, and **0.846x**, respectively, with improvements in
+both runs. Working peaks and all seven workload guards are neutral; no
+output mismatch or regression occurs. The clean build verifies 69 Rust
+extension images; the full suite passes **50,158/2,748**, zero failures.
+Resources improves load to 0.849x as a cross-module guard and now reaches
+memory MET against control (0.91x). Fnmatch and tempfile reach BEYOND on
+load (0.39x/0.40x); argparse and functools remain OVER (1.16x/1.20x).
+All five working peaks are MET. CPU remains a guard, not the phase target.
+
+Evidence: `20260930T052640Z-perf-rust-vs-perf-merge/verdict.json` and
+`20260930T053642Z-goals-perf-upstream-vs-perf-merge/verdict.json`, under
+`rust-cpython/results/perf-bench/`. The build/gate source is `98c5362`;
+subsequent commits before integration change documentation only. UUID's
+memory improvement did not replicate under the corrected boundary; the
+original decimal candidate also failed primary memory confirmation. Both
+were reverted and their branches preserved. The separate decimal capsule
+lane improved CPU, but neutral memory and a zlib CPU guard regression
+prevented acceptance; decimal is now on memory debt after two failed lanes.
 
 ### Corrected measurement boundary and native route coverage
 
@@ -144,15 +166,15 @@ integration before selecting further lanes.
 
 Ratios compare the measured candidate with pristine control. Each cell records
 the pooled ratio and replicated goal status; small memory values use harness
-floors. Fractions, tarfile, and random are refreshed from the accepted primary
-batch. Other rows retain the initial full snapshot at `7351620` and have not
-yet been remeasured after this integration; cross-module drift is checked in
-every third integration and at memory completion.
+floors. Fractions, tarfile, and random retain the first accepted batch snapshot.
+Fnmatch, tempfile, argparse, functools, and resources use the corrected
+boundary and second-batch goals. Other rows retain the initial full snapshot
+at `7351620`; a full refresh follows the incumbent rebuild.
 
 | Module | CPU | Load footprint | Working peak | Overall |
 | --- | --- | --- | --- | --- |
 | `_strptime` | 1.694x OVER | 1.169x OVER | 1.000x MET | OVER |
-| `argparse` | 2.345x OVER | 1.287x OVER | 1.000x MET | OVER |
+| `argparse` | 2.275x OVER | 1.160x OVER | 1.000x MET | OVER |
 | `ast` | 1.371x OVER | 1.041x OVER | 1.000x MET | OVER |
 | `asyncio` | 1.130x OVER | 1.069x OVER | 1.000x MET | OVER |
 | `base64` | 2.932x OVER | 1.081x OVER | 1.000x MET | OVER |
@@ -171,9 +193,9 @@ every third integration and at memory completion.
 | `decimal` | 5.710x OVER | 1.250x OVER | 1.000x MET | OVER |
 | `difflib` | 1.151x OVER | 1.108x UNCLEAR | 1.000x MET | OVER |
 | `email` | 1.039x OVER | 0.929x MET | 1.032x UNCLEAR | OVER |
-| `fnmatch` | 1.443x OVER | 1.955x OVER | 1.000x MET | OVER |
+| `fnmatch` | 1.163x OVER | 0.389x BEYOND | 1.000x MET | OVER |
 | `fractions` | 3.299x OVER | 1.211x OVER | 1.000x MET | OVER |
-| `functools` | 4.996x OVER | 1.348x OVER | 1.000x MET | OVER |
+| `functools` | 4.890x OVER | 1.200x OVER | 1.000x MET | OVER |
 | `glob` | 0.614x BEYOND | 1.062x OVER | 1.000x MET | OVER |
 | `gzip` | 0.613x BEYOND | 0.689x BEYOND | 1.000x MET | MET |
 | `hashlib` | 1.036x OVER | 1.006x MET | 1.000x MET | OVER |
@@ -182,7 +204,7 @@ every third integration and at memory completion.
 | `html.parser` | 0.979x MET | 1.145x UNCLEAR | 1.000x MET | UNCLEAR |
 | `http.client` | 1.047x OVER | 1.037x UNCLEAR | 1.000x MET | OVER |
 | `importlib.metadata` | 0.738x BEYOND | 1.006x MET | 1.000x MET | MET |
-| `importlib.resources` | 1.026x OVER | 1.043x OVER | 1.000x MET | OVER |
+| `importlib.resources` | 1.041x OVER | 0.912x MET | 1.000x MET | OVER |
 | `inspect` | 1.390x OVER | 1.072x OVER | 1.000x MET | OVER |
 | `io` | 1.553x OVER | 1.000x MET | 1.000x MET | OVER |
 | `ipaddress` | 0.485x BEYOND | 0.988x MET | 1.000x MET | MET |
@@ -207,7 +229,7 @@ every third integration and at memory completion.
 | `struct` | 2.108x OVER | 1.004x MET | 1.000x MET | OVER |
 | `subprocess` | 1.010x MET | 1.145x OVER | 1.000x MET | OVER |
 | `tarfile` | 0.393x BEYOND | 1.120x OVER | 1.000x MET | OVER |
-| `tempfile` | 1.022x UNCLEAR | 1.226x OVER | 1.000x MET | OVER |
+| `tempfile` | 1.020x UNCLEAR | 0.405x BEYOND | 1.000x MET | UNCLEAR |
 | `textwrap` | 0.037x BEYOND | 0.915x MET | 1.000x MET | MET |
 | `threading` | 1.950x OVER | 1.000x MET | 1.000x MET | OVER |
 | `tokenize` | 1.114x OVER | 1.018x OVER | 1.000x MET | OVER |
@@ -674,6 +696,7 @@ candidate over baseline for the batch targets.
 | 2026-09-29 | `3ce7286` | cf-mem (memory phase) | Gate INCONCLUSIVE for quiet=no only; all three metrics improved (originally provisional; quiet confirmed 2026-09-30: load0.613x, peak0.136x, CPU0.594x, no guard regressions). `concurrent.futures` cpu 0.576x, load 0.508x, peak 0.276x. | `concurrent.futures` MET (cpu 0.72x, load 0.53x BEYOND, peak 0.26x). Cost was per-`Future` bytes from `threading.Condition.__init__` (about 1.7 KB); `_FutureCondition` is lazy (about 520 B) and depends on `threading.Condition` internals. |
 | 2026-09-29 | `e41f4fb` | gzip-mem, shlex-mem, urlparse-mem, textwrap-mem (memory phase, final) | Gate INCONCLUSIVE for quiet=no only; every target improved or points below 1.0, nothing regressed, guards neutral (`python_startup` wall 1.237 [1.000,1.289] flagged), full suite ok (originally provisional; quiet confirmed 2026-09-30: load gzip0.765x, shlex0.667x, textwrap0.508x, urllib.parse0.314x; peaks neutral, no guard regressions). `gzip` cpu 0.475x; `shlex` cpu 0.881x, load 0.759x; `textwrap` cpu 0.047x, load 0.488x; `urllib.parse` cpu 0.592x, load 0.333x; `gzip_extract_1m` wall 0.545x. | Full `goals` at `e41f4fb`: **OVER 44, UNCLEAR 17, MET 10** (63/6/2 at the first baseline). `urllib.parse` MET (load 0.51x BEYOND). `gzip`, `textwrap`, `shlex` still UNCLEAR/OVER on load (one to three pages above control: the extension's own dirtied `__DATA` page plus other routes' dylibs on the import path). flate2, adler2, miniz_oxide left the lock. |
 | 2026-09-29 | `284fa00` | Codex memory batch 1: fractions, tarfile, random | Primary quiet two-run gate ACCEPT; load **0.750x / 0.875x / 0.762x** improved in both runs, working peaks and all seven workload guards neutral. CPU guard ratios 0.943x / 0.583x / 0.838x improved. Full suite **50,158/2,748**, no failures; clean69 Rust images. | Control goals: fractions load1.21x OVER, tarfile1.12x OVER, random1.00x MET; working peaks MET. Source gate eb026a7; primary path resolves lane startup bias and establishes Random memory win. Baseline refresh deferred to memory completion. |
+| 2026-09-30 | `98c5362` (source) | Codex memory batch 2: fnmatch, tempfile, argparse, functools | Corrected-boundary primary quiet two-run gate ACCEPT; load **0.320x / 0.359x / 0.966x / 0.846x** improved both runs; working peaks and all seven workload guards neutral. Full suite **50,158/2,748**, zero failures; clean69 images. Resources guard load0.849x improved. | Control memory goals: fnmatch0.39x BEYOND, tempfile0.40x BEYOND, argparse1.16x OVER, functools1.20x OVER; resources0.91x MET, working peaks MET. UUID and decimal predecessors reverted after failed primary memory replication; no CPU-only candidate accepted. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
