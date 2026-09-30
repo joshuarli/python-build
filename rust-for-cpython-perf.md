@@ -252,92 +252,96 @@ compiled through Rust but searched through C `Pattern.search` only. The owned
 regression failed first with zero Rust search calls; all seven route tests
 now pass, including native matches, misses, and unsupported-pattern fallback.
 Pristine control and incumbent produce identical two-list results. The `re`
-row in the last full goal table is historical until its corrected refresh;
-regex optimizations remain on hold until that new goal is measured.
+row in the current full goal table now includes native searches: load1.76x
+OVER and working peak MET. Four retained-expression/parser experiments
+produced no qualified memory patch; pool attribution found only 2,880 bytes
+of potential retained savings. Own-GIL public tests used the C fallback,
+so they provide no Rust concurrency evidence.
 
 ### Current module goal table
 
 Ratios compare the measured candidate with pristine control. Each cell records
 the pooled ratio and replicated goal status; small memory values use harness
-floors. All 71 rows use the corrected measurement boundary and the clean
-`bd886d2` incumbent. Full paired goals completed at `20260930T112407Z`:
-OVER 50, UNCLEAR 5, MET 16 (overall statuses include CPU). Memory lanes
-continue independently of CPU statuses; UNCLEAR memory rows need one rigorous
-rerun before lane selection.
+floors. All 71 rows use the clean `0628c7b` incumbent and the corrected native
+regex search kernel. Full paired goals completed at `20260930T185329Z`:
+OVER 43, UNCLEAR 10, MET 17, BEYOND 1 (overall statuses include CPU).
+Memory rows alone are OVER on 16 routes, UNCLEAR on 18, and MET or
+BEYOND on 37. UNCLEAR memory rows receive one rigorous follow-up;
+previous completed follow-ups and memory debts remain recorded separately.
 
-| Module | CPU | Load footprint | Working peak | Overall |
+| Route | CPU | Load footprint | Working peak | Overall |
 | --- | --- | --- | --- | --- |
-| `_strptime` | 1.160x OVER | 1.047x OVER | 1.000x MET | OVER |
-| `argparse` | 2.276x OVER | 1.171x OVER | 1.000x MET | OVER |
-| `ast` | 1.370x OVER | 1.049x OVER | 1.000x MET | OVER |
-| `asyncio` | 1.129x OVER | 1.047x OVER | 3.000x OVER | OVER |
-| `base64` | 2.927x OVER | 1.125x OVER | 1.000x MET | OVER |
-| `binascii` | 1.644x OVER | 1.039x UNCLEAR | 1.000x MET | OVER |
-| `bisect` | 3.902x OVER | 1.393x UNCLEAR | 1.000x MET | OVER |
-| `bz2` | 1.010x MET | 1.003x MET | 1.000x MET | MET |
-| `codecs` | 0.764x BEYOND | 1.000x MET | 1.000x MET | MET |
-| `collections` | 1.050x OVER | 1.125x UNCLEAR | 1.000x MET | OVER |
-| `compression.zstd` | 0.897x MET | 0.802x BEYOND | 1.250x OVER | OVER |
-| `concurrent.futures` | 0.741x BEYOND | 0.494x BEYOND | 1.000x MET | MET |
-| `configparser` | 0.223x BEYOND | 1.073x UNCLEAR | 0.901x MET | UNCLEAR |
-| `contextlib` | 1.145x OVER | 1.048x OVER | 1.000x MET | OVER |
-| `csv` | 3.006x OVER | 0.981x MET | 1.000x MET | OVER |
-| `dataclasses` | 1.006x MET | 1.108x OVER | 1.002x MET | OVER |
-| `datetime` | 2.998x OVER | 1.625x OVER | 1.000x MET | OVER |
-| `decimal` | 5.545x OVER | 1.683x OVER | 1.000x MET | OVER |
-| `difflib` | 1.158x OVER | 1.121x OVER | 1.000x MET | OVER |
-| `email` | 1.043x OVER | 0.936x MET | 0.897x MET | OVER |
-| `fnmatch` | 1.162x OVER | 0.386x BEYOND | 1.000x MET | OVER |
-| `fractions` | 3.296x OVER | 1.039x UNCLEAR | 1.000x MET | OVER |
-| `functools` | 4.887x OVER | 1.185x OVER | 1.000x MET | OVER |
-| `glob` | 0.600x BEYOND | 0.412x BEYOND | 1.000x MET | MET |
-| `gzip` | 0.603x BEYOND | 0.791x BEYOND | 1.000x MET | MET |
-| `hashlib` | 1.035x OVER | 1.005x MET | 1.000x MET | OVER |
-| `heapq` | 1.752x OVER | 1.000x MET | 1.000x MET | OVER |
-| `hmac` | 1.443x OVER | 1.000x MET | 1.000x MET | OVER |
-| `html.parser` | 0.985x MET | 1.075x UNCLEAR | 1.000x MET | UNCLEAR |
-| `http.client` | 1.052x UNCLEAR | 1.036x OVER | 1.000x MET | OVER |
-| `importlib.metadata` | 0.738x BEYOND | 0.923x MET | 1.000x MET | MET |
-| `importlib.resources` | 1.040x OVER | 0.908x MET | 1.000x MET | OVER |
-| `inspect` | 1.378x OVER | 1.056x OVER | 1.000x MET | OVER |
-| `io` | 1.454x OVER | 1.004x MET | 1.000x MET | OVER |
-| `ipaddress` | 0.482x BEYOND | 1.148x OVER | 1.000x MET | OVER |
-| `itertools` | 2.837x OVER | 1.000x MET | 1.000x MET | OVER |
-| `json` | 0.716x BEYOND | 0.925x MET | 1.000x MET | MET |
-| `logging` | 0.993x MET | 0.632x BEYOND | 1.728x OVER | OVER |
-| `lzma` | 1.360x OVER | 0.110x BEYOND | 1.000x MET | OVER |
-| `marshal` | 0.885x BEYOND | 1.059x OVER | 1.000x MET | OVER |
-| `multiprocessing` | 1.034x OVER | 0.971x MET | 1.000x MET | OVER |
-| `os.path` | 1.732x OVER | 1.000x MET | 1.000x MET | OVER |
-| `pathlib` | 0.955x MET | 1.279x OVER | 1.000x MET | OVER |
-| `pickle` | 1.004x MET | 1.080x OVER | 1.000x MET | OVER |
-| `plistlib` | 0.079x BEYOND | 0.205x BEYOND | 1.000x MET | MET |
-| `random` | 1.276x OVER | 1.750x UNCLEAR | 1.000x MET | OVER |
-| `re` | 0.999x MET | 1.158x OVER | 1.000x MET | OVER |
-| `shlex` | 0.287x BEYOND | 1.143x UNCLEAR | 1.000x MET | UNCLEAR |
-| `shutil` | 1.006x MET | 0.855x BEYOND | 1.000x MET | MET |
-| `socket` | 1.250x OVER | 1.100x OVER | 1.000x MET | OVER |
-| `sqlite3` | 3.891x OVER | 1.079x UNCLEAR | 1.000x MET | OVER |
-| `ssl` | 1.000x MET | 1.044x OVER | 1.000x MET | OVER |
-| `statistics` | 0.076x BEYOND | 0.640x BEYOND | 1.000x MET | MET |
-| `struct` | 2.102x OVER | 1.031x UNCLEAR | 1.000x MET | OVER |
-| `subprocess` | 1.008x MET | 0.951x MET | 1.000x MET | MET |
-| `tarfile` | 0.391x BEYOND | 1.146x OVER | 1.000x MET | OVER |
-| `tempfile` | 1.026x UNCLEAR | 0.398x BEYOND | 1.000x MET | UNCLEAR |
-| `textwrap` | 0.037x BEYOND | 0.086x BEYOND | 1.000x MET | MET |
-| `threading` | 1.953x OVER | 1.800x OVER | 1.000x MET | OVER |
-| `tokenize` | 1.118x OVER | 1.089x OVER | 1.000x MET | OVER |
-| `tomllib` | 0.072x BEYOND | 0.056x BEYOND | 1.000x MET | MET |
-| `typing` | 1.485x OVER | 1.231x OVER | 1.000x MET | OVER |
-| `unicodedata` | 2.455x OVER | 1.000x MET | 1.000x MET | OVER |
-| `urllib.parse` | 0.223x BEYOND | 0.445x BEYOND | 1.000x MET | MET |
-| `urllib.request` | 1.133x OVER | 0.937x MET | 1.000x MET | OVER |
-| `uuid` | 1.394x OVER | 1.184x OVER | 1.000x MET | OVER |
-| `warnings` | 1.098x OVER | 1.116x OVER | 1.000x MET | OVER |
-| `xml.etree.ElementTree` | 0.927x MET | 1.083x UNCLEAR | 1.219x UNCLEAR | UNCLEAR |
-| `zipfile` | 0.673x BEYOND | 0.344x BEYOND | 1.000x MET | MET |
-| `zipimport` | 0.990x MET | 0.640x BEYOND | 1.000x MET | MET |
-| `zlib` | 0.631x BEYOND | 1.037x OVER | 1.000x MET | OVER |
+| `_strptime` | 1.169x OVER | 1.009x MET | 1.000x MET | OVER |
+| `argparse` | 2.269x OVER | 1.123x OVER | 1.000x MET | OVER |
+| `ast` | 1.359x OVER | 0.732x BEYOND | 1.000x MET | OVER |
+| `asyncio` | 1.111x OVER | 0.932x MET | 1.000x MET | OVER |
+| `base64` | 2.933x OVER | 1.123x OVER | 1.000x MET | OVER |
+| `binascii` | 1.651x OVER | 1.019x UNCLEAR | 1.000x MET | OVER |
+| `bisect` | 3.865x OVER | 1.000x MET | 1.000x MET | OVER |
+| `bz2` | 1.012x UNCLEAR | 0.999x MET | 1.000x MET | UNCLEAR |
+| `codecs` | 0.766x BEYOND | 0.991x MET | 1.000x MET | MET |
+| `collections` | 1.052x OVER | 1.375x UNCLEAR | 1.000x MET | OVER |
+| `compression.zstd` | 0.897x MET | 0.801x BEYOND | 1.250x UNCLEAR | UNCLEAR |
+| `concurrent.futures` | 0.735x BEYOND | 0.476x BEYOND | 1.000x MET | MET |
+| `configparser` | 0.224x BEYOND | 0.574x BEYOND | 0.728x BEYOND | BEYOND |
+| `contextlib` | 1.140x OVER | 1.016x OVER | 1.000x MET | OVER |
+| `csv` | 3.000x OVER | 1.028x UNCLEAR | 1.000x MET | OVER |
+| `dataclasses` | 0.997x MET | 0.952x MET | 0.564x BEYOND | MET |
+| `datetime` | 3.006x OVER | 2.000x OVER | 1.000x MET | OVER |
+| `decimal` | 5.582x OVER | 1.261x UNCLEAR | 1.000x MET | OVER |
+| `difflib` | 0.703x BEYOND | 1.045x OVER | 1.000x MET | OVER |
+| `email` | 1.039x OVER | 0.941x MET | 0.908x MET | OVER |
+| `fnmatch` | 1.160x OVER | 0.395x BEYOND | 1.000x MET | OVER |
+| `fractions` | 3.301x OVER | 1.013x UNCLEAR | 1.000x MET | OVER |
+| `functools` | 4.888x OVER | 1.028x UNCLEAR | 1.000x MET | OVER |
+| `glob` | 0.595x BEYOND | 0.328x BEYOND | 1.000x MET | MET |
+| `gzip` | 0.604x BEYOND | 0.761x MET | 1.000x MET | MET |
+| `hashlib` | 1.036x OVER | 1.017x UNCLEAR | 1.000x MET | OVER |
+| `heapq` | 1.591x OVER | 1.000x MET | 1.000x MET | OVER |
+| `hmac` | 1.461x OVER | 1.008x MET | 1.000x MET | OVER |
+| `html.parser` | 0.966x MET | 1.045x OVER | 1.000x MET | OVER |
+| `http.client` | 1.047x OVER | 1.022x UNCLEAR | 1.000x MET | OVER |
+| `importlib.metadata` | 0.740x BEYOND | 0.873x BEYOND | 1.000x MET | MET |
+| `importlib.resources` | 1.043x OVER | 0.854x BEYOND | 1.000x MET | OVER |
+| `inspect` | 1.381x OVER | 1.028x OVER | 1.000x MET | OVER |
+| `io` | 1.553x OVER | 1.005x MET | 1.000x MET | OVER |
+| `ipaddress` | 0.484x BEYOND | 1.066x OVER | 1.000x MET | OVER |
+| `itertools` | 2.617x OVER | 1.000x MET | 1.000x MET | OVER |
+| `json` | 0.720x BEYOND | 0.923x MET | 1.000x MET | MET |
+| `logging` | 0.993x MET | 0.605x BEYOND | 1.218x UNCLEAR | UNCLEAR |
+| `lzma` | 1.360x OVER | 0.109x BEYOND | 1.000x MET | OVER |
+| `marshal` | 0.885x MET | 1.028x UNCLEAR | 1.000x MET | UNCLEAR |
+| `multiprocessing` | 1.025x UNCLEAR | 0.925x MET | 1.000x MET | UNCLEAR |
+| `os.path` | 1.727x OVER | 1.000x MET | 1.000x MET | OVER |
+| `pathlib` | 0.955x MET | 0.641x BEYOND | 1.000x MET | MET |
+| `pickle` | 1.008x MET | 1.051x UNCLEAR | 1.000x MET | UNCLEAR |
+| `plistlib` | 0.079x BEYOND | 0.222x BEYOND | 1.162x UNCLEAR | UNCLEAR |
+| `random` | 1.271x OVER | 1.000x MET | 1.000x MET | OVER |
+| `re` | 3.685x OVER | 1.762x OVER | 1.000x MET | OVER |
+| `shlex` | 0.287x BEYOND | 0.512x BEYOND | 1.000x MET | MET |
+| `shutil` | 1.004x MET | 0.833x BEYOND | 3.125x UNCLEAR | UNCLEAR |
+| `socket` | 1.249x OVER | 1.096x OVER | 1.000x MET | OVER |
+| `sqlite3` | 3.897x OVER | 1.049x UNCLEAR | 1.000x MET | OVER |
+| `ssl` | 1.000x MET | 1.039x UNCLEAR | 1.000x MET | UNCLEAR |
+| `statistics` | 0.076x BEYOND | 0.590x BEYOND | 1.000x MET | MET |
+| `struct` | 2.102x OVER | 1.016x UNCLEAR | 1.000x MET | OVER |
+| `subprocess` | 1.005x MET | 0.895x MET | 1.000x MET | MET |
+| `tarfile` | 0.395x BEYOND | 0.842x BEYOND | 1.000x MET | MET |
+| `tempfile` | 1.021x UNCLEAR | 0.338x BEYOND | 1.000x MET | UNCLEAR |
+| `textwrap` | 0.037x BEYOND | 0.099x BEYOND | 1.000x MET | MET |
+| `threading` | 1.949x OVER | 1.400x OVER | 1.000x MET | OVER |
+| `tokenize` | 1.116x OVER | 1.073x OVER | 1.000x MET | OVER |
+| `tomllib` | 0.072x BEYOND | 0.095x BEYOND | 1.000x MET | MET |
+| `typing` | 1.488x OVER | 1.183x OVER | 1.000x MET | OVER |
+| `unicodedata` | 2.467x OVER | 1.000x MET | 1.000x MET | OVER |
+| `urllib.parse` | 0.223x BEYOND | 0.411x BEYOND | 1.000x MET | MET |
+| `urllib.request` | 1.125x OVER | 0.929x MET | 1.000x MET | OVER |
+| `uuid` | 1.394x OVER | 1.186x OVER | 1.000x MET | OVER |
+| `warnings` | 1.104x OVER | 1.059x UNCLEAR | 1.000x MET | OVER |
+| `xml.etree.ElementTree` | 0.926x MET | 1.046x OVER | 1.156x UNCLEAR | OVER |
+| `zipfile` | 0.672x BEYOND | 0.327x BEYOND | 1.000x MET | MET |
+| `zipimport` | 0.985x MET | 0.571x BEYOND | 1.000x MET | MET |
+| `zlib` | 0.633x BEYOND | 1.027x OVER | 1.000x MET | OVER |
 
 ### Focused goals after memory batch 5
 
@@ -361,6 +365,37 @@ parse/discard diagnostics retained 207,552 bytes of intern-table capacity;
 strings themselves were released and candidate physical memory stayed below
 control throughout that diagnostic. This is retained table capacity, not a
 claim that all interning storage disappears on parser destruction.
+
+### Memory follow-ups after batch 6
+
+The full table remains the single `0628c7b` snapshot. Directed follow-ups
+resolve its UNCLEAR memory rows without repeated draws:
+
+| Route | Metric | Follow-up ratio | Raw status | Treatment |
+| --- | --- | --- | --- | --- |
+| `pickle` | load | 1.065x | OVER | OVER |
+| `marshal` | load | 1.025x | UNCLEAR | OVER under greater-than-1.01x rule |
+| `functools` | load | 1.071x | OVER | OVER |
+| `ssl` | load | 1.050x | OVER | OVER |
+| `xml.etree.ElementTree` | working peak | 1.281x | UNCLEAR | OVER under greater-than-1.01x rule |
+| `shutil` | working peak | 0.735x | MET | MET; lane closed |
+
+Pickle, marshal, functools, ElementTree and shutil used the rigorous profile.
+SSL's sole follow-up used the standard two-run profile and formally read
+OVER; that profile deviation is preserved, with no additional unchanged draw.
+Logging's previous rigorous follow-up remains OVER by the uncertainty rule;
+its fresh attribution found equal live StringIO and message/record storage.
+No allocation-only claim substitutes for an actual memory improvement.
+
+Closed attribution found no new avoidable retained Rust allocation in
+ipaddress, pickle or marshal. The proposed functools CacheInfo deferral was
+closed because ordinary cached imports would change fresh/reloaded class
+identity. A six-helper serialization consolidation reduced observed native
+resident/dirty mappings by 336/144 KiB, but its single actual workload explore
+read peak RSS0.987x neutral; the source experiment was discarded. Optional
+local-symbol stripping likewise reduced native residency but remained startup
+RSS neutral and is not adopted. Own-GIL regex public tests exercised the C
+fallback, not Rust concurrency.
 
 ### Current workload picture
 
@@ -822,9 +857,9 @@ candidate over baseline for the batch targets.
 | 2026-09-30 | `98c5362` (source) | Codex memory batch 2: fnmatch, tempfile, argparse, functools | Corrected-boundary primary quiet two-run gate ACCEPT; load **0.320x / 0.359x / 0.966x / 0.846x** improved both runs; working peaks and all seven workload guards neutral. Full suite **50,158/2,748**, zero failures; clean69 images. Resources guard load0.849x improved. | Control memory goals: fnmatch0.39x BEYOND, tempfile0.40x BEYOND, argparse1.16x OVER, functools1.20x OVER; resources0.91x MET, working peaks MET. UUID and decimal predecessors reverted after failed primary memory replication; no CPU-only candidate accepted. |
 | 2026-09-30 | `868fb4f` (source) | Codex memory batch 3: logging, statistics, subprocess, date parser and regex eligibility | Quiet two-run primary ACCEPT: load0.540x/0.517x/0.873x/0.914x; fractions0.922x and warnings0.953x cross-module wins. Logging working0.554x; other peaks and all seven workload guards neutral. Full50,158/2,748, zero failures; clean69. | Absolute refresh at bd886d2: statistics load BEYOND, subprocess load MET, logging load BEYOND but working peak OVER. Intermediate startup RSS rejection retained; threading static change reverted. Date parser and regex changes qualify jointly. |
 | 2026-09-30 | `2fd93ca` (source) | Codex memory batch 4: difflib, pathlib, tarfile and eleven shared-image registrations | Quiet primary two-run ACCEPT over sixteen modules/all23 workloads: load difflib0.909x, pathlib0.406x, tarfile0.739x, asyncio0.888x, bisect0.571x, contextlib0.970x, logging0.937x, tempfile0.875x, typing0.961x; asyncio working0.333x. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; native/GIL probes pass. | Absolute refresh pending. Logging peak and typing CPU rejected trials retained; both helpers remain shared. |
-
 | 2026-09-30 | `4b76f58` (source) | Codex memory batch 5: AST, shlex, configparser | Quiet primary two-run ACCEPT over twelve modules/all23 workloads: load AST0.701x, shlex0.402x, configparser0.519x; configparser working0.910x. Logging cross-route load0.945x; its working peak and typing CPU neutral. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; fresh native/capsule/GIL and configparser ownership/override probes pass. | Control memory: AST0.73x BEYOND, shlex0.44x BEYOND, configparser0.57x/peak0.71x BEYOND. Five additional shared-image registrations dropped after rejected logging peak/typing CPU trial; no causal attribution. Absolute all23 picture remains dated AEC and memory phase stays open. |
-| 2026-09-30 | `49e61fe` (source) | Codex memory batch 6: dataclasses, inspect | Quiet primary two-run ACCEPT (`20260930T181726Z`) over six modules/all23 workloads: dataclasses load0.872x and working0.561x; inspect load0.973x, both improved. CPU and every application guard neutral; no mismatch or unstable metric. Full50,158/2,748, zero failures; clean58. Fresh dataclasses exception/concurrency/recursion/slot/subinterpreter checks and inspect native binding/member calls pass; inspect own-GIL uses its existing Python fallback. | Full71 control refresh pending after incumbent rebuild. Worktree Django wall rejections are retained; primary gate establishes acceptance. Workload RSS is now eligible as a target, with existing floors, replication and regression guards unchanged (30 controller tests pass). Memory phase stays open. |
+| 2026-09-30 | `49e61fe` (source) | Codex memory batch 6: dataclasses, inspect | Quiet primary two-run ACCEPT (`20260930T181726Z`) over six modules/all23 workloads: dataclasses load0.872x and working0.561x; inspect load0.973x, both improved. CPU and every application guard neutral; no mismatch or unstable metric. Full50,158/2,748, zero failures; clean58. Fresh dataclasses exception/concurrency/recursion/slot/subinterpreter checks and inspect native binding/member calls pass; inspect own-GIL uses its existing Python fallback. | Fresh full71 control memory: dataclasses load0.95x MET/peak0.56x BEYOND; inspect load1.03x OVER/peakMET. New incumbent clean58/full50,158/2,748 passes. Worktree Django wall rejections are retained; primary gate establishes acceptance. Workload RSS is now eligible as a target, with existing floors, replication and regression guards unchanged (30 controller tests pass). Memory phase stays open. |
+
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 

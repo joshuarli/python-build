@@ -456,7 +456,7 @@ class HelpFormatter(object):
         Returns (parts, pos_start) where pos_start is the index in parts
         where positionals begin.
         This preserves mutually exclusive group formatting across the
-        optionals/positionals boundary (gh-75949).
+        optionals/positionals boundary.
         """
         actions = [action for action in actions if action.help is not SUPPRESS]
         # group actions by mutually exclusive groups
