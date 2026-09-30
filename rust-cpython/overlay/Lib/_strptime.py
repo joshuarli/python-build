@@ -605,18 +605,21 @@ def _strptime(data_string, format="%a %b %d %H:%M:%S %Y"):
     found_dict = found.groupdict()
     rust_fields = None
     if _strptime_rs is not None and locale_time.LC_alt_digits == ():
-        rust_fields = _strptime_rs.parse_groups(
-            tuple((key, value) for key, value in found_dict.items()
-                  if value is not None),
-            tuple(locale_time.f_weekday),
-            tuple(locale_time.a_weekday),
-            tuple(locale_time.f_month),
-            tuple(locale_time.a_month),
-            tuple(locale_time.am_pm),
-            tuple(tuple(names) for names in locale_time.timezone),
-            tuple(time.tzname),
-            int(time.daylight),
-        )
+        groups = tuple((key, value) for key, value in found_dict.items()
+                       if value is not None)
+        rust_fields = _strptime_rs.parse_numeric_groups(groups)
+        if len(rust_fields) != 16:
+            rust_fields = _strptime_rs.parse_groups(
+                groups,
+                tuple(locale_time.f_weekday),
+                tuple(locale_time.a_weekday),
+                tuple(locale_time.f_month),
+                tuple(locale_time.a_month),
+                tuple(locale_time.am_pm),
+                tuple(tuple(names) for names in locale_time.timezone),
+                tuple(time.tzname),
+                int(time.daylight),
+            )
         if len(rust_fields) != 16:
             rust_fields = None
 
