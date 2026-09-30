@@ -178,6 +178,7 @@ unsafe fn new_result(values: (usize, usize, usize)) -> *mut PyObject {
     tuple
 }
 
+// Legacy integer-token boundary for callers with pre-encoded sequences.
 unsafe extern "C" fn find_longest_match(
     _module: *mut PyObject,
     args: *mut *mut PyObject,
@@ -219,6 +220,156 @@ unsafe extern "C" fn find_longest_match(
     unsafe { new_result(result) }
 }
 
+unsafe fn read_builtin_tuple(arg: *mut PyObject) -> Option<usize> {
+    if unsafe { (*arg).ob_type } != ptr::addr_of!(PyTuple_Type).cast_mut().cast() {
+        set_type_error(c"matching values must be exact tuples");
+        return None;
+    }
+    let length = unsafe { PyTuple_Size(arg) };
+    for index in 0..length {
+        let item = unsafe { PyTuple_GetItem(arg, index) };
+        if item.is_null() {
+            return None;
+        }
+        let kind = unsafe { (*item).ob_type };
+        if kind != ptr::addr_of!(PyLong_Type).cast_mut().cast()
+            && kind != ptr::addr_of!(PyUnicode_Type).cast_mut().cast()
+        {
+            set_type_error(c"matching values must be exact integers or strings");
+            return None;
+        }
+    }
+    Some(length as usize)
+}
+
+unsafe fn builtin_equal(a: *mut PyObject, ai: usize, b: *mut PyObject, bi: usize) -> bool {
+    let left = unsafe { PyTuple_GetItem(a, ai as Py_ssize_t) };
+    let right = unsafe { PyTuple_GetItem(b, bi as Py_ssize_t) };
+    // Validated tuples retain their exact immutable values for the whole call.
+    unsafe { PyObject_RichCompareBool(left, right, 2) == 1 }
+}
+
+unsafe fn indexed_match(
+    a: *mut PyObject, b: *mut PyObject, index: *mut PyObject,
+    alo: usize, ahi: usize, blo: usize, bhi: usize,
+) -> Option<(usize, usize, usize)> {
+    let (mut best_i, mut best_j, mut best_size) = (alo, blo, 0);
+    let mut previous = MatchBuffer::<(usize, usize)>::new();
+    let mut current = MatchBuffer::<(usize, usize)>::new();
+    for i in alo..ahi {
+        current.clear();
+        let value = unsafe { PyTuple_GetItem(a, i as Py_ssize_t) };
+        // Tuples retain the immutable values throughout this call. Position
+        // lists are borrowed only until the next lookup, and exact integer
+        // conversions cannot invoke a callback while a list is being scanned.
+        let indices = unsafe { PyDict_GetItemWithError(index, value) };
+        if indices.is_null() {
+            if !unsafe { PyErr_Occurred() }.is_null() {
+                return None;
+            }
+        } else {
+            let count = unsafe { PyList_Size(indices) };
+            if count < 0 {
+                return None;
+            }
+            if current.try_reserve(count as usize).is_err() {
+                unsafe { PyErr_NoMemory() };
+                return None;
+            }
+            let mut predecessor = 0;
+            let mut last_j = None;
+            for position in 0..count {
+                let item = unsafe { PyList_GetItem(indices, position) };
+                if item.is_null() {
+                    return None;
+                }
+                if unsafe { (*item).ob_type } != ptr::addr_of!(PyLong_Type).cast_mut().cast() {
+                    set_type_error(c"matching positions must be exact integers");
+                    return None;
+                }
+                let j = unsafe { PyLong_AsLongLong(item) };
+                if j == -1 && !unsafe { PyErr_Occurred() }.is_null() {
+                    return None;
+                }
+                if let Some(last) = last_j {
+                    if j <= last {
+                        set_value_error(c"matching positions must be in ascending order");
+                        return None;
+                    }
+                }
+                last_j = Some(j);
+                if j < 0 || (j as usize) < blo {
+                    continue;
+                }
+                let j = j as usize;
+                if j >= bhi {
+                    break;
+                }
+                let mut size = 1;
+                if j > blo {
+                    while predecessor < previous.len() && previous[predecessor].0 < j - 1 {
+                        predecessor += 1;
+                    }
+                    if predecessor < previous.len() && previous[predecessor].0 == j - 1 {
+                        size += previous[predecessor].1;
+                    }
+                }
+                current.push((j, size));
+                if size > best_size {
+                    best_i = i + 1 - size;
+                    best_j = j + 1 - size;
+                    best_size = size;
+                }
+            }
+        }
+        core::mem::swap(&mut previous, &mut current);
+    }
+    // The supplied index excludes popular values only as starting points.
+    while best_i > alo && best_j > blo
+        && unsafe { builtin_equal(a, best_i - 1, b, best_j - 1) }
+    {
+        best_i -= 1;
+        best_j -= 1;
+        best_size += 1;
+    }
+    while best_i + best_size < ahi && best_j + best_size < bhi
+        && unsafe { builtin_equal(a, best_i + best_size, b, best_j + best_size) }
+    {
+        best_size += 1;
+    }
+    Some((best_i, best_j, best_size))
+}
+
+unsafe extern "C" fn find_longest_match_index(
+    _module: *mut PyObject, args: *mut *mut PyObject, nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 7 {
+        set_type_error(c"find_longest_match_index() takes exactly seven arguments");
+        return ptr::null_mut();
+    }
+    let a = unsafe { *args };
+    let b = unsafe { *args.add(1) };
+    let index = unsafe { *args.add(2) };
+    let Some(a_length) = (unsafe { read_builtin_tuple(a) }) else { return ptr::null_mut(); };
+    let Some(b_length) = (unsafe { read_builtin_tuple(b) }) else { return ptr::null_mut(); };
+    if unsafe { (*index).ob_type } != ptr::addr_of!(PyDict_Type).cast_mut().cast() {
+        set_type_error(c"matching positions must be an exact dictionary");
+        return ptr::null_mut();
+    }
+    let Some(alo) = (unsafe { read_bound(*args.add(3)) }) else { return ptr::null_mut(); };
+    let Some(ahi) = (unsafe { read_bound(*args.add(4)) }) else { return ptr::null_mut(); };
+    let Some(blo) = (unsafe { read_bound(*args.add(5)) }) else { return ptr::null_mut(); };
+    let Some(bhi) = (unsafe { read_bound(*args.add(6)) }) else { return ptr::null_mut(); };
+    if alo > ahi || ahi > a_length || blo > bhi || bhi > b_length {
+        set_value_error(c"sequence bounds are outside the input sequences");
+        return ptr::null_mut();
+    }
+    let Some(result) = (unsafe { indexed_match(a, b, index, alo, ahi, blo, bhi) }) else {
+        return ptr::null_mut();
+    };
+    unsafe { new_result(result) }
+}
+
 pub extern "C" fn _difflib_rs_clear(_object: *mut PyObject) -> c_int {
     0
 }
@@ -237,7 +388,7 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 2] = [
+pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
         ml_name: c"find_longest_match".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer {
@@ -246,6 +397,12 @@ pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 2] = [
         ml_flags: METH_FASTCALL,
         ml_doc: c"Find a longest matching block in integer token sequences.".as_ptr()
             as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"find_longest_match_index".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: find_longest_match_index },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Find a longest block of builtin values through ascending position lists.".as_ptr() as *mut c_char,
     },
     PyMethodDef::zeroed(),
 ];

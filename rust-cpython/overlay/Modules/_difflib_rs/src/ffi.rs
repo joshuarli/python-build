@@ -8,7 +8,13 @@ pub(super) type Py_ssize_t = isize;
 #[repr(C)]
 pub struct PyObject {
     ob_refcnt: Py_ssize_t,
-    ob_type: *mut c_void,
+    pub(super) ob_type: *mut c_void,
+}
+
+// Built-in type addresses identify the supported immutable value boundary.
+#[repr(C)]
+pub(super) struct PyTypeObject {
+    _private: [u8; 0],
 }
 
 #[repr(C)]
@@ -73,6 +79,10 @@ pub(super) const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
 
 #[cfg_attr(target_vendor = "apple", link(name = "System"))]
 unsafe extern "C" {
+    pub(super) static PyLong_Type: PyTypeObject;
+    pub(super) static PyUnicode_Type: PyTypeObject;
+    pub(super) static PyTuple_Type: PyTypeObject;
+    pub(super) static PyDict_Type: PyTypeObject;
     pub(super) static mut PyExc_TypeError: *mut PyObject;
     pub(super) static mut PyExc_ValueError: *mut PyObject;
     pub(super) fn Py_DecRef(object: *mut PyObject);
@@ -84,6 +94,10 @@ unsafe extern "C" {
     pub(super) fn PyList_GetItem(object: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
     pub(super) fn PyLong_AsLongLong(object: *mut PyObject) -> i64;
     pub(super) fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
+    pub(super) fn PyTuple_Size(object: *mut PyObject) -> Py_ssize_t;
+    pub(super) fn PyTuple_GetItem(object: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
+    pub(super) fn PyDict_GetItemWithError(dict: *mut PyObject, key: *mut PyObject) -> *mut PyObject;
+    pub(super) fn PyObject_RichCompareBool(left: *mut PyObject, right: *mut PyObject, op: c_int) -> c_int;
     pub(super) fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
     pub(super) fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
     pub(super) fn PyMem_Malloc(size: usize) -> *mut c_void;
