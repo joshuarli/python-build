@@ -210,12 +210,12 @@ first batch.
   are the measuring stick. If a kernel misses part of its route's
   checklist behavior, fix the kernel yourself in a separate commit before
   the lane starts, rerun `goals --module M`, and say so in the ledger.
-- New agent worktrees branch from the primary checkout's current HEAD. Spawn
-  lanes only while the primary is on `main` and `perf-rust` was built from
-  `main`'s current overlay; never during an integration window (primary on an
-  `integrate-N` branch), or the lane starts from unaccepted commits and its
-  setup check fails BLOCKED. If a slot frees mid-window, queue the lane and
-  spawn it after the batch lands and `perf-rust` is rebuilt.
+- New agent worktrees branch explicitly from `main`, whose overlay must match
+  the verified `perf-rust` incumbent. A temporary integration branch in the
+  primary checkout does not prevent filling a free slot: use `git worktree add
+  <path> -b <lane-branch> main`, verify its source against the incumbent, and
+  never inherit the unaccepted integration branch. Once `main` advances, wait
+  for its incumbent rebuild before spawning further lanes.
 - Before spawning a batch, commit on `main` everything the lanes need and
   confirm `perf-rust` is built at `main` HEAD: worktrees branch from `main`
   and the gate check requires the challenger to contain the incumbent
