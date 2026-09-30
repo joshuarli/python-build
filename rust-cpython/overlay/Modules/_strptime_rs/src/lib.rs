@@ -25,14 +25,14 @@ use cpython_sys::PyUnicode_AsUTF8AndSize;
 
 const MISSING: i64 = i64::MIN;
 
-struct LocaleData {
-    full_weekdays: Vec<String>,
-    short_weekdays: Vec<String>,
-    full_months: Vec<String>,
-    short_months: Vec<String>,
-    am_pm: Vec<String>,
-    timezones: Vec<Vec<String>>,
-    tzname: Vec<String>,
+struct LocaleData<'py> {
+    full_weekdays: Vec<&'py str>,
+    short_weekdays: Vec<&'py str>,
+    full_months: Vec<&'py str>,
+    short_months: Vec<&'py str>,
+    am_pm: Vec<&'py str>,
+    timezones: Vec<Vec<&'py str>>,
+    tzname: Vec<&'py str>,
     daylight: bool,
 }
 
@@ -90,7 +90,9 @@ impl Fields {
     }
 }
 
-unsafe fn read_unicode(object: *mut PyObject) -> Option<String> {
+// The caller holds the argument tuples and the GIL throughout conversion.
+// Their Unicode buffers remain valid until parsing returns; no slice is cached.
+unsafe fn read_unicode<'py>(object: *mut PyObject, _owners: &'py [*mut PyObject]) -> Option<&'py str> {
     let mut size: Py_ssize_t = 0;
     let bytes = unsafe { PyUnicode_AsUTF8AndSize(object, &mut size) };
     if bytes.is_null() || size < 0 {
@@ -98,7 +100,7 @@ unsafe fn read_unicode(object: *mut PyObject) -> Option<String> {
     }
     let bytes = unsafe { slice::from_raw_parts(bytes.cast::<u8>(), size as usize) };
     let text = unsafe { std::str::from_utf8_unchecked(bytes) };
-    Some(text.to_owned())
+    Some(text)
 }
 
 unsafe fn tuple_item(tuple: *mut PyObject, index: usize) -> Option<*mut PyObject> {
@@ -114,27 +116,27 @@ unsafe fn tuple_len(tuple: *mut PyObject) -> Option<usize> {
     (size >= 0).then_some(size as usize)
 }
 
-unsafe fn tuple_strings(tuple: *mut PyObject) -> Option<Vec<String>> {
+unsafe fn tuple_strings<'py>(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Vec<&'py str>> {
     let size = unsafe { tuple_len(tuple) }?;
     let mut values = Vec::with_capacity(size);
     for index in 0..size {
         let item = unsafe { tuple_item(tuple, index) }?;
-        values.push(unsafe { read_unicode(item) }?);
+        values.push(unsafe { read_unicode(item, owners) }?);
     }
     Some(values)
 }
 
-unsafe fn tuple_string_groups(tuple: *mut PyObject) -> Option<Vec<Vec<String>>> {
+unsafe fn tuple_string_groups<'py>(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Vec<Vec<&'py str>>> {
     let size = unsafe { tuple_len(tuple) }?;
     let mut groups = Vec::with_capacity(size);
     for index in 0..size {
         let item = unsafe { tuple_item(tuple, index) }?;
-        groups.push(unsafe { tuple_strings(item) }?);
+        groups.push(unsafe { tuple_strings(item, owners) }?);
     }
     Some(groups)
 }
 
-unsafe fn read_groups(tuple: *mut PyObject) -> Option<Vec<(String, String)>> {
+unsafe fn read_groups<'py>(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Vec<(&'py str, &'py str)>> {
     let size = unsafe { tuple_len(tuple) }?;
     let mut groups = Vec::with_capacity(size);
     for index in 0..size {
@@ -142,17 +144,17 @@ unsafe fn read_groups(tuple: *mut PyObject) -> Option<Vec<(String, String)>> {
         if unsafe { tuple_len(pair) }? != 2 {
             return None;
         }
-        let key = unsafe { read_unicode(tuple_item(pair, 0)?) }?;
-        let value = unsafe { read_unicode(tuple_item(pair, 1)?) }?;
+        let key = unsafe { read_unicode(tuple_item(pair, 0)?, owners) }?;
+        let value = unsafe { read_unicode(tuple_item(pair, 1)?, owners) }?;
         groups.push((key, value));
     }
     Some(groups)
 }
 
-fn group_value<'a>(groups: &'a [(String, String)], key: &str) -> Option<&'a str> {
+fn group_value<'a>(groups: &[(&'a str, &'a str)], key: &str) -> Option<&'a str> {
     groups
         .iter()
-        .find_map(|(group, value)| (group == key).then_some(value.as_str()))
+        .find_map(|(group, value)| (*group == key).then_some(*value))
 }
 
 fn parse_decimal(value: &str) -> Option<i64> {
@@ -162,11 +164,11 @@ fn parse_decimal(value: &str) -> Option<i64> {
     value.parse().ok()
 }
 
-fn find_locale_name(value: &str, names: &[String]) -> Option<i64> {
+fn find_locale_name(value: &str, names: &[&str]) -> Option<i64> {
     let value = value.to_lowercase();
     names
         .iter()
-        .position(|name| name == &value)
+        .position(|name| *name == value)
         .map(|index| index as i64)
 }
 
@@ -233,8 +235,8 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
 }
 
 fn convert_groups(
-    groups: &[(String, String)],
-    locale: &LocaleData,
+    groups: &[(&str, &str)],
+    locale: &LocaleData<'_>,
 ) -> Option<[i64; 16]> {
     if locale.full_weekdays.len() != 7
         || locale.short_weekdays.len() != 7
@@ -248,7 +250,7 @@ fn convert_groups(
     }
     let mut fields = Fields::new();
     for (key, value) in groups {
-        match key.as_str() {
+        match *key {
             "y" => {
                 let mut year = parse_decimal(value)?;
                 if let Some(century) = group_value(groups, "C") {
@@ -286,7 +288,7 @@ fn convert_groups(
             "I" => {
                 let mut hour = parse_decimal(value)?;
                 let am_pm = group_value(groups, "p").unwrap_or("").to_lowercase();
-                let is_pm = locale.am_pm.get(1).is_some_and(|pm| pm == &am_pm);
+                let is_pm = locale.am_pm.get(1).is_some_and(|pm| *pm == am_pm);
                 if is_pm {
                     if hour != 12 {
                         hour += 12;
@@ -336,7 +338,7 @@ fn convert_groups(
             "Z" => {
                 let found_zone = value.to_lowercase();
                 for (index, timezone_names) in locale.timezones.iter().enumerate() {
-                    if timezone_names.iter().any(|name| name == &found_zone) {
+                    if timezone_names.iter().any(|name| *name == found_zone) {
                         if locale.tzname.len() == 2
                             && locale.tzname[0] == locale.tzname[1]
                             && locale.daylight
@@ -440,7 +442,8 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
     if nargs != 9 {
         return unsafe { PyTuple_New(0) };
     }
-    let groups = match unsafe { read_groups(*args) } {
+    let owners = unsafe { slice::from_raw_parts(args, nargs as usize) };
+    let groups = match unsafe { read_groups(owners[0], owners) } {
         Some(groups) => groups,
         None => {
             if !unsafe { PyErr_Occurred() }.is_null() {
@@ -449,31 +452,31 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
             return unsafe { PyTuple_New(0) };
         }
     };
-    let full_weekdays = match unsafe { tuple_strings(*args.add(1)) } {
+    let full_weekdays = match unsafe { tuple_strings(owners[1], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let short_weekdays = match unsafe { tuple_strings(*args.add(2)) } {
+    let short_weekdays = match unsafe { tuple_strings(owners[2], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let full_months = match unsafe { tuple_strings(*args.add(3)) } {
+    let full_months = match unsafe { tuple_strings(owners[3], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let short_months = match unsafe { tuple_strings(*args.add(4)) } {
+    let short_months = match unsafe { tuple_strings(owners[4], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let am_pm = match unsafe { tuple_strings(*args.add(5)) } {
+    let am_pm = match unsafe { tuple_strings(owners[5], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let timezones = match unsafe { tuple_string_groups(*args.add(6)) } {
+    let timezones = match unsafe { tuple_string_groups(owners[6], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let tzname = match unsafe { tuple_strings(*args.add(7)) } {
+    let tzname = match unsafe { tuple_strings(owners[7], owners) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
