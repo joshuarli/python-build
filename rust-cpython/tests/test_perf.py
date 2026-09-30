@@ -7,6 +7,7 @@ run no benchmarks, and never touch the real host lease.
 from __future__ import annotations
 
 import fcntl
+import json
 import sys
 import tempfile
 import unittest
@@ -41,6 +42,32 @@ def sample(cpu, load=0, peak=0, digest="d"):
 
 def module(base, cand):
     return pv.module_observation(base, cand)
+
+
+class WorkloadProfileTests(unittest.TestCase):
+    def test_rigorous_modules_keep_supported_workload_evidence_profile(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "python_startup"
+            output.mkdir()
+            result = {"identity": {"name": "python_startup"}}
+            (output / "summary.json").write_text(json.dumps({"workloads": [result]}))
+            side = {"python": Path("/python"), "ref": "candidate", "name": "candidate",
+                    "report": {"commit": "abcdef"}}
+
+            def evidence_runner(command, **kwargs):
+                profile = command[command.index("--profile") + 1]
+                return mock.Mock(returncode=0 if profile in {"quick", "standard"} else 2)
+
+            with mock.patch.object(perf, "_label", return_value="candidate"), \
+                    mock.patch.object(perf.subprocess, "run", side_effect=evidence_runner) as run:
+                self.assertEqual(perf._run_bench(
+                    side, side, "python_startup", output=output, profile="rigorous",
+                    timing_only=False, self_compare=False, record_baseline=None), result)
+            command = run.call_args.args[0]
+            self.assertEqual(command[command.index("--profile") + 1], "standard")
+            self.assertIn("--evidence", command)
+            self.assertNotIn("--timing-only", command)
+            self.assertEqual(perf.PROFILE_MODULE_ROUNDS["rigorous"], 10)
 
 
 class ClassifyTests(unittest.TestCase):
