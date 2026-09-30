@@ -13,6 +13,11 @@ A change counts only when it replicates: a metric is `improved` or
 `regressed` when every independent run agrees beyond the practical floor,
 and `unstable` when runs disagree in direction. Ratios are candidate over
 baseline everywhere, so below 1 is faster or smaller.
+
+Memory-only acceptance evaluates module load footprint and working peak,
+and supported workload peak memory, with peak RSS required. Output equality,
+complete memory evidence, and independent replication remain mandatory;
+CPU, wall time, and host quietness cannot qualify or block acceptance.
 """
 
 from __future__ import annotations
@@ -42,6 +47,7 @@ MODULE_METRIC_FLOORS = {
     "load_footprint": 64 * 1024,
     "working_peak": 256 * 1024,
 }
+MODULE_MEMORY_METRICS = ("load_footprint", "working_peak")
 MODULE_SAMPLE_FIELDS = {
     "cpu": "cpu_seconds_per_iteration",
     "load_footprint": "load_footprint_bytes",
@@ -126,23 +132,26 @@ def _memory_class(metric: Mapping[str, Any], floor: float) -> str:
     return "neutral"
 
 
-def run_observation(workload: Mapping[str, Any], *, floor: float = PRACTICAL_FLOOR) -> dict[str, Any]:
+def run_observation(workload: Mapping[str, Any], *, floor: float = PRACTICAL_FLOOR,
+                    memory_only: bool = False) -> dict[str, Any]:
     """One bench.py run of one application workload."""
-    timing = workload["comparison"]["timing"]
-    metrics: dict[str, Any] = {
-        "wall": _metric([float(value) for value in timing.get("paired_ratio_samples") or []],
-                        timing.get("median_ratio_ci95")),
-    }
-    cpu = timing.get("cpu")
-    cpu_metric = cpu.get("metrics", {}).get("total_seconds_per_operation") \
-        if isinstance(cpu, Mapping) and cpu.get("status") == "compared" else None
-    metrics["cpu"] = _metric(_paired(cpu_metric.get("baseline_samples") or [],
-                                     cpu_metric.get("candidate_samples") or [])
-                             if isinstance(cpu_metric, Mapping) else [])
-    # The harness's 3-sigma timing failure is an independent regression
-    # signal; keep it even when the interval stays inside the floor.
-    if timing.get("status") == "fail" and metrics["wall"]["class"] == "neutral":
-        metrics["wall"]["class"] = "worse"
+    metrics: dict[str, Any] = {}
+    if not memory_only:
+        timing = workload["comparison"]["timing"]
+        metrics = {
+            "wall": _metric([float(value) for value in timing.get("paired_ratio_samples") or []],
+                            timing.get("median_ratio_ci95")),
+        }
+        cpu = timing.get("cpu")
+        cpu_metric = cpu.get("metrics", {}).get("total_seconds_per_operation") \
+            if isinstance(cpu, Mapping) and cpu.get("status") == "compared" else None
+        metrics["cpu"] = _metric(_paired(cpu_metric.get("baseline_samples") or [],
+                                         cpu_metric.get("candidate_samples") or [])
+                                 if isinstance(cpu_metric, Mapping) else [])
+        # The harness's 3-sigma timing failure is an independent regression
+        # signal; keep it even when the interval stays inside the floor.
+        if timing.get("status") == "fail" and metrics["wall"]["class"] == "neutral":
+            metrics["wall"]["class"] = "worse"
     memory = workload["comparison"].get("memory", {})
     for name in BENCH_MEMORY_METRICS:
         metric = memory.get("metrics", {}).get(name) if isinstance(memory, Mapping) else None
@@ -154,11 +163,13 @@ def run_observation(workload: Mapping[str, Any], *, floor: float = PRACTICAL_FLO
 
 
 def module_observation(baseline: Sequence[Mapping[str, Any]],
-                       candidate: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+                       candidate: Sequence[Mapping[str, Any]], *, memory_only: bool = False) -> dict[str, Any]:
     """One run of one module kernel: samples paired by round."""
     digests = {sample["digest"] for sample in [*baseline, *candidate]}
     metrics = {}
     for name, field in MODULE_SAMPLE_FIELDS.items():
+        if memory_only and name == "cpu":
+            continue
         base = [float(sample[field]) for sample in baseline]
         cand = [float(sample[field]) for sample in candidate]
         metrics[name] = _metric(_paired(base, cand, MODULE_METRIC_FLOORS[name]), values=(base, cand))
@@ -205,7 +216,23 @@ def entity_verdict(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def goal_status(verdict: Mapping[str, Any]) -> dict[str, Any]:
+def _policy_metrics(verdict: Mapping[str, Any]) -> Sequence[str]:
+    return MODULE_MEMORY_METRICS if verdict["kind"] == "module" else BENCH_MEMORY_METRICS
+
+
+def _missing_memory(entities: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    missing = []
+    for name, verdict in entities.items():
+        if verdict["mismatch"]:
+            continue
+        required = (MODULE_MEMORY_METRICS if verdict["kind"] == "module" else ("peak_rss",))
+        for metric in required:
+            if verdict["metrics"].get(metric, {}).get("verdict", "insufficient") == "insufficient":
+                missing.append(f"{name} {metric}")
+    return sorted(missing)
+
+
+def goal_status(verdict: Mapping[str, Any], *, memory_only: bool = False) -> dict[str, Any]:
     """Classify a module verdict (candidate over control) against the band.
 
     Per metric: OVER when every run's interval sits above the ceiling plus
@@ -217,7 +244,13 @@ def goal_status(verdict: Mapping[str, Any]) -> dict[str, Any]:
     if verdict.get("mismatch"):
         return {"status": "MISMATCH", "metrics": {}}
     metrics = {}
-    for name, detail in verdict["metrics"].items():
+    names = (MODULE_MEMORY_METRICS if memory_only else verdict["metrics"])
+    for name in names:
+        detail = verdict["metrics"].get(name)
+        if detail is None or (memory_only and (verdict.get("runs", 0) < 2
+                                              or detail["verdict"] in {"insufficient", "unstable"})):
+            metrics[name] = "UNCLEAR"
+            continue
         intervals = detail["per_run_ci95"]
         median = detail["pooled"]["median"]
         if intervals and all(ci and ci[0] > GOAL_CEILING + PRACTICAL_FLOOR for ci in intervals):
@@ -240,9 +273,13 @@ def _every(runs: int) -> str:
 
 
 def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
-           runs: int, quiet: bool, gate: bool,
-           known_mismatches: Sequence[str] = ()) -> dict[str, Any]:
+           runs: int, quiet: bool | None, gate: bool,
+           known_mismatches: Sequence[str] = (), memory_only: bool = False) -> dict[str, Any]:
     """Decide one attempt from replicated entity verdicts.
+
+    Memory-only decisions select memory metrics for targets and guards,
+    require both module rows and workload RSS, and ignore host quietness.
+    Even documented output mismatches reject a memory-only comparison.
 
     REJECT: any evaluated entity regresses a metric in every run, or its
     outputs differ from the baseline (outside `known_mismatches`).
@@ -255,10 +292,12 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     regressions, unstable, mismatches = [], [], []
     for name, verdict in sorted(entities.items()):
         if verdict["mismatch"]:
-            if name not in known_mismatches:
+            if memory_only or name not in known_mismatches:
                 mismatches.append(name)
             continue
         for metric, detail in verdict["metrics"].items():
+            if memory_only and metric not in _policy_metrics(verdict):
+                continue
             if detail["verdict"] == "regressed":
                 regressions.append(f"{name} {metric}")
             elif detail["verdict"] == "unstable":
@@ -269,9 +308,11 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
         and all(entities[name]["metrics"].get(metric, {}).get("verdict", "insufficient") == "insufficient"
                 for metric in entities[name]["improvable"])
     )
+    if memory_only:
+        insufficient = _missing_memory(entities)
     improved = sorted(
         f"{name} {metric}" for name in targets if name in entities
-        for metric in entities[name]["improvable"]
+        for metric in (_policy_metrics(entities[name]) if memory_only else entities[name]["improvable"])
         if entities[name]["metrics"].get(metric, {}).get("verdict") == "improved"
     )
     if mismatches:
@@ -280,10 +321,10 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     elif regressions:
         decision = REJECT
         reasons.append(f"regressed in {_every(runs)}: " + ", ".join(regressions))
-    elif not quiet:
+    elif not quiet and not memory_only:
         decision = INCONCLUSIVE
         reasons.append("host was not quiet during measurement")
-    elif gate and runs < 2:
+    elif (gate or memory_only) and runs < 2:
         decision = INCONCLUSIVE
         reasons.append("a gate decision needs at least two independent runs")
     elif missing or insufficient:
@@ -298,13 +339,15 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     else:
         decision = NEUTRAL
         reasons.append("no target improved beyond the interval and practical floor")
-    known = sorted(name for name in known_mismatches if entities.get(name, {}).get("mismatch"))
+    known = sorted(name for name in known_mismatches
+                   if not memory_only and entities.get(name, {}).get("mismatch"))
     if known:
         reasons.append("documented output differences, not timed: " + ", ".join(known))
     if not gate:
         reasons.append("exploratory: not acceptance evidence")
     return {
         "decision": decision,
+        "acceptance_policy": "memory-only" if memory_only else "all-metrics",
         "gate": gate,
         "runs": runs,
         "quiet": quiet,
@@ -318,8 +361,8 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     }
 
 
-def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: bool,
-                gate: bool) -> dict[str, Any]:
+def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: bool | None,
+                gate: bool, memory_only: bool = False) -> dict[str, Any]:
     """Judge a self-comparison: identical interpreters must read neutral.
 
     Any improvement, regression, unstable metric, or output mismatch means
@@ -331,9 +374,17 @@ def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: 
         + [f"{name} {metric}: {detail['verdict']}"
            for name, verdict in entities.items()
            for metric, detail in verdict["metrics"].items()
-           if detail["verdict"] in {"improved", "regressed", "unstable"}]
+           if (not memory_only or metric in _policy_metrics(verdict))
+           and detail["verdict"] in {"improved", "regressed", "unstable"}]
     )
-    if not quiet:
+    missing = _missing_memory(entities) if memory_only else []
+    if memory_only and differences:
+        outcome, reasons = "CALIBRATION-FAILED", ["identical interpreters read different: "
+                                                  + ", ".join(differences)]
+    elif memory_only and (runs < 2 or missing):
+        outcome, reasons = "CALIBRATION-INCONCLUSIVE", [
+            "memory calibration needs two independent runs and complete memory samples: " + ", ".join(missing)]
+    elif not quiet and not memory_only:
         outcome, reasons = "CALIBRATION-INCONCLUSIVE", ["host was not quiet during measurement"]
     elif differences:
         outcome, reasons = "CALIBRATION-FAILED", ["identical interpreters read different: "
@@ -342,6 +393,7 @@ def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: 
         outcome, reasons = "CALIBRATION-OK", ["identical interpreters read neutral everywhere"]
     return {
         "decision": outcome,
+        "acceptance_policy": "memory-only" if memory_only else "all-metrics",
         "gate": gate,
         "runs": runs,
         "quiet": quiet,
@@ -385,9 +437,13 @@ def render(entities: Mapping[str, Mapping[str, Any]], decision: Mapping[str, Any
             body = " | ".join(_format_metric(metric, detail) for metric, detail in verdict["metrics"].items())
         lines.append(f"{marker}{name:<{width}} {body}{goal}")
     lines.append("")
+    quietness = ("not checked" if decision.get("acceptance_policy") == "memory-only"
+                 else "yes" if decision["quiet"] else "no")
     lines.append(f"DECISION: {decision['decision']} ({'gate' if decision['gate'] else 'explore'}, "
                  f"{decision['runs']} run(s), floor {decision['practical_floor']:.0%}, "
-                 f"quiet={'yes' if decision['quiet'] else 'no'}; * = target; ratios candidate/baseline)")
+                 f"quiet={quietness}; * = target; ratios candidate/baseline)")
+    if decision.get("acceptance_policy") == "memory-only":
+        lines.append("POLICY: memory-only; CPU and wall time do not qualify or block")
     lines.extend(f"  - {reason}" for reason in decision["reasons"])
     return "\n".join(lines)
 
@@ -413,7 +469,8 @@ def render_goals(goals: Mapping[str, Mapping[str, Any]],
     for name in sorted(goals, key=lambda item: (order[goals[item]["status"]], worst(item))):
         metrics = entities[name]["metrics"]
         body = " | ".join(
-            f"{metric} {(metrics[metric]['pooled']['median'] or 0):.2f}x{absolute(metric, metrics[metric]['pooled'])}"
+            f"{metric} {(metrics.get(metric, {}).get('pooled', {}).get('median') or 0):.2f}x"
+            f"{absolute(metric, metrics.get(metric, {}).get('pooled', {}))}"
             f" {status}"
             for metric, status in goals[name]["metrics"].items()
         ) or "outputs differ from the control"

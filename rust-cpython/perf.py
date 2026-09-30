@@ -817,21 +817,23 @@ def _module_iterations(python: Path, route: str, scratch: Path) -> int:
 
 
 def _measure_module(baseline: dict[str, Any], candidate: dict[str, Any], route: str, *,
-                    iterations: int, rounds: int, scratch: Path) -> dict[str, Any]:
+                    iterations: int, rounds: int, scratch: Path, memory_only: bool = False) -> dict[str, Any]:
     samples: dict[str, list[dict[str, Any]]] = {"baseline": [], "candidate": []}
     sides = {"baseline": baseline, "candidate": candidate}
     for index in range(rounds):
         # Alternate which side runs first so neither is always the cold one.
         for side in (("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline")):
             samples[side].append(_module_sample(sides[side]["python"], route, iterations, scratch))
-    observation = perf_verdict.module_observation(samples["baseline"], samples["candidate"])
+    observation = perf_verdict.module_observation(samples["baseline"], samples["candidate"],
+                                                  memory_only=memory_only)
     observation["samples"] = samples
     return observation
 
 
 def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], modules: list[str],
              gate: bool, runs: int, profile: str, timing_only: bool, min_idle: float,
-             self_compare: bool, record_baselines: bool, slug_prefix: str = "") -> dict[str, Any]:
+             self_compare: bool, record_baselines: bool, slug_prefix: str = "",
+             memory_only: bool = False) -> dict[str, Any]:
     targets, evaluated_workloads, evaluated_modules = selection(
         workloads=workloads, modules=modules, gate=gate)
     samples: list[dict[str, Any]] = []
@@ -858,8 +860,11 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         directory = LANE / "results" / "perf-bench" / f"{stamp}-{slug}"
         scratch = directory / "tmp"
         scratch.mkdir(parents=True)
-        samples.append(_host_sample(min_idle, wait_seconds=QUIET_WAIT_SECONDS))
-        if not samples[-1]["quiet"]:
+        # Memory-only acceptance retains the same kernels and iteration
+        # calibration, but host CPU idle and power state cannot delay it.
+        if not memory_only:
+            samples.append(_host_sample(min_idle, wait_seconds=QUIET_WAIT_SECONDS))
+        if samples and not samples[-1]["quiet"]:
             print(f"WARN  host not quiet before measuring ({samples[-1]['cpu_idle_percent']}% idle)",
                   flush=True)
         for route in evaluated_modules:
@@ -875,26 +880,29 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
                                      timing_only=timing_only, self_compare=self_compare,
                                      record_baseline=record)
                 observations[workload].append(perf_verdict.mismatch_observation("workload")
-                                              if summary is None else perf_verdict.run_observation(summary))
+                                              if summary is None else perf_verdict.run_observation(
+                                                  summary, memory_only=memory_only))
             for route in evaluated_modules:
                 print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
                       flush=True)
                 observations[route].append(_measure_module(baseline, candidate, route,
                                                             iterations=iterations[route], rounds=rounds,
-                                                            scratch=scratch))
-            samples.append(_host_sample(min_idle))
+                                                            scratch=scratch, memory_only=memory_only))
+            if not memory_only:
+                samples.append(_host_sample(min_idle))
         for side in {id(baseline): baseline, id(candidate): candidate}.values():
             _verify_stage(side)
         shutil.rmtree(scratch, ignore_errors=True)
-    quiet = all(sample["quiet"] for sample in samples)
+    quiet = all(sample["quiet"] for sample in samples) if samples else None
     entities = {name: perf_verdict.entity_verdict(runs_) for name, runs_ in observations.items()}
     known = sorted(KNOWN_CONTROL_MISMATCHES) if baseline["ref"] == "@control" else []
     if self_compare:
-        decision = perf_verdict.calibration(entities, runs=runs, quiet=quiet, gate=gate)
+        decision = perf_verdict.calibration(entities, runs=runs, quiet=quiet, gate=gate,
+                                            memory_only=memory_only)
     else:
         decision = perf_verdict.decide(entities, targets=targets, runs=runs, quiet=quiet, gate=gate,
-                                       known_mismatches=known)
-    goals = ({name: perf_verdict.goal_status(entities[name]) for name in evaluated_modules}
+                                       known_mismatches=known, memory_only=memory_only)
+    goals = ({name: perf_verdict.goal_status(entities[name], memory_only=memory_only) for name in evaluated_modules}
              if baseline["ref"] == "@control" and not self_compare else {})
     record = {
         "baseline": {"ref": baseline["ref"], "label": _label(baseline), "stage": str(baseline["stage"])},
@@ -902,6 +910,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         "profile": profile,
         "workload_profile": "standard" if profile == "rigorous" else profile,
         "timing_only": timing_only,
+        "acceptance_policy": "memory-only" if memory_only else "all-metrics",
         "module_iterations": iterations,
         "module_rounds": rounds,
         "host_samples": samples,
@@ -919,10 +928,12 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
 def bench(*, baseline_ref: str, candidate_ref: str, workloads: list[str], gate: bool,
           runs: int | None, profile: str, timing_only: bool, min_idle: float,
           modules: list[str] | None = None, all_workloads: bool = False, all_modules: bool = False,
-          record_baselines: bool = False, self_compare: bool = False) -> int:
-    runs = runs if runs is not None else (2 if gate else 1)
+          record_baselines: bool = False, self_compare: bool = False, memory_only: bool = False) -> int:
+    runs = runs if runs is not None else (2 if gate or memory_only else 1)
     if runs < 1:
         raise LaneError("runs must be positive")
+    if memory_only and timing_only:
+        raise LaneError("--memory-only requires the memory pass; drop --timing-only")
     if gate and timing_only:
         raise LaneError("gate runs include the memory pass; drop --timing-only")
     if record_baselines and not (gate and baseline_ref == "@control" and candidate_ref == "@incumbent"):
@@ -931,22 +942,28 @@ def bench(*, baseline_ref: str, candidate_ref: str, workloads: list[str], gate: 
     modules = [*(modules or []), *(module_routes() if all_modules else ())]
     record = _measure(baseline_ref=baseline_ref, candidate_ref=candidate_ref, workloads=workloads,
                       modules=modules, gate=gate, runs=runs, profile=profile, timing_only=timing_only,
-                      min_idle=min_idle, self_compare=self_compare, record_baselines=record_baselines)
+                      min_idle=min_idle, self_compare=self_compare, record_baselines=record_baselines,
+                      memory_only=memory_only)
     print(perf_verdict.render(record["entities"], record["decision"], record["goals"] or None))
     print(f"LOG   {record['directory']}/verdict.json")
     return 0
 
 
-def goals(*, candidate_ref: str, modules: list[str], runs: int, profile: str, min_idle: float) -> int:
-    """Per-module goal status of a candidate against the pristine control."""
+def goals(*, candidate_ref: str, modules: list[str], runs: int, profile: str, min_idle: float,
+          memory_only: bool = False) -> int:
+    """Per-module goal status of a candidate against the pristine control.
+
+    Memory-only goals require load footprint and working peak to satisfy
+    the band; CPU measurements do not affect the overall status.
+    """
     if runs < 2:
         raise LaneError("goal status needs at least two independent runs")
     record = _measure(baseline_ref="@control", candidate_ref=candidate_ref, workloads=[],
                       modules=modules or module_routes(), gate=False, runs=runs, profile=profile,
                       timing_only=False, min_idle=min_idle, self_compare=False, record_baselines=False,
-                      slug_prefix="goals-")
+                      slug_prefix="goals-", memory_only=memory_only)
     print(perf_verdict.render_goals(record["goals"], record["entities"]))
-    if not record["decision"]["quiet"]:
+    if not memory_only and not record["decision"]["quiet"]:
         print("WARN  host was not quiet: statuses may carry host noise; rerun before recording")
     print(f"LOG   {record['directory']}/verdict.json")
     return 0
@@ -1212,6 +1229,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="acceptance mode: clean committed builds, gate workloads as guards, 2 runs")
         sub.add_argument("--runs", type=int, help="independent runs (default 2 with --gate, else 1)")
         sub.add_argument("--profile", choices=("quick", "standard", "rigorous"), default="standard")
+        sub.add_argument("--memory-only", action="store_true",
+                         help="judge only memory; timing and host quietness do not qualify or block")
         sub.add_argument("--timing-only", action="store_true", help="skip the memory pass (exploration)")
         sub.add_argument("--min-idle", type=float, default=DEFAULT_MIN_IDLE,
                          help="percent CPU idle required around measurements")
@@ -1221,6 +1240,8 @@ def main(argv: list[str] | None = None) -> int:
                               help="module route; repeatable (default: all 71)")
     goals_parser.add_argument("--runs", type=int, default=2, help="independent runs (at least 2)")
     goals_parser.add_argument("--profile", choices=("quick", "standard", "rigorous"), default="standard")
+    goals_parser.add_argument("--memory-only", action="store_true",
+                              help="classify goals using load footprint and working peak only")
     goals_parser.add_argument("--min-idle", type=float, default=DEFAULT_MIN_IDLE)
     commands.add_parser("modules", help="list module kernel routes")
     profile_parser = commands.add_parser("profile", help="profile one workload or module kernel on one build")
@@ -1257,16 +1278,16 @@ def main(argv: list[str] | None = None) -> int:
                          profile=args.profile, timing_only=args.timing_only,
                          min_idle=args.min_idle, modules=args.module,
                          all_workloads=args.all_workloads, all_modules=args.all_modules,
-                         record_baselines=args.record_baselines)
+                         record_baselines=args.record_baselines, memory_only=args.memory_only)
         if args.command == "calibrate":
             return bench(baseline_ref=args.ref, candidate_ref=args.ref, workloads=args.workload,
                          gate=args.gate, runs=args.runs, profile=args.profile,
                          timing_only=args.timing_only, min_idle=args.min_idle, modules=args.module,
                          all_workloads=args.all_workloads, all_modules=args.all_modules,
-                         self_compare=True)
+                         self_compare=True, memory_only=args.memory_only)
         if args.command == "goals":
             return goals(candidate_ref=args.candidate, modules=args.module, runs=args.runs,
-                         profile=args.profile, min_idle=args.min_idle)
+                         profile=args.profile, min_idle=args.min_idle, memory_only=args.memory_only)
         if args.command == "modules":
             print("\n".join(module_routes()))
             return 0

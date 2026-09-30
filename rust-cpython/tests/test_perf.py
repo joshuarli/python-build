@@ -238,6 +238,127 @@ class GoalTests(unittest.TestCase):
         self.assertEqual(self._goal([1.02, 1.3, 0.99, 1.2, 1.01])["status"], "UNCLEAR")
 
 
+class MemoryOnlyTests(unittest.TestCase):
+    def entities(self, *, cpu=2.0, load=0.8, peak=1.0, digest="d"):
+        runs = [module([sample(1.0, 1 << 20, 1 << 20)] * 5,
+                       [sample(cpu, int(load * (1 << 20)), int(peak * (1 << 20)), digest)] * 5)
+                for _ in range(2)]
+        return {"json": pv.entity_verdict(runs)}
+
+    def decision(self, entities, runs=2):
+        return pv.decide(entities, targets=["json"], runs=runs, quiet=False,
+                         gate=True, memory_only=True)
+
+    def test_memory_win_ignores_cpu_regression_and_busy_host(self):
+        decision = self.decision(self.entities())
+        self.assertEqual(decision["decision"], pv.ACCEPT)
+        self.assertEqual(decision["improved"], ["json load_footprint"])
+        self.assertEqual(decision["regressions"], [])
+        self.assertEqual(decision["acceptance_policy"], "memory-only")
+
+    def test_cpu_win_cannot_qualify_memory_neutral(self):
+        self.assertEqual(self.decision(self.entities(cpu=0.5, load=1.0))["decision"], pv.NEUTRAL)
+
+    def test_memory_guards_and_mismatches_still_reject(self):
+        entities = self.entities()
+        entities["guard"] = self.entities(load=1.2)["json"]
+        self.assertEqual(self.decision(entities)["decision"], pv.REJECT)
+        self.assertEqual(self.decision(self.entities(digest="different"))["decision"], pv.REJECT)
+
+    def test_missing_memory_on_guard_and_single_run_are_inconclusive(self):
+        entities = self.entities()
+        guard = self.entities(load=1.0)["json"]
+        del guard["metrics"]["working_peak"]
+        entities["guard"] = guard
+        self.assertEqual(self.decision(entities)["decision"], pv.INCONCLUSIVE)
+        self.assertEqual(self.decision(self.entities(), runs=1)["decision"], pv.INCONCLUSIVE)
+
+    def test_unstable_memory_is_inconclusive(self):
+        entities = self.entities()
+        entities["json"]["metrics"]["working_peak"]["verdict"] = "unstable"
+        self.assertEqual(self.decision(entities)["decision"], pv.INCONCLUSIVE)
+
+    def test_goals_exclude_cpu_and_require_both_memory_metrics(self):
+        entity = self.entities()["json"]
+        goal = pv.goal_status(entity, memory_only=True)
+        self.assertEqual(goal["status"], "MET")
+        self.assertEqual(set(goal["metrics"]), {"load_footprint", "working_peak"})
+        del entity["metrics"]["working_peak"]
+        self.assertEqual(pv.goal_status(entity, memory_only=True)["status"], "UNCLEAR")
+
+    def test_calibration_ignores_timing_but_requires_memory_and_replication(self):
+        entities = self.entities(load=1.0)
+        self.assertEqual(pv.calibration(entities, runs=2, quiet=False, gate=True,
+                                        memory_only=True)["decision"], "CALIBRATION-OK")
+        del entities["json"]["metrics"]["working_peak"]
+        self.assertEqual(pv.calibration(entities, runs=2, quiet=False, gate=True,
+                                        memory_only=True)["decision"], "CALIBRATION-INCONCLUSIVE")
+
+    def test_workload_observation_accepts_memory_without_timing(self):
+        memory = {"peak_rss": {"ratio_candidate_over_baseline": 0.8,
+                               "absolute_change": -2e6, "noise_allowance": 1e6,
+                               "status": "pass"}}
+        observation = pv.run_observation({"comparison": {"memory": {"metrics": memory}}},
+                                         memory_only=True)
+        self.assertEqual(set(observation["metrics"]), {"peak_rss"})
+        entities = {"w": pv.entity_verdict([observation] * 2)}
+        decision = pv.decide(entities, targets=["w"], runs=2, quiet=False, gate=True,
+                             memory_only=True)
+        self.assertEqual(decision["decision"], pv.ACCEPT)
+
+    def test_measure_records_policy_and_preserves_sampling_without_host_waits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            sides = {ref: {"ref": ref, "name": ref[1:], "stage": Path(temp) / ref[1:],
+                           "python": Path("/python"), "report": {"commit": "fixture"}}
+                     for ref in ("@control", "@incumbent")}
+            with mock.patch.object(perf, "LANE", Path(temp)), \
+                    mock.patch.object(perf, "selection", return_value=(["json"], [], ["json"])), \
+                    mock.patch.object(perf, "host_lease", return_value=nullcontext()), \
+                    mock.patch.object(perf, "resolve", side_effect=sides.__getitem__), \
+                    mock.patch.object(perf, "_verify_stage"), \
+                    mock.patch.object(perf, "_host_sample") as host, \
+                    mock.patch.object(perf, "_module_iterations", return_value=37) as iterations, \
+                    mock.patch.object(perf, "_module_sample", return_value=sample(2.0, 1 << 20, 1 << 20)) as measure:
+                record = perf._measure(
+                    baseline_ref="@control", candidate_ref="@incumbent", workloads=[], modules=["json"],
+                    gate=False, runs=2, profile="quick", timing_only=False, min_idle=90,
+                    self_compare=False, record_baselines=False, memory_only=True)
+            host.assert_not_called()
+            iterations.assert_called_once()
+            self.assertEqual(measure.call_count, 2 * 2 * perf.PROFILE_MODULE_ROUNDS["quick"])
+            self.assertTrue(all(call.args[2] == 37 for call in measure.call_args_list))
+            self.assertEqual(record["host_samples"], [])
+            self.assertIsNone(record["decision"]["quiet"])
+            self.assertEqual(record["acceptance_policy"], "memory-only")
+            self.assertEqual(set(record["entities"]["json"]["metrics"]),
+                             {"load_footprint", "working_peak"})
+            saved = json.loads((Path(record["directory"]) / "verdict.json").read_text())
+            self.assertEqual(saved["decision"]["acceptance_policy"], "memory-only")
+            self.assertEqual(saved["goals"]["json"]["status"], "MET")
+
+    def test_known_output_difference_still_rejects_memory_only(self):
+        entities = self.entities()
+        entities["known"] = pv.entity_verdict([pv.mismatch_observation("workload")] * 2)
+        decision = pv.decide(entities, targets=["json"], runs=2, quiet=False, gate=True,
+                             known_mismatches=["known"], memory_only=True)
+        self.assertEqual(decision["decision"], pv.REJECT)
+
+    def test_memory_only_and_timing_only_are_incompatible(self):
+        with self.assertRaisesRegex(perf.LaneError, "requires the memory pass"):
+            perf.bench(baseline_ref="@control", candidate_ref="@incumbent", workloads=[],
+                       gate=False, runs=2, profile="quick", timing_only=True, min_idle=90,
+                       memory_only=True)
+
+    def test_cli_passes_memory_policy_for_all_commands(self):
+        for command, extra, handler in [
+                ("bench", ["--baseline", "@control", "--candidate", "@incumbent"], "bench"),
+                ("calibrate", ["--ref", "@incumbent"], "bench"),
+                ("goals", [], "goals")]:
+            with self.subTest(command=command), mock.patch.object(perf, handler, return_value=0) as call:
+                self.assertEqual(perf.main([command, *extra, "--memory-only"]), 0)
+                self.assertTrue(call.call_args.kwargs["memory_only"])
+
+
 class IncrementalPlanTests(unittest.TestCase):
     def test_changed_removed_and_clean_only(self):
         plan = perf.incremental_plan(
