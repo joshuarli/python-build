@@ -1761,7 +1761,7 @@ def _shadowed_dict_from_weakref_mro_tuple(*weakref_mro):
 
 
 def _shadowed_dict(klass):
-    # gh-118013: the inner function here is decorated with lru_cache for
+    # The inner function here is decorated with lru_cache for
     # performance reasons, *but* make sure not to pass strong references
     # to the items in the mro. Doing so can lead to unexpected memory
     # consumption in cases where classes are dynamically created and

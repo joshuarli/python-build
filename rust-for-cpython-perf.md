@@ -351,8 +351,10 @@ Quiet two-run primary measurements at source `4b76f58`
 | `configparser` | 0.22x BEYOND | 0.57x BEYOND | 0.71x BEYOND |
 | `logging` | 0.99x MET | 0.60x BEYOND | 1.50x UNCLEAR |
 
-The logging peak requires the single rigorous UNCLEAR follow-up. The full
-71-route table above remains the explicitly dated earlier snapshot.
+The single rigorous logging follow-up at `20260930T162859Z` remained
+UNCLEAR at 1.29x; treat it as OVER under the greater-than-1.01x rule.
+No further uncertainty reruns are authorized. The full 71-route table above
+remains the explicitly dated earlier snapshot.
 Configparser shares mortal section names and values, preserves custom
 proxy lookup behavior, and explicitly supports independent GILs. Distinct
 parse/discard diagnostics retained 207,552 bytes of intern-table capacity;
@@ -822,6 +824,7 @@ candidate over baseline for the batch targets.
 | 2026-09-30 | `2fd93ca` (source) | Codex memory batch 4: difflib, pathlib, tarfile and eleven shared-image registrations | Quiet primary two-run ACCEPT over sixteen modules/all23 workloads: load difflib0.909x, pathlib0.406x, tarfile0.739x, asyncio0.888x, bisect0.571x, contextlib0.970x, logging0.937x, tempfile0.875x, typing0.961x; asyncio working0.333x. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; native/GIL probes pass. | Absolute refresh pending. Logging peak and typing CPU rejected trials retained; both helpers remain shared. |
 
 | 2026-09-30 | `4b76f58` (source) | Codex memory batch 5: AST, shlex, configparser | Quiet primary two-run ACCEPT over twelve modules/all23 workloads: load AST0.701x, shlex0.402x, configparser0.519x; configparser working0.910x. Logging cross-route load0.945x; its working peak and typing CPU neutral. No replicated regression/unstable/mismatch. Full50,158/2,748, zero failures; clean58; fresh native/capsule/GIL and configparser ownership/override probes pass. | Control memory: AST0.73x BEYOND, shlex0.44x BEYOND, configparser0.57x/peak0.71x BEYOND. Five additional shared-image registrations dropped after rejected logging peak/typing CPU trial; no causal attribution. Absolute all23 picture remains dated AEC and memory phase stays open. |
+| 2026-09-30 | `49e61fe` (source) | Codex memory batch 6: dataclasses, inspect | Quiet primary two-run ACCEPT (`20260930T181726Z`) over six modules/all23 workloads: dataclasses load0.872x and working0.561x; inspect load0.973x, both improved. CPU and every application guard neutral; no mismatch or unstable metric. Full50,158/2,748, zero failures; clean58. Fresh dataclasses exception/concurrency/recursion/slot/subinterpreter checks and inspect native binding/member calls pass; inspect own-GIL uses its existing Python fallback. | Full71 control refresh pending after incumbent rebuild. Worktree Django wall rejections are retained; primary gate establishes acceptance. Workload RSS is now eligible as a target, with existing floors, replication and regression guards unchanged (30 controller tests pass). Memory phase stays open. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
