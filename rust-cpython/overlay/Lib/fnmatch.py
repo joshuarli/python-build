@@ -14,7 +14,6 @@ import functools
 import itertools
 import os
 import posixpath
-import re
 
 __all__ = ["filter", "filterfalse", "fnmatch", "fnmatchcase", "translate"]
 
@@ -52,6 +51,7 @@ def _compile_pattern(pat):
         res = bytes(res_str, 'ISO-8859-1')
     else:
         res = _translate_regex(pat)
+    import re
     fallback = re.compile(res).match
 
     def match(name):
@@ -131,11 +131,17 @@ def _translate_regex(pat):
     return _join_translated_parts(parts, star_indices)
 
 
-_re_setops_sub = re.compile(r'([&~|])').sub
-_re_escape = functools.lru_cache(maxsize=512)(re.escape)
+@functools.cache
+def _regex_helpers():
+    # Python pattern translation owns the regex helpers and initializes them
+    # when needed. Preparing them also retains compiled regex cache entries.
+    import re
+    return (re.compile(r'([&~|])').sub,
+            functools.lru_cache(maxsize=512)(re.escape))
 
 
 def _translate(pat, star, question_mark):
+    re_setops_sub, re_escape = _regex_helpers()
     res = []
     add = res.append
     star_indices = []
@@ -200,14 +206,14 @@ def _translate(pat, star, question_mark):
                     add('.')
                 else:
                     # Escape set operations (&&, ~~ and ||).
-                    stuff = _re_setops_sub(r'\\\1', stuff)
+                    stuff = re_setops_sub(r'\\\1', stuff)
                     if stuff[0] == '!':
                         stuff = '^' + stuff[1:]
                     elif stuff[0] in ('^', '['):
                         stuff = '\\' + stuff
                     add(f'[{stuff}]')
         else:
-            add(_re_escape(c))
+            add(re_escape(c))
     assert i == n
     return res, star_indices
 
