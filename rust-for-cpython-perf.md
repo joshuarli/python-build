@@ -160,7 +160,7 @@ The batch combines borrowed Unicode and bounded buffers in `_strptime`,
 regex eligibility before native helper loading, and deferred logging,
 statistics, and subprocess dependencies. The regex and date parser changes
 qualify together; their standalone neutral trials remain preserved and do
-not establish independent memory wins. An intermediate batch at `59f63a9`
+not establish independent memory wins. An intermediate batch at `59f2f08`
 was rejected for startup RSS **1.012x** in both runs. Its static threading
 change was reverted before this accepted trial; attribution of that
 regression remains unproven. Fresh absolute control goals are pending;
