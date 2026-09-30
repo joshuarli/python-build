@@ -144,6 +144,28 @@ were reverted and their branches preserved. The separate decimal capsule
 lane improved CPU, but neutral memory and a zlib CPU guard regression
 prevented acceptance; decimal is now on memory debt after two failed lanes.
 
+### Third accepted Codex memory batch
+
+The primary source `868fb4f` passes the quiet two-run gate at
+`20260930T102043Z-perf-rust-vs-perf-merge/verdict.json`. Load footprint
+improves in both runs for `_strptime` **0.914x**, fractions **0.922x**,
+logging **0.540x**, statistics **0.517x**, subprocess **0.873x**, and
+warnings **0.953x**. Logging working peak also improves **0.554x**;
+other working peaks are neutral. All seven workload guards are neutral,
+with matching outputs and no replicated regression or unstable metric.
+The clean build verifies 69 extensions; the full suite passes
+**50,158/2,748**, zero failures, and fresh native and own-GIL probes pass.
+
+The batch combines borrowed Unicode and bounded buffers in `_strptime`,
+regex eligibility before native helper loading, and deferred logging,
+statistics, and subprocess dependencies. The regex and date parser changes
+qualify together; their standalone neutral trials remain preserved and do
+not establish independent memory wins. An intermediate batch at `59f63a9`
+was rejected for startup RSS **1.012x** in both runs. Its static threading
+change was reverted before this accepted trial; attribution of that
+regression remains unproven. Fresh absolute control goals are pending;
+the table below still describes `bf28090`, not this new source.
+
 ### Corrected measurement boundary and native route coverage
 
 Commit `1faf2e4` moves JSON result serialization after all memory and timing
@@ -710,6 +732,7 @@ candidate over baseline for the batch targets.
 | 2026-09-29 | `e41f4fb` | gzip-mem, shlex-mem, urlparse-mem, textwrap-mem (memory phase, final) | Gate INCONCLUSIVE for quiet=no only; every target improved or points below 1.0, nothing regressed, guards neutral (`python_startup` wall 1.237 [1.000,1.289] flagged), full suite ok (originally provisional; quiet confirmed 2026-09-30: load gzip0.765x, shlex0.667x, textwrap0.508x, urllib.parse0.314x; peaks neutral, no guard regressions). `gzip` cpu 0.475x; `shlex` cpu 0.881x, load 0.759x; `textwrap` cpu 0.047x, load 0.488x; `urllib.parse` cpu 0.592x, load 0.333x; `gzip_extract_1m` wall 0.545x. | Full `goals` at `e41f4fb`: **OVER 44, UNCLEAR 17, MET 10** (63/6/2 at the first baseline). `urllib.parse` MET (load 0.51x BEYOND). `gzip`, `textwrap`, `shlex` still UNCLEAR/OVER on load (one to three pages above control: the extension's own dirtied `__DATA` page plus other routes' dylibs on the import path). flate2, adler2, miniz_oxide left the lock. |
 | 2026-09-29 | `284fa00` | Codex memory batch 1: fractions, tarfile, random | Primary quiet two-run gate ACCEPT; load **0.750x / 0.875x / 0.762x** improved in both runs, working peaks and all seven workload guards neutral. CPU guard ratios 0.943x / 0.583x / 0.838x improved. Full suite **50,158/2,748**, no failures; clean69 Rust images. | Control goals: fractions load1.21x OVER, tarfile1.12x OVER, random1.00x MET; working peaks MET. Source gate eb026a7; primary path resolves lane startup bias and establishes Random memory win. Baseline refresh deferred to memory completion. |
 | 2026-09-30 | `98c5362` (source) | Codex memory batch 2: fnmatch, tempfile, argparse, functools | Corrected-boundary primary quiet two-run gate ACCEPT; load **0.320x / 0.359x / 0.966x / 0.846x** improved both runs; working peaks and all seven workload guards neutral. Full suite **50,158/2,748**, zero failures; clean69 images. Resources guard load0.849x improved. | Control memory goals: fnmatch0.39x BEYOND, tempfile0.40x BEYOND, argparse1.16x OVER, functools1.20x OVER; resources0.91x MET, working peaks MET. UUID and decimal predecessors reverted after failed primary memory replication; no CPU-only candidate accepted. |
+| 2026-09-30 | `868fb4f` (source) | Codex memory batch 3: logging, statistics, subprocess, date parser and regex eligibility | Quiet two-run primary ACCEPT: load0.540x/0.517x/0.873x/0.914x; fractions0.922x and warnings0.953x cross-module wins. Logging working0.554x; other peaks and all seven workload guards neutral. Full50,158/2,748, zero failures; clean69. | Absolute control refresh pending. Intermediate startup RSS rejection retained; threading static change reverted. Date parser and regex changes qualify jointly. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
