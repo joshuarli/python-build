@@ -51,13 +51,21 @@ pub struct PyModuleDef_Base {
 }
 
 #[repr(C)]
+pub struct PyModuleDef_Slot {
+    slot: c_int,
+    value: *mut c_void,
+}
+
+unsafe impl Sync for PyModuleDef_Slot {}
+
+#[repr(C)]
 pub struct PyModuleDef {
     m_base: PyModuleDef_Base,
     m_name: *const c_char,
     m_doc: *const c_char,
     m_size: Py_ssize_t,
     m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
+    m_slots: *mut PyModuleDef_Slot,
     m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
     m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
     m_free: Option<extern "C" fn(*mut c_void)>,
@@ -396,6 +404,16 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
+// UUID operations use call-local buffers and borrow only their arguments;
+// no Python objects or mutable algorithm state are shared by interpreters.
+static UUID_MODULE_SLOTS: [PyModuleDef_Slot; 2] = [
+    PyModuleDef_Slot {
+        slot: 86, // Py_mod_multiple_interpreters for the current CPython ABI.
+        value: 2_usize as *mut c_void, // Py_MOD_PER_INTERPRETER_GIL_SUPPORTED.
+    },
+    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
+];
+
 pub static _UUID_RS_MODULE_METHODS: [PyMethodDef; 9] = [
     PyMethodDef {
         ml_name: c"parse_hex".as_ptr() as *mut c_char,
@@ -463,7 +481,7 @@ pub static _UUID_RS_MODULE: ModuleDef = ModuleDef {
         m_doc: c"Rust UUID parsing, formatting, and generation".as_ptr() as *mut _,
         m_size: 0,
         m_methods: _UUID_RS_MODULE_METHODS.as_ptr() as *mut _,
-        m_slots: ptr::null_mut(),
+        m_slots: UUID_MODULE_SLOTS.as_ptr() as *mut _,
         m_traverse: None,
         m_clear: Some(_uuid_rs_clear),
         m_free: Some(_uuid_rs_free),
