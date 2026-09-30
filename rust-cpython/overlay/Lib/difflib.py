@@ -30,7 +30,9 @@ __all__ = ['get_close_matches', 'ndiff', 'restore', 'SequenceMatcher',
            'Differ','IS_CHARACTER_JUNK', 'IS_LINE_JUNK', 'context_diff',
            'unified_diff', 'diff_bytes', 'HtmlDiff', 'Match']
 
-from heapq import nlargest as _nlargest
+# Heap selection is used only when ranking close matches; resolve this
+# private binding on its first use so sequence matching need not load it.
+lazy from heapq import nlargest as _nlargest
 from collections import namedtuple as _namedtuple
 from types import GenericAlias
 lazy from _colorize import can_colorize, get_theme
@@ -57,19 +59,14 @@ def _rust_sequence_values(sequence):
     return None
 
 
-def _rust_b_state(sequence, popular):
+def _rust_b_state(sequence, popular, positions):
     values = _rust_sequence_values(sequence)
     if values is None:
         return None
-    token_ids = {}
-    sequence_ids = []
-    for value in values:
-        if value not in token_ids:
-            token_ids[value] = len(token_ids)
-        sequence_ids.append(token_ids[value])
-    popular_ids = [token_ids[value] for value in popular]
-    return (sequence, values, token_ids, sequence_ids, popular_ids,
-            frozenset(popular))
+    # The existing position index already excludes popular starting values.
+    # Immutable snapshots let native extension compare values directly without
+    # retaining a second token dictionary or token buffers.
+    return (sequence, values, positions, frozenset(popular))
 
 class SequenceMatcher:
 
@@ -209,7 +206,6 @@ class SequenceMatcher:
         self.isjunk = isjunk
         self.a = self.b = None
         self.autojunk = autojunk
-        self._rust_a_state = None
         self._rust_b_state = None
         self.set_seqs(a, b)
 
@@ -249,7 +245,6 @@ class SequenceMatcher:
         if a is self.a:
             return
         self.a = a
-        self._rust_a_state = None
         self.matching_blocks = self.opcodes = None
 
     def set_seq2(self, b):
@@ -276,7 +271,6 @@ class SequenceMatcher:
         if b is self.b:
             return
         self.b = b
-        self._rust_a_state = None
         self.matching_blocks = self.opcodes = None
         self.fullbcount = None
         self.__chain_b()
@@ -336,7 +330,7 @@ class SequenceMatcher:
             for elt in popular: # ditto; as fast for 1% deletion
                 del b2j[elt]
         self._rust_b_state = (
-            _rust_b_state(b, popular)
+            _rust_b_state(b, popular, b2j)
             if _difflib_rs is not None and isjunk is None else None
         )
 
@@ -469,9 +463,9 @@ class SequenceMatcher:
         state = getattr(self, '_rust_b_state', None)
         if state is None:
             return None
-        sequence, values, token_ids, b_ids, popular_ids, popular = state
+        sequence, values, positions, popular = state
         if (self.b is not sequence or self.bpopular != popular
-                or self.bjunk):
+                or self.bjunk or self.b2j is not positions):
             return None
         if type(self.b) is list and tuple(self.b) != values:
             return None
@@ -479,16 +473,8 @@ class SequenceMatcher:
         a_values = _rust_sequence_values(self.a)
         if a_values is None:
             return None
-        a_state = getattr(self, '_rust_a_state', None)
-        if (a_state is not None and a_state[0] is self.a
-                and a_state[1] == a_values):
-            a_ids = a_state[2]
-        else:
-            a_ids = [token_ids.get(value, -1) for value in a_values]
-            self._rust_a_state = (self.a, a_values, a_ids)
-
-        return _difflib_rs.find_longest_match(
-            a_ids, b_ids, popular_ids, alo, ahi, blo, bhi
+        return _difflib_rs.find_longest_match_index(
+            a_values, values, positions, alo, ahi, blo, bhi
         )
 
     def get_matching_blocks(self):
