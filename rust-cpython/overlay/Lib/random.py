@@ -98,14 +98,18 @@ BPF = 53        # Number of bits in a float
 RECIP_BPF = 2 ** -BPF
 _ONE = 1
 _sha512 = None
+_rust_sampler = None
 
 
 def _rust_implementation():
-    try:
-        import _random_rs
-    except ImportError:
-        return None
-    return _random_rs
+    global _rust_sampler
+    if _rust_sampler is None:
+        try:
+            import _random_rs
+        except ImportError:
+            return None
+        _rust_sampler = _random_rs
+    return _rust_sampler
 
 
 class Random(_random.Random):
