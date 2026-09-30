@@ -789,7 +789,6 @@ dependencies = [
  "_heapq_rs",
  "_html_parser_rs",
  "_itertools_rs",
- "_logging_rs",
  "_posixpath_rs",
  "_random_rs",
  "_ssl_rs",

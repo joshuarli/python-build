@@ -14,7 +14,6 @@ _contextlib_rs = { path = "../_contextlib_rs" }
 _heapq_rs = { path = "../_heapq_rs" }
 _html_parser_rs = { path = "../_html_parser_rs" }
 _itertools_rs = { path = "../_itertools_rs" }
-_logging_rs = { path = "../_logging_rs" }
 _posixpath_rs = { path = "../_posixpath_rs" }
 _random_rs = { path = "../_random_rs", features = ["static-module"] }
 _ssl_rs = { path = "../_ssl_rs" }

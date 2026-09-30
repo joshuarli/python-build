@@ -7,7 +7,6 @@ pub use _contextlib_rs::PyInit__contextlib_rs;
 pub use _heapq_rs::PyInit__heapq_rs;
 pub use _html_parser_rs::PyInit__html_parser_rs;
 pub use _itertools_rs::PyInit__itertools_rs;
-pub use _logging_rs::PyInit__logging_rs;
 pub use _posixpath_rs::PyInit__posixpath_rs;
 pub use _random_rs::PyInit__random_rs;
 pub use _ssl_rs::PyInit__ssl_rs;

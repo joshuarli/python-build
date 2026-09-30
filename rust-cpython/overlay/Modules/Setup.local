@@ -26,6 +26,7 @@ _inspect_rs _inspect_rs/Cargo.toml _inspect_rs/src/lib.rs
 _ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
 _pathlib_rs _pathlib_rs/Cargo.toml _pathlib_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs
+_logging_rs _logging_rs/Cargo.toml _logging_rs/src/lib.rs
 _multiprocessing_rs _multiprocessing_rs/Cargo.toml _multiprocessing_rs/src/lib.rs
 _lzma_rs _lzma_rs/Cargo.toml _lzma_rs/src/lib.rs
 _marshal_rs _marshal_rs/Cargo.toml _marshal_rs/src/lib.rs
@@ -66,7 +67,6 @@ _contextlib_rs
 _heapq_rs
 _html_parser_rs
 _itertools_rs
-_logging_rs
 _posixpath_rs
 _ssl_rs
 _tempfile_rs
