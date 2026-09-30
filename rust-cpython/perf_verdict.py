@@ -27,7 +27,8 @@ from typing import Any
 PRACTICAL_FLOOR = 0.01
 BOOTSTRAP_CONFIDENCE = 0.95
 BENCH_MEMORY_METRICS = ("peak_rss", "peak_private", "peak_pss")
-WORKLOAD_IMPROVABLE = ("wall", "cpu")
+# Peak resident memory can be a workload target independently of its timing.
+WORKLOAD_IMPROVABLE = ("wall", "cpu", "peak_rss")
 # Per-module goal band against the pristine control: at most 1.0x (with the
 # practical floor as measurement slack), and climbing on a route stops once
 # it is provably below 0.9x.
