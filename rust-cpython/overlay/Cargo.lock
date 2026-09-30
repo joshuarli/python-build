@@ -782,17 +782,22 @@ version = "0.1.0"
 dependencies = [
  "_asyncio_rs",
  "_base64",
+ "_binascii_rs",
  "_bisect_rs",
  "_codecs_rs",
  "_concurrent_futures_rs",
  "_contextlib_rs",
+ "_functools_rs",
  "_heapq_rs",
  "_html_parser_rs",
+ "_ipaddress_rs",
  "_itertools_rs",
+ "_marshal_rs",
  "_posixpath_rs",
  "_random_rs",
  "_ssl_rs",
  "_tempfile_rs",
+ "_threading_rs",
 ]
 
 [[package]]
