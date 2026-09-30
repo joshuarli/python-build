@@ -1,159 +1,120 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+//! Rust option matching over borrowed Python strings.
+//! Results use Python allocations directly; no Rust heap or runtime is retained.
+#![no_std]
+#![allow(non_camel_case_types, non_snake_case)]
 
-use clap_lex::RawArgs;
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::PyList_Append;
-use cpython_sys::PyList_New;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_Slot;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_IsTrue;
-use cpython_sys::PyTuple_GetItem;
-use cpython_sys::PyTuple_New;
-use cpython_sys::PyTuple_SetItem;
-use cpython_sys::PyTuple_Size;
-use cpython_sys::PyUnicode_AsUTF8AndSize;
-use cpython_sys::PyUnicode_FromStringAndSize;
-use cpython_sys::Py_DecRef;
-use cpython_sys::Py_NewRef;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::_Py_NoneStruct;
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
+
+type Py_ssize_t = isize;
+
+#[repr(C)]
+struct PyObject {
+    ob_refcnt: Py_ssize_t,
+    ob_type: *mut PyTypeObject,
+}
+
+#[repr(C)]
+struct PyTypeObject {
+    _opaque: [u8; 0],
+}
+
+#[repr(C)]
+union PyMethodDefFuncPointer {
+    PyCFunctionFast: unsafe extern "C" fn(
+        slf: *mut PyObject,
+        args: *mut *mut PyObject,
+        nargs: Py_ssize_t,
+    ) -> *mut PyObject,
+    void: *mut c_void,
+}
+
+#[repr(C)]
+struct PyMethodDef {
+    ml_name: *mut c_char,
+    ml_meth: PyMethodDefFuncPointer,
+    ml_flags: c_int,
+    ml_doc: *mut c_char,
+}
+
+unsafe impl Sync for PyMethodDef {}
+
+#[repr(C)]
+struct PyModuleDef_Base {
+    ob_base: PyObject,
+    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
+    m_index: Py_ssize_t,
+    m_copy: *mut PyObject,
+}
+
+#[repr(C)]
+struct PyModuleDef {
+    m_base: PyModuleDef_Base,
+    m_name: *const c_char,
+    m_doc: *const c_char,
+    m_size: Py_ssize_t,
+    m_methods: *mut PyMethodDef,
+    m_slots: *mut PyModuleDef_Slot,
+    m_traverse: Option<unsafe extern "C" fn(
+        *mut PyObject,
+        unsafe extern "C" fn(*mut PyObject, *mut c_void) -> c_int,
+        *mut c_void,
+    ) -> c_int>,
+    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
+    m_free: Option<extern "C" fn(*mut c_void)>,
+}
+
+const METH_FASTCALL: c_int = 0x0080;
+/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
+/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
+const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
+
+#[repr(C)]
+struct PyModuleDef_Slot {
+    slot: c_int,
+    value: *mut c_void,
+}
 
 const PY_MOD_MULTIPLE_INTERPRETERS_SLOT: c_int = 86;
 const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2usize as *mut c_void;
 
-struct OptionCandidate {
-    option: String,
-    separator: Option<String>,
-    explicit_argument: Option<String>,
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    static mut PyExc_TypeError: *mut PyObject;
+    static mut _Py_NoneStruct: PyObject;
+    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
+    fn PyErr_NoMemory() -> *mut PyObject;
+    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
+    fn PyList_New(size: Py_ssize_t) -> *mut PyObject;
+    fn PyList_Append(list: *mut PyObject, item: *mut PyObject) -> c_int;
+    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
+    fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
+    fn PyTuple_GetItem(tuple: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
+    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
+    fn PyObject_IsTrue(object: *mut PyObject) -> c_int;
+    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
+    fn PyUnicode_FromStringAndSize(text: *const c_char, size: Py_ssize_t) -> *mut PyObject;
+    fn Py_NewRef(object: *mut PyObject) -> *mut PyObject;
+    fn Py_DecRef(object: *mut PyObject);
+    fn abort() -> !;
 }
 
-fn add_candidate(
-    candidates: &mut Vec<OptionCandidate>,
-    option: &str,
-    separator: Option<&str>,
-    explicit_argument: Option<&str>,
-) {
-    candidates.push(OptionCandidate {
-        option: option.to_owned(),
-        separator: separator.map(str::to_owned),
-        explicit_argument: explicit_argument.map(str::to_owned),
-    });
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
 }
 
-fn scan_option(
-    argument: &str,
-    options: &[String],
-    allow_abbrev: bool,
-) -> Result<Vec<OptionCandidate>, ()> {
-    let mut candidates = Vec::new();
-    candidates.try_reserve(options.len()).map_err(|_| ())?;
-    if !argument.starts_with('-') {
-        return Ok(candidates);
-    }
-
-    if let Some(option) = options.iter().find(|option| option.as_str() == argument) {
-        add_candidate(&mut candidates, option, None, None);
-        return Ok(candidates);
-    }
-
-    if let Some((option_prefix, explicit_argument)) = argument.split_once('=')
-        && let Some(option) = options
-            .iter()
-            .find(|option| option.as_str() == option_prefix)
-    {
-        add_candidate(&mut candidates, option, Some("="), Some(explicit_argument));
-        return Ok(candidates);
-    }
-
-    if argument == "--" {
-        if allow_abbrev {
-            for option in options.iter().filter(|option| option.starts_with("--")) {
-                add_candidate(&mut candidates, option, None, None);
-            }
-        }
-        return Ok(candidates);
-    }
-
-    let raw = RawArgs::new([argument]);
-    let mut cursor = raw.cursor();
-    let Some(parsed) = raw.next(&mut cursor) else {
-        return Ok(candidates);
-    };
-
-    if let Some((flag, explicit_argument)) = parsed.to_long() {
-        let Ok(flag) = flag else {
-            return Ok(candidates);
-        };
-        let option_prefix = format!("--{flag}");
-        let (separator, explicit_argument) = match explicit_argument {
-            Some(value) => {
-                let Some(value) = value.to_str() else {
-                    return Ok(candidates);
-                };
-                (Some("="), Some(value))
-            }
-            None => (None, None),
-        };
-        if allow_abbrev {
-            for option in options
-                .iter()
-                .filter(|option| option.starts_with(&option_prefix))
-            {
-                add_candidate(&mut candidates, option, separator, explicit_argument);
-            }
-        }
-        return Ok(candidates);
-    }
-
-    if let Some(mut short_flags) = parsed.to_short() {
-        let Some(Ok(flag)) = short_flags.next_flag() else {
-            return Ok(candidates);
-        };
-        let short_option = format!("-{flag}");
-        let short_explicit_argument = short_flags
-            .next_value_os()
-            .and_then(|value| value.to_str())
-            .unwrap_or("");
-        let (option_prefix, separator, explicit_argument) = match argument.split_once('=') {
-            Some((prefix, value)) => (prefix, Some("="), Some(value)),
-            None => (argument, None, None),
-        };
-        for option in options {
-            if option == &short_option {
-                add_candidate(
-                    &mut candidates,
-                    option,
-                    Some(""),
-                    Some(short_explicit_argument),
-                );
-            } else if allow_abbrev && option.starts_with(option_prefix) {
-                add_candidate(&mut candidates, option, separator, explicit_argument);
-            }
-        }
-    }
-
-    Ok(candidates)
-}
-
-unsafe fn read_unicode(object: *mut PyObject) -> Option<String> {
+// Arguments and configured option strings stay alive for this synchronous scan.
+// Borrowing their UTF-8 avoids Rust heap allocations and allocator retention.
+unsafe fn read_unicode<'a>(object: *mut PyObject) -> Option<&'a str> {
     let mut length: Py_ssize_t = 0;
     let data = unsafe { PyUnicode_AsUTF8AndSize(object, &mut length) };
     if data.is_null() || length < 0 {
         return None;
     }
-    let bytes = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), length as usize) };
-    let text = unsafe { std::str::from_utf8_unchecked(bytes) };
-    Some(text.to_owned())
+    let bytes = unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length as usize) };
+    Some(unsafe { core::str::from_utf8_unchecked(bytes) })
 }
 
 unsafe fn new_unicode(text: &str) -> *mut PyObject {
@@ -164,13 +125,17 @@ unsafe fn new_unicode(text: &str) -> *mut PyObject {
     unsafe { PyUnicode_FromStringAndSize(text.as_ptr().cast::<c_char>(), length) }
 }
 
-unsafe fn new_candidate(candidate: &OptionCandidate) -> *mut PyObject {
+unsafe fn new_candidate(
+    option: *mut PyObject,
+    separator: Option<&str>,
+    explicit_argument: Option<&str>,
+) -> *mut PyObject {
     let result = unsafe { PyTuple_New(3) };
     if result.is_null() {
         return ptr::null_mut();
     }
 
-    let option = unsafe { new_unicode(&candidate.option) };
+    let option = unsafe { Py_NewRef(option) };
     if option.is_null() {
         unsafe { Py_DecRef(result) };
         return ptr::null_mut();
@@ -180,7 +145,7 @@ unsafe fn new_candidate(candidate: &OptionCandidate) -> *mut PyObject {
         return ptr::null_mut();
     }
 
-    let separator = match &candidate.separator {
+    let separator = match separator {
         Some(separator) => unsafe { new_unicode(separator) },
         None => unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) },
     };
@@ -193,7 +158,7 @@ unsafe fn new_candidate(candidate: &OptionCandidate) -> *mut PyObject {
         return ptr::null_mut();
     }
 
-    let explicit_argument = match &candidate.explicit_argument {
+    let explicit_argument = match explicit_argument {
         Some(argument) => unsafe { new_unicode(argument) },
         None => unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) },
     };
@@ -207,6 +172,97 @@ unsafe fn new_candidate(candidate: &OptionCandidate) -> *mut PyObject {
     }
 
     result
+}
+
+unsafe fn append_candidate(
+    result: *mut PyObject,
+    option: *mut PyObject,
+    separator: Option<&str>,
+    explicit_argument: Option<&str>,
+) -> bool {
+    let item = unsafe { new_candidate(option, separator, explicit_argument) };
+    if item.is_null() {
+        return false;
+    }
+    let appended = unsafe { PyList_Append(result, item) } >= 0;
+    unsafe { Py_DecRef(item) };
+    appended
+}
+
+unsafe fn scan_option(
+    argument: &str,
+    options: *mut PyObject,
+    count: Py_ssize_t,
+    allow_abbrev: bool,
+    result: *mut PyObject,
+) -> bool {
+    if !argument.starts_with('-') {
+        return true;
+    }
+    // Exact options take precedence over both attached values and abbreviations.
+    for index in 0..count {
+        let object = unsafe { PyTuple_GetItem(options, index) };
+        let Some(option) = (unsafe { read_unicode(object) }) else {
+            return false;
+        };
+        if option == argument {
+            return unsafe { append_candidate(result, object, None, None) };
+        }
+    }
+    let (prefix, separator, explicit_argument) = match argument.split_once('=') {
+        Some((prefix, value)) => (prefix, Some("="), Some(value)),
+        None => (argument, None, None),
+    };
+    if separator.is_some() {
+        for index in 0..count {
+            let object = unsafe { PyTuple_GetItem(options, index) };
+            let Some(option) = (unsafe { read_unicode(object) }) else {
+                return false;
+            };
+            if option == prefix {
+                return unsafe { append_candidate(result, object, separator, explicit_argument) };
+            }
+        }
+    }
+    if argument.starts_with("--") {
+        if allow_abbrev {
+            for index in 0..count {
+                let object = unsafe { PyTuple_GetItem(options, index) };
+                let Some(option) = (unsafe { read_unicode(object) }) else {
+                    return false;
+                };
+                if option.starts_with(prefix)
+                    && !unsafe { append_candidate(result, object, separator, explicit_argument) }
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    let Some(flag) = argument[1..].chars().next() else {
+        return true;
+    };
+    let short_end = 1 + flag.len_utf8();
+    let short_option = &argument[..short_end];
+    let short_value = &argument[short_end..];
+    for index in 0..count {
+        let object = unsafe { PyTuple_GetItem(options, index) };
+        let Some(option) = (unsafe { read_unicode(object) }) else {
+            return false;
+        };
+        let appended = if option == short_option {
+            unsafe { append_candidate(result, object, Some(""), Some(short_value)) }
+        } else if allow_abbrev && option.starts_with(prefix) {
+            unsafe { append_candidate(result, object, separator, explicit_argument) }
+        } else {
+            true
+        };
+        if !appended {
+            return false;
+        }
+    }
+    true
 }
 
 unsafe extern "C" fn option_candidates(
@@ -223,63 +279,33 @@ unsafe extern "C" fn option_candidates(
         }
         return ptr::null_mut();
     }
-
     let Some(argument) = (unsafe { read_unicode(*args) }) else {
         return ptr::null_mut();
     };
-
-    let options_object = unsafe { *args.add(1) };
-    let option_count = unsafe { PyTuple_Size(options_object) };
-    if option_count < 0 {
+    let options = unsafe { *args.add(1) };
+    let count = unsafe { PyTuple_Size(options) };
+    if count < 0 {
         return ptr::null_mut();
     }
-    let mut options = Vec::new();
-    if options.try_reserve(option_count as usize).is_err() {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    for index in 0..option_count {
-        let option_object = unsafe { PyTuple_GetItem(options_object, index) };
-        if option_object.is_null() {
+    // Validate every option before truth conversion or matching, including
+    // options after an exact match, so malformed tuples keep raising errors.
+    for index in 0..count {
+        let object = unsafe { PyTuple_GetItem(options, index) };
+        if object.is_null() || unsafe { read_unicode(object) }.is_none() {
             return ptr::null_mut();
         }
-        let Some(option) = (unsafe { read_unicode(option_object) }) else {
-            return ptr::null_mut();
-        };
-        options.push(option);
     }
-
     let allow_abbrev = unsafe { PyObject_IsTrue(*args.add(2)) };
     if allow_abbrev < 0 {
         return ptr::null_mut();
     }
-
-    let candidates = match scan_option(&argument, &options, allow_abbrev != 0) {
-        Ok(candidates) => candidates,
-        Err(()) => {
-            unsafe { PyErr_NoMemory() };
-            return ptr::null_mut();
-        }
-    };
-
     let result = unsafe { PyList_New(0) };
     if result.is_null() {
         return ptr::null_mut();
     }
-    for candidate in &candidates {
-        let item = unsafe { new_candidate(candidate) };
-        if item.is_null() {
-            unsafe { Py_DecRef(result) };
-            return ptr::null_mut();
-        }
-        if unsafe { PyList_Append(result, item) } < 0 {
-            unsafe {
-                Py_DecRef(item);
-                Py_DecRef(result);
-            }
-            return ptr::null_mut();
-        }
-        unsafe { Py_DecRef(item) };
+    if !unsafe { scan_option(argument, options, count, allow_abbrev != 0, result) } {
+        unsafe { Py_DecRef(result) };
+        return ptr::null_mut();
     }
     result
 }
@@ -313,17 +339,30 @@ static MODULE_METHODS: [PyMethodDef; 2] = [
             PyCFunctionFast: option_candidates,
         },
         ml_flags: METH_FASTCALL,
-        ml_doc: c"Find configured option tokens using Rust command-line lexing".as_ptr()
+        ml_doc: c"Find configured option tokens using Rust option matching".as_ptr()
             as *mut c_char,
     },
-    PyMethodDef::zeroed(),
+    PyMethodDef {
+        ml_name: ptr::null_mut(),
+        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
+        ml_flags: 0,
+        ml_doc: ptr::null_mut(),
+    },
 ];
 
 static MODULE: ModuleDef = ModuleDef {
     ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
+        m_base: PyModuleDef_Base {
+            ob_base: PyObject {
+                ob_refcnt: STATIC_IMMORTAL_REFCNT,
+                ob_type: ptr::null_mut(),
+            },
+            m_init: None,
+            m_index: 0,
+            m_copy: ptr::null_mut(),
+        },
         m_name: c"_argparse_rs".as_ptr() as *mut _,
-        m_doc: c"Rust option-token lexer used by argparse".as_ptr() as *mut _,
+        m_doc: c"Rust option-token scanner used by argparse".as_ptr() as *mut _,
         m_size: 0,
         m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
         m_slots: ptr::null_mut(),
