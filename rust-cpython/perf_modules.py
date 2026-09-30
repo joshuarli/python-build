@@ -665,6 +665,7 @@ def k_subprocess():
 
         def run():
             launched = [subprocess.run(["/usr/bin/true"]).returncode for _ in range(10)]
+            launched.append(subprocess.run(["/usr/bin/true"], close_fds=False).returncode)
             echoed = subprocess.run(["/bin/cat"], input=data, capture_output=True).stdout
             return sum(launched), len(echoed)
         return run

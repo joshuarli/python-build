@@ -99,6 +99,19 @@ class ModuleRouteTests(unittest.TestCase):
             run()
         self.assertGreaterEqual(take_chunk.call_count, 2)
 
+    def test_subprocess_launches_and_reads_through_native_operations(self):
+        import _subprocess_rs
+
+        _, setup = self.kernels.k_subprocess()
+        run = setup()
+        with mock.patch.object(_subprocess_rs, "posix_spawn",
+                               wraps=_subprocess_rs.posix_spawn) as spawn, \
+                mock.patch.object(_subprocess_rs, "read",
+                                  wraps=_subprocess_rs.read) as read:
+            self.assertEqual(run(), (0, 65536))
+        self.assertGreater(spawn.call_count, 0)
+        self.assertGreater(read.call_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
