@@ -197,6 +197,12 @@ first batch.
   needs a primary-path batch gate to establish acceptance. The setup failure
   alone does not count as a failed optimization hypothesis while this recovery
   is active.
+- The same recovery applies after two unchanged comparisons whose only
+  regressions are startup-bound workload wall/CPU rows within the documented
+  1% to 3% worktree-path bias, with neutral module memory/CPU, other guards,
+  and matching outputs. Verify identical source and compiler policy and each
+  installed library against its own Cargo artifact. Preserve both REJECTs;
+  acceptance still requires an actual primary-path batch gate.
 - Reserve owned overlay paths per lane before spawning. Two lanes never
   edit the same route. Shared `overlay/Cargo.toml`, `overlay/Cargo.lock`,
   and `overlay/Modules/Setup.local` edits are allowed; you reconcile them.

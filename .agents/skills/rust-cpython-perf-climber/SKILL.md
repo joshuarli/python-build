@@ -91,6 +91,10 @@ is a build in your worktree. Use your `LANE` value as your build name.
    acceptance requires the coordinator's batch gate built at the primary path,
    with complete suites and all regression guards. Never subtract the offset
    from a ratio or change a measurement threshold to obtain acceptance.
+   The coordinator may also authorize this recovery for repeated unchanged
+   startup-bound wall/CPU regressions of 1% to 3%, when all other rows and
+   outputs match. The same source, policy, artifact, and primary-path gate
+   requirements apply; retain the real setup verdicts.
 
 ## Understand before editing
 
