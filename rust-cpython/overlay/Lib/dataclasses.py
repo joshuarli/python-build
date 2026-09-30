@@ -1,10 +1,10 @@
 import sys
 import types
 import keyword
-import itertools
+lazy import itertools
 import annotationlib
 import abc
-from reprlib import recursive_repr
+from _thread import get_ident as _get_ident, RLock as _RLock
 lazy import copy
 lazy import re
 
@@ -32,6 +32,49 @@ __all__ = ['dataclass',
            'replace',
            'is_dataclass',
            ]
+
+
+# Share only active representation keys so each generated method does not
+# retain an empty set. The lock keeps releasing empty storage atomic with
+# another thread entering a representation.
+_repr_running = set()
+_repr_lock = _RLock()
+
+
+# Dataclass representations need recursion protection without loading the
+# general bounded-representation machinery and its iterator dependency.
+def recursive_repr(fillvalue='...'):
+    'Decorator to make a repr function return fillvalue for a recursive call'
+
+    def decorating_function(user_function):
+        def wrapper(self):
+            # Each function has an independent recursion scope for the same
+            # object and thread.
+            key = id(self), _get_ident(), id(user_function)
+            with _repr_lock:
+                if key in _repr_running:
+                    return fillvalue
+                _repr_running.add(key)
+            try:
+                result = user_function(self)
+            finally:
+                with _repr_lock:
+                    _repr_running.discard(key)
+                    if not _repr_running:
+                        _repr_running.clear()
+            return result
+
+        wrapper.__module__ = getattr(user_function, '__module__')
+        wrapper.__doc__ = getattr(user_function, '__doc__')
+        wrapper.__name__ = getattr(user_function, '__name__')
+        wrapper.__qualname__ = getattr(user_function, '__qualname__')
+        wrapper.__annotate__ = getattr(user_function, '__annotate__', None)
+        wrapper.__type_params__ = getattr(user_function, '__type_params__', ())
+        wrapper.__wrapped__ = user_function
+        return wrapper
+
+    return decorating_function
+
 
 # Conditions for adding methods.  The boxes indicate what action the
 # dataclass decorator takes.  For all of these tables, when I talk
@@ -548,7 +591,7 @@ def _make_annotate_function(__class__, method_name, annotation_fields, return_ty
 
                 new_annotations = {}
                 for k in annotation_fields:
-                    # gh-142214: The annotation may be missing in unusual dynamic cases.
+                    # The annotation may be missing in unusual dynamic cases.
                     # If so, just skip it.
                     try:
                         new_annotations[k] = cls_annotations[k]
@@ -1327,7 +1370,7 @@ def _create_slots(defined_fields, inherited_slots, field_names, weakref_slot):
     for slot in itertools.filterfalse(
         inherited_slots.__contains__,
         itertools.chain(
-            # gh-93521: '__weakref__' also needs to be filtered out if
+            # '__weakref__' also needs to be filtered out if
             # already present in inherited_slots
             field_names, ('__weakref__',) if weakref_slot else ()
         )
@@ -1373,7 +1416,7 @@ def _add_slots(cls, is_frozen, weakref_slot, defined_fields):
     # Remove __dict__ and `__weakref__` descriptors.
     # They'll be added back if applicable.
     cls_dict.pop('__dict__', None)
-    cls_dict.pop('__weakref__', None)  # gh-102069
+    cls_dict.pop('__weakref__', None)
 
     # And finally create the class.
     qualname = getattr(cls, '__qualname__', None)
