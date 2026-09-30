@@ -18,7 +18,6 @@ _posixpath_rs = { path = "../_posixpath_rs" }
 _random_rs = { path = "../_random_rs", features = ["static-module"] }
 _ssl_rs = { path = "../_ssl_rs" }
 _tempfile_rs = { path = "../_tempfile_rs" }
-_typing_rs = { path = "../_typing_rs" }
 
 [lib]
 name = "cpython_rust_staticlib"

@@ -46,6 +46,7 @@ _tarfile_rs _tarfile_rs/Cargo.toml _tarfile_rs/src/lib.rs
 _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs
 _threading_rs _threading_rs/Cargo.toml _threading_rs/src/lib.rs
 _tokenize_rs _tokenize_rs/Cargo.toml _tokenize_rs/src/lib.rs
+_typing_rs _typing_rs/Cargo.toml _typing_rs/src/lib.rs
 _tomllib_rs _tomllib_rs/Cargo.toml _tomllib_rs/src/lib.rs
 _unicodedata_rs _unicodedata_rs/Cargo.toml _unicodedata_rs/src/lib.rs
 _urllib_parse_rs _urllib_parse_rs/Cargo.toml _urllib_parse_rs/src/lib.rs
@@ -70,4 +71,3 @@ _itertools_rs
 _posixpath_rs
 _ssl_rs
 _tempfile_rs
-_typing_rs

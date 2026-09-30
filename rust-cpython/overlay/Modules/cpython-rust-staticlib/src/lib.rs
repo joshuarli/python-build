@@ -11,6 +11,5 @@ pub use _posixpath_rs::PyInit__posixpath_rs;
 pub use _random_rs::PyInit__random_rs;
 pub use _ssl_rs::PyInit__ssl_rs;
 pub use _tempfile_rs::PyInit__tempfile_rs;
-pub use _typing_rs::PyInit__typing_rs;
 
 mod io;
