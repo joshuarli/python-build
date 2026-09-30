@@ -122,6 +122,17 @@ class ClassifyTests(unittest.TestCase):
 
 
 class DecideTests(unittest.TestCase):
+    def test_replicated_workload_rss_win_is_accepted_with_neutral_timing(self):
+        memory = {'peak_rss': {'ratio_candidate_over_baseline': 0.90,
+                              'absolute_change': -2e6, 'noise_allowance': 1e6,
+                              'status': 'pass'}}
+        run = summary([0.99, 1.005], cpu=([1.0] * 5, [1.0] * 5), memory=memory)
+        entities = {'python_startup': verdict(run, run)}
+        decision = pv.decide(entities, targets=['python_startup'], runs=2,
+                             quiet=True, gate=True)
+        self.assertEqual(decision['decision'], pv.ACCEPT)
+        self.assertEqual(decision['improved'], ['python_startup peak_rss'])
+
     def test_replicated_target_win_is_accepted(self):
         workloads = {"zlib_decode_1m": verdict(summary([0.90, 0.95]), summary([0.91, 0.96])),
                      "python_startup": verdict(summary([0.99, 1.01]), summary([0.99, 1.005]))}
