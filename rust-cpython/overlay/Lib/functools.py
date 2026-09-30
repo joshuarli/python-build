@@ -222,8 +222,8 @@ def cmp_to_key(mycmp):
     return K
 
 class _KeyWrapper:
-    """Callable comparator wrapper used by cmp_to_key."""
-    __slots__ = ('_cmp', '_value', '_wrapped')
+    """Callable comparator wrapper with an unset value until an object is wrapped."""
+    __slots__ = ('_cmp', '_value')
 
     def __new__(cls, *args, **kwargs):
         raise TypeError(
@@ -236,14 +236,14 @@ class _KeyWrapper:
         key = object.__new__(_KeyWrapper)
         key._cmp = self._cmp
         key._value = obj
-        key._wrapped = True
         return key
 
     @property
     def obj(self):
-        if not self._wrapped:
-            raise AttributeError('object')
-        return self._value
+        try:
+            return self._value
+        except AttributeError:
+            raise AttributeError('object') from None
 
     def __lt__(self, other):
         return _key_compare(self, other, 'less_than')
@@ -270,12 +270,15 @@ _KeyWrapper.__name__ = _KeyWrapper.__qualname__ = 'KeyWrapper'
 def _key_compare(left, right, operation):
     if type(right) is not type(left):
         raise TypeError('other argument must be K instance')
-    if not left._wrapped or not right._wrapped:
-        raise AttributeError('object')
+    try:
+        left_value = left._value
+        right_value = right._value
+    except AttributeError:
+        raise AttributeError('object') from None
     try:
         import _functools_rs
     except ImportError:
-        result = left._cmp(left._value, right._value)
+        result = left._cmp(left_value, right_value)
         if operation == 'less_than':
             return result < 0
         if operation == 'less_equal':
@@ -288,14 +291,12 @@ def _key_compare(left, right, operation):
             return result > 0
         return result >= 0
     return getattr(_functools_rs, operation)(
-        left._cmp, left._value, right._value)
+        left._cmp, left_value, right_value)
 
 def _cmp_to_key(mycmp):
     """Convert a cmp= function into a key= function"""
     key = object.__new__(_KeyWrapper)
     key._cmp = mycmp
-    key._value = None
-    key._wrapped = False
     return key
 
 cmp_to_key = staticmethod(_cmp_to_key)

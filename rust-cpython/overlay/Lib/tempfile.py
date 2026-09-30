@@ -41,7 +41,6 @@ import functools as _functools
 import warnings as _warnings
 import io as _io
 import os as _os
-import shutil as _shutil
 import errno as _errno
 from random import Random as _Random
 import sys as _sys
@@ -49,6 +48,7 @@ import types as _types
 import weakref as _weakref
 import _thread
 _allocate_lock = _thread.allocate_lock
+_shutil = None
 
 try:
     import _tempfile_rs
@@ -927,6 +927,10 @@ class TemporaryDirectory:
 
     def __init__(self, suffix=None, prefix=None, dir=None,
                  ignore_cleanup_errors=False, *, delete=True):
+        global _shutil
+        # Load cleanup dependencies before a finalizer can run at shutdown.
+        if _shutil is None:
+            import shutil as _shutil
         self.name = mkdtemp(suffix, prefix, dir)
         self._ignore_cleanup_errors = ignore_cleanup_errors
         self._delete = delete
@@ -937,6 +941,10 @@ class TemporaryDirectory:
 
     @classmethod
     def _rmtree(cls, name, ignore_errors=False, repeated=False):
+        global _shutil
+        if _shutil is None:
+            import shutil as _shutil
+
         def onexc(func, path, exc):
             if isinstance(exc, PermissionError):
                 if repeated and path == name:

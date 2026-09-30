@@ -1,31 +1,23 @@
-use std::cell::UnsafeCell;
-use std::collections::{HashMap, VecDeque};
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
-use std::sync::{Arc, Mutex, OnceLock};
+#![no_std]
 
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::PyBool_FromLong;
-use cpython_sys::PyBytes_AsStringAndSize;
-use cpython_sys::Py_DecRef;
-use cpython_sys::PyErr_Clear;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::PyUnicode_GetLength;
-use cpython_sys::PyUnicode_New;
-use cpython_sys::PyUnicode_ReadChar;
-use cpython_sys::PyUnicode_WriteChar;
-use cpython_sys::Py_ssize_t;
+extern crate alloc;
+
+use alloc::collections::{BTreeMap, VecDeque};
+use alloc::sync::Arc;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::mem::MaybeUninit;
+use core::ptr;
+use core::sync::atomic::{AtomicBool, Ordering};
+
+mod ffi;
+use ffi::*;
 
 const CACHE_LIMIT: usize = 32_768;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum PatternKey {
     Text(Vec<u32>),
     Bytes(Vec<u8>),
@@ -58,14 +50,14 @@ struct Pattern {
 }
 
 struct PatternCache {
-    entries: HashMap<PatternKey, Arc<Pattern>>,
+    entries: BTreeMap<PatternKey, Arc<Pattern>>,
     insertion_order: VecDeque<PatternKey>,
 }
 
 impl PatternCache {
     fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: BTreeMap::new(),
             insertion_order: VecDeque::new(),
         }
     }
@@ -86,11 +78,34 @@ impl PatternCache {
     }
 }
 
-static PATTERN_CACHE: OnceLock<Mutex<PatternCache>> = OnceLock::new();
-
-fn pattern_cache() -> &'static Mutex<PatternCache> {
-    PATTERN_CACHE.get_or_init(|| Mutex::new(PatternCache::new()))
+// Pattern data belongs to the process and contains no Python references.
+// Independent interpreter GILs may enter concurrently, so the cache needs its
+// own lock. The guard never crosses a Python call or a matching operation.
+struct PatternCacheCell {
+    locked: AtomicBool,
+    value: UnsafeCell<Option<PatternCache>>,
 }
+
+unsafe impl Sync for PatternCacheCell {}
+
+impl PatternCacheCell {
+    fn get_or_insert(&self, key: PatternKey) -> Arc<Pattern> {
+        while self.locked.compare_exchange_weak(
+            false, true, Ordering::Acquire, Ordering::Relaxed,
+        ).is_err() {
+            core::hint::spin_loop();
+        }
+        let cache = unsafe { &mut *self.value.get() };
+        let pattern = cache.get_or_insert_with(PatternCache::new).get_or_insert(key);
+        self.locked.store(false, Ordering::Release);
+        pattern
+    }
+}
+
+static PATTERN_CACHE: PatternCacheCell = PatternCacheCell {
+    locked: AtomicBool::new(false),
+    value: UnsafeCell::new(None),
+};
 
 fn compile_pattern(key: &PatternKey) -> Pattern {
     let (kind, pattern): (PatternKind, Vec<u32>) = match key {
@@ -356,7 +371,7 @@ fn py_bytes_to_units(object: *mut PyObject) -> Result<Vec<u8>, ()> {
         }
         return Err(());
     }
-    let value = unsafe { std::slice::from_raw_parts(bytes.cast::<u8>(), length as usize) };
+    let value = unsafe { core::slice::from_raw_parts(bytes.cast::<u8>(), length as usize) };
     Ok(value.to_vec())
 }
 
@@ -380,7 +395,48 @@ fn filename_units(object: *mut PyObject) -> Result<PatternKey, ()> {
     }
 }
 
-fn raise_type_error(message: &'static std::ffi::CStr) {
+fn filename_matches(compiled: &Pattern, object: *mut PyObject) -> Result<bool, ()> {
+    // Short text filenames use stack storage so repeated conversion does not
+    // dirty new malloc size classes. Longer names keep the owned conversion.
+    const STACK_UNITS: usize = 256;
+    let length = unsafe { PyUnicode_GetLength(object) };
+    if length >= 0 && length as usize <= STACK_UNITS {
+        if compiled.kind != PatternKind::Text {
+            raise_type_error(c"cannot mix bytes and non-bytes patterns and filenames");
+            return Err(());
+        }
+        let mut units = [const { MaybeUninit::<u32>::uninit() }; STACK_UNITS];
+        for index in 0..length {
+            let character = unsafe { PyUnicode_ReadChar(object, index) };
+            if character > 0x10ffff {
+                return Err(());
+            }
+            units[index as usize].write(character);
+        }
+        // Every element of this prefix was initialized by the loop above.
+        let name = unsafe {
+            core::slice::from_raw_parts(units.as_ptr().cast::<u32>(), length as usize)
+        };
+        return Ok(matches(compiled, name));
+    }
+    if length < 0 {
+        unsafe { PyErr_Clear() };
+    }
+    let (kind, units) = match filename_units(object)? {
+        PatternKey::Text(value) => (PatternKind::Text, value),
+        PatternKey::Bytes(value) => (
+            PatternKind::Bytes,
+            value.into_iter().map(u32::from).collect(),
+        ),
+    };
+    if kind != compiled.kind {
+        raise_type_error(c"cannot mix bytes and non-bytes patterns and filenames");
+        return Err(());
+    }
+    Ok(matches(compiled, &units))
+}
+
+fn raise_type_error(message: &'static core::ffi::CStr) {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
 }
 
@@ -397,7 +453,7 @@ unsafe extern "C" fn prepare(
         Ok(key) => key,
         Err(()) => return ptr::null_mut(),
     };
-    pattern_cache().lock().unwrap().get_or_insert(key);
+    PATTERN_CACHE.get_or_insert(key);
     unsafe { PyBool_FromLong(1) }
 }
 
@@ -416,23 +472,12 @@ unsafe extern "C" fn matcher(
         Ok(key) => key,
         Err(()) => return ptr::null_mut(),
     };
-    let compiled = pattern_cache().lock().unwrap().get_or_insert(key);
-    let name = match filename_units(name) {
-        Ok(name) => name,
+    let compiled = PATTERN_CACHE.get_or_insert(key);
+    let matched = match filename_matches(&compiled, name) {
+        Ok(matched) => matched,
         Err(()) => return ptr::null_mut(),
     };
-    let (name_kind, name_units) = match name {
-        PatternKey::Text(value) => (PatternKind::Text, value),
-        PatternKey::Bytes(value) => (
-            PatternKind::Bytes,
-            value.into_iter().map(u32::from).collect(),
-        ),
-    };
-    if name_kind != compiled.kind {
-        raise_type_error(c"cannot mix bytes and non-bytes patterns and filenames");
-        return ptr::null_mut();
-    }
-    unsafe { PyBool_FromLong(matches(&compiled, &name_units) as _) }
+    unsafe { PyBool_FromLong(matched as _) }
 }
 
 fn push_text(output: &mut Vec<u32>, text: &str) {
@@ -609,7 +654,22 @@ static MODULE_METHODS: [PyMethodDef; 4] = [
         ml_flags: METH_FASTCALL,
         ml_doc: c"Translate a shell-style pattern to a regular expression".as_ptr() as *mut c_char,
     },
-    PyMethodDef::zeroed(),
+    PyMethodDef {
+        ml_name: ptr::null_mut(),
+        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
+        ml_flags: 0,
+        ml_doc: ptr::null_mut(),
+    },
+];
+
+// The shared cache owns only Rust data and serializes concurrent interpreter
+// access, so importing the extension does not require a shared interpreter GIL.
+static MODULE_SLOTS: [PyModuleDef_Slot; 2] = [
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
+    },
+    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
 ];
 
 static MODULE: ModuleDef = ModuleDef {
@@ -619,7 +679,7 @@ static MODULE: ModuleDef = ModuleDef {
         m_doc: c"Rust filename pattern matching primitives".as_ptr() as *mut _,
         m_size: 0,
         m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: ptr::null_mut(),
+        m_slots: MODULE_SLOTS.as_ptr() as *mut PyModuleDef_Slot,
         m_traverse: None,
         m_clear: Some(module_clear),
         m_free: Some(module_free),
