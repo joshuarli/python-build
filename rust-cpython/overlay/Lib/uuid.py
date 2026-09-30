@@ -244,8 +244,8 @@ class UUID:
                 int = int_(hex, 16)
             else:
                 try:
-                    # Preserve custom encodings while borrowing ordinary text.
-                    data = _uuid_rs.parse_hex(hex if type(hex) is str else hex.encode('ascii'))
+                    # Borrow ASCII text while preserving encoding hooks and errors.
+                    data = _uuid_rs.parse_hex(hex if type(hex) is str and hex.isascii() else hex.encode('ascii'))
                 except (UnicodeEncodeError, ValueError):
                     # int() accepts a wider set of digit strings than UUID syntax.
                     int = int_(hex, 16)
