@@ -368,7 +368,7 @@ class UUID:
         if _uuid_rs is None:
             x = self.hex
             return f'{x[:8]}-{x[8:12]}-{x[12:16]}-{x[16:20]}-{x[20:]}'
-        return _uuid_rs.format(self.bytes).decode('ascii')
+        return _uuid_rs.format(self.bytes)
 
     @property
     def bytes(self):
@@ -437,7 +437,7 @@ class UUID:
     def hex(self):
         if _uuid_rs is None:
             return '%032x' % self.int
-        return _uuid_rs.format_hex(self.bytes).decode('ascii')
+        return _uuid_rs.format_hex(self.bytes)
 
     @property
     def urn(self):
