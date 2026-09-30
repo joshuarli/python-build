@@ -151,12 +151,12 @@ import collections.abc
 import enum
 import importlib.machinery
 import itertools
-import linecache
+lazy import linecache
 import os
 lazy import re
 import sys
 lazy import tokenize
-import token
+lazy import token
 import types
 import functools
 import builtins
