@@ -162,6 +162,9 @@ PatternError = error = _compiler.PatternError
 _RUST_RE_UNSET = object()
 _rust_re = _RUST_RE_UNSET
 _RUST_SEARCH_UNSUPPORTED = object()
+# Rust accepts only no flags or the implicit Unicode flag. Check the native
+# compiled pattern's resolved flags before loading the extension.
+_RUST_RE_SUPPORTED_FLAGS = (0, _compiler.SRE_FLAG_UNICODE)
 
 def _get_rust_re():
     global _rust_re
@@ -175,7 +178,7 @@ def _get_rust_re():
     return _rust_re
 
 def _prepare_rust_pattern(pattern):
-    if type(pattern.pattern) is not str:
+    if type(pattern.pattern) is not str or pattern.flags not in _RUST_RE_SUPPORTED_FLAGS:
         return
     rust = _get_rust_re()
     if rust is not None:
@@ -183,6 +186,8 @@ def _prepare_rust_pattern(pattern):
 
 def _rust_search(pattern, string):
     if type(pattern.pattern) is not str or type(string) is not str:
+        return _RUST_SEARCH_UNSUPPORTED
+    if pattern.flags not in _RUST_RE_SUPPORTED_FLAGS:
         return _RUST_SEARCH_UNSUPPORTED
     rust = _get_rust_re()
     if rust is None:
