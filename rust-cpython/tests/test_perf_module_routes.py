@@ -99,6 +99,39 @@ class ModuleRouteTests(unittest.TestCase):
             run()
         self.assertGreaterEqual(take_chunk.call_count, 2)
 
+    def test_subprocess_launches_and_reads_through_native_operations(self):
+        import _subprocess_rs
+
+        _, setup = self.kernels.k_subprocess()
+        run = setup()
+        with mock.patch.object(_subprocess_rs, "posix_spawn",
+                               wraps=_subprocess_rs.posix_spawn) as spawn, \
+                mock.patch.object(_subprocess_rs, "read",
+                                  wraps=_subprocess_rs.read) as read:
+            self.assertEqual(run(), (0, 65536))
+        self.assertGreater(spawn.call_count, 0)
+        self.assertGreater(read.call_count, 0)
+
+    def test_tokenize_classifies_supported_lines_and_keeps_fallbacks(self):
+        import _tokenize_rs
+
+        _, setup = self.kernels.k_tokenize()
+        run = setup()
+        successes = []
+        fallbacks = []
+        original_scan = _tokenize_rs.scan_line
+
+        def scan_line(*args):
+            result = original_scan(*args)
+            (fallbacks if result is None else successes).append(args[0])
+            return result
+
+        with mock.patch.object(_tokenize_rs, "scan_line", scan_line):
+            output = run()
+        self.assertTrue(successes, "kernel must include successful Rust classification")
+        self.assertTrue(fallbacks, "kernel must retain unsupported Python syntax")
+        self.assertEqual(output, (6600, "\n", 385, "2"))
+
 
 if __name__ == "__main__":
     unittest.main()

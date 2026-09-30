@@ -665,6 +665,7 @@ def k_subprocess():
 
         def run():
             launched = [subprocess.run(["/usr/bin/true"]).returncode for _ in range(10)]
+            launched.append(subprocess.run(["/usr/bin/true"], close_fds=False).returncode)
             echoed = subprocess.run(["/bin/cat"], input=data, capture_output=True).stdout
             return sum(launched), len(echoed)
         return run
@@ -1221,10 +1222,12 @@ def k_tokenize():
         import io
         import tokenize
         source = "\n".join(f"def f{i}(x, y={i}):\n    return x + y * {i} # note\n" for i in range(300))
+        simple_source = "x = 1 + 2\n" * 64
 
         def run():
             tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
-            return len(tokens), tokens[-3].string
+            simple_tokens = list(tokenize.generate_tokens(io.StringIO(simple_source).readline))
+            return len(tokens), tokens[-3].string, len(simple_tokens), simple_tokens[-3].string
         return run
     return ("tokenize",), setup
 

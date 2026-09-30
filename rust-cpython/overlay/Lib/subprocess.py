@@ -43,7 +43,6 @@ getstatusoutput(...): Runs a command in the shell, waits for it to complete,
 import builtins
 import errno
 import io
-import locale
 import os
 import time
 import signal
@@ -125,6 +124,26 @@ else:
     import selectors
 
     _original_posix_spawn = getattr(os, 'posix_spawn', None)
+
+
+def _locale_module():
+    # Binary pipes and UTF-8 text do not need the locale tables. Cache the
+    # actual module when locale encoding or module attribute access needs it.
+    namespace = globals()
+    if 'locale' not in namespace:
+        import locale
+        namespace['locale'] = locale
+    return namespace['locale']
+
+
+def __getattr__(name):
+    if name == 'locale':
+        return _locale_module()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | {'locale'})
 
 
 def _rust_process_io():
@@ -512,7 +531,7 @@ def _text_encoding():
 
     if sys.flags.utf8_mode:
         return "utf-8"
-    return locale.getencoding()
+    return _locale_module().getencoding()
 
 
 def call(*popenargs, timeout=None, **kwargs):

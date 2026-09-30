@@ -101,6 +101,14 @@ is a build in your worktree. Use your `LANE` value as your build name.
    Preserve both worktree rejections and that primary evidence. This permits
    exploration only; the changed route requires a primary batch memory win
    and every acceptance guard.
+   For repeated unchanged startup RSS setup regressions, the coordinator may
+   authorize exploration after a fresh clean primary build of the entire
+   unchanged overlay and policy. All target metrics must be neutral in both
+   primary runs, outputs must match, and all seven workload guards must be
+   neutral under the existing replicated verdict. Preserve individual run
+   results and both worktree REJECTs. No threshold or ratio changes are
+   permitted; final acceptance still needs the changed candidate's primary
+   memory improvement, complete suites, and every guard.
 
 ## Understand before editing
 

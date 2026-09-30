@@ -209,6 +209,14 @@ first batch.
   both primary runs. Preserve the worktree REJECTs and the primary evidence;
   authorize exploration only. The changed route still needs its own primary
   batch memory improvement, complete suites, and every regression guard.
+- Repeated unchanged startup RSS setup regressions may be resolved with a
+  fresh clean primary build of the entire unchanged overlay and compiler
+  policy. Require matching outputs, every target metric neutral in both
+  primary runs, and all seven primary workload guards neutral under the
+  existing replicated verdict. Preserve individual run results, including
+  a guard that worsens in only one run, and both worktree REJECTs. This
+  authorizes exploration only; the changed candidate still requires its
+  own primary memory improvement, complete suites, and all guards.
 - Reserve owned overlay paths per lane before spawning. Two lanes never
   edit the same route. Shared `overlay/Cargo.toml`, `overlay/Cargo.lock`,
   and `overlay/Modules/Setup.local` edits are allowed; you reconcile them.
