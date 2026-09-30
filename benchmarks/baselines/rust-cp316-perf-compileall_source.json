@@ -1,7 +1,7 @@
 {
   "comparison_role": "interpreter_baseline",
   "pyperformance": null,
-  "recorded_at_utc": "2026-09-29T22:51:55.612498+00:00",
+  "recorded_at_utc": "2026-09-29T22:51:40.830431+00:00",
   "reference_interpreter": {
     "abi": "cpython-316-darwin",
     "compiler": "Clang 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22",
@@ -31,9 +31,9 @@
     "hardware_model": "MacBookPro18,2",
     "kernel_release": "27.0.0",
     "load_average": [
-      2.0830078125,
-      3.029296875,
-      4.2119140625
+      1.6005859375,
+      2.99560546875,
+      4.22216796875
     ],
     "logical_cpu_count": 10,
     "machine": "arm64",
@@ -57,7 +57,7 @@
     "offline_boundary": "local diagnostic; network not denied",
     "profile": "standard",
     "suite": "realworld",
-    "timestamp_utc": "2026-09-29T22:51:55.612498+00:00"
+    "timestamp_utc": "2026-09-29T22:51:40.830431+00:00"
   },
   "workloads": [
     {
@@ -66,8 +66,8 @@
         "rounds": [],
         "status": "not_run"
       },
-      "category": "compression",
-      "digest": "a316f38cceaae9765acdb3de5b4a4ca9d59be014d03d053c10002baa3dad51fb",
+      "category": "tooling",
+      "digest": "2bd65abef37c6f836a9db914e7af9bbe0af01c28e2c18788fa60e0ecc3f8999a",
       "memory_bytes": {
         "peak_private": {
           "max": null,
@@ -84,11 +84,11 @@
           "stdev": null
         },
         "peak_rss": {
-          "max": 38043648,
-          "median": 38010880,
-          "min": 37945344,
+          "max": 27901952,
+          "median": 27869184,
+          "min": 27820032,
           "sample_count": 3,
-          "stdev": 50053.94679077099
+          "stdev": 41232.162462491986
         },
         "postload_pss": {
           "max": null,
@@ -102,7 +102,7 @@
           {
             "peak_private": null,
             "peak_pss": null,
-            "peak_rss": 38043648,
+            "peak_rss": 27869184,
             "peak_swap": null,
             "postload_pss": null,
             "process_count": 1,
@@ -111,7 +111,7 @@
           {
             "peak_private": null,
             "peak_pss": null,
-            "peak_rss": 38010880,
+            "peak_rss": 27901952,
             "peak_swap": null,
             "postload_pss": null,
             "process_count": 1,
@@ -120,7 +120,7 @@
           {
             "peak_private": null,
             "peak_pss": null,
-            "peak_rss": 37945344,
+            "peak_rss": 27820032,
             "peak_swap": null,
             "postload_pss": null,
             "process_count": 1,
@@ -135,15 +135,15 @@
           "stdev": null
         }
       },
-      "name": "zlib_decode_1m",
-      "operation": "decoded byte",
-      "operation_count": 33554432,
+      "name": "compileall_source",
+      "operation": "compiled source tree",
+      "operation_count": 23,
       "timing_seconds": {
-        "max": 0.0071627500001341105,
-        "median": 0.006612500001210719,
-        "min": 0.0064510830052313395,
+        "max": 0.01756687500164844,
+        "median": 0.017360207995807286,
+        "min": 0.01731941700563766,
         "sample_count": 5,
-        "stdev": 0.0002839337412579036
+        "stdev": 0.00010017465787591514
       }
     }
   ]
