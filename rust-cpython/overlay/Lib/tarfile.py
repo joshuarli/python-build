@@ -38,7 +38,6 @@ from builtins import open as bltn_open
 import sys
 import os
 import io
-import shutil
 import stat
 import time
 import struct
@@ -232,12 +231,14 @@ def calc_chksums(buf):
        the high bit set. So we calculate two checksums, unsigned and
        signed.
     """
+    if _tarfile_rs is not None and type(buf) is bytes and len(buf) >= BLOCKSIZE:
+        return _tarfile_rs.header_chksums(buf)
     unsigned_chksum = 256 + sum(struct.unpack_from("148B8x356B", buf))
     signed_chksum = 256 + sum(struct.unpack_from("148b8x356b", buf))
     return unsigned_chksum, signed_chksum
 
 def _create_rust_ustar_header(info, encoding, errors):
-    """Build ordinary POSIX headers through the Rust TAR header library."""
+    """Build ordinary POSIX headers through bounded Rust header processing."""
     names = ("name", "linkname", "uname", "gname", "prefix")
     text = [info.get(name, "") for name in names]
     if any(type(value) is not str for value in text):
@@ -246,7 +247,7 @@ def _create_rust_ustar_header(info, encoding, errors):
     filetype = info.get("type", REGTYPE)
     if type(filetype) is not bytes or len(filetype) != 1:
         return None
-    # tar-rs canonicalizes the legacy zero type flag to REGTYPE.
+    # The Rust header writer canonicalizes the legacy zero type flag to REGTYPE.
     if filetype == AREGTYPE:
         return None
 
@@ -287,6 +288,7 @@ def copyfileobj(src, dst, length=None, exception=OSError, bufsize=None):
     if length == 0:
         return
     if length is None:
+        import shutil
         shutil.copyfileobj(src, dst, bufsize)
         return
 
