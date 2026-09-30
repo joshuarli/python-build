@@ -1,14 +1,161 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
-use std::slice;
+//! Exact decimal coefficient arithmetic with temporary Python-managed buffers.
+#![no_std]
+#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use cpython_sys::{
-    METH_FASTCALL, PyErr_SetString, PyExc_TypeError, PyExc_ValueError, PyMethodDef,
-    PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_Slot, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize,
-    Py_ssize_t,
+extern crate alloc;
+
+use core::alloc::{GlobalAlloc, Layout};
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::{ptr, slice};
+
+// These C layouts describe the 64-bit, GIL-enabled CPython module boundary.
+type Py_ssize_t = isize;
+
+#[repr(C)]
+pub struct PyObject {
+    ob_refcnt: Py_ssize_t,
+    ob_type: *mut c_void,
+}
+
+#[repr(C)]
+pub union PyMethodDefFuncPointer {
+    PyCFunctionFast: unsafe extern "C" fn(*mut PyObject, *mut *mut PyObject, Py_ssize_t) -> *mut PyObject,
+    Void: *mut c_void,
+}
+
+#[repr(C)]
+pub struct PyMethodDef {
+    ml_name: *mut c_char,
+    ml_meth: PyMethodDefFuncPointer,
+    ml_flags: c_int,
+    ml_doc: *mut c_char,
+}
+
+impl PyMethodDef {
+    const fn zeroed() -> Self {
+        Self {
+            ml_name: ptr::null_mut(),
+            ml_meth: PyMethodDefFuncPointer { Void: ptr::null_mut() },
+            ml_flags: 0,
+            ml_doc: ptr::null_mut(),
+        }
+    }
+}
+
+unsafe impl Sync for PyMethodDef {}
+
+#[repr(C)]
+struct PyModuleDef_Base {
+    ob_base: PyObject,
+    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
+    m_index: Py_ssize_t,
+    m_copy: *mut PyObject,
+}
+
+#[repr(C)]
+struct PyModuleDef_Slot {
+    slot: c_int,
+    value: *mut c_void,
+}
+
+#[repr(C)]
+struct PyModuleDef {
+    m_base: PyModuleDef_Base,
+    m_name: *const c_char,
+    m_doc: *const c_char,
+    m_size: Py_ssize_t,
+    m_methods: *mut PyMethodDef,
+    m_slots: *mut PyModuleDef_Slot,
+    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
+    m_clear: Option<unsafe extern "C" fn(*mut PyObject) -> c_int>,
+    m_free: Option<unsafe extern "C" fn(*mut c_void)>,
+}
+
+const METH_FASTCALL: c_int = 0x0080;
+// Immortal reference count and static allocation flags in the 64-bit GIL ABI.
+const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
+    ob_base: PyObject {
+        ob_refcnt: (3_isize << 30) | (5_isize << 48),
+        ob_type: ptr::null_mut(),
+    },
+    m_init: None,
+    m_index: 0,
+    m_copy: ptr::null_mut(),
 };
+
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    static mut PyExc_TypeError: *mut PyObject;
+    static mut PyExc_ValueError: *mut PyObject;
+    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
+    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
+    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
+    fn PyUnicode_FromStringAndSize(value: *const c_char, size: Py_ssize_t) -> *mut PyObject;
+    fn PyMem_Malloc(size: usize) -> *mut c_void;
+    fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
+    fn PyMem_Free(pointer: *mut c_void);
+    fn abort() -> !;
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
+
+// All arithmetic runs under the GIL and all temporary buffers die before the
+// C entry point returns. Reusing Python's small-block pools avoids retaining
+// a second allocator's size classes after the first integer operation.
+struct PythonAllocator;
+
+unsafe impl GlobalAlloc for PythonAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if layout.align() <= core::mem::align_of::<usize>() {
+            return unsafe { PyMem_Malloc(layout.size()).cast() };
+        }
+        let Some(size) = layout.size().checked_add(layout.align()) else {
+            return core::ptr::null_mut();
+        };
+        let base = unsafe { PyMem_Malloc(size).cast::<u8>() };
+        if base.is_null() {
+            return base;
+        }
+        let offset = layout.align() - (base as usize % layout.align());
+        let aligned = unsafe { base.add(offset) };
+        unsafe { aligned.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().write(base) };
+        aligned
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        let base = if layout.align() <= core::mem::align_of::<usize>() {
+            pointer
+        } else {
+            unsafe { pointer.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().read() }
+        };
+        unsafe { PyMem_Free(base.cast()) };
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+        if layout.align() <= core::mem::align_of::<usize>() {
+            return unsafe { PyMem_Realloc(pointer.cast(), size).cast() };
+        }
+        let Ok(replacement_layout) = Layout::from_size_align(size, layout.align()) else {
+            return core::ptr::null_mut();
+        };
+        let replacement = unsafe { self.alloc(replacement_layout) };
+        if !replacement.is_null() {
+            unsafe {
+                core::ptr::copy_nonoverlapping(pointer, replacement, layout.size().min(size));
+                self.dealloc(pointer, layout);
+            }
+        }
+        replacement
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: PythonAllocator = PythonAllocator;
+
 use num_bigint::BigUint;
 
 enum Integer {
