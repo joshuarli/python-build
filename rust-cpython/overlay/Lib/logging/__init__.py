@@ -23,11 +23,22 @@ Copyright (C) 2001-2022 Vinay Sajip. All Rights Reserved.
 To use, simply 'import logging' and log away!
 """
 
-import sys, os, time, io, re, traceback, warnings, weakref, collections.abc
+import sys, os, time, io, re, warnings, weakref, collections.abc
 
 from types import GenericAlias
 from string import Template
 from string import Formatter as StrFormatter
+
+
+def _traceback_module():
+    # Ordinary records need no traceback machinery. Keep the module binding
+    # once loaded so callers can still replace it or patch its functions.
+    try:
+        return traceback
+    except NameError:
+        import traceback as module
+        globals()['traceback'] = module
+        return module
 
 
 __all__ = ['BASIC_FORMAT', 'BufferingFormatter', 'CRITICAL', 'DEBUG', 'ERROR',
@@ -669,7 +680,7 @@ class Formatter(object):
         # Keep the default exception output limited to the active traceback.
         #if getattr(self, 'fullstack', False):
         #    traceback.print_stack(tb.tb_frame.f_back, file=sio)
-        traceback.print_exception(ei[0], ei[1], tb, limit=None, file=sio)
+        _traceback_module().print_exception(ei[0], ei[1], tb, limit=None, file=sio)
         s = sio.getvalue()
         sio.close()
         if s[-1:] == "\n":
@@ -1078,7 +1089,7 @@ class Handler(Filterer):
             exc = sys.exception()
             try:
                 sys.stderr.write('--- Logging error ---\n')
-                traceback.print_exception(exc, limit=None, file=sys.stderr)
+                _traceback_module().print_exception(exc, limit=None, file=sys.stderr)
                 sys.stderr.write('Call stack:\n')
                 # Walk the stack frame up until we're out of logging,
                 # so as to print the calling context.
@@ -1087,7 +1098,7 @@ class Handler(Filterer):
                        __path__[0]):
                     frame = frame.f_back
                 if frame:
-                    traceback.print_stack(frame, file=sys.stderr)
+                    _traceback_module().print_stack(frame, file=sys.stderr)
                 else:
                     # couldn't find the right stack frame, for some reason
                     sys.stderr.write('Logged from file %s, line %s\n' % (
@@ -1633,7 +1644,7 @@ class Logger(Filterer):
         if stack_info:
             with io.StringIO() as sio:
                 sio.write("Stack (most recent call last):\n")
-                traceback.print_stack(f, file=sio)
+                _traceback_module().print_stack(f, file=sio)
                 sinfo = sio.getvalue()
                 if sinfo[-1] == '\n':
                     sinfo = sinfo[:-1]
@@ -2294,6 +2305,8 @@ def shutdown(handlerList=_handlerList):
 #Let's try and shutdown automatically on application exit...
 import atexit
 atexit.register(shutdown)
+# Destructors may log after imports become unavailable during finalization.
+atexit.register(_traceback_module)
 
 # Null handler
 
@@ -2361,6 +2374,8 @@ def captureWarnings(capture):
 
 
 def __getattr__(name):
+    if name == 'traceback':
+        return _traceback_module()
     if name in ("__version__", "__date__"):
         from warnings import _deprecated
 
