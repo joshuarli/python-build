@@ -1,27 +1,180 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
-use std::slice;
+//! Date and time directive conversion using call-scoped Python buffers.
+#![no_std]
+#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
+
+extern crate alloc;
+
+use alloc::{borrow::ToOwned, format};
+use core::alloc::{GlobalAlloc, Layout};
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
+use core::slice;
 
 use chrono::{Datelike, Weekday};
 use chrono::format::Parsed;
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::Py_DecRef;
-use cpython_sys::PyErr_Occurred;
-use cpython_sys::PyLong_AsLong;
-use cpython_sys::PyLong_FromLongLong;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::PyTuple_GetItem;
-use cpython_sys::PyTuple_New;
-use cpython_sys::PyTuple_SetItem;
-use cpython_sys::PyTuple_Size;
-use cpython_sys::PyUnicode_AsUTF8AndSize;
+
+// These C layouts describe the 64-bit, GIL-enabled CPython module boundary.
+type Py_ssize_t = isize;
+
+#[repr(C)]
+pub struct PyObject {
+    ob_refcnt: Py_ssize_t,
+    ob_type: *mut PyTypeObject,
+}
+
+#[repr(C)]
+pub struct PyTypeObject {
+    _opaque: [u8; 0],
+}
+
+#[repr(C)]
+pub union PyMethodDefFuncPointer {
+    PyCFunctionFast: unsafe extern "C" fn(*mut PyObject, *mut *mut PyObject, Py_ssize_t) -> *mut PyObject,
+    Void: *mut c_void,
+}
+
+#[repr(C)]
+pub struct PyMethodDef {
+    ml_name: *mut c_char,
+    ml_meth: PyMethodDefFuncPointer,
+    ml_flags: c_int,
+    ml_doc: *mut c_char,
+}
+
+impl PyMethodDef {
+    const fn zeroed() -> Self {
+        Self {
+            ml_name: core::ptr::null_mut(),
+            ml_meth: PyMethodDefFuncPointer { Void: core::ptr::null_mut() },
+            ml_flags: 0,
+            ml_doc: core::ptr::null_mut(),
+        }
+    }
+}
+
+unsafe impl Sync for PyMethodDef {}
+
+#[repr(C)]
+struct PyModuleDef_Base {
+    ob_base: PyObject,
+    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
+    m_index: Py_ssize_t,
+    m_copy: *mut PyObject,
+}
+
+#[repr(C)]
+struct PyModuleDef_Slot {
+    slot: c_int,
+    value: *mut c_void,
+}
+
+type VisitProc = Option<unsafe extern "C" fn(*mut PyObject, *mut c_void) -> c_int>;
+type TraverseProc = unsafe extern "C" fn(*mut PyObject, VisitProc, *mut c_void) -> c_int;
+
+#[repr(C)]
+struct PyModuleDef {
+    m_base: PyModuleDef_Base,
+    m_name: *const c_char,
+    m_doc: *const c_char,
+    m_size: Py_ssize_t,
+    m_methods: *mut PyMethodDef,
+    m_slots: *mut PyModuleDef_Slot,
+    m_traverse: Option<TraverseProc>,
+    m_clear: Option<unsafe extern "C" fn(*mut PyObject) -> c_int>,
+    m_free: Option<unsafe extern "C" fn(*mut c_void)>,
+}
+
+const METH_FASTCALL: c_int = 0x0080;
+// CPython 3.16 full-API module slot and independent-GIL capability values.
+const Py_mod_multiple_interpreters: c_int = 86;
+const Py_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2_usize as *mut c_void;
+// Immortal reference count and static allocation flags in the 64-bit GIL ABI.
+const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
+    ob_base: PyObject {
+        ob_refcnt: (3_isize << 30) | (5_isize << 48),
+        ob_type: core::ptr::null_mut(),
+    },
+    m_init: None,
+    m_index: 0,
+    m_copy: core::ptr::null_mut(),
+};
+
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    fn Py_DecRef(object: *mut PyObject);
+    fn PyErr_Occurred() -> *mut PyObject;
+    fn PyLong_AsLong(object: *mut PyObject) -> core::ffi::c_long;
+    fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
+    fn PyTuple_GetItem(tuple: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
+    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
+    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
+    fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
+    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
+    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
+    fn PyMem_Malloc(size: usize) -> *mut c_void;
+    fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
+    fn PyMem_Free(pointer: *mut c_void);
+    fn abort() -> !;
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
+
+// Temporary strings live until conversion returns under the active interpreter's
+// GIL. Unicode casing and offset normalization reuse Python's pools for small
+// allocations, keeping freed blocks in the interpreter's existing pools.
+struct PythonAllocator;
+
+unsafe impl GlobalAlloc for PythonAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if layout.align() <= core::mem::align_of::<usize>() {
+            return unsafe { PyMem_Malloc(layout.size()).cast() };
+        }
+        let Some(size) = layout.size().checked_add(layout.align()) else {
+            return core::ptr::null_mut();
+        };
+        let base = unsafe { PyMem_Malloc(size).cast::<u8>() };
+        if base.is_null() {
+            return base;
+        }
+        let offset = layout.align() - (base as usize % layout.align());
+        let aligned = unsafe { base.add(offset) };
+        unsafe { aligned.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().write(base) };
+        aligned
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        let base = if layout.align() <= core::mem::align_of::<usize>() {
+            pointer
+        } else {
+            unsafe { pointer.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().read() }
+        };
+        unsafe { PyMem_Free(base.cast()) };
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+        if layout.align() <= core::mem::align_of::<usize>() {
+            return unsafe { PyMem_Realloc(pointer.cast(), size).cast() };
+        }
+        let Ok(replacement_layout) = Layout::from_size_align(size, layout.align()) else {
+            return core::ptr::null_mut();
+        };
+        let replacement = unsafe { self.alloc(replacement_layout) };
+        if !replacement.is_null() {
+            unsafe {
+                core::ptr::copy_nonoverlapping(pointer, replacement, layout.size().min(size));
+                self.dealloc(pointer, layout);
+            }
+        }
+        replacement
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: PythonAllocator = PythonAllocator;
 
 const MISSING: i64 = i64::MIN;
 
@@ -102,7 +255,7 @@ unsafe fn read_unicode<'py>(
         return None;
     }
     let bytes = unsafe { slice::from_raw_parts(bytes.cast::<u8>(), size as usize) };
-    let text = unsafe { std::str::from_utf8_unchecked(bytes) };
+    let text = unsafe { core::str::from_utf8_unchecked(bytes) };
     Some(text)
 }
 
@@ -285,15 +438,15 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
     if bytes.len() < 5 || !matches!(bytes[0], b'+' | b'-') {
         return None;
     }
-    let hours = parse_decimal(std::str::from_utf8(bytes.get(1..3)?).ok()?)?;
-    let minutes = parse_decimal(std::str::from_utf8(bytes.get(3..5)?).ok()?)?;
+    let hours = parse_decimal(core::str::from_utf8(bytes.get(1..3)?).ok()?)?;
+    let minutes = parse_decimal(core::str::from_utf8(bytes.get(3..5)?).ok()?)?;
     let seconds = if bytes.len() >= 7 {
-        parse_decimal(std::str::from_utf8(bytes.get(5..7)?).ok()?)?
+        parse_decimal(core::str::from_utf8(bytes.get(5..7)?).ok()?)?
     } else {
         0
     };
     let remainder = if bytes.len() > 8 {
-        std::str::from_utf8(bytes.get(8..)?).ok()?
+        core::str::from_utf8(bytes.get(8..)?).ok()?
     } else {
         ""
     };
@@ -620,6 +773,19 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
+struct ModuleSlots([PyModuleDef_Slot; 2]);
+
+unsafe impl Sync for ModuleSlots {}
+
+// Conversion keeps buffers within each call and holds no shared Python references.
+static MODULE_SLOTS: ModuleSlots = ModuleSlots([
+    PyModuleDef_Slot {
+        slot: Py_mod_multiple_interpreters,
+        value: Py_MOD_PER_INTERPRETER_GIL_SUPPORTED,
+    },
+    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
+]);
+
 pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 2] = {
     [
         PyMethodDef {
@@ -642,7 +808,7 @@ pub static _STRPTIME_RS_MODULE: ModuleDef = {
             m_doc: c"Rust strptime directive field parser.".as_ptr() as *mut _,
             m_size: 0,
             m_methods: &_STRPTIME_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: ptr::null_mut(),
+            m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
             m_traverse: None,
             m_clear: Some(_strptime_rs_clear),
             m_free: Some(_strptime_rs_free),
