@@ -32,10 +32,11 @@ baselines. The older handoff describes historical builds.
 
 The separate Codex coordinator and climber skills live under `.agents/skills/`;
 the Claude skills remain intact. Every Codex lane uses `gpt-6.1-sol` at
-`medium` effort. Eight memory lanes are active: `bisect`, `fnmatch`,
-`fractions`, `socket`, `tarfile`, `random`, `uuid`, and `datetime`.
-Memory exploration does not wait for host quietness. CPU remains a guard;
-CPU-targeted lanes have not started.
+`medium` effort. The coordinator keeps eight memory climber slots filled as
+lanes finish. New worktrees branch explicitly from verified `main`, including
+while an integration branch is being judged; they never inherit unaccepted
+changes. Memory exploration does not wait for host quietness. CPU remains a
+guard; CPU-targeted lanes have not started.
 
 Qualified source commit: `7351620`. Both clean interpreters are verified
 release builds. The incumbent full suite passed **50,158 run / 2,748 skipped**,
@@ -62,10 +63,54 @@ workloads `20260929T224734Z-perf-upstream-vs-perf-rust`, and goals
 `20260929T225352Z-goals-perf-upstream-vs-perf-rust` under
 `rust-cpython/results/perf-bench/`.
 
+### First accepted Codex memory batch
+
+Batch `284fa00` integrates `fractions`, `tarfile`, and `random`. Its clean
+primary-path build verified 69 Rust extension images and passed the complete
+suite: **50,158 run / 2,748 skipped**, no failures. The quiet two-run gate
+accepted load ratios **0.750x**, **0.875x**, and **0.762x**, respectively,
+against the previous incumbent. Each improvement clears the floor in both
+runs; working peak and all seven workload guards are neutral. The worktree
+Django startup regressions did not recur on the primary path. Random's
+worktree gate had only a CPU win; its memory acceptance comes from this
+primary gate. Its wrapper intentionally retains the first successfully
+imported private Rust module: patching attributes remains visible, replacing
+`sys.modules['_random_rs']` no longer redirects the wrapper.
+
+Primary candidate goals against control put random's memory rows at MET.
+Fractions load remains OVER at 1.21x; tarfile load remains OVER at 1.12x.
+Their working peaks are MET. The evidence is
+`20260930T015030Z-perf-rust-vs-perf-merge/verdict.json` and
+`20260930T020801Z-goals-perf-upstream-vs-perf-merge/verdict.json` under
+`rust-cpython/results/perf-bench/`. Rigorous module sampling uses ten rounds;
+workload guards retain complete standard evidence sampling.
+
+Fnmatch and tempfile have qualified memory winners awaiting the next primary
+batch. Bisect's final memory gate was NEUTRAL despite its exploratory gain;
+socket, datetime, and the new codec startup experiment likewise did not
+qualify memory gains. Those branches and ignored handoff evidence are
+preserved for later work. Codecs startup saved about 0.5% RSS, below the floor;
+this is its second failed memory lane, and it does not waive the outstanding
+workload memory completion gate. Current skip discrepancies were checked
+against the incumbent: tempfile 1,915/496, codecs 2,864/364, with no candidate
+increase. Historical debug-era table counts remain separate evidence.
+
+A shared `re` eligibility lane now tests whether unsupported flags can be
+rejected before loading `_re_rs`. Warnings' 200 `re.I` filters resolve to
+flags 34, while the Rust helper only accepts 0 or 32; the native profile
+shows the image loading solely to decline those calls. Supported regex calls
+must continue reaching Rust. Other active lanes include decimal, argparse,
+functools, UUID, contextlib, and strptime. Durable live lane state is in
+`rust-cpython/results/coordinator-state.json` (ignored).
+
 ### Current module goal table
 
-Ratios compare the incumbent with pristine control. Each cell records the
-pooled ratio and replicated goal status; small memory values use harness floors.
+Ratios compare the measured candidate with pristine control. Each cell records
+the pooled ratio and replicated goal status; small memory values use harness
+floors. Fractions, tarfile, and random are refreshed from the accepted primary
+batch. Other rows retain the initial full snapshot at `7351620` and have not
+yet been remeasured after this integration; cross-module drift is checked in
+every third integration and at memory completion.
 
 | Module | CPU | Load footprint | Working peak | Overall |
 | --- | --- | --- | --- | --- |
@@ -90,7 +135,7 @@ pooled ratio and replicated goal status; small memory values use harness floors.
 | `difflib` | 1.151x OVER | 1.108x UNCLEAR | 1.000x MET | OVER |
 | `email` | 1.039x OVER | 0.929x MET | 1.032x UNCLEAR | OVER |
 | `fnmatch` | 1.443x OVER | 1.955x OVER | 1.000x MET | OVER |
-| `fractions` | 3.482x OVER | 1.650x OVER | 1.000x MET | OVER |
+| `fractions` | 3.299x OVER | 1.211x OVER | 1.000x MET | OVER |
 | `functools` | 4.996x OVER | 1.348x OVER | 1.000x MET | OVER |
 | `glob` | 0.614x BEYOND | 1.062x OVER | 1.000x MET | OVER |
 | `gzip` | 0.613x BEYOND | 0.689x BEYOND | 1.000x MET | MET |
@@ -114,7 +159,7 @@ pooled ratio and replicated goal status; small memory values use harness floors.
 | `pathlib` | 0.957x MET | 1.182x OVER | 1.000x MET | OVER |
 | `pickle` | 1.002x MET | 1.045x UNCLEAR | 1.000x MET | UNCLEAR |
 | `plistlib` | 0.078x BEYOND | 0.683x MET | 1.000x MET | MET |
-| `random` | 1.517x OVER | 1.303x OVER | 1.000x MET | OVER |
+| `random` | 1.274x OVER | 1.000x MET | 1.000x MET | OVER |
 | `re` | 1.002x MET | 1.000x MET | 1.000x MET | MET |
 | `shlex` | 0.285x BEYOND | 1.091x OVER | 1.000x MET | OVER |
 | `shutil` | 1.006x MET | 0.718x BEYOND | 1.000x MET | MET |
@@ -124,7 +169,7 @@ pooled ratio and replicated goal status; small memory values use harness floors.
 | `statistics` | 0.077x BEYOND | 1.276x OVER | 1.000x MET | OVER |
 | `struct` | 2.108x OVER | 1.004x MET | 1.000x MET | OVER |
 | `subprocess` | 1.010x MET | 1.145x OVER | 1.000x MET | OVER |
-| `tarfile` | 0.673x BEYOND | 1.312x OVER | 1.000x MET | OVER |
+| `tarfile` | 0.393x BEYOND | 1.120x OVER | 1.000x MET | OVER |
 | `tempfile` | 1.022x UNCLEAR | 1.226x OVER | 1.000x MET | OVER |
 | `textwrap` | 0.037x BEYOND | 0.915x MET | 1.000x MET | MET |
 | `threading` | 1.950x OVER | 1.000x MET | 1.000x MET | OVER |
@@ -681,6 +726,8 @@ self-calibration read neutral on every workload and metric. The full gated
 workload comparison is pending a quiet host. `compileall_source` output
 differs from the control by design (the checklist's marshal note), so it
 is reported, not timed, against the control.
+
+| 2026-09-29 | `284fa00` | Codex memory batch 1: fractions, tarfile, random | Primary quiet two-run gate ACCEPT; load **0.750x / 0.875x / 0.762x** improved in both runs, working peaks and all seven workload guards neutral. CPU guard ratios 0.943x / 0.583x / 0.838x improved. Full suite **50,158/2,748**, no failures; clean69 Rust images. | Control goals: fractions load1.21x OVER, tarfile1.12x OVER, random1.00x MET; working peaks MET. Source gate eb026a7; primary path resolves lane startup bias and establishes Random memory win. Baseline refresh deferred to memory completion. |
 
 ## Historical findings
 
