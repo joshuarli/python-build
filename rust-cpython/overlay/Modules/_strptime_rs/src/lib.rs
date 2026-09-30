@@ -26,13 +26,13 @@ use cpython_sys::PyUnicode_AsUTF8AndSize;
 const MISSING: i64 = i64::MIN;
 
 struct LocaleData<'py> {
-    full_weekdays: Vec<&'py str>,
-    short_weekdays: Vec<&'py str>,
-    full_months: Vec<&'py str>,
-    short_months: Vec<&'py str>,
-    am_pm: Vec<&'py str>,
-    timezones: Vec<Vec<&'py str>>,
-    tzname: Vec<&'py str>,
+    full_weekdays: TupleStrings<'py>,
+    short_weekdays: TupleStrings<'py>,
+    full_months: TupleStrings<'py>,
+    short_months: TupleStrings<'py>,
+    am_pm: TupleStrings<'py>,
+    timezones: TupleStringGroups<'py>,
+    tzname: TupleStrings<'py>,
     daylight: bool,
 }
 
@@ -92,7 +92,10 @@ impl Fields {
 
 // The caller holds the argument tuples and the GIL throughout conversion.
 // Their Unicode buffers remain valid until parsing returns; no slice is cached.
-unsafe fn read_unicode<'py>(object: *mut PyObject, _owners: &'py [*mut PyObject]) -> Option<&'py str> {
+unsafe fn read_unicode<'py>(
+    object: *mut PyObject,
+    _owners: &'py [*mut PyObject],
+) -> Option<&'py str> {
     let mut size: Py_ssize_t = 0;
     let bytes = unsafe { PyUnicode_AsUTF8AndSize(object, &mut size) };
     if bytes.is_null() || size < 0 {
@@ -116,45 +119,117 @@ unsafe fn tuple_len(tuple: *mut PyObject) -> Option<usize> {
     (size >= 0).then_some(size as usize)
 }
 
-unsafe fn tuple_strings<'py>(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Vec<&'py str>> {
-    let size = unsafe { tuple_len(tuple) }?;
-    let mut values = Vec::with_capacity(size);
-    for index in 0..size {
-        let item = unsafe { tuple_item(tuple, index) }?;
-        values.push(unsafe { read_unicode(item, owners) }?);
+// Views only refer to immutable tuples reachable from the held call arguments.
+// Validation and iteration cannot invoke user code; no view is stored in module state.
+#[derive(Clone, Copy)]
+struct PythonTuple<'py> {
+    tuple: *mut PyObject,
+    size: usize,
+    owners: &'py [*mut PyObject],
+}
+
+impl<'py> PythonTuple<'py> {
+    // The tuple must be an argument or be owned by another immutable argument tuple.
+    unsafe fn new(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Self> {
+        Some(Self {
+            tuple,
+            size: unsafe { tuple_len(tuple) }?,
+            owners,
+        })
+    }
+
+    fn item(&self, index: usize) -> Option<*mut PyObject> {
+        if index >= self.size {
+            return None;
+        }
+        unsafe { tuple_item(self.tuple, index) }
+    }
+}
+
+struct TupleStrings<'py>(PythonTuple<'py>);
+
+impl<'py> TupleStrings<'py> {
+    fn len(&self) -> usize {
+        self.0.size
+    }
+
+    fn get(&self, index: usize) -> Option<&'py str> {
+        unsafe { read_unicode(self.0.item(index)?, self.0.owners) }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &'py str> + '_ {
+        (0..self.len()).map(|index| self.get(index).expect("validated Unicode tuple"))
+    }
+}
+
+unsafe fn tuple_strings<'py>(
+    tuple: *mut PyObject,
+    owners: &'py [*mut PyObject],
+) -> Option<TupleStrings<'py>> {
+    let values = TupleStrings(unsafe { PythonTuple::new(tuple, owners) }?);
+    for index in 0..values.len() {
+        values.get(index)?;
     }
     Some(values)
 }
 
-unsafe fn tuple_string_groups<'py>(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Vec<Vec<&'py str>>> {
-    let size = unsafe { tuple_len(tuple) }?;
-    let mut groups = Vec::with_capacity(size);
-    for index in 0..size {
-        let item = unsafe { tuple_item(tuple, index) }?;
-        groups.push(unsafe { tuple_strings(item, owners) }?);
+struct TupleStringGroups<'py>(PythonTuple<'py>);
+
+impl<'py> TupleStringGroups<'py> {
+    fn len(&self) -> usize {
+        self.0.size
+    }
+
+    fn iter(&self) -> impl Iterator<Item = TupleStrings<'py>> + '_ {
+        (0..self.len()).map(|index| unsafe {
+            tuple_strings(self.0.item(index).expect("validated tuple group"), self.0.owners)
+                .expect("validated Unicode tuple group")
+        })
+    }
+}
+
+unsafe fn tuple_string_groups<'py>(
+    tuple: *mut PyObject,
+    owners: &'py [*mut PyObject],
+) -> Option<TupleStringGroups<'py>> {
+    let groups = TupleStringGroups(unsafe { PythonTuple::new(tuple, owners) }?);
+    for index in 0..groups.len() {
+        unsafe { tuple_strings(groups.0.item(index)?, owners) }?;
     }
     Some(groups)
 }
 
-unsafe fn read_groups<'py>(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Vec<(&'py str, &'py str)>> {
-    let size = unsafe { tuple_len(tuple) }?;
-    let mut groups = Vec::with_capacity(size);
-    for index in 0..size {
-        let pair = unsafe { tuple_item(tuple, index) }?;
+struct DirectiveGroups<'py>(PythonTuple<'py>);
+
+impl<'py> DirectiveGroups<'py> {
+    fn pair(&self, index: usize) -> Option<(&'py str, &'py str)> {
+        let pair = self.0.item(index)?;
         if unsafe { tuple_len(pair) }? != 2 {
             return None;
         }
-        let key = unsafe { read_unicode(tuple_item(pair, 0)?, owners) }?;
-        let value = unsafe { read_unicode(tuple_item(pair, 1)?, owners) }?;
-        groups.push((key, value));
+        let key = unsafe { read_unicode(tuple_item(pair, 0)?, self.0.owners) }?;
+        let value = unsafe { read_unicode(tuple_item(pair, 1)?, self.0.owners) }?;
+        Some((key, value))
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&'py str, &'py str)> + '_ {
+        (0..self.0.size).map(|index| self.pair(index).expect("validated directive pair"))
+    }
+}
+
+unsafe fn read_groups<'py>(
+    tuple: *mut PyObject,
+    owners: &'py [*mut PyObject],
+) -> Option<DirectiveGroups<'py>> {
+    let groups = DirectiveGroups(unsafe { PythonTuple::new(tuple, owners) }?);
+    for index in 0..groups.0.size {
+        groups.pair(index)?;
     }
     Some(groups)
 }
 
-fn group_value<'a>(groups: &[(&'a str, &'a str)], key: &str) -> Option<&'a str> {
-    groups
-        .iter()
-        .find_map(|(group, value)| (*group == key).then_some(*value))
+fn group_value<'py>(groups: &DirectiveGroups<'py>, key: &str) -> Option<&'py str> {
+    groups.iter().find_map(|(group, value)| (group == key).then_some(value))
 }
 
 fn parse_decimal(value: &str) -> Option<i64> {
@@ -164,11 +239,13 @@ fn parse_decimal(value: &str) -> Option<i64> {
     value.parse().ok()
 }
 
-fn find_locale_name(value: &str, names: &[&str]) -> Option<i64> {
+fn find_locale_name<'py>(
+    value: &str,
+    mut names: impl Iterator<Item = &'py str>,
+) -> Option<i64> {
     let value = value.to_lowercase();
     names
-        .iter()
-        .position(|name| *name == value)
+        .position(|name| name == value)
         .map(|index| index as i64)
 }
 
@@ -235,7 +312,7 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
 }
 
 fn convert_groups(
-    groups: &[(&str, &str)],
+    groups: &DirectiveGroups<'_>,
     locale: &LocaleData<'_>,
 ) -> Option<[i64; 16]> {
     if locale.full_weekdays.len() != 7
@@ -249,8 +326,8 @@ fn convert_groups(
         return None;
     }
     let mut fields = Fields::new();
-    for (key, value) in groups {
-        match *key {
+    for (key, value) in groups.iter() {
+        match key {
             "y" => {
                 let mut year = parse_decimal(value)?;
                 if let Some(century) = group_value(groups, "C") {
@@ -270,11 +347,11 @@ fn convert_groups(
                 fields.has_month = true;
             }
             "B" => {
-                fields.month = find_locale_name(value, locale.full_months.get(1..)?)? + 1;
+                fields.month = find_locale_name(value, locale.full_months.iter().skip(1))? + 1;
                 fields.has_month = true;
             }
             "b" => {
-                fields.month = find_locale_name(value, locale.short_months.get(1..)?)? + 1;
+                fields.month = find_locale_name(value, locale.short_months.iter().skip(1))? + 1;
                 fields.has_month = true;
             }
             "d" => {
@@ -288,7 +365,7 @@ fn convert_groups(
             "I" => {
                 let mut hour = parse_decimal(value)?;
                 let am_pm = group_value(groups, "p").unwrap_or("").to_lowercase();
-                let is_pm = locale.am_pm.get(1).is_some_and(|pm| *pm == am_pm);
+                let is_pm = locale.am_pm.get(1).is_some_and(|pm| pm == am_pm);
                 if is_pm {
                     if hour != 12 {
                         hour += 12;
@@ -315,8 +392,8 @@ fn convert_groups(
                 fields.fraction = parse_decimal(&padded)?;
                 fields.has_fraction = true;
             }
-            "A" => fields.weekday = Some(find_locale_name(value, &locale.full_weekdays)?),
-            "a" => fields.weekday = Some(find_locale_name(value, &locale.short_weekdays)?),
+            "A" => fields.weekday = Some(find_locale_name(value, locale.full_weekdays.iter())?),
+            "a" => fields.weekday = Some(find_locale_name(value, locale.short_weekdays.iter())?),
             "w" => {
                 let day = parse_decimal(value)?;
                 fields.weekday = Some(if day == 0 { 6 } else { day - 1 });
@@ -338,9 +415,9 @@ fn convert_groups(
             "Z" => {
                 let found_zone = value.to_lowercase();
                 for (index, timezone_names) in locale.timezones.iter().enumerate() {
-                    if timezone_names.iter().any(|name| *name == found_zone) {
+                    if timezone_names.iter().any(|name| name == found_zone) {
                         if locale.tzname.len() == 2
-                            && locale.tzname[0] == locale.tzname[1]
+                            && locale.tzname.get(0)? == locale.tzname.get(1)?
                             && locale.daylight
                             && found_zone != "utc"
                             && found_zone != "gmt"
