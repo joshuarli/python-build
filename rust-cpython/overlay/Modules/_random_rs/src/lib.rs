@@ -1,29 +1,112 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+//! Sequence choice and sampling through Python generator callbacks.
+//!
+//! Direct CPython declarations avoid adding a separate standard runtime
+//! to the extension. The builtin route uses the interpreter's existing
+//! Rust archive and panic runtime. Python owns all sampling allocations.
+#![cfg_attr(not(feature = "static-module"), no_std)]
 
-use cpython_sys::{
-    METH_FASTCALL, Py_DecRef, PyErr_Occurred, PyErr_SetString, PyExc_IndexError,
-    PyExc_TypeError, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer,
-    PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyModuleDef_Slot,
-    PyNumber_Subtract, PyObject,
-    PyObject_CallOneArg, PyObject_GetItem, PyObject_GetIter, PyObject_SetItem,
-    PyObject_Size, PySequence_Contains, PyIter_Next, Py_IncRef, Py_ssize_t,
-};
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
-unsafe fn set_type_error(message: &str) {
-    if let Ok(message) = std::ffi::CString::new(message) {
-        unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
-    } else {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"invalid argument".as_ptr()) };
-    }
+type Py_ssize_t = isize;
+
+#[repr(C)]
+struct PyObject {
+    ob_refcnt: Py_ssize_t,
+    ob_type: *mut PyTypeObject,
+}
+
+#[repr(C)]
+struct PyTypeObject {
+    _opaque: [u8; 0],
+}
+
+#[repr(C)]
+union PyMethodDefFuncPointer {
+    PyCFunctionFast: unsafe extern "C" fn(
+        slf: *mut PyObject,
+        args: *mut *mut PyObject,
+        nargs: Py_ssize_t,
+    ) -> *mut PyObject,
+    void: *mut c_void,
+}
+
+#[repr(C)]
+struct PyMethodDef {
+    ml_name: *mut c_char,
+    ml_meth: PyMethodDefFuncPointer,
+    ml_flags: c_int,
+    ml_doc: *mut c_char,
+}
+
+unsafe impl Sync for PyMethodDef {}
+
+#[repr(C)]
+struct PyModuleDef_Base {
+    ob_base: PyObject,
+    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
+    m_index: Py_ssize_t,
+    m_copy: *mut PyObject,
+}
+
+#[repr(C)]
+struct PyModuleDef {
+    m_base: PyModuleDef_Base,
+    m_name: *const c_char,
+    m_doc: *const c_char,
+    m_size: Py_ssize_t,
+    m_methods: *mut PyMethodDef,
+    m_slots: *mut PyModuleDef_Slot,
+    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
+    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
+    m_free: Option<extern "C" fn(*mut c_void)>,
+}
+
+const METH_FASTCALL: c_int = 0x0080;
+/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
+/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
+const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
+
+#[repr(C)]
+struct PyModuleDef_Slot {
+    slot: c_int,
+    value: *mut c_void,
+}
+
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    static mut PyExc_TypeError: *mut PyObject;
+    static mut PyExc_IndexError: *mut PyObject;
+    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
+    fn PyErr_Occurred() -> *mut PyObject;
+    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
+    fn PyLong_FromSsize_t(value: Py_ssize_t) -> *mut PyObject;
+    fn PyNumber_Subtract(left: *mut PyObject, right: *mut PyObject) -> *mut PyObject;
+    fn PyObject_CallOneArg(callable: *mut PyObject, arg: *mut PyObject) -> *mut PyObject;
+    fn PyObject_GetItem(object: *mut PyObject, key: *mut PyObject) -> *mut PyObject;
+    fn PyObject_GetIter(object: *mut PyObject) -> *mut PyObject;
+    fn PyObject_SetItem(object: *mut PyObject, key: *mut PyObject, value: *mut PyObject) -> c_int;
+    fn PyObject_Size(object: *mut PyObject) -> Py_ssize_t;
+    fn PySequence_Contains(sequence: *mut PyObject, value: *mut PyObject) -> c_int;
+    fn PyIter_Next(iterator: *mut PyObject) -> *mut PyObject;
+    fn Py_DecRef(object: *mut PyObject);
+    fn Py_IncRef(object: *mut PyObject);
+    #[cfg(not(feature = "static-module"))]
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
 }
 
 unsafe fn check_arity(actual: Py_ssize_t, expected: Py_ssize_t) -> bool {
     if actual == expected {
         true
     } else {
-        unsafe { set_type_error("invalid number of arguments") };
+        unsafe { PyErr_SetString(PyExc_TypeError, c"invalid number of arguments".as_ptr()) };
         false
     }
 }
@@ -390,12 +473,25 @@ static MODULE_METHODS: [PyMethodDef; 4] = [
         ml_flags: METH_FASTCALL,
         ml_doc: c"Sample a sequence using a Python generator callback".as_ptr() as *mut c_char,
     },
-    PyMethodDef::zeroed(),
+    PyMethodDef {
+        ml_name: ptr::null_mut(),
+        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
+        ml_flags: 0,
+        ml_doc: ptr::null_mut(),
+    },
 ];
 
 static MODULE: ModuleDef = ModuleDef {
     ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
+        m_base: PyModuleDef_Base {
+            ob_base: PyObject {
+                ob_refcnt: STATIC_IMMORTAL_REFCNT,
+                ob_type: ptr::null_mut(),
+            },
+            m_init: None,
+            m_index: 0,
+            m_copy: ptr::null_mut(),
+        },
         m_name: c"_random_rs".as_ptr() as *mut c_char,
         m_doc: c"Rust sequence sampling primitives for random.Random".as_ptr() as *mut c_char,
         m_size: 0,

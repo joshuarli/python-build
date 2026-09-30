@@ -379,7 +379,6 @@ name = "_random_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
- "cpython-sys",
 ]
 
 [[package]]
@@ -796,6 +795,7 @@ name = "cpython-rust-staticlib"
 version = "0.1.0"
 dependencies = [
  "_base64",
+ "_random_rs",
 ]
 
 [[package]]
