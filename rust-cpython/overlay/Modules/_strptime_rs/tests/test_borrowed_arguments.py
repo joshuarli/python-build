@@ -66,3 +66,15 @@ for groups in ((), (("Y", "2024"), ("m", "2"), ("d", "29")),
     assert _strptime_rs.parse_numeric_groups(groups) == _strptime_rs.parse_groups(groups, *fresh_locale())
 for key in ("A", "a", "B", "b", "I", "p", "Z"):
     assert _strptime_rs.parse_numeric_groups(((key, "1"),)) == ()
+
+# Fixed results also protect normalization and padding independently of entry-point parity.
+for offset, expected in (("", (missing, 0)), ("Z", (0, 0)), ("+0000", (0, 0)),
+                         ("-0130", (-5400, 0)), ("+01:02:03.123456", (3723, 123456)),
+                         ("+010203.123456", (3723, 123456)), ("+01:02", (3720, 0)),
+                         ("+01:02:03.4", (3723, 400000)), ("+010203x4", (3723, 400000))):
+    result = _strptime_rs.parse_numeric_groups((("z", offset),))
+    assert result[9:11] == expected, (offset, result)
+for offset in ("+010203.1234567", "+01:0203", "é", "+000000é"):
+    assert _strptime_rs.parse_numeric_groups((("z", offset),)) == ()
+for fraction, expected in (("1", 100000), ("123456", 123456), ("+", 0), ("-", 0), ("+1", 10000)):
+    assert _strptime_rs.parse_numeric_groups((("f", fraction),))[7] == expected

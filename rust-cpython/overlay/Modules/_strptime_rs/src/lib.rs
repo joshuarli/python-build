@@ -2,10 +2,6 @@
 #![no_std]
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-extern crate alloc;
-
-use alloc::{borrow::ToOwned, format};
-use core::alloc::{GlobalAlloc, Layout};
 use core::cell::UnsafeCell;
 use core::ffi::{c_char, c_int, c_void};
 use core::ptr;
@@ -114,9 +110,6 @@ unsafe extern "C" {
     fn PyUnicode_FromStringAndSize(bytes: *const c_char, size: Py_ssize_t) -> *mut PyObject;
     fn PyObject_CallMethod(object: *mut PyObject, name: *const c_char, format: *const c_char, ...) -> *mut PyObject;
     fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyMem_Malloc(size: usize) -> *mut c_void;
-    fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
-    fn PyMem_Free(pointer: *mut c_void);
     fn abort() -> !;
 }
 
@@ -124,59 +117,6 @@ unsafe extern "C" {
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { abort() }
 }
-
-// Temporary strings live until conversion returns under the active interpreter's
-// GIL. Offset normalization and fraction padding reuse Python's pools for small
-// allocations, keeping freed blocks in the interpreter's existing pools.
-struct PythonAllocator;
-
-unsafe impl GlobalAlloc for PythonAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if layout.align() <= core::mem::align_of::<usize>() {
-            return unsafe { PyMem_Malloc(layout.size()).cast() };
-        }
-        let Some(size) = layout.size().checked_add(layout.align()) else {
-            return core::ptr::null_mut();
-        };
-        let base = unsafe { PyMem_Malloc(size).cast::<u8>() };
-        if base.is_null() {
-            return base;
-        }
-        let offset = layout.align() - (base as usize % layout.align());
-        let aligned = unsafe { base.add(offset) };
-        unsafe { aligned.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().write(base) };
-        aligned
-    }
-
-    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
-        let base = if layout.align() <= core::mem::align_of::<usize>() {
-            pointer
-        } else {
-            unsafe { pointer.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().read() }
-        };
-        unsafe { PyMem_Free(base.cast()) };
-    }
-
-    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        if layout.align() <= core::mem::align_of::<usize>() {
-            return unsafe { PyMem_Realloc(pointer.cast(), size).cast() };
-        }
-        let Ok(replacement_layout) = Layout::from_size_align(size, layout.align()) else {
-            return core::ptr::null_mut();
-        };
-        let replacement = unsafe { self.alloc(replacement_layout) };
-        if !replacement.is_null() {
-            unsafe {
-                core::ptr::copy_nonoverlapping(pointer, replacement, layout.size().min(size));
-                self.dealloc(pointer, layout);
-            }
-        }
-        replacement
-    }
-}
-
-#[global_allocator]
-static ALLOCATOR: PythonAllocator = PythonAllocator;
 
 const MISSING: i64 = i64::MIN;
 
@@ -449,6 +389,14 @@ fn python_weekday(value: i64) -> Option<Weekday> {
     }
 }
 
+// Six fractional digits fit on the stack; parsing keeps the previous handling
+// of signs and invalid digit sequences without allocating a formatting buffer.
+fn parse_fraction(value: &str) -> Option<i64> {
+    let mut padded = [b'0'; 6];
+    padded.get_mut(..value.len())?.copy_from_slice(value.as_bytes());
+    parse_decimal(core::str::from_utf8(&padded).ok()?)
+}
+
 fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
     if value.is_empty() {
         return Some((None, 0));
@@ -457,18 +405,24 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
         return Some((Some(0), 0));
     }
 
-    let mut value = value.to_owned();
-    if value.as_bytes().get(3) == Some(&b':') {
-        value.remove(3);
-        if value.len() > 5 {
-            if value.as_bytes().get(5) != Some(&b':') {
+    // At most fourteen normalized bytes hold an offset and six fractional
+    // digits; two optional colons account for the sixteen-byte input bound.
+    let mut normalized = [0; 16];
+    normalized.get_mut(..value.len())?.copy_from_slice(value.as_bytes());
+    let mut size = value.len();
+    if normalized.get(3) == Some(&b':') {
+        normalized.copy_within(4..size, 3);
+        size -= 1;
+        if size > 5 {
+            if normalized.get(5) != Some(&b':') {
                 return None;
             }
-            value.remove(5);
+            normalized.copy_within(6..size, 5);
+            size -= 1;
         }
     }
 
-    let bytes = value.as_bytes();
+    let bytes = &normalized[..size];
     if bytes.len() < 5 || !matches!(bytes[0], b'+' | b'-') {
         return None;
     }
@@ -490,8 +444,7 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
     let fraction = if remainder.is_empty() {
         0
     } else {
-        let padded = format!("{remainder:0<6}");
-        parse_decimal(&padded)?
+        parse_fraction(remainder)?
     };
     let sign = if bytes[0] == b'-' { -1 } else { 1 };
     let seconds = (hours * 3600 + minutes * 60 + seconds) * sign;
@@ -580,8 +533,7 @@ fn convert_groups(
                 if value.is_empty() || value.len() > 6 || !value.is_ascii() {
                     return None;
                 }
-                let padded = format!("{value:0<6}");
-                fields.fraction = parse_decimal(&padded)?;
+                fields.fraction = parse_fraction(value)?;
                 fields.has_fraction = true;
             }
             "A" => fields.weekday = Some(find_locale_name(value, locale?.full_weekdays.iter())?),
