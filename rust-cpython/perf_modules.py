@@ -216,7 +216,9 @@ def k_re():
         def run():
             re.purge()
             compiled = [re.compile(pattern) for pattern in patterns]
-            return [sum(1 for line in lines if regex.search(line)) for regex in compiled]
+            pattern_counts = [sum(1 for line in lines if regex.search(line)) for regex in compiled]
+            public_counts = [sum(1 for line in lines if re.search(pattern, line)) for pattern in patterns]
+            return pattern_counts, public_counts
         return run
     return ("re",), setup
 
