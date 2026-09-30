@@ -753,13 +753,16 @@ def _run_bench(baseline: dict[str, Any], candidate: dict[str, Any], workload: st
                output: Path, profile: str, timing_only: bool, self_compare: bool,
                record_baseline: Path | None) -> dict[str, Any] | None:
     """One bench.py run of one workload; None when the outputs differ."""
+    # Workload evidence supports standard sampling at most; rigorous adds
+    # module rounds while retaining the complete standard workload checks.
+    workload_profile = "standard" if profile == "rigorous" else profile
     command = [
         sys.executable, str(REPO / "benchmarks" / "bench.py"), "run", "--local",
         "--baseline", str(baseline["python"]), "--candidate", str(candidate["python"]),
         "--baseline-label", _label(baseline), "--candidate-label", _label(candidate),
         "--baseline-kind", "self" if self_compare else "custom",
         "--candidate-kind", "self" if self_compare else "custom",
-        "--suite", "realworld", "--profile", profile, "--workload", workload,
+        "--suite", "realworld", "--profile", workload_profile, "--workload", workload,
         "--output", str(output), "--evidence", str(output.with_suffix(".evidence.json")),
     ]
     if timing_only:
@@ -886,6 +889,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         "baseline": {"ref": baseline["ref"], "label": _label(baseline), "stage": str(baseline["stage"])},
         "candidate": {"ref": candidate["ref"], "label": _label(candidate), "stage": str(candidate["stage"])},
         "profile": profile,
+        "workload_profile": "standard" if profile == "rigorous" else profile,
         "timing_only": timing_only,
         "module_iterations": iterations,
         "module_rounds": rounds,

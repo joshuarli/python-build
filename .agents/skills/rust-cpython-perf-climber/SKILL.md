@@ -80,6 +80,15 @@ is a build in your worktree. Use your `LANE` value as your build name.
    branch already contains changes, so skip the unchanged-build NEUTRAL
    expectation and judge its measured targets after the clean suites pass.
 
+   A coordinator may explicitly authorize continued memory exploration after
+   two unchanged comparisons regress only load footprint, when the source,
+   compiler flags, and release artifacts are verified, outputs match, and CPU
+   and working peak remain neutral. Record the failed setup comparisons and
+   their paths; do not call them neutral. This permits exploration only: final
+   acceptance requires the coordinator's batch gate built at the primary path,
+   with complete suites and all regression guards. Never subtract the offset
+   from a ratio or change a measurement threshold to obtain acceptance.
+
 ## Understand before editing
 
 Read your route's checklist line for the Rust-owned behavior and the suite
@@ -104,8 +113,8 @@ hypothesis within your route and say so in the handoff.
 Each round tests one change:
 
 1. Edit.
-2. `perf.py build --name <LANE> --incremental`. It refuses build-system
-   changes (`Makefile.pre.in`, `configure`, `Modules/Setup*`) and deleted
+2. `perf.py build --name <LANE> --incremental --jobs <JOBS>`. It refuses
+   build-system changes (`Makefile.pre.in`, `configure`, `Modules/Setup*`) and deleted
    overlay files; run a clean build for those.
 3. Run the route's primary suite: `perf.py test --name <LANE> --suite
    test_X`. A failure means fix or discard, never measure.

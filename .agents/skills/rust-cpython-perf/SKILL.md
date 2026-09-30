@@ -190,6 +190,13 @@ first batch.
   the route.
 - A lane's work on a module ends when every metric is MET; it continues
   toward 0.9x only when no OVER module is waiting for a lane.
+- If two unchanged memory-lane comparisons regress only load footprint while
+  verified source/flags match and CPU, working peak, and outputs remain neutral,
+  you may authorize exploration despite the setup failure. Record both verdicts
+  as measured; do not correct ratios or relax acceptance guards. Such a lane
+  needs a primary-path batch gate to establish acceptance. The setup failure
+  alone does not count as a failed optimization hypothesis while this recovery
+  is active.
 - Reserve owned overlay paths per lane before spawning. Two lanes never
   edit the same route. Shared `overlay/Cargo.toml`, `overlay/Cargo.lock`,
   and `overlay/Modules/Setup.local` edits are allowed; you reconcile them.
@@ -334,7 +341,12 @@ affected modules.
 Each climber returns a handoff block. Integrate only `RESULT: ACCEPT` lanes
 whose gate verdict you have read in the `GATE:` file. In the memory phase, a
 lane that returns `INCONCLUSIVE` only for `quiet=no` also qualifies when its
-table meets the Unquiet host criteria.
+table meets the Unquiet host criteria. A lane with explicitly authorized
+load-only setup recovery may also be evaluated in a primary-path batch when
+its completed suites pass and its worktree gate has no regression outside
+load footprint. Preserve the actual worktree decision. This is permission to
+build and judge the batch, not acceptance: only the primary-path batch gate
+can establish an improvement and permit integration of that lane.
 
 1. Rebase or merge the accepted lane branches onto `main` in one batch and
    reconcile shared files. Regenerate one `Cargo.lock` when crates changed
