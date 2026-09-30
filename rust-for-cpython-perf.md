@@ -458,6 +458,54 @@ The subsequent shared-image upper bound is 384 KiB across Django processes,
 below its approximately 758 KiB RSS floor, and startup loads no dynamic helper.
 Workload attribution continues with no change to the completion condition.
 
+### HASH heap-type lifetime repair
+
+The final catalog attribution lane found no accumulating native state or
+physical pages, but four context destructions leaked four references to the
+Rust heap type. The isolated regression reproduced this across all six
+supported algorithms: ordinary and copied contexts each leaked one reference,
+and 32 repeated contexts leaked 32. Pristine CPython passed all 18 cases.
+
+The `922a5af` repair saves the heap type before freeing the native state and
+object, then releases the reference owned by generic allocation. It preserves
+the existing immutable, non-GC, non-subclassable type and allocator pairing.
+The clean lane verified 58 helpers, passed 673 focused tests/38 skips, and
+passed all 18 staged lifetime cases, public/native methods, copy, errors and
+interpreter-capability parity. The actual catalog probe now has zero type
+reference growth. The primary `46d19a3` clean build and full suite passed
+50,158/2,748 with zero failures; the same installed-stage probes passed.
+The quiet two-run primary guard `20260930T223511Z` is NEUTRAL: hashlib
+CPU1.000x/load1.010x/working1.000x and every metric across all 23 workload
+guards are neutral, with no mismatch or instability. This is a correctness
+repair, with no memory-improvement claim.
+
+### Final memory attribution waves
+
+Two consecutive attribution batches integrated no memory optimization. The
+first covered shared native pages, compileall/marshal, first-request/typing,
+zipimport, serialization/pickle, multiprocessing and logging. Pickle's bounded
+fallback reservation removed a measured 32 KiB temporary allocation, but its
+actual workload memory remained neutral and the trial was discarded.
+
+The second covered catalog/hashlib, catalog/URL parsing, pool/threading,
+compileall/I/O, first-request/regex, startup/codecs and ORM/SQLite/decimal.
+Owned buffers, caches, contexts and native routes were measured against the
+actual application fixtures. No distinct removable owned physical cost was
+established. Decimal's Rust helper, pool threading's Rust helper and the public
+marshal helper were not reached by their assigned application workloads.
+The earlier pool observer introduced its own Barrier helper; that diagnostic
+artifact is corrected, while the actual native-frame lifetime evidence remains.
+Regex retained only two engines; its clone mechanism repeated an already
+closed attempt. Broader allocator and libpython mapping gaps remain unattributed.
+The separately discovered HASH lifetime repair does not count as a memory win.
+
+Module memory debts after two unsuccessful lanes include codecs, decimal,
+contextlib, typing, socket, UUID, threading, warnings, base64, datetime,
+ipaddress, marshal, ElementTree, regex, pickle, multiprocessing, logging,
+SQLite and compression.zstd working peak. These findings do not waive workload
+RSS requirements. Remaining module rows and the full workload comparison stay
+visible below; CPU work has not started.
+
 ### Current workload picture
 
 Fresh quiet two-run primary control comparison at `a9a80e4`, evidence
@@ -922,6 +970,7 @@ candidate over baseline for the batch targets.
 | 2026-09-30 | `49e61fe` (source) | Codex memory batch 6: dataclasses, inspect | Quiet primary two-run ACCEPT (`20260930T181726Z`) over six modules/all23 workloads: dataclasses load0.872x and working0.561x; inspect load0.973x, both improved. CPU and every application guard neutral; no mismatch or unstable metric. Full50,158/2,748, zero failures; clean58. Fresh dataclasses exception/concurrency/recursion/slot/subinterpreter checks and inspect native binding/member calls pass; inspect own-GIL uses its existing Python fallback. | Fresh full71 control memory: dataclasses load0.95x MET/peak0.56x BEYOND; inspect load1.03x OVER/peakMET. New incumbent clean58/full50,158/2,748 passes. Worktree Django wall rejections are retained; primary gate establishes acceptance. Workload RSS is now eligible as a target, with existing floors, replication and regression guards unchanged (30 controller tests pass). Memory phase stays open. |
 | 2026-09-30 | `68cfb97` (source) | Codex memory batch 7: argparse | Quiet primary two-run ACCEPT (`20260930T202154Z`): load0.709x improved; CPU0.999x and working1.000x neutral. Fourteen workload RSS rows improved; all23 regression guards pass, no mismatch or unstable metric. Clean58; full50,158/2,748, zero failures; native2500calls/custom formatters/help/own-GIL checks pass. | Fresh primary control memory: load0.81x BEYOND, working1.00x MET; CPU2.28x OVER. Explicit validation width avoids unused terminal-size imports while preserving customized formatter and rendered-help behavior. Memory phase remains open; baseline refresh deferred. |
 | 2026-09-30 | `d1900a2` (source) | Codex memory batch 8: difflib; argparse correctness repair | Quiet primary two-run ACCEPT (`20260930T214524Z`): difflib load0.142x improved, CPU0.998x and working1.000x neutral; diff workloads RSS0.947x/0.943x improved. Argparse all metrics neutral; all23 guards pass. Clean58; full50,158/2,748, zero failures; palette/native/interpreter checks and four installed argparse regressions pass. | Fresh full71 quiet primary goals: difflib load0.146x BEYOND, peak1.00x MET; argparse load0.812x BEYOND, peak1.00x MET. Uncolored diff avoids unused color-theme imports; argparse definition matching uses value identity without invoking user equality. |
+| 2026-09-30 | `46d19a3` (source) | HASH heap-type lifetime correctness repair | Quiet primary two-run NEUTRAL (`20260930T223511Z`): hashlib CPU1.000x/load1.010x/working1.000x and all23 workload metrics neutral. Clean58; full50,158/2,748, zero failures; 18 staged lifetime cases, native methods/copy/errors/interpreter parity/catalog delta0 pass. | No performance acceptance claim. Saves the heap type before freeing context state/object and releases its owned reference afterward. Memory stop counter remains two empty attribution batches. |
 
 ### Workload picture at `3f5846f` (quiet gate, `@control` vs `@incumbent`, all 23 workloads)
 
