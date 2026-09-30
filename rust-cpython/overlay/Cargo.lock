@@ -782,7 +782,12 @@ name = "cpython-rust-staticlib"
 version = "0.1.0"
 dependencies = [
  "_base64",
+ "_binascii_rs",
+ "_functools_rs",
+ "_ipaddress_rs",
+ "_marshal_rs",
  "_random_rs",
+ "_threading_rs",
 ]
 
 [[package]]

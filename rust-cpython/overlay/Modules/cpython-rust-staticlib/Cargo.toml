@@ -6,7 +6,12 @@ rust-version.workspace = true
 
 [dependencies]
 _base64 = { path = "../_base64" }
+_binascii_rs = { path = "../_binascii_rs" }
+_functools_rs = { path = "../_functools_rs" }
+_ipaddress_rs = { path = "../_ipaddress_rs" }
+_marshal_rs = { path = "../_marshal_rs" }
 _random_rs = { path = "../_random_rs", features = ["static-module"] }
+_threading_rs = { path = "../_threading_rs" }
 
 [lib]
 name = "cpython_rust_staticlib"

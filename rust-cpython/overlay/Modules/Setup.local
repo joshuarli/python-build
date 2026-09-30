@@ -4,7 +4,6 @@ _asyncio_rs _asyncio_rs/Cargo.toml _asyncio_rs/src/lib.rs
 _argparse_rs _argparse_rs/Cargo.toml _argparse_rs/src/lib.rs
 _bz2 _bz2module.c -DPYTHON_RUST_BZ2
 _bisect_rs _bisect_rs/Cargo.toml _bisect_rs/src/lib.rs
-_binascii_rs _binascii_rs/Cargo.toml _binascii_rs/src/lib.rs
 _bz2_rs _bz2_rs/Cargo.toml _bz2_rs/src/lib.rs
 _collections_rs _collections_rs/Cargo.toml _collections_rs/src/lib.rs
 _codecs_rs _codecs_rs/Cargo.toml _codecs_rs/src/lib.rs
@@ -20,7 +19,6 @@ _elementtree_rs _elementtree_rs/Cargo.toml _elementtree_rs/src/lib.rs
 _email_rs _email_rs/Cargo.toml _email_rs/src/lib.rs
 _fnmatch_rs _fnmatch_rs/Cargo.toml _fnmatch_rs/src/lib.rs
 _fractions_rs _fractions_rs/Cargo.toml _fractions_rs/src/lib.rs
-_functools_rs _functools_rs/Cargo.toml _functools_rs/src/lib.rs
 _glob_rs _glob_rs/Cargo.toml _glob_rs/src/lib.rs
 _gzip_rs _gzip_rs/Cargo.toml _gzip_rs/src/lib.rs
 _hashlib_rs _hashlib_rs/Cargo.toml _hashlib_rs/src/lib.rs
@@ -30,14 +28,12 @@ _hmac_rs _hmac_rs/Cargo.toml _hmac_rs/src/lib.rs
 _html_parser_rs _html_parser_rs/Cargo.toml _html_parser_rs/src/lib.rs
 _importlib_resources_rs _importlib_resources_rs/Cargo.toml _importlib_resources_rs/src/lib.rs
 _inspect_rs _inspect_rs/Cargo.toml _inspect_rs/src/lib.rs
-_ipaddress_rs _ipaddress_rs/Cargo.toml _ipaddress_rs/src/lib.rs
 _itertools_rs _itertools_rs/Cargo.toml _itertools_rs/src/lib.rs
 _pathlib_rs _pathlib_rs/Cargo.toml _pathlib_rs/src/lib.rs
 _json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs
 _logging_rs _logging_rs/Cargo.toml _logging_rs/src/lib.rs
 _multiprocessing_rs _multiprocessing_rs/Cargo.toml _multiprocessing_rs/src/lib.rs
 _lzma_rs _lzma_rs/Cargo.toml _lzma_rs/src/lib.rs
-_marshal_rs _marshal_rs/Cargo.toml _marshal_rs/src/lib.rs
 _metadata_rs _metadata_rs/Cargo.toml _metadata_rs/src/lib.rs
 _pickle_rs _pickle_rs/Cargo.toml _pickle_rs/src/lib.rs
 _plistlib_rs _plistlib_rs/Cargo.toml _plistlib_rs/src/lib.rs
@@ -55,7 +51,6 @@ _subprocess_rs _subprocess_rs/Cargo.toml _subprocess_rs/src/lib.rs
 _tarfile_rs _tarfile_rs/Cargo.toml _tarfile_rs/src/lib.rs
 _tempfile_rs _tempfile_rs/Cargo.toml _tempfile_rs/src/lib.rs
 _textwrap_rs _textwrap_rs/Cargo.toml _textwrap_rs/src/lib.rs
-_threading_rs _threading_rs/Cargo.toml _threading_rs/src/lib.rs
 _tokenize_rs _tokenize_rs/Cargo.toml _tokenize_rs/src/lib.rs
 _tomllib_rs _tomllib_rs/Cargo.toml _tomllib_rs/src/lib.rs
 _typing_rs _typing_rs/Cargo.toml _typing_rs/src/lib.rs
@@ -70,4 +65,9 @@ _zlib_rs _zlib_rs/Cargo.toml _zlib_rs/src/lib.rs
 _zstd_rs _zstd_rs/Cargo.toml _zstd_rs/src/lib.rs
 
 *static*
+_binascii_rs
+_functools_rs
+_ipaddress_rs
+_marshal_rs
 _random_rs
+_threading_rs
