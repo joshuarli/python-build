@@ -143,7 +143,7 @@ ConfigParser -- responsible for parsing a list of
         between keys and values are surrounded by spaces.
 """
 
-# Do not import dataclasses; overhead is unacceptable (gh-117703)
+# Do not import dataclasses; overhead is unacceptable.
 
 from collections.abc import Iterable, MutableMapping
 from collections import ChainMap as _ChainMap
@@ -151,8 +151,12 @@ import functools
 import io
 import itertools
 import os
-import re
+lazy import re
 import sys
+
+# The numeric regex flag avoids loading the engine for lazy class patterns.
+_REGEX_VERBOSE = 64
+_STANDARD_COMMENT_PATTERN = r'^(\#).*|^(;).*'
 
 __all__ = ("NoSectionError", "DuplicateOptionError", "DuplicateSectionError",
            "NoOptionError", "InterpolationError", "InterpolationDepthError",
@@ -610,6 +614,15 @@ class _Line(str):
 
 class _CommentSpec:
     def __init__(self, full_prefixes, inline_prefixes):
+        # Exact default strings have a fixed source; custom prefixes still use
+        # regex escaping, including any string subclass's translation method.
+        if (type(full_prefixes) is tuple and len(full_prefixes) == 2
+                and type(full_prefixes[0]) is str and type(full_prefixes[1]) is str
+                and full_prefixes == ('#', ';')
+                and type(inline_prefixes) is tuple and not inline_prefixes):
+            self.source = _STANDARD_COMMENT_PATTERN
+            self._pattern = None
+            return
         full_patterns = (
             # prefix at the beginning of a line
             fr'^({re.escape(prefix)}).*'
@@ -669,12 +682,12 @@ class RawConfigParser(MutableMapping):
     # Interpolation algorithm to be used if the user does not specify another
     _DEFAULT_INTERPOLATION = Interpolation()
     # Compiled regular expression for matching sections
-    SECTCRE = _LazyRegex(_SECT_TMPL, re.VERBOSE)
+    SECTCRE = _LazyRegex(_SECT_TMPL, _REGEX_VERBOSE)
     # Compiled regular expression for matching options with typical separators
-    OPTCRE = _LazyRegex(_OPT_TMPL.format(delim="=|:"), re.VERBOSE)
+    OPTCRE = _LazyRegex(_OPT_TMPL.format(delim="=|:"), _REGEX_VERBOSE)
     # Compiled regular expression for matching options with optional values
     # delimited using typical separators
-    OPTCRE_NV = _LazyRegex(_OPT_NV_TMPL.format(delim="=|:"), re.VERBOSE)
+    OPTCRE_NV = _LazyRegex(_OPT_NV_TMPL.format(delim="=|:"), _REGEX_VERBOSE)
     # Compiled regular expression for matching leading whitespace in a line
     NONSPACECRE = _LazyRegex(r"\S")
     # Possible boolean values in the configuration.
@@ -1346,9 +1359,16 @@ class SectionProxy(MutableMapping):
         """Creates a view on a section of the specified `name` in `parser`."""
         self._parser = parser
         self._name = name
+        # Standard conversion partials can share their bound proxy getter.
+        # Custom getters retain the separate attribute access per conversion.
+        proxy_get = (self.get if type(self) is __class__
+                     and __class__.get is _SECTION_PROXY_GET
+                     and __class__.__getattribute__ is _SECTION_PROXY_GETATTRIBUTE
+                     else None)
         for conv in parser.converters:
             key = 'get' + conv
-            getter = functools.partial(self.get, _impl=getattr(parser, key))
+            getter = functools.partial(proxy_get if proxy_get is not None else self.get,
+                                       _impl=getattr(parser, key))
             setattr(self, key, getter)
 
     def __repr__(self):
@@ -1407,6 +1427,10 @@ class SectionProxy(MutableMapping):
             _impl = self._parser.get
         return _impl(self._name, option, raw=raw, vars=vars,
                      fallback=fallback, **kwargs)
+
+
+_SECTION_PROXY_GET = SectionProxy.get
+_SECTION_PROXY_GETATTRIBUTE = SectionProxy.__getattribute__
 
 
 class ConverterMapping(MutableMapping):
@@ -1476,7 +1500,6 @@ class ConverterMapping(MutableMapping):
 
 _PYTHON_READ = RawConfigParser._read
 _PYTHON_WRITE = RawConfigParser.write
-_STANDARD_COMMENT_PATTERN = r'^(\#).*|^(;).*'
 
 
 def _rust_backend():
