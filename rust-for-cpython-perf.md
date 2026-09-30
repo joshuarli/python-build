@@ -1,10 +1,97 @@
 # Rust-for-CPython performance phase
 
-**Active; memory phase in progress, CPU phase not started. See [Codex resumption](#codex-resumption-2026-09-29) first.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+**Wound down at the user’s request; memory phase incomplete, CPU phase not started. Read the [latest handoff](#latest-handoff-2026-09-30) first.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
 are complete under its strict Python-suite coverage rule, and those rules
 still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
 recoverable from Git history at commit `f0f8690`.
+
+## Latest handoff (2026-09-30)
+
+This handoff takes precedence over the older resumption and handoff sections.
+The user requested wind-down with no new work. All qualified changes are
+integrated; the already-running final suite completed successfully. No further
+lanes, builds or benchmarks are scheduled. Two consecutive memory attribution waves
+also integrated no performance change, meeting the coordinator’s no-progress
+stop condition. The memory completion condition has **not** passed.
+
+### Integrated and verified
+
+- `6a26a48` records memory batch 8: difflib’s uncolored theme avoids unused
+  imports; the argparse definition guard now uses identity without invoking
+  user equality. Primary source `d1900a2`, quiet two-run gate
+  `20260930T214524Z` ACCEPT: difflib load 0.142x; diff workload RSS 0.947x/0.943x;
+  all 23 guards pass. Clean 58 and full 50,158/2,748, zero failures; palette,
+  native/interpreter checks and four installed argparse regressions pass.
+- `7cf55a6` records the separate HASH lifetime correctness repair
+  (`922a5af`, primary source `46d19a3`). All 18 failing Rust lifetime cases
+  now pass; the real catalog type-reference delta changed from +4 to zero.
+  Primary full 50,158/2,748 and installed native/interpreter probes pass.
+  The quiet two-run guard `20260930T223511Z` is NEUTRAL on hashlib and every
+  metric of all 23 workloads. It makes no memory-improvement claim.
+- `@incumbent` / `perf-rust` is clean-built at `7cf55a6`, with all 58 release
+  Rust helpers verified (265s). Final installed lifetime regression:
+  three tests/18 cases PASS. Final default-resource full suite: 50,158 run/
+  2,748 skipped, zero failures (8m02s; 464 test files OK).
+- `@control` / `perf-upstream` remains the verified pristine empty-overlay
+  build at `7351620`; its single upstream Rust extension is expected.
+  Neither installed alias has a pending reader after the final suite.
+
+The final handoff commit changes documentation only; its overlay matches the
+verified `7cf55a6` stage. Keep the recorded build commit distinct from a later
+documentation commit when reporting which bytes were tested.
+
+### Evidence and remaining gates
+
+The last full 71-route primary control goals are `20260930T215628Z`, source `d1900a2`,
+quiet=yes: overall 41 OVER/8 UNCLEAR/21 MET/1 BEYOND; memory 13 OVER/12 UNCLEAR/
+46 MET or BEYOND. Difflib load 0.146x BEYOND and working peak MET; argparse
+load 0.812x BEYOND and working peak MET. This full snapshot predates only the
+HASH lifetime repair; it is not a fresh goals table for the final build.
+
+The last completed **absolute** all 23-workload control comparison is
+`20260930T204927Z` at `a9a80e4`: 19 peak-RSS regressions, three neutral, one
+improved. It predates batch 8 and HASH’s repair. The neutral repair guard and
+accepted batch gate compare against previous incumbents; neither replaces
+that absolute comparison. The planned final absolute comparison and focused
+HASH control refresh were deferred at the user’s wind-down request. No new
+baseline was recorded. Workload memory debt does not waive phase completion.
+
+Calibration `20260930T174528Z` was CALIBRATION-OK; the next six-hour deadline
+was `2026-09-30T23:45:28Z`. Recalibrate at the next session start as the skill
+requires. Results/logs and `rust-cpython/results/coordinator-state.json` are
+local ignored evidence; source changes, regression tests and the ledger are
+committed. All lane worktrees have been removed, `perf-merge` is cleaned, and
+rejected unmerged branches needed for findings are preserved. Last disk check:
+568GiB free. The run used 113 lane briefs, below the 150 limit, with up to eight
+memory lanes; all delegated agents used GPT-6.1 Sol at medium effort.
+
+### Resume in this order
+
+1. Read `.agents/skills/rust-cpython-perf/SKILL.md` and the climber skill.
+   Only `gpt-6.1-sol` at `medium` is authorized. Keep the separate Claude
+   skills intact. Use `uv run --no-project --offline --python 3.14 python`
+   as the controller, and `perf.py` or `perf.host_lease` for every execution.
+2. Run doctor/status and reconcile local state. Keep the locked Xcode 27.0
+   (`27A266a`), SDK 27.0, LLVM 23.1.2 and Rust nightly 2026-09-15; the macOS
+   deployment floor remains 26.0. Do not change product 3.14.6 or frozen Linux.
+   Follow the skill’s rebuild/full-suite rules if stages or commit bindings
+   need refreshing; current verified bytes are recorded above.
+3. Calibrate against `@control`, then refresh full 71-route goals with `--min-idle 0`
+   and the absolute all 23-workload `@control` versus `@incumbent` gate, including
+   hashlib. Inspect actual outputs before dependent work. Do not record
+   baselines or start CPU lanes while the memory completion gate is open.
+4. Use the findings below and the module/workload tables to choose a distinct
+   measured memory hypothesis. Avoid repeating discarded image flags,
+   allocator reservations or regex clones without a new owned mechanism.
+   Keep memory lanes filled up to eight (2 build jobs each), without waiting for a
+   quiet host during exploration. Preserve CPU and workload regression guards.
+
+The unresolved module debts and attribution findings are recorded below.
+Some routes not on the debt list still have OVER or UNCLEAR memory rows; the
+no-progress stop is not a claim that all module goals have been met. The
+previously recorded zlib EOF-flush `unconsumed_tail` correctness finding also
+remains open; no fix was attempted during this wind-down.
 
 ## Toolchain refresh (2026-09-29)
 
@@ -506,7 +593,7 @@ SQLite and compression.zstd working peak. These findings do not waive workload
 RSS requirements. Remaining module rows and the full workload comparison stay
 visible below; CPU work has not started.
 
-### Current workload picture
+### Latest completed absolute workload comparison
 
 Fresh quiet two-run primary control comparison at `a9a80e4`, evidence
 `20260930T204927Z`: **19 RSS regressions, 3 neutral, 1 improved** across all
