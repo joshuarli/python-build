@@ -7,6 +7,7 @@ run no benchmarks, and never touch the real host lease.
 from __future__ import annotations
 
 import fcntl
+from contextlib import nullcontext
 import json
 import sys
 import tempfile
@@ -45,6 +46,21 @@ def module(base, cand):
 
 
 class WorkloadProfileTests(unittest.TestCase):
+    def test_importtime_executes_the_selected_workload(self):
+        for workload, module in [('serialization_roundtrip', 'extra'),
+                                 ('catalog_json_export', 'catalog_json')]:
+            with self.subTest(workload=workload), tempfile.TemporaryDirectory() as temp:
+                side = {'python': Path('/python'), 'name': 'fixture'}
+                with mock.patch.object(perf, 'LANE', Path(temp)), \
+                        mock.patch.object(perf, 'resolve', return_value=side), \
+                        mock.patch.object(perf, 'host_lease', return_value=nullcontext()), \
+                        mock.patch.object(perf.subprocess, 'run') as run:
+                    perf.profile(ref='candidate', workload=workload, module=None,
+                                 tool='importtime', iterations=1, seconds=1)
+                self.assertEqual(run.call_args.args[0], [
+                    '/python', '-X', 'importtime', '-m', f'benchmarks.workloads.{module}',
+                    workload, '--iterations', '1'])
+
     def test_rigorous_modules_keep_supported_workload_evidence_profile(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "python_startup"

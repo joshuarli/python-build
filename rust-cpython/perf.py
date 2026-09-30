@@ -1001,10 +1001,15 @@ def profile(*, ref: str, workload: str | None, module: str | None, tool: str, it
                   "--iterations", str(iterations or spec.iterations)]
         report = directory / "report.txt"
         if tool == "importtime":
+            import_target = target
+            if workload == "python_startup":
+                import_target = ["-c", "pass"]
+            elif workload == "import_django":
+                import_target = ["-c", "import django"]
             with report.open("w") as stream:
-                subprocess.run([python, "-X", "importtime", "-c",
-                                "pass" if workload == "python_startup" else "import django"],
-                               cwd=REPO, env=env, stderr=stream, check=True)
+                subprocess.run([python, "-X", "importtime", *import_target],
+                               cwd=REPO, env=env, stderr=stream,
+                               stdout=subprocess.DEVNULL, check=True)
             lines = report.read_text().splitlines()[1:]
             rows = sorted(lines, key=lambda line: -int(line.split("|")[1]) if "|" in line else 0)
             print("\n".join(["import time: self [us] | cumulative | imported package", *rows[:35]]))
