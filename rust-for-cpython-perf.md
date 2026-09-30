@@ -32,8 +32,10 @@ module-debt completion exceptions, and stopped-session status below.
 
 Doctor/status passed on resumption. The verified incumbent remains `7cf55a6`
 (clean58, full50,158/2,748) and its overlay matches documentation HEAD
-`b43b5d4`; the pristine control remains `7351620`. Fresh goals and workload
-memory comparisons are pending. No new memory improvement is claimed yet.
+`b43b5d4`; the pristine control remains `7351620`. Fresh full module memory goals read 10 OVER / 16 UNCLEAR / 45 MET or BEYOND.
+Memory-only self-calibration and the fresh absolute workload comparison are
+pending. The explicit harness policy is committed at `e32c713`; 43 focused
+contract tests pass. No new memory improvement is claimed yet.
 
 ## Latest handoff (2026-09-30)
 
@@ -374,89 +376,89 @@ produced no qualified memory patch; pool attribution found only 2,880 bytes
 of potential retained savings. Own-GIL public tests used the C fallback,
 so they provide no Rust concurrency evidence.
 
-### Current module goal table
+### Current module memory goal table
 
-Ratios compare the clean primary `d1900a2` batch-8 source with pristine
-control, using the corrected native regex search kernel. Full quiet paired
-goals completed at `20260930T215628Z`: OVER 41, UNCLEAR 8, MET 21,
-BEYOND 1 (overall statuses include CPU). Memory rows alone are OVER on
-13 routes, UNCLEAR on 12, and MET or BEYOND on 46.
-Prior rigorous follow-ups and unsuccessful lanes remain recorded separately;
-this snapshot does not erase their findings or waive workload memory debt.
+Fresh full 71-route measurements at `20260930T231721Z` compare the verified
+`7cf55a6` incumbent with pristine `7351620`. The command began before the
+explicit harness policy was integrated; the table below reclassifies its
+unchanged raw memory evidence with `goal_status(memory_only=True)`. CPU rows
+are excluded. Memory counts are **10 OVER, 16 UNCLEAR, 44 MET, 1 BEYOND**.
+The memory-only self-calibration is pending; no candidate acceptance is claimed.
+Historical failed hypotheses remain findings, not completed goals.
 
-| Route | CPU | Load footprint | Working peak | Overall |
-| --- | --- | --- | --- | --- |
-| `_strptime` | 1.167x OVER | 1.038x UNCLEAR | 1.000x MET | OVER |
-| `argparse` | 2.274x OVER | 0.812x BEYOND | 1.000x MET | OVER |
-| `ast` | 1.362x OVER | 0.730x BEYOND | 1.000x MET | OVER |
-| `asyncio` | 1.111x OVER | 0.930x MET | 1.000x MET | OVER |
-| `base64` | 2.928x OVER | 1.125x OVER | 1.000x MET | OVER |
-| `binascii` | 1.646x OVER | 1.000x MET | 1.000x MET | OVER |
-| `bisect` | 3.874x OVER | 0.875x MET | 1.000x MET | OVER |
-| `bz2` | 1.010x MET | 1.000x MET | 1.000x MET | MET |
-| `codecs` | 0.766x BEYOND | 1.009x MET | 1.000x MET | MET |
-| `collections` | 1.051x OVER | 1.000x MET | 1.000x MET | OVER |
-| `compression.zstd` | 0.898x MET | 0.805x MET | 1.219x UNCLEAR | UNCLEAR |
-| `concurrent.futures` | 0.737x BEYOND | 0.485x BEYOND | 1.000x MET | MET |
-| `configparser` | 0.218x BEYOND | 0.564x BEYOND | 0.711x BEYOND | BEYOND |
-| `contextlib` | 1.136x OVER | 1.013x UNCLEAR | 1.000x MET | OVER |
-| `csv` | 3.000x OVER | 0.918x MET | 1.000x MET | OVER |
-| `dataclasses` | 0.998x MET | 0.941x MET | 0.561x BEYOND | MET |
-| `datetime` | 3.020x OVER | 1.375x UNCLEAR | 1.000x MET | OVER |
-| `decimal` | 5.654x OVER | 1.375x OVER | 1.000x MET | OVER |
-| `difflib` | 0.705x BEYOND | 0.146x BEYOND | 1.000x MET | MET |
-| `email` | 1.035x OVER | 0.925x MET | 0.897x MET | OVER |
-| `fnmatch` | 1.161x OVER | 0.378x BEYOND | 1.000x MET | OVER |
-| `fractions` | 3.299x OVER | 1.025x UNCLEAR | 1.000x MET | OVER |
-| `functools` | 4.901x OVER | 1.000x MET | 1.000x MET | OVER |
-| `glob` | 0.604x BEYOND | 0.353x BEYOND | 1.000x MET | MET |
-| `gzip` | 0.604x BEYOND | 0.760x BEYOND | 1.000x MET | MET |
-| `hashlib` | 1.038x OVER | 0.998x MET | 1.000x MET | OVER |
-| `heapq` | 1.594x OVER | 1.000x MET | 1.000x MET | OVER |
-| `hmac` | 1.459x OVER | 1.034x UNCLEAR | 1.000x MET | OVER |
-| `html.parser` | 0.960x MET | 1.050x OVER | 1.000x MET | OVER |
-| `http.client` | 1.044x OVER | 0.998x MET | 1.000x MET | OVER |
-| `importlib.metadata` | 0.738x BEYOND | 0.875x BEYOND | 1.000x MET | MET |
-| `importlib.resources` | 1.038x UNCLEAR | 0.854x BEYOND | 1.000x MET | UNCLEAR |
-| `inspect` | 1.377x OVER | 1.020x OVER | 1.000x MET | OVER |
-| `io` | 1.552x OVER | 1.003x MET | 1.000x MET | OVER |
-| `ipaddress` | 0.483x BEYOND | 1.068x UNCLEAR | 1.000x MET | UNCLEAR |
-| `itertools` | 2.609x OVER | 1.000x MET | 1.000x MET | OVER |
-| `json` | 0.714x BEYOND | 0.922x MET | 1.000x MET | MET |
-| `logging` | 1.000x MET | 0.601x BEYOND | 1.036x OVER | OVER |
-| `lzma` | 1.357x OVER | 0.110x BEYOND | 1.000x MET | OVER |
-| `marshal` | 0.889x MET | 1.047x OVER | 1.000x MET | OVER |
-| `multiprocessing` | 1.039x UNCLEAR | 0.927x MET | 1.000x MET | UNCLEAR |
-| `os.path` | 1.715x OVER | 1.000x MET | 1.000x MET | OVER |
-| `pathlib` | 0.953x MET | 0.599x BEYOND | 1.000x MET | MET |
-| `pickle` | 1.001x MET | 1.074x OVER | 1.000x MET | OVER |
-| `plistlib` | 0.078x BEYOND | 0.196x BEYOND | 0.943x MET | MET |
-| `random` | 1.275x OVER | 0.917x MET | 1.000x MET | OVER |
-| `re` | 3.679x OVER | 1.720x OVER | 1.000x MET | OVER |
-| `shlex` | 0.286x BEYOND | 0.476x BEYOND | 1.000x MET | MET |
-| `shutil` | 1.009x MET | 0.838x BEYOND | 0.868x MET | MET |
-| `socket` | 1.252x OVER | 1.082x OVER | 1.000x MET | OVER |
-| `sqlite3` | 3.897x OVER | 1.019x UNCLEAR | 1.000x MET | OVER |
-| `ssl` | 1.001x MET | 0.997x MET | 1.000x MET | MET |
-| `statistics` | 0.076x BEYOND | 0.608x BEYOND | 1.000x MET | MET |
-| `struct` | 2.119x OVER | 1.011x UNCLEAR | 1.000x MET | OVER |
-| `subprocess` | 1.012x UNCLEAR | 0.903x MET | 1.000x MET | UNCLEAR |
-| `tarfile` | 0.394x BEYOND | 0.846x BEYOND | 1.000x MET | MET |
-| `tempfile` | 1.012x UNCLEAR | 0.344x BEYOND | 1.000x MET | UNCLEAR |
-| `textwrap` | 0.037x BEYOND | 0.076x BEYOND | 1.000x MET | MET |
-| `threading` | 1.951x OVER | 1.200x UNCLEAR | 1.000x MET | OVER |
-| `tokenize` | 1.119x OVER | 1.076x OVER | 1.000x MET | OVER |
-| `tomllib` | 0.071x BEYOND | 0.147x BEYOND | 1.000x MET | MET |
-| `typing` | 1.495x OVER | 1.192x OVER | 1.000x MET | OVER |
-| `unicodedata` | 2.476x OVER | 1.000x MET | 1.000x MET | OVER |
-| `urllib.parse` | 0.223x BEYOND | 0.419x BEYOND | 1.000x MET | MET |
-| `urllib.request` | 1.129x OVER | 0.906x MET | 1.000x MET | OVER |
-| `uuid` | 1.392x OVER | 1.191x OVER | 1.000x MET | OVER |
-| `warnings` | 1.099x OVER | 1.077x OVER | 1.000x MET | OVER |
-| `xml.etree.ElementTree` | 0.927x MET | 1.058x UNCLEAR | 1.062x UNCLEAR | UNCLEAR |
-| `zipfile` | 0.671x BEYOND | 0.338x BEYOND | 1.000x MET | MET |
-| `zipimport` | 0.988x MET | 0.587x BEYOND | 1.000x MET | MET |
-| `zlib` | 0.632x BEYOND | 1.036x UNCLEAR | 1.000x MET | UNCLEAR |
+| Route | Load footprint | Working peak | Memory status |
+| --- | --- | --- | --- |
+| `_strptime` | 1.019x UNCLEAR | 1.000x MET | UNCLEAR |
+| `argparse` | 0.784x BEYOND | 1.000x MET | MET |
+| `ast` | 0.718x BEYOND | 1.000x MET | MET |
+| `asyncio` | 0.924x MET | 1.000x MET | MET |
+| `base64` | 1.113x UNCLEAR | 1.000x MET | UNCLEAR |
+| `binascii` | 1.000x MET | 1.000x MET | MET |
+| `bisect` | 1.125x UNCLEAR | 1.000x MET | UNCLEAR |
+| `bz2` | 0.995x MET | 1.000x MET | MET |
+| `codecs` | 0.991x MET | 1.000x MET | MET |
+| `collections` | 1.000x MET | 1.000x MET | MET |
+| `compression.zstd` | 0.800x BEYOND | 1.250x OVER | OVER |
+| `concurrent.futures` | 0.472x BEYOND | 1.000x MET | MET |
+| `configparser` | 0.556x BEYOND | 0.721x BEYOND | BEYOND |
+| `contextlib` | 1.009x MET | 1.000x MET | MET |
+| `csv` | 1.019x UNCLEAR | 1.000x MET | UNCLEAR |
+| `dataclasses` | 0.899x MET | 0.564x BEYOND | MET |
+| `datetime` | 1.750x OVER | 1.000x MET | OVER |
+| `decimal` | 1.220x UNCLEAR | 1.000x MET | UNCLEAR |
+| `difflib` | 0.135x BEYOND | 1.000x MET | MET |
+| `email` | 0.906x MET | 0.890x MET | MET |
+| `fnmatch` | 0.378x BEYOND | 1.000x MET | MET |
+| `fractions` | 0.980x MET | 1.000x MET | MET |
+| `functools` | 1.000x MET | 1.000x MET | MET |
+| `glob` | 0.325x BEYOND | 1.000x MET | MET |
+| `gzip` | 0.762x BEYOND | 1.000x MET | MET |
+| `hashlib` | 1.013x UNCLEAR | 1.000x MET | UNCLEAR |
+| `heapq` | 1.000x MET | 1.000x MET | MET |
+| `hmac` | 1.018x UNCLEAR | 1.000x MET | UNCLEAR |
+| `html.parser` | 1.010x UNCLEAR | 1.000x MET | UNCLEAR |
+| `http.client` | 0.994x MET | 1.000x MET | MET |
+| `importlib.metadata` | 0.866x BEYOND | 1.000x MET | MET |
+| `importlib.resources` | 0.842x BEYOND | 1.000x MET | MET |
+| `inspect` | 1.017x UNCLEAR | 1.000x MET | UNCLEAR |
+| `io` | 1.003x MET | 1.000x MET | MET |
+| `ipaddress` | 1.025x UNCLEAR | 1.000x MET | UNCLEAR |
+| `itertools` | 1.000x MET | 1.000x MET | MET |
+| `json` | 0.909x MET | 1.000x MET | MET |
+| `logging` | 0.588x BEYOND | 1.036x UNCLEAR | UNCLEAR |
+| `lzma` | 0.110x BEYOND | 1.000x MET | MET |
+| `marshal` | 1.039x OVER | 1.000x MET | OVER |
+| `multiprocessing` | 0.915x MET | 1.063x UNCLEAR | UNCLEAR |
+| `os.path` | 1.000x MET | 1.000x MET | MET |
+| `pathlib` | 0.594x BEYOND | 1.000x MET | MET |
+| `pickle` | 1.069x OVER | 1.000x MET | OVER |
+| `plistlib` | 0.231x BEYOND | 0.943x MET | MET |
+| `random` | 0.900x MET | 1.000x MET | MET |
+| `re` | 1.691x OVER | 1.000x MET | OVER |
+| `shlex` | 0.459x BEYOND | 1.000x MET | MET |
+| `shutil` | 0.822x BEYOND | 1.000x MET | MET |
+| `socket` | 1.036x OVER | 1.000x MET | OVER |
+| `sqlite3` | 1.040x UNCLEAR | 1.000x MET | UNCLEAR |
+| `ssl` | 1.029x UNCLEAR | 1.000x MET | UNCLEAR |
+| `statistics` | 0.574x BEYOND | 1.000x MET | MET |
+| `struct` | 1.005x MET | 1.000x MET | MET |
+| `subprocess` | 0.902x MET | 1.000x MET | MET |
+| `tarfile` | 0.825x BEYOND | 1.000x MET | MET |
+| `tempfile` | 0.326x BEYOND | 1.000x MET | MET |
+| `textwrap` | 0.092x BEYOND | 1.000x MET | MET |
+| `threading` | 1.600x OVER | 1.000x MET | OVER |
+| `tokenize` | 1.055x OVER | 1.000x MET | OVER |
+| `tomllib` | 0.083x BEYOND | 1.000x MET | MET |
+| `typing` | 1.179x OVER | 1.000x MET | OVER |
+| `unicodedata` | 1.000x MET | 1.000x MET | MET |
+| `urllib.parse` | 0.411x BEYOND | 1.000x MET | MET |
+| `urllib.request` | 0.916x MET | 1.000x MET | MET |
+| `uuid` | 1.133x UNCLEAR | 1.000x MET | UNCLEAR |
+| `warnings` | 0.987x MET | 1.000x MET | MET |
+| `xml.etree.ElementTree` | 0.985x MET | 1.219x UNCLEAR | UNCLEAR |
+| `zipfile` | 0.304x BEYOND | 1.000x MET | MET |
+| `zipimport` | 0.550x BEYOND | 1.000x MET | MET |
+| `zlib` | 1.031x OVER | 1.000x MET | OVER |
 
 ### Focused goals after memory batch 5
 
