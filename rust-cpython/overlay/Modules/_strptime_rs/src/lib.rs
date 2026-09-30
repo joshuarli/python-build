@@ -1,133 +1,38 @@
-//! Date and time directive conversion using call-scoped Python buffers.
-#![no_std]
-#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::ptr;
-use core::slice;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
+use std::slice;
 
 use chrono::{Datelike, Weekday};
 use chrono::format::Parsed;
-
-// These C layouts describe the 64-bit, GIL-enabled CPython module boundary.
-type Py_ssize_t = isize;
-
-#[repr(C)]
-pub struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-pub struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-pub union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(*mut PyObject, *mut *mut PyObject, Py_ssize_t) -> *mut PyObject,
-    Void: *mut c_void,
-}
-
-#[repr(C)]
-pub struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-impl PyMethodDef {
-    const fn zeroed() -> Self {
-        Self {
-            ml_name: core::ptr::null_mut(),
-            ml_meth: PyMethodDefFuncPointer { Void: core::ptr::null_mut() },
-            ml_flags: 0,
-            ml_doc: core::ptr::null_mut(),
-        }
-    }
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef_Slot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-type VisitProc = Option<unsafe extern "C" fn(*mut PyObject, *mut c_void) -> c_int>;
-type TraverseProc = unsafe extern "C" fn(*mut PyObject, VisitProc, *mut c_void) -> c_int;
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut PyModuleDef_Slot,
-    m_traverse: Option<TraverseProc>,
-    m_clear: Option<unsafe extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<unsafe extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-// CPython 3.16 full-API module slot and independent-GIL capability values.
-const Py_mod_multiple_interpreters: c_int = 86;
-const Py_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2_usize as *mut c_void;
-// Immortal reference count and static allocation flags in the 64-bit GIL ABI.
-const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
-    ob_base: PyObject {
-        ob_refcnt: (3_isize << 30) | (5_isize << 48),
-        ob_type: core::ptr::null_mut(),
-    },
-    m_init: None,
-    m_index: 0,
-    m_copy: core::ptr::null_mut(),
-};
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    fn Py_DecRef(object: *mut PyObject);
-    fn PyErr_Occurred() -> *mut PyObject;
-    fn PyLong_AsLong(object: *mut PyObject) -> core::ffi::c_long;
-    fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
-    fn PyTuple_GetItem(tuple: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
-    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
-    fn PyUnicode_FromStringAndSize(bytes: *const c_char, size: Py_ssize_t) -> *mut PyObject;
-    fn PyObject_CallMethod(object: *mut PyObject, name: *const c_char, format: *const c_char, ...) -> *mut PyObject;
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_sys::METH_FASTCALL;
+use cpython_sys::Py_DecRef;
+use cpython_sys::PyErr_Occurred;
+use cpython_sys::PyLong_AsLong;
+use cpython_sys::PyLong_FromLongLong;
+use cpython_sys::PyMethodDef;
+use cpython_sys::PyMethodDefFuncPointer;
+use cpython_sys::PyModuleDef;
+use cpython_sys::PyModuleDef_HEAD_INIT;
+use cpython_sys::PyModuleDef_Init;
+use cpython_sys::PyObject;
+use cpython_sys::Py_ssize_t;
+use cpython_sys::PyTuple_GetItem;
+use cpython_sys::PyTuple_New;
+use cpython_sys::PyTuple_SetItem;
+use cpython_sys::PyTuple_Size;
+use cpython_sys::PyUnicode_AsUTF8AndSize;
 
 const MISSING: i64 = i64::MIN;
 
-struct LocaleData<'py> {
-    full_weekdays: TupleStrings<'py>,
-    short_weekdays: TupleStrings<'py>,
-    full_months: TupleStrings<'py>,
-    short_months: TupleStrings<'py>,
-    am_pm: TupleStrings<'py>,
-    timezones: TupleStringGroups<'py>,
-    tzname: TupleStrings<'py>,
+struct LocaleData {
+    full_weekdays: Vec<String>,
+    short_weekdays: Vec<String>,
+    full_months: Vec<String>,
+    short_months: Vec<String>,
+    am_pm: Vec<String>,
+    timezones: Vec<Vec<String>>,
+    tzname: Vec<String>,
     daylight: bool,
 }
 
@@ -185,20 +90,15 @@ impl Fields {
     }
 }
 
-// The caller holds the argument tuples and the GIL throughout conversion.
-// Their Unicode buffers remain valid until parsing returns; no slice is cached.
-unsafe fn read_unicode<'py>(
-    object: *mut PyObject,
-    _owners: &'py [*mut PyObject],
-) -> Option<&'py str> {
+unsafe fn read_unicode(object: *mut PyObject) -> Option<String> {
     let mut size: Py_ssize_t = 0;
     let bytes = unsafe { PyUnicode_AsUTF8AndSize(object, &mut size) };
     if bytes.is_null() || size < 0 {
         return None;
     }
     let bytes = unsafe { slice::from_raw_parts(bytes.cast::<u8>(), size as usize) };
-    let text = unsafe { core::str::from_utf8_unchecked(bytes) };
-    Some(text)
+    let text = unsafe { std::str::from_utf8_unchecked(bytes) };
+    Some(text.to_owned())
 }
 
 unsafe fn tuple_item(tuple: *mut PyObject, index: usize) -> Option<*mut PyObject> {
@@ -214,117 +114,45 @@ unsafe fn tuple_len(tuple: *mut PyObject) -> Option<usize> {
     (size >= 0).then_some(size as usize)
 }
 
-// Views only refer to immutable tuples reachable from the held call arguments.
-// Validation and iteration cannot invoke user code; no view is stored in module state.
-#[derive(Clone, Copy)]
-struct PythonTuple<'py> {
-    tuple: *mut PyObject,
-    size: usize,
-    owners: &'py [*mut PyObject],
-}
-
-impl<'py> PythonTuple<'py> {
-    // The tuple must be an argument or be owned by another immutable argument tuple.
-    unsafe fn new(tuple: *mut PyObject, owners: &'py [*mut PyObject]) -> Option<Self> {
-        Some(Self {
-            tuple,
-            size: unsafe { tuple_len(tuple) }?,
-            owners,
-        })
-    }
-
-    fn item(&self, index: usize) -> Option<*mut PyObject> {
-        if index >= self.size {
-            return None;
-        }
-        unsafe { tuple_item(self.tuple, index) }
-    }
-}
-
-struct TupleStrings<'py>(PythonTuple<'py>);
-
-impl<'py> TupleStrings<'py> {
-    fn len(&self) -> usize {
-        self.0.size
-    }
-
-    fn get(&self, index: usize) -> Option<&'py str> {
-        unsafe { read_unicode(self.0.item(index)?, self.0.owners) }
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &'py str> + '_ {
-        (0..self.len()).map(|index| self.get(index).expect("validated Unicode tuple"))
-    }
-}
-
-unsafe fn tuple_strings<'py>(
-    tuple: *mut PyObject,
-    owners: &'py [*mut PyObject],
-) -> Option<TupleStrings<'py>> {
-    let values = TupleStrings(unsafe { PythonTuple::new(tuple, owners) }?);
-    for index in 0..values.len() {
-        values.get(index)?;
+unsafe fn tuple_strings(tuple: *mut PyObject) -> Option<Vec<String>> {
+    let size = unsafe { tuple_len(tuple) }?;
+    let mut values = Vec::with_capacity(size);
+    for index in 0..size {
+        let item = unsafe { tuple_item(tuple, index) }?;
+        values.push(unsafe { read_unicode(item) }?);
     }
     Some(values)
 }
 
-struct TupleStringGroups<'py>(PythonTuple<'py>);
-
-impl<'py> TupleStringGroups<'py> {
-    fn len(&self) -> usize {
-        self.0.size
-    }
-
-    fn iter(&self) -> impl Iterator<Item = TupleStrings<'py>> + '_ {
-        (0..self.len()).map(|index| unsafe {
-            tuple_strings(self.0.item(index).expect("validated tuple group"), self.0.owners)
-                .expect("validated Unicode tuple group")
-        })
-    }
-}
-
-unsafe fn tuple_string_groups<'py>(
-    tuple: *mut PyObject,
-    owners: &'py [*mut PyObject],
-) -> Option<TupleStringGroups<'py>> {
-    let groups = TupleStringGroups(unsafe { PythonTuple::new(tuple, owners) }?);
-    for index in 0..groups.len() {
-        unsafe { tuple_strings(groups.0.item(index)?, owners) }?;
+unsafe fn tuple_string_groups(tuple: *mut PyObject) -> Option<Vec<Vec<String>>> {
+    let size = unsafe { tuple_len(tuple) }?;
+    let mut groups = Vec::with_capacity(size);
+    for index in 0..size {
+        let item = unsafe { tuple_item(tuple, index) }?;
+        groups.push(unsafe { tuple_strings(item) }?);
     }
     Some(groups)
 }
 
-struct DirectiveGroups<'py>(PythonTuple<'py>);
-
-impl<'py> DirectiveGroups<'py> {
-    fn pair(&self, index: usize) -> Option<(&'py str, &'py str)> {
-        let pair = self.0.item(index)?;
+unsafe fn read_groups(tuple: *mut PyObject) -> Option<Vec<(String, String)>> {
+    let size = unsafe { tuple_len(tuple) }?;
+    let mut groups = Vec::with_capacity(size);
+    for index in 0..size {
+        let pair = unsafe { tuple_item(tuple, index) }?;
         if unsafe { tuple_len(pair) }? != 2 {
             return None;
         }
-        let key = unsafe { read_unicode(tuple_item(pair, 0)?, self.0.owners) }?;
-        let value = unsafe { read_unicode(tuple_item(pair, 1)?, self.0.owners) }?;
-        Some((key, value))
-    }
-
-    fn iter(&self) -> impl Iterator<Item = (&'py str, &'py str)> + '_ {
-        (0..self.0.size).map(|index| self.pair(index).expect("validated directive pair"))
-    }
-}
-
-unsafe fn read_groups<'py>(
-    tuple: *mut PyObject,
-    owners: &'py [*mut PyObject],
-) -> Option<DirectiveGroups<'py>> {
-    let groups = DirectiveGroups(unsafe { PythonTuple::new(tuple, owners) }?);
-    for index in 0..groups.0.size {
-        groups.pair(index)?;
+        let key = unsafe { read_unicode(tuple_item(pair, 0)?) }?;
+        let value = unsafe { read_unicode(tuple_item(pair, 1)?) }?;
+        groups.push((key, value));
     }
     Some(groups)
 }
 
-fn group_value<'py>(groups: &DirectiveGroups<'py>, key: &str) -> Option<&'py str> {
-    groups.iter().find_map(|(group, value)| (group == key).then_some(value))
+fn group_value<'a>(groups: &'a [(String, String)], key: &str) -> Option<&'a str> {
+    groups
+        .iter()
+        .find_map(|(group, value)| (group == key).then_some(value.as_str()))
 }
 
 fn parse_decimal(value: &str) -> Option<i64> {
@@ -334,45 +162,11 @@ fn parse_decimal(value: &str) -> Option<i64> {
     value.parse().ok()
 }
 
-// Exact Unicode objects use CPython's casing tables without invoking an input
-// subclass override. Both temporary owners die under the calling interpreter's GIL.
-struct Lowercase(*mut PyObject);
-
-impl Lowercase {
-    fn new(value: &str) -> Option<Self> {
-        let source = unsafe { PyUnicode_FromStringAndSize(value.as_ptr().cast(), value.len().try_into().ok()?) };
-        if source.is_null() {
-            return None;
-        }
-        let result = unsafe { PyObject_CallMethod(source, c"lower".as_ptr(), ptr::null()) };
-        unsafe { Py_DecRef(source) };
-        (!result.is_null()).then_some(Self(result))
-    }
-
-    fn text(&self) -> Option<&str> {
-        let mut size = 0;
-        let bytes = unsafe { PyUnicode_AsUTF8AndSize(self.0, &mut size) };
-        if bytes.is_null() || size < 0 {
-            return None;
-        }
-        Some(unsafe { core::str::from_utf8_unchecked(slice::from_raw_parts(bytes.cast(), size as usize)) })
-    }
-}
-
-impl Drop for Lowercase {
-    fn drop(&mut self) {
-        unsafe { Py_DecRef(self.0) };
-    }
-}
-
-fn find_locale_name<'py>(
-    value: &str,
-    mut names: impl Iterator<Item = &'py str>,
-) -> Option<i64> {
-    let lowercase = Lowercase::new(value)?;
-    let value = lowercase.text()?;
+fn find_locale_name(value: &str, names: &[String]) -> Option<i64> {
+    let value = value.to_lowercase();
     names
-        .position(|name| name == value)
+        .iter()
+        .position(|name| name == &value)
         .map(|index| index as i64)
 }
 
@@ -389,14 +183,6 @@ fn python_weekday(value: i64) -> Option<Weekday> {
     }
 }
 
-// Six fractional digits fit on the stack; parsing keeps the previous handling
-// of signs and invalid digit sequences without allocating a formatting buffer.
-fn parse_fraction(value: &str) -> Option<i64> {
-    let mut padded = [b'0'; 6];
-    padded.get_mut(..value.len())?.copy_from_slice(value.as_bytes());
-    parse_decimal(core::str::from_utf8(&padded).ok()?)
-}
-
 fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
     if value.is_empty() {
         return Some((None, 0));
@@ -405,36 +191,30 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
         return Some((Some(0), 0));
     }
 
-    // At most fourteen normalized bytes hold an offset and six fractional
-    // digits; two optional colons account for the sixteen-byte input bound.
-    let mut normalized = [0; 16];
-    normalized.get_mut(..value.len())?.copy_from_slice(value.as_bytes());
-    let mut size = value.len();
-    if normalized.get(3) == Some(&b':') {
-        normalized.copy_within(4..size, 3);
-        size -= 1;
-        if size > 5 {
-            if normalized.get(5) != Some(&b':') {
+    let mut value = value.to_owned();
+    if value.as_bytes().get(3) == Some(&b':') {
+        value.remove(3);
+        if value.len() > 5 {
+            if value.as_bytes().get(5) != Some(&b':') {
                 return None;
             }
-            normalized.copy_within(6..size, 5);
-            size -= 1;
+            value.remove(5);
         }
     }
 
-    let bytes = &normalized[..size];
+    let bytes = value.as_bytes();
     if bytes.len() < 5 || !matches!(bytes[0], b'+' | b'-') {
         return None;
     }
-    let hours = parse_decimal(core::str::from_utf8(bytes.get(1..3)?).ok()?)?;
-    let minutes = parse_decimal(core::str::from_utf8(bytes.get(3..5)?).ok()?)?;
+    let hours = parse_decimal(std::str::from_utf8(bytes.get(1..3)?).ok()?)?;
+    let minutes = parse_decimal(std::str::from_utf8(bytes.get(3..5)?).ok()?)?;
     let seconds = if bytes.len() >= 7 {
-        parse_decimal(core::str::from_utf8(bytes.get(5..7)?).ok()?)?
+        parse_decimal(std::str::from_utf8(bytes.get(5..7)?).ok()?)?
     } else {
         0
     };
     let remainder = if bytes.len() > 8 {
-        core::str::from_utf8(bytes.get(8..)?).ok()?
+        std::str::from_utf8(bytes.get(8..)?).ok()?
     } else {
         ""
     };
@@ -444,7 +224,8 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
     let fraction = if remainder.is_empty() {
         0
     } else {
-        parse_fraction(remainder)?
+        let padded = format!("{remainder:0<6}");
+        parse_decimal(&padded)?
     };
     let sign = if bytes[0] == b'-' { -1 } else { 1 };
     let seconds = (hours * 3600 + minutes * 60 + seconds) * sign;
@@ -452,23 +233,22 @@ fn parse_utc_offset(value: &str) -> Option<(Option<i64>, i64)> {
 }
 
 fn convert_groups(
-    groups: &DirectiveGroups<'_>,
-    locale: Option<&LocaleData<'_>>,
+    groups: &[(String, String)],
+    locale: &LocaleData,
 ) -> Option<[i64; 16]> {
-    if let Some(locale) = locale
-        && (locale.full_weekdays.len() != 7
+    if locale.full_weekdays.len() != 7
         || locale.short_weekdays.len() != 7
         || locale.full_months.len() != 13
         || locale.short_months.len() != 13
         || locale.am_pm.len() != 2
         || locale.timezones.len() != 2
-        || locale.tzname.len() != 2)
+        || locale.tzname.len() != 2
     {
         return None;
     }
     let mut fields = Fields::new();
-    for (key, value) in groups.iter() {
-        match key {
+    for (key, value) in groups {
+        match key.as_str() {
             "y" => {
                 let mut year = parse_decimal(value)?;
                 if let Some(century) = group_value(groups, "C") {
@@ -488,13 +268,11 @@ fn convert_groups(
                 fields.has_month = true;
             }
             "B" => {
-                let locale = locale?;
-                fields.month = find_locale_name(value, locale.full_months.iter().skip(1))? + 1;
+                fields.month = find_locale_name(value, locale.full_months.get(1..)?)? + 1;
                 fields.has_month = true;
             }
             "b" => {
-                let locale = locale?;
-                fields.month = find_locale_name(value, locale.short_months.iter().skip(1))? + 1;
+                fields.month = find_locale_name(value, locale.short_months.get(1..)?)? + 1;
                 fields.has_month = true;
             }
             "d" => {
@@ -506,11 +284,9 @@ fn convert_groups(
                 fields.has_hour = true;
             }
             "I" => {
-                let locale = locale?;
                 let mut hour = parse_decimal(value)?;
-                let lowercase = Lowercase::new(group_value(groups, "p").unwrap_or(""))?;
-                let am_pm = lowercase.text()?;
-                let is_pm = locale.am_pm.get(1).is_some_and(|pm| pm == am_pm);
+                let am_pm = group_value(groups, "p").unwrap_or("").to_lowercase();
+                let is_pm = locale.am_pm.get(1).is_some_and(|pm| pm == &am_pm);
                 if is_pm {
                     if hour != 12 {
                         hour += 12;
@@ -533,11 +309,12 @@ fn convert_groups(
                 if value.is_empty() || value.len() > 6 || !value.is_ascii() {
                     return None;
                 }
-                fields.fraction = parse_fraction(value)?;
+                let padded = format!("{value:0<6}");
+                fields.fraction = parse_decimal(&padded)?;
                 fields.has_fraction = true;
             }
-            "A" => fields.weekday = Some(find_locale_name(value, locale?.full_weekdays.iter())?),
-            "a" => fields.weekday = Some(find_locale_name(value, locale?.short_weekdays.iter())?),
+            "A" => fields.weekday = Some(find_locale_name(value, &locale.full_weekdays)?),
+            "a" => fields.weekday = Some(find_locale_name(value, &locale.short_weekdays)?),
             "w" => {
                 let day = parse_decimal(value)?;
                 fields.weekday = Some(if day == 0 { 6 } else { day - 1 });
@@ -557,13 +334,11 @@ fn convert_groups(
                 (fields.utc_offset, fields.utc_offset_fraction) = parse_utc_offset(value)?;
             }
             "Z" => {
-                let locale = locale?;
-                let lowercase = Lowercase::new(value)?;
-                let found_zone = lowercase.text()?;
+                let found_zone = value.to_lowercase();
                 for (index, timezone_names) in locale.timezones.iter().enumerate() {
-                    if timezone_names.iter().any(|name| name == found_zone) {
+                    if timezone_names.iter().any(|name| name == &found_zone) {
                         if locale.tzname.len() == 2
-                            && locale.tzname.get(0)? == locale.tzname.get(1)?
+                            && locale.tzname[0] == locale.tzname[1]
                             && locale.daylight
                             && found_zone != "utc"
                             && found_zone != "gmt"
@@ -665,8 +440,7 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
     if nargs != 9 {
         return unsafe { PyTuple_New(0) };
     }
-    let owners = unsafe { slice::from_raw_parts(args, nargs as usize) };
-    let groups = match unsafe { read_groups(owners[0], owners) } {
+    let groups = match unsafe { read_groups(*args) } {
         Some(groups) => groups,
         None => {
             if !unsafe { PyErr_Occurred() }.is_null() {
@@ -675,31 +449,31 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
             return unsafe { PyTuple_New(0) };
         }
     };
-    let full_weekdays = match unsafe { tuple_strings(owners[1], owners) } {
+    let full_weekdays = match unsafe { tuple_strings(*args.add(1)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let short_weekdays = match unsafe { tuple_strings(owners[2], owners) } {
+    let short_weekdays = match unsafe { tuple_strings(*args.add(2)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let full_months = match unsafe { tuple_strings(owners[3], owners) } {
+    let full_months = match unsafe { tuple_strings(*args.add(3)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let short_months = match unsafe { tuple_strings(owners[4], owners) } {
+    let short_months = match unsafe { tuple_strings(*args.add(4)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let am_pm = match unsafe { tuple_strings(owners[5], owners) } {
+    let am_pm = match unsafe { tuple_strings(*args.add(5)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let timezones = match unsafe { tuple_string_groups(owners[6], owners) } {
+    let timezones = match unsafe { tuple_string_groups(*args.add(6)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
-    let tzname = match unsafe { tuple_strings(owners[7], owners) } {
+    let tzname = match unsafe { tuple_strings(*args.add(7)) } {
         Some(values) => values,
         None => return unsafe { PyTuple_New(0) },
     };
@@ -717,18 +491,9 @@ unsafe fn parse_groups_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut
         tzname,
         daylight: daylight != 0,
     };
-    unsafe { fields_tuple(convert_groups(&groups, Some(&locale))) }
-}
-
-unsafe fn fields_tuple(fields: Option<[i64; 16]>) -> *mut PyObject {
-    let fields = match fields {
+    let fields = match convert_groups(&groups, &locale) {
         Some(fields) => fields,
-        None => {
-            if !unsafe { PyErr_Occurred() }.is_null() {
-                return ptr::null_mut();
-            }
-            return unsafe { PyTuple_New(0) };
-        }
+        None => return unsafe { PyTuple_New(0) },
     };
 
     let result = unsafe { PyTuple_New(fields.len() as Py_ssize_t) };
@@ -747,27 +512,6 @@ unsafe fn fields_tuple(fields: Option<[i64; 16]>) -> *mut PyObject {
         }
     }
     result
-}
-
-// Numeric directives need no locale snapshot. Unsupported locale names ask the
-// wrapper to call the full entry point; both paths share chrono conversion.
-unsafe extern "C" fn parse_numeric_groups(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 1 {
-        return unsafe { PyTuple_New(0) };
-    }
-    let owners = unsafe { slice::from_raw_parts(args, 1) };
-    let groups = match unsafe { read_groups(owners[0], owners) } {
-        Some(groups) => groups,
-        None => return unsafe { fields_tuple(None) },
-    };
-    if groups.iter().any(|(key, _)| matches!(key, "A" | "a" | "B" | "b" | "I" | "p" | "Z")) {
-        return unsafe { PyTuple_New(0) };
-    }
-    unsafe { fields_tuple(convert_groups(&groups, None)) }
 }
 
 unsafe extern "C" fn parse_groups(
@@ -796,20 +540,7 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-struct ModuleSlots([PyModuleDef_Slot; 2]);
-
-unsafe impl Sync for ModuleSlots {}
-
-// Conversion keeps buffers within each call and holds no shared Python references.
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    PyModuleDef_Slot {
-        slot: Py_mod_multiple_interpreters,
-        value: Py_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
-    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
-]);
-
-pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 3] = {
+pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 2] = {
     [
         PyMethodDef {
             ml_name: c"parse_groups".as_ptr() as *mut c_char,
@@ -818,12 +549,6 @@ pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 3] = {
             },
             ml_flags: METH_FASTCALL,
             ml_doc: c"Parse matched strptime directive fields.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"parse_numeric_groups".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse_numeric_groups },
-            ml_flags: METH_FASTCALL,
-            ml_doc: c"Parse matched locale-independent strptime fields.".as_ptr() as *mut c_char,
         },
         PyMethodDef::zeroed(),
     ]
@@ -837,7 +562,7 @@ pub static _STRPTIME_RS_MODULE: ModuleDef = {
             m_doc: c"Rust strptime directive field parser.".as_ptr() as *mut _,
             m_size: 0,
             m_methods: &_STRPTIME_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
+            m_slots: ptr::null_mut(),
             m_traverse: None,
             m_clear: Some(_strptime_rs_clear),
             m_free: Some(_strptime_rs_free),
