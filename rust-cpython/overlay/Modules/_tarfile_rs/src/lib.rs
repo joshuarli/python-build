@@ -1,24 +1,102 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+//! Bounded USTAR header processing without a Rust allocator or runtime.
+#![no_std]
 
-use cpython_sys::{
-    METH_FASTCALL, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, Py_DecRef,
-    PyErr_Clear, PyErr_Occurred, PyLong_AsUnsignedLongLong, PyLong_FromUnsignedLongLong,
-    PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, Py_NewRef, PyObject, PyTuple_New, PyTuple_SetItem, Py_ssize_t,
-    _Py_NoneStruct,
-};
-use tar::{EntryType, Header};
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
-unsafe fn bytes_argument(object: *mut PyObject) -> Option<Vec<u8>> {
+type Py_ssize_t = isize;
+
+#[repr(C)]
+struct PyObject {
+    ob_refcnt: Py_ssize_t,
+    ob_type: *mut PyTypeObject,
+}
+
+#[repr(C)]
+struct PyTypeObject {
+    _opaque: [u8; 0],
+}
+
+#[repr(C)]
+union PyMethodDefFuncPointer {
+    PyCFunctionFast: unsafe extern "C" fn(
+        slf: *mut PyObject,
+        args: *mut *mut PyObject,
+        nargs: Py_ssize_t,
+    ) -> *mut PyObject,
+    void: *mut c_void,
+}
+
+#[repr(C)]
+struct PyMethodDef {
+    ml_name: *mut c_char,
+    ml_meth: PyMethodDefFuncPointer,
+    ml_flags: c_int,
+    ml_doc: *mut c_char,
+}
+
+unsafe impl Sync for PyMethodDef {}
+
+#[repr(C)]
+struct PyModuleDef_Base {
+    ob_base: PyObject,
+    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
+    m_index: Py_ssize_t,
+    m_copy: *mut PyObject,
+}
+
+#[repr(C)]
+struct PyModuleDef {
+    m_base: PyModuleDef_Base,
+    m_name: *const c_char,
+    m_doc: *const c_char,
+    m_size: Py_ssize_t,
+    m_methods: *mut PyMethodDef,
+    m_slots: *mut c_void,
+    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
+    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
+    m_free: Option<extern "C" fn(*mut c_void)>,
+}
+
+const METH_FASTCALL: c_int = 0x0080;
+/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
+/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
+const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
+
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    static mut _Py_NoneStruct: PyObject;
+    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
+    fn PyBytes_AsStringAndSize(object: *mut PyObject, data: *mut *mut c_char,
+                              length: *mut Py_ssize_t) -> c_int;
+    fn PyBytes_FromStringAndSize(data: *const c_char, length: Py_ssize_t) -> *mut PyObject;
+    fn PyLong_AsUnsignedLongLong(object: *mut PyObject) -> u64;
+    fn PyLong_FromUnsignedLongLong(value: u64) -> *mut PyObject;
+    fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
+    fn PyErr_Clear();
+    fn PyErr_Occurred() -> *mut PyObject;
+    fn PyTuple_New(length: Py_ssize_t) -> *mut PyObject;
+    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, value: *mut PyObject) -> c_int;
+    fn Py_NewRef(object: *mut PyObject) -> *mut PyObject;
+    fn Py_DecRef(object: *mut PyObject);
+    fn abort() -> !;
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
+
+// FASTCALL arguments keep these immutable bytes alive for the entire call.
+unsafe fn bytes_argument<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
     let mut data = ptr::null_mut();
     let mut length: Py_ssize_t = 0;
     if unsafe { PyBytes_AsStringAndSize(object, &mut data, &mut length) } != 0 || length < 0 {
         return None;
     }
-    let bytes = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), length as usize) };
-    Some(bytes.to_vec())
+    let bytes = unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length as usize) };
+    Some(bytes)
 }
 
 unsafe fn unsigned_argument(object: *mut PyObject) -> Option<u64> {
@@ -42,8 +120,13 @@ unsafe fn py_none() -> *mut PyObject {
     unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
 }
 
-unsafe fn tuple_from_fields(fields: Vec<*mut PyObject>) -> *mut PyObject {
-    let tuple = unsafe { PyTuple_New(fields.len() as Py_ssize_t) };
+unsafe fn tuple_from_fields<const N: usize>(fields: [*mut PyObject; N]) -> *mut PyObject {
+    // Constructed fields remain owned here until they are handed to the tuple.
+    let tuple = if fields.iter().any(|field| field.is_null()) {
+        ptr::null_mut()
+    } else {
+        unsafe { PyTuple_New(N as Py_ssize_t) }
+    };
     if tuple.is_null() {
         for field in fields {
             if !field.is_null() {
@@ -52,10 +135,11 @@ unsafe fn tuple_from_fields(fields: Vec<*mut PyObject>) -> *mut PyObject {
         }
         return ptr::null_mut();
     }
-    for (index, field) in fields.into_iter().enumerate() {
-        if field.is_null()
-            || unsafe { PyTuple_SetItem(tuple, index as Py_ssize_t, field) } != 0
-        {
+    for (index, field) in fields.iter().copied().enumerate() {
+        if unsafe { PyTuple_SetItem(tuple, index as Py_ssize_t, field) } != 0 {
+            for remaining in &fields[index + 1..] {
+                unsafe { Py_DecRef(*remaining) };
+            }
             unsafe { Py_DecRef(tuple) };
             return ptr::null_mut();
         }
@@ -63,21 +147,30 @@ unsafe fn tuple_from_fields(fields: Vec<*mut PyObject>) -> *mut PyObject {
     tuple
 }
 
-fn number_field(field: &[u8], parsed: Result<u64, impl std::fmt::Debug>) -> Option<u64> {
+// Numeric fields are bounded by their fixed width; unsupported encodings
+// return None so the caller retains its complete compatibility parser.
+fn number_field(field: &[u8], binary: bool) -> Option<u64> {
     if field.iter().all(|byte| *byte == 0 || *byte == b' ') {
         return Some(0);
     }
-    parsed.ok()
+    if field[0] & 0x80 != 0 {
+        if !binary || has_nonstandard_numeric_encoding(field) {
+            return None;
+        }
+        return Some(field[1..].iter().fold(0, |value, byte| (value << 8) | u64::from(*byte)));
+    }
+    let end = field.iter().position(|byte| *byte == 0).unwrap_or(field.len());
+    let text = core::str::from_utf8(&field[..end]).ok()?;
+    u64::from_str_radix(text.trim(), 8).ok()
 }
 
-fn optional_number_field(
-    field: &[u8],
-    parsed: Result<Option<u32>, impl std::fmt::Debug>,
-) -> Option<u64> {
-    if field.iter().all(|byte| *byte == 0 || *byte == b' ') {
-        return Some(0);
+fn write_octal(field: &mut [u8], mut value: u64) {
+    let digits = field.len() - 1;
+    field[digits] = 0;
+    for byte in field[..digits].iter_mut().rev() {
+        *byte = b'0' + (value & 7) as u8;
+        value >>= 3;
     }
-    parsed.ok()?.map(u64::from)
 }
 
 unsafe extern "C" fn create_ustar_header(
@@ -140,39 +233,28 @@ unsafe extern "C" fn create_ustar_header(
         return unsafe { py_none() };
     }
 
-    let mut header = Header::new_ustar();
-    let Some(ustar) = header.as_ustar_mut() else {
-        return unsafe { py_none() };
-    };
-    copy_field(&mut ustar.name, &name);
-    copy_field(&mut ustar.prefix, &prefix);
-    copy_field(&mut ustar.linkname, &linkname);
-    copy_field(&mut ustar.uname, &uname);
-    copy_field(&mut ustar.gname, &gname);
-    header.set_mode(mode as u32);
-    header.set_uid(uid);
-    header.set_gid(gid);
-    header.set_size(size);
-    header.set_mtime(mtime);
-    header.set_entry_type(EntryType::new(filetype[0]));
+    let mut header = [0u8; 512];
+    header[..name.len()].copy_from_slice(name);
+    header[345..345 + prefix.len()].copy_from_slice(prefix);
+    header[157..157 + linkname.len()].copy_from_slice(linkname);
+    header[265..265 + uname.len()].copy_from_slice(uname);
+    header[297..297 + gname.len()].copy_from_slice(gname);
+    header[257..265].copy_from_slice(b"ustar\x0000");
+    write_octal(&mut header[100..108], mode);
+    write_octal(&mut header[108..116], uid);
+    write_octal(&mut header[116..124], gid);
+    write_octal(&mut header[124..136], size);
+    write_octal(&mut header[136..148], mtime);
+    header[156] = if filetype[0] == 0 { b'0' } else { filetype[0] };
     if is_device {
-        if header.set_device_major(devmajor as u32).is_err()
-            || header.set_device_minor(devminor as u32).is_err()
-        {
-            return unsafe { py_none() };
-        }
+        write_octal(&mut header[329..337], devmajor);
+        write_octal(&mut header[337..345], devminor);
     }
-    header.set_cksum();
-    let Some(checksum) = header.cksum().ok() else {
-        return unsafe { py_none() };
-    };
-    let checksum = format!("{checksum:06o}\0 ");
-    header.as_mut_bytes()[148..156].copy_from_slice(checksum.as_bytes());
-    unsafe { py_bytes(header.as_bytes()) }
-}
-
-fn copy_field<const N: usize>(field: &mut [u8; N], value: &[u8]) {
-    field[..value.len()].copy_from_slice(value);
+    header[148..156].fill(b' ');
+    let checksum = header.iter().map(|byte| u64::from(*byte)).sum();
+    write_octal(&mut header[148..155], checksum);
+    header[155] = b' ';
+    unsafe { py_bytes(&header) }
 }
 
 fn has_nonstandard_numeric_encoding(bytes: &[u8]) -> bool {
@@ -199,11 +281,10 @@ unsafe extern "C" fn parse_ustar_header(
         return unsafe { py_none() };
     }
 
-    let header = Header::from_byte_slice(&bytes);
-    if header.as_ustar().is_none() {
+    if &bytes[257..265] != b"ustar\x0000" {
         return unsafe { py_none() };
     }
-    let raw = header.as_bytes();
+    let raw = bytes;
     let filetype = raw[156];
     if matches!(filetype, b'L' | b'K' | b'S') {
         return unsafe { py_none() };
@@ -225,14 +306,14 @@ unsafe extern "C" fn parse_ustar_header(
         return unsafe { py_none() };
     }
 
-    let mode = number_field(raw_mode, header.mode().map(u64::from));
-    let uid = number_field(raw_uid, header.uid());
-    let gid = number_field(raw_gid, header.gid());
-    let size = number_field(raw_size, header.entry_size());
-    let mtime = number_field(raw_mtime, header.mtime());
-    let checksum = number_field(raw_chksum, header.cksum().map(u64::from));
-    let devmajor = optional_number_field(raw_devmajor, header.device_major());
-    let devminor = optional_number_field(raw_devminor, header.device_minor());
+    let mode = number_field(raw_mode, false);
+    let uid = number_field(raw_uid, true);
+    let gid = number_field(raw_gid, true);
+    let size = number_field(raw_size, true);
+    let mtime = number_field(raw_mtime, true);
+    let checksum = number_field(raw_chksum, false);
+    let devmajor = number_field(raw_devmajor, false);
+    let devminor = number_field(raw_devminor, false);
     let (Some(mode), Some(uid), Some(gid), Some(size), Some(mtime), Some(checksum),
         Some(devmajor), Some(devminor)) =
         (mode, uid, gid, size, mtime, checksum, devmajor, devminor)
@@ -240,7 +321,7 @@ unsafe extern "C" fn parse_ustar_header(
         return unsafe { py_none() };
     };
 
-    let fields = vec![
+    let fields = [
         unsafe { py_bytes(&raw[0..100]) },
         unsafe { py_uint(mode) },
         unsafe { py_uint(uid) },
@@ -257,6 +338,30 @@ unsafe extern "C" fn parse_ustar_header(
         unsafe { py_bytes(&raw[345..500]) },
     ];
     unsafe { tuple_from_fields(fields) }
+}
+
+unsafe extern "C" fn header_chksums(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 1 {
+        return unsafe { py_none() };
+    }
+    let Some(bytes) = (unsafe { bytes_argument(*args) }) else {
+        return ptr::null_mut();
+    };
+    if bytes.len() < 512 {
+        return unsafe { py_none() };
+    }
+    // Both TAR conventions treat the checksum field as eight ASCII spaces.
+    let mut unsigned = 256u64;
+    let mut signed = 256i64;
+    for byte in bytes[..148].iter().chain(&bytes[156..512]) {
+        unsigned += u64::from(*byte);
+        signed += i64::from(*byte as i8);
+    }
+    unsafe { tuple_from_fields([py_uint(unsigned), PyLong_FromLongLong(signed)]) }
 }
 
 pub extern "C" fn tarfile_rs_clear(_object: *mut PyObject) -> c_int {
@@ -277,14 +382,14 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-static METHODS: [PyMethodDef; 3] = [
+static METHODS: [PyMethodDef; 4] = [
     PyMethodDef {
         ml_name: c"create_ustar_header".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer {
             PyCFunctionFast: create_ustar_header,
         },
         ml_flags: METH_FASTCALL,
-        ml_doc: c"Create a USTAR header using tar-rs.".as_ptr() as *mut c_char,
+        ml_doc: c"Create a USTAR header in Rust.".as_ptr() as *mut c_char,
     },
     PyMethodDef {
         ml_name: c"parse_ustar_header".as_ptr() as *mut c_char,
@@ -292,14 +397,30 @@ static METHODS: [PyMethodDef; 3] = [
             PyCFunctionFast: parse_ustar_header,
         },
         ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse a standard USTAR header using tar-rs.".as_ptr() as *mut c_char,
+        ml_doc: c"Parse a standard USTAR header in Rust.".as_ptr() as *mut c_char,
     },
-    PyMethodDef::zeroed(),
+    PyMethodDef {
+        ml_name: c"header_chksums".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: header_chksums },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Return unsigned and signed TAR header checksums.".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: ptr::null_mut(),
+        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
+        ml_flags: 0,
+        ml_doc: ptr::null_mut(),
+    },
 ];
 
 static MODULE: ModuleDef = ModuleDef {
     ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
+        m_base: PyModuleDef_Base {
+            ob_base: PyObject { ob_refcnt: STATIC_IMMORTAL_REFCNT, ob_type: ptr::null_mut() },
+            m_init: None,
+            m_index: 0,
+            m_copy: ptr::null_mut(),
+        },
         m_name: c"_tarfile_rs".as_ptr() as *mut _,
         m_doc: c"Rust USTAR header support for tarfile.".as_ptr() as *mut _,
         m_size: 0,
