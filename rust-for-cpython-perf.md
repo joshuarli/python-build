@@ -860,6 +860,24 @@ full default-resource suites and its sole all71/all23 matched-context memory-onl
 gate. Regex itself must improve in both runs with every memory guard intact;
 any non-acceptance is terminal, preserving source/stage/raw with no retry.
 
+Source43's fresh primary build verified58 release artifacts; all eight native
+proof cases and the full50,158/2,748 default-resource suite passed. Fresh memory
+self-calibration `20261001T204049Z` read all25 metrics neutral in both runs,
+with verified matched home/executable identities and no quiet/timing prerequisite.
+The final source/harness/ancestry/three-stage/release58 preflight passed.
+Its sole gate `20261001T204444Z-perf-rust-vs-perf-ra43` REJECTed: regex load
+regressed in both runs at1.171271 [1.149416,1.335505], raw pooled1,794,060 to
+2,129,944 bytes. Working peak remained neutral under the original floor; its raw
+medians were49,152 to212,992 bytes. Startup RSS1.011635 and zlib-decode RSS
+1.010192 also regressed in both runs; the other21 workload RSS rows were neutral.
+All165 metrics were162 neutral, three regressed and zero improved, without
+mismatches or unstable metrics. Postflight passed source/harness/ancestry,
+three-stage and58-artifact identity. Main's overlay is restored to7cf55a6;
+`integrate-regex-full-call-arena-43` at `3caa0ee`, `perf-ra43`, lane13 and raw
+proofs remain preserved. Logical ownership correctness did not establish a
+physical saving. Source43 is terminal without retry; all memory goals remain
+required and CPU/wall/quiet played no role in rejection.
+
 The separate typing no_std scout closed without a candidate. An exact typing
 trial appears absent, but shared `cpython-sys` forces std and actual archived
 symbols/pages show required module/method/loader ownership rather than removable
