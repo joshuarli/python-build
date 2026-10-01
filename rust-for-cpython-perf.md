@@ -532,6 +532,24 @@ every memory guard. Any non-ACCEPT closes the candidate without retry,
 preserving its branch, stage and evidence and restoring main. CPU/wall and
 host quietness remain outside the decision.
 
+The separate bounded zlib/ZIP source review found matching pinned codec
+dependencies and no allocator or module-lifetime incompatibility. Root now
+authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
+from main `070301a`, for source and behavioral fixtures only. One internal
+cdylib may link just the existing two Rust libraries and install two relative
+aliases. Original capsule families, APIs, destructors, zlib's own-GIL support
+and ZIP's existing own-GIL rejection remain unchanged. No helper algorithm,
+dependency feature/version, allocator or linker flag changes are included.
+The absolute ZIP wheel RSS goal is still regressed at 1.017x; cold ZIP import
+RSS is 1.065x. The zlib-only kernel does not load ZIP today and remains a
+binding memory guard. Exact source/fixture reviews precede any execution or
+build. Clean58, complete affected suites and native ownership proofs must
+precede a fresh primary `perf-zz39` full-suite build and its first and only
+all-71/all-23 memory-only gate. ZIP wheel RSS must improve in both runs;
+every memory guard binds. Source38 is not inherited or stacked. If the
+incumbent advances, this lane must merge it and qualify cleanly again.
+No physical saving is claimed by static dependency deduplication.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
