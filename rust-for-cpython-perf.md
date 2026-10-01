@@ -141,7 +141,17 @@ checkpoints remain on isolated branches.
   eager fixup pages contain mostly compiler metadata; per-helper FFI tables
   own no exclusive page. Saved single-helper snapshots also show an eager
   SQLite dependency (80 KiB resident / 48 KiB dirty), absent from their
-  standalone counterparts.
+  standalone counterparts. The fixed 71-route co-import inventory matches
+  every incumbent digest; only SQLite's warmup uses its helper. A fresh
+  SQLite-only dependency-isolation variant starts from main with the other
+  22 aliases preserved. It has no qualified memory result yet. Existing
+  binascii/base64 linker options explain the shared image's missing read-only
+  data segment; those options remain unchanged in this variant.
+  A bounded collections diagnostic finds no aggregate loaded and equal
+  native mapping growth on both sides. Longer embedded paths explain all
+  libpython file growth, without establishing extra mapped-page demand.
+  First-versus-second malloc page reuse remains unresolved; checkpoint
+  instrumentation visibly perturbed its estimator. No guard is corrected.
 - An isolated HMAC no_std trial `8ec73ba` starts from an actual 144 KiB
   resident / 32 KiB dirty helper cost. It passes clean58 and five complete
   suites (673/38) and eight native parity/lifetime/allocation checks; its
@@ -197,6 +207,11 @@ checkpoints remain on isolated branches.
   cold first import stays lazy. New clean/full/native qualification precedes
   its once-only memory gate. The exploration rejection and uncertain cause
   remain preserved, and no guard is waived.
+  Follow-up clean58, full 50,158/2,791 and all nineteen native contracts pass.
+  Serial short-temp pathlib/shutil/socket suites match the current incumbent
+  at 2,372/738, including all seven path-sensitive socket cases. One extra
+  aggregate skip versus the refreshed full incumbent remains under review;
+  no gate runs before that coverage difference is explained.
 - The old direct-PikeVM warnings rejection remains unaccepted. Corrected
   diagnostics find zero native regex calls and no loaded `_re_rs` during the
   fixed warmup; loaded warning/tokenizer image costs match. A diagnostic
