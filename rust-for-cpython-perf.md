@@ -90,8 +90,15 @@ harness tests (13 skips), plus an installed-control identity probe under the
 host test lease. Both aliases appeared exactly in `sys.executable`,
 `_base_executable` and both prefixes, with unchanged executable hash and
 stage fingerprints. Independent read-only review found no blocking issue.
-Fresh memory calibration and ground truth are pending before this context
-can judge new source work. Compiled paths, loader names, bytecode filenames,
+Fresh self-calibration `20261001T083131Z` passed: all 23 workload RSS rows
+and collections load/working peak were neutral in both runs. Full
+all-71/all-23 control/incumbent snapshot `20261001T083549Z` reads
+10 OVER / 15 UNCLEAR / 45 MET / 1 BEYOND, with 16 workload RSS regressions,
+three neutral and four improved. Outputs and integrity checks passed; all
+observed module launch paths and prefixes matched their requested aliases.
+The 15 UNCLEAR modules receive a once-only rigorous classification before
+new lane selection. This snapshot reflects unchanged source and does not
+qualify a source improvement. Compiled paths, loader names, bytecode filenames,
 mapping layout and host state remain uncontrolled; no physical saving,
 historical correction or rejected-source retry is authorized by this change.
 
