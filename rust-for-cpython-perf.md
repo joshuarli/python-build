@@ -1076,6 +1076,24 @@ before proposing source. This authorizes reports only, with no source change,
 compiler, runtime or measurement. Binascii controller preparation likewise
 remains source-only until the lane freezes and independent review passes.
 
+The UUID scout and independent review conditionally passed. Root authorizes
+source46, `uuid-c-rust-image`, for code and isolated baseline-relative fixtures
+only in fresh `py-mem-lane16`, branching from unchanged incumbent source.
+Use the existing `_uuid_rs` release Cargo image as canonical and one relative
+C `_uuid` alias. Compile unchanged `_uuidmodule.c` with its original limited
+API, flags, headers and libSystem provider, adding only a private initializer
+rename and Rust export forwarder. Preserve independent definitions and the
+different own-GIL outcomes, imports, errors, methods and read-only protection.
+No new Cargo package, features, dependency or validator exception. The new
+source owns only its helper build/initializer glue, narrowly specialized
+`makesetup` and install-alias rules, fixtures and explanations in its worktree;
+it does not inherit source45. No compiler, runtime, build or memory execution
+is authorized before frozen-source review. Any later qualification requires
+clean58, complete affected/native proofs and primary full suites, then one
+primary all71/all23 matched memory-only gate. UUID memory must improve in both
+runs and every memory guard binds; any non-acceptance preserves all evidence
+and restores the incumbent without retry. Physical savings remain unknown.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
