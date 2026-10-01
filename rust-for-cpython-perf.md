@@ -639,6 +639,25 @@ five native/public contracts and the complete19 affected-suite union are now
 authorized. No worktree memory draw is authorized or performed. The probe's
 logical System ledger does not model physical pages or Python/scratch bookkeeping.
 
+Source41 completed correctness qualification at `c2dc378`: clean58, native5
+plus flag/interpreter7, exact fixed-kernel output and 5,160 eligible / 1,032
+unsupported native calls, then25 complete affected suites (9,598/272). Fresh
+primary `perf-rc41` on `integrate-regex-no-retained-cache-41` at `da2d971`
+passed clean58, the same native proofs and full50,158/2,748. Final source,
+unchanged harness, all three stages and actual release58 checks passed. Its
+first-only memory gate `20261001T181234Z-perf-rust-vs-perf-rc41` REJECTed.
+Removing logical retention increased regex load footprint in both runs:
+1.429131x [1.348210, 1.495894], with pooled baseline/candidate load medians
+1,794,096 / 2,506,764 bytes. Working peak remained neutral. All165 metrics
+read161 neutral/four regressed/zero improved. Glob, regex, socket and tempfile
+load regressed; all23 workload RSS guards were neutral, with no output mismatch
+or instability. Verdict SHA256 is
+`8fcee5c230353bd624d7d5ae373b86b455aa653407304c8931ce1d67f0fb6ec6`.
+Postflight passed. Main is restored to the incumbent overlay; branch, stage and
+raw evidence are preserved without retry. The logical lifetime proof is not a
+physical memory win, and no source improvement is accepted. Physical attribution
+must precede any distinct follow-up; this source candidate is closed.
+
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
 first-call resident growth belonged to the helper image. Embedding the same state
