@@ -924,6 +924,37 @@ NFA construction, so unconditional original-NFA preflight changes admission.
 The old standalone lite report was not recovered; these findings come from
 current pinned source and upstream source review. No replacement is authorized.
 
+Root authorizes source44, `regex-retained-storage`, for code and fixtures only,
+in a fresh isolated lane from the restored incumbent overlay. Preserve the
+original512 FIFO cache, Regex clones, parser, grammar, All captures,250 nesting,
+10MiB NFA and2MiB hybrid defaults. Change only parser/build allocation placement:
+the existing permanent60KiB range may hold individually reclaimed blocks.
+No reservation, capacity, feature, dependency or search-pool policy changes.
+Keep the range zero-initialized; metadata and alignment overhead consume its
+existing bytes. Scope exit releases admission ownership and never resets live
+storage; actual final deallocation, including on another thread, frees blocks.
+
+A nonallocating lock and single-atomic canonical block headers must keep the
+physical chain valid at every split/free/coalesce commit. Realloc failure keeps
+the original block and bytes; System spill, overalignment and nonowner behavior
+remain explicit. Child-only pthread fork refresh plus process-tagged lock
+recovery avoids inherited-lock/PID-reuse deadlock. Registration is nonwaiting,
+outside allocation admission: pending or failed registration uses System only.
+The handler changes neither block metadata nor existing owner/cache state.
+Normal CPython-imported image lifetime and libc fork handling bound this proof;
+no arbitrary external unload or raw-syscall fork promise is added.
+
+Actual-source fail-first lifetime, clone/eviction, fragmentation/coalescing,
+cross-thread free, realloc failure, registration and fork-boundary fixtures must
+pass review before any execution. Existing logical ownership grounds a testable
+placement hypothesis, not a saving: newly touched static pages can cost16–32KiB
+and offsetting malloc residency is unknown. Clean builds, complete affected and
+primary full suites precede the first and only all71/all23 matched-path
+memory-only gate. Regex must improve in both runs and every memory guard binds.
+Any non-acceptance preserves source/stage/raw and restores the incumbent without
+retry. CPU, timing and host quietness play no role. No runtime or build is yet
+authorized.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
