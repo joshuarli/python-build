@@ -658,6 +658,31 @@ raw evidence are preserved without retry. The logical lifetime proof is not a
 physical memory win, and no source improvement is accepted. Physical attribution
 must precede any distinct follow-up; this source candidate is closed.
 
+A once-only observational probe of the preserved incumbent and source41 stages
+completed six independent terminal-phase children under the test lease. Each
+executed the unchanged regex kernel prefix and stopped only at its final
+boundary; first/second calls remained uninterrupted in the final-phase child.
+Output, matched launch identities, both58-artifact maps, source pins, harness
+and stage fingerprints passed, and external counters did not drift during
+mapping inspection. Raw observations live in lane11's ignored
+`results/regex-no-retained-cache/phase-stop-observations`. The final-phase
+children recorded first/second physical growth of1,572,864/212,992 bytes for
+the incumbent and2,359,296/147,456 for source41. These diagnostic observations
+do not replace the replicated gate or qualify a retry. Region attribution is
+being assessed; no new regex source is authorized.
+
+The allocator-owner scout closed without an untried conversion. Decimal's
+historical no_std/PyMem worktree win failed primary memory replication:
+`20260930T034305Z` reads load neutral/neutral1.071429, not a CPU-only rejection.
+Ipaddress has no Rust heap owner to convert, and regex requires physical-page
+ownership evidence beyond logical cache bytes. A historical CPU-only rejection
+audit found six other memory winners already incorporated in the incumbent.
+The remaining typing builtin placement is under separate narrow source review;
+broad builtin rejections stay closed. A distinct zstd fresh single-END stable
+buffer configuration has a native reservation basis but no established physical
+saving; only an API feasibility script is being prepared for review. No source42
+implementation, new source qualification or memory draw follows these scouts.
+
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
 first-call resident growth belonged to the helper image. Embedding the same state
