@@ -133,7 +133,23 @@ identity match. Two standalone Rust test-driver startup failures are preserved;
 the corrected driver passed without changing source or staged bytes. The
 helper image grows by 17,744 bytes, so no image-size saving is claimed.
 Exactly one all-71/all-23 two-run matched-home-and-executable memory-only
-exploration `20261001T092145Z` is underway; no source improvement is accepted.
+exploration `20261001T092145Z` REJECTed the candidate. Regex load improved
+0.650x [0.625, 0.714], with neutral working peak, but catalog JSON RSS
+1.01054x, email working peak 1.02703x, HTTP client load 1.01413x and URL
+parsing load 1.04878x regressed in both runs. Outputs matched and no metric
+was unstable; stage and launch identities held. Restoration `82c8a1b`
+returns the entire overlay to incumbent `7cf55a6`, retaining the candidate
+stage, patch, source and proofs. No retry or primary qualification follows.
+The guard causes remain unattributed; a bounded semantic call trace is
+authorized to distinguish plan and fallback reach, without memory sampling,
+source edits or another candidate. No source improvement is accepted.
+
+A separate source-only struct scout found a real 8-byte format copy and six
+temporary 32-byte Rust operations per call, alongside the retained C Struct
+format. The Rust plan drops on return and accepted calls bypass the C cache;
+no second retained cache or exclusive physical-page cost was established.
+The scout closed without a build or runtime experiment. Its temporary
+allocation count does not explain the unresolved load goal.
 
 Harness commit `4cff383` passed 156 benchmark tests (16 platform skips) and
 68 Rust harness tests (13 skips), including alias cleanup, same-stage
