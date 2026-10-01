@@ -137,7 +137,11 @@ checkpoints remain on isolated branches.
   Working peaks were neutral throughout; all workload RSS rows were neutral
   or improved, including first-request RSS 0.963x and warm Django 0.978–0.980x.
   The broad image remains unaccepted. Eager data/fixup attribution is read-only;
-  no smaller partition or initialization rewrite is yet qualified.
+  no smaller partition or initialization rewrite is yet qualified. The six
+  eager fixup pages contain mostly compiler metadata; per-helper FFI tables
+  own no exclusive page. Saved single-helper snapshots also show an eager
+  SQLite dependency (80 KiB resident / 48 KiB dirty), absent from their
+  standalone counterparts.
 - An isolated HMAC no_std trial `8ec73ba` starts from an actual 144 KiB
   resident / 32 KiB dirty helper cost. It passes clean58 and five complete
   suites (673/38) and eight native parity/lifetime/allocation checks; its
@@ -146,6 +150,9 @@ checkpoints remain on isolated branches.
   comparison `20261001T032815Z` is NEUTRAL: load 0.993x [0.944, 1.034],
   working peak 1.000x and Django RSS 1.006x. No all-23 qualifying gate or
   retry follows; the source checkpoint and evidence remain preserved.
+  The absolute candidate goal snapshot is MET, but does not replace incumbent
+  goals or establish a source win. Restoration `6d5a593` retains `8ec73ba` in
+  history; results/logs/native evidence are archived in the primary results tree.
   Separate regex correctness repair `5b955f1` addresses inherited ASCII
   information-separator whitespace misses, preserving the eligible grammar
   and fallback boundary. Clean58, four complete suites (470/58), thirteen
@@ -166,7 +173,12 @@ checkpoints remain on isolated branches.
   their UNCLEAR/OVER load goals remain unresolved. Multiprocessing framing
   does allocate a temporary native vector for 1,208 small frames across four
   threads; direct final-byte assembly is an isolated experiment with buffer,
-  exception and wire-boundary regressions, not a proven physical gain.
+  exception and wire-boundary regressions. It passes 1,630/165 complete-suite
+  tests and eleven native contracts, and eliminates the confirmed temporary
+  allocation. Actual comparison `20261001T040603Z` is NEUTRAL on load, working
+  peak and both serialization/pool RSS guards. Its absolute candidate goals
+  are MET under preserved floors; no distinct gain qualifies. Source restored,
+  recoverable patch and evidence retained; no clean qualification or retry.
 - The `_strptime` scout measures 224 KiB physical calendar-import growth on
   the incumbent after locale/re/datetime are loaded. An isolated experiment
   retains localized-name and Rust-parser behavior while deferring calendar's
@@ -174,6 +186,18 @@ checkpoints remain on isolated branches.
   retry are tested. The private alias is stored only after publication;
   deletion before publication and never-observed cold assign/delete history
   follow that explicit lazy lifecycle. No candidate memory win is claimed.
+  Incremental candidate passes eighteen isolated contracts and five complete
+  suites (1,439/160). Exploration `20261001T040237Z` improves load to 0.939x
+  in both runs but REJECTs four workload RSS guards. Short route probes show
+  those workloads never load the sole changed module. Committed `684d8d6`
+  is in once-only clean qualification; the exploration rejection and uncertain
+  cause remain preserved, and no guard is waived.
+- The old direct-PikeVM warnings rejection remains unaccepted. Corrected
+  diagnostics find zero native regex calls and no loaded `_re_rs` during the
+  fixed warmup; loaded warning/tokenizer image costs match. A diagnostic
+  excess of allocator fragmentation remains unattributed. The initial JSON-
+  contaminated observations are labelled invalid. Inspect's prior dis-deferral
+  also remains rejected on memory guards; no distinct replacement emerged.
 
 Raw verdicts, failed-suite logs, import attribution and current command IDs
 are retained in the ignored results trees and `coordinator-state.json`.
