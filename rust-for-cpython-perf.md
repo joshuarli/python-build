@@ -318,6 +318,27 @@ preserving evidence and restoring main. No changed memory draw is authorized
 before correctness qualification finishes. Inspect, tokenize, ipaddress,
 threading and UUID source-only scouts closed without a distinct new mechanism.
 
+Lane 35 passed clean58, all thirteen contracts and native kernel proofs in
+its worktree, with 4,231/45 across seven complete suites. Primary temporary
+branch `integrate-base64-deferred-binascii-35` at `e294fe1`, fresh stage
+`perf-ba35`, independently passed clean58, the contracts and native proofs,
+and full50,158/2,748. Fresh control memory-only calibration `20261001T123716Z`
+passed all 23 workload RSS rows plus collections load/working peak in both
+runs. Its first and only changed-source memory gate `20261001T124141Z`
+REJECTed. Base64 load was better/neutral, pooled 0.933x [0.910, 1.176], so its
+required improvement did not replicate; working peak was neutral/worse and
+pooled neutral. Startup RSS regressed in both runs to 1.013x [1.012, 1.014].
+All 94 entities/165 metrics were assessed: 162 neutral, one regression and
+two unrelated improvements, with no output mismatch or unstable metric.
+Independent verdict review and three-stage postflight fingerprints passed.
+Main is restored to the incumbent overlay; the branch, stage, patch and raw
+evidence are preserved. No retry or acceptance. Module/workload goals remain
+unchanged. Additional pickle, hashlib and decimal source-only scouts closed
+without a distinct retained owner. A socket/SSL source-only design is checking
+whether a per-interpreter live-object guard can defer the socket helper while
+preserving preexisting C sockets, subtypes and the no-import-during-I/O rule;
+no implementation or measurement is authorized for that proposal.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
