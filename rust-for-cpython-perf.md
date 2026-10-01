@@ -827,6 +827,16 @@ failure/archive, source/fixtures and stages remain intact. Root authorizes the
 resumed single cold logical proof; no native probe has run previously, and no
 production build or memory measurement follows without separate qualification.
 
+The resumed proof passed preflight but stopped compiling the naive driver before
+any native execution: the command supplied metadata-only externs for artifacts
+whose metadata is stored outside their archives. Complete finally pre/post checks
+passed. The compile failure and inputs are archived. The incumbent Cargo command
+and established private driver both supply each direct crate's verified rlib and
+rmeta pair; root's controller-only correction now does the same for the exact
+selected instances. Independent review passed without changing source, features,
+artifacts or toolchain. Root authorizes resuming the still-unexecuted cold proof
+with this established archive-pair convention; no memory draw is authorized.
+
 The separate typing no_std scout closed without a candidate. An exact typing
 trial appears absent, but shared `cpython-sys` forces std and actual archived
 symbols/pages show required module/method/loader ownership rather than removable
