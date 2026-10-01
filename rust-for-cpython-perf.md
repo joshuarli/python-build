@@ -255,10 +255,13 @@ initialization releases all six acquired references, and traversal reads
 live fields before each visitor. Clear detaches all names before decrementing
 references; callbacks retain strong local name references. An empty cache
 uses the original lookup during initialization or clear/reinitialization;
-invalid partial state raises an explicit error. Checkpoint `6adc53a` passed
-clean58 and exact source/initializer verification. A native fixture then
-mistook the valid legacy exec-slot spelling for a missing slot after clearing
-the cache; fixture correction and final qualification remain pending.
+invalid partial state raises an explicit error. A native fixture mistook the
+valid legacy exec-slot spelling for a missing slot after clearing the cache;
+the failing log is retained. Final checkpoint `0306a39` corrects the fixture,
+passed clean58 and exact source/initializer verification, all 11 isolated
+lifecycle contracts and eight complete suites (2,202/9). Its fixed kernel
+confirmed 6,400 Rust calls. The sole all-71/all-23 paired memory-only
+matched-prefix exploration is running; no source improvement is claimed yet.
 Original drafts and failing evidence remain preserved. Its extra unchanged
 setup-memory command was cancelled in the lease turnstile before any samples.
 Only one changed paired memory comparison will follow final qualification.
@@ -269,6 +272,13 @@ helper removes no second shared image; the unchanged C object also requires
 hidden core symbols. Deprecated identifier lookup holds an interpreter
 identifier mutex across allocating operations, introducing a reentry risk.
 Neither supplies a justified replacement for the isolated name-cache trial.
+
+Further source-only scouts closed without candidates. Builtin registration
+copying and visible builtin-name objects serve CPython lifecycle and inventory
+contracts; no physical writable page is exclusively attributed to them.
+Inspect's repeated temporary-name ownership mechanism was already exercised
+by its earlier neutral trials, and no distinct physical retention saving is
+established. These closures change neither goals nor measured verdicts.
 
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
