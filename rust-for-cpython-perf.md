@@ -173,9 +173,16 @@ on both builds, matching both XML IDs and all verbose skip multiplicities;
 three AF_UNIX reasons differ only in equal-length over-limit root spellings.
 The old primary 2,748 and initial 2,791 counts remain preserved, with their
 historical discrepancy unattributed. There is no current differential
-coverage gap. Single unchanged-source comparison `20261001T102746Z` is
-running with all 71 modules, all 23 workloads, two runs and both runtime
-alias options. No source optimization or context correction is claimed.
+coverage gap. Single unchanged-source comparison `20261001T102746Z` completed
+with REJECT: 154 memory metrics neutral, 11 regressed in both runs and none
+improved across all 71 modules and 23 workloads. The repeated regressions are
+argparse, fractions, json, subprocess and warnings load; logging working peak
+(1.719x); and catalog URL, compileall, reordered difflib, startup and streaming
+zlib RSS. Outputs and postflight source/artifact fingerprints matched.
+Equal build-path lengths and identical code sections did not establish a
+neutral context or a physical cause. No retry, correction or source acceptance
+is authorized. Read-only audits now inspect iteration sizing and installed
+stdlib/setup differences in the retained evidence.
 
 Further semantic traces of the 20 unresolved modules matched every archived
 output. Nineteen never loaded the regex helper; only re used it, with searches
@@ -190,8 +197,11 @@ module state or identifier mutex. It requires explicit default-visible core
 exports for the shared Rust helper, owned-result/error tests, legacy slot
 priority and deliberate canonical name-identity alignment. Static lifetime
 and semantic design passed independent review. Physical benefit is unknown;
-the previous cache REJECT remains binding. No implementation is authorized
-until the unchanged build-path setup comparison establishes a neutral context.
+the previous cache REJECT remains binding. Following the nonneutral unchanged
+comparison, implementation and correctness qualification are authorized as a
+distinct source lane, independently of the setup investigation. Measurement
+remains paused pending explicit coordinator review of the context evidence;
+no source benefit or guard waiver is inferred from the setup result.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
