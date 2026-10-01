@@ -711,6 +711,17 @@ Its sole primary all71/all23 memory gate must improve typing in both runs with
 all memory guards intact; CPU/wall/quiet remain excluded. Any non-acceptance is
 terminal, with source/stage/raw preservation and no retry.
 
+Source42's preparation at `d3ea736` passed root and independent review.
+Production remains four registrar changes with the original6/7-argument ABI.
+The isolated baseline fails exactly its first builtin-loader assertion against
+the incumbent's real ExtensionFileLoader. Seven shared-helper modes, actual
+3200/3200 kernel dispatch, held-method GC/reimport, three own-GIL teardowns,
+controlled initial ImportError fallback and pristine public oracle all pass.
+Source, harness, incumbent58/control1 artifacts and stage fingerprints are
+unchanged. Verified private APFS cache clones and doctor passed; a clean
+worktree build, actual archive/core/native proofs and11 complete affected suites
+are now authorized. No worktree memory draw is allowed.
+
 The once-only zstd API feasibility invocation passed six inputs, including
 empty,1MiB kernel data, incompressible data and multiple blocks. Fresh single-END
 stable input/output modes produced identical bytes to the default native mode
@@ -721,6 +732,16 @@ all58 artifacts, full harness and native-library identities passed pre/post
 checks. A bounded external-native physical diagnostic is being prepared for
 review; it cannot establish private Rust-route savings or acceptance. No zstd
 production candidate is authorized.
+
+The once-only external zstd physical pair completed with valid identical
+outputs and unchanged artifacts/harness. Both modes recorded zero interval
+footprint growth after identical warmups; each mode's four phase counters stayed
+constant. A32KiB cross-process starting difference is not operation savings.
+The1,311,233-byte reservation reduction therefore remains logical-only in this
+topology. The lead is closed without production code, a private Rust diagnostic
+build or qualification; no retry. Unwritten reservation and warmed allocator
+reuse remain possible explanations, not separated causal findings. Zstd's
+working-peak goal remains unresolved.
 
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
