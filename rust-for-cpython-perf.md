@@ -451,6 +451,30 @@ method type spelling and a hand-entered truncated-corpus count); both are
 preserved, and the corrected proof uses the C oracle and deterministic SHA256.
 Complete13 affected suites are running; no changed-source memory draw has run.
 
+Lane37 completed those suites with4,923/186 and unchanged fingerprints. Fresh
+primary `perf-re37` at `780be59` passed clean58, isolated9+7 contracts/native
+proofs and full50,158/2,748. Its first and only two-run memory-only gate
+`20261001T144719Z` REJECTed all94 entities/165 metrics:162 neutral, three
+regressions, no improvement, mismatch or unstable metric. Regex load was
+neutral in both runs despite pooled0.940x [0.905,0.977]; neither individual
+interval met the required improvement threshold. Regex working peak was neutral.
+Dataclasses load1.074x [1.047,1.093], logging peak1.667x [1.638,1.736] and
+socket load1.049x [1.028,1.063] regressed in both runs. All23 application RSS
+rows were neutral against incumbent. Postflight source, harness and all three
+stage fingerprints passed. Main is restored to7cf55a6; the candidate branch,
+stage, source and evidence remain preserved. No acceptance or retry follows.
+Absolute module/workload goals remain unchanged and required.
+
+A subsequent source-only capture-representation scout found that subgroup
+NFA storage is unused by the native whole-span API; C still constructs public
+capture objects. Implicit captures were part of an earlier rejected direct-
+PikeVM bundle, so that history remains binding. Removing subgroup states at
+the same numeric NFA limit changes admission. A conservative small-byte-HIR
+proof with an original-All preflight for every uncertain case may preserve
+that boundary; charged intermediate states and group metadata are distinct.
+This is source-design evidence only, with no implementation, diagnostic build
+or memory draw authorized, and no physical-saving claim.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
