@@ -532,6 +532,46 @@ every memory guard. Any non-ACCEPT closes the candidate without retry,
 preserving its branch, stage and evidence and restoring main. CPU/wall and
 host quietness remain outside the decision.
 
+Source38 completed fresh primary qualification on temporary branch
+`integrate-socket-binascii-image-38` at `c412995`: clean58, all three native
+contracts against the original reference, and full50,158/2,748 passed. Fresh
+control calibration `20261001T165331Z` was independently verified: all 23
+workload RSS rows plus collections load/working peak were neutral in both runs,
+with observed matched homes and executable aliases. Its first and only
+all-94 memory gate `20261001T165746Z-perf-rust-vs-perf-ss38` REJECTed.
+SSL load was neutral/neutral, pooled 0.964310x [0.943984, 0.994681], and
+working peak was neutral. The 165 metrics read 156 neutral, eight regressions
+and one unrelated textwrap load improvement. Regressions were argparse,
+functools, statistics and warnings load, plus compileall, gzip extraction,
+startup and zlib decode RSS. There were no mismatches or unstable metrics.
+Verdict SHA256 is
+`5766ce34578cec8fe3eabf9eaaeba8757198a16f2945e15c1a03164521853791`.
+Postflight source, unchanged harness, all three stages and candidate release58
+passed. Main is restored to the incumbent overlay; branch, stage and raw
+evidence are preserved without retry. No renewed source improvement is accepted.
+
+Source lane 40 now examines singleton marshal builtin placement in root-created
+`py-mem-lane10` from main `4cd1640`, separately from both image-pair candidates.
+The archived 16 KiB helper-load dirty-data delta is a possible physical owner,
+not a promised saving. The historical five-helper placement had neutral marshal
+load and remains preserved; broad22/eight excluded marshal. Only the original
+marshal Rust library and initializer are added to the existing core archive;
+algorithms, capsule API, lazy initialization, C glue, slots and allocator stay
+unchanged. Private builtin loader/origin, absent `__file__` and builtin inventory
+changes are explicit contract changes. Source review caught a fixture lifetime
+bug at `b82bf96`: local forwarding owners could die while C cached their table.
+Corrected `0b634f2` roots owners globally through controlled child execution;
+it makes no arbitrary late-finalization claim. Root and independent review
+passed. Four isolated incumbent baseline probes passed, including exact native
+five-dumps/three-loads counters, fallback, capsule lifetime and own-GIL cycles,
+with unchanged stage fingerprints. Verified private cache preparation, doctor,
+clean release57 plus core-artifact proofs, native reference parity and complete
+affected suites are authorized after the measurement lease. No memory draw is
+authorized before correctness qualification. Fresh primary `perf-ms40`, full
+suites and its first-only all-94 memory gate must improve marshal in both runs
+and preserve every memory guard; a non-ACCEPT closes it without retry. CPU/wall
+and host quietness do not qualify or block it.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
@@ -609,9 +649,11 @@ Socket without the Rust standard library repeats the actual `e69ac90` /
 acceptance was CPU-only. Regex scratch alignment has no demonstrated resident
 page saving: only 32 KiB of zero-fill was resident, the live memo/hot arena
 prefix exceeds one 16 KiB page, and moving it away from already dirty data
-can add a page. A singleton marshal builtin-placement scout remains distinct
+can add a page. A datetime input-borrow/core-runtime scout likewise closed:
+the exact `6a9f3e8` mechanism already had neutral archived memory results,
+with no retained input-buffer owner. A singleton marshal builtin-placement scout remains distinct
 from the historical five-helper trial, but its physical saving is uncertain
-and source40 is not authorized.
+and was subsequently authorized as the bounded source40 candidate above.
 
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
