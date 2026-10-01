@@ -502,8 +502,10 @@ kernel does not load the regex helper, so a regex/typing shared image would
 introduce a new owner rather than eliminate a coimported image.
 
 A bounded source and archived-import-graph scout is checking smaller shared
-images. SSL actually loads both standalone `_socket_rs` and `_binascii_rs`;
-the existing `_base64` alias already shares binascii's image. Their allocator,
+images. SSL actually loads both standalone `_socket_rs` and `_binascii_rs`.
+Binascii links the `_base64` crate, but the incumbent installs a separate
+legacy `_base64` extension; its prior alias-only trial remains rejected.
+Their allocator,
 module-initialization and alias contracts need review before an implementation
 candidate. Socket-only and base64-only memory remain guards. No image saving,
 production change, build or measurement is authorized by this graph finding.
