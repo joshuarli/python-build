@@ -916,6 +916,14 @@ tokenize's replay buffer preserves later fallback. Startup's codec metadata is
 required; archived conversion counts are zero and itertools is absent. These
 reviews authorize no source change, runtime or memory draw. All goals remain.
 
+The smaller-engine source review now identifies a concrete boundary mismatch:
+the current portable filter admits class subtraction such as `[a-z--m]`, which
+regex-lite's parser rejects. Matching numeric nesting and compiled-size limits
+does not match their accounting. Original literal strategies can also bypass
+NFA construction, so unconditional original-NFA preflight changes admission.
+The old standalone lite report was not recovered; these findings come from
+current pinned source and upstream source review. No replacement is authorized.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
