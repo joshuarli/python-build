@@ -189,9 +189,14 @@ checkpoints remain on isolated branches.
   Incremental candidate passes eighteen isolated contracts and five complete
   suites (1,439/160). Exploration `20261001T040237Z` improves load to 0.939x
   in both runs but REJECTs four workload RSS guards. Short route probes show
-  those workloads never load the sole changed module. Committed `684d8d6`
-  is in once-only clean qualification; the exploration rejection and uncertain
-  cause remain preserved, and no guard is waived.
+  those workloads never load the sole changed module. Clean `684d8d6` passes
+  full 50,158/2,791, but an isolated review regression finds that reload leaves
+  fake, None or deleted calendar aliases stale. All three cases pass on the
+  incumbent and fail on that candidate. Follow-up `b4e4167` binds calendar
+  through normal import on explicit reload before rebuilding locale caches;
+  cold first import stays lazy. New clean/full/native qualification precedes
+  its once-only memory gate. The exploration rejection and uncertain cause
+  remain preserved, and no guard is waived.
 - The old direct-PikeVM warnings rejection remains unaccepted. Corrected
   diagnostics find zero native regex calls and no loaded `_re_rs` during the
   fixed warmup; loaded warning/tokenizer image costs match. A diagnostic
