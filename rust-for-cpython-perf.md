@@ -571,10 +571,12 @@ unchanged through two disposable installation replays. However, that replay
 controller supplied an incomplete compilation environment and rebuilt one
 unrelated Cargo artifact (`_zstd_rs`) with a hash differing from the installed
 stage. The original clean build, suites, fingerprints and mismatch report
-remain preserved. A fresh clean rebuild and repeated native/full affected
-qualification are required before primary qualification. Installer-only
-replays will explicitly treat `all` as already built, then verify all 58
-release artifact matches and stage fingerprints before and after installation.
+remain preserved. The authorized repair is complete: a fresh clean build verified all 58
+release extensions, the three native contracts passed against the original
+incumbent reference, and all 48 affected suites repeated with 15,615 tests /
+1,022 skips. Two installer-only `make -o all sharedinstall` replays passed
+without compilation; all 58 actual Cargo hashes and stage fingerprints stayed
+unchanged. Fresh primary qualification remains required.
 
 Zlib/ZIP's first baseline snapshot incorrectly expected every zero-argument
 native call to raise; ZIP's decompressor legitimately constructs a capsule.
@@ -586,9 +588,30 @@ fingerprints. Clean58 and candidate contracts likewise passed in both orders,
 with exact baseline snapshots, canonical Cargo bytes, two initializer exports
 and evaluated shared-module inventory. All 18 affected suites passed
 6,007 tests / 562 skips with zero failures and the existing large-ZIP resource
-denial. Final release58 and stage checks passed; disposable installer-only
-replay is pending before its primary qualification. No memory draw has run
-for either source candidate.
+denial. Two disposable installer-only replays and final release58/stage
+checks passed. Fresh primary `perf-zz39` verified clean58, both native import
+orders and all 50,158 default-resource tests / 2,748 skips. Its first and only
+all-94 memory gate, `20261001T162322Z-perf-rust-vs-perf-zz39`, REJECTed:
+156 neutral, eight regressed and one unrelated textwrap load improvement.
+ZIP wheel RSS had no replicated target improvement (neutral/worse; pooled
+1.008718x). Regressions were `_strptime`, configparser, difflib, statistics,
+warnings, ElementTree and zipfile load, plus catalog URL RSS. There were no
+output mismatches or unstable rows. Verdict SHA256 is
+`f35715619cd5a592eef29b2140175eca051932e37c4befdfa77159bc91955c95`.
+Postflight verified all three stages and the unchanged harness. Main was
+restored to the incumbent overlay; candidate branch
+`integrate-zlib-zip-image-39`, stage and raw evidence remain preserved. No retry
+or source improvement is accepted. Source38 has not had a memory draw.
+
+Two bounded source scouts also closed without implementation or runtime work.
+Socket without the Rust standard library repeats the actual `e69ac90` /
+`e41a364` trials, whose archived memory rows were neutral; their historical
+acceptance was CPU-only. Regex scratch alignment has no demonstrated resident
+page saving: only 32 KiB of zero-fill was resident, the live memo/hot arena
+prefix exceeds one 16 KiB page, and moving it away from already dirty data
+can add a page. A singleton marshal builtin-placement scout remains distinct
+from the historical five-helper trial, but its physical saving is uncertain
+and source40 is not authorized.
 
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
