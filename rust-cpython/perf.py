@@ -161,6 +161,17 @@ def _git_state() -> dict[str, Any]:
     }
 
 
+def _harness_identity() -> dict[str, Any]:
+    paths = [LANE / name for name in ("perf.py", "perf_verdict.py", "perf_modules.py")]
+    paths += [REPO / "benchmarks/bench.py", *sorted((REPO / "benchmarks/harness").glob("*.py"))]
+    hashes = {path.relative_to(REPO).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in paths}
+    digest = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+    return {"git_commit": _git("rev-parse", "HEAD"), "source_sha256": digest, "files": hashes,
+            "dirty": bool(_git("status", "--porcelain", "--", "perf.py", "perf_verdict.py",
+                                "perf_modules.py", "../benchmarks/bench.py", "../benchmarks/harness"))}
+
+
 # -------------------------------------------------------------- host lease
 
 
@@ -666,6 +677,19 @@ def test(*, name: str, suites: list[str], all_suites: bool = False,
 # ------------------------------------------------------------------- bench
 
 
+@contextlib.contextmanager
+def _runtime_prefix_aliases(baseline: Path, candidate: Path) -> Iterator[tuple[Path, Path]]:
+    """Give both unchanged installation trees equal-length visible home paths."""
+    with tempfile.TemporaryDirectory(prefix="rust-memory-home-", dir="/tmp") as temporary:
+        root = Path(temporary)
+        homes = (root / "baseline", root / "subject0")
+        for home, stage in zip(homes, (baseline, candidate)):
+            if not stage.is_dir():
+                raise LaneError(f"interpreter installation is missing: {stage}")
+            home.symlink_to(stage.resolve(), target_is_directory=True)
+        yield homes
+
+
 def resolve(ref: str) -> dict[str, Any]:
     """Resolve `@control`, `@incumbent`, or a local build name to its stage."""
     if ref in ALIASES:
@@ -776,6 +800,12 @@ def _run_bench(baseline: dict[str, Any], candidate: dict[str, Any], workload: st
         "--suite", "realworld", "--profile", workload_profile, "--workload", workload,
         "--output", str(output), "--evidence", str(output.with_suffix(".evidence.json")),
     ]
+    homes = (baseline.get("runtime_home"), candidate.get("runtime_home"))
+    if any(home is not None for home in homes):
+        if any(home is None for home in homes) or not memory_only:
+            raise LaneError("runtime home aliases require both sides and memory-only sampling")
+        command += ["--baseline-python-home", str(homes[0]),
+                    "--candidate-python-home", str(homes[1])]
     if memory_only:
         command.append("--memory-only")
     if timing_only:
@@ -798,9 +828,12 @@ def _run_bench(baseline: dict[str, Any], candidate: dict[str, Any], workload: st
     return matches[0]
 
 
-def _module_sample(python: Path, route: str, iterations: int, scratch: Path) -> dict[str, Any]:
+def _module_sample(python: Path, route: str, iterations: int, scratch: Path, *,
+                   runtime_home: Path | None = None) -> dict[str, Any]:
     env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": str(Path.home()), "TMPDIR": str(scratch),
            "PYTHONHASHSEED": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    if runtime_home is not None:
+        env["PYTHONHOME"] = str(runtime_home)
     result = subprocess.run([str(python), "-s", "-P", str(LANE / "perf_modules.py"), "measure", route,
                              "--iterations", str(iterations)],
                             cwd=scratch, env=env, capture_output=True, text=True, timeout=900)
@@ -810,10 +843,11 @@ def _module_sample(python: Path, route: str, iterations: int, scratch: Path) -> 
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-def _module_iterations(python: Path, route: str, scratch: Path) -> int:
+def _module_iterations(python: Path, route: str, scratch: Path, *,
+                       runtime_home: Path | None = None) -> int:
     # Size each kernel so the baseline's measured loop lasts about
     # MODULE_TARGET_SECONDS of CPU; both sides then run the same count.
-    sample = _module_sample(python, route, 1, scratch)
+    sample = _module_sample(python, route, 1, scratch, runtime_home=runtime_home)
     per_iteration = max(float(sample["cpu_seconds_per_iteration"]), 1e-6)
     return max(1, min(MODULE_MAX_ITERATIONS, round(MODULE_TARGET_SECONDS / per_iteration)))
 
@@ -825,7 +859,8 @@ def _measure_module(baseline: dict[str, Any], candidate: dict[str, Any], route: 
     for index in range(rounds):
         # Alternate which side runs first so neither is always the cold one.
         for side in (("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline")):
-            samples[side].append(_module_sample(sides[side]["python"], route, iterations, scratch))
+            samples[side].append(_module_sample(sides[side]["python"], route, iterations, scratch,
+                                                runtime_home=sides[side].get("runtime_home")))
     observation = perf_verdict.module_observation(samples["baseline"], samples["candidate"],
                                                   memory_only=memory_only)
     observation["samples"] = samples
@@ -835,7 +870,9 @@ def _measure_module(baseline: dict[str, Any], candidate: dict[str, Any], route: 
 def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], modules: list[str],
              gate: bool, runs: int, profile: str, timing_only: bool, min_idle: float,
              self_compare: bool, record_baselines: bool, slug_prefix: str = "",
-             memory_only: bool = False) -> dict[str, Any]:
+             memory_only: bool = False, matched_prefix: bool = False) -> dict[str, Any]:
+    if matched_prefix and not memory_only:
+        raise LaneError("--matched-prefix requires --memory-only")
     targets, evaluated_workloads, evaluated_modules = selection(
         workloads=workloads, modules=modules, gate=gate)
     samples: list[dict[str, Any]] = []
@@ -845,7 +882,10 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
     rounds = PROFILE_MODULE_ROUNDS[profile]
     started = time.monotonic()
     label = f"calibrate {baseline_ref}" if self_compare else f"{baseline_ref} vs {candidate_ref}"
-    with host_lease("measure", f"bench {label}"):
+    harness_identity = _harness_identity()
+    with host_lease("measure", f"bench {label}"), contextlib.ExitStack() as contexts:
+        if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
+            raise LaneError("measurement harness changed while waiting for the host lease")
         # Resolve and verify only under the exclusive lease: no build can
         # replace a stage between this check and the last measurement.
         baseline = resolve(baseline_ref)
@@ -856,6 +896,13 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
             _gate_checks(baseline, candidate)
         for side in {id(baseline): baseline, id(candidate): candidate}.values():
             _verify_stage(side)
+        prefix_context: dict[str, Any] = {"kind": "natural"}
+        if matched_prefix:
+            homes = contexts.enter_context(_runtime_prefix_aliases(baseline["stage"], candidate["stage"]))
+            baseline = {**baseline, "runtime_home": homes[0]}
+            candidate = {**candidate, "runtime_home": homes[1]}
+            prefix_context = {"kind": "matched-python-home", "baseline_home": str(homes[0]),
+                              "candidate_home": str(homes[1]), "path_length": len(str(homes[0]))}
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         slug = ("calibrate-" + baseline["name"] if self_compare
                 else f"{slug_prefix}{baseline['name']}-vs-{candidate['name']}")
@@ -870,7 +917,8 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
             print(f"WARN  host not quiet before measuring ({samples[-1]['cpu_idle_percent']}% idle)",
                   flush=True)
         for route in evaluated_modules:
-            iterations[route] = _module_iterations(baseline["python"], route, scratch)
+            iterations[route] = _module_iterations(baseline["python"], route, scratch,
+                                                   runtime_home=baseline.get("runtime_home"))
         for run in range(1, runs + 1):
             for workload in evaluated_workloads:
                 print(f"RUN   [{run}/{runs}] workload {workload}", flush=True)
@@ -895,6 +943,8 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         for side in {id(baseline): baseline, id(candidate): candidate}.values():
             _verify_stage(side)
         shutil.rmtree(scratch, ignore_errors=True)
+        if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
+            raise LaneError("measurement harness changed during sampling")
     quiet = all(sample["quiet"] for sample in samples) if samples else None
     entities = {name: perf_verdict.entity_verdict(runs_) for name, runs_ in observations.items()}
     known = sorted(KNOWN_CONTROL_MISMATCHES) if baseline["ref"] == "@control" else []
@@ -913,6 +963,8 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         "workload_profile": "standard" if profile == "rigorous" else profile,
         "timing_only": timing_only,
         "acceptance_policy": "memory-only" if memory_only else "all-metrics",
+        "runtime_prefix_context": prefix_context,
+        "harness": harness_identity,
         "module_iterations": iterations,
         "module_rounds": rounds,
         "host_samples": samples,
@@ -930,7 +982,8 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
 def bench(*, baseline_ref: str, candidate_ref: str, workloads: list[str], gate: bool,
           runs: int | None, profile: str, timing_only: bool, min_idle: float,
           modules: list[str] | None = None, all_workloads: bool = False, all_modules: bool = False,
-          record_baselines: bool = False, self_compare: bool = False, memory_only: bool = False) -> int:
+          record_baselines: bool = False, self_compare: bool = False, memory_only: bool = False,
+          matched_prefix: bool = False) -> int:
     runs = runs if runs is not None else (2 if gate or memory_only else 1)
     if runs < 1:
         raise LaneError("runs must be positive")
@@ -945,14 +998,14 @@ def bench(*, baseline_ref: str, candidate_ref: str, workloads: list[str], gate: 
     record = _measure(baseline_ref=baseline_ref, candidate_ref=candidate_ref, workloads=workloads,
                       modules=modules, gate=gate, runs=runs, profile=profile, timing_only=timing_only,
                       min_idle=min_idle, self_compare=self_compare, record_baselines=record_baselines,
-                      memory_only=memory_only)
+                      memory_only=memory_only, matched_prefix=matched_prefix)
     print(perf_verdict.render(record["entities"], record["decision"], record["goals"] or None))
     print(f"LOG   {record['directory']}/verdict.json")
     return 0
 
 
 def goals(*, candidate_ref: str, modules: list[str], runs: int, profile: str, min_idle: float,
-          memory_only: bool = False) -> int:
+          memory_only: bool = False, matched_prefix: bool = False) -> int:
     """Per-module goal status of a candidate against the pristine control.
 
     Memory-only goals require load footprint and working peak to satisfy
@@ -963,7 +1016,7 @@ def goals(*, candidate_ref: str, modules: list[str], runs: int, profile: str, mi
     record = _measure(baseline_ref="@control", candidate_ref=candidate_ref, workloads=[],
                       modules=modules or module_routes(), gate=False, runs=runs, profile=profile,
                       timing_only=False, min_idle=min_idle, self_compare=False, record_baselines=False,
-                      slug_prefix="goals-", memory_only=memory_only)
+                      slug_prefix="goals-", memory_only=memory_only, matched_prefix=matched_prefix)
     print(perf_verdict.render_goals(record["goals"], record["entities"]))
     if not memory_only and not record["decision"]["quiet"]:
         print("WARN  host was not quiet: statuses may carry host noise; rerun before recording")
@@ -1233,6 +1286,8 @@ def main(argv: list[str] | None = None) -> int:
         sub.add_argument("--profile", choices=("quick", "standard", "rigorous"), default="standard")
         sub.add_argument("--memory-only", action="store_true",
                          help="judge only memory; timing and host quietness do not qualify or block")
+        sub.add_argument("--matched-prefix", action="store_true",
+                         help="memory-only: use equal-length visible installation home aliases")
         sub.add_argument("--timing-only", action="store_true", help="skip the memory pass (exploration)")
         sub.add_argument("--min-idle", type=float, default=DEFAULT_MIN_IDLE,
                          help="percent CPU idle required around measurements")
@@ -1244,6 +1299,8 @@ def main(argv: list[str] | None = None) -> int:
     goals_parser.add_argument("--profile", choices=("quick", "standard", "rigorous"), default="standard")
     goals_parser.add_argument("--memory-only", action="store_true",
                               help="classify goals using load footprint and working peak only")
+    goals_parser.add_argument("--matched-prefix", action="store_true",
+                              help="memory-only: use equal-length visible installation home aliases")
     goals_parser.add_argument("--min-idle", type=float, default=DEFAULT_MIN_IDLE)
     commands.add_parser("modules", help="list module kernel routes")
     profile_parser = commands.add_parser("profile", help="profile one workload or module kernel on one build")
@@ -1280,16 +1337,19 @@ def main(argv: list[str] | None = None) -> int:
                          profile=args.profile, timing_only=args.timing_only,
                          min_idle=args.min_idle, modules=args.module,
                          all_workloads=args.all_workloads, all_modules=args.all_modules,
-                         record_baselines=args.record_baselines, memory_only=args.memory_only)
+                         record_baselines=args.record_baselines, memory_only=args.memory_only,
+                         matched_prefix=args.matched_prefix)
         if args.command == "calibrate":
             return bench(baseline_ref=args.ref, candidate_ref=args.ref, workloads=args.workload,
                          gate=args.gate, runs=args.runs, profile=args.profile,
                          timing_only=args.timing_only, min_idle=args.min_idle, modules=args.module,
                          all_workloads=args.all_workloads, all_modules=args.all_modules,
-                         self_compare=True, memory_only=args.memory_only)
+                         self_compare=True, memory_only=args.memory_only,
+                         matched_prefix=args.matched_prefix)
         if args.command == "goals":
             return goals(candidate_ref=args.candidate, modules=args.module, runs=args.runs,
-                         profile=args.profile, min_idle=args.min_idle, memory_only=args.memory_only)
+                         profile=args.profile, min_idle=args.min_idle, memory_only=args.memory_only,
+                         matched_prefix=args.matched_prefix)
         if args.command == "modules":
             print("\n".join(module_routes()))
             return 0

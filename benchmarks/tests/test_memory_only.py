@@ -18,6 +18,68 @@ from benchmarks.workloads.registry import Workload
 
 
 class MemoryOnlyTests(unittest.TestCase):
+    def test_matched_homes_reach_each_sides_warmup_and_memory_children(self):
+        workload = Workload("zipimport_cold", "startup", "zlib", "import", 3, 1)
+        completed = SimpleNamespace(cleanup_complete=True, remaining_pids=(), returncode=0,
+                                    timed_out=False, stdout=b'{"operation_count":3,"digest":"same"}',
+                                    stderr=b"", memory={"peak_rss_bytes": 1000000, "samples": [{}]})
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(runner, "run_command", return_value=completed) as run:
+            root = Path(temp)
+            stages = [root / name for name in ("baseline", "subject0")]
+            aliases = [root / name for name in ("a", "b")]
+            for stage, alias in zip(stages, aliases):
+                (stage / "bin").mkdir(parents=True)
+                (stage / "bin/python").write_text("fixture")
+                alias.symlink_to(stage, target_is_directory=True)
+            pythons = [stage / "bin/python" for stage in stages]
+            homes = dict(zip(map(str, pythons), map(str, aliases)))
+            result = runner.run_workload(
+                workload, *pythons, profile="quick", site_packages=None,
+                output_dir=Path(temp), memory_only=True,
+                baseline_python_home=aliases[0], candidate_python_home=aliases[1])
+            for call in run.call_args_list:
+                self.assertEqual(call.kwargs["env"]["PYTHONHOME"], homes[call.args[0][0]])
+            self.assertEqual(result["baseline"]["python_home"], str(aliases[0]))
+            self.assertEqual(result["candidate"]["python_home"], str(aliases[1]))
+            models.validate_workload_result(result)
+
+    def test_invalid_python_home_pair_fails_before_any_child(self):
+        workload = Workload("python_startup", "startup", "extra", "process", 1, 1)
+        pairs = [(Path("/one"), None), (None, Path("/two")),
+                 (Path("/short"), Path("/longer")), (Path("/ä"), Path("/å")),
+                 (Path("relative/a"), Path("relative/b")),
+                 (Path("/missing/a"), Path("/missing/b"))]
+        with tempfile.TemporaryDirectory() as temp, patch.object(runner, "run_command") as run:
+            for baseline_home, candidate_home in pairs:
+                with self.subTest(homes=(baseline_home, candidate_home)), self.assertRaises(ValueError):
+                    runner.run_workload(
+                        workload, Path("/base/bin/python"), Path("/cand/bin/python"),
+                        profile="quick", site_packages=None, output_dir=Path(temp), memory_only=True,
+                        baseline_python_home=baseline_home, candidate_python_home=candidate_home)
+            run.assert_not_called()
+
+    def test_identity_uses_selected_home_and_rejects_ignored_home(self):
+        home = Path("/matched/home")
+        identity = {"runtime_prefix": str(home), "runtime_exec_prefix": str(home)}
+        with patch.dict("os.environ", {"PYTHONHOME": "/foreign/home"}), \
+                patch.object(bench, "_sha256", return_value="fixture"), \
+                patch.object(bench.subprocess, "run") as run:
+            run.return_value.stdout = json.dumps(identity)
+            bench._identity(Path("/python"), "fixture", "fixture", "fixture", python_home=home)
+            self.assertEqual(run.call_args.kwargs["env"]["PYTHONHOME"], str(home))
+            bench._identity(Path("/python"), "fixture", "fixture", "fixture")
+            self.assertNotIn("PYTHONHOME", run.call_args.kwargs["env"])
+            run.return_value.stdout = json.dumps({"runtime_prefix": "/wrong", "runtime_exec_prefix": "/wrong"})
+            with self.assertRaisesRegex(ValueError, "did not honor"):
+                bench._identity(Path("/python"), "fixture", "fixture", "fixture", python_home=home)
+
+    def test_container_rejects_host_aliases_before_launch(self):
+        args = SimpleNamespace(baseline_python_home=Path("/matched/a"), candidate_python_home=Path("/matched/b"))
+        with patch.object(bench.subprocess, "run") as run, self.assertRaisesRegex(ValueError, "require --local"):
+            bench._run_container(args)
+        run.assert_not_called()
+
     def record(self):
         return {"measurement_mode": "memory-only", "identity": {
             "name": "zipimport_cold", "category": "startup", "operation": "import",
@@ -168,6 +230,10 @@ class MemoryOnlyTests(unittest.TestCase):
             provenance.update(measurement_mode="memory-only", memory_sampling_interval_seconds=0.01,
                               python_environment={}, benchmark_packages=[], baseline={}, candidate={},
                               installed_size={"baseline": {}, "candidate": {}}, host={})
+            for side, name in (("baseline", "a"), ("candidate", "b")):
+                home = f"/matched/{name}"
+                provenance[side].update(runtime_python_home=home, runtime_prefix=home,
+                                        runtime_exec_prefix=home, stdlib_json_file=f"{home}/lib/json/__init__.py")
             (root / "provenance.json").write_text(json.dumps(provenance))
             directory = root / "realworld" / "zipimport_cold"
             directory.mkdir(parents=True)
@@ -179,6 +245,9 @@ class MemoryOnlyTests(unittest.TestCase):
             destination = root / "evidence.json"
             evidence.compact_evidence(root, destination)
             document = json.loads(destination.read_text())
+            for side in ("baseline", "candidate"):
+                for key in ("runtime_python_home", "runtime_prefix", "runtime_exec_prefix", "stdlib_json_file"):
+                    self.assertEqual(document["inputs"][side][key], provenance[side][key])
             self.assertEqual(document["workloads"][0]["measurement_mode"], "memory-only")
             self.assertEqual(len(document["workloads"][0]["attempts"]), 6)
             self.assertTrue(all(item["kind"] == "memory" for item in document["workloads"][0]["attempts"]))

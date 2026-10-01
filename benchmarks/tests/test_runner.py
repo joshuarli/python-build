@@ -5,12 +5,21 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 import math
+import os
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from benchmarks.harness import runner
 from benchmarks.workloads.registry import Workload
+
+
+class WorkloadEnvironmentTests(unittest.TestCase):
+    def test_workload_environment_does_not_inherit_another_installation_home(self) -> None:
+        with patch.dict(os.environ, {"PYTHONHOME": "/another/python"}):
+            self.assertFalse("PYTHONHOME" in runner.workload_environment(None))
+            self.assertEqual(runner.workload_environment(
+                None, extra={"PYTHONHOME": "/explicit/python"})["PYTHONHOME"], "/explicit/python")
 
 
 class TimingOnlyRunnerTests(unittest.TestCase):

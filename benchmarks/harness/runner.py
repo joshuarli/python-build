@@ -19,6 +19,7 @@ from benchmarks.harness.process import (
     CGROUP_TREE_CPU_COVERAGE, LINUX_ROOT_CPU_COVERAGE,
     MAC_REAPED_CPU_COVERAGE, run_command,
 )
+from benchmarks.harness.environment import interpreter_environment
 from benchmarks.workloads.registry import Workload
 
 
@@ -51,7 +52,7 @@ def workload_environment(
     extra: dict[str, str] | None = None,
 ) -> dict[str, str]:
     root = Path(__file__).resolve().parents[2]
-    env = dict(os.environ)
+    env = interpreter_environment()
     env.pop("BENCH_DJANGO_PREPARE_PATH", None)
     env.pop("BENCH_DJANGO_FIXTURE_PATH", None)
     paths = [str(root)]
@@ -250,11 +251,25 @@ def run_workload(
     perf_stat: bool = False,
     measure_memory: bool = True,
     memory_only: bool = False,
+    baseline_python_home: Path | None = None,
+    candidate_python_home: Path | None = None,
 ) -> dict[str, Any]:
     if profile not in PROFILE_ROUNDS:
         raise ValueError(f"unknown profile: {profile}")
     if memory_only and (not measure_memory or perf_stat or allocation_site is not None):
         raise ValueError("memory-only requires memory sampling without CPU or allocation diagnostics")
+    homes = {"baseline": baseline_python_home, "candidate": candidate_python_home}
+    if any(home is not None for home in homes.values()):
+        if not memory_only or any(home is None for home in homes.values()):
+            raise ValueError("matched Python homes require both sides and memory-only sampling")
+        names = [str(home) for home in homes.values()]
+        if not all(home.is_absolute() for home in homes.values()):
+            raise ValueError("matched Python homes must be absolute")
+        if not all(name.isascii() for name in names) or len(names[0]) != len(names[1]):
+            raise ValueError("matched Python homes require equal-length ASCII paths")
+        for home, python in zip(homes.values(), (baseline, candidate)):
+            if not home.is_dir() or home.resolve() != python.parent.parent.resolve():
+                raise ValueError("Python home must alias the selected interpreter installation")
     output_dir.mkdir(parents=True, exist_ok=True)
     timing_rounds, memory_rounds = PROFILE_ROUNDS[profile]
     if memory_only:
@@ -269,13 +284,17 @@ def run_workload(
         memory_rounds = max(memory_rounds, 5)
     sides = {"baseline": baseline, "candidate": candidate}
     env = workload_environment(site_packages, wheelhouse=wheelhouse, pip_packages=pip_packages)
+    environments = {side: {**env, **({"PYTHONHOME": str(home)} if home is not None else {})}
+                    for side, home in homes.items()}
     django_fixture: Path | None = None
     django_fixture_sha256: str | None = None
     if workload.name == "django_wsgi_first_request":
         django_fixture, django_fixture_sha256 = _prepare_django_first_request_fixture(
-            baseline, env, output_dir, timeout_seconds, affinity,
+            baseline, environments["baseline"], output_dir, timeout_seconds, affinity,
         )
         env["BENCH_DJANGO_FIXTURE_PATH"] = str(django_fixture)
+        for environment in environments.values():
+            environment["BENCH_DJANGO_FIXTURE_PATH"] = str(django_fixture)
     result: dict[str, Any] = {
         "identity": {
             "name": workload.name,
@@ -307,6 +326,9 @@ def run_workload(
         result["measurement_mode"] = "memory-only"
         for side in sides:
             result[side]["timing"] = {"status": "not_measured", "reason": "memory-only", "samples": []}
+    for side, home in homes.items():
+        if home is not None:
+            result[side]["python_home"] = str(home)
     digests: set[str] = set()
     operation_counts: set[int] = set()
     implementations: dict[str, str] = {}
@@ -315,7 +337,7 @@ def run_workload(
     # fixtures are prepared above. Timed children provide no reusable state.
     for side, python in sides.items():
         warmup = run_command(workload_command(python, workload, workload.iterations),
-                             env=env, cwd=Path(__file__).resolve().parents[2],
+                             env=environments[side], cwd=Path(__file__).resolve().parents[2],
                              timeout=timeout_seconds, affinity=affinity,
                              sample_interval_seconds=None)
         _ensure_clean(warmup, workload, side, "warmup")
@@ -333,7 +355,7 @@ def run_workload(
              (("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline"))]
     for index, side in enumerate(order):
         command = workload_command(sides[side], workload, workload.iterations)
-        measured = run_command(command, env=env, cwd=Path(__file__).resolve().parents[2],
+        measured = run_command(command, env=environments[side], cwd=Path(__file__).resolve().parents[2],
                                timeout=timeout_seconds, affinity=affinity,
                                sample_interval_seconds=None)
         _ensure_clean(measured, workload, side, "timing")
@@ -354,7 +376,7 @@ def run_workload(
     for index in range(memory_rounds):
         for side in (("baseline", "candidate") if index % 2 == 0 else ("candidate", "baseline")):
             command = workload_command(sides[side], workload, workload.iterations, memory=True)
-            measured = run_command(command, env=env, cwd=Path(__file__).resolve().parents[2],
+            measured = run_command(command, env=environments[side], cwd=Path(__file__).resolve().parents[2],
                                    timeout=timeout_seconds, affinity=affinity,
                                    sample_interval_seconds=memory_interval_seconds)
             _ensure_clean(measured, workload, side, "memory")
@@ -402,7 +424,7 @@ def run_workload(
                     memray_pythonpath=[allocation_site, *([site_packages] if site_packages else [])],
                     output_json=output_dir / f"allocations-{side}-{index:02d}.json",
                     operations=allocation_operations,
-                    env=env,
+                    env=environments[side],
                     follow_fork=workload.name == "multiprocess_pool",
                     timeout_seconds=timeout_seconds,
                 ))
@@ -415,7 +437,7 @@ def run_workload(
                 workload_command(python, workload, workload.iterations),
                 enabled=True,
                 operations=result["identity"]["operation_count"],
-                env=env,
+                env=environments[side],
                 output_json=output_dir / f"perf-{side}.json",
             )
     (output_dir / "raw.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")

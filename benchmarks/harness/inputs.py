@@ -21,6 +21,7 @@ from typing import Any, Iterable, Mapping
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 import zipfile
+from benchmarks.harness.environment import interpreter_environment
 
 
 BENCHMARKS = Path(__file__).resolve().parents[1]
@@ -485,8 +486,9 @@ def prepare_site(
     wheelhouse: Path | str | None = None,
     inputs_dir: Path | str | None = None,
     lock: BenchmarkLock | None = None,
+    python_home: Path | None = None,
 ) -> PreparedSite:
-    """Prepare a locked dependency prefix without invoking the tested Python.
+    """Extract a locked dependency prefix, probing macOS interpreter compatibility.
 
     `interpreter_or_site` accepts the baseline executable for compatibility
     with the controller call shape; extraction is interpreter-independent.
@@ -504,6 +506,7 @@ def prepare_site(
         result = subprocess.run(
             [str(interpreter_or_site), "-c", "import platform,sys; print(platform.python_implementation(), *sys.version_info[:2])"],
             capture_output=True, text=True, timeout=30, check=True,
+            env=interpreter_environment(python_home=python_home),
         )
         if result.stdout.strip() != "CPython 3 16":
             raise InputError("macOS Django inputs require a CPython 3.16 interpreter")

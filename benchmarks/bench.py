@@ -60,7 +60,9 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _identity(python: Path, label: str, source: str, kind: str) -> dict[str, Any]:
+def _identity(python: Path, label: str, source: str, kind: str, *,
+              python_home: Path | None = None) -> dict[str, Any]:
+    from benchmarks.harness.environment import interpreter_environment
     code = (
         "import json,platform,sys,sysconfig; "
         "print(json.dumps({'version':list(sys.version_info[:3]),"
@@ -68,10 +70,15 @@ def _identity(python: Path, label: str, source: str, kind: str) -> dict[str, Any
         "'abi':sysconfig.get_config_var('SOABI'),"
         "'compiler':platform.python_compiler(),"
         "'config_args':sysconfig.get_config_var('CONFIG_ARGS'),"
-        "'platform':sysconfig.get_platform()}))"
+        "'platform':sysconfig.get_platform(), 'runtime_prefix':sys.prefix,"
+        "'runtime_exec_prefix':sys.exec_prefix, 'stdlib_json_file':json.__file__}))"
     )
-    completed = subprocess.run([str(python), "-c", code], capture_output=True, text=True, timeout=30, check=True)
+    completed = subprocess.run([str(python), "-c", code], capture_output=True, text=True, timeout=30,
+                               check=True, env=interpreter_environment(python_home=python_home))
     data = json.loads(completed.stdout)
+    if python_home is not None and any(data.get(field) != str(python_home)
+                                      for field in ("runtime_prefix", "runtime_exec_prefix")):
+        raise ValueError("interpreter did not honor the requested Python home")
     data.update({"label": label, "kind": kind, "source": source, "executable": str(python),
                  "executable_sha256": _sha256(python.resolve())})
     return data
@@ -174,7 +181,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
         raise ValueError("--memory-interval-ms must be between 1 and 1000")
     from benchmarks.harness.environment import (
         collect_host_provenance, discover_cpu_topology, measure_install_size,
-        select_physical_cpus,
+        select_physical_cpus, interpreter_environment,
     )
     from benchmarks.harness.report import compare_workload, save_summary
 
@@ -185,8 +192,23 @@ def _run_internal(args: argparse.Namespace) -> Path:
         scratch = Path(temp)
         baseline, baseline_source = _extract_interpreter(args.baseline, scratch / "baseline")
         candidate, candidate_source = _extract_interpreter(args.candidate, scratch / "candidate")
-        base_identity = _identity(baseline, args.baseline_label, baseline_source, args.baseline_kind)
-        cand_identity = _identity(candidate, args.candidate_label, candidate_source, args.candidate_kind)
+        homes = (args.baseline_python_home, args.candidate_python_home)
+        if any(home is not None for home in homes):
+            if not args.memory_only or any(home is None for home in homes):
+                raise ValueError("Python home aliases require both sides and --memory-only")
+            if not all(home.is_absolute() and str(home).isascii() for home in homes) \
+                    or len(str(homes[0])) != len(str(homes[1])):
+                raise ValueError("Python home aliases require absolute equal-length ASCII paths")
+            for home, python in zip(homes, (baseline, candidate)):
+                if home.resolve() != python.parent.parent.resolve():
+                    raise ValueError("Python home must alias the selected interpreter installation")
+        base_identity = _identity(baseline, args.baseline_label, baseline_source, args.baseline_kind,
+                                  python_home=homes[0])
+        cand_identity = _identity(candidate, args.candidate_label, candidate_source, args.candidate_kind,
+                                  python_home=homes[1])
+        for identity, home in zip((base_identity, cand_identity), homes):
+            if home is not None:
+                identity["runtime_python_home"] = str(home)
         base_identity["input_descriptor"] = os.environ.get("BENCH_BASELINE_HOST_INPUT", args.baseline)
         cand_identity["input_descriptor"] = os.environ.get("BENCH_CANDIDATE_HOST_INPUT", args.candidate)
         _check_versions(base_identity, cand_identity, args.allow_cross_version)
@@ -222,20 +244,21 @@ def _run_internal(args: argparse.Namespace) -> Path:
             group = "django" if cp316_django else "macros"
             used_input_groups.add(group)
             macro_site = prepare_site(baseline, scratch / "macro-site", wheelhouse=wheelhouse,
-                                      groups={group}, lock=lock)
+                                      groups={group}, lock=lock, python_home=homes[0])
             # A shared bytecode tree is fair only when both interpreters have
             # the same major.minor cache format. Cross-version research uses
             # source imports on both sides with bytecode writes disabled.
             if not cross_version:
                 subprocess.run([str(baseline), "-m", "compileall", "-q", str(macro_site.site_packages)],
-                               check=True, timeout=300)
+                               check=True, timeout=300,
+                               env=interpreter_environment(python_home=homes[0]))
         if args.suite in {"pyperformance", "full"}:
             used_input_groups.add("pyperformance")
             perf_site = prepare_site(baseline, scratch / "perf-site", wheelhouse=wheelhouse,
                                      groups={"core", "pyperformance"}, lock=lock)
             if not cross_version:
                 subprocess.run([str(baseline), "-m", "compileall", "-q", str(perf_site.site_packages)],
-                               check=True, timeout=300)
+                               check=True, timeout=300, env=interpreter_environment())
         if args.profile == "rigorous":
             used_input_groups.add("memray")
             memray_site = prepare_site(baseline, scratch / "memray-site", wheelhouse=wheelhouse,
@@ -267,6 +290,8 @@ def _run_internal(args: argparse.Namespace) -> Path:
                 perf_stat=args.perf_stat,
                 measure_memory=not args.timing_only,
                 memory_only=args.memory_only,
+                baseline_python_home=args.baseline_python_home,
+                candidate_python_home=args.candidate_python_home,
             )
             raw.append(result)
             comparisons.append(compare_workload(result, baseline_label=args.baseline_label,
@@ -407,6 +432,8 @@ def _docker_descriptor(descriptor: str, side: str, mounts: list[str]) -> str:
 
 
 def _run_container(args: argparse.Namespace) -> Path:
+    if args.baseline_python_home is not None or args.candidate_python_home is not None:
+        raise ValueError("Python home aliases require --local; host aliases cannot cross the container boundary")
     if platform.system() != "Linux" or platform.machine() != "x86_64":
         raise RuntimeError("benchmark measurements require a native Linux amd64 host")
     output = args.output.resolve()
@@ -538,6 +565,10 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
         command.add_argument("--memory-only", action="store_true",
                              help="sample memory without timing rounds or CPU observations")
+        command.add_argument("--baseline-python-home", type=Path,
+                             help="memory-only: explicit alias of the baseline installation")
+        command.add_argument("--candidate-python-home", type=Path,
+                             help="memory-only: equal-length alias of the candidate installation")
         command.add_argument("--timing-only", action="store_true",
                              help="local timing run without the separate memory passes")
     run.add_argument("--preset", choices=("pbs",))

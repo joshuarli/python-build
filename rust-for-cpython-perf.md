@@ -43,7 +43,48 @@ with CPU records absent and invalid measurement-mode rejection. Corrected
 self-calibration `20261001T013533Z` reads all seven RSS rows neutral in both
 runs, with host quietness unexamined. No new memory improvement is claimed yet.
 
-### Resumed experiment checkpoint
+### Controlled runtime-prefix memory context (2026-10-01)
+
+A bounded diagnostic used the same verified incumbent binary and the normal
+uninstrumented `collections` sampler six times, with explicit `PYTHONHOME`
+paths of 55 or 105 ASCII characters. The order was original/short/long,
+long/short/original, at 56 iterations. Short paths measured 48–96 KiB load;
+the two long paths measured about 128 KiB. Digests matched throughout and
+stage fingerprints were unchanged. This establishes sensitivity to the
+runtime prefix in this diagnostic; it does not establish the cause of any
+historical rejection or a correction amount. The raw report is
+`regex-memory/results/prefix-context-attribution/FINDINGS.txt`.
+
+`perf.py bench`, `calibrate`, and `goals` now offer opt-in
+`--memory-only --matched-prefix`. Both sides receive distinct temporary
+equal-length ASCII home aliases to their verified installations. Module and
+application sampling, setup probes, and dependency bytecode preparation use
+the selected homes. Self-calibration uses two aliases to the same stage.
+The aliases are removed after measurement; verdicts retain the home paths,
+and application provenance and compact exports retain requested and observed
+prefixes. Harness source hashes are checked across lease acquisition and
+sampling and recorded with each verdict. Container runs reject host aliases.
+The shared benchmark launcher also strips an ambient `PYTHONHOME` so an
+unrelated installation cannot replace the requested interpreter's stdlib.
+
+This is a new measurement context requiring fresh self-calibration and
+control/incumbent ground truth. It changes no kernel, iteration-sizing rule,
+sample count, floor, memory threshold, or correctness requirement. It does
+not control embedded build paths or dynamic-library install names. Natural
+prefix runs and their historical REJECT/NEUTRAL decisions remain intact.
+No source optimization is accepted by introducing this option.
+
+The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
+`20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
+`catalog_request_path` RSS regressed in both runs (1.01124x). Its directed
+absolute goals read `_strptime` MET (0.95x load) and `datetime` UNCLEAR
+(1.63x load). The SQLite-isolated shared-image exploration
+`20261001T044608Z` REJECTed with 27 load regressions and a logging working
+peak regression, despite 10 improved and 13 neutral workload RSS rows.
+Its six-file experiment was restored to `0acdd91`; the patch and evidence
+remain preserved. Neither checkpoint replaces the incumbent.
+
+### Resumed source experiment archive
 
 No resumed source optimization has been integrated. The memory-only harness
 and fresh control evidence above are committed; rejected and neutral source

@@ -17,6 +17,17 @@ _CPU_DIR = re.compile(r"^cpu(\d+)$")
 _PYTHON_VERSIONED = re.compile(r"^python\d+\.\d+$")
 
 
+def interpreter_environment(*, python_home: Path | None = None) -> dict[str, str]:
+    """Use the selected installation, with an optional absolute home alias."""
+    env = dict(os.environ)
+    env.pop("PYTHONHOME", None)
+    if python_home is not None:
+        if not python_home.is_absolute():
+            raise ValueError("Python home must be absolute")
+        env["PYTHONHOME"] = str(python_home)
+    return env
+
+
 @dataclass(frozen=True)
 class PhysicalCore:
     """One physical core and the online logical CPUs visible to this process."""

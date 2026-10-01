@@ -76,7 +76,9 @@ def _interpreter_identity(value: dict[str, Any]) -> dict[str, Any]:
     return {key: value.get(key) for key in (
         "label", "kind", "version", "implementation", "abi", "platform",
         "compiler", "config_args", "executable_sha256",
-    )}
+    )} | {key: value[key] for key in (
+        "runtime_python_home", "runtime_prefix", "runtime_exec_prefix", "stdlib_json_file",
+    ) if key in value}
 
 
 def _installed_size(value: dict[str, Any]) -> dict[str, Any]:

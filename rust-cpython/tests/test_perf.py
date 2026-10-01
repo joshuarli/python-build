@@ -46,6 +46,102 @@ def module(base, cand):
 
 
 class WorkloadProfileTests(unittest.TestCase):
+    def test_harness_identity_changes_with_source_and_reports_harness_dirty_state(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            lane = repo / "rust-cpython"
+            harness = repo / "benchmarks/harness"
+            lane.mkdir()
+            harness.mkdir(parents=True)
+            for name in ("perf.py", "perf_verdict.py", "perf_modules.py"):
+                (lane / name).write_text("fixture")
+            (repo / "benchmarks/bench.py").write_text("fixture")
+            source = harness / "runner.py"
+            source.write_text("fixture")
+            with mock.patch.object(perf, "LANE", lane), mock.patch.object(perf, "REPO", repo), \
+                    mock.patch.object(perf, "_git", side_effect=lambda *args: "commit" if args[0] == "rev-parse" else " M ../benchmarks/harness/runner.py"):
+                first = perf._harness_identity()
+                source.write_text("changed")
+                second = perf._harness_identity()
+            self.assertTrue(first["dirty"])
+            self.assertNotEqual(first["source_sha256"], second["source_sha256"])
+            self.assertNotEqual(first["files"]["benchmarks/harness/runner.py"], second["files"]["benchmarks/harness/runner.py"])
+
+    def test_harness_change_while_waiting_aborts_before_stage_resolution(self):
+        with mock.patch.object(perf, "selection", return_value=([], [], [])), \
+                mock.patch.object(perf, "host_lease", return_value=nullcontext()), \
+                mock.patch.object(perf, "_harness_identity", side_effect=[{"source_sha256": "first"}, {"source_sha256": "changed"}]), \
+                mock.patch.object(perf, "resolve") as resolve, \
+                self.assertRaisesRegex(perf.LaneError, "changed while waiting"):
+            perf._measure(baseline_ref="@control", candidate_ref="@incumbent", workloads=[], modules=[],
+                          gate=False, runs=2, profile="quick", timing_only=False, min_idle=0,
+                          self_compare=False, record_baselines=False, memory_only=True)
+        resolve.assert_not_called()
+
+    def test_matched_calibration_uses_two_homes_for_one_verified_stage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / "stage"
+            stage.mkdir()
+            side = {"ref": "@control", "name": "control", "stage": stage,
+                    "python": stage / "bin/python", "report": {"commit": "fixture"}}
+            with mock.patch.object(perf, "LANE", Path(temp)), \
+                    mock.patch.object(perf, "_harness_identity", return_value={"source_sha256": "fixture"}), \
+                    mock.patch.object(perf, "selection", return_value=(["json"], [], ["json"])), \
+                    mock.patch.object(perf, "host_lease", return_value=nullcontext()), \
+                    mock.patch.object(perf, "resolve", return_value=side), \
+                    mock.patch.object(perf, "_verify_stage"), \
+                    mock.patch.object(perf, "_module_iterations", return_value=37), \
+                    mock.patch.object(perf, "_module_sample", return_value=sample(2.0, 1 << 20, 1 << 20)) as measure:
+                record = perf._measure(
+                    baseline_ref="@control", candidate_ref="@control", workloads=[], modules=["json"],
+                    gate=False, runs=2, profile="quick", timing_only=False, min_idle=0,
+                    self_compare=True, record_baselines=False, memory_only=True, matched_prefix=True)
+            context = record["runtime_prefix_context"]
+            homes = [Path(context[key]) for key in ("baseline_home", "candidate_home")]
+            self.assertEqual(context["kind"], "matched-python-home")
+            self.assertEqual(len(str(homes[0])), len(str(homes[1])))
+            self.assertNotEqual(homes[0], homes[1])
+            self.assertEqual({call.kwargs["runtime_home"] for call in measure.call_args_list}, set(homes))
+            self.assertTrue(all(not home.exists() for home in homes))
+            self.assertTrue(stage.exists())
+
+    def test_module_runtime_home_changes_only_explicit_launch_environment(self):
+        with mock.patch.object(perf.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout='{"digest":"same"}', stderr="")) as run:
+            self.assertEqual(perf._module_sample(
+                Path("/stage/bin/python"), "collections", 56, Path("/scratch"),
+                runtime_home=Path("/matched/home")), {"digest": "same"})
+            self.assertEqual(run.call_args.kwargs["env"]["PYTHONHOME"], "/matched/home")
+            command = run.call_args.args[0]
+            self.assertEqual(command[:3], ["/stage/bin/python", "-s", "-P"])
+            self.assertEqual(command[-4:], ["measure", "collections", "--iterations", "56"])
+
+    def test_matched_prefix_requires_memory_only_before_resolving_stages(self):
+        with mock.patch.object(perf, "resolve") as resolve, self.assertRaisesRegex(
+                perf.LaneError, "requires --memory-only"):
+            perf.bench(baseline_ref="@control", candidate_ref="@incumbent", workloads=[],
+                       gate=False, runs=2, profile="standard", timing_only=False,
+                       min_idle=0, matched_prefix=True)
+        resolve.assert_not_called()
+
+    def test_runtime_prefix_aliases_preserve_trees_and_cleanup_after_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            stages = [Path(temp) / "short", Path(temp) / ("long" * 20)]
+            for stage in stages:
+                stage.mkdir()
+                (stage / "marker").write_text("same")
+            with self.assertRaisesRegex(RuntimeError, "stop"):
+                with perf._runtime_prefix_aliases(*stages) as homes:
+                    self.assertEqual(len(str(homes[0])), len(str(homes[1])))
+                    self.assertNotEqual(homes[0], homes[1])
+                    for home, stage in zip(homes, stages):
+                        self.assertEqual(home.resolve(), stage.resolve())
+                        self.assertEqual((home / "marker").stat().st_ino,
+                                         (stage / "marker").stat().st_ino)
+                    raise RuntimeError("stop")
+            self.assertTrue(all(not home.exists() for home in homes))
+            self.assertTrue(all(stage.exists() for stage in stages))
+
     def test_importtime_executes_the_selected_workload(self):
         for workload, module in [('serialization_roundtrip', 'extra'),
                                  ('catalog_json_export', 'catalog_json')]:
@@ -329,6 +425,7 @@ class MemoryOnlyTests(unittest.TestCase):
                            "python": Path("/python"), "report": {"commit": "fixture"}}
                      for ref in ("@control", "@incumbent")}
             with mock.patch.object(perf, "LANE", Path(temp)), \
+                    mock.patch.object(perf, "_harness_identity", return_value={"source_sha256": "fixture"}), \
                     mock.patch.object(perf, "selection", return_value=(["json"], [], ["json"])), \
                     mock.patch.object(perf, "host_lease", return_value=nullcontext()), \
                     mock.patch.object(perf, "resolve", side_effect=sides.__getitem__), \
