@@ -807,6 +807,16 @@ fresh naive cold escape counterexample first, then fresh candidate cleanup.
 Every subprocess is bounded and exact pre/post checks run in finally. No
 production build or memory draw is authorized by this logical-only step.
 
+That invocation stopped during preflight: the controller incorrectly assumed
+one normal-target memchr artifact, but the incumbent has three feature variants.
+No probe was compiled or executed. Its finally check encountered the same
+binding fault, so no complete pre/post proof is claimed. The raw failure is
+preserved; an independent test-lease integrity check passed incumbent58/control1,
+source/harness and both stage fingerprints. Only a controller correction that
+follows exact regex/automata/Aho-Corasick extern edges and matching compile
+invocations is authorized; production and fixtures remain unchanged. Relaunch
+awaits separate review, with no memory draw or candidate acceptance.
+
 The separate typing no_std scout closed without a candidate. An exact typing
 trial appears absent, but shared `cpython-sys` forces std and actual archived
 symbols/pages show required module/method/loader ownership rather than removable
