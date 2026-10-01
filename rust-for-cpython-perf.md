@@ -90,8 +90,18 @@ Fresh matched-prefix memory-only control self-calibration
 and working peak were neutral in both independent runs. Actual observed
 prefixes matched both requested 39-character ASCII home aliases; outputs
 matched, stage fingerprints held, and the harness source was clean.
-Full 71-module and 23-workload control/incumbent ground truth in this new
-context is now running. No CPU, wall, or quiet-host requirement was checked.
+Full 71-module control/incumbent ground truth `20261001T053304Z` reads
+13 OVER / 10 UNCLEAR / 47 MET / 1 BEYOND. `_strptime` is MET already;
+its prepared calendar candidate is held rather than measured. The remaining
+OVER routes are datetime, re, threading, decimal, typing, uuid, base64,
+tokenize, ipaddress, marshal, inspect and zlib load, and zstd working peak.
+The 10 UNCLEAR routes receive the prescribed once-only rigorous classification
+pass. Full absolute workload snapshot `20261001T054230Z` reads 15 RSS
+regressions / 4 neutral / 4 improved. The regressions include Django,
+compileall, startup, multiprocessing, serialization, catalog request/search,
+large base64, wheel reading and cold zip import. These are unresolved goals,
+not waived by the context change. No CPU, wall, or quiet-host requirement
+was checked.
 
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
