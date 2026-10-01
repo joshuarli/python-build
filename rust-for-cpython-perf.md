@@ -129,13 +129,21 @@ checkpoints remain on isolated branches.
   separately. Its removable resident fraction is not yet proven.
 - An isolated HMAC no_std trial `8ec73ba` starts from an actual 144 KiB
   resident / 32 KiB dirty helper cost. It passes clean58 and five complete
-  suites (673/38); its smaller image is not a measured memory win. Native
-  allocation checks and replicated memory qualification remain pending.
+  suites (673/38) and eight native parity/lifetime/allocation checks; its
+  smaller image is not a measured memory win. Physical attribution and
+  replicated memory qualification remain pending.
   Separate regex correctness repair `5b955f1` addresses inherited ASCII
   information-separator whitespace misses, preserving the eligible grammar
   and fallback boundary. Clean58, four complete suites (470/58), thirteen
   native checks and 9,728 exhaustive ASCII comparisons pass; its memory
   gate remains pending.
+- The bisect wrapper scout measures a 9,550-byte reachable Python graph,
+  while importing its existing C accelerator adds 32 KiB dirty / 64 KiB
+  resident memory. No replacement experiment is justified from that cost.
+  Runtime probes also find wrapper validation, mutation and reflection
+  differences from pristine C behavior. Direct own-GIL `_bisect_rs` import
+  fails on the incumbent while public bisect falls back successfully; this
+  inherited coverage issue is recorded separately from the memory goals.
 
 Raw verdicts, failed-suite logs, import attribution and current command IDs
 are retained in the ignored results trees and `coordinator-state.json`.
