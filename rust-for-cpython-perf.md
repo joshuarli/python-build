@@ -510,6 +510,24 @@ module-initialization and alias contracts need review before an implementation
 candidate. Socket-only and base64-only memory remain guards. No image saving,
 production change, build or measurement is authorized by this graph finding.
 
+Root and independent source reviews now authorize source lane 38,
+`socket-binascii-image`, in root-created `py-mem-lane8` from main `4d14882`.
+One internal cdylib may link the existing socket and binascii Rust libraries
+and provide two generated relative aliases, preserving their separate original
+initializers, definitions, interpreter flags and public routes. The installed
+legacy `_base64` image stays separate. No dependency, engine, allocator,
+builtin placement or explicit linker-flag experiment is included. Existing
+binascii linker behavior can alter the aggregate's segment placement; neither
+one dirty page nor a physical saving is promised.
+Exact committed source and behavioral fixtures require root and independent
+review before native execution or full builds. Subsequent clean58, complete
+affected suites and alias/native lifetime proofs precede a fresh primary
+`perf-ss38` full-suite qualification. Its first and only all-71/all-23 two-run
+matched-context memory-only gate must improve SSL in both runs and preserve
+every memory guard. Any non-ACCEPT closes the candidate without retry,
+preserving its branch, stage and evidence and restoring main. CPU/wall and
+host quietness remain outside the decision.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
