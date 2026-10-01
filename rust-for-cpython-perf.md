@@ -218,7 +218,36 @@ build/install aliases and scoped documentation. Its eight incumbent native,
 API, error, GC, reload, import-order and own-GIL cases passed; the same-file
 alias assertion failed before source as intended. Setup inventories already
 describe both modules as shared and remain unchanged. Both clean builds are
-running; neither has submitted a memory comparison yet.
+complete. Pair source passed all eight neighboring suites (4,289/48), both
+initializer exports, relative build/install alias identity, native dispatch,
+original own-GIL outcomes and unchanged Cargo-byte verification. Its sole
+all-71/all-23 exploration `20261001T072209Z` REJECTed: large base64 RSS
+0.999x, small RSS 1.007x and both module memory targets were neutral. AST,
+asyncio, urllib.parse and zipfile load, logging working peak, catalog URL
+RSS and startup RSS regressed in both runs. Outputs matched. Source is being
+restored, with candidate, patch, stage and raw results preserved; no retry
+or primary qualification follows.
+
+Final flush checkpoint `0da6ebd` retains the same one-line production change
+and passed clean58, six complete suites (2,274/178), native/window/own-GIL
+parity and both-mode failure ownership. The initial 24-offset fault corpus
+was insufficient after extra buffer growth; isolated forwarding allocator
+counts establish 25 requests per candidate mode versus 12 per incumbent mode
+for the buffered fixture. Every candidate fault ordinal 0–24 and explicit
+success at 25 pass; the retained 96-offset corpus covers all requests.
+This is correctness evidence, not a memory draw. The single all-71/all-23
+paired memory exploration is running.
+
+An isolated `typing-name-memory` lane investigates 7,600 temporary Unicode
+attribute names per unchanged kernel call, confirmed in the pinned C API.
+It caches only three interned names per interpreter, preserving dynamic
+lookups, legacy getter dispatch and caller-supplied classinfo. The unpublished
+draft review found nested-exec ownership leakage and borrowed traversal
+pointers crossing allocating visitor callbacks. Original drafts are retained
+for actual-function failing regressions before repair; production source is
+unchanged. Its extra unchanged setup-memory command was cancelled in the
+lease turnstile before any samples. Correctness probes remain authorized;
+only one changed paired memory comparison will follow final qualification.
 
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
