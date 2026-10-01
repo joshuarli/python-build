@@ -609,7 +609,15 @@ Production review passed; a fixture review found the generated lifetime probe
 omitted original cache definitions, so binding the incumbent would fail to
 compile. That probe must include the original cache closure and reach the
 intended ownership assertion before any fail-first claim or execution.
-No runtime, cache preparation, build or memory draw is authorized yet. Subsequent
+Corrected `c2dc378` binds an explicit production source and includes the original
+cache closure. Root and independent source review passed. Verified private cache
+preparation and baseline/regression execution are now authorized under the host
+leases: the exact old source must compile and fail the shared-owner assertion,
+and the candidate-source logical probe must release every per-call allocation
+against the same pinned engine dependencies. Incumbent public/native and pristine
+public contracts must pass with unchanged stages. The diagnostic counts logical
+allocations and does not claim physical savings. A candidate CPython build or
+memory draw is not yet authorized. Subsequent
 reviewed regression/native/full affected qualification must precede fresh primary
 `perf-rc41`, full default suites and its first-only all94 memory gate: regex itself
 must improve in both runs and every memory guard binds. A non-ACCEPT closes it
