@@ -417,6 +417,27 @@ in root-created `py-mem-lane6` is authorized to compare actual logical requests
 and result/admission parity. It is not a source candidate or physical saving;
 no production edit, full build or memory draw is authorized yet.
 
+The private diagnostic passed compilation and default/zero/parity runs using
+the exact pinned engine. Five eligible fixed-kernel patterns over1032 lines
+produced identical counts/checksums. All searched clones released their cache
+allocations; warm net live was zero. Zero capacity reduced logical cumulative
+warm requests by46.9MB, the largest cold-search live allocation by7,750B and
+retained compiled storage by2,880B. Default2MiB was never a retained-cache claim.
+Twenty-one generic patterns checked admission, spans, captures/empty iteration,
+invalid/oversize patterns and nesting251 rejection. The System allocator ledger
+omits production scratch/Python/cache-map context and proves no physical saving.
+
+Root and independent review authorize source lane37,
+`regex-hybrid-cache-capacity`, in `py-mem-lane6`: only the existing zero-capacity
+builder setting and native correctness fixtures. Exact committed source/tests
+must pass review before native execution or a full build. No worktree memory
+draw is authorized. After correctness qualification, a fresh primary
+`perf-re37` must pass clean58, native proofs and full suites before its first
+and only all-71/all-23 two-run memory-only gate. Regex itself must improve in
+both runs, all memory guards bind, and any non-ACCEPT ends the candidate while
+preserving its branch/stage/evidence and restoring main. The earlier bounded
+matcher, engine-removal and clone trials remain closed.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
