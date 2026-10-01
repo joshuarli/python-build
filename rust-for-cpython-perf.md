@@ -563,6 +563,33 @@ then its candidate native proofs and complete affected-suite union. Any
 baseline assumption failure is preserved and reviewed before building; no
 worktree memory draw is authorized. No source improvement is accepted yet.
 
+Socket/binascii checkpoint `0ca3cd5` passed incumbent contracts, clean58,
+three candidate contracts matching the incumbent reference, exact canonical
+Cargo bytes and all three initializer exports, followed by all 48 affected
+suites (15,615 tests / 1,022 skips, zero failures). Its installed stage stayed
+unchanged through two disposable installation replays. However, that replay
+controller supplied an incomplete compilation environment and rebuilt one
+unrelated Cargo artifact (`_zstd_rs`) with a hash differing from the installed
+stage. The original clean build, suites, fingerprints and mismatch report
+remain preserved. A fresh clean rebuild and repeated native/full affected
+qualification are required before primary qualification. Installer-only
+replays will explicitly treat `all` as already built, then verify all 58
+release artifact matches and stage fingerprints before and after installation.
+
+Zlib/ZIP's first baseline snapshot incorrectly expected every zero-argument
+native call to raise; ZIP's decompressor legitimately constructs a capsule.
+The failure is preserved. Fixture-only checkpoint `a67482a` records stable
+successful return types and exception outcomes separately, retaining every
+native method and semantic test. Corrected incumbent runs passed all 16
+contracts in both import orders with identical snapshots and unchanged stage
+fingerprints. Clean58 and candidate contracts likewise passed in both orders,
+with exact baseline snapshots, canonical Cargo bytes, two initializer exports
+and evaluated shared-module inventory. All 18 affected suites passed
+6,007 tests / 562 skips with zero failures and the existing large-ZIP resource
+denial. Final release58 and stage checks passed; disposable installer-only
+replay is pending before its primary qualification. No memory draw has run
+for either source candidate.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
