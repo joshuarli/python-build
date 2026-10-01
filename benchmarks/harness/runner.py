@@ -249,11 +249,16 @@ def run_workload(
     memory_interval_seconds: float = 0.01,
     perf_stat: bool = False,
     measure_memory: bool = True,
+    memory_only: bool = False,
 ) -> dict[str, Any]:
     if profile not in PROFILE_ROUNDS:
         raise ValueError(f"unknown profile: {profile}")
+    if memory_only and (not measure_memory or perf_stat or allocation_site is not None):
+        raise ValueError("memory-only requires memory sampling without CPU or allocation diagnostics")
     output_dir.mkdir(parents=True, exist_ok=True)
     timing_rounds, memory_rounds = PROFILE_ROUNDS[profile]
+    if memory_only:
+        timing_rounds = 0
     if not measure_memory:
         memory_rounds = 0
     if workload.noise_class == "noisy" and measure_memory:
@@ -298,9 +303,16 @@ def run_workload(
             },
         },
     }
+    if memory_only:
+        result["measurement_mode"] = "memory-only"
+        for side in sides:
+            result[side]["timing"] = {"status": "not_measured", "reason": "memory-only", "samples": []}
     digests: set[str] = set()
     operation_counts: set[int] = set()
     implementations: dict[str, str] = {}
+    # Each side gets one uninstrumented preparation run before RSS sampling.
+    # Third-party bytecode is prepared by the caller and immutable workload
+    # fixtures are prepared above. Timed children provide no reusable state.
     for side, python in sides.items():
         warmup = run_command(workload_command(python, workload, workload.iterations),
                              env=env, cwd=Path(__file__).resolve().parents[2],
@@ -353,8 +365,9 @@ def run_workload(
             digests.add(payload["digest"])
             operation_counts.add(payload["operation_count"])
             memory = _memory_dict(measured.memory)
-            cpu = _cpu_dict(measured, payload, workload.name)
-            memory["cpu"] = cpu
+            if not memory_only:
+                cpu = _cpu_dict(measured, payload, workload.name)
+                memory["cpu"] = cpu
             result[side]["memory"]["rounds"].append(memory)
             (output_dir / f"memory-{index:02d}-{side}.json").write_text(
                 json.dumps({"payload": payload, "memory": memory}, indent=2) + "\n"

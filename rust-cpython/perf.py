@@ -762,7 +762,7 @@ def selection(*, workloads: list[str], modules: list[str], gate: bool, all_workl
 
 def _run_bench(baseline: dict[str, Any], candidate: dict[str, Any], workload: str, *,
                output: Path, profile: str, timing_only: bool, self_compare: bool,
-               record_baseline: Path | None) -> dict[str, Any] | None:
+               record_baseline: Path | None, memory_only: bool = False) -> dict[str, Any] | None:
     """One bench.py run of one workload; None when the outputs differ."""
     # Workload evidence supports standard sampling at most; rigorous adds
     # module rounds while retaining the complete standard workload checks.
@@ -776,6 +776,8 @@ def _run_bench(baseline: dict[str, Any], candidate: dict[str, Any], workload: st
         "--suite", "realworld", "--profile", workload_profile, "--workload", workload,
         "--output", str(output), "--evidence", str(output.with_suffix(".evidence.json")),
     ]
+    if memory_only:
+        command.append("--memory-only")
     if timing_only:
         command.append("--timing-only")
     if record_baseline is not None:
@@ -878,7 +880,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
                 summary = _run_bench(baseline, candidate, workload,
                                      output=directory / f"run-{run}" / workload, profile=profile,
                                      timing_only=timing_only, self_compare=self_compare,
-                                     record_baseline=record)
+                                     record_baseline=record, memory_only=memory_only)
                 observations[workload].append(perf_verdict.mismatch_observation("workload")
                                               if summary is None else perf_verdict.run_observation(
                                                   summary, memory_only=memory_only))

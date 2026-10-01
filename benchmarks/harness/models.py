@@ -160,7 +160,11 @@ def validate_workload_result(value: Any) -> dict[str, Any]:
     Additional JSON-safe identity or measurement fields are preserved.  A
     `schema_version`, when present, must match this implementation.
     """
-    record = _mapping(value, "workload result")
+    record = dict(_mapping(value, "workload result"))
+    mode = record.get("measurement_mode")
+    if mode is not None and mode not in ("timing-and-memory", "memory-only"):
+        raise ResultSchemaError(f"unknown workload measurement_mode: {mode!r}")
+    memory_only = mode == "memory-only"
     version = record.get("schema_version")
     if version is not None and (
         isinstance(version, bool) or version != RESULT_SCHEMA_VERSION
@@ -176,9 +180,28 @@ def validate_workload_result(value: Any) -> dict[str, Any]:
         if side not in record:
             raise ResultSchemaError(f"{side} is required")
         result = _mapping(record[side], side)
-        if "timing" not in result:
-            raise ResultSchemaError(f"{side}.timing is required")
-        _validate_timing(result["timing"], side)
+        if memory_only:
+            result = dict(result)
+            result["timing"] = {"status": "not_measured", "reason": "memory-only", "samples": []}
+            memory = dict(_mapping(result.get("memory"), f"{side}.memory"))
+            rounds = memory.get("rounds")
+            if not isinstance(rounds, Sequence) or isinstance(rounds, (str, bytes)) or not rounds:
+                raise ResultSchemaError(f"{side}.memory.rounds must contain RSS samples")
+            checked = []
+            for index, raw_round in enumerate(rounds):
+                sample = dict(_mapping(raw_round, f"{side}.memory.rounds[{index}]"))
+                _number(sample.get("peak_rss"), f"{side}.memory.rounds[{index}].peak_rss", positive=True)
+                if not sample.get("samples") or sample.get("sampling_errors"):
+                    raise ResultSchemaError(f"{side}.memory.rounds[{index}] has incomplete process-tree samples")
+                sample.pop("cpu", None)
+                checked.append(sample)
+            memory["rounds"] = checked
+            result["memory"] = memory
+            record[side] = result
+        else:
+            if "timing" not in result:
+                raise ResultSchemaError(f"{side}.timing is required")
+            _validate_timing(result["timing"], side)
         _validate_memory(result.get("memory"), side)
         _validate_allocations(result.get("allocations"), side)
         _json_compatible(result, side)
@@ -207,6 +230,9 @@ def validate_summary(value: Any) -> dict[str, Any]:
                 raise ResultSchemaError(
                     f"summary.workloads[{index}].{field} is required"
                 )
+        mode = item.get("measurement_mode")
+        if mode is not None and mode not in ("timing-and-memory", "memory-only"):
+            raise ResultSchemaError(f"unknown workload measurement_mode: {mode!r}")
         _validate_identity(item["identity"])
         for field in ("baseline", "candidate", "comparison", "verdict"):
             _mapping(item[field], f"summary.workloads[{index}].{field}")

@@ -27,7 +27,7 @@ class TimingOnlyRunnerTests(unittest.TestCase):
     def test_cold_import_adds_reported_direct_child_cpu_once(self) -> None:
         measured = SimpleNamespace(
             cpu_user_seconds=0.2, cpu_system_seconds=0.1,
-            cpu_coverage="wait4 root only; descendants excluded",
+            cpu_coverage=runner.LINUX_ROOT_CPU_COVERAGE,
         )
         payload = {"operation_count": 2, "reaped_child_cpu": {
             "user_seconds": 0.4, "system_seconds": 0.2, "process_count": 2,

@@ -157,6 +157,9 @@ def _run_internal(args: argparse.Namespace) -> Path:
         raise RuntimeError(
             "measurements require Linux amd64, or native Apple Silicon with --local"
         )
+    if args.memory_only and (args.timing_only or args.perf_stat or args.profile == "rigorous"
+                             or args.suite not in {"smoke", "realworld"}):
+        raise ValueError("--memory-only supports smoke/realworld quick or standard memory passes only")
     if args.timing_only and not args.local:
         raise ValueError("--timing-only is supported only for local runs")
     if macos_arm64_local and args.profile == "rigorous":
@@ -263,6 +266,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
                 memory_interval_seconds=args.memory_interval_ms / 1000,
                 perf_stat=args.perf_stat,
                 measure_memory=not args.timing_only,
+                memory_only=args.memory_only,
             )
             raw.append(result)
             comparisons.append(compare_workload(result, baseline_label=args.baseline_label,
@@ -350,6 +354,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
             "memory_sampling_interval_seconds": args.memory_interval_ms / 1000,
             "memory_primary_metric": "peak_rss" if macos_arm64_local else "peak_pss",
             "measurement_mode": (
+                "memory-only" if args.memory_only else
                 "timing-only; process memory and allocation passes are not measured"
                 if args.timing_only else "timing plus sampled macOS tree RSS and kernel root peak; PSS/private/swap unsupported"
                 if macos_arm64_local else "timing plus configured resource passes"
@@ -446,6 +451,8 @@ def _run_container(args: argparse.Namespace) -> Path:
         command += ["--allow-cross-version"]
     if args.pyperformance_selection:
         command += ["--pyperformance-selection", args.pyperformance_selection]
+    if args.memory_only:
+        command += ["--memory-only"]
     if args.perf_stat:
         command += ["--perf-stat"]
     subprocess.run(command, check=True)
@@ -529,6 +536,8 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--allow-cross-version", action="store_true")
         command.add_argument("--perf-stat", action="store_true", help="optional separate Linux perf stat diagnostics")
         command.add_argument("--local", action="store_true", help="diagnostic only: no offline network boundary")
+        command.add_argument("--memory-only", action="store_true",
+                             help="sample memory without timing rounds or CPU observations")
         command.add_argument("--timing-only", action="store_true",
                              help="local timing run without the separate memory passes")
     run.add_argument("--preset", choices=("pbs",))

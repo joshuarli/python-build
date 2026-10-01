@@ -240,22 +240,23 @@ def _series_summary(samples: Sequence[float]) -> dict[str, Any] | None:
     return summary
 
 
-def _summarize_side(side: Mapping[str, Any], operation_count: int) -> dict[str, Any]:
+def _summarize_side(side: Mapping[str, Any], operation_count: int, *, memory_only: bool = False) -> dict[str, Any]:
     result = dict(side)
     timing = dict(side["timing"])
-    samples = [float(value) for value in timing["samples"]]
-    summary = describe_samples(samples)
-    median = float(summary["median"])
-    timing["summary"] = {
-        **summary,
-        "samples_seconds": samples,
-        "throughput_operations_per_second": operation_count / median,
-        "sample_percentiles_seconds": {
-            "p50": _percentile(samples, 0.50),
-            "p95": _percentile(samples, 0.95),
-            "p99": _percentile(samples, 0.99),
-        },
-    }
+    if not memory_only:
+        samples = [float(value) for value in timing["samples"]]
+        summary = describe_samples(samples)
+        median = float(summary["median"])
+        timing["summary"] = {
+            **summary,
+            "samples_seconds": samples,
+            "throughput_operations_per_second": operation_count / median,
+            "sample_percentiles_seconds": {
+                "p50": _percentile(samples, 0.50),
+                "p95": _percentile(samples, 0.95),
+                "p99": _percentile(samples, 0.99),
+            },
+        }
     result["timing"] = timing
 
     memory = dict(side.get("memory") or {})
@@ -655,23 +656,27 @@ def compare_workload(
     ):
         raise ValueError("baseline_kind must be a non-empty string when provided")
 
+    memory_only = record.get("measurement_mode") == "memory-only"
     operation_count = int(record["identity"]["operation_count"])
-    baseline = _summarize_side(record["baseline"], operation_count)
-    candidate = _summarize_side(record["candidate"], operation_count)
+    baseline = _summarize_side(record["baseline"], operation_count, memory_only=memory_only)
+    candidate = _summarize_side(record["candidate"], operation_count, memory_only=memory_only)
     self_calibration = baseline_kind == "self" and baseline_label == candidate_label
     baseline["label"] = baseline_label
     candidate["label"] = candidate_label
     baseline["self_calibration"] = self_calibration
     candidate["self_calibration"] = self_calibration
-    baseline_samples = [float(value) for value in record["baseline"]["timing"]["samples"]]
-    candidate_samples = [float(value) for value in record["candidate"]["timing"]["samples"]]
-    timing = _compare_timing(
-        baseline_samples, candidate_samples, self_calibration=self_calibration
-    )
-    timing["cpu"] = _compare_cpu(
-        record["baseline"]["timing"].get("cpu_rounds"),
-        record["candidate"]["timing"].get("cpu_rounds"),
-    )
+    if memory_only:
+        timing = {"status": "not_measured", "reason": "memory-only", "time_ratio": None}
+    else:
+        baseline_samples = [float(value) for value in record["baseline"]["timing"]["samples"]]
+        candidate_samples = [float(value) for value in record["candidate"]["timing"]["samples"]]
+        timing = _compare_timing(
+            baseline_samples, candidate_samples, self_calibration=self_calibration
+        )
+        timing["cpu"] = _compare_cpu(
+            record["baseline"]["timing"].get("cpu_rounds"),
+            record["candidate"]["timing"].get("cpu_rounds"),
+        )
     memory = _compare_memory(baseline, candidate, memory_gate=memory_gate,
                              memory_primary_metric=memory_primary_metric)
     allocations = _compare_allocations(
@@ -720,6 +725,7 @@ def compare_workload(
 
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
+        **({"measurement_mode": "memory-only"} if memory_only else {}),
         "identity": dict(record["identity"]),
         "baseline_label": baseline_label,
         "baseline_kind": baseline_kind,

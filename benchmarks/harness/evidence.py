@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -16,18 +17,20 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _observation(path: Path) -> dict[str, Any]:
+def _observation(path: Path, *, memory_only: bool = False) -> dict[str, Any]:
     name = path.stem
     parts = name.split("-")
     if len(parts) != 3 or parts[0] not in {"timing", "memory"} or parts[2] not in {"baseline", "candidate"}:
         raise ValueError(f"unexpected benchmark observation name: {name}")
+    if memory_only and parts[0] != "memory":
+        raise ValueError(f"memory-only evidence cannot include timing observation: {name}")
     record = _read_json(path)
     payload = record["payload"]
     if not isinstance(payload, dict):
         raise ValueError(f"invalid benchmark payload: {name}")
     memory = record.get("memory") if parts[0] == "memory" else None
     cpu = memory.get("cpu") if isinstance(memory, dict) else record.get("cpu")
-    if not isinstance(cpu, dict):
+    if not memory_only and not isinstance(cpu, dict):
         raise ValueError(f"missing kernel CPU observation: {name}")
     item: dict[str, Any] = {
         "id": name,
@@ -35,8 +38,8 @@ def _observation(path: Path) -> dict[str, Any]:
         "side": parts[2],
         "digest": payload["digest"],
         "operation_count": payload["operation_count"],
-        "user_seconds": cpu["user_seconds"],
-        "system_seconds": cpu["system_seconds"],
+        **({"user_seconds": cpu["user_seconds"], "system_seconds": cpu["system_seconds"]}
+           if not memory_only else {}),
     }
     if "backend" in payload:
         item["backend"] = payload["backend"]
@@ -46,6 +49,12 @@ def _observation(path: Path) -> dict[str, Any]:
     else:
         if not isinstance(memory, dict):
             raise ValueError(f"missing memory observation: {name}")
+        if memory_only:
+            rss = memory.get("peak_rss")
+            if type(rss) not in (int, float) or not math.isfinite(rss) or rss <= 0:
+                raise ValueError(f"missing or invalid RSS observation: {name}")
+            if not memory.get("samples") or memory.get("sampling_errors"):
+                raise ValueError(f"incomplete process-tree memory observation: {name}")
         for source, target in (
             ("peak_rss", "peak_rss_bytes"),
             ("peak_pss", "peak_pss_bytes"),
@@ -115,14 +124,20 @@ def compact_evidence(result_directory: Path, destination: Path) -> Path:
         identity = workload["identity"]
         name = identity["name"]
         directory = result_directory / "realworld" / name
-        paths = sorted(directory.glob("timing-*.json")) + sorted(directory.glob("memory-*.json"))
+        mode = workload.get("measurement_mode")
+        if mode is not None and mode not in ("timing-and-memory", "memory-only"):
+            raise ValueError(f"unknown workload measurement_mode: {mode!r}")
+        memory_only = mode == "memory-only"
+        paths = ([] if memory_only else sorted(directory.glob("timing-*.json"))) + sorted(directory.glob("memory-*.json"))
         if not paths:
             raise ValueError(f"{name}: no attempt observations")
-        attempts = [_observation(path) for path in paths]
+        attempts = [_observation(path, memory_only=memory_only) for path in paths]
         for side in ("baseline", "candidate"):
             source = workload[side]
-            for kind, expected in (("timing", len(source["timing"]["samples"])),
-                                   ("memory", len(source["memory"]["rounds"]))):
+            counts = [("memory", len(source["memory"]["rounds"]))]
+            if not memory_only:
+                counts.append(("timing", len(source["timing"]["samples"])))
+            for kind, expected in counts:
                 actual = sum(item["kind"] == kind and item["side"] == side for item in attempts)
                 if actual != expected:
                     raise ValueError(f"{name}: {side} {kind} observations are incomplete")
@@ -130,6 +145,7 @@ def compact_evidence(result_directory: Path, destination: Path) -> Path:
             raise ValueError(f"{name}: attempt digest disagrees with the summary")
         document["workloads"].append({
             "identity": identity,
+            **({"measurement_mode": "memory-only"} if memory_only else {}),
             "comparison": workload["comparison"],
             "verdict": workload["verdict"],
             "attempts": attempts,

@@ -1,0 +1,159 @@
+"""Memory-only workloads require output and RSS evidence without timing evidence."""
+
+from copy import deepcopy
+import json
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+from benchmarks import bench
+from benchmarks.harness import evidence, models, runner
+from benchmarks.harness.report import build_summary, render_summary
+from benchmarks.harness.statistics import compare_workload
+from benchmarks.workloads.registry import Workload
+
+
+class MemoryOnlyTests(unittest.TestCase):
+    def record(self):
+        return {"measurement_mode": "memory-only", "identity": {
+            "name": "zipimport_cold", "category": "startup", "operation": "import",
+            "operation_count": 3, "digest": "same"},
+            **{side: {"memory": {"rounds": [{"peak_rss": 1000000, "samples": [{}]}] * 3}}
+               for side in ("baseline", "candidate")}}
+
+    def test_explicit_memory_records_validate_compare_and_render_without_timing(self):
+        record = self.record()
+        for timing in (None, {"samples": []}, {"samples": [float("nan")], "cpu_rounds": "invalid"},
+                       {"samples": ["invalid"], "cpu_rounds": "invalid"}):
+            with self.subTest(timing=timing):
+                source = deepcopy(record)
+                for side in ("baseline", "candidate"):
+                    source[side]["memory"]["rounds"][0]["cpu"] = {"user_seconds": float("nan")}
+                    if timing is not None:
+                        source[side]["timing"] = timing
+                compared = compare_workload(source, memory_primary_metric="peak_rss")
+                self.assertEqual(compared["measurement_mode"], "memory-only")
+                self.assertEqual(compared["comparison"]["timing"]["status"], "not_measured")
+                self.assertIsNone(compared["comparison"]["time_ratio"])
+                self.assertEqual(compared["comparison"]["memory"]["metrics"]["peak_rss"]["status"], "pass")
+                self.assertIn("not_measured", render_summary(build_summary(
+                    [compared], baseline="base", candidate="cand")))
+                source.pop("measurement_mode")
+                with self.assertRaises(models.ResultSchemaError):
+                    models.validate_workload_result(source)
+
+    def test_memory_mode_still_requires_rss(self):
+        source = self.record()
+        source["candidate"]["memory"]["rounds"][0].pop("peak_rss")
+        with self.assertRaises(models.ResultSchemaError):
+            models.validate_workload_result(source)
+
+    def test_runner_skips_clocks_cpu_ledgers_and_timing_rounds(self):
+        workload = Workload("zipimport_cold", "startup", "zlib", "import", 3, 1)
+        payload = {"operation_count": 3, "digest": "same", "elapsed_seconds": "invalid",
+                   "reaped_child_cpu": {"user_seconds": "invalid"}}
+        completed = SimpleNamespace(cleanup_complete=True, remaining_pids=(), returncode=0,
+                                    timed_out=False, stdout=json.dumps(payload).encode(), stderr=b"",
+                                    memory={"peak_rss_bytes": 1000000, "samples": [{}]})
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(runner, "run_command", return_value=completed) as run, \
+                patch.object(runner, "_timing_elapsed", side_effect=AssertionError("clock used")), \
+                patch.object(runner, "_cpu_dict", side_effect=AssertionError("CPU used")):
+            result = runner.run_workload(workload, Path("/base"), Path("/cand"), profile="standard",
+                                         site_packages=None, output_dir=Path(temp), memory_only=True)
+            self.assertEqual(run.call_count, 2 + 2 * runner.PROFILE_ROUNDS["standard"][1])
+            self.assertEqual(len(list(Path(temp).glob("timing-*.json"))), 0)
+            for side in ("baseline", "candidate"):
+                self.assertEqual(len(result[side]["memory"]["rounds"]), 3)
+                self.assertNotIn("cpu", result[side]["memory"]["rounds"][0])
+            models.validate_workload_result(result)
+
+    def test_unknown_mode_and_incomplete_tree_samples_fail_closed(self):
+        record = self.record()
+        record["measurement_mode"] = "unknown"
+        with self.assertRaisesRegex(models.ResultSchemaError, "measurement_mode"):
+            models.validate_workload_result(record)
+        for incomplete in ({"peak_rss": 1000000, "samples": []},
+                           {"peak_rss": 1000000, "samples": [{}], "sampling_errors": ["child lost"]}):
+            record = self.record()
+            record["candidate"]["memory"]["rounds"] = [incomplete]
+            with self.assertRaisesRegex(models.ResultSchemaError, "process-tree"):
+                models.validate_workload_result(record)
+
+    def test_output_mismatch_still_fails_memory_runner(self):
+        workload = Workload("zipimport_cold", "startup", "zlib", "import", 3, 1)
+        def completed(command, **kwargs):
+            payload = {"operation_count": 3, "digest": command[0]}
+            return SimpleNamespace(cleanup_complete=True, remaining_pids=(), returncode=0,
+                                   timed_out=False, stdout=json.dumps(payload).encode(), stderr=b"",
+                                   memory={"peak_rss_bytes": 1000000, "samples": [{}]})
+        with tempfile.TemporaryDirectory() as temp, patch.object(runner, "run_command", side_effect=completed):
+            with self.assertRaisesRegex(RuntimeError, "correctness digest differs"):
+                runner.run_workload(workload, Path("/base"), Path("/cand"), profile="quick",
+                                    site_packages=None, output_dir=Path(temp), memory_only=True)
+
+    def test_noisy_memory_rounds_remain_unchanged(self):
+        workload = Workload("zipimport_cold", "startup", "zlib", "import", 3, 1, noise_class="noisy")
+        completed = SimpleNamespace(cleanup_complete=True, remaining_pids=(), returncode=0,
+                                    timed_out=False, stdout=b'{"operation_count":3,"digest":"same"}',
+                                    stderr=b"", memory={"peak_rss_bytes": 1000000, "samples": [{}]})
+        with tempfile.TemporaryDirectory() as temp, patch.object(runner, "run_command", return_value=completed) as run:
+            result = runner.run_workload(workload, Path("/base"), Path("/cand"), profile="quick",
+                                         site_packages=None, output_dir=Path(temp), memory_only=True)
+            self.assertEqual(run.call_count, 2 + 2 * 5)
+            self.assertEqual(len(result["baseline"]["memory"]["rounds"]), 5)
+
+    def test_cli_exposes_memory_only_execution_mode(self):
+        with patch.object(bench, "_run_internal", return_value=Path("/result")) as run, \
+                patch.object(evidence, "compact_evidence", return_value=Path("/evidence")):
+            self.assertEqual(bench.main(["run", "--local", "--baseline", "/base", "--candidate", "/cand",
+                                        "--memory-only", "--evidence", "/evidence"]), 0)
+            self.assertTrue(run.call_args.args[0].memory_only)
+
+    def test_compact_memory_evidence_requires_every_memory_attempt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self.record()
+            compared = compare_workload(record, memory_primary_metric="peak_rss")
+            (root / "summary.json").write_text(json.dumps({"suite": "realworld", "profile": "standard",
+                                                          "workloads": [compared]}))
+            provenance = {key: "fixture" for key in (
+                "run_order", "offline_boundary", "bytecode_policy", "benchmark_lock_sha256")}
+            provenance.update(measurement_mode="memory-only", memory_sampling_interval_seconds=0.01,
+                              python_environment={}, benchmark_packages=[], baseline={}, candidate={},
+                              installed_size={"baseline": {}, "candidate": {}}, host={})
+            (root / "provenance.json").write_text(json.dumps(provenance))
+            directory = root / "realworld" / "zipimport_cold"
+            directory.mkdir(parents=True)
+            for side in ("baseline", "candidate"):
+                for index in range(3):
+                    (directory / f"memory-{index:02d}-{side}.json").write_text(json.dumps({
+                        "payload": {"digest": "same", "operation_count": 3},
+                        "memory": {"peak_rss": 1000000, "samples": [{}]}}))
+            destination = root / "evidence.json"
+            evidence.compact_evidence(root, destination)
+            document = json.loads(destination.read_text())
+            self.assertEqual(document["workloads"][0]["measurement_mode"], "memory-only")
+            self.assertEqual(len(document["workloads"][0]["attempts"]), 6)
+            self.assertTrue(all(item["kind"] == "memory" for item in document["workloads"][0]["attempts"]))
+            (directory / "memory-00-candidate.json").unlink()
+            with self.assertRaisesRegex(ValueError, "memory observations are incomplete"):
+                evidence.compact_evidence(root, root / "incomplete.json")
+
+    def test_compact_memory_attempt_does_not_require_cpu_observation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "memory-00-baseline.json"
+            path.write_text(json.dumps({"payload": {"digest": "same", "operation_count": 3,
+                                                     "elapsed_seconds": "invalid"},
+                                        "memory": {"peak_rss": 1000000, "samples": [{}]}}))
+            observation = evidence._observation(path, memory_only=True)
+            self.assertEqual(observation["peak_rss_bytes"], 1000000)
+            self.assertNotIn("user_seconds", observation)
+            with self.assertRaisesRegex(ValueError, "CPU"):
+                evidence._observation(path)
+
+
+if __name__ == "__main__":
+    unittest.main()

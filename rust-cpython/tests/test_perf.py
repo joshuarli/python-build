@@ -61,6 +61,23 @@ class WorkloadProfileTests(unittest.TestCase):
                     '/python', '-X', 'importtime', '-m', f'benchmarks.workloads.{module}',
                     workload, '--iterations', '1'])
 
+    def test_workload_memory_only_flag_is_explicit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "python_startup"
+            output.mkdir()
+            result = {"identity": {"name": "python_startup"}}
+            (output / "summary.json").write_text(json.dumps({"workloads": [result]}))
+            side = {"python": Path("/python"), "ref": "candidate", "name": "candidate",
+                    "report": {"commit": "abcdef"}}
+            for memory_only in (False, True):
+                with self.subTest(memory_only=memory_only), \
+                        mock.patch.object(perf, "_label", return_value="candidate"), \
+                        mock.patch.object(perf.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
+                    perf._run_bench(side, side, "python_startup", output=output, profile="standard",
+                                    timing_only=False, self_compare=False, record_baseline=None,
+                                    memory_only=memory_only)
+                    self.assertEqual("--memory-only" in run.call_args.args[0], memory_only)
+
     def test_rigorous_modules_keep_supported_workload_evidence_profile(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "python_startup"

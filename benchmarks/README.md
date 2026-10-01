@@ -35,6 +35,33 @@ Allocation-pass elapsed time is diagnostic only. Do not compare it with normal
 timing results. Memory and allocation profiles explain resource changes that a
 timing score alone cannot show.
 
+## Memory-only workload execution
+
+`bench.py run --memory-only` runs the existing smoke or realworld memory
+passes with a quick or standard profile. It omits timed rounds and CPU
+accounting, including the direct-child CPU ledger for cold ZIP imports.
+Memory sampling still covers the process tree with the same iteration counts,
+round counts, sampling interval, RSS floors, and correctness digests. Missing
+RSS or incomplete process-tree observations fail the memory-only record.
+
+Preparation remains explicit: third-party site bytecode is compiled before
+measurement, the first-request Django fixture is prepared and made immutable,
+and each interpreter runs one uninstrumented warmup. Timed rounds use fresh
+children and provide no reusable interpreter state; they are skipped rather
+than used as preparation. Removing them changes run order and may change host
+cache conditions, so calibrate this mode separately from earlier paired runs.
+
+Raw workloads and comparisons declare `measurement_mode: "memory-only"`.
+Timing is `not_measured` with no samples or invented values, and compact
+attempt evidence requires memory and output completeness without CPU records.
+Legacy records without this mode retain mandatory timing evidence. Unknown
+measurement modes fail validation. RSS still has the same diagnostic coverage
+limitations as other RSS runs; this mode does not claim PSS or unique memory.
+
+`rust-cpython/perf.py --memory-only` selections pass this execution mode to the
+workload harness. Its replicated memory acceptance policy remains the authority
+for memory-phase decisions; the shared report retains its RSS coverage limits.
+
 ## Prepare and run
 
 From the repository root, `make bench` is the end-to-end product comparison.
