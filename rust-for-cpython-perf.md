@@ -897,6 +897,15 @@ in a larger Python object has no demonstrated physical saving and introduces
 initialization, alignment, zeroization, heap-type and reflected-size contracts.
 No source edit or runtime followed.
 
+A source-only tiny-helper layout review closed without a candidate. The typing,
+threading, UUID, datetime and struct images have fixups on separate16KiB
+DATA_CONST and DATA pages. Consolidation through `no_data_const` would remove
+the relocated tables' read-only protection; moving method tables alone leaves
+the eager GOT page. The shared-helper flag and struct page-removal mechanisms
+were already tried without a memory win. Static payload arithmetic establishes
+no physical saving. No compiler, runtime, source change or memory draw followed;
+the preserved report is lane9's `results/tiny-helper-layout-scout/report.md`.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
