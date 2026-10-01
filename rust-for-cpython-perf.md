@@ -134,12 +134,34 @@ Builtin registration source `8e40885` has a clean committed build with
 proofs match incumbent method inventories, public native-call counts,
 digests and own-GIL outcomes for the 22 added helpers plus codecs/itertools.
 Fresh-process SQLite image comparison and final initializer/core symbol
-proofs pass; complete affected suites are pending. No memory acceptance
-is claimed. Separately, a zstd diagnostic-only event-buffer artifact is
-being built to record native output capacities and context sizes without
-per-event Python callbacks or allocations. Its instrumented footprint
-cannot qualify an optimization. A bounded same-binary executable-path
-diagnostic is pending; it does not retry or reclassify the regex result.
+proofs pass; all 78 affected suites passed (26,502/1,829). Its once-only
+all-71/all-23 exploration `20261001T062024Z` REJECTed: 19 memory rows
+improved, including datetime load 0.528x, typing load 0.921x and Django
+import RSS 0.987x, but logging working peak 1.696x and startup RSS 1.020x
+regressed in both runs. Restoration `8aba152` returns the overlay to the
+incumbent. Source, proof scripts, patch and measured artifacts are preserved;
+there is no retry or primary qualification.
+
+The bounded same-binary executable-path diagnostic completed six normal
+samples with a fixed 39-character home and three later metadata checks.
+Launch aliases changed observed `sys.executable` and `_base_executable`;
+load samples did not establish a repeatable causal amount. Stage bytes,
+inode, outputs, prefixes and stdlib origins matched. The matched-prefix
+context controls homes only: actual executable paths remain different.
+This diagnostic changes no protocol or historical verdict.
+
+Zstd diagnostic-only source `3ebbd5a` passed clean58, six complete suites
+(2,274/178), six diagnostic checks, 1,796 native calls, four recorder
+regressions and an isolated staged allocator-reentry fixture. The original
+readout deadlock was reproduced before repair; Python allocation and resizing
+now occur outside the recorder guard. Exactly one instrumented 61-iteration
+trace after two warmups recorded 3,987 events with no drops and matching
+digest. Unknown-size decompression grew and shrank output at the same pointer
+in all 63 calls, so an output-copy hypothesis is unsupported. All 128 encoder
+and 252 decoder creations had matching drops. The observer materially changed
+the physical peak; it cannot qualify a memory improvement. The uninstrumented
+80–96 KiB zstd excess remains unexplained, and its earlier compileall RSS
+rejection remains binding. No resumed source optimization is integrated.
 
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
