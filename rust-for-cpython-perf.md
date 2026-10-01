@@ -281,6 +281,43 @@ runs and all memory guards bind. A non-ACCEPT ends the candidate without
 retry, while retaining branch/stage/evidence and restoring main. No changed
 memory comparison is authorized until source and correctness review finish.
 
+Lane 34 checkpoint `b1ac334` passed private storage/fault probes, four public
+contracts on pristine/incumbent/candidate, byte-identical fresh-input encodings,
+native capsule routing and own-GIL checks. Its clean worktree build verified
+58 release helpers; twelve complete suites passed 3,359/96. Primary temporary
+branch `integrate-marshal-reference-storage-34` at `b5546e9`, fresh stage
+`perf-ma34`, independently passed clean58, native proofs and full50,158/2,748.
+Its first and only changed-source memory gate `20261001T120934Z` REJECTed:
+marshal load was 1.029x [1.006, 1.048], worse/neutral across runs, and working
+peak stayed neutral. Glob and tomllib load plus compileall and multiprocessing
+RSS regressed in both runs. The two unrelated improvements do not satisfy the
+marshal requirement. All 94 entities/165 metrics were assessed, with no output
+mismatch or unstable metric. Independent verdict review and three-stage
+postflight fingerprints passed. Main is restored to the incumbent overlay;
+branch, stage, patch and raw evidence are preserved. No retry or acceptance.
+
+Distinct lane 35, `base64-deferred-binascii`, starts in root-created
+`py-mem-lane4` from main `a51aa3e`. Valid default conversions use Rust but
+currently import the separate C binascii image eagerly. Historical attribution
+found 96 KiB resident in that image, including 32 KiB dirty; this is evidence
+of a possible owner, not a current physical-saving claim. Checkpoint `4e2e01b`
+uses the existing PEP810 lazy-import mechanism and makes native hex errors
+import the real fallback module before resolving its current Error class.
+Owned module/exception references are released with the selected error protected
+against cleanup reentry. No cache, ABI, dependency or algorithm change is added.
+Exact coordinator and independent source review passed. Two isolated incumbent
+regressions reproduce eager loading and missing Error on a cold direct native
+call; helper-independent public output/error contracts pass pristine and
+incumbent. Thirteen durable isolated contracts, a clean release build and
+complete assigned suites are authorized; worktree memory draws are not.
+After qualification, the same explicit once-only primary procedure requires
+fresh `perf-ba35`, clean58, native proofs and full suites before an all-71/
+all-23 two-run memory-only gate. Base64 itself must improve in both runs and
+all memory guards bind. Any non-ACCEPT ends the candidate without retry while
+preserving evidence and restoring main. No changed memory draw is authorized
+before correctness qualification finishes. Inspect, tokenize, ipaddress,
+threading and UUID source-only scouts closed without a distinct new mechanism.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
