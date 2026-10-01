@@ -1035,6 +1035,40 @@ all20 unresolved absolute module memory goals and16 workload RSS goals remain
 open. The renewed SSL image scout closed again because its helper is already
 builtin, with no separate image to remove; no experiment followed.
 
+A source-only history map now binds actual C/Rust placement and prior trials
+for all20 unresolved routes. Exact singleton datetime11ed0a1 already rejected
+memory guards; C `_datetime` is itself builtin, so no existing C shared image
+can be paired with its helper. The zstd C/Rust image proposal closed: C binds
+39 ZSTD/ZDICT APIs to Homebrew while Rust bundles a reduced-feature engine;
+same-image unprefixed symbols could silently change C provider/features. No
+new experiment followed either closure.
+
+Root authorizes source45, `binascii-c-rust-image`, for code and fixtures only
+in a fresh isolated worktree. C `binascii` and `_binascii_rs` are actual
+standalone coimports; historical attribution identifies a16KiB dirty helper
+page. This is distinct from rejected legacy Rust Base64/helper and socket/helper
+pairs. Conditional independent design review passed; savings remain unknown.
+
+Compile the unchanged original C source with its exact configured C flags,
+headers and dependencies plus only an initializer symbol rename. Link that
+object during Cargo's real release helper link, with a thin exported forwarder
+for original `PyInit_binascii`. Preserve both module definitions, states,
+methods, lifecycle/GIL slots, errors, buffers and current-interpreter lookup.
+Install the canonical Cargo bytes once and a relative C-module alias, preserving
+both inventory names and all58 release Rust artifact proofs. No post-Cargo C
+relink, validator relaxation, legacy `_base64` redirect or new dependency.
+
+The merged recipe drops the helper's `-no_data_const` flag so C's protected
+DATA_CONST tables retain read-only protection; other member recipes stay exact.
+The deliberate C bundle-to-Cargo dylib packaging contract requires explicit
+loader/export/import-order/install-replay fixtures. Physical page fit is not
+assumed. Independent source/fixture review precedes any execution or build;
+clean builds, complete affected and primary full suites/native proofs precede
+the first and only primary matched-path all71/all23 memory-only gate. Base64
+or binascii memory must improve in both runs and every memory guard binds.
+Any non-acceptance preserves source/stages/raw and restores the incumbent with
+no retry. CPU, timing and quietness play no role. No runtime is yet authorized.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
