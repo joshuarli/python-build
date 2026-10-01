@@ -623,6 +623,22 @@ reviewed regression/native/full affected qualification must precede fresh primar
 must improve in both runs and every memory guard binds. A non-ACCEPT closes it
 without retry; CPU recompilation cost and quietness do not qualify or block it.
 
+The authorized source41 proofs completed at clean `c2dc378`. Both standalone
+actual-source probes compiled against the incumbent's exact regex1.13.1 std/perf
+artifacts and unchanged regex-automata0.4.18/regex-syntax0.8.11 pins. The old path
+failed the intended identical-pattern-pointer ownership assertion; the candidate
+passed independent live owners, continued use after peer drop and per-call logical
+release/admission checks. Pristine public2 and incumbent public/native5 contracts
+passed with no native skips; stage and harness fingerprints stayed unchanged.
+A summary controller initially looked for the inherited cpython-sys manifest in
+the overlay instead of the verified extracted source. That report-only error is
+preserved and corrected, without hiding or rerunning any runtime failure.
+Independent audit verified actual source/generated/artifact hashes and raw exits.
+A clean58 worktree CPython build, actual native kernel counters/output parity,
+five native/public contracts and the complete19 affected-suite union are now
+authorized. No worktree memory draw is authorized or performed. The probe's
+logical System ledger does not model physical pages or Python/scratch bookkeeping.
+
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
 first-call resident growth belonged to the helper image. Embedding the same state
