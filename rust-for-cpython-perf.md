@@ -475,6 +475,17 @@ that boundary; charged intermediate states and group metadata are distinct.
 This is source-design evidence only, with no implementation, diagnostic build
 or memory draw authorized, and no physical-saving claim.
 
+The follow-up now authorizes a private pinned-engine diagnostic in root-created
+`py-mem-lane7` from main`30ae24d`. It compares original byte-regex All captures
+with equivalent meta-engine Implicit group0 storage, retaining the full engine
+feature closure and incumbent's default2MiB hybrid capacity. Rejected lane37's
+zero-capacity setting is not stacked. The initial diagnostic uses the original
+All builder as admission preflight for every pattern; the conservative HIR
+shortcut remains a separate source proof. Only logical allocation lifetimes and
+whole-match/admission parity may run under build/test leases. No production
+edit, full build or physical memory draw is authorized; renewed source count
+remains37 until an implementation candidate is approved.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
