@@ -236,8 +236,32 @@ review and independent review both pass: the original C body is byte-identical
 outside three includes and two private getters, and metadata lookup remains
 unchanged. Twelve durable contracts include facade ownership/error context,
 legacy slot priority and concurrent independent interpreters. Clean build and
-assigned complete suites are now running in `py-mem-lane2`; no changed-source
-memory draw or source acceptance has occurred.
+assigned complete suites passed in `py-mem-lane2`: clean58, all twelve
+contracts and 2,202/9 across eight suites. Primary temporary branch
+`integrate-typing-core-identifiers-33` at `5e36b6b` independently passed
+clean58, native ABI/6,400-call proofs, twelve contracts and full50,158/2,748.
+Fresh primary stage `perf-ty33` preserves earlier stages and matches the
+incumbent build-name length. Its first and only changed-source gate
+`20261001T111040Z` REJECTed: typing load improved in both runs to 0.905x
+[0.879, 0.920], but seven module memory and six workload RSS guards regressed.
+Those are _strptime, glob, ipaddress, shutil, urllib.parse and warnings load,
+logging working peak (1.597x), both difflib workloads, gzip extraction,
+wheel reading, cold zip import and streaming zlib RSS. No output mismatch or
+unstable metric occurred. Postflight incumbent, candidate and control
+fingerprints passed. Primary main is restored to the exact incumbent overlay;
+branches, stages, source patch and raw results remain preserved. No retry,
+acceptance or resumed source improvement follows this candidate.
+
+A source-only marshal scout found no retained map or RandomState mechanism:
+the incumbent already uses a fixed-hash full-pointer identity table and writes
+directly into final Python bytes. A distinct storage proposal removes four
+padding bytes per writer slot with one aligned allocation containing full
+pointer keys and 32-bit indices. At 4,096 slots the requested size would fall
+from 65,536 to 49,152 bytes; physical effect remains unknown. The sampler's
+64 KiB load floor clamps each side, not minimum savings. Current marshal load
+is about 3 MiB, so an actual 16 KiB saving alone would not clear the 1% judge.
+Source-only ownership, growth and failure-atomicity review precedes any lane
+authorization. No new source candidate or measurement is authorized yet.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
