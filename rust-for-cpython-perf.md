@@ -126,17 +126,31 @@ checkpoints remain on isolated branches.
   held snapshots, accounting for most of the RSS gap; retained Python pools
   differ by only about 126 KiB with equal arena counts. A packaging-only
   23-helper shared-image trial preserves the five existing no_std helpers
-  separately. Its removable resident fraction is not yet proven.
+  separately. Clean `bb15fd8` passes full 50,158/2,791 and all alias/state
+  checks. Two unchanged setup comparisons REJECTed only load (fractions,
+  then concurrent.futures), with working peaks, seven RSS guards and outputs
+  neutral; exploration recovery preserves both verdicts and all final guards.
+  Two physical attribution repeats find Django native residency lower by
+  1,856 KiB and dirty pages by 656 KiB, but single-helper processes retain
+  48–96 KiB more native memory. The actual all-71/all-23 gate is running;
+  diagnostic savings do not establish acceptance.
 - An isolated HMAC no_std trial `8ec73ba` starts from an actual 144 KiB
   resident / 32 KiB dirty helper cost. It passes clean58 and five complete
   suites (673/38) and eight native parity/lifetime/allocation checks; its
-  smaller image is not a measured memory win. Physical attribution and
-  replicated memory qualification remain pending.
+  smaller image is not a qualified target win. Matched first-call profiles
+  show 48 KiB less resident code and unchanged dirty pages. Actual two-run
+  comparison `20261001T032815Z` is NEUTRAL: load 0.993x [0.944, 1.034],
+  working peak 1.000x and Django RSS 1.006x. No all-23 qualifying gate or
+  retry follows; the source checkpoint and evidence remain preserved.
   Separate regex correctness repair `5b955f1` addresses inherited ASCII
   information-separator whitespace misses, preserving the eligible grammar
   and fallback boundary. Clean58, four complete suites (470/58), thirteen
   native checks and 9,728 exhaustive ASCII comparisons pass; its memory
-  gate remains pending.
+  lane gate `20261001T030129Z` was NEUTRAL. Primary source `3d6dbd1` passes
+  clean58, full 50,158/2,748 and thirteen installed native checks. Primary
+  all-71/all-23 gate `20261001T033357Z` REJECTed glob, statistics and zipfile
+  load, logging working peak and gzip workload RSS in both runs. The repair
+  remains unintegrated; no memory-improvement claim or retry follows.
 - The bisect wrapper scout measures a 9,550-byte reachable Python graph,
   while importing its existing C accelerator adds 32 KiB dirty / 64 KiB
   resident memory. No replacement experiment is justified from that cost.
@@ -144,6 +158,18 @@ checkpoints remain on isolated branches.
   differences from pristine C behavior. Direct own-GIL `_bisect_rs` import
   fails on the incumbent while public bisect falls back successfully; this
   inherited coverage issue is recorded separately from the memory goals.
+- Bounded CSV and marshal scouts found no distinct retained-state mechanism;
+  their UNCLEAR/OVER load goals remain unresolved. Multiprocessing framing
+  does allocate a temporary native vector for 1,208 small frames across four
+  threads; direct final-byte assembly is an isolated experiment with buffer,
+  exception and wire-boundary regressions, not a proven physical gain.
+- The `_strptime` scout measures 224 KiB physical calendar-import growth on
+  the incumbent after locale/re/datetime are loaded. An isolated experiment
+  retains localized-name and Rust-parser behavior while deferring calendar's
+  full module. Real calendar access, exports, locale overrides and import
+  retry are tested. The private alias is stored only after publication;
+  deletion before publication and never-observed cold assign/delete history
+  follow that explicit lazy lifecycle. No candidate memory win is claimed.
 
 Raw verdicts, failed-suite logs, import attribution and current command IDs
 are retained in the ignored results trees and `coordinator-state.json`.
