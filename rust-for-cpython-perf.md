@@ -722,6 +722,16 @@ unchanged. Verified private APFS cache clones and doctor passed; a clean
 worktree build, actual archive/core/native proofs and11 complete affected suites
 are now authorized. No worktree memory draw is allowed.
 
+Source42 completed that work: clean57, all native contracts and11 full affected
+suites (3,337/24, no failures), with final source/harness/stage/artifact checks.
+The controller's expected build-directory core owner was wrong: the build
+executable's load command names the installed core. The identical built and
+installed core hashes, actual link line and single initializer proofs passed.
+The failure is archived; a controller-only correction resumed just the failed
+ownership and pending context/oracle checks, all passing without rebuilding or
+repeating passed native cases. Root now authorizes fresh primary `perf-ts42`,
+the same proofs, full default suites and its sole all71/all23 memory gate.
+
 The once-only zstd API feasibility invocation passed six inputs, including
 empty,1MiB kernel data, incompressible data and multiple blocks. Fresh single-END
 stable input/output modes produced identical bytes to the default native mode
