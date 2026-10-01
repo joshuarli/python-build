@@ -996,6 +996,15 @@ not force a held pool lock or pending registration. Source, artifacts and all
 three stages are checked before and finally after. Separate private actual-fork
 fixtures remain source-only; no memory draw is authorized.
 
+Source44 native controller completed12 cases successfully, including eight
+actual child processes across incumbent/candidate cold and warm imports.
+Unchanged kernel outputs, native call counts and all source/tool/artifact/stage
+pre/post checks passed. Root authorizes primary-checkout preparation on a
+temporary integration branch, a clean `perf-rs44` build, reviewed primary native
+checks and the complete default-resource suite. The private held-lock and
+installed-before-Ready fork fixtures still require review and proof before
+memory qualification. No source is accepted and no memory draw is authorized.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
