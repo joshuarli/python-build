@@ -109,21 +109,33 @@ checkpoints remain on isolated branches.
   guards in `20261001T011140Z`: logging load and catalog URL, gzip, startup,
   and zlib-decode RSS. Its overlay exactly matches the incumbent. The
   measured drift is preserved without ratio corrections or weaker floors.
-- Release codegen-unit consolidation and deferred private SSL error-name
-  dictionaries are in clean qualification. SSL's first two-run exploration
-  was neutral (pooled load 0.950x); the predicted private dictionaries really
-  disappear, but Django RSS savings remain below the floor. No acceptance
-  follows from the pooled point estimate alone.
+- Release codegen-unit consolidation `5e07096` passed clean58, full
+  50,158/2,790 and exact current-incumbent skip parity. The all-71/all-23
+  gate `20261001T022736Z` REJECTed twelve module-load and three workload-RSS
+  regressions; no target improvement qualified. Five control goals still
+  read re, datetime, typing and threading OVER, pickle UNCLEAR. The source
+  was restored in `533e699`; the rejected checkpoint and raw evidence remain.
+- Deferred private SSL error-name dictionaries `ce59916` passed clean58,
+  5,712/455 complete-suite tests and 22 native lifecycle/OOM checks. Its
+  first exploration was neutral despite pooled load 0.950x. Clean gate
+  `20261001T024321Z` REJECTed five workload-RSS regressions; SSL load and
+  working peak were neutral. The private dictionaries really disappear,
+  but neither that diagnostic nor the pooled estimate qualifies a win.
 - Exact first-request attribution finds 28 dynamic Rust helpers retain
   3,264 KiB resident memory. The net staged-image delta is 3,520 KiB in both
   held snapshots, accounting for most of the RSS gap; retained Python pools
   differ by only about 126 KiB with equal arena counts. A packaging-only
   23-helper shared-image trial preserves the five existing no_std helpers
   separately. Its removable resident fraction is not yet proven.
-- An isolated HMAC no_std trial starts from an actual 144 KiB resident / 32 KiB
-  dirty helper cost. No source gain has qualified. A separate regex
-  correctness repair addresses inherited ASCII information-separator
-  whitespace misses, preserving the eligible grammar and fallback boundary.
+- An isolated HMAC no_std trial `8ec73ba` starts from an actual 144 KiB
+  resident / 32 KiB dirty helper cost. It passes clean58 and five complete
+  suites (673/38); its smaller image is not a measured memory win. Native
+  allocation checks and replicated memory qualification remain pending.
+  Separate regex correctness repair `5b955f1` addresses inherited ASCII
+  information-separator whitespace misses, preserving the eligible grammar
+  and fallback boundary. Clean58, four complete suites (470/58), thirteen
+  native checks and 9,728 exhaustive ASCII comparisons pass; its memory
+  gate remains pending.
 
 Raw verdicts, failed-suite logs, import attribution and current command IDs
 are retained in the ignored results trees and `coordinator-state.json`.
