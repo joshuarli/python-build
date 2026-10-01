@@ -743,6 +743,27 @@ build or qualification; no retry. Unwritten reservation and warmed allocator
 reuse remain possible explanations, not separated causal findings. Zstd's
 working-peak goal remains unresolved.
 
+Root now authorizes source43 preparation, `regex-full-call-arena`, from the
+unchanged incumbent overlay, for source and isolated logical-proof fixtures only.
+The distinct mechanism routes temporary whole-engine construction/search/drop
+through existing bounded scratch storage, addressing the observed malloc
+retention category. Source41's System-only no-cache candidate remains rejected
+and cannot be retried or reclassified. No net physical saving is predicted.
+The scratch size/alignment, owner/nesting rules, System overflow fallback,
+parser memo, engine configuration, admission/resource limits and public ABI
+must remain intact. Only copied status/span scalars may cross scope reset.
+The concrete default pool-capacity Lazy allocation must initialize under
+System before any full-engine scratch activation, using its original public
+configuration getter. A direct edge to already-pinned automata0.4.18 is allowed
+only with identical unified features and package/version/checksum inventory.
+Cold global/TLS allocation escape, engine/pool complete destruction, errors,
+overflow/alignment and concurrent/nested scopes require isolated proofs with
+actual source and dependencies; warming an unrelated engine oracle first
+would hide the known escape and is forbidden. No runtime, build or memory draw
+is authorized until root reviews those sources and fixtures. Complete affected
+and primary suites plus a sole all71/all23 memory-only qualification remain
+required for any eventual candidate; non-acceptance is terminal without retry.
+
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
 first-call resident growth belonged to the helper image. Embedding the same state
