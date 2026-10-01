@@ -46,6 +46,50 @@ def module(base, cand):
 
 
 class WorkloadProfileTests(unittest.TestCase):
+    def test_matched_executable_requires_matched_homes_before_resolving(self):
+        with mock.patch.object(perf, "resolve") as resolve, self.assertRaisesRegex(
+                perf.LaneError, "requires --matched-prefix"):
+            perf.bench(baseline_ref="@control", candidate_ref="@incumbent", workloads=[],
+                       gate=False, runs=2, profile="standard", timing_only=False,
+                       min_idle=0, memory_only=True, matched_executable=True)
+        resolve.assert_not_called()
+
+    def test_module_launch_alias_preserves_verified_identity_and_checks_observed_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / "stage"
+            python = stage / "bin/python3.16"
+            python.parent.mkdir(parents=True)
+            python.write_text("fixture")
+            home = Path(temp) / "home"
+            home.symlink_to(stage, target_is_directory=True)
+            launch = home / "bin/python3.16"
+            observation = {"digest": "same", "runtime_executable": str(launch),
+                           "runtime_base_executable": str(launch),
+                           "runtime_prefix": str(home), "runtime_exec_prefix": str(home)}
+            with mock.patch.object(perf.subprocess, "run", return_value=mock.Mock(
+                    returncode=0, stdout=json.dumps(observation), stderr="")) as run:
+                self.assertEqual(perf._module_sample(
+                    python, "collections", 56, Path(temp), runtime_home=home,
+                    runtime_executable=launch), observation)
+                self.assertEqual(run.call_args.args[0][0], str(launch))
+                observation["runtime_base_executable"] = str(python)
+                run.return_value.stdout = json.dumps(observation)
+                with self.assertRaisesRegex(perf.LaneError, "requested launch"):
+                    perf._module_sample(python, "collections", 56, Path(temp),
+                                        runtime_home=home, runtime_executable=launch)
+            wrong_home = Path(temp) / "other-home"
+            wrong_home.symlink_to(stage, target_is_directory=True)
+            with mock.patch.object(perf.subprocess, "run") as run, self.assertRaises(perf.LaneError):
+                perf._module_sample(python, "collections", 56, Path(temp),
+                                    runtime_home=wrong_home, runtime_executable=launch)
+            run.assert_not_called()
+            home.unlink()
+            home.symlink_to(Path(temp) / "other", target_is_directory=True)
+            with mock.patch.object(perf.subprocess, "run") as run, self.assertRaises(perf.LaneError):
+                perf._module_sample(python, "collections", 56, Path(temp),
+                                    runtime_home=home, runtime_executable=launch)
+            run.assert_not_called()
+
     def test_harness_identity_changes_with_source_and_reports_harness_dirty_state(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
@@ -104,6 +148,39 @@ class WorkloadProfileTests(unittest.TestCase):
             self.assertEqual({call.kwargs["runtime_home"] for call in measure.call_args_list}, set(homes))
             self.assertTrue(all(not home.exists() for home in homes))
             self.assertTrue(stage.exists())
+
+    def test_matched_executable_calibration_keeps_original_identity_and_launches_both_aliases(self):
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / "stage"
+            python = stage / "bin/python3.16"
+            python.parent.mkdir(parents=True)
+            python.write_text("fixture")
+            side = {"ref": "@control", "name": "control", "stage": stage,
+                    "python": python, "report": {"commit": "fixture"}}
+            with mock.patch.object(perf, "LANE", Path(temp)), \
+                    mock.patch.object(perf, "_harness_identity", return_value={"source_sha256": "fixture"}), \
+                    mock.patch.object(perf, "selection", return_value=(["json"], [], ["json"])), \
+                    mock.patch.object(perf, "host_lease", return_value=nullcontext()), \
+                    mock.patch.object(perf, "resolve", return_value=side), \
+                    mock.patch.object(perf, "_verify_stage"), \
+                    mock.patch.object(perf, "_module_iterations", return_value=37) as setup, \
+                    mock.patch.object(perf, "_module_sample", return_value=sample(2.0, 1 << 20, 1 << 20)) as measure:
+                record = perf._measure(
+                    baseline_ref="@control", candidate_ref="@control", workloads=[], modules=["json"],
+                    gate=False, runs=2, profile="quick", timing_only=False, min_idle=0,
+                    self_compare=True, record_baselines=False, memory_only=True,
+                    matched_prefix=True, matched_executable=True)
+            context = record["runtime_prefix_context"]
+            launches = [Path(context[key]) for key in ("baseline_executable", "candidate_executable")]
+            self.assertEqual(context["kind"], "matched-python-home-and-executable")
+            self.assertEqual(len(str(launches[0])), len(str(launches[1])))
+            self.assertNotEqual(launches[0], launches[1])
+            self.assertEqual(setup.call_args.kwargs["runtime_executable"], launches[0])
+            self.assertEqual({call.kwargs["runtime_executable"] for call in measure.call_args_list}, set(launches))
+            self.assertTrue(all(call.args[0] == python for call in measure.call_args_list))
+            self.assertEqual(side["python"], python)
+            self.assertTrue(all(not launch.exists() for launch in launches))
+            self.assertTrue(python.exists())
 
     def test_module_runtime_home_changes_only_explicit_launch_environment(self):
         with mock.patch.object(perf.subprocess, "run", return_value=mock.Mock(

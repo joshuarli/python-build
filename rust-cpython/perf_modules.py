@@ -1415,6 +1415,8 @@ def main(argv: list[str]) -> int:
         print("usage: perf_modules.py list | measure ROUTE --iterations N", file=sys.stderr)
         return 2
     result = measure(argv[1], int(argv[3]))
+    result.update(runtime_executable=sys.executable, runtime_base_executable=sys._base_executable,
+                  runtime_prefix=sys.prefix, runtime_exec_prefix=sys.exec_prefix)
     import json
     print(json.dumps(result))
     return 0

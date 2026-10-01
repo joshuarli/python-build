@@ -78,6 +78,7 @@ def _interpreter_identity(value: dict[str, Any]) -> dict[str, Any]:
         "compiler", "config_args", "executable_sha256",
     )} | {key: value[key] for key in (
         "runtime_python_home", "runtime_prefix", "runtime_exec_prefix", "stdlib_json_file",
+        "runtime_launch_executable", "runtime_executable", "runtime_base_executable",
     ) if key in value}
 
 

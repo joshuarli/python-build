@@ -74,6 +74,27 @@ not control embedded build paths or dynamic-library install names. Natural
 prefix runs and their historical REJECT/NEUTRAL decisions remain intact.
 No source optimization is accepted by introducing this option.
 
+An additional opt-in `--matched-executable` requires both `--memory-only`
+and `--matched-prefix`. It launches through each fixed home's `bin/python3.16`,
+matching executable-path lengths as well as home lengths. The two aliases
+remain distinct strings and never change targets while any setup or sample
+process runs. Verified stage/executable identities and hashes remain the
+original paths; requested and observed launch paths are retained separately.
+Module identity fields are emitted after memory snapshots, without changing
+kernels, imports, iteration sizing, samples, floors or verdicts. Workload
+identity, dependency preparation, bytecode compilation, warmups and sampling
+use the selected launch path. Old contexts remain available and unchanged.
+
+The launch-context change passed 157 benchmark tests (16 skips) and 71 Rust
+harness tests (13 skips), plus an installed-control identity probe under the
+host test lease. Both aliases appeared exactly in `sys.executable`,
+`_base_executable` and both prefixes, with unchanged executable hash and
+stage fingerprints. Independent read-only review found no blocking issue.
+Fresh memory calibration and ground truth are pending before this context
+can judge new source work. Compiled paths, loader names, bytecode filenames,
+mapping layout and host state remain uncontrolled; no physical saving,
+historical correction or rejected-source retry is authorized by this change.
+
 Harness commit `4cff383` passed 156 benchmark tests (16 platform skips) and
 68 Rust harness tests (13 skips), including alias cleanup, same-stage
 two-home calibration, environment isolation, identity checks, compact export,

@@ -61,8 +61,15 @@ def _sha256(path: Path) -> str:
 
 
 def _identity(python: Path, label: str, source: str, kind: str, *,
-              python_home: Path | None = None) -> dict[str, Any]:
+              python_home: Path | None = None,
+              launch_executable: Path | None = None) -> dict[str, Any]:
     from benchmarks.harness.environment import interpreter_environment
+    launch = python
+    if launch_executable is not None:
+        if python_home is None or launch_executable != python_home / "bin" / python.name or \
+                not launch_executable.is_file() or launch_executable.resolve() != python.resolve():
+            raise ValueError("launch alias must select the verified executable through its home")
+        launch = launch_executable
     code = (
         "import json,platform,sys,sysconfig; "
         "print(json.dumps({'version':list(sys.version_info[:3]),"
@@ -71,14 +78,20 @@ def _identity(python: Path, label: str, source: str, kind: str, *,
         "'compiler':platform.python_compiler(),"
         "'config_args':sysconfig.get_config_var('CONFIG_ARGS'),"
         "'platform':sysconfig.get_platform(), 'runtime_prefix':sys.prefix,"
-        "'runtime_exec_prefix':sys.exec_prefix, 'stdlib_json_file':json.__file__}))"
+        "'runtime_exec_prefix':sys.exec_prefix, 'stdlib_json_file':json.__file__,"
+        "'runtime_executable':sys.executable, 'runtime_base_executable':sys._base_executable}))"
     )
-    completed = subprocess.run([str(python), "-c", code], capture_output=True, text=True, timeout=30,
+    completed = subprocess.run([str(launch), "-c", code], capture_output=True, text=True, timeout=30,
                                check=True, env=interpreter_environment(python_home=python_home))
     data = json.loads(completed.stdout)
     if python_home is not None and any(data.get(field) != str(python_home)
                                       for field in ("runtime_prefix", "runtime_exec_prefix")):
         raise ValueError("interpreter did not honor the requested Python home")
+    if launch_executable is not None:
+        if any(data.get(field) != str(launch) for field in
+               ("runtime_executable", "runtime_base_executable")):
+            raise ValueError("interpreter did not honor the requested launch executable")
+        data["runtime_launch_executable"] = str(launch)
     data.update({"label": label, "kind": kind, "source": source, "executable": str(python),
                  "executable_sha256": _sha256(python.resolve())})
     return data
@@ -193,6 +206,9 @@ def _run_internal(args: argparse.Namespace) -> Path:
         baseline, baseline_source = _extract_interpreter(args.baseline, scratch / "baseline")
         candidate, candidate_source = _extract_interpreter(args.candidate, scratch / "candidate")
         homes = (args.baseline_python_home, args.candidate_python_home)
+        launch_through_home = getattr(args, "launch_through_python_home", False)
+        if launch_through_home and (not args.memory_only or any(home is None for home in homes)):
+            raise ValueError("launch aliases require both Python homes and --memory-only")
         if any(home is not None for home in homes):
             if not args.memory_only or any(home is None for home in homes):
                 raise ValueError("Python home aliases require both sides and --memory-only")
@@ -202,10 +218,19 @@ def _run_internal(args: argparse.Namespace) -> Path:
             for home, python in zip(homes, (baseline, candidate)):
                 if home.resolve() != python.parent.parent.resolve():
                     raise ValueError("Python home must alias the selected interpreter installation")
+        launch_options = ({}, {})
+        launches = (baseline, candidate)
+        if launch_through_home:
+            launches = tuple(home / "bin" / python.name
+                             for home, python in zip(homes, (baseline, candidate)))
+            if len(str(launches[0])) != len(str(launches[1])):
+                raise ValueError("launch aliases require equal-length executable paths")
+            launch_options = tuple({"launch_executable": launch} for launch in launches)
         base_identity = _identity(baseline, args.baseline_label, baseline_source, args.baseline_kind,
-                                  python_home=homes[0])
+                                  python_home=homes[0], **launch_options[0])
         cand_identity = _identity(candidate, args.candidate_label, candidate_source, args.candidate_kind,
-                                  python_home=homes[1])
+                                  python_home=homes[1], **launch_options[1])
+        baseline, candidate = launches
         for identity, home in zip((base_identity, cand_identity), homes):
             if home is not None:
                 identity["runtime_python_home"] = str(home)
@@ -432,6 +457,8 @@ def _docker_descriptor(descriptor: str, side: str, mounts: list[str]) -> str:
 
 
 def _run_container(args: argparse.Namespace) -> Path:
+    if getattr(args, "launch_through_python_home", False):
+        raise ValueError("launch aliases require --local")
     if args.baseline_python_home is not None or args.candidate_python_home is not None:
         raise ValueError("Python home aliases require --local; host aliases cannot cross the container boundary")
     if platform.system() != "Linux" or platform.machine() != "x86_64":
@@ -569,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
                              help="memory-only: explicit alias of the baseline installation")
         command.add_argument("--candidate-python-home", type=Path,
                              help="memory-only: equal-length alias of the candidate installation")
+        command.add_argument("--launch-through-python-home", action="store_true",
+                             help="memory-only: launch both executables through their home aliases")
         command.add_argument("--timing-only", action="store_true",
                              help="local timing run without the separate memory passes")
     run.add_argument("--preset", choices=("pbs",))

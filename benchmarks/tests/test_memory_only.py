@@ -18,6 +18,31 @@ from benchmarks.workloads.registry import Workload
 
 
 class MemoryOnlyTests(unittest.TestCase):
+    def test_identity_launch_alias_retains_actual_executable_hash_and_rejects_wrong_observation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            stage = Path(temp) / "stage"
+            python = stage / "bin/python3.16"
+            python.parent.mkdir(parents=True)
+            python.write_text("verified executable")
+            home = Path(temp) / "home"
+            home.symlink_to(stage, target_is_directory=True)
+            launch = home / "bin/python3.16"
+            data = {"runtime_prefix": str(home), "runtime_exec_prefix": str(home),
+                    "runtime_executable": str(launch), "runtime_base_executable": str(launch)}
+            with patch.object(bench.subprocess, "run") as run:
+                run.return_value.stdout = json.dumps(data)
+                identity = bench._identity(python, "fixture", "fixture", "fixture",
+                                           python_home=home, launch_executable=launch)
+                self.assertEqual(run.call_args.args[0][0], str(launch))
+                self.assertEqual(identity["executable"], str(python))
+                self.assertEqual(identity["executable_sha256"], bench._sha256(python))
+                self.assertEqual(identity["runtime_launch_executable"], str(launch))
+                data["runtime_base_executable"] = str(python)
+                run.return_value.stdout = json.dumps(data)
+                with self.assertRaisesRegex(ValueError, "requested launch"):
+                    bench._identity(python, "fixture", "fixture", "fixture",
+                                    python_home=home, launch_executable=launch)
+
     def test_matched_homes_reach_each_sides_warmup_and_memory_children(self):
         workload = Workload("zipimport_cold", "startup", "zlib", "import", 3, 1)
         completed = SimpleNamespace(cleanup_complete=True, remaining_pids=(), returncode=0,
@@ -233,7 +258,10 @@ class MemoryOnlyTests(unittest.TestCase):
             for side, name in (("baseline", "a"), ("candidate", "b")):
                 home = f"/matched/{name}"
                 provenance[side].update(runtime_python_home=home, runtime_prefix=home,
-                                        runtime_exec_prefix=home, stdlib_json_file=f"{home}/lib/json/__init__.py")
+                                        runtime_exec_prefix=home, stdlib_json_file=f"{home}/lib/json/__init__.py",
+                                        runtime_launch_executable=f"{home}/bin/python3.16",
+                                        runtime_executable=f"{home}/bin/python3.16",
+                                        runtime_base_executable=f"{home}/bin/python3.16")
             (root / "provenance.json").write_text(json.dumps(provenance))
             directory = root / "realworld" / "zipimport_cold"
             directory.mkdir(parents=True)
@@ -246,7 +274,8 @@ class MemoryOnlyTests(unittest.TestCase):
             evidence.compact_evidence(root, destination)
             document = json.loads(destination.read_text())
             for side in ("baseline", "candidate"):
-                for key in ("runtime_python_home", "runtime_prefix", "runtime_exec_prefix", "stdlib_json_file"):
+                for key in ("runtime_python_home", "runtime_prefix", "runtime_exec_prefix", "stdlib_json_file",
+                            "runtime_launch_executable", "runtime_executable", "runtime_base_executable"):
                     self.assertEqual(document["inputs"][side][key], provenance[side][key])
             self.assertEqual(document["workloads"][0]["measurement_mode"], "memory-only")
             self.assertEqual(len(document["workloads"][0]["attempts"]), 6)
