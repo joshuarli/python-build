@@ -85,9 +85,15 @@ checkpoints remain on isolated branches.
   `c0c27a8` passes three retained regressions, six complete suites
   (2,274/178), and native/Rust parity. Its earlier lane gate reads all seven
   RSS guards neutral. Corrected-policy goals `20261001T014503Z` still read
-  working peak 1.250x UNCLEAR; load is 0.807x BEYOND. Independent primary
-  qualification is pending, including a review-discovered recursion-guard
-  boundary in the reset dispatch. No memory improvement is claimed.
+  working peak 1.250x UNCLEAR; load is 0.807x BEYOND. Review independently found that reset vectorcall could fail its recursion
+  guard before cleanup. The retained regression fails both the incumbent and
+  first repair with a one-byte-short retry. Follow-up `5469d65` invokes the
+  validated native fastcall directly; six isolated cases and independent
+  review pass. Primary source `39f5dfe` clean-built all 58 helpers and passed
+  the full 50,158/2,748 suite. Its corrected-path all-23-workload gate
+  `20261001T021327Z` REJECTed compileall RSS 1.012x in both runs; zstd memory
+  and the other 22 workloads were neutral. The repair remains unintegrated
+  while that memory guard is attributed; no memory improvement is claimed.
 - Lazy itertools initialization passed 8,293/203 complete-suite tests and
   lifecycle/reentrancy checks, but `20261001T011911Z` REJECTed a serialization
   RSS regression of 1.014x; target memory was neutral. It was reverted.
@@ -103,9 +109,21 @@ checkpoints remain on isolated branches.
   guards in `20261001T011140Z`: logging load and catalog URL, gzip, startup,
   and zlib-decode RSS. Its overlay exactly matches the incumbent. The
   measured drift is preserved without ratio corrections or weaker floors.
-- Two new mechanisms are active: release codegen-unit consolidation to
-  remove duplicated emitted Rust code, and deferred private SSL error-name
-  dictionaries. Neither has qualified yet.
+- Release codegen-unit consolidation and deferred private SSL error-name
+  dictionaries are in clean qualification. SSL's first two-run exploration
+  was neutral (pooled load 0.950x); the predicted private dictionaries really
+  disappear, but Django RSS savings remain below the floor. No acceptance
+  follows from the pooled point estimate alone.
+- Exact first-request attribution finds 28 dynamic Rust helpers retain
+  3,264 KiB resident memory. The net staged-image delta is 3,520 KiB in both
+  held snapshots, accounting for most of the RSS gap; retained Python pools
+  differ by only about 126 KiB with equal arena counts. A packaging-only
+  23-helper shared-image trial preserves the five existing no_std helpers
+  separately. Its removable resident fraction is not yet proven.
+- An isolated HMAC no_std trial starts from an actual 144 KiB resident / 32 KiB
+  dirty helper cost. No source gain has qualified. A separate regex
+  correctness repair addresses inherited ASCII information-separator
+  whitespace misses, preserving the eligible grammar and fallback boundary.
 
 Raw verdicts, failed-suite logs, import attribution and current command IDs
 are retained in the ignored results trees and `coordinator-state.json`.
