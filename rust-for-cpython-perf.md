@@ -966,6 +966,16 @@ LLVM/Cargo cache clones and `perf.py doctor` next. Logical compilation and
 execution await separately reviewed controller bindings; no build or memory
 draw is authorized.
 
+Source44's frozen private controller and all67 input bindings,20 support
+bindings and five incumbent dependency variants passed independent review.
+Root's read-only preflight and verified cache/doctor checks passed. Root now
+authorizes only the isolated logical proof under the test lease: compile and
+run the original failing lifetime control first, then the candidate. Preserve
+every command, generated probe, binary and output, and check source, tools,
+dependency artifacts and incumbent/control stages before and after, including
+failure cleanup. Fork fixtures remain simulations. This authorizes neither
+product compilation nor a memory draw; those await the proof result.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
