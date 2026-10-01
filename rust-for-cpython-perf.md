@@ -400,6 +400,23 @@ and still loads Rust before the unchanged kernel's load snapshot. A source-only
 shared Rust runtime scout is checking a different image-ownership boundary;
 it authorizes no implementation, build or memory draw.
 
+The stock-runtime linkage question is now closed by a bounded compiler
+diagnostic under the build lease. Exact pinned nightly2026-09-15 rejected a
+tiny std-using cdylib with `-Cpanic=abort -Cprefer-dynamic`: its selected
+`panic_unwind` runtime does not match the required abort strategy. No library
+was emitted or executed, and no replacement runtime or panic policy was
+introduced. This is a compatibility result, not a memory verdict.
+
+A distinct regex source scout found the existing
+`RegexBuilder::dfa_size_limit(0)` setting can disable optional hybrid caches
+without changing parser/NFA limits or matching semantics. The default2MiB is
+a capacity limit, not a retained allocation: searched Regex clones own temporary
+caches, while the global cache shares the immutable strategy. Reverse NFA and
+one-pass representation remain. A private pinned-engine allocation diagnostic
+in root-created `py-mem-lane6` is authorized to compare actual logical requests
+and result/admission parity. It is not a source candidate or physical saving;
+no production edit, full build or memory draw is authorized yet.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
