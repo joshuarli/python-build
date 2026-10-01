@@ -515,10 +515,14 @@ Root and independent source reviews now authorize source lane 38,
 One internal cdylib may link the existing socket and binascii Rust libraries
 and provide two generated relative aliases, preserving their separate original
 initializers, definitions, interpreter flags and public routes. The installed
-legacy `_base64` image stays separate. No dependency, engine, allocator,
-builtin placement or explicit linker-flag experiment is included. Existing
-binascii linker behavior can alter the aggregate's segment placement; neither
-one dirty page nor a physical saving is promised.
+legacy `_base64` image stays separate. No dependency, engine, allocator or
+builtin placement change is included. The aggregate explicitly reuses
+binascii's existing macOS `-no_data_const` linker setting: a cdylib-only flag
+does not transfer from a linked Rust library automatically. This deliberately
+extends binascii's single-data-segment policy to socket in the pair image;
+socket's standalone image currently separates constant and writable data.
+No flag variants are included, and neither one dirty page nor a physical
+saving is promised.
 Exact committed source and behavioral fixtures require root and independent
 review before native execution or full builds. Subsequent clean58, complete
 affected suites and alias/native lifetime proofs precede a fresh primary
