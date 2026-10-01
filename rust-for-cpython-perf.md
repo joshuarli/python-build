@@ -163,6 +163,29 @@ the physical peak; it cannot qualify a memory improvement. The uninstrumented
 80–96 KiB zstd excess remains unexplained, and its earlier compileall RSS
 rejection remains binding. No resumed source optimization is integrated.
 
+Distinct archive-only source `430e8b9` registers eight helpers: pathlib,
+tokenize, pickle, shutil, email, http.client, datetime and typing. Six had
+544 KiB resident / 192 KiB dirty mappings in the historical Django scout;
+the last two had load improvements in rejected22. This motivates a smaller
+group, not a claim that either rejected guard is repaired. Regex and logging
+remain separate, and the core keeps its default System allocator. Independent
+source review passes; clean50-dynamic release build passed. Installed native
+proofs, complete affected suites and the once-only all-71/all-23 memory
+exploration are pending.
+
+Threading core-only and FFI-table grouping scouts closed before source edits
+or measurements. Its artifact already contains no retained standard-runtime,
+panic or allocator body, and grouping methods leaves three eager GOT bindings
+on the separate dirty page. A broader core-only inventory found no other
+untested allocation-free helper with an attributable runtime body to remove.
+These are negative source/artifact findings, not failed measured candidates.
+The legacy `_base64` deferral scout also closed: both actual stages already
+ship it as a shared extension, and both base64 workloads explicitly call it.
+Its archive dependency does not imply a registered builtin or a loaded core
+image cost. Actual original builtin registrations number 12 despite 13
+archive dependencies; the eight-helper candidate retains those 12 and adds
+eight. No setup change was made to force `_base64` into the core.
+
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
 `catalog_request_path` RSS regressed in both runs (1.01124x). Its directed
@@ -1293,9 +1316,12 @@ climb.
 
 - Control `perf-upstream`: the pinned fork source with an empty overlay
   (pristine fork, no Rust overlay crates). The fork source still carries its
-  built-in `Modules/_base64` Rust extension and Cargo scaffolding, which
+  shared `Modules/_base64` Rust extension and Cargo scaffolding, which
   public `base64` never reached during coverage; that residue is disclosed,
-  not hidden. A byte-exact CPython-upstream control at the fork base is a
+  not hidden. Both base64 application workloads explicitly call the private
+  extension. Actual control and incumbent generated tables omit its builtin
+  initializer, and both stages contain its shared library. A byte-exact
+  CPython-upstream control at the fork base is a
   later follow-up, not this baseline.
 - Candidate `perf-rust`: the same source with the full committed overlay
   applied (all 71 coverage routes).
