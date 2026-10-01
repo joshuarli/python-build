@@ -837,6 +837,18 @@ selected instances. Independent review passed without changing source, features,
 artifacts or toolchain. Root authorizes resuming the still-unexecuted cold proof
 with this established archive-pair convention; no memory draw is authorized.
 
+The resumed cold proof passed: naive full-call scratch exposes exactly one
+8-byte global surviving reset and fails the intended assertion; the candidate
+keeps the original default-capacity global under System, survives scratch poison
+and releases all tracked arena/scope-System owners before reset. Original All
+limits, compile errors, overflow/alignment, successful realloc preservation,
+actual nested ownership and concurrent/new-thread calls passed. Exact source,
+harness, dependencies/features, toolchain and both stages matched pre/post.
+This is logical ownership evidence only, with failed-realloc injection still
+untested. Root now authorizes a clean worktree release58, staged native/public
+fixtures, original own-GIL/flag/kernel proofs and all25 complete affected suites.
+No worktree memory draw is permitted; primary qualification remains separate.
+
 The separate typing no_std scout closed without a candidate. An exact typing
 trial appears absent, but shared `cpython-sys` forces std and actual archived
 symbols/pages show required module/method/loader ownership rather than removable
