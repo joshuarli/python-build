@@ -339,6 +339,36 @@ whether a per-interpreter live-object guard can defer the socket helper while
 preserving preexisting C sockets, subtypes and the no-import-during-I/O rule;
 no implementation or measurement is authorized for that proposal.
 
+The socket/SSL design now supports source lane 36,
+`socket-interpreter-activation`, in root-created `py-mem-lane5` from main
+`c218071`. Tests-first implementation-candidate work is authorized; exact
+review precedes any native execution or build, and no memory draw is authorized.
+The intended boundary defers `_socket_rs` for SSL MemoryBIO-only use while
+preserving preexisting/direct C socket objects, old `_socket` module generations,
+subtypes and unchanged C send/recv lookup with no imports during I/O. Counts
+belong to the object's owning interpreter, including finalization under a
+different current thread state. Actual destruction decrements; resurrection,
+reinitialization and close do not. Synchronization preserves `_socket`'s
+existing no-GIL claim without locks across callbacks/imports/ref release.
+
+Review rejected scalar activation rollback because it could discard a prior
+import's completed outcome. The revised proposal uses owned C activation
+records, one designated outcome owner per record, retained stale outcomes and
+ABORTED rollback ancestors; it holds no Python-object or socket references.
+Ordinary import success includes legitimate partial/custom importer results,
+and the frontend's unresolved helper uses an explicit lazy-resolution contract.
+Normal lifecycle review passed for a candidate. Three isolated source-only
+fixtures are prepared but have not executed; the overlay is untouched. Fork
+cleanup remains under review: inherited import ownership from vanished threads
+must retire without corrupting a surviving import's records or counters. A
+private C operation-owner registry is a proposed solution, not a completed
+implementation. New private C allocation costs and physical benefit are unknown.
+Correctness qualification must close that lifecycle boundary before compilation
+or measurement. The same once-only primary policy, if qualification passes,
+requires fresh `perf-so36`, clean58, native socket/SSL proofs and full suites
+before an all-71/all-23 two-run memory-only gate. SSL itself must improve in
+both runs, all memory guards bind, and any non-ACCEPT ends without retry.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
