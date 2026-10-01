@@ -74,6 +74,25 @@ not control embedded build paths or dynamic-library install names. Natural
 prefix runs and their historical REJECT/NEUTRAL decisions remain intact.
 No source optimization is accepted by introducing this option.
 
+Harness commit `4cff383` passed 156 benchmark tests (16 platform skips) and
+68 Rust harness tests (13 skips), including alias cleanup, same-stage
+two-home calibration, environment isolation, identity checks, compact export,
+and source-change detection. The broader controller run had 189 tests with
+two stale workload-registry expectation failures and one copied-uv-interpreter
+relocation fixture error (exit 134). Parent-only registry tests reproduced
+the two failures; relocation code and test are unchanged, and the copied
+executable's sibling-library dependency is absent from the fixture.
+Those controller limitations remain recorded; no formatter, linter, or
+commit hook ran.
+
+Fresh matched-prefix memory-only control self-calibration
+`20261001T052920Z` passed: all 23 workload RSS rows and `collections` load
+and working peak were neutral in both independent runs. Actual observed
+prefixes matched both requested 39-character ASCII home aliases; outputs
+matched, stage fingerprints held, and the harness source was clean.
+Full 71-module and 23-workload control/incumbent ground truth in this new
+context is now running. No CPU, wall, or quiet-host requirement was checked.
+
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
 `catalog_request_path` RSS regressed in both runs (1.01124x). Its directed
