@@ -380,11 +380,25 @@ surviving import frames and old socket generations valid.
 That does not repair Python's separate per-module import locks. A retained
 `_socket_rs` lock owned by a vanished worker, blocked before helper publication,
 would make a newly importing child constructor hang where the incumbent C
-constructor completes. This is a concrete source-defined counterexample,
-not yet an executed result. A bounded baseline semantic probe is authorized
-under the test lease, with child timeouts and cleanup; no candidate source,
-build or memory measurement follows until this boundary is resolved. Zlib
-and collections have separate source-only scouts for distinct retained owners.
+constructor completes. The bounded incumbent semantic probe confirmed that
+distinction: an audit callback blocked after module-lock acquisition, the
+child C constructor completed with the helper absent, and explicit helper
+import timed out with exit124. The parent reaped the child and joined the
+worker. This is incumbent evidence, not an executed candidate failure.
+Independent review confirmed that the proposed constructor would introduce
+the same orphan-lock wait. Lane36 is closed before implementation: avoiding
+it requires changing the import or coverage contract. No candidate source,
+build or memory draw ran, and no source improvement is claimed. The prepared
+fixtures and fork evidence remain preserved.
+
+Separate zlib, collections and pickle-deferral source-only scouts closed
+without a distinct credible memory candidate. Zlib's output/context ownership
+is required; a 49KiB engine-zeroing observation does not establish physical
+savings. Collections has no retained Rust heap state, and its image/itertools
+mechanisms were already tested. Pickle helper deferral was already rejected
+and still loads Rust before the unchanged kernel's load snapshot. A source-only
+shared Rust runtime scout is checking a different image-ownership boundary;
+it authorizes no implementation, build or memory draw.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
