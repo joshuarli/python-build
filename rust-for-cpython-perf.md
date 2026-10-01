@@ -683,6 +683,24 @@ buffer configuration has a native reservation basis but no established physical
 saving; only an API feasibility script is being prepared for review. No source42
 implementation, new source qualification or memory draw follows these scouts.
 
+The singleton typing placement review found no source-level blocker. Root now
+authorizes source42, `typing-single-builtin`, from main's unchanged incumbent
+overlay. Its entire production scope is four registrar files: move only
+`_typing_rs` into the existing static library, retaining its original Rust
+initializer and method/module definitions. The historical80KiB bundled result
+is not a predicted singleton saving; eager core residency can offset the removed
+image. Broad22/eight builtin candidates remain rejected and closed. This is a
+separate singleton placement trial, not a reinterpretation of those verdicts.
+Private BuiltinImporter/origin/no-file/inventory identity is an explicit change;
+public algorithms, ownership, callbacks/errors and own-GIL support remain intact.
+First prepare regression and semantic fixtures for root review, with no runtime
+or build yet. Qualification requires independent source review, original/builtin
+identity and held-method lifetime proofs, native3200/3200 dispatch, actual static
+archive/core linkage, clean57, complete affected suites and full primary suites.
+Its sole primary all71/all23 memory gate must improve typing in both runs with
+all memory guards intact; CPU/wall/quiet remain excluded. Any non-acceptance is
+terminal, with source/stage/raw preservation and no retry.
+
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
 first-call resident growth belonged to the helper image. Embedding the same state
