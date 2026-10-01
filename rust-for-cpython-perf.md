@@ -96,11 +96,29 @@ all-71/all-23 control/incumbent snapshot `20261001T083549Z` reads
 10 OVER / 15 UNCLEAR / 45 MET / 1 BEYOND, with 16 workload RSS regressions,
 three neutral and four improved. Outputs and integrity checks passed; all
 observed module launch paths and prefixes matched their requested aliases.
-The 15 UNCLEAR modules receive a once-only rigorous classification before
-new lane selection. This snapshot reflects unchanged source and does not
+Once-only rigorous classification `20261001T084855Z` resolves five as OVER,
+five as MET and leaves five UNCLEAR. Combining applicable rows gives
+15 OVER / 5 UNCLEAR / 50 MET / 1 BEYOND. The unresolved routes are base64,
+zstd, datetime, decimal, inspect, ipaddress, marshal, pickle, re, socket,
+threading, tokenize, typing, uuid and zlib, plus collections, hashlib,
+SQLite, SSL and struct UNCLEAR. All 20 module goals and 16 workload RSS
+regressions remain required. This snapshot reflects unchanged source and does not
 qualify a source improvement. Compiled paths, loader names, bytecode filenames,
 mapping layout and host state remain uncontrolled; no physical saving,
 historical correction or rejected-source retry is authorized by this change.
+
+Source-only smaller-engine scouting closed the simple `regex-lite`
+substitution: parser and compiled-size accounting do not preserve the current
+native-support boundaries without further compatibility work. A distinct
+`regex-deterministic-memory` lane instead investigates a bounded generic
+matcher for deterministic ASCII expressions, retaining the existing Rust
+backend for every other pattern. Archived engine construction made hundreds
+of System allocations per expression and retained about 52 KiB across five
+engine/cache pairs; that is an allocation basis, not physical-page savings.
+The lane must first derive a conservative acceptance bound from the pinned
+compiler before source edits. Original grammar/nesting, keys, fallback
+coverage, Python whitespace semantics and memory guards remain binding.
+No benchmark-expression recognition or rejected-engine retry is authorized.
 
 Harness commit `4cff383` passed 156 benchmark tests (16 platform skips) and
 68 Rust harness tests (13 skips), including alias cleanup, same-stage
