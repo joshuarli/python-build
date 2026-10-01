@@ -1,7 +1,9 @@
 """Memory-only workloads require output and RSS evidence without timing evidence."""
 
 from copy import deepcopy
+from dataclasses import replace
 import json
+import sys
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -9,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from benchmarks import bench
-from benchmarks.harness import evidence, models, runner
+from benchmarks.harness import evidence, models, process, runner
 from benchmarks.harness.report import build_summary, render_summary
 from benchmarks.harness.statistics import compare_workload
 from benchmarks.workloads.registry import Workload
@@ -69,6 +71,48 @@ class MemoryOnlyTests(unittest.TestCase):
                 self.assertEqual(len(result[side]["memory"]["rounds"]), 3)
                 self.assertNotIn("cpu", result[side]["memory"]["rounds"][0])
             models.validate_workload_result(result)
+
+    def test_explicit_null_mode_is_invalid_at_every_schema_boundary(self):
+        record = self.record()
+        record["measurement_mode"] = None
+        for side in ("baseline", "candidate"):
+            record[side]["timing"] = {"samples": [1.0, 1.0]}
+        with self.assertRaisesRegex(models.ResultSchemaError, "measurement_mode"):
+            models.validate_workload_result(record)
+        compared = compare_workload(self.record(), memory_primary_metric="peak_rss")
+        compared["measurement_mode"] = None
+        summary = {"schema_version": 1, "baseline": "base", "candidate": "cand",
+                   "suite": "realworld", "profile": "standard", "workloads": [compared]}
+        with self.assertRaisesRegex(models.ResultSchemaError, "measurement_mode"):
+            models.validate_summary(summary)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "summary.json").write_text(json.dumps(summary))
+            provenance = {key: "fixture" for key in (
+                "run_order", "offline_boundary", "bytecode_policy", "benchmark_lock_sha256")}
+            provenance.update(measurement_mode="memory-only", memory_sampling_interval_seconds=0.01,
+                              python_environment={}, benchmark_packages=[], baseline={}, candidate={},
+                              installed_size={"baseline": {}, "candidate": {}}, host={})
+            (root / "provenance.json").write_text(json.dumps(provenance))
+            with self.assertRaisesRegex(ValueError, "measurement_mode"):
+                evidence.compact_evidence(root, root / "evidence.json")
+
+    def test_real_process_rss_collection_does_not_require_cpu_usage(self):
+        original_wait = process._wait4
+        def wait_without_cpu(*args, **kwargs):
+            return replace(original_wait(*args, **kwargs), usage=None)
+        with patch.object(process, "_wait4", side_effect=wait_without_cpu):
+            result = process.run_command([
+                sys.executable, "-c", "import time; data=bytearray(1048576); time.sleep(0.15); print('ok')"],
+                timeout=5, sample_interval_seconds=0.01)
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(result.cleanup_complete)
+        self.assertEqual(result.stdout, b"ok\n")
+        self.assertIsNone(result.cpu_user_seconds)
+        self.assertIsNone(result.cpu_system_seconds)
+        self.assertIsNotNone(result.memory)
+        self.assertGreater(result.memory.peak_rss_bytes, 0)
+        self.assertTrue(result.memory.samples)
 
     def test_unknown_mode_and_incomplete_tree_samples_fail_closed(self):
         record = self.record()

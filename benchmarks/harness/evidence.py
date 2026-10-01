@@ -125,7 +125,7 @@ def compact_evidence(result_directory: Path, destination: Path) -> Path:
         name = identity["name"]
         directory = result_directory / "realworld" / name
         mode = workload.get("measurement_mode")
-        if mode is not None and mode not in ("timing-and-memory", "memory-only"):
+        if "measurement_mode" in workload and mode not in ("timing-and-memory", "memory-only"):
             raise ValueError(f"unknown workload measurement_mode: {mode!r}")
         memory_only = mode == "memory-only"
         paths = ([] if memory_only else sorted(directory.glob("timing-*.json"))) + sorted(directory.glob("memory-*.json"))

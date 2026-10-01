@@ -162,7 +162,7 @@ def validate_workload_result(value: Any) -> dict[str, Any]:
     """
     record = dict(_mapping(value, "workload result"))
     mode = record.get("measurement_mode")
-    if mode is not None and mode not in ("timing-and-memory", "memory-only"):
+    if "measurement_mode" in record and mode not in ("timing-and-memory", "memory-only"):
         raise ResultSchemaError(f"unknown workload measurement_mode: {mode!r}")
     memory_only = mode == "memory-only"
     version = record.get("schema_version")
@@ -231,7 +231,7 @@ def validate_summary(value: Any) -> dict[str, Any]:
                     f"summary.workloads[{index}].{field} is required"
                 )
         mode = item.get("measurement_mode")
-        if mode is not None and mode not in ("timing-and-memory", "memory-only"):
+        if "measurement_mode" in item and mode not in ("timing-and-memory", "memory-only"):
             raise ResultSchemaError(f"unknown workload measurement_mode: {mode!r}")
         _validate_identity(item["identity"])
         for field in ("baseline", "candidate", "comparison", "verdict"):
