@@ -817,6 +817,16 @@ follows exact regex/automata/Aho-Corasick extern edges and matching compile
 invocations is authorized; production and fixtures remain unchanged. Relaunch
 awaits separate review, with no memory draw or candidate acceptance.
 
+The corrected controller passed root's actual read-only graph/preflight judge
+and independent source review. It starts at the real `_re_rs` extern edge,
+keys nodes by exact rmeta path, recursively preserves variants and matches each
+compile invocation/output/features. The engine's graph selects one exact memchr
+instance shared by automata and Aho-Corasick; only the three used direct crates
+and five selected dependency directories reach the probe linker. Original
+failure/archive, source/fixtures and stages remain intact. Root authorizes the
+resumed single cold logical proof; no native probe has run previously, and no
+production build or memory measurement follows without separate qualification.
+
 The separate typing no_std scout closed without a candidate. An exact typing
 trial appears absent, but shared `cpython-sys` forces std and actual archived
 symbols/pages show required module/method/loader ownership rather than removable
