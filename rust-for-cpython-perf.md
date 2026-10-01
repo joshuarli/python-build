@@ -210,8 +210,12 @@ checkpoints remain on isolated branches.
   Follow-up clean58, full 50,158/2,791 and all nineteen native contracts pass.
   Serial short-temp pathlib/shutil/socket suites match the current incumbent
   at 2,372/738, including all seven path-sensitive socket cases. One extra
-  aggregate skip versus the refreshed full incumbent remains under review;
-  no gate runs before that coverage difference is explained.
+  aggregate skip versus the refreshed full incumbent was unenumerated in the
+  original log. An approved verbose coverage diagnostic passes 50,158/2,790
+  and matches all 2,569 normalized skipped case IDs; reason differences are
+  limited to existing path/PID strings. This establishes matching observed
+  coverage without replacing the original logs or asserting the transient
+  extra skip's cause. Once-only actual memory qualification is queued.
 - The old direct-PikeVM warnings rejection remains unaccepted. Corrected
   diagnostics find zero native regex calls and no loaded `_re_rs` during the
   fixed warmup; loaded warning/tokenizer image costs match. A diagnostic
