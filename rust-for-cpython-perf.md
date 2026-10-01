@@ -15,8 +15,9 @@ module-debt completion exceptions, and stopped-session status below.
 
 - Acceptance targets and guards are module `load_footprint` / `working_peak`
   and application memory, including `peak_rss`. CPU and wall results cannot
-  qualify, reject, or delay a memory change. Any incidental timing collected
-  by the shared workload harness is outside the memory decision.
+  qualify, reject, or delay a memory change. The workload memory-only
+  path skips timing rounds and CPU usage prerequisites entirely. Module
+  iteration sizing remains unchanged to preserve the measured workload.
 - Use the explicit `--memory-only` harness policy for goals, calibration and
   acceptance. Preserve the existing memory samples, floors, independent-run
   replication, output checks, verified clean builds and complete suites.
@@ -35,8 +36,12 @@ Doctor/status passed on resumption. The verified incumbent remains `7cf55a6`
 `b43b5d4`; the pristine control remains `7351620`. Fresh full module memory goals read 10 OVER / 16 UNCLEAR / 45 MET or BEYOND.
 Memory-only self-calibration `20260930T233108Z` passed: all seven workload
 RSS rows neutral in both runs. The fresh absolute workload comparison `20260930T233748Z` reads 16 RSS
-regressions, 3 neutral and 4 improved. The explicit harness policy is committed at `e32c713`; 43 focused
-contract tests pass. No new memory improvement is claimed yet.
+regressions, 3 neutral and 4 improved. The explicit decision policy was committed at `e32c713`; the workload runner
+now also skips timing and CPU prerequisites at `10a89fe` / `1f3245c`. Its
+102 focused tests pass (two platform skips), including a real RSS collection
+with CPU records absent and invalid measurement-mode rejection. Corrected
+self-calibration `20261001T013533Z` reads all seven RSS rows neutral in both
+runs, with host quietness unexamined. No new memory improvement is claimed yet.
 
 ### Resumed experiment checkpoint
 
@@ -49,9 +54,12 @@ checkpoints remain on isolated branches.
   on its target and regressed memory guards. Both were reverted; the restored
   shared-recovery branch is `57e379f`.
 - Regex checkpoint `fd2bdac` reduced its helper image by 445,520 bytes and
-  improved re load to 0.845x, but warnings load regressed to 1.065x. Its four
-  complete suites and native probes pass. The rejection is preserved; direct
-  PikeVM/cache storage is a separate unqualified experiment.
+  improved re load to 0.845x, but warnings load regressed to 1.065x.
+  Direct PikeVM checkpoint `f83687a` reduced the image by 538,784 bytes;
+  complete suites and 12 native regressions pass. Its actual two-run gate
+  `20261001T010823Z` REJECTed: re load improved to 0.802x, warnings load
+  regressed to 1.103x. Absolute re load remains 1.34x OVER. Both source
+  checkpoints are preserved and unaccepted.
 - Linker checkpoint `3ce73d3` hides private Rust names and strips unreachable
   code while retaining all unmangled ABI exports. Its image is 1,079,984 bytes
   smaller, but all 23 worktree workload memory rows were neutral. Primary
@@ -66,20 +74,38 @@ checkpoints remain on isolated branches.
   native regressions pass, including long-prefix allocations reduced from
   1–2.6 MiB to below 64 KiB, and complete suites pass 476/11. Formal logging
   and os.path memory comparisons were neutral, so no target win is claimed.
-- ElementTree bounded reserves, consumed heap blocks and consumed anonymous
-  mapped blocks did not establish replicated memory wins. A document-local
-  short-attribute-value cache is a separate experiment: the actual kernel
-  produced 500 equal-valued strings with only five distinct values.
-- Zstd exact double decoding was memory-neutral and discarded. Its native
-  PyBytesWriter experiment passed complete suites, but allocation-failure
-  probes exposed late-output retry-state errors; it is ineligible for memory
-  measurement until those transitions match native behavior.
-- Pickle import attribution found 64–96 KiB extra retention from eager
-  itertools backend initialization before public pickle import. A separate
-  lazy-initialization lane has regression-first evidence and an unchanged
-  clean setup build. Review identified an import-lock/once-lock cycle in the
-  first draft; import must occur outside the publication lock. No changed
-  stage or acceptance is claimed.
+- ElementTree completed six distinct trials. One consumed-block trial
+  REJECTed; five were neutral, including short attribute/text sharing that
+  measurably reduced Python objects. The final actual rigorous two-run
+  comparison `20261001T012554Z` read working peak 0.894x neutral because the
+  improvement did not replicate. All source experiments were restored.
+- Zstd double decoding and native PyBytesWriter were memory-neutral and
+  discarded. Allocation-failure probes independently reproduced an existing
+  decoder retry-state defect on the incumbent. Correctness-only checkpoint
+  `c0c27a8` passes three retained regressions, six complete suites
+  (2,274/178), and native/Rust parity. Its earlier lane gate reads all seven
+  RSS guards neutral. Corrected-policy goals `20261001T014503Z` still read
+  working peak 1.250x UNCLEAR; load is 0.807x BEYOND. Independent primary
+  qualification is pending, including a review-discovered recursion-guard
+  boundary in the reset dispatch. No memory improvement is claimed.
+- Lazy itertools initialization passed 8,293/203 complete-suite tests and
+  lifecycle/reentrancy checks, but `20261001T011911Z` REJECTed a serialization
+  RSS regression of 1.014x; target memory was neutral. It was reverted.
+- Logging basename and emit allocation reductions passed native behavioral
+  regressions but formal module memory remained neutral. The final emit
+  trial `20261001T012055Z` was neutral and discarded; no target win is claimed.
+- Eight Django helper deferrals removed 656 KiB resident / 240 KiB dirty
+  mappings in diagnostics, but actual net RSS savings were only 208–336 KiB,
+  below the workload floor. Gate `20261001T012610Z` REJECTed argparse,
+  shutil and tokenize load regressions. Source `5aa4e4d` is preserved and
+  unaccepted; physical mapping removal alone does not qualify it.
+- A fresh primary-path unchanged build at `a2cfcaf` still REJECTed memory
+  guards in `20261001T011140Z`: logging load and catalog URL, gzip, startup,
+  and zlib-decode RSS. Its overlay exactly matches the incumbent. The
+  measured drift is preserved without ratio corrections or weaker floors.
+- Two new mechanisms are active: release codegen-unit consolidation to
+  remove duplicated emitted Rust code, and deferred private SSL error-name
+  dictionaries. Neither has qualified yet.
 
 Raw verdicts, failed-suite logs, import attribution and current command IDs
 are retained in the ignored results trees and `coordinator-state.json`.
