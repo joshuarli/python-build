@@ -260,8 +260,13 @@ valid legacy exec-slot spelling for a missing slot after clearing the cache;
 the failing log is retained. Final checkpoint `0306a39` corrects the fixture,
 passed clean58 and exact source/initializer verification, all 11 isolated
 lifecycle contracts and eight complete suites (2,202/9). Its fixed kernel
-confirmed 6,400 Rust calls. The sole all-71/all-23 paired memory-only
-matched-prefix exploration is running; no source improvement is claimed yet.
+confirmed 6,400 Rust calls. Its sole all-71/all-23 paired memory-only
+matched-prefix exploration `20261001T080928Z` REJECTed: typing load improved
+to 0.874x in both runs, but ten module loads, logging working peak and seven
+workload RSS rows regressed in both runs. Outputs matched with no unstable
+metrics. Restoration `5188180` returns the entire overlay to the incumbent;
+source, fixtures, patch, stage and raw results remain preserved. No retry or
+primary qualification follows, and no resumed source improvement is integrated.
 Original drafts and failing evidence remain preserved. Its extra unchanged
 setup-memory command was cancelled in the lease turnstile before any samples.
 Only one changed paired memory comparison will follow final qualification.
