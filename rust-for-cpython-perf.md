@@ -572,6 +572,56 @@ suites and its first-only all-94 memory gate must improve marshal in both runs
 and preserve every memory guard; a non-ACCEPT closes it without retry. CPU/wall
 and host quietness do not qualify or block it.
 
+Source40 completed clean57 and all four native probes against the original
+reference in its worktree, then all13 affected suites (4,311/436). Its proof
+controller initially stopped before native execution because Apple `nm` could
+not read LLVM23 Rust IR attributes. The exact error remains preserved; the
+already verified LLVM23.1.2 `llvm-nm` proved the original initializer in the
+actual core archive and built/installed libpython. The core link consumes that
+archive, built/installed libpython bytes match, and runtime attribution places
+the capsule table and both functions in libpython. Source, stage and release
+hashes remained unchanged. Fresh primary `perf-ms40` on temporary branch
+`integrate-marshal-single-builtin-40` at `538eccc` passed clean57, the original
+native reference, all50,158/2,748 default-resource tests and final integrity.
+Its first-only memory gate `20261001T172943Z-perf-rust-vs-perf-ms40` REJECTed:
+marshal load was neutral/better, pooled0.978617x [0.967810, 0.991848], so its
+improvement did not replicate; working peak was neutral. Of165 metrics,
+161 were neutral, three regressed and one unrelated textwrap load improved.
+Difflib, glob and warnings load regressed in both runs; all23 workload RSS
+rows were neutral. No mismatch or instability. Verdict SHA256 is
+`98a93066827afd161c58cfa771bb11e7b8fd1eb9ae437ac44deb9edf186003e2`.
+Independent audit and three-stage/source/harness/release57 postflight passed.
+Main is restored to the incumbent overlay; branch, stage and raw evidence are
+preserved without retry. No resumed source improvement is accepted.
+
+Source41 is now source/fixture-only in root-created `py-mem-lane11` from main
+`3307830`: remove the global Rust compiled-expression cache while preserving
+its original guarded bytes RegexBuilder, default All admission, hybrid capacity,
+NFA/nesting/size limits, grammar, allocator, FFI and module slots. This is distinct
+from rejected hybrid-capacity37, implicit-capture and fast-matcher32 mechanisms.
+The fixed regex kernel leaves five immutable expressions retained globally,
+separately from Python's compiled patterns. Archived logical allocation evidence
+counts56,453 bytes before extra map/FIFO keys; physical attribution is unknown
+and no saving is promised. Source history and scoped archives show no earlier
+explicit global-cache bypass trial. Checkpoint `a0aaf7d` removes the global map,
+FIFO and synchronization and gives each search its own original engine lifetime.
+Production review passed; a fixture review found the generated lifetime probe
+omitted original cache definitions, so binding the incumbent would fail to
+compile. That probe must include the original cache closure and reach the
+intended ownership assertion before any fail-first claim or execution.
+No runtime, cache preparation, build or memory draw is authorized yet. Subsequent
+reviewed regression/native/full affected qualification must precede fresh primary
+`perf-rc41`, full default suites and its first-only all94 memory gate: regex itself
+must improve in both runs and every memory guard binds. A non-ACCEPT closes it
+without retry; CPU recompilation cost and quietness do not qualify or block it.
+
+A bounded hashlib inline-state scout closed without a candidate. Archived
+repeated construction released the224-byte Box with no retained physical growth;
+first-call resident growth belonged to the helper image. Embedding the same state
+in a larger Python object has no demonstrated physical saving and introduces
+initialization, alignment, zeroization, heap-type and reflected-size contracts.
+No source edit or runtime followed.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
