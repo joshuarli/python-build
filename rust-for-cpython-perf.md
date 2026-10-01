@@ -786,6 +786,25 @@ is authorized until root reviews those sources and fixtures. Complete affected
 and primary suites plus a sole all71/all23 memory-only qualification remain
 required for any eventual candidate; non-acceptance is terminal without retry.
 
+Source43 preparation at `f6f8d09` passed bounded root and independent source
+review. The original default-capacity Lazy is initialized under System before
+scratch ownership; only scalar search outcomes escape and all engine/error/pool
+owners drop before reset. The cold naive negative control must expose its exact
+8-byte escaped global before the candidate proof runs. Fixed observer bookkeeping
+serializes raw System realloc with ledger updates, checks each worker call and
+preserves aligned bytes. Failed-realloc injection remains untested; its unchanged
+null branch is source-audited only. Historical audit provenance is now separated
+from current candidate state. Root authorizes only verified private APFS LLVM/
+Cargo cache clones and doctor at this step. Probe execution awaits final explicit
+locked-linker and dependency/hash binding review. No memory draw follows review.
+
+A second bounded zstd ownership review found no distinct removable output overlap.
+The C proxies bypass their codec/output paths when Rust capsules exist. Rust writes
+directly into one Python bytes buffer and transfers references without copying
+payloads; complete kernel frames leave no pending input Vec. The simultaneous
+1MiB decoded results are imposed by the unchanged kernel on control too. No new
+source candidate, runtime or diagnostic follows; zstd working peak remains open.
+
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
 first-call resident growth belonged to the helper image. Embedding the same state
