@@ -203,6 +203,21 @@ distinct source lane, independently of the setup investigation. Measurement
 remains paused pending explicit coordinator review of the context evidence;
 no source benefit or guard waiver is inferred from the setup result.
 
+For this distinct source lane, the coordinator authorizes qualification
+directly in a temporary primary-checkout integration branch after exact
+source review, fail-first regression evidence, clean58 and complete suites.
+This deliberately skips the usual worktree explore/gate prerequisite; it
+does not use the skill's load-only recovery exception, because the unchanged
+setup also regressed working peak and workload RSS. The first and only
+changed-source comparison must be a two-run memory-only primary gate over
+all 71 modules and all 23 workloads, with verified unchanged incumbent,
+matching harness and strict existing floors/output/integrity requirements.
+Generic ACCEPT is insufficient: typing itself must improve in both runs,
+and every other memory guard must be neutral or improved. Any other decision
+ends the candidate without retry; preserve evidence and restore primary main
+without replacing the incumbent. This is qualification permission, not
+source acceptance or a reinterpretation of either prior REJECT.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
