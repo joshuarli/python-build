@@ -732,6 +732,18 @@ ownership and pending context/oracle checks, all passing without rebuilding or
 repeating passed native cases. Root now authorizes fresh primary `perf-ts42`,
 the same proofs, full default suites and its sole all71/all23 memory gate.
 
+Source42's fresh primary clean57/native proofs and full50,158/2,748 passed.
+Its sole memory gate `20261001T194317Z-perf-rust-vs-perf-ts42` REJECTed:
+typing load was neutral/better, pooled0.944580 [0.907692,0.968513], so its
+lower point estimate did not replicate as an improvement. Working peak was
+neutral. URL parsing load regressed in both runs at1.050 [1.037177,1.075].
+All23 workload RSS guards were neutral; all165 metrics were164 neutral and
+one regressed, with no mismatch or unstable metric. Source/harness/three-stage
+and57-artifact postflight passed. Main's overlay is restored to7cf55a6;
+branch `integrate-typing-single-builtin-42`, stage `perf-ts42`, lane12 and raw
+proofs remain preserved. The candidate is terminal without retry; CPU/wall
+and host quietness played no role in its rejection.
+
 The once-only zstd API feasibility invocation passed six inputs, including
 empty,1MiB kernel data, incompressible data and multiple blocks. Fresh single-END
 stable input/output modes produced identical bytes to the default native mode
