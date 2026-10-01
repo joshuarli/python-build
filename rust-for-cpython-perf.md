@@ -671,6 +671,16 @@ the incumbent and2,359,296/147,456 for source41. These diagnostic observations
 do not replace the replicated gate or qualify a retry. Region attribution is
 being assessed; no new regex source is authorized.
 
+That probe narrows the regex excess to malloc residency. After the second
+call, source41 has736KiB more dirty malloc pages, while the helper's dirty
+pages are identical and its text residency is48KiB lower. The malloc-zone
+summary reports fewer live allocated bytes and more fragmentation. These
+cross-process observations support allocator retention as a category, not an
+exact compiler-allocation-site attribution. Any whole-call scratch allocation
+would require engine/pool destruction before reset and exclusion or proof of
+all lazy global/TLS pointer escapes. Only a source-level lifetime audit is
+authorized; the original gate remains REJECT with no retry.
+
 The allocator-owner scout closed without an untried conversion. Decimal's
 historical no_std/PyMem worktree win failed primary memory replication:
 `20260930T034305Z` reads load neutral/neutral1.071429, not a CPU-only rejection.
@@ -700,6 +710,17 @@ archive/core linkage, clean57, complete affected suites and full primary suites.
 Its sole primary all71/all23 memory gate must improve typing in both runs with
 all memory guards intact; CPU/wall/quiet remain excluded. Any non-acceptance is
 terminal, with source/stage/raw preservation and no retry.
+
+The once-only zstd API feasibility invocation passed six inputs, including
+empty,1MiB kernel data, incompressible data and multiple blocks. Fresh single-END
+stable input/output modes produced identical bytes to the default native mode
+and the actual public Rust route; decoding matched the inputs. Native1.5.7
+accepted both experimental settings. Its reported1MiB context allocation
+decreased by1,311,233 bytes, a logical reservation result only. Original stage,
+all58 artifacts, full harness and native-library identities passed pre/post
+checks. A bounded external-native physical diagnostic is being prepared for
+review; it cannot establish private Rust-route savings or acceptance. No zstd
+production candidate is authorized.
 
 A bounded hashlib inline-state scout closed without a candidate. Archived
 repeated construction released the224-byte Box with no retained physical growth;
