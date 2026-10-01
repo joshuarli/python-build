@@ -986,6 +986,16 @@ build, complete25 affected suites and reviewed native correctness cases. Native
 fork checks must distinguish actual child execution from the earlier simulations.
 No memory draw is authorized until build, full suites and native checks pass.
 
+Source44 isolated clean build verified58 installed release Rust extensions.
+All25 affected suites passed9598 tests with272 skips. Independent review passed
+the frozen native controller and120 input bindings. Root authorizes its12
+isolated cases: the original public/native/flags/own-GIL/kernel checks plus
+incumbent and candidate cold/warm actual libc forks, each with two bounded
+children, child cache pressure and parent continuation. This public proof does
+not force a held pool lock or pending registration. Source, artifacts and all
+three stages are checked before and finally after. Separate private actual-fork
+fixtures remain source-only; no memory draw is authorized.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
