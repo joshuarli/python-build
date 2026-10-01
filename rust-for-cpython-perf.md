@@ -550,6 +550,19 @@ every memory guard binds. Source38 is not inherited or stacked. If the
 incumbent advances, this lane must merge it and qualify cleanly again.
 No physical saving is claimed by static dependency deduplication.
 
+Exact source checkpoints `f618f29` (socket/binascii) and `d51dde5`
+(zlib/ZIP) passed root and independent review. Both retain the original
+helper sources and link environment; the private canonical artifacts need
+explicit Cargo-byte and export proofs in addition to the unmodified alias
+verifier. Baseline contract execution is now authorized under the host test
+lease after small fixture refinements: child processes must disable bytecode
+writes, and each import-order probe must observe the second helper absent
+before importing it. Existing interpreter stages must retain their fingerprints.
+Only passing incumbent contracts authorize each lane's clean release build,
+then its candidate native proofs and complete affected-suite union. Any
+baseline assumption failure is preserved and reviewed before building; no
+worktree memory draw is authorized. No source improvement is accepted yet.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
