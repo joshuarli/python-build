@@ -798,6 +798,20 @@ from current candidate state. Root authorizes only verified private APFS LLVM/
 Cargo cache clones and doctor at this step. Probe execution awaits final explicit
 locked-linker and dependency/hash binding review. No memory draw follows review.
 
+Verified cache clones and doctor passed. Root's final controller review binds
+the locked LLVM23.1.2 linker/target and scrubbed environment, exact reviewed
+source/generator/generated hashes, all five incumbent Cargo dependency artifact
+pairs/features, pinned crate/std sources, original stages and clean58 map.
+One isolated logical invocation is now authorized under the host test lease:
+fresh naive cold escape counterexample first, then fresh candidate cleanup.
+Every subprocess is bounded and exact pre/post checks run in finally. No
+production build or memory draw is authorized by this logical-only step.
+
+The separate typing no_std scout closed without a candidate. An exact typing
+trial appears absent, but shared `cpython-sys` forces std and actual archived
+symbols/pages show required module/method/loader ownership rather than removable
+std runtime pages. No local FFI substitution or shared binding change follows.
+
 A second bounded zstd ownership review found no distinct removable output overlap.
 The C proxies bypass their codec/output paths when Rust capsules exist. Rust writes
 directly into one Python bytes buffer and transfers references without copying
