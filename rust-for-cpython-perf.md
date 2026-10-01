@@ -120,6 +120,21 @@ compiler before source edits. Original grammar/nesting, keys, fallback
 coverage, Python whitespace semantics and memory guards remain binding.
 No benchmark-expression recognition or rejected-engine retry is authorized.
 
+The bounded matcher candidate `2869dc2` passed independent source review,
+clean58 verification, four tests of its actual private Rust plan, 24 staged
+Python tests and all 13 affected complete suites (4,923 tests / 186 skips).
+Its conservative admission proof limits surviving capture indexes as well as
+node counts, and rejects zero-minimum variable repetitions before word
+boundaries. Plans leave the parser arena by value, then allocate their exact
+immutable storage after arena reset; unsupported expressions retain the
+existing Rust engine and cache behavior. Original grammar and nesting checks
+precede the ASCII whitespace correction. Source/build hashes and stage
+identity match. Two standalone Rust test-driver startup failures are preserved;
+the corrected driver passed without changing source or staged bytes. The
+helper image grows by 17,744 bytes, so no image-size saving is claimed.
+Exactly one all-71/all-23 two-run matched-home-and-executable memory-only
+exploration `20261001T092145Z` is underway; no source improvement is accepted.
+
 Harness commit `4cff383` passed 156 benchmark tests (16 platform skips) and
 68 Rust harness tests (13 skips), including alias cleanup, same-stage
 two-home calibration, environment isolation, identity checks, compact export,
