@@ -1005,6 +1005,36 @@ checks and the complete default-resource suite. The private held-lock and
 installed-before-Ready fork fixtures still require review and proof before
 memory qualification. No source is accepted and no memory draw is authorized.
 
+Source44 completed primary clean58 qualification, the full default-resource
+suite (50158 tests,2748 skips,464 modules OK), and12 native cases. Separate
+single-threaded actual libc-fork proofs passed inherited held-lock recovery,
+retained block reclamation/parent ownership, and installed-before-Ready child
+registration. Private controller interruption-cleanup regressions and a typed
+cache preflight correction were tested and preserved before native execution.
+The initial preflight-only failure ran no compiler or native program. Cargo's
+post-build cache difference was confined to SQLite usage timestamps;142 locked
+archives and5333 source files matched. All source/tool/cache/stage postflights
+passed; fork proofs carry no general multithreaded async-signal-safety claim.
+
+The first and only primary matched-prefix/executable all71/all23 memory-only
+gate, `20261001T230025Z-perf-rust-vs-perf-rs44`, is terminal **REJECT**. Regex
+load improved in both runs:0.827138x,95% interval[0.786296,0.872729], raw
+1785892 to1458188 bytes (-327704 bytes). Regex working growth rose49152 to98304
+bytes, both below the256KiB floor, and remained neutral. Of165 memory rows,
+157 were neutral,3 improved and5 regressed. Replicated regressions were
+argparse load1.03509x, fractions load1.02548x, glob load1.06383x,
+catalog JSON export RSS1.01806x and zlib4KiB-stream RSS1.01027x. There were no
+output mismatches or unstable verdicts; CPU, timing and quietness were absent.
+
+Postflight passed before restoring `main`: its overlay remains exact7cf55a6
+and incumbent/control stages are unchanged. Preserve source5b7b1c8, temporary
+primary branch3a09f51, both stages, all native proofs and raw gate evidence.
+No retry or sizing/layout retune of this candidate is authorized. Its regex
+saving does not waive the guard regressions. No source optimization was accepted;
+all20 unresolved absolute module memory goals and16 workload RSS goals remain
+open. The renewed SSL image scout closed again because its helper is already
+builtin, with no separate image to remove; no experiment followed.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
