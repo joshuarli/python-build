@@ -140,9 +140,30 @@ parsing load 1.04878x regressed in both runs. Outputs matched and no metric
 was unstable; stage and launch identities held. Restoration `82c8a1b`
 returns the entire overlay to incumbent `7cf55a6`, retaining the candidate
 stage, patch, source and proofs. No retry or primary qualification follows.
-The guard causes remain unattributed; a bounded semantic call trace is
-authorized to distinguish plan and fallback reach, without memory sampling,
-source edits or another candidate. No source improvement is accepted.
+The bounded semantic traces matched all four archived outputs and stage
+fingerprints. Every phase had zero helper search calls, so neither plans
+nor fallback engines were constructed and duplicate search-time parsing was
+unreachable. URL parsing did not load the helper. Email had 19 preparation
+calls, HTTP client 14 and catalog JSON six, all during imports or first
+warmup. Catalog covered its exact 100-operation core and corpus, excluding
+the CLI frontend. Pattern classification describes hypothetical admission,
+not actual engine construction. The guard causes remain unattributed.
+
+Read-only binary analysis found one extra 16 KiB text page, unchanged
+data/TLS/scratch capacities, unchanged exports and binding counts, and
+parser functions shifted across page boundaries. Search-only plan code
+shares the initializer/preparation page. The longer builder install name
+adds 64 load-command bytes. These static facts do not establish resident,
+dirty or physical cost. No source improvement is accepted.
+
+An unchanged-source setup diagnostic now uses `/Users/josh/d/py-mem-lane1`,
+whose 26-character root matches the primary root, and the same `perf-rust`
+build name. It retains the exact incumbent overlay, pins and compiler flags;
+no prefix remapping or harness change is introduced. Clean58 verification,
+source/installed-artifact comparisons and full suites precede authorization
+for one unchanged-source all-71/all-23 memory comparison. This checks build
+path lengths left uncontrolled by runtime aliases. It cannot qualify a
+source improvement, correct historical verdicts or replay rejected source.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
