@@ -164,6 +164,34 @@ source/installed-artifact comparisons and full suites precede authorization
 for one unchanged-source all-71/all-23 memory comparison. This checks build
 path lengths left uncontrolled by runtime aliases. It cannot qualify a
 source improvement, correct historical verdicts or replay rejected source.
+The unchanged build verified all 58 release artifacts. Their code/data
+sections, sizes and symbol topology match the primary incumbent; differences
+are equal-length root strings, install names and UUIDs. Core code/data also
+match, with source/object-path debug records differing. Initial full suites
+passed 50,158/2,791. Paired named-skip enumeration then passed 50,158/2,790
+on both builds, matching both XML IDs and all verbose skip multiplicities;
+three AF_UNIX reasons differ only in equal-length over-limit root spellings.
+The old primary 2,748 and initial 2,791 counts remain preserved, with their
+historical discrepancy unattributed. There is no current differential
+coverage gap. Single unchanged-source comparison `20261001T102746Z` is
+running with all 71 modules, all 23 workloads, two runs and both runtime
+alias options. No source optimization or context correction is claimed.
+
+Further semantic traces of the 20 unresolved modules matched every archived
+output. Nineteen never loaded the regex helper; only re used it, with searches
+as well as preparation. Thus a prepare-only grammar shortcut has no reached
+target in that map and closed without a candidate.
+
+A distinct source-only typing proposal reuses existing core immortal
+`__origin__` and `__args__` names through two narrow private C getters;
+metadata retains its original string lookup. This could avoid 7,200 of the
+archived 7,600 normal name constructions, without a name cache, interning,
+module state or identifier mutex. It requires explicit default-visible core
+exports for the shared Rust helper, owned-result/error tests, legacy slot
+priority and deliberate canonical name-identity alignment. Static lifetime
+and semantic design passed independent review. Physical benefit is unknown;
+the previous cache REJECT remains binding. No implementation is authorized
+until the unchanged build-path setup comparison establishes a neutral context.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
