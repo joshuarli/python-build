@@ -263,6 +263,24 @@ is about 3 MiB, so an actual 16 KiB saving alone would not clear the 1% judge.
 Source-only ownership, growth and failure-atomicity review precedes any lane
 authorization. No new source candidate or measurement is authorized yet.
 
+That source-only proof now supports distinct lane 34, `marshal-reference-storage`,
+in root-created `py-mem-lane3` from main `abb3420`. One checked, aligned
+`PyMem_Calloc` block stores full pointer keys followed by 32-bit values;
+probing, index/PENDING bits and owned references remain unchanged. New
+allocation and rehash complete before publishing; failure retains old state.
+At capacity 4,096, final requested bytes fall by 16,384, cumulative growth
+requests by 32,512 and final rehash overlap by 24,576. The kernel establishes
+capacity at least 4,096, not an exact final count. All are logical request
+reductions, not physical-memory claims. Independent design review passed.
+Implementation and correctness qualification are authorized, with exact
+source review before a clean build. The coordinator extends the explicit
+once-only primary qualification procedure to this distinct lane: no worktree
+memory draw, fresh primary `perf-ma34`, clean58 and full suites before a
+two-run all-71/all-23 memory-only gate. Marshal itself must improve in both
+runs and all memory guards bind. A non-ACCEPT ends the candidate without
+retry, while retaining branch/stage/evidence and restoring main. No changed
+memory comparison is authorized until source and correctness review finish.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
