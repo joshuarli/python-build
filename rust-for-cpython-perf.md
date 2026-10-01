@@ -117,6 +117,30 @@ correctness qualification. The zstd working-peak scout found no distinct
 justified edit; bounded allocation attribution is pending. No resumed
 source optimization has been integrated.
 
+Corrected PikeVM source `59c2aa8` passed clean58, seven complete suites
+(585/129) and 20 native checks, including original parser-depth and cached
+pattern lifetime boundaries. Its once-only new-context all-71/all-23
+exploration `20261001T060133Z` REJECTed: re load improved to
+0.768x [0.732, 0.785], but compileall RSS, email working peak, and fractions,
+importlib.resources, statistics and urllib.parse load regressed in both
+runs. Warnings load was neutral overall (worse/neutral by independent run).
+There were no output mismatches or unstable metrics. Restoration `4d66e8e`
+returns the entire owned overlay to the incumbent; the rejected source,
+fixtures, patch and artifact remain preserved. No retry or primary
+qualification follows.
+
+Builtin registration source `8e40885` has a clean committed build with
+36 dynamic Rust extensions and all Rust packages compiled. Its native
+proofs match incumbent method inventories, public native-call counts,
+digests and own-GIL outcomes for the 22 added helpers plus codecs/itertools.
+Fresh-process SQLite image comparison and final initializer/core symbol
+proofs pass; complete affected suites are pending. No memory acceptance
+is claimed. Separately, a zstd diagnostic-only event-buffer artifact is
+being built to record native output capacities and context sizes without
+per-event Python callbacks or allocations. Its instrumented footprint
+cannot qualify an optimization. A bounded same-binary executable-path
+diagnostic is pending; it does not retry or reclassify the regex result.
+
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
 `catalog_request_path` RSS regressed in both runs (1.01124x). Its directed
