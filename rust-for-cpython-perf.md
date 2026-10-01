@@ -906,6 +906,16 @@ were already tried without a memory win. Static payload arithmetic establishes
 no physical saving. No compiler, runtime, source change or memory draw followed;
 the preserved report is lane9's `results/tiny-helper-layout-scout/report.md`.
 
+Further source-only retained-owner reviews closed pickle, base64, decimal,
+inspect, tokenize, ipaddress and startup without a candidate. Pickle's duplicate
+decode tree and inspect's two unused frontend containers are temporary, with
+no exclusive physical-page evidence. Base64's measured paths already write
+directly into Python bytes; decimal's conversion and allocator variants were
+tested. Successful inspect/ipaddress native results return directly, and
+tokenize's replay buffer preserves later fallback. Startup's codec metadata is
+required; archived conversion counts are zero and itertools is absent. These
+reviews authorize no source change, runtime or memory draw. All goals remain.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
