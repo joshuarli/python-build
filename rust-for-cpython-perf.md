@@ -103,6 +103,20 @@ large base64, wheel reading and cold zip import. These are unresolved goals,
 not waived by the context change. No CPU, wall, or quiet-host requirement
 was checked.
 
+The once-only rigorous follow-up `20261001T054547Z` resolved logging and
+binascii as MET, and ElementTree working peak plus pickle, SQLite and socket
+load as OVER. SSL, struct, html.parser and warnings remain UNCLEAR.
+Combining the latest applicable rows leaves 17 OVER / 4 UNCLEAR /
+49 MET / 1 BEYOND; all 21 unresolved routes remain required goals.
+New isolated source lanes are `builtin-aggregate-memory` (22 existing
+helpers linked through the existing static builtin archive, SQLite excluded,
+no linker-flag change) and `regex-corrected-memory` (direct PikeVM plus the
+ASCII whitespace correctness repair, with original eligibility limits).
+Both must retain every actual module/workload memory guard and full
+correctness qualification. The zstd working-peak scout found no distinct
+justified edit; bounded allocation attribution is pending. No resumed
+source optimization has been integrated.
+
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
 `catalog_request_path` RSS regressed in both runs (1.01124x). Its directed
