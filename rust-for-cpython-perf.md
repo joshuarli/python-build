@@ -1069,6 +1069,13 @@ or binascii memory must improve in both runs and every memory guard binds.
 Any non-acceptance preserves source/stages/raw and restores the incumbent with
 no retry. CPU, timing and quietness play no role. No runtime is yet authorized.
 
+Source-only UUID C/helper image scouting runs independently in the existing
+datetime worktree. It must distinguish this pairing from closed Rust-builtin
+placement trials and identify provider, lifecycle and protection constraints
+before proposing source. This authorizes reports only, with no source change,
+compiler, runtime or measurement. Binascii controller preparation likewise
+remains source-only until the lane freezes and independent review passes.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
