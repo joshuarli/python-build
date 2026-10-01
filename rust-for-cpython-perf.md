@@ -421,8 +421,11 @@ The private diagnostic passed compilation and default/zero/parity runs using
 the exact pinned engine. Five eligible fixed-kernel patterns over1032 lines
 produced identical counts/checksums. All searched clones released their cache
 allocations; warm net live was zero. Zero capacity reduced logical cumulative
-warm requests by46.9MB, the largest cold-search live allocation by7,750B and
+warm requests by46.9MB in its private two-native-pass diagnostic, the largest
+cold-search live allocation by7,750B and
 retained compiled storage by2,880B. Default2MiB was never a retained-cache claim.
+The public kernel uses Rust for one pass and compiled C methods for the other;
+the private churn total is not the public kernel's allocation total.
 Twenty-one generic patterns checked admission, spans, captures/empty iteration,
 invalid/oversize patterns and nesting251 rejection. The System allocator ledger
 omits production scratch/Python/cache-map context and proves no physical saving.
@@ -437,6 +440,21 @@ and only all-71/all-23 two-run memory-only gate. Regex itself must improve in
 both runs, all memory guards bind, and any non-ACCEPT ends the candidate while
 preserving its branch/stage/evidence and restoring main. The earlier bounded
 matcher, engine-removal and clone trials remain closed.
+
+Checkpoint `36ada80` passed exact root and independent source/test review.
+Baseline fixtures passed public6 on control and all9 on incumbent. Its clean
+release build verified58 helpers; the candidate passed9 new contracts and7
+existing flag tests. Isolated native kernel proofs match incumbent output and
+the actual5160 eligible Rust searches plus1032 unsupported validations retaining
+C fallback. Two ignored proof assumptions failed on incumbent first (bound
+method type spelling and a hand-entered truncated-corpus count); both are
+preserved, and the corrected proof uses the C oracle and deterministic SHA256.
+Complete13 affected suites are running; no changed-source memory draw has run.
+
+The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
+libpython, leaving no second standalone helper image to eliminate. Moving
+socket into libpython repeats rejected builtin placement rather than establishing
+a distinct removable page. No implementation or runtime experiment followed.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
