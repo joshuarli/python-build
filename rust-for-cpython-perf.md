@@ -486,6 +486,28 @@ whole-match/admission parity may run under build/test leases. No production
 edit, full build or physical memory draw is authorized; renewed source count
 remains37 until an implementation candidate is approved.
 
+That private diagnostic is now closed before implementation. Across the five
+fixed native patterns, Implicit captures reduced logical retained engine
+storage by only 384 bytes and the largest independent lifetime high-water by
+154 bytes. Whole-span, admission, nesting and size-limit parity passed across
+28 patterns. These totals exclude the original-All admission preflight's
+cost and provide no physical-page or replicated memory-improvement evidence.
+No production edits, full build or memory draw followed; source count remains
+37 and the rejected engine trials remain closed.
+
+Two further source-only ownership checks also closed without experiments.
+Marshal already owns writer references directly in its occupied hash-table
+keys, so there is no duplicate reference vector to remove. The fixed typing
+kernel does not load the regex helper, so a regex/typing shared image would
+introduce a new owner rather than eliminate a coimported image.
+
+A bounded source and archived-import-graph scout is checking smaller shared
+images. SSL actually loads both standalone `_socket_rs` and `_binascii_rs`;
+the existing `_base64` alias already shares binascii's image. Their allocator,
+module-initialization and alias contracts need review before an implementation
+candidate. Socket-only and base64-only memory remain guards. No image saving,
+production change, build or measurement is authorized by this graph finding.
+
 The socket/SSL pair-image scout also closed: `_ssl_rs` is already builtin in
 libpython, leaving no second standalone helper image to eliminate. Moving
 socket into libpython repeats rejected builtin placement rather than establishing
