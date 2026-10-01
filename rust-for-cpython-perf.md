@@ -976,6 +976,16 @@ dependency artifacts and incumbent/control stages before and after, including
 failure cleanup. Fork fixtures remain simulations. This authorizes neither
 product compilation nor a memory draw; those await the proof result.
 
+Source44 logical proof completed successfully: the original reset control
+aborted on retained storage overwritten by a later scope; the candidate
+reported one8-byte persistent global, zero ledger/header errors,79226 canonical
+commits,14081 arena requests and54697 System requests. These are logical counts,
+not resident bytes. Frozen inputs, generated/binary outputs and incumbent/control
+stages matched after execution. Root now authorizes a clean isolated interpreter
+build, complete25 affected suites and reviewed native correctness cases. Native
+fork checks must distinguish actual child execution from the earlier simulations.
+No memory draw is authorized until build, full suites and native checks pass.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
