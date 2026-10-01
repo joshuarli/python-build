@@ -224,8 +224,9 @@ original own-GIL outcomes and unchanged Cargo-byte verification. Its sole
 all-71/all-23 exploration `20261001T072209Z` REJECTed: large base64 RSS
 0.999x, small RSS 1.007x and both module memory targets were neutral. AST,
 asyncio, urllib.parse and zipfile load, logging working peak, catalog URL
-RSS and startup RSS regressed in both runs. Outputs matched. Source is being
-restored, with candidate, patch, stage and raw results preserved; no retry
+RSS and startup RSS regressed in both runs. Outputs matched. Restoration
+`7b06a68` returns the overlay to the incumbent, with candidate, patch,
+stage and raw results preserved; no retry
 or primary qualification follows.
 
 Final flush checkpoint `0da6ebd` retains the same one-line production change
@@ -235,19 +236,39 @@ was insufficient after extra buffer growth; isolated forwarding allocator
 counts establish 25 requests per candidate mode versus 12 per incumbent mode
 for the buffered fixture. Every candidate fault ordinal 0–24 and explicit
 success at 25 pass; the retained 96-offset corpus covers all requests.
-This is correctness evidence, not a memory draw. The single all-71/all-23
-paired memory exploration is running.
+This is correctness evidence, not a memory draw. Its sole all-71/all-23
+paired exploration `20261001T073426Z` REJECTed: zstd load 1.009x and
+working peak 0.949x were neutral, and every workload RSS row was neutral.
+CSV, fnmatch, fractions and urllib.parse load plus email working peak
+regressed in both runs. Outputs matched. Restoration `432c82c` returns the
+entire overlay to the incumbent; the rejected patch, stage, tests and raw
+results remain preserved. No retry or primary qualification follows.
 
 An isolated `typing-name-memory` lane investigates 7,600 temporary Unicode
 attribute names per unchanged kernel call, confirmed in the pinned C API.
 It caches only three interned names per interpreter, preserving dynamic
 lookups, legacy getter dispatch and caller-supplied classinfo. The unpublished
 draft review found nested-exec ownership leakage and borrowed traversal
-pointers crossing allocating visitor callbacks. Original drafts are retained
-for actual-function failing regressions before repair; production source is
-unchanged. Its extra unchanged setup-memory command was cancelled in the
-lease turnstile before any samples. Correctness probes remain authorized;
-only one changed paired memory comparison will follow final qualification.
+pointers crossing allocating visitor callbacks. Both actual-function
+regressions failed on the original draft and pass after repair: nested
+initialization releases all six acquired references, and traversal reads
+live fields before each visitor. Clear detaches all names before decrementing
+references; callbacks retain strong local name references. An empty cache
+uses the original lookup during initialization or clear/reinitialization;
+invalid partial state raises an explicit error. Checkpoint `6adc53a` passed
+clean58 and exact source/initializer verification. A native fixture then
+mistook the valid legacy exec-slot spelling for a missing slot after clearing
+the cache; fixture correction and final qualification remain pending.
+Original drafts and failing evidence remain preserved. Its extra unchanged
+setup-memory command was cancelled in the lease turnstile before any samples.
+Only one changed paired memory comparison will follow final qualification.
+
+Two source-only typing alternatives closed without builds or measurements.
+The C `_typing` module is already builtin, so co-locating it with its Rust
+helper removes no second shared image; the unchanged C object also requires
+hidden core symbols. Deprecated identifier lookup holds an interpreter
+identifier mutex across allocating operations, introducing a reentry risk.
+Neither supplies a justified replacement for the isolated name-cache trial.
 
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
