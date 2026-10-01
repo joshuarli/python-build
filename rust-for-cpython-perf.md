@@ -616,7 +616,8 @@ release extensions, the three native contracts passed against the original
 incumbent reference, and all 48 affected suites repeated with 15,615 tests /
 1,022 skips. Two installer-only `make -o all sharedinstall` replays passed
 without compilation; all 58 actual Cargo hashes and stage fingerprints stayed
-unchanged. Fresh primary qualification remains required.
+unchanged. Its subsequent primary qualification and terminal rejection are
+recorded above.
 
 Zlib/ZIP's first baseline snapshot incorrectly expected every zero-argument
 native call to raise; ZIP's decompressor legitimately constructs a capsule.
@@ -641,7 +642,8 @@ output mismatches or unstable rows. Verdict SHA256 is
 Postflight verified all three stages and the unchanged harness. Main was
 restored to the incumbent overlay; candidate branch
 `integrate-zlib-zip-image-39`, stage and raw evidence remain preserved. No retry
-or source improvement is accepted. Source38 has not had a memory draw.
+or source improvement is accepted. Source38 subsequently completed its own
+terminal memory rejection, recorded above.
 
 Two bounded source scouts also closed without implementation or runtime work.
 Socket without the Rust standard library repeats the actual `e69ac90` /
