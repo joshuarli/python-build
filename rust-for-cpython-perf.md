@@ -186,6 +186,20 @@ image cost. Actual original builtin registrations number 12 despite 13
 archive dependencies; the eight-helper candidate retains those 12 and adds
 eight. No setup change was made to force `_base64` into the core.
 
+Two distinct source lanes follow the bounded evidence. `zstd-flush-memory`
+reduces only the flush buffer's initial capacity; the trace established
+16 KiB allocations for three-byte results, while the C control starts at
+`compressBound(0)` within its inline writer buffer. Earlier writer trials
+retained the 16 KiB minimum. `base64-pair-memory` preserves both shared
+modules by making the legacy filename a relative alias to the existing
+`_binascii_rs` image, which already exports both original initializers.
+The two workloads currently import both images; no exact pair-alias trial
+was found in the prior history. Neither hypothesis establishes physical
+savings yet. Both require unchanged coverage, exact native/API/own-GIL
+behavior, clean builds, complete affected suites and all actual memory
+guards in a single all-71/all-23 paired exploration. CPU, timing and host
+quietness remain excluded from their decisions.
+
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
 `catalog_request_path` RSS regressed in both runs (1.01124x). Its directed
