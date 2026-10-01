@@ -132,8 +132,12 @@ checkpoints remain on isolated branches.
   neutral; exploration recovery preserves both verdicts and all final guards.
   Two physical attribution repeats find Django native residency lower by
   1,856 KiB and dirty pages by 656 KiB, but single-helper processes retain
-  48–96 KiB more native memory. The actual all-71/all-23 gate is running;
-  diagnostic savings do not establish acceptance.
+  48–96 KiB more native memory. Actual all-71/all-23 gate
+  `20261001T034526Z` REJECTed 33 module-load regressions in both runs.
+  Working peaks were neutral throughout; all workload RSS rows were neutral
+  or improved, including first-request RSS 0.963x and warm Django 0.978–0.980x.
+  The broad image remains unaccepted. Eager data/fixup attribution is read-only;
+  no smaller partition or initialization rewrite is yet qualified.
 - An isolated HMAC no_std trial `8ec73ba` starts from an actual 144 KiB
   resident / 32 KiB dirty helper cost. It passes clean58 and five complete
   suites (673/38) and eight native parity/lifetime/allocation checks; its
