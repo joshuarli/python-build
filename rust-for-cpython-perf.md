@@ -849,6 +849,17 @@ untested. Root now authorizes a clean worktree release58, staged native/public
 fixtures, original own-GIL/flag/kernel proofs and all25 complete affected suites.
 No worktree memory draw is permitted; primary qualification remains separate.
 
+Source43's clean worktree build verified58 release extensions. All25 complete
+affected suites passed (9,598/272), and all eight staged proof cases passed:
+pristine public output, original/candidate public/native parity, seven unchanged
+flag/own-GIL tests and fixed-kernel5160/1032 Rust dispatch with the original digest.
+Actual Cargo dependencies/features, copied source, all58/1/58 release maps and
+three stages matched pre/post. Independent read-only qualification review passed.
+Root now authorizes fresh primary `perf-ra43`, the same staged/native proofs,
+full default-resource suites and its sole all71/all23 matched-context memory-only
+gate. Regex itself must improve in both runs with every memory guard intact;
+any non-acceptance is terminal, preserving source/stage/raw with no retry.
+
 The separate typing no_std scout closed without a candidate. An exact typing
 trial appears absent, but shared `cpython-sys` forces std and actual archived
 symbols/pages show required module/method/loader ownership rather than removable
