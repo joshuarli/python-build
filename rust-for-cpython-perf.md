@@ -38,9 +38,55 @@ RSS rows neutral in both runs. The fresh absolute workload comparison `20260930T
 regressions, 3 neutral and 4 improved. The explicit harness policy is committed at `e32c713`; 43 focused
 contract tests pass. No new memory improvement is claimed yet.
 
+### Resumed experiment checkpoint
+
+No resumed source optimization has been integrated. The memory-only harness
+and fresh control evidence above are committed; rejected and neutral source
+checkpoints remain on isolated branches.
+
+- Typing archive registration `393706e` improved load to 0.935x but raised
+  logging working peak to 1.720x. Datetime registration `11ed0a1` was neutral
+  on its target and regressed memory guards. Both were reverted; the restored
+  shared-recovery branch is `57e379f`.
+- Regex checkpoint `fd2bdac` reduced its helper image by 445,520 bytes and
+  improved re load to 0.845x, but warnings load regressed to 1.065x. Its four
+  complete suites and native probes pass. The rejection is preserved; direct
+  PikeVM/cache storage is a separate unqualified experiment.
+- Linker checkpoint `3ce73d3` hides private Rust names and strips unreachable
+  code while retaining all unmangled ABI exports. Its image is 1,079,984 bytes
+  smaller, but all 23 worktree workload memory rows were neutral. Primary
+  source `455dfd7` clean-built all 58 helpers; the full suite passed
+  50,158/2,748 after an asyncio-streams failure, a passing focused asyncio
+  reproduction, and a full rerun. The first failed log remains preserved.
+  An all-71-module/all-23-workload memory-only primary gate is pending;
+  image size alone is not memory acceptance.
+- Basename checkpoint `81f50cd` removes a discarded path head/tuple. Seven
+  native regressions pass, including long-prefix allocations reduced from
+  1–2.6 MiB to below 64 KiB, and complete suites pass 476/11. Formal logging
+  and os.path memory comparisons were neutral, so no target win is claimed.
+- ElementTree bounded reserves, consumed heap blocks and consumed anonymous
+  mapped blocks did not establish replicated memory wins. A document-local
+  short-attribute-value cache is a separate experiment: the actual kernel
+  produced 500 equal-valued strings with only five distinct values.
+- Zstd exact double decoding was memory-neutral and discarded. Its native
+  PyBytesWriter experiment passed complete suites, but allocation-failure
+  probes exposed late-output retry-state errors; it is ineligible for memory
+  measurement until those transitions match native behavior.
+- Pickle import attribution found 64–96 KiB extra retention from eager
+  itertools backend initialization before public pickle import. A separate
+  lazy-initialization lane has regression-first evidence and an unchanged
+  clean setup build. Review identified an import-lock/once-lock cycle in the
+  first draft; import must occur outside the publication lock. No changed
+  stage or acceptance is claimed.
+
+Raw verdicts, failed-suite logs, import attribution and current command IDs
+are retained in the ignored results trees and `coordinator-state.json`.
+CPU, wall time and host quietness remain outside every memory decision.
+
 ## Latest handoff (2026-09-30)
 
-This handoff takes precedence over the older resumption and handoff sections.
+This records the previous wind-down. The current memory-only resumption above
+takes precedence over this historical state.
 The user requested wind-down with no new work. All qualified changes are
 integrated; the already-running final suite completed successfully. No further
 lanes, builds or benchmarks are scheduled. Two consecutive memory attribution waves
