@@ -369,6 +369,23 @@ requires fresh `perf-so36`, clean58, native socket/SSL proofs and full suites
 before an all-71/all-23 two-run memory-only gate. SSL itself must improve in
 both runs, all memory guards bind, and any non-ACCEPT ends without retry.
 
+Further pinned-source review found two distinct child-process boundaries.
+The global recursive import lock is already held by the forking thread;
+its child reset only rewrites the owner identity. Moving that rewrite before
+dead-thread destructors preserves the held mutex and recursion level, so no
+new import fence or C fallback is justified. The proposed private operation
+registry can retire vanished C owners before those destructors while keeping
+surviving import frames and old socket generations valid.
+
+That does not repair Python's separate per-module import locks. A retained
+`_socket_rs` lock owned by a vanished worker, blocked before helper publication,
+would make a newly importing child constructor hang where the incumbent C
+constructor completes. This is a concrete source-defined counterexample,
+not yet an executed result. A bounded baseline semantic probe is authorized
+under the test lease, with child timeouts and cleanup; no candidate source,
+build or memory measurement follows until this boundary is resolved. Zlib
+and collections have separate source-only scouts for distinct retained owners.
+
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
 format. The Rust plan drops on return and accepted calls bypass the C cache;
