@@ -58,8 +58,10 @@ checkpoints remain on isolated branches.
   source `455dfd7` clean-built all 58 helpers; the full suite passed
   50,158/2,748 after an asyncio-streams failure, a passing focused asyncio
   reproduction, and a full rerun. The first failed log remains preserved.
-  An all-71-module/all-23-workload memory-only primary gate is pending;
-  image size alone is not memory acceptance.
+  All-71-module/all-23-workload primary gate `20261001T004401Z` REJECTed:
+  CSV load 1.151x, logging load 1.071x and zipimport load 1.041x regressed
+  in both runs. Two workload RSS rows improved, but no module load or
+  working target improved. The source branch is preserved and unintegrated.
 - Basename checkpoint `81f50cd` removes a discarded path head/tuple. Seven
   native regressions pass, including long-prefix allocations reduced from
   1–2.6 MiB to below 64 KiB, and complete suites pass 476/11. Formal logging
