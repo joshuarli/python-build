@@ -184,6 +184,17 @@ neutral context or a physical cause. No retry, correction or source acceptance
 is authorized. Read-only audits now inspect iteration sizing and installed
 stdlib/setup differences in the retained evidence.
 
+Those audits completed without a causal explanation. All 71 routes used
+equal counts on both sides in both runs, including 28 logging iterations.
+Installed inventories match: 2,048 Python sources and 6,108 valid checked-hash
+bytecode files per side. Generated configuration and bytecode differences
+are equal-length root spellings; no missing source, invalid cache or logging
+source drift was found. All 138 installed Mach-O files have matching sizes
+and layouts, with remaining root, signature and loader metadata differences.
+Logging retains names derived from object addresses in its unchanged kernel;
+actual address/name populations were not captured. These remaining context
+boundaries establish neither a cause nor a correction for the eleven rows.
+
 Further semantic traces of the 20 unresolved modules matched every archived
 output. Nineteen never loaded the regex helper; only re used it, with searches
 as well as preparation. Thus a prepare-only grammar shortcut has no reached
@@ -217,6 +228,16 @@ and every other memory guard must be neutral or improved. Any other decision
 ends the candidate without retry; preserve evidence and restore primary main
 without replacing the incumbent. This is qualification permission, not
 source acceptance or a reinterpretation of either prior REJECT.
+
+Source lane 33 checkpoint `29d39cb` implements that distinct typing boundary.
+Its retained-name regression passes pristine control and fails the incumbent;
+nine original compatibility contracts pass on the incumbent. Exact source
+review and independent review both pass: the original C body is byte-identical
+outside three includes and two private getters, and metadata lookup remains
+unchanged. Twelve durable contracts include facade ownership/error context,
+legacy slot priority and concurrent independent interpreters. Clean build and
+assigned complete suites are now running in `py-mem-lane2`; no changed-source
+memory draw or source acceptance has occurred.
 
 A separate source-only struct scout found a real 8-byte format copy and six
 temporary 32-byte Rust operations per call, alongside the retained C Struct
