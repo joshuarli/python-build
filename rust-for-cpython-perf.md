@@ -955,6 +955,17 @@ Any non-acceptance preserves source/stage/raw and restores the incumbent without
 retry. CPU, timing and host quietness play no role. No runtime or build is yet
 authorized.
 
+Source44 preparation `5b7b1c8` is frozen and clean. Independent review passed
+the production allocator and final fixtures, including same-byte extraction
+bindings and positive searches through all five cold retained engines before
+any oracle. The old reset allocator has a prepared failing lifetime control;
+candidate fixtures cover exact ownership, cache eviction, allocation failure,
+threads and canonical-header/lock fork simulations. These are prepared proofs,
+not executed results or physical savings. Root authorizes only verified private
+LLVM/Cargo cache clones and `perf.py doctor` next. Logical compilation and
+execution await separately reviewed controller bindings; no build or memory
+draw is authorized.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
