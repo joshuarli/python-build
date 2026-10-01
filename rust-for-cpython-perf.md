@@ -170,8 +170,17 @@ the last two had load improvements in rejected22. This motivates a smaller
 group, not a claim that either rejected guard is repaired. Regex and logging
 remain separate, and the core keeps its default System allocator. Independent
 source review passes; clean50-dynamic release build passed. Installed native
-proofs, complete affected suites and the once-only all-71/all-23 memory
-exploration are pending.
+proofs and all 45 complete affected suites passed (15,845/1,214). Its sole
+all-71/all-23 exploration `20261001T070008Z` REJECTed with nine replicated
+load regressions (collections, configparser, dataclasses, json, logging,
+tarfile, urllib.parse, warnings and zipfile) and six RSS regressions
+(catalog URL, both difflib workloads, startup, cold zip import and zlib
+streaming). Startup was 1.017x and logging load 1.075x. Datetime and typing
+load were neutral overall because their improvements did not replicate;
+threading load alone improved. Logging working peak was neutral. Outputs
+matched and there were no unstable metrics. Restoration `1e82b72` returns
+the complete overlay to the incumbent; source, patch, tests, stage and all
+94 entity results remain preserved. No retry or primary qualification follows.
 
 Threading core-only and FFI-table grouping scouts closed before source edits
 or measurements. Its artifact already contains no retained standard-runtime,
@@ -199,6 +208,17 @@ savings yet. Both require unchanged coverage, exact native/API/own-GIL
 behavior, clean builds, complete affected suites and all actual memory
 guards in a single all-71/all-23 paired exploration. CPU, timing and host
 quietness remain excluded from their decisions.
+
+Flush source `6d71ff7` changes only initial capacity to `compress_bound(0)`;
+incumbent contracts passed nine native dispatch checks and 24 accepted
+allocation faults plus 24 successes across frame/block modes. Block-error
+ownership checks drop the failed capsule and exercise a fresh one, without
+inventing a reset contract. Pair source `160fe44` changes only Makefile
+build/install aliases and scoped documentation. Its eight incumbent native,
+API, error, GC, reload, import-order and own-GIL cases passed; the same-file
+alias assertion failed before source as intended. Setup inventories already
+describe both modules as shared and remain unchanged. Both clean builds are
+running; neither has submitted a memory comparison yet.
 
 The final natural-prefix calendar checkpoint `b4e4167` clean actual gate
 `20261001T045734Z` REJECTed despite improved `_strptime` load (0.939x):
