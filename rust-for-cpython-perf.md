@@ -1082,6 +1082,18 @@ artifact, harness and tool identity must hold. Baseline assumption failures
 stop dependent construction and remain preserved; no candidate build or
 measurement is authorized by this step.
 
+Root baseline32566 exited1 on its first semantic child: fixture `error_of`
+did not accept `strict_mode` and failed before calling the native target.
+All other cases and the expected packaging failure were unrun. Independent
+audit confirms byte-identical pre/post snapshots, all123 bindings and exact
+incumbent58/control1 stages, with no finalization error. Preserve the complete
+first attempt and earlier review failures. The smallest isolated regression
+extracts the actual fixture helper and checks keyword forwarding and target
+exception capture: old helper failed, fixture-only fe2a73e passed under the
+test lease. It adds the retained regression and changes no production hash.
+A separate reviewed second baseline may bind the repaired fixture; this is
+fixture repair before construction, with no candidate or memory retry.
+
 Source-only UUID C/helper image scouting runs independently in the existing
 datetime worktree. It must distinguish this pairing from closed Rust-builtin
 placement trials and identify provider, lifecycle and protection constraints
@@ -1106,6 +1118,14 @@ clean58, complete affected/native proofs and primary full suites, then one
 primary all71/all23 matched memory-only gate. UUID memory must improve in both
 runs and every memory guard binds; any non-acceptance preserves all evidence
 and restores the incumbent without retry. Physical savings remain unknown.
+
+Source46 froze at3b7da3b. Independent production review passed conditionally;
+its fork fixture lacked a bounded wait/child cleanup. Preserve that checkpoint.
+Refreeze4255d0a bounds and reaps the owned child and delegates C native linker
+flags to the existing pinned helper parser, removing a redundant parser.
+All12 static variants and full module inventories/non-UUID recipes remain
+equal to their originals. Supplemental source review precedes any execution;
+baseline, builds, native proof and memory gate remain unrun.
 
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
