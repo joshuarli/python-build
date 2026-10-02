@@ -1,20 +1,13 @@
-use std::ffi::{c_char, c_int, c_long, c_void};
-use std::mem::{MaybeUninit, size_of};
-use std::ptr;
-use std::slice;
+#![no_std]
 
-use cpython_sys::{
-    METH_NOARGS, METH_O, METH_VARARGS, PyBytes_FromStringAndSize, PyErr_NoMemory,
-    PyErr_SetString, PyExc_ValueError, PyGetSetDef, PyLong_FromLong, PyMethodDef,
-    PyMethodDefFuncPointer, PyModule_AddObject, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyObject_Free, PyObject_GetAttrString, PyObject_GetBuffer,
-    PyObject_HashNotImplemented, PyObject_Type, PyType_FromSpec, PyType_GenericAlloc, PyTypeObject, PyType_Slot,
-    PyType_Spec, PyUnicode_FromFormat, PyUnicode_FromStringAndSize, Py_NewRef,
-    Py_DecRef, Py_buffer, Py_ssize_t, Py_tp_dealloc, Py_tp_getset, Py_tp_hash,
-    Py_tp_methods, Py_tp_repr, Py_TPFLAGS_DEFAULT, Py_TPFLAGS_DISALLOW_INSTANTIATION,
-    Py_TPFLAGS_IMMUTABLETYPE,
-};
-use cpython_sys::_Py_NoneStruct;
+mod ffi;
+
+use core::ffi::{c_char, c_int, c_long, c_void};
+use core::mem::{MaybeUninit, align_of, size_of};
+use core::ptr;
+use core::slice;
+
+use ffi::*;
 use sha2::Digest;
 use md5::Md5;
 use sha1::Sha1;
@@ -34,14 +27,14 @@ enum HashState {
 }
 
 impl HashState {
-    fn new(name: &str) -> Option<Self> {
+    fn new(name: &[u8]) -> Option<Self> {
         match name {
-            "md5" => Some(Self::Md5(Md5::new())),
-            "sha1" => Some(Self::Sha1(Sha1::new())),
-            "sha224" => Some(Self::Sha224(Sha224::new())),
-            "sha256" => Some(Self::Sha256(Sha256::new())),
-            "sha384" => Some(Self::Sha384(Sha384::new())),
-            "sha512" => Some(Self::Sha512(Sha512::new())),
+            b"md5" => Some(Self::Md5(Md5::new())),
+            b"sha1" => Some(Self::Sha1(Sha1::new())),
+            b"sha224" => Some(Self::Sha224(Sha224::new())),
+            b"sha256" => Some(Self::Sha256(Sha256::new())),
+            b"sha384" => Some(Self::Sha384(Sha384::new())),
+            b"sha512" => Some(Self::Sha512(Sha512::new())),
             _ => None,
         }
     }
@@ -57,14 +50,22 @@ impl HashState {
         }
     }
 
-    fn digest(&self) -> Vec<u8> {
+    fn digest(&self, output: &mut [u8; 64]) -> usize {
+        macro_rules! finalize {
+            ($hash:expr) => {{
+                let digest = $hash.clone().finalize();
+                let size = digest.len();
+                output[..size].copy_from_slice(&digest);
+                size
+            }};
+        }
         match self {
-            Self::Md5(hash) => hash.clone().finalize().to_vec(),
-            Self::Sha1(hash) => hash.clone().finalize().to_vec(),
-            Self::Sha224(hash) => hash.clone().finalize().to_vec(),
-            Self::Sha256(hash) => hash.clone().finalize().to_vec(),
-            Self::Sha384(hash) => hash.clone().finalize().to_vec(),
-            Self::Sha512(hash) => hash.clone().finalize().to_vec(),
+            Self::Md5(hash) => finalize!(hash),
+            Self::Sha1(hash) => finalize!(hash),
+            Self::Sha224(hash) => finalize!(hash),
+            Self::Sha256(hash) => finalize!(hash),
+            Self::Sha384(hash) => finalize!(hash),
+            Self::Sha512(hash) => finalize!(hash),
         }
     }
 
@@ -129,22 +130,23 @@ impl BorrowedBuffer {
 
 impl Drop for BorrowedBuffer {
     fn drop(&mut self) {
-        unsafe { cpython_sys::PyBuffer_Release(&mut self.view) }
+        unsafe { PyBuffer_Release(&mut self.view) }
     }
 }
 
 unsafe fn tuple_item(args: *mut PyObject, index: Py_ssize_t, count: Py_ssize_t) -> Option<*mut PyObject> {
-    if unsafe { cpython_sys::PyTuple_Size(args) } != count {
-        unsafe { PyErr_SetString(cpython_sys::PyExc_TypeError, c"invalid number of arguments".as_ptr()) };
+    if unsafe { PyTuple_Size(args) } != count {
+        unsafe { PyErr_SetString(PyExc_TypeError, c"invalid number of arguments".as_ptr()) };
         return None;
     }
-    let item = unsafe { cpython_sys::PyTuple_GetItem(args, index) };
+    let item = unsafe { PyTuple_GetItem(args, index) };
     if item.is_null() { None } else { Some(item) }
 }
 
-unsafe fn read_name(object: *mut PyObject) -> Option<String> {
+// The argument tuple owns the Unicode storage while the algorithm is selected.
+unsafe fn read_name(object: &PyObject) -> Option<&[u8]> {
     let mut size: Py_ssize_t = 0;
-    let name = unsafe { cpython_sys::PyUnicode_AsUTF8AndSize(object, &mut size) };
+    let name = unsafe { PyUnicode_AsUTF8AndSize(ptr::from_ref(object).cast_mut(), &mut size) };
     if name.is_null() {
         return None;
     }
@@ -153,7 +155,7 @@ unsafe fn read_name(object: *mut PyObject) -> Option<String> {
         return None;
     }
     let bytes = unsafe { slice::from_raw_parts(name.cast::<u8>(), size as usize) };
-    Some(String::from_utf8_lossy(bytes).into_owned())
+    Some(bytes)
 }
 
 unsafe fn object_state(object: *mut PyObject) -> Option<*mut HashState> {
@@ -170,7 +172,14 @@ fn allocate_hash(type_object: *mut PyTypeObject, state: HashState) -> *mut PyObj
     if object.is_null() {
         return ptr::null_mut();
     }
-    let pointer = Box::into_raw(Box::new(state));
+    // State storage remains in the C allocation domain of the default allocator.
+    // Both supported host ABIs provide sixteen-byte C allocation alignment.
+    let pointer = unsafe { malloc(size_of::<HashState>()) }.cast::<HashState>();
+    if pointer.is_null() {
+        // Infallible state allocation aborts on exhaustion, as Box allocation did.
+        unsafe { abort() }
+    }
+    unsafe { pointer.write(state) };
     unsafe { (*object.cast::<HashObject>()).state = pointer };
     object
 }
@@ -190,10 +199,10 @@ unsafe extern "C" fn new_hash(_module: *mut PyObject, args: *mut PyObject) -> *m
     let Some(data_object) = (unsafe { tuple_item(args, 1, 2) }) else {
         return ptr::null_mut();
     };
-    let Some(name) = (unsafe { read_name(name_object) }) else {
+    let Some(name) = (unsafe { read_name(&*name_object) }) else {
         return ptr::null_mut();
     };
-    let Some(mut state) = HashState::new(&name) else {
+    let Some(mut state) = HashState::new(name) else {
         unsafe { PyErr_SetString(PyExc_ValueError, c"unsupported hash algorithm".as_ptr()) };
         return ptr::null_mut();
     };
@@ -239,24 +248,23 @@ unsafe extern "C" fn digest(object: *mut PyObject, _unused: *mut PyObject) -> *m
     let Some(state) = (unsafe { object_state(object) }) else {
         return ptr::null_mut();
     };
-    return_bytes(&unsafe { &*state }.digest())
+    let mut output = [0_u8; 64];
+    let size = unsafe { &*state }.digest(&mut output);
+    return_bytes(&output[..size])
 }
 
 unsafe extern "C" fn hexdigest(object: *mut PyObject, _unused: *mut PyObject) -> *mut PyObject {
     let Some(state) = (unsafe { object_state(object) }) else {
         return ptr::null_mut();
     };
-    let digest = unsafe { &*state }.digest();
-    let mut output = Vec::with_capacity(digest.len() * 2);
-    for byte in digest {
-        output.push(HEX[(byte >> 4) as usize]);
-        output.push(HEX[(byte & 0x0f) as usize]);
+    let mut digest = [0_u8; 64];
+    let size = unsafe { &*state }.digest(&mut digest);
+    let mut output = [0_u8; 128];
+    for (index, byte) in digest[..size].iter().copied().enumerate() {
+        output[index * 2] = HEX[(byte >> 4) as usize];
+        output[index * 2 + 1] = HEX[(byte & 0x0f) as usize];
     }
-    if output.len() > Py_ssize_t::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    unsafe { PyUnicode_FromStringAndSize(output.as_ptr().cast::<c_char>(), output.len() as Py_ssize_t) }
+    unsafe { PyUnicode_FromStringAndSize(output.as_ptr().cast::<c_char>(), (size * 2) as Py_ssize_t) }
 }
 
 unsafe extern "C" fn get_name(object: *mut PyObject, _closure: *mut c_void) -> *mut PyObject {
@@ -297,10 +305,12 @@ unsafe extern "C" fn hash_repr(object: *mut PyObject) -> *mut PyObject {
 }
 
 unsafe extern "C" fn dealloc(object: *mut PyObject) {
-    let type_object = unsafe { (*object.cast::<cpython_sys::_object>()).ob_type };
+    let type_object = unsafe { (*object).ob_type };
     let hash_object = unsafe { &mut *object.cast::<HashObject>() };
     if !hash_object.state.is_null() {
-        unsafe { drop(Box::from_raw(hash_object.state)) };
+        // Run the crypto state's zeroizing destructor before releasing its storage.
+        unsafe { ptr::drop_in_place(hash_object.state) };
+        unsafe { free(hash_object.state.cast::<c_void>()) };
         hash_object.state = ptr::null_mut();
     }
     unsafe { PyObject_Free(object.cast::<c_void>()) };
@@ -438,7 +448,7 @@ static MODULE_SLOTS: HashModuleSlots = HashModuleSlots([
 ]);
 
 pub struct ModuleDef {
-    ffi: std::cell::UnsafeCell<PyModuleDef>,
+    ffi: core::cell::UnsafeCell<PyModuleDef>,
 }
 
 impl ModuleDef {
@@ -460,7 +470,7 @@ pub static MODULE_METHODS: [PyMethodDef; 2] = [
 ];
 
 pub static MODULE: ModuleDef = ModuleDef {
-    ffi: std::cell::UnsafeCell::new(PyModuleDef {
+    ffi: core::cell::UnsafeCell::new(PyModuleDef {
         m_base: PyModuleDef_HEAD_INIT,
         m_name: c"_hashlib_rs".as_ptr() as *mut c_char,
         m_doc: c"RustCrypto digest implementations used by hashlib.".as_ptr() as *mut c_char,
@@ -476,4 +486,13 @@ pub static MODULE: ModuleDef = ModuleDef {
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__hashlib_rs() -> *mut PyObject {
     MODULE.init()
+}
+
+// C allocation guarantees this alignment on the supported 64-bit hosts.
+const _: () = assert!(align_of::<HashState>() <= 16);
+const _: () = assert!(size_of::<HashObject>() == 24);
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
 }

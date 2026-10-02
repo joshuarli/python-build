@@ -1,9 +1,9 @@
 # Binascii Rust dependency licenses
 
 The Rust checksum path uses `crc32fast` for CRC-32. The extension also serves
-the public `base64` module through the in-tree `_base64` crate, so one image
-loads for both; that crate's `base64` and `data-encoding` dependencies are
-linked in. Exact versions and registry checksums are pinned in the overlay
+the public `base64` module directly, using the core-only configurations of
+`base64` and `data-encoding`. No Rust standard library or allocation crate
+is used by this extension. Exact versions and registry checksums are pinned in the overlay
 `Cargo.lock`.
 
 | Crate | Version | Declared license |

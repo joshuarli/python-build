@@ -1,12 +1,6 @@
 # Decimal Rust dependency licenses
 
-The exact integer addition path uses `num-bigint`. Its version and registry
-checksum are pinned in the overlay `Cargo.lock`.
-
-| Crate | Version | Declared license |
-| --- | --- | --- |
-| `num-bigint` | 0.4.8 | MIT OR Apache-2.0 |
-| `num-integer` | 0.1.47 | MIT OR Apache-2.0 |
-| `num-traits` | 0.2.19 | MIT OR Apache-2.0 |
-
-These crates offer permissive MIT and Apache-2.0 license choices.
+Exact coefficient arithmetic uses local base-10^9 limbs and CPython-owned
+temporary buffers. The helper has no third-party runtime arithmetic,
+standard-library, or allocator dependency. Its existing local build-helper
+crate retains its license declaration.
