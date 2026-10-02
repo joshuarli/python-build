@@ -102,13 +102,22 @@ def direct_ssl():
     native = sys.modules['_socket']
     assert '_socket_rs' not in sys.modules and 'socket' not in sys.modules
     capsule, table = api(native)
+    # SSL keeps weak references to both its socket and its Python owner.
+    class SocketOwner(table['type']):
+        __slots__ = ('__weakref__',)
     context = module._SSLContext(module.PROTOCOL_TLS_SERVER)
-    left, right = native.socketpair()
+    raw, right = native.socketpair()
+    left = None
     try:
+        # Establish the new strong owner before releasing the original owner.
+        left = SocketOwner(fileno=raw.fileno())
+        raw.detach()
         wrapped = context._wrap_socket(left, True, owner=left)
-        assert wrapped is not None
+        assert wrapped is not None and wrapped.owner is left
     finally:
-        left.close()
+        raw.close()
+        if left is not None:
+            left.close()
         right.close()
     return {'helper_absent': '_socket_rs' not in sys.modules,
             'type_owned': table['type'] is native.socket}
@@ -221,24 +230,30 @@ def held_capsule_generations():
     held_capsule, old_table = api(old)
     held_type, held_method = old.socket, helper.parse_address
     held_helper = held_method.__self__
-    left, right = old.socketpair()
-    context = _ssl._SSLContext(_ssl.PROTOCOL_TLS_SERVER)
-    sys.modules.pop('_socket')
-    sys.modules.pop('_socket_rs')
-    del old, helper
-    gc.collect()
-    fresh = importlib.import_module('_socket')
-    fresh_helper = importlib.import_module('_socket_rs')
-    fresh_capsule, fresh_table = api(fresh)
-    assert old_table['type'] is held_type
-    assert fresh_table['type'] is fresh.socket
-    assert fresh.socket is not held_type and fresh_capsule is not held_capsule
-    assert held_method(4, '127.0.0.1') == fresh_helper.parse_address(4, '127.0.0.1')
-    assert held_method.__self__ is held_helper
+    # Bind the weakrefable subtype to the original capsule's socket generation.
+    class SocketOwner(old_table['type']):
+        __slots__ = ('__weakref__',)
+    raw, right = old.socketpair()
+    left = None
     try:
+        left = SocketOwner(fileno=raw.fileno())
+        raw.detach()
+        context = _ssl._SSLContext(_ssl.PROTOCOL_TLS_SERVER)
+        sys.modules.pop('_socket')
+        sys.modules.pop('_socket_rs')
+        del old, helper
+        gc.collect()
+        fresh = importlib.import_module('_socket')
+        fresh_helper = importlib.import_module('_socket_rs')
+        fresh_capsule, fresh_table = api(fresh)
+        assert old_table['type'] is held_type
+        assert fresh_table['type'] is fresh.socket
+        assert fresh.socket is not held_type and fresh_capsule is not held_capsule
+        assert held_method(4, '127.0.0.1') == fresh_helper.parse_address(4, '127.0.0.1')
+        assert held_method.__self__ is held_helper
         assert left.send(b'old') == 3 and right.recv(3) == b'old'
         wrapped = context._wrap_socket(left, True, owner=left)
-        assert wrapped is not None
+        assert wrapped is not None and wrapped.owner is left
         newer, peer = fresh.socketpair()
         try:
             wrong_generation = error_of(context._wrap_socket, newer, True)
@@ -247,7 +262,9 @@ def held_capsule_generations():
             newer.close()
             peer.close()
     finally:
-        left.close()
+        raw.close()
+        if left is not None:
+            left.close()
         right.close()
     return {'distinct_c_generations': True, 'held_helper_binding': True,
             'ssl_old_type_owned': True, 'new_type_rejection': wrong_generation}
