@@ -55,12 +55,40 @@ Postflight confirmed unchanged frozen sources, resources, stage bytes and
 proof inputs. Main's overlay was restored to incumbent `7cf55a6`; branch
 `integrate-uuid-c-rust-image-46`, candidate stage and raw evidence remain
 preserved. No retry or accepted memory improvement follows this candidate.
-Binascii's independently qualified C/Rust image is next for primary
-qualification. Pickle and decimal have passed their clean worktree builds
-and complete affected suites; their frozen native correctness proofs are
-being reviewed before execution. Socket's original semantic baseline passed;
-its private-cache proof encountered an absent Cargo checksum-metadata file
-and requires an archive-byte comparison rather than assuming that file exists.
+Binascii's original C/Rust image completed primary qualification at `a655f24`:
+clean58, the full 50,158/2,748 suite, native provider and semantic checks,
+and two installer-only replays preserving all 58 artifacts. Its first and
+only all-71/all-23 matched memory-only gate,
+`20261002T043832Z-perf-rust-vs-perf-bi45`, rejected it. Base64 and binascii
+load and working memory were neutral in both runs; logging working peak
+regressed in both runs (pooled 1.357143x). All 23 workload RSS rows were
+neutral; outputs matched and no metric was unstable. Verdict SHA256 is
+`3a19cbd711bc419a0eb40ac505d813baae146d5b2ddffd4894d998352e64a79b`.
+Frozen source, stage and correctness evidence matched after measurement.
+Main's overlay is restored to incumbent `7cf55a6`; candidate branch
+`integrate-binascii-c-rust-image-45`, stage and raw results remain preserved.
+No retry or accepted memory improvement follows this candidate.
+
+Pickle and decimal have passed clean worktree builds, complete affected
+suites, native ABI/provider/semantic checks and installer replays. Pickle's
+scratch proof now compares compiled child source hashes with actual qualified
+runtime sources, retaining its earlier placeholder-path comparison failure.
+Decimal's primary qualification templates require verified observer integrity
+and actual successful controller completion before installer binding.
+Socket's clean58 and 55 affected suites passed 16,139/1,049. A fixture-only
+weak-reference correction preserves original C socket/CAPI identities; all
+14 native baseline semantic checks passed. Its provider probe stopped at a
+missing frozen helper import, which remains a proof setup issue to resolve.
+
+A separate private, pinned-source Rust standard-library diagnostic emitted
+canonical Cargo-owned abort-strategy `dylib` and `rlib` artifacts. A read-only
+same-output correction removed the judge's mistaken mandatory filename-suffix
+assumption; original compiler output and failure remain unchanged. The shared
+library SHA256 is
+`2e04de6fbe46ffd0285bd8362ec6e623f1d5ab548e3247510e4229ee2ae5b7a6`.
+Its current closure is 19 target libraries / 39 files plus four host scripts.
+Consumer dynamic selection, custom allocator and builtin coexistence,
+relocation/signing and resident memory savings are still unproven.
 
 Doctor/status passed on the2026-09-30 resumption. The verified incumbent remains `7cf55a6`
 (clean58, full50,158/2,748) and its overlay matches documentation HEAD
