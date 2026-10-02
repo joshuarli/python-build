@@ -38,6 +38,30 @@ optimizations. Any Rust crate may be adopted in the isolated lane, retaining
 pinned versions/checksums and recorded licenses. Preserve Rust coverage and
 correctness throughout both phases.
 
+The original C UUID and Rust UUID helper image completed primary qualification
+at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
+typed ABI and native provider checks, all semantic fixtures, and two
+installer-only replays preserving all 58 Cargo artifacts. Fresh memory-only
+self-calibration `20261002T025911Z` passed all 23 workload RSS rows in both
+runs. Its first and only all-71/all-23 memory gate,
+`20261002T030858Z-perf-rust-vs-perf-uu46`, rejected the candidate despite
+replicated UUID load improvement (pooled 0.874812x; working peak neutral).
+Replicated regressions were fractions, glob, statistics and warnings load,
+plus catalog URL normalization, both difflib workloads and startup RSS.
+Outputs matched, no metrics were unstable, and CPU, wall time and host
+quietness were not acceptance requirements. Verdict SHA256 is
+`895e4a2118549d31b78cbc621b01337495ce5e4805dd74b9ccb17f2e171b8ab7`.
+Postflight confirmed unchanged frozen sources, resources, stage bytes and
+proof inputs. Main's overlay was restored to incumbent `7cf55a6`; branch
+`integrate-uuid-c-rust-image-46`, candidate stage and raw evidence remain
+preserved. No retry or accepted memory improvement follows this candidate.
+Binascii's independently qualified C/Rust image is next for primary
+qualification. Pickle and decimal have passed their clean worktree builds
+and complete affected suites; their frozen native correctness proofs are
+being reviewed before execution. Socket's original semantic baseline passed;
+its private-cache proof encountered an absent Cargo checksum-metadata file
+and requires an archive-byte comparison rather than assuming that file exists.
+
 Doctor/status passed on the2026-09-30 resumption. The verified incumbent remains `7cf55a6`
 (clean58, full50,158/2,748) and its overlay matches documentation HEAD
 `b43b5d4`; the pristine control remains `7351620`. Fresh full module memory goals read 10 OVER / 16 UNCLEAR / 45 MET or BEYOND.
