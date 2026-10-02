@@ -66,6 +66,22 @@ optimizations. Any Rust crate may be adopted in the isolated lane, retaining
 pinned versions/checksums and recorded licenses. Preserve Rust coverage and
 correctness throughout both phases.
 
+Source93b's first and only primary memory comparison **REJECTED**:
+`20261002T222929Z-perf-rust-vs-perf-cc93b`, verdict SHA256
+`a988a3f28f09fb23c2469b1fc933682182eabfbfc74a6df54f43e7f12958c241`.
+The two-run rigorous all-71/all-23 comparison used matched prefixes and
+executables. Threading load improved to 0.750x; 17 module-load guards
+regressed. All 23 workload RSS rows were neutral, with no output mismatch or
+unstable metric. The observed datetime, decimal, textwrap and typing load
+improvements are not attributed to changes in those helpers' source.
+The clean 58-extension build, full suite (50,158 run, 2,748 skipped, zero
+failures), artifact proof and 63 behavioral units passed. The first Darwin
+link failure and the corrected metadata-audit parser failure remain
+preserved alongside successful qualification. CPU, timing and quietness
+were not checked. No improvement was accepted; main and incumbent remain
+unchanged. Sources, stages and the first verdict remain preserved, with no
+unchanged retry authorized.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
