@@ -1166,6 +1166,19 @@ Root authorizes preparation and independent review of a separate repaired
 baseline controller, then only its incumbent semantic rows and intended alias
 failure under the test lease. Candidate build and memory remain unauthorized.
 
+Root repaired baseline60803 exited0: all11 semantic rows passed through14
+actual native children, including three own-GIL teardown cycles, reentrant
+concurrent imports and normal fork. C succeeds and the original Rust helper
+rejects own-GIL interpreters; public fallback remains intact. The separate
+alias regression failed exactly at its original missing-symlink assertion.
+Independent audit confirms all294 inputs and93 output hashes, byte-identical
+pre/post snapshots and no finalization errors. Typed ABI/lifecycle remains
+unrun. Root now authorizes isolated verified private caches and locked doctor,
+then one clean worktree58 build and the complete actual affected suite union.
+Native ABI/provider/protection/kernel and installer-replay proofs remain
+required before primary qualification; no primary build or memory draw is
+authorized by this step.
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
