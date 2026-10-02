@@ -1179,6 +1179,109 @@ Native ABI/provider/protection/kernel and installer-replay proofs remain
 required before primary qualification; no primary build or memory draw is
 authorized by this step.
 
+Source45's original final link inherited `-no_data_const` from a Cargo
+dependency. A narrowly scoped, independently reviewed linker wrapper removes
+only that exact argument for the identified merged binascii output/object;
+other links pass through, and unsupported response arguments fail closed.
+The retained wrapper regressions fail on the original and pass on0faa96b.
+Protected clean build17465 passed all58 release artifacts; corrected affected
+suite selection82121 passed5,989 tests/147 skips across16 complete suites.
+The first native baseline96389 passed its ten children but failed aggregate
+kernel digest comparison: `-I` ignored `PYTHONHASHSEED`. Preserve that complete
+375-payload archive. Fixture-only a6b4c8c retains the launch regression; the
+separate corrected controller uses the unchanged kernel with a checked seed1
+launch. Root compile31145, baseline52840 and candidate36580 all passed.
+Independent audit confirms all766 inputs and identical stage snapshots;
+original two definitions/lifecycles, separate legacy helper, native counts,
+semantic reference and all ten complete readonly tables (1,826 bytes) hold.
+Root installer56290 passed two disposable destinations, all58 actual Cargo
+bytes, the relative C alias, separate legacy image and twenty fresh native
+checks. Independent audit confirms133 supplemental inputs,79 outputs and six
+unchanged snapshots. This establishes worktree correctness, not memory savings.
+
+Source46 clean build40771 passed all58 artifacts; complete affected suites35945
+passed5,627 tests/578 skips across17 suites. Its first native baseline96313
+stopped because the observer assumed only full-API slot IDs; unchanged C UUID
+uses its pinned limited-API compatibility IDs2/3/4. Preserve all889 archived
+payloads. Fixture-only9c76b5b decodes those original IDs alongside85/86/87,
+without changing raw evidence or productionf35737b. The retained native
+regression failed before repair and passed afterward. Root corrected observer
+compile53900, baseline98276 and candidate18538 all passed: typed ABI, six
+native rows and14 fixture cases/17 children. Independent audit confirms1,643
+inputs, unchanged stages, distinct original definitions and own-GIL outcomes,
+loaded readonly protection and actual libsystem_c `uuid_generate_time` binding.
+Root installer17637 passed two distinct disposable destinations, all58 actual
+Cargo bytes and relative alias, typed ABI and twelve fresh native rows.
+Independent audit confirms194 supplemental inputs and unchanged snapshots.
+Both installer proofs explicitly omit space-bearing DESTDIRs because the
+unchanged recipe does not quote that input; original ambient build variables
+were unsaved, so replay binds known configured requirements and records that
+limitation. Primary full suites/native/install qualification and the sole
+all71/all23 matched memory-only gate remain required for each candidate.
+
+Root authorizes distinct source47 pickle, source48 decimal and source49 socket
+C/Rust image candidates in isolated worktrees, for code and fixtures before
+reviewed incumbent baselines. Each compiles the unchanged original C object
+with original flags/headers/providers and only a private initializer rename,
+links during the existing helper's real Cargo release link, and installs one
+canonical image plus a relative C alias. Original definitions, states, heap
+owners, lifecycle/GIL, APIs, algorithms, fallbacks and all58 artifact proofs
+remain binding. No new dependency, feature or helper activation is authorized.
+Decimal retains its existing dynamic mpdecimal provider and C-only provider
+initialization; direct helper import maps that existing provider earlier.
+Socket retains `_socket.CAPI` ownership and original SSL consumers; direct
+C/SSL import may map Rust earlier but must never import or initialize the
+optional helper. Static page fit establishes no physical saving. Each later
+candidate requires complete affected and primary full suites, native/provider/
+protection/installer proofs, then exactly one primary all71/all23 matched
+memory-only gate with replicated target improvement and every memory guard.
+Any non-acceptance preserves source/stages/raw evidence and restores the
+incumbent without retry. CPU, wall time and host quietness are excluded.
+
+Source47 froze productiondb3e5b3. Its first incumbent baseline63705 stopped
+before children because the controller required `all-passed` for the pristine
+control whose saved report is `suite-passed`; preserve the complete26-file
+attempt. An exact per-reference status repair retained the failing/passing
+mock and rejected swapped, failed or incremental records. Second baseline91403
+passed three rows/four children before a fixture fake returned the wrong
+private helper result shape. The original decoder returns
+`(supported, value, consumed)`; two further held/own-GIL assertions also read
+the boolean as the value. Preserve the complete67-file attempt. Fixture-only
+86286b9 repairs those clients without changing production; three retained
+controller regressions pass. A separately reviewed436-input controller records
+independent semantic failures while aborting on observer, error/skip, cleanup
+or snapshot inconsistency; all nine passes remain mandatory. Root baseline95078
+passed nine cases/eleven children and the precise original missing-alias
+negative. Typed ABI/provider cases remain explicitly unrun pending compilation.
+
+Source48 froze production0768d1a. Fixture-only c6a40b6 adds a pinned-header
+typed module observer and three own-GIL lifetimes, corrects the accepted custom
+flag scenario, and makes bounded fork reaping continue after signaling faults
+while preserving the original exception. Independent nine-source/591-header
+review passed; old cleanup faults reproduce and the corrected five mock
+regressions pass. Correctly configured static generation checks pass; root's
+earlier omitted fixture environment failure is preserved. Root baseline6606
+passed six semantic tests, two unchanged-kernel executions with identical
+control output and3,000 additions/six multiplications, two cold import orders
+and the precise alias negative. Independent audit confirms all1,753 inputs,
+identical snapshots and no cleanup error. Compiled ABI/own-GIL/provider cases
+remain explicit pending work. Verified private caches and locked doctor85069
+passed; original absent-cache evidence is archived before that authorized path
+change. Only Cargo's usage bookkeeping differs from the older donor ledger;
+all other5,822 files,142 locked archives and5,333 sources remain verified.
+
+Root now authorizes UUID primary qualification on a temporary integration
+branch: copy only its reviewed production and durable fixtures, clean-build
+all58 actual release artifacts, run the complete default-resource suites, then
+bind and independently review actual primary native and installer controllers
+before their execution. Binascii follows independently after UUID concludes.
+Fresh memory-only control calibration and the first and only all71/all23
+matched-prefix/executable memory gate follow complete correctness qualification.
+Neither build nor correctness results establish acceptance; every memory guard
+and replicated UUID target improvement remain binding. Decimal may separately
+run its reviewed clean worktree58 build and complete affected suites.
+
+
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
 authorizes source lane 39, `zlib-zip-image`, in root-created `py-mem-lane9`
