@@ -8,6 +8,12 @@
 
 use core::ffi::{c_char, c_int, c_void};
 
+// Darwin dylibs must link libSystem even when their Rust dependencies are
+// core-only. Propagate the existing platform runtime link to native consumers.
+#[cfg(target_os = "macos")]
+#[link(name = "System")]
+unsafe extern "C" {}
+
 include!(concat!(env!("OUT_DIR"), "/c_api.rs"));
 
 // Parser bindings are not currently included.
