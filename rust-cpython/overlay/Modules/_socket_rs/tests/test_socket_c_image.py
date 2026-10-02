@@ -364,23 +364,26 @@ def fork_calls():
                 pass
             except BaseException as exc:
                 cleanup_errors.append(f'kill owned child: {exc!r}')
-            # Reaping is attempted even when killing fails.
-            deadline = time.monotonic() + 5
-            while time.monotonic() < deadline:
-                try:
-                    observed, status = os.waitpid(child, os.WNOHANG)
-                    if observed == child:
-                        child = None
-                        break
-                except ChildProcessError:
+            # Reaping is attempted even when killing or clock observation fails.
+            try:
+                observed, status = os.waitpid(child, os.WNOHANG)
+                if observed == child:
                     child = None
-                    break
-                except InterruptedError:
-                    continue
-                except BaseException as exc:
-                    cleanup_errors.append(f'reap owned child: {exc!r}')
-                    break
-                time.sleep(0.01)
+                else:
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        try:
+                            observed, status = os.waitpid(child, os.WNOHANG)
+                            if observed == child:
+                                child = None
+                                break
+                        except InterruptedError:
+                            continue
+                        time.sleep(0.01)
+            except ChildProcessError:
+                child = None
+            except BaseException as exc:
+                cleanup_errors.append(f'reap owned child: {exc!r}')
             if child is not None:
                 cleanup_errors.append('owned fork child cleanup unresolved')
         if cleanup_errors:

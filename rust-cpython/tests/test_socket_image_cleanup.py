@@ -1,4 +1,5 @@
 """Exercise the actual fixture cleanup with owned fake descriptors and PID."""
+import argparse
 import ast
 import os
 from pathlib import Path
@@ -11,9 +12,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 
+FIXTURE = Path(__file__).parents[1] / 'overlay/Modules/_socket_rs/tests/test_socket_c_image.py'
+
+
 class SocketForkCleanupContracts(unittest.TestCase):
-    def invoke(self, *, primary, close_fault=None, kill_fault=None, unresolved=False):
-        source = Path(__file__).parents[1] / 'overlay/Modules/_socket_rs/tests/test_socket_c_image.py'
+    def invoke(self, *, primary, close_fault=None, kill_fault=None, unresolved=False, clock_fault=None, sleep_fault=None):
+        source = FIXTURE
         tree = ast.parse(source.read_text())
         function = next(node for node in tree.body
                         if isinstance(node, ast.FunctionDef) and node.name == 'fork_calls')
@@ -21,10 +25,12 @@ class SocketForkCleanupContracts(unittest.TestCase):
             pipe=Mock(return_value=(101, 102)), fork=Mock(return_value=4242),
             close=Mock(side_effect=[None, close_fault] if close_fault else None),
             kill=Mock(side_effect=kill_fault),
-            waitpid=Mock(return_value=(0, 0) if unresolved else (4242, 0)),
+            waitpid=Mock(return_value=(0, 0) if unresolved or clock_fault or sleep_fault else (4242, 0)),
             WNOHANG=os.WNOHANG)
         ticks = iter(range(100))
-        fake_time = types.SimpleNamespace(monotonic=lambda: next(ticks), sleep=Mock())
+        fake_time = types.SimpleNamespace(
+            monotonic=Mock(side_effect=clock_fault) if clock_fault else lambda: next(ticks),
+            sleep=Mock(side_effect=sleep_fault))
         namespace = {'os': fake_os, 'sys': sys, 'select': types.SimpleNamespace(
                      select=Mock(side_effect=primary)), 'signal': signal,
                      'time': fake_time, 'NAMES': ('_socket', '_socket_rs')}
@@ -60,6 +66,24 @@ class SocketForkCleanupContracts(unittest.TestCase):
         notes = self.invoke(primary=RuntimeError('original failure'), unresolved=True)
         self.assertIn('owned fork child cleanup unresolved', notes)
 
+    def test_cleanup_clock_fault_preserves_primary_after_signal_fault(self):
+        notes = self.invoke(primary=ValueError('original failure'),
+                            kill_fault=KeyboardInterrupt('signal fault'),
+                            clock_fault=SystemExit('clock fault'))
+        self.assertTrue(any('kill owned child' in note for note in notes))
+        self.assertTrue(any('reap owned child' in note and 'clock fault' in note for note in notes))
+        self.assertIn('owned fork child cleanup unresolved', notes)
+
+    def test_cleanup_sleep_fault_preserves_primary_after_reap_attempt(self):
+        notes = self.invoke(primary=RuntimeError('original failure'),
+                            sleep_fault=KeyboardInterrupt('sleep fault'))
+        self.assertTrue(any('reap owned child' in note and 'sleep fault' in note for note in notes))
+        self.assertIn('owned fork child cleanup unresolved', notes)
+
 
 if __name__ == '__main__':
-    unittest.main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--fixture', type=Path, default=FIXTURE)
+    options, remaining = parser.parse_known_args()
+    FIXTURE = options.fixture.resolve()
+    unittest.main(argv=[__file__, *remaining])
