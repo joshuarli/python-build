@@ -5,6 +5,9 @@ edition = "2024"
 rust-version.workspace = true
 license = "MIT"
 
+[features]
+static-module = []
+
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 

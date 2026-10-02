@@ -1,6 +1,8 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::Py_DecRef;
@@ -45,7 +47,7 @@ unsafe fn return_destination(destination: *mut PyObject) -> *mut PyObject {
     destination
 }
 
-unsafe fn raise_arity_error(name: &'static std::ffi::CStr) {
+unsafe fn raise_arity_error(name: &'static core::ffi::CStr) {
     let message = match name.to_bytes() {
         b"merge_fields" => c"merge_fields() takes exactly 2 arguments",
         _ => c"set_field() takes exactly 2 arguments",
@@ -159,4 +161,15 @@ static MODULE: ModuleDef = ModuleDef {
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__dataclasses_rs() -> *mut PyObject {
     MODULE.init_multi_phase()
+}
+
+#[cfg(not(feature = "static-module"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
+    unsafe { abort() }
 }

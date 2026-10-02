@@ -1,6 +1,8 @@
-use std::cell::UnsafeCell;
-use std::ffi::c_char;
-use std::ptr;
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::c_char;
+use core::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, PyErr_Occurred, PyErr_SetString, PyExc_TypeError,
@@ -8,6 +10,14 @@ use cpython_sys::{
     PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject,
     PyObject_CallOneArg, PyObject_IsTrue, Py_ssize_t,
 };
+
+// Standalone extensions abort through the typed Python fatal-error API.
+// A static carrier supplies the single shared panic implementation instead.
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { cpython_sys::Py_FatalError(c"Rust bisect search panicked".as_ptr()) }
+}
 
 unsafe fn search(
     args: *mut *mut PyObject,

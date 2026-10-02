@@ -781,7 +781,6 @@ name = "cpython-rust-staticlib"
 version = "0.1.0"
 dependencies = [
  "_asyncio_rs",
- "_base64",
  "_bisect_rs",
  "_codecs_rs",
  "_concurrent_futures_rs",
@@ -793,6 +792,7 @@ dependencies = [
  "_random_rs",
  "_ssl_rs",
  "_tempfile_rs",
+ "cpython-sys",
 ]
 
 [[package]]

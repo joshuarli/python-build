@@ -1,6 +1,6 @@
-use std::ffi::{c_int, c_void};
-use std::ptr;
-use std::slice;
+use core::ffi::{c_int, c_void};
+use core::ptr;
+use core::slice;
 
 const SEEN_CR: c_int = 1;
 const SEEN_LF: c_int = 2;

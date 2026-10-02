@@ -1,7 +1,20 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_longlong, c_void};
-use std::ptr;
-use std::slice;
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_longlong, c_void};
+use core::ptr;
+use core::slice;
+
+// Standalone extensions abort on panic; the static carrier supplies its own
+// panic runtime when this module is linked into the interpreter.
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
+    unsafe extern "C" {
+        fn abort() -> !;
+    }
+    unsafe { abort() }
+}
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::PyBool_FromLong;

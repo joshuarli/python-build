@@ -12,4 +12,4 @@ cpython-build-helper = { path = "../cpython-build-helper" }
 
 [lib]
 name = "_random_rs"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]

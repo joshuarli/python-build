@@ -33,6 +33,34 @@ module-debt completion exceptions and stopped-session status below.
   revisit rejected candidates only with a distinct mechanism or an identified
   CPU-only rejection now excluded by this contract.
 
+The user authorizes up to 31 Codex subagents plus the root coordinator for
+this resumed run, superseding the earlier eight-memory-lane cap. Shared-host
+builds, correctness and RSS measurements use the perf host lease. A change
+to the performance harness requires fresh memory-only calibration before
+comparison.
+
+The first all-71/all-23 memory-only gates for source75 (`perf-co75`),
+source76 (`perf-al76`) and source79 (`perf-se79`) rejected their candidates
+after clean release builds and complete correctness suites. Source79's
+replicated regressions were warnings load (1.052x), reordered-difflib RSS
+(1.011x) and startup RSS (1.013x). Its verdict is
+`20261002T194029Z-perf-rust-vs-perf-se79`, SHA256
+`3c3940fbd33ffded20b6e4d79a9cf4500a9849312db1ab8b573f08d27d091726`.
+CPU, timing and quietness were not checked. Sources, stages and first
+verdicts remain preserved; main and incumbent `7cf55a6` remain unchanged.
+
+Source78's first and only primary memory comparison also **REJECTED**:
+`20261002T204422Z-perf-rust-vs-perf-pb78`, verdict SHA256
+`4360d85bb3be1adced6ce03ccef60268c01ee69173c0738127213e85952505d7`.
+Its two-run all-71/all-23 memory-only comparison used matched prefixes and
+executables. Struct load improved to 0.975x, but 16 module-load guards and
+two workload RSS guards regressed (compileall 1.012x and reordered difflib
+1.011x). Observed textwrap, threading and UUID wins are not attributed to
+the source change. The clean 57-extension build, complete correctness suite
+(50,158 run, 2,748 skipped), both native import orders and four semantic
+contracts passed. The source and evidence remain preserved; no improvement
+was accepted and no unchanged retry is authorized.
+
 Optimize algorithms and memory layout; do not write assembly or SIMD
 optimizations. Any Rust crate may be adopted in the isolated lane, retaining
 pinned versions/checksums and recorded licenses. Preserve Rust coverage and
@@ -1969,9 +1997,10 @@ A shared `re` eligibility lane now tests whether unsupported flags can be
 rejected before loading `_re_rs`. Warnings' 200 `re.I` filters resolve to
 flags 34, while the Rust helper only accepts 0 or 32; the native profile
 shows the image loading solely to decline those calls. Supported regex calls
-must continue reaching Rust. The current eight memory lanes target ast, threading, statistics, logging,
-ipaddress, configparser, subprocess, and difflib. Regex eligibility and
-strptime have qualified candidates awaiting primary-path judgment. Durable live lane state is in
+must continue reaching Rust. At that historical checkpoint, eight memory
+lanes targeted ast, threading, statistics, logging, ipaddress, configparser,
+subprocess and difflib. Regex eligibility and strptime awaited primary-path
+judgment. The checkpoint state was recorded in
 `rust-cpython/results/coordinator-state.json` (ignored).
 
 ### Second accepted Codex memory batch
@@ -2449,10 +2478,11 @@ more CPU and no more memory than the pristine control, and should reach
   both sit below 0.9x, **MET** when the pooled median is at most 1.01x,
   and **UNCLEAR** otherwise. A module takes its worst metric's status and
   is BEYOND only when every metric is. Output mismatches read MISMATCH.
-- **Sequencing.** The climb is memory-first. Only load footprint and working
-  peak are targeted until every module reads MET or BEYOND on both (or is on
-  the debt list); kernel CPU must not regress meanwhile. CPU lanes start
-  after that. Up to 8 lanes run concurrently for memory, 4 for CPU.
+- **Sequencing.** The current memory-first objective above governs this run.
+  Every module load/working goal and eligible absolute workload RSS goal must
+  pass before CPU lanes start; debt entries remain unresolved. CPU, timing
+  and quietness do not gate memory work. The user authorizes 31 subagents
+  plus the root coordinator, with shared-host work scheduled through its leases.
 - **Done for a module** means MET or BEYOND on all three metrics. OVER
   modules are the climb's targets, largest ratio first; UNCLEAR modules get
   more rounds before any lane. A MET module is climbed toward 0.9x only

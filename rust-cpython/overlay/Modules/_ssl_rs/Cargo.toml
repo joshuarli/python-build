@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 rust-version.workspace = true
 
+[features]
+static-module = []
+
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 
@@ -12,4 +15,4 @@ cpython-build-helper = { path = "../cpython-build-helper" }
 
 [lib]
 name = "_ssl_rs"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]

@@ -41,8 +41,13 @@ license is recorded in the route's `THIRD_PARTY_LICENSES.md`, and it adds no
 production dependency or platform. Other new dependencies (C libraries,
 system tools) still require consultation. The perf phase runs memory-first:
 no CPU-targeted lane starts until every module's load footprint and working
-peak are MET or BEYOND (or on the debt list), with up to 8 concurrent memory
-lanes.
+peak are MET or BEYOND and all eligible workload absolute RSS goals pass.
+Debt entries remain unresolved goals. For this resumed run, the user
+authorizes up to 31 Codex subagents plus the root coordinator, overriding
+the earlier eight-memory-lane cap. The root schedules shared-host work
+through the perf host lease. Memory qualification has no CPU, timing or
+quiet-host prerequisite; memory samples, floors, output checks, replication,
+Rust coverage and complete correctness checks still bind.
 
 ## Product targets (`buildsys/targets.py` owns production target branching)
 

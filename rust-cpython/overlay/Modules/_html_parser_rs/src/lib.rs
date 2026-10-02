@@ -1,6 +1,13 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+//! HTML token boundaries over Python-owned Unicode input and tuple output.
+//!
+//! Core types suffice for scanning; CPython owns all allocations and errors.
+//! Standalone extensions abort Rust panics, while the static module relies
+//! on its final carrier for the single panic implementation.
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::PyErr_NoMemory;
@@ -23,6 +30,18 @@ use cpython_sys::PyUnicode_FromString;
 use cpython_sys::PyUnicode_GetLength;
 use cpython_sys::PyUnicode_ReadChar;
 use cpython_sys::Py_ssize_t;
+
+#[cfg(not(feature = "static-module"))]
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
 
 const NONE: u32 = u32::MAX;
 
@@ -376,7 +395,7 @@ unsafe fn next_token(
     cdata_element: *mut PyObject,
     escapable: bool,
     support_cdata: bool,
-) -> (&'static std::ffi::CStr, usize) {
+) -> (&'static core::ffi::CStr, usize) {
     if start >= input.length {
         return (c"eof", start);
     }
@@ -560,7 +579,7 @@ unsafe fn read_index(object: *mut PyObject) -> Option<usize> {
     Some(value as usize)
 }
 
-unsafe fn token_result(kind: &'static std::ffi::CStr, end: usize) -> *mut PyObject {
+unsafe fn token_result(kind: &'static core::ffi::CStr, end: usize) -> *mut PyObject {
     if end > Py_ssize_t::MAX as usize {
         unsafe { PyErr_NoMemory() };
         return ptr::null_mut();
@@ -648,7 +667,7 @@ pub extern "C" fn _html_parser_rs_clear(_object: *mut PyObject) -> c_int {
     0
 }
 
-pub extern "C" fn _html_parser_rs_free(_object: *mut std::ffi::c_void) {}
+pub extern "C" fn _html_parser_rs_free(_object: *mut core::ffi::c_void) {}
 
 pub struct ModuleDef {
     ffi: UnsafeCell<PyModuleDef>,

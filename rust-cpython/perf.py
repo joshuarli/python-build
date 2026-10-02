@@ -596,6 +596,37 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         if missing:
             raise LaneError("perf build did not compile Rust members: " + ", ".join(sorted(missing)))
     rust_extensions = verify_release_artifacts(paths["build"], paths["stage"], members)
+    rust_builtins = {}
+    if not empty_overlay:
+        proof_path = LANE / "builtin_modules.py"
+        common_dir = _common_dir()
+        if common_dir.name != ".git":
+            raise LaneError(f"cannot locate primary Git storage from common dir {common_dir}")
+        git_dir = Path(_git("rev-parse", "--absolute-git-dir"))
+        object_stores = (REPO / ".cache/objects", common_dir.parent / ".cache/objects",
+                         REPO / ".git/objects", git_dir / "objects", common_dir / "objects")
+        identities = {(info.st_dev, info.st_ino) for path in object_stores
+                      if path.exists() for info in [path.stat()]}
+        for path in (proof_path,):
+            if ("objects" in path.parts or ".cache" in path.parts or ".git" in path.parts
+                    or path.resolve() != path):
+                raise LaneError(f"unowned built-in proof source: {path}")
+            for part in (path, *path.parents):
+                info = part.stat()
+                if part.is_symlink() or (info.st_dev, info.st_ino) in identities:
+                    raise LaneError(f"aliased built-in proof source: {path}")
+            if path.stat().st_nlink != 1:
+                raise LaneError(f"hard-linked built-in proof source: {path}")
+        spec = importlib.util.spec_from_file_location("builtin_artifacts", proof_path)
+        if spec is None or spec.loader is None:
+            raise LaneError("cannot load built-in artifact proof")
+        proof = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(proof)
+        try:
+            rust_builtins = proof.verify_builtin_artifacts(
+                source, paths["build"], paths["stage"], lb.TARGET, object_stores)
+        except proof.BuiltinArtifactError as error:
+            raise LaneError(f"built-in Rust artifact proof failed: {error}") from error
     metadata, source_input = lb._read_lock()
     return {
         "status": "built",
@@ -618,6 +649,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "cargo_profile_selected_by": "make command-line override on build and install "
             "(configure defaults to dev without its PGO flag)",
         "rust_extensions_sha256": rust_extensions,
+        "rust_builtin_artifacts": rust_builtins,
         "pgo": False,
         "lto": False,
         "interpreter": lb._module_report(paths["stage"], python, toolchain),

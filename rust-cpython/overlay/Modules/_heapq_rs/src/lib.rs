@@ -1,6 +1,21 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
+#![no_std]
+
+// The standalone extension aborts if an internal invariant panics. A shared
+// carrier supplies its own handler, so statically linked modules omit this.
+#[cfg(not(feature = "static-module"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_uint, c_void};
+use core::ptr;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::Py_DecRef;
@@ -225,7 +240,7 @@ fn sift_up(heap: *mut PyObject, mut pos: Py_ssize_t, max_heap: bool) -> bool {
     sift_down(heap, start, pos, max_heap)
 }
 
-unsafe fn arity(nargs: Py_ssize_t, expected: Py_ssize_t, name: &'static std::ffi::CStr) -> bool {
+unsafe fn arity(nargs: Py_ssize_t, expected: Py_ssize_t, name: &'static core::ffi::CStr) -> bool {
     if nargs == expected {
         true
     } else {
@@ -237,7 +252,7 @@ unsafe fn arity(nargs: Py_ssize_t, expected: Py_ssize_t, name: &'static std::ffi
 unsafe fn heap_one_arg(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
-    name: &'static std::ffi::CStr,
+    name: &'static core::ffi::CStr,
     max_heap: bool,
     operation: c_int,
 ) -> *mut PyObject {
@@ -289,7 +304,7 @@ unsafe fn heap_one_arg(
 unsafe fn heap_two_args(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
-    name: &'static std::ffi::CStr,
+    name: &'static core::ffi::CStr,
     max_heap: bool,
     operation: c_int,
 ) -> *mut PyObject {

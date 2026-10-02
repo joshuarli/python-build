@@ -1,6 +1,8 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::Py_DecRef;
@@ -35,6 +37,19 @@ use cpython_sys::PyTuple_SetItem;
 use cpython_sys::PyUnicode_FromString;
 use cpython_sys::Py_ssize_t;
 use cpython_sys::Py_IncRef;
+
+// A standalone image aborts on panic. The static carrier supplies its own
+// panic runtime, so its member must not define a second handler.
+#[cfg(not(feature = "static-module"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
 
 struct PyRef(*mut PyObject);
 

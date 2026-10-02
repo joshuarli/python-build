@@ -1,6 +1,8 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, PyErr_SetString, PyExc_TypeError, PyList_GetItemRef, PyList_Size,
@@ -175,7 +177,7 @@ unsafe extern "C" fn module_clear(module: *mut PyObject) -> c_int {
                 &mut (*names).when,
                 &mut (*names).scheduled,
             ] {
-                let object = std::mem::replace(slot, ptr::null_mut());
+                let object = core::mem::replace(slot, ptr::null_mut());
                 if !object.is_null() {
                     Py_DecRef(object);
                 }
@@ -267,7 +269,7 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_asyncio_rs".as_ptr() as *mut c_char,
     m_doc: c"Rust scheduling operations for asyncio event loops.".as_ptr() as *mut c_char,
-    m_size: std::mem::size_of::<State>() as Py_ssize_t,
+    m_size: core::mem::size_of::<State>() as Py_ssize_t,
     m_methods: METHODS.as_ptr() as *mut PyMethodDef,
     m_slots: SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
     m_traverse: None,
@@ -278,4 +280,17 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__asyncio_rs() -> *mut PyObject {
     unsafe { PyModuleDef_Init(MODULE.0.get()) }
+}
+
+// A standalone extension has no standard runtime to own the panic handler.
+// Static integration supplies the handler once through its owning runtime.
+#[cfg(not(feature = "static-module"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
+    unsafe { abort() }
 }

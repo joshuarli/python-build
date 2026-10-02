@@ -1,6 +1,12 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
+//! Warning filter mutation and formatting over Python-owned objects.
+//!
+//! Standalone images abort Rust panics; static modules leave the sole panic
+//! implementation to their final carrier. Both modes use core types only.
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, PyErr_Clear, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
@@ -16,6 +22,18 @@ unsafe extern "C" {
     fn PySequence_Contains(sequence: *mut PyObject, value: *mut PyObject) -> c_int;
     fn PyUnicode_Concat(left: *mut PyObject, right: *mut PyObject) -> *mut PyObject;
     fn PyUnicode_FromString(value: *const c_char) -> *mut PyObject;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
 }
 
 struct Owned(*mut PyObject);
@@ -52,14 +70,14 @@ fn argument(args: *mut *mut PyObject, nargs: Py_ssize_t, index: Py_ssize_t) -> *
     }
 }
 
-fn type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
+fn type_error(message: &'static core::ffi::CStr) -> *mut PyObject {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
     ptr::null_mut()
 }
 
 unsafe fn call_method_one(
     object: *mut PyObject,
-    method_name: &'static std::ffi::CStr,
+    method_name: &'static core::ffi::CStr,
     argument: *mut PyObject,
 ) -> *mut PyObject {
     let method = unsafe { PyObject_GetAttrString(object, method_name.as_ptr()) };
@@ -149,7 +167,7 @@ unsafe fn format_field(value: *mut PyObject) -> Option<Owned> {
     unsafe { Owned::from_new_reference(formatted) }
 }
 
-unsafe fn format_piece(value: &'static std::ffi::CStr) -> Option<Owned> {
+unsafe fn format_piece(value: &'static core::ffi::CStr) -> Option<Owned> {
     let text = unsafe { PyUnicode_FromString(value.as_ptr()) };
     unsafe { Owned::from_new_reference(text) }
 }
@@ -159,7 +177,7 @@ unsafe fn concatenate(left: Owned, right: Owned) -> Option<Owned> {
     unsafe { Owned::from_new_reference(result) }
 }
 
-unsafe fn append_literal(current: Owned, literal: &'static std::ffi::CStr) -> Option<Owned> {
+unsafe fn append_literal(current: Owned, literal: &'static core::ffi::CStr) -> Option<Owned> {
     let piece = unsafe { format_piece(literal) }?;
     unsafe { concatenate(current, piece) }
 }
@@ -172,7 +190,7 @@ unsafe fn append_formatted(current: Owned, value: *mut PyObject) -> Option<Owned
 unsafe fn append_attribute(
     current: Owned,
     object: *mut PyObject,
-    name: &'static std::ffi::CStr,
+    name: &'static core::ffi::CStr,
 ) -> Option<Owned> {
     let value = unsafe { PyObject_GetAttrString(object, name.as_ptr()) };
     let value = unsafe { Owned::from_new_reference(value) }?;

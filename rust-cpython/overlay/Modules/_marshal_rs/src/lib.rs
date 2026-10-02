@@ -1,3 +1,5 @@
+#![no_std]
+
 //! Version 6 marshal records, written straight into the result bytes object
 //! and read straight into Python objects.
 //!
@@ -6,10 +8,23 @@
 //! Python's allocator, and no path can panic or unwind, which keeps Rust's
 //! allocator and panic runtime out of the extension image.
 
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
-use std::ptr;
-use std::slice;
+// A standalone extension owns its abort handler. A shared carrier supplies
+// the panic runtime for statically linked modules.
+#[cfg(not(feature = "static-module"))]
+unsafe extern "C" {
+    fn abort() -> !;
+}
+
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { abort() }
+}
+
+use core::ffi::{c_char, c_int, c_void};
+use core::mem::MaybeUninit;
+use core::ptr;
+use core::slice;
 
 use cpython_sys::{
     PyBool_Type, PyBytes_FromStringAndSize, PyBytes_Type, PyCapsule_New, PyComplex_FromDoubles,
@@ -71,7 +86,7 @@ impl PyRef {
 
     fn into_raw(self) -> *mut PyObject {
         let value = self.0;
-        std::mem::forget(self);
+        core::mem::forget(self);
         value
     }
 }
@@ -268,7 +283,7 @@ impl Encoder {
         let old = self.slots;
         let old_size = if old.is_null() { 0 } else { self.mask + 1 };
         let size = if old_size == 0 { 64 } else { old_size * 2 };
-        let slots = unsafe { PyMem_Calloc(size, std::mem::size_of::<Slot>()) }.cast::<Slot>();
+        let slots = unsafe { PyMem_Calloc(size, core::mem::size_of::<Slot>()) }.cast::<Slot>();
         if slots.is_null() {
             return Err(());
         }
@@ -798,7 +813,7 @@ impl<'a> Decoder<'a> {
         }
         if index == self.capacity {
             let capacity = if self.capacity == 0 { 64 } else { self.capacity * 2 };
-            let bytes = capacity * std::mem::size_of::<*mut PyObject>();
+            let bytes = capacity * core::mem::size_of::<*mut PyObject>();
             let grown = unsafe { PyMem_Realloc(self.references.cast::<c_void>(), bytes) };
             if grown.is_null() {
                 return Err(());
@@ -1164,7 +1179,7 @@ static API: Api = Api {
     loads: api_loads,
 };
 
-struct ModuleDef(std::cell::UnsafeCell<PyModuleDef>);
+struct ModuleDef(core::cell::UnsafeCell<PyModuleDef>);
 
 unsafe impl Sync for ModuleDef {}
 
@@ -1205,7 +1220,7 @@ static MODULE_SLOTS: ModuleSlots = ModuleSlots([
     },
 ]);
 
-static MODULE: ModuleDef = ModuleDef(std::cell::UnsafeCell::new(PyModuleDef {
+static MODULE: ModuleDef = ModuleDef(core::cell::UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_marshal_rs".as_ptr() as *mut _,
     m_doc: c"Rust support for Python marshal records".as_ptr() as *mut _,
