@@ -32,7 +32,7 @@ on with other work.
 ## Current memory-only override (2026-09-30)
 
 The user explicitly resumed work to achieve all memory goals without CPU or
-wall performance requirements. During this run, this section supersedes the
+wall performance requirements. During the memory phase of this run, this section supersedes the
 older memory-phase CPU/timing guards and quiet-host prerequisites below.
 Use `perf.py bench`, `calibrate`, and `goals` with `--memory-only`. Judge
 module load footprint and working peak, and workload memory only. CPU/wall
@@ -43,7 +43,11 @@ for memory calibration, qualification, or completion. Completion requires
 all module memory goals MET/BEYOND and all absolute workload peak RSS neutral
 or improved; debt entries remain unresolved goals. The renewed run resets
 its lane budget and empty-batch counter; historical evidence stays preserved.
-The separate Claude skills and CPU-phase policy remain unchanged.
+The user extended the objective on2026-10-01: after every memory goal passes,
+continue through all performance goals while guarding meaningful memory
+regressions. Focus on algorithms and memory layout; do not write assembly or
+SIMD optimizations. Any Rust crate may be adopted under the existing pinning
+and license rules. The separate Claude skills remain unchanged.
 
 ## Codex models and delegation
 
@@ -145,9 +149,9 @@ a first command merely yielded.
 
 ## Ground truth (session start, and after any toolchain or pin change)
 
-Read the current handoff in `rust-for-cpython-perf.md` first. Its outstanding
-confirmation and baseline-refresh steps take precedence over routine lane
-selection. Recover state and check disk space before scheduling work.
+Read the current objective, progress and ledger in `rust-for-cpython-perf.md`
+first. Outstanding confirmation and baseline-refresh steps take precedence
+over routine lane selection. Recover state and check disk space before scheduling work.
 Use an installed Python 3.11 or newer; check `python3 --version` first.
 If Apple Python is older, use an already installed interpreter explicitly,
 such as `uv run --no-project --offline --python 3.14 python`, for every
