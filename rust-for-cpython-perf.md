@@ -1069,6 +1069,19 @@ or binascii memory must improve in both runs and every memory guard binds.
 Any non-acceptance preserves source/stages/raw and restores the incumbent with
 no retry. CPU, timing and quietness play no role. No runtime is yet authorized.
 
+Source45 froze at7ca5306 with six owned files and static generation checks
+for active, earlier-disabled-C/helper, static-C and non-Darwin configurations.
+Independent production review passed. Its fixture incorrectly compared the
+process-local ABI slot109 pointer; preserve that checkpoint and its outputs.
+Fixture-only e073116 decodes the five original ABI fields using pinned headers;
+supplemental review passed, with all production hashes unchanged. No runtime
+has run. Root authorizes only the frozen nine-case incumbent semantic baseline
+and separate intended same-image packaging failure under the test lease,
+after exact controller/binding review. Every pre/post source, stage, release
+artifact, harness and tool identity must hold. Baseline assumption failures
+stop dependent construction and remain preserved; no candidate build or
+measurement is authorized by this step.
+
 Source-only UUID C/helper image scouting runs independently in the existing
 datetime worktree. It must distinguish this pairing from closed Rust-builtin
 placement trials and identify provider, lifecycle and protection constraints
