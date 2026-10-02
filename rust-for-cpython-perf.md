@@ -1108,6 +1108,18 @@ policy and all build provenance. Native mapping/protection/provider/kernel and
 install-replay proofs remain required before primary qualification; no memory
 draw or primary build is authorized by this worktree step.
 
+Source45 clean worktree build49112 passed all58 release artifact checks.
+Suite87802 passed the16 real affected modules (5,989 tests/147 skips), but
+exited1 because root also selected nonexistent `test_bytearray`; bytearray
+coverage belongs to `test_bytes`. Preserve the report and log before a
+corrected selection. The actual final Cargo link still includes inherited
+`-no_data_const`; static inspection of the canonical installed image confirms
+no DATA_CONST segment and writable C relocation tables. This violates the
+frozen protection contract despite source omission of the local flag. Hold
+native execution, primary qualification and memory measurement. Source-only
+diagnosis may propose the smallest build-glue correction; preserve original
+build provenance and unchanged algorithms before any reviewed correction.
+
 Source-only UUID C/helper image scouting runs independently in the existing
 datetime worktree. It must distinguish this pairing from closed Rust-builtin
 placement trials and identify provider, lifecycle and protection constraints
@@ -1140,6 +1152,19 @@ flags to the existing pinned helper parser, removing a redundant parser.
 All12 static variants and full module inventories/non-UUID recipes remain
 equal to their originals. Supplemental source review precedes any execution;
 baseline, builds, native proof and memory gate remain unrun.
+
+Source46 reviewed incumbent baseline21094 exited1 after eight passing rows
+and11 actual native children. Its own-GIL child failed to parse because a
+nested script defeated outer indentation removal; no own-GIL assertion ran.
+Remaining rows and the expected alias failure were unrun. Pre/post identities
+and all286 bindings held, with no finalization error. Preserve the complete
+first attempt and source4255d0a. The smallest retained emitted-script
+regression failed on the original fixture and passed after fixture-only
+f35737b: the exact inner assertions and three teardown cycles are unchanged,
+and every production hash is unchanged. Independent repair review passed.
+Root authorizes preparation and independent review of a separate repaired
+baseline controller, then only its incumbent semantic rows and intended alias
+failure under the test lease. Candidate build and memory remain unauthorized.
 
 The separate bounded zlib/ZIP source review found matching pinned codec
 dependencies and no allocator or module-lifetime incompatibility. Root now
