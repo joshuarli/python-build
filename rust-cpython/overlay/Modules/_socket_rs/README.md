@@ -12,7 +12,9 @@ the canonical `_socket_rs` filename. Each keeps its original extension module
 name/definition; neither becomes a builtin. This changes C `_socket` from a
 Mach-O bundle to Cargo's dylib and deliberately changes native image identity.
 It is not transparent packaging and does not establish a memory saving.
-Effective shared-module inventory activates the recipe, preserving disabled,
+Exact original definitions captured after first-definition precedence, default
+`Modules` source directory and effective Darwin shared inventory activate the
+recipe. Customized definitions/manifests/sources fall through, preserving disabled,
 static, standalone helper/C and non-Darwin configurations. The C object is a
 prerequisite of Cargo output; missing/nonabsolute objects or non-macOS active
 context fail closed. All existing compiler and linker-helper environment and
@@ -50,7 +52,13 @@ partial-helper behavior, readonly/writable/noncontiguous buffers, controlled
 EINTR retry sentinels, C timeout fallback, socket subtypes/closed descriptors,
 held original capsule/type/method and SSL type owners across module generations,
 concurrent calls, bounded fork/reimport and three own-GIL lifetimes. Slots are
-serialized as enum/presence/stable ABI metadata, never raw ASLR pointers.
+decoded by `rust-cpython/tests/socket_image_module_fixture.c`, compiled against
+the actual pinned Python and socket headers. Module slots are enum/presence/stable
+ABI metadata, never raw ASLR pointers. The typed CAPI observer returns owned Python
+references to the original type/error fields without substituting capsule storage.
+The generation test exercises the real original/candidate makesetup and dry-run
+Make recipes; cleanup mocks extract the actual fork function and use only fake
+descriptors and a positive owned PID. Neither compiles or loads an extension.
 
 The deliberate merged image identity assertion must fail the original separate
 packaging. Baseline semantic results must first pass unchanged. Root must later

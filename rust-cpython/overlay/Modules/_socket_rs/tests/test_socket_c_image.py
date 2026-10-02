@@ -19,85 +19,20 @@ PINNED_ABI_HEADERS = {'Include/object.h': '0b4b6a8c830520955a30585c2bd469bf1eaa4
 
 
 def definitions(modules):
-    class Slot(ctypes.Structure):
-        _fields_ = [('slot', ctypes.c_int), ('value', ctypes.c_void_p)]
-
-    class Definition(ctypes.Structure):
-        _fields_ = [('base', ctypes.c_byte * 40), ('name', ctypes.c_char_p),
-                    ('doc', ctypes.c_char_p), ('size', ctypes.c_ssize_t),
-                    ('methods', ctypes.c_void_p), ('slots', ctypes.POINTER(Slot)),
-                    ('traverse', ctypes.c_void_p), ('clear', ctypes.c_void_p),
-                    ('free', ctypes.c_void_p)]
-
-    assert ctypes.sizeof(ctypes.c_void_p) == 8
-    assert ctypes.sizeof(Definition) == 104
-    assert [getattr(Definition, field).offset for field in
-            ('name', 'doc', 'size', 'methods', 'slots', 'traverse', 'clear', 'free')] == [40, 48, 56, 64, 72, 80, 88, 96]
-
-    class ABIInfo(ctypes.Structure):
-        _fields_ = [('abiinfo_major_version', ctypes.c_uint8),
-                    ('abiinfo_minor_version', ctypes.c_uint8),
-                    ('flags', ctypes.c_uint16), ('build_version', ctypes.c_uint32),
-                    ('abi_version', ctypes.c_uint32)]
-
-    assert ctypes.sizeof(ABIInfo) == 12
-    assert [getattr(ABIInfo, field).offset for field, _ in ABIInfo._fields_] == [0, 1, 2, 4, 8]
-    getdef = ctypes.pythonapi.PyModule_GetDef
-    getdef.argtypes = [ctypes.py_object]
-    getdef.restype = ctypes.POINTER(Definition)
-    getflags = ctypes.pythonapi.PyCFunction_GetFlags
-    getflags.argtypes = [ctypes.py_object]
-    getflags.restype = ctypes.c_int
-    result = {}
-    for name, module in modules.items():
-        definition = getdef(module).contents
-        slots = []
-        if definition.slots:
-            index = 0
-            while definition.slots[index].slot:
-                slot = definition.slots[index]
-                if slot.slot in (84, 85):
-                    value = bool(slot.value)
-                elif slot.slot in (86, 87):
-                    value = slot.value
-                elif slot.slot == 109:
-                    # ABI metadata values are stable; its address is process-local.
-                    assert slot.value, 'null ABI metadata'
-                    info = ctypes.cast(slot.value, ctypes.POINTER(ABIInfo)).contents
-                    assert info.abiinfo_major_version == 1, 'unsupported ABI metadata layout'
-                    value = {field: getattr(info, field) for field, _ in ABIInfo._fields_}
-                else:
-                    raise AssertionError(f'unknown module slot {slot.slot}')
-                slots.append([slot.slot, value])
-                index += 1
-        result[name] = {
-            'name': definition.name.decode(), 'size': definition.size, 'slots': slots,
-            'hooks': [bool(definition.traverse), bool(definition.clear), bool(definition.free)],
-            'methods': {key: [value.__module__, getflags(value)]
-                        for key, value in vars(module).items()
-                        if isinstance(value, types.BuiltinFunctionType)},
-        }
-    return {'pinned_abi_headers': PINNED_ABI_HEADERS, 'modules': result}
-
-
-class SocketAPI(ctypes.Structure):
-    _fields_ = [('socket_type', ctypes.c_void_p), ('error', ctypes.c_void_p),
-                ('timeout_error', ctypes.c_void_p)]
+    # The observer is compiled against the pinned module and ABI headers.
+    import _socket_image_fixture as observer
+    return {'pinned_abi_headers': PINNED_ABI_HEADERS,
+            'modules': {name: observer.module_contract(module)
+                        for name, module in modules.items()}}
 
 
 def api(module):
-    assert ctypes.sizeof(SocketAPI) == 24
-    assert [getattr(SocketAPI, name).offset for name, _ in SocketAPI._fields_] == [0, 8, 16]
-    getpointer = ctypes.pythonapi.PyCapsule_GetPointer
-    getpointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
-    getpointer.restype = ctypes.c_void_p
+    import _socket_image_fixture as observer
     capsule = module.CAPI
-    pointer = getpointer(capsule, b'_socket.CAPI')
-    assert pointer
-    table = ctypes.cast(pointer, ctypes.POINTER(SocketAPI)).contents
-    assert table.socket_type == id(module.socket)
-    assert table.error == id(OSError)
-    assert table.timeout_error == id(TimeoutError)
+    table = observer.socket_contract(module)
+    assert table['type'] is module.socket
+    assert table['error'] is OSError
+    assert table['timeout'] is TimeoutError
     return capsule, table
 
 
@@ -132,7 +67,7 @@ def direct_c():
             'socket_type_inventory': sorted(vars(module.socket)),
             # Version-tag validity changes with type cache use, not type capability.
             'socket_type_flags': module.socket.__flags__ & ~(1 << 19),
-            'capsule_type_matches': table.socket_type == id(module.socket)}
+            'capsule_type_matches': table['type'] is module.socket}
 
 
 def direct_helper():
@@ -176,7 +111,7 @@ def direct_ssl():
         left.close()
         right.close()
     return {'helper_absent': '_socket_rs' not in sys.modules,
-            'type_owned': table.socket_type == id(native.socket)}
+            'type_owned': table['type'] is native.socket}
 
 
 def unavailable_and_partial():
@@ -295,8 +230,8 @@ def held_capsule_generations():
     fresh = importlib.import_module('_socket')
     fresh_helper = importlib.import_module('_socket_rs')
     fresh_capsule, fresh_table = api(fresh)
-    assert old_table.socket_type == id(held_type)
-    assert fresh_table.socket_type == id(fresh.socket)
+    assert old_table['type'] is held_type
+    assert fresh_table['type'] is fresh.socket
     assert fresh.socket is not held_type and fresh_capsule is not held_capsule
     assert held_method(4, '127.0.0.1') == fresh_helper.parse_address(4, '127.0.0.1')
     assert held_method.__self__ is held_helper
@@ -420,14 +355,14 @@ def fork_calls():
             if descriptor is not None:
                 try:
                     os.close(descriptor)
-                except OSError as exc:
+                except BaseException as exc:
                     cleanup_errors.append(f'close owned descriptor: {exc!r}')
         if child is not None and child > 0:
             try:
                 os.kill(child, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            except OSError as exc:
+            except BaseException as exc:
                 cleanup_errors.append(f'kill owned child: {exc!r}')
             # Reaping is attempted even when killing fails.
             deadline = time.monotonic() + 5
@@ -442,7 +377,7 @@ def fork_calls():
                     break
                 except InterruptedError:
                     continue
-                except OSError as exc:
+                except BaseException as exc:
                     cleanup_errors.append(f'reap owned child: {exc!r}')
                     break
                 time.sleep(0.01)

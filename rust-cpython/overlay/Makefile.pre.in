@@ -25,7 +25,7 @@ MODSHARED_NAMES=   _MODSHARED_NAMES_
 MODDISABLED_NAMES= _MODDISABLED_NAMES_
 MODOBJS=           _MODOBJS_
 MODLIBS=           _MODLIBS_
-SOCKET_C_IMAGE_ENABLED=$(and $(filter darwin,$(MACHDEP)),$(filter _socket,$(MODSHARED_NAMES)),$(filter _socket_rs,$(MODSHARED_NAMES)))
+SOCKET_C_IMAGE_ENABLED=$(and $(SOCKET_C_IMAGE_DEFINITIONS),$(filter darwin,$(MACHDEP)),$(filter _socket,$(MODSHARED_NAMES)),$(filter _socket_rs,$(MODSHARED_NAMES)))
 SOCKET_C_IMAGE_ALIAS=$(if $(SOCKET_C_IMAGE_ENABLED),Modules/_socket$(EXT_SUFFIX))
 
 # === Variables set by configure

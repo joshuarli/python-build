@@ -110,6 +110,8 @@ sed -e 's/[ 	]*#.*//' -e '/^[ 	]*$/d' |
 	BUILT_SHARED=
 	DISABLED=
 	CONFIGURED=
+	SOCKET_C_ORIGINAL=
+	SOCKET_R_ORIGINAL=
 	MODS=
 	SHAREDMODS=
 	OBJS=
@@ -214,6 +216,13 @@ sed -e 's/[ 	]*#.*//' -e '/^[ 	]*$/d' |
 			esac
 			CONFIGURED="$CONFIGURED,${mod},"
 		done
+		# Only the original shared definitions in the default directory merge.
+		if test "$UNAME_SYSTEM" = Darwin -a "$srcdir" = Modules -a "$doconfig" = no -a "$noobjects" != yes; then
+			case $line in
+			'_socket socketmodule.c') SOCKET_C_ORIGINAL=yes;;
+			'_socket_rs _socket_rs/Cargo.toml _socket_rs/src/lib.rs') SOCKET_R_ORIGINAL=yes;;
+			esac
+		fi
 		case $doconfig in
 		yes)
 			LIBS="$LIBS $libs"
@@ -262,7 +271,7 @@ sed -e 's/[ 	]*#.*//' -e '/^[ 	]*$/d' |
 					cc="$cc $cpps \$(PY_STDMODULE_CFLAGS) \$(CCSHARED)"
 					# The C initializer is forwarded by the Rust image's export.
 					if test "$UNAME_SYSTEM" = Darwin -a "$mods_upper" = _SOCKET; then
-						cc="$cc \$(if \$(SOCKET_C_IMAGE_ENABLED),-DPyInit__socket=_PySocket_CImage_Init)"
+						cc="$cc\$(if \$(SOCKET_C_IMAGE_ENABLED), -DPyInit__socket=_PySocket_CImage_Init)"
 					fi
 					rule="$obj: $src \$(MODULE_${mods_upper}_DEPS) \$(MODULE_DEPS_SHARED) \$(PYTHON_HEADERS)"
 					rule="$rule; $cc -c $src -o $obj"
@@ -362,6 +371,11 @@ sed -e 's/[ 	]*#.*//' -e '/^[ 	]*$/d' |
 	*)	LOCALLIBS=$LIBS;;
 	esac
 	LIBS='$(LOCALMODLIBS) $(BASEMODLIBS)'
+	SOCKET_C_IMAGE_DEFINITIONS=
+	if test "$SOCKET_C_ORIGINAL" = yes -a "$SOCKET_R_ORIGINAL" = yes; then
+		SOCKET_C_IMAGE_DEFINITIONS=1
+	fi
+	DEFS="SOCKET_C_IMAGE_DEFINITIONS=$SOCKET_C_IMAGE_DEFINITIONS$NL$DEFS"
 	DEFS="BASEMODLIBS=$BASELIBS$NL$DEFS"
 	DEFS="LOCALMODLIBS=$LOCALLIBS$NL$DEFS"
 
