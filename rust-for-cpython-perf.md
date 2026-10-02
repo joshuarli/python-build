@@ -1094,6 +1094,20 @@ test lease. It adds the retained regression and changes no production hash.
 A separate reviewed second baseline may bind the repaired fixture; this is
 fixture repair before construction, with no candidate or memory retry.
 
+Root second baseline64451 exited0: nine original cases passed and the separate
+merged-packaging assertion failed exactly at the missing C symlink. The saved
+semantic reference is e2bea43d33514f2726d04e680d747602ef1556fb1d7193cfb7cff5f379051676.
+C-first imports both modules; helper-first leaves C absent. Both support the
+three tested own-GIL lifetimes, while legacy `_base64` rejects them as before.
+Held owners/Error, buffers/errors, native call counters, threads, normal fork
+and controlled import-failure recovery passed. Postflight reports all frozen
+identities unchanged. Root authorizes isolated verified private LLVM/Cargo
+caches and locked doctor, then one clean worktree58 build and complete affected
+suites after independent baseline audit passes. Preserve original object-cache
+policy and all build provenance. Native mapping/protection/provider/kernel and
+install-replay proofs remain required before primary qualification; no memory
+draw or primary build is authorized by this worktree step.
+
 Source-only UUID C/helper image scouting runs independently in the existing
 datetime worktree. It must distinguish this pairing from closed Rust-builtin
 placement trials and identify provider, lifecycle and protection constraints
