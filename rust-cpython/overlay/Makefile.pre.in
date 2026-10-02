@@ -25,6 +25,8 @@ MODSHARED_NAMES=   _MODSHARED_NAMES_
 MODDISABLED_NAMES= _MODDISABLED_NAMES_
 MODOBJS=           _MODOBJS_
 MODLIBS=           _MODLIBS_
+SOCKET_C_IMAGE_ENABLED=$(and $(filter darwin,$(MACHDEP)),$(filter _socket,$(MODSHARED_NAMES)),$(filter _socket_rs,$(MODSHARED_NAMES)))
+SOCKET_C_IMAGE_ALIAS=$(if $(SOCKET_C_IMAGE_ENABLED),Modules/_socket$(EXT_SUFFIX))
 
 # === Variables set by configure
 VERSION=	@VERSION@
@@ -2412,7 +2414,7 @@ sharedinstall: all
 			else    true; \
 			fi; \
 		done
-		@for i in X $(SHAREDMODS); do \
+		@for i in X $(filter-out $(SOCKET_C_IMAGE_ALIAS),$(SHAREDMODS)); do \
 		  if test $$i != X; then \
 		    echo $(INSTALL_SHARED) $$i $(DESTSHARED)/`basename $$i`; \
 		    $(INSTALL_SHARED) $$i $(DESTDIR)$(DESTSHARED)/`basename $$i`; \
@@ -2422,6 +2424,10 @@ sharedinstall: all
 			fi; \
 		  fi; \
 		done
+ifneq ($(SOCKET_C_IMAGE_ENABLED),)
+		rm -f $(DESTDIR)$(DESTSHARED)/_socket$(EXT_SUFFIX)
+		cd $(DESTDIR)$(DESTSHARED) && ln -s _socket_rs$(EXT_SUFFIX) _socket$(EXT_SUFFIX)
+endif
 
 # Install the interpreter with $(VERSION) affixed
 # This goes into $(exec_prefix)
