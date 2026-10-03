@@ -200,12 +200,28 @@ union of these eleven routes passed independent source review; fresh primary
 correctness and memory comparisons remain necessary. These checks establish
 no accepted memory improvement.
 
-The eleven-route union is applied in the primary checkout at `17a82b0`.
-Its 54 overlay files match the reviewed donors exactly, with shared bindings,
-carrier and controller policy preserved. Fresh clean build `perf-m136` is
-running; all eleven routes require fresh native checks and the full suite
-before their first primary memory comparison. Historical route qualifications
-do not substitute for these results.
+The eleven-route union at `17a82b0` completed fresh primary qualification:
+clean58, full 50,158/2,748 with zero failures, and all eleven native route
+audits passed. Its first and only rigorous all-71/all-23 memory-only gate
+**REJECTED**: `20261003T083056Z-perf-rust-vs-perf-m136`, verdict SHA256
+`7680b8c86ea263e2f0757d81265c7055aa5773b70c6a856f1272dd1375b70bed`.
+Eighteen module-load guards and five workload RSS guards regressed in both
+runs. All eleven changed routes' aggregate load and working metrics were
+neutral; socket load worsened in one run and ipaddress load in the other.
+Threading and textwrap load improved with unchanged sources and remain
+unattributed. Outputs matched and no metric was unstable. Main and incumbent
+remain unchanged; source, stage and first verdict are preserved without an
+unchanged retry. CPU, timing and quietness were not checked.
+
+After the terminal gate, `07cb87b` corrected two supplemental test assumptions:
+a poisoned socket helper entry is distinct from module absence, and zero-size
+module state may have an allocated marker. Those exact corrected fixtures
+already passed against the fresh candidate; production code is unchanged.
+The measured build remains pinned to `17a82b0`. At `394f6e1`, the harness
+began retaining all five raw footprint snapshots after the measured window.
+Existing arithmetic, workloads and guards are unchanged. This starts a new
+harness epoch requiring fresh memory-only calibration; historical ratios are
+not corrected or reinterpreted as acceptance.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
