@@ -1,14 +1,10 @@
-#![no_std]
+use std::cell::UnsafeCell;
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::mem::MaybeUninit;
+use std::ptr;
+use std::slice;
 
-mod abi;
-mod engines;
-use core::cell::UnsafeCell;
-use core::ffi::{CStr, c_char, c_int, c_void};
-use core::mem::MaybeUninit;
-use core::ptr;
-use core::slice;
-
-use crate::abi::{
+use cpython_sys::{
     METH_FASTCALL, METH_KEYWORDS, Py_DecRef, Py_buffer, PyBytes_AsString,
     PyBytes_FromStringAndSize, _PyBytes_Resize,
     PyBuffer_Release, PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
@@ -20,12 +16,6 @@ use crate::abi::{
 };
 
 use crc32fast::Hasher;
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    // Native entry points already abort on Rust panic; no unwinder is linked.
-    unsafe { abi::abort() }
-}
 
 const PYBUF_SIMPLE: c_int = 0;
 const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -83,7 +73,7 @@ impl AsciiBuffer {
             }
             let text = unsafe { slice::from_raw_parts(data.cast::<u8>(), length as usize) };
             if !text.is_ascii() {
-                unsafe { set_value_error(c"string argument should contain only ASCII characters") };
+                unsafe { set_value_error("string argument should contain only ASCII characters") };
                 return Err(());
             }
             let owner = unsafe {
@@ -119,11 +109,18 @@ impl Drop for AsciiBuffer {
     }
 }
 
-unsafe fn set_type_error(message: &CStr) {
-    unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) }
+unsafe fn set_error(exception: *mut PyObject, message: &str) {
+    let message = message.replace('\0', "\\x00");
+    let message = std::ffi::CString::new(message).expect("escaped Python error contains no NUL");
+    unsafe { PyErr_SetString(exception, message.as_ptr()) };
 }
-unsafe fn set_value_error(message: &CStr) {
-    unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) }
+
+unsafe fn set_type_error(message: &str) {
+    unsafe { set_error(PyExc_TypeError, message) }
+}
+
+unsafe fn set_value_error(message: &str) {
+    unsafe { set_error(PyExc_ValueError, message) }
 }
 
 unsafe fn set_binascii_error(message: &CStr) {
@@ -139,70 +136,102 @@ unsafe fn set_binascii_error(message: &CStr) {
     unsafe { Py_DecRef(exception) };
 }
 
-// No parser route has more than three argument slots. The bound is checked
-// before any foreign argument is copied so stack storage cannot overflow.
 unsafe fn call_arguments(
-    function: &CStr, args: *mut *mut PyObject, nargs: Py_ssize_t,
-    kwnames: *mut PyObject, names: &[&CStr], positional_only: usize,
-    required: usize, max_positional: usize,
-) -> Result<[*mut PyObject; 3], ()> {
-    if names.len() > 3 || required > names.len() || max_positional > names.len() {
-        unsafe { PyErr_SetString(abi::PyExc_SystemError, c"invalid argument parser bound".as_ptr()) };
-        return Err(());
-    }
-    let keyword_count = if kwnames.is_null() { 0 } else {
+    function: &str,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+    kwnames: *mut PyObject,
+    names: &[&[u8]],
+    positional_only: usize,
+    required: usize,
+    max_positional: usize,
+) -> Result<Vec<*mut PyObject>, ()> {
+    let keyword_count = if kwnames.is_null() {
+        0
+    } else {
         let count = unsafe { PyTuple_Size(kwnames) };
-        if count < 0 { return Err(()); }
+        if count < 0 {
+            return Err(());
+        }
         count
     };
-    if nargs < 0 || nargs as usize > max_positional || keyword_count as usize > names.len() {
-        unsafe { abi::PyErr_Format(PyExc_TypeError,
-            c"%s() takes at most %zu positional arguments (%zd given)".as_ptr(),
-            function.as_ptr(), max_positional, nargs) };
+    if nargs < 0
+        || nargs as usize > max_positional
+        || keyword_count as usize > names.len()
+    {
+        unsafe {
+            set_type_error(&format!(
+                "{}() takes at most {} positional arguments ({} given)",
+                function,
+                max_positional,
+                nargs
+            ));
+        }
         return Err(());
     }
-    let mut values = [ptr::null_mut(); 3];
-    for index in 0..nargs as usize { values[index] = unsafe { *args.add(index) }; }
+
+    let mut values = vec![ptr::null_mut(); names.len()];
+    for index in 0..nargs as usize {
+        values[index] = unsafe { *args.add(index) };
+    }
     for keyword_index in 0..keyword_count as usize {
-        let key = unsafe { PyTuple_GetItem(kwnames, keyword_index as isize) };
-        if key.is_null() { return Err(()); }
+        let key = unsafe { PyTuple_GetItem(kwnames, keyword_index as Py_ssize_t) };
+        if key.is_null() {
+            return Err(());
+        }
         let mut key_len = 0;
         let key_data = unsafe { PyUnicode_AsUTF8AndSize(key, &mut key_len) };
-        if key_data.is_null() || key_len < 0 { return Err(()); }
+        if key_data.is_null() || key_len < 0 {
+            return Err(());
+        }
         let key_bytes = unsafe { slice::from_raw_parts(key_data.cast::<u8>(), key_len as usize) };
-        let index = names.iter().position(|name| name.to_bytes() == key_bytes);
-        let format = match index {
-            None => Some(c"%s() got an unexpected keyword argument '%U'"),
-            Some(index) if index < positional_only =>
-                Some(c"%s() got some positional-only arguments passed as keyword arguments: '%U'"),
-            Some(index) if index < nargs as usize || !values[index].is_null() =>
-                Some(c"%s() got multiple values for argument '%U'"),
-            _ => None,
-        };
-        if let Some(format) = format {
-            let escaped = unsafe { escaped_keyword(key, key_bytes) }?;
+        let Some(index) = names.iter().position(|name| *name == key_bytes) else {
             unsafe {
-                abi::PyErr_Format(PyExc_TypeError, format.as_ptr(), function.as_ptr(), escaped);
-                Py_DecRef(escaped);
+                set_type_error(&format!(
+                    "{}() got an unexpected keyword argument '{}'",
+                    function,
+                    String::from_utf8_lossy(key_bytes)
+                ));
+            }
+            return Err(());
+        };
+        if index < positional_only {
+            unsafe {
+                set_type_error(&format!(
+                    "{}() got some positional-only arguments passed as keyword arguments: '{}'",
+                    function,
+                    String::from_utf8_lossy(key_bytes)
+                ));
             }
             return Err(());
         }
-        if let Some(index) = index {
-            values[index] = unsafe { *args.add(nargs as usize + keyword_index) };
+        if index < nargs as usize || !values[index].is_null() {
+            unsafe {
+                set_type_error(&format!(
+                    "{}() got multiple values for argument '{}'",
+                    function,
+                    String::from_utf8_lossy(key_bytes)
+                ));
+            }
+            return Err(());
         }
+        values[index] = unsafe { *args.add(nargs as usize + keyword_index) };
     }
+
     for index in 0..required {
         if values[index].is_null() {
+            let position = if index < positional_only {
+                format!("pos {}", index + 1)
+            } else {
+                format!("keyword-only argument '{}'", String::from_utf8_lossy(names[index]))
+            };
             unsafe {
-                if index < positional_only {
-                    abi::PyErr_Format(PyExc_TypeError,
-                        c"%s() missing required argument '%s' (pos %zu)".as_ptr(),
-                        function.as_ptr(), names[index].as_ptr(), index + 1);
-                } else {
-                    abi::PyErr_Format(PyExc_TypeError,
-                        c"%s() missing required argument '%s' (keyword-only argument '%s')".as_ptr(),
-                        function.as_ptr(), names[index].as_ptr(), names[index].as_ptr());
-                }
+                set_type_error(&format!(
+                    "{}() missing required argument '{}' ({})",
+                    function,
+                    String::from_utf8_lossy(names[index]),
+                    position
+                ));
             }
             return Err(());
         }
@@ -210,31 +239,19 @@ unsafe fn call_arguments(
     Ok(values)
 }
 
-// Error spelling escapes embedded NULs exactly as the former string builder.
-unsafe fn escaped_keyword(key: *mut PyObject, bytes: &[u8]) -> Result<*mut PyObject, ()> {
-    if !bytes.contains(&0) { return Ok(unsafe { abi::Py_NewRef(key) }); }
-    let old = unsafe { abi::PyUnicode_FromStringAndSize(b"\0".as_ptr().cast(), 1) };
-    if old.is_null() { return Err(()); }
-    let new = unsafe { abi::PyUnicode_FromStringAndSize(c"\\x00".as_ptr(), 4) };
-    if new.is_null() { unsafe { Py_DecRef(old) }; return Err(()); }
-    let escaped = unsafe { abi::PyUnicode_Replace(key, old, new, -1) };
-    unsafe { Py_DecRef(old); Py_DecRef(new); }
-    if escaped.is_null() { Err(()) } else { Ok(escaped) }
-}
-
 unsafe fn optional_bytes_per_sep(value: *mut PyObject) -> Result<isize, ()> {
     if value.is_null() {
         return Ok(1);
     }
     let result = unsafe { PyLong_AsSsize_t(value) };
-    if result == -1 && !unsafe { abi::PyErr_Occurred() }.is_null() {
+    if result == -1 && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
         return Err(());
     }
     Ok(result as isize)
 }
 
 unsafe fn separator(value: *mut PyObject) -> Result<Option<u8>, ()> {
-    if value.is_null() || value == ptr::addr_of_mut!(abi::_Py_NoneStruct) {
+    if value.is_null() || value == ptr::addr_of_mut!(cpython_sys::_Py_NoneStruct) {
         return Ok(None);
     }
 
@@ -245,12 +262,12 @@ unsafe fn separator(value: *mut PyObject) -> Result<Option<u8>, ()> {
         return Err(());
     }
     if is_unicode != 0 {
-        let length = unsafe { abi::PyUnicode_GetLength(value) };
+        let length = unsafe { cpython_sys::PyUnicode_GetLength(value) };
         if length < 0 {
             return Err(());
         }
         if length != 1 {
-            unsafe { set_value_error(c"sep must be length 1.") };
+            unsafe { set_value_error("sep must be length 1.") };
             return Err(());
         }
         let character = unsafe { PyUnicode_ReadChar(value, 0) };
@@ -258,7 +275,7 @@ unsafe fn separator(value: *mut PyObject) -> Result<Option<u8>, ()> {
             return Err(());
         }
         if character > u8::MAX as u32 {
-            unsafe { set_value_error(c"sep must be ASCII.") };
+            unsafe { set_value_error("sep must be ASCII.") };
             return Err(());
         }
         return Ok(Some(character as u8));
@@ -273,7 +290,7 @@ unsafe fn separator(value: *mut PyObject) -> Result<Option<u8>, ()> {
     if is_bytes != 0 {
         let buffer = unsafe { Buffer::from_object(value)? };
         if buffer.view.len != 1 {
-            unsafe { set_value_error(c"sep must be length 1.") };
+            unsafe { set_value_error("sep must be length 1.") };
             return Err(());
         }
         return Ok(Some(buffer.as_slice()[0]));
@@ -284,9 +301,9 @@ unsafe fn separator(value: *mut PyObject) -> Result<Option<u8>, ()> {
         return Err(());
     }
     if length != 1 {
-        unsafe { set_value_error(c"sep must be length 1.") };
+        unsafe { set_value_error("sep must be length 1.") };
     } else {
-        unsafe { set_type_error(c"sep must be str or bytes.") };
+        unsafe { set_type_error("sep must be str or bytes.") };
     }
     Err(())
 }
@@ -297,14 +314,14 @@ unsafe fn encode_hex(
     nargs: Py_ssize_t,
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
-    let function_name = function;
+    let function_name = function.to_str().unwrap_or("hexlify");
     let parsed = match unsafe {
         call_arguments(
             function_name,
             args,
             nargs,
             kwnames,
-            &[c"data", c"sep", c"bytes_per_sep"],
+            &[b"data", b"sep", b"bytes_per_sep"],
             1,
             1,
             3,
@@ -359,7 +376,7 @@ unsafe fn encode_hex(
         }
         return result;
     }
-    let Some(sep) = sep else { return result; };
+    let sep = sep.unwrap();
     let mut position = 0;
     for (index, byte) in input.iter().copied().enumerate() {
         if index == first_separator {
@@ -393,14 +410,14 @@ unsafe fn decode_hex(
     nargs: Py_ssize_t,
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
-    let function_name = function;
+    let function_name = function.to_str().unwrap_or("unhexlify");
     let parsed = match unsafe {
         call_arguments(
             function_name,
             args,
             nargs,
             kwnames,
-            &[c"hexstr", c"ignorechars"],
+            &[b"hexstr", b"ignorechars"],
             1,
             1,
             1,
@@ -473,12 +490,12 @@ unsafe fn checksum_args(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
     kwnames: *mut PyObject,
-    names: &[&CStr],
+    names: &[&[u8]],
     required: usize,
 ) -> Result<(Buffer, u32), ()> {
     let parsed = unsafe {
         call_arguments(
-            function,
+            function.to_str().unwrap_or("crc32"),
             args,
             nargs,
             kwnames,
@@ -491,7 +508,7 @@ unsafe fn checksum_args(
     let data = unsafe { Buffer::from_object(parsed[0]) }?;
     let crc = if parsed.len() > 1 && !parsed[1].is_null() {
         let crc = unsafe { PyLong_AsUnsignedLongMask(parsed[1]) };
-        if crc == u64::MAX && !unsafe { abi::PyErr_Occurred() }.is_null() {
+        if crc == u64::MAX && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
             return Err(());
         }
         crc as u32
@@ -507,14 +524,14 @@ unsafe fn crc32_impl(
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
     let (data, crc) = match unsafe {
-        checksum_args(c"crc32", args, nargs, kwnames, &[c"data", c"crc"], 1)
+        checksum_args(c"crc32", args, nargs, kwnames, &[b"data", b"crc"], 1)
     } {
         Ok(value) => value,
         Err(()) => return ptr::null_mut(),
     };
     let mut hasher = Hasher::new_with_initial(crc);
     hasher.update(data.as_slice());
-    unsafe { abi::PyLong_FromUnsignedLong(hasher.finalize() as _) }
+    unsafe { cpython_sys::PyLong_FromUnsignedLong(hasher.finalize() as _) }
 }
 
 unsafe fn crc_hqx_impl(
@@ -523,7 +540,7 @@ unsafe fn crc_hqx_impl(
     kwnames: *mut PyObject,
 ) -> *mut PyObject {
     let (data, mut crc) = match unsafe {
-        checksum_args(c"crc_hqx", args, nargs, kwnames, &[c"data", c"crc"], 2)
+        checksum_args(c"crc_hqx", args, nargs, kwnames, &[b"data", b"crc"], 2)
     } {
         Ok(value) => value,
         Err(()) => return ptr::null_mut(),
@@ -539,7 +556,7 @@ unsafe fn crc_hqx_impl(
             };
         }
     }
-    unsafe { abi::PyLong_FromUnsignedLong(crc as _) }
+    unsafe { cpython_sys::PyLong_FromUnsignedLong(crc as _) }
 }
 
 unsafe extern "C" fn b2a_hex(
@@ -609,7 +626,8 @@ macro_rules! module_method {
     };
 }
 
-/// Entries for the public `base64` module's core-only engines.
+/// Entries for the public `base64` module's engines, which the `_base64`
+/// crate implements; serving them from this image saves loading a second one.
 macro_rules! base64_method {
     ($name:expr, $function:path, $doc:expr) => {
         PyMethodDef {
@@ -630,21 +648,21 @@ static METHODS: [PyMethodDef; 22] = [
     module_method!(c"unhexlify", unhexlify, c"unhexlify($module, hexstr, /, *, ignorechars=b'')\n--\n\nBinary data of hexadecimal representation."),
     module_method!(c"crc32", crc32, c"crc32($module, data, crc=0, /)\n--\n\nCompute CRC-32 incrementally."),
     module_method!(c"crc_hqx", crc_hqx, c"crc_hqx($module, data, crc, /)\n--\n\nCompute CRC-CCITT incrementally."),
-    base64_method!(c"standard_b64encode", engines::standard_b64encode, c"Encode with the standard Base64 alphabet"),
-    base64_method!(c"urlsafe_b64encode", engines::urlsafe_b64encode, c"Encode with the URL-safe Base64 alphabet"),
-    base64_method!(c"b64decode", engines::b64decode, c"Decode Base64 data for the public base64 module"),
-    base64_method!(c"b16encode", engines::b16encode, c"Encode with the Base16 alphabet"),
-    base64_method!(c"b16decode", engines::b16decode, c"Decode Base16 data for the public base64 module"),
-    base64_method!(c"b32encode", engines::b32encode, c"Encode with the Base32 alphabet"),
-    base64_method!(c"b32decode", engines::b32decode, c"Decode Base32 data for the public base64 module"),
-    base64_method!(c"b32hexencode", engines::b32hexencode, c"Encode with the Base32hex alphabet"),
-    base64_method!(c"b32hexdecode", engines::b32hexdecode, c"Decode Base32hex data for the public base64 module"),
-    base64_method!(c"b85encode", engines::b85encode, c"Encode with the Base85 alphabet"),
-    base64_method!(c"b85decode", engines::b85decode, c"Decode Base85 data for the public base64 module"),
-    base64_method!(c"z85encode", engines::z85encode, c"Encode with the Z85 alphabet"),
-    base64_method!(c"z85decode", engines::z85decode, c"Decode Z85 data for the public base64 module"),
-    base64_method!(c"a85encode", engines::a85encode, c"Encode with the Ascii85 alphabet"),
-    base64_method!(c"a85decode", engines::a85decode, c"Decode Ascii85 data for the public base64 module"),
+    base64_method!(c"standard_b64encode", _base64::standard_b64encode, c"Encode with the standard Base64 alphabet"),
+    base64_method!(c"urlsafe_b64encode", _base64::urlsafe_b64encode, c"Encode with the URL-safe Base64 alphabet"),
+    base64_method!(c"b64decode", _base64::b64decode, c"Decode Base64 data for the public base64 module"),
+    base64_method!(c"b16encode", _base64::b16encode, c"Encode with the Base16 alphabet"),
+    base64_method!(c"b16decode", _base64::b16decode, c"Decode Base16 data for the public base64 module"),
+    base64_method!(c"b32encode", _base64::b32encode, c"Encode with the Base32 alphabet"),
+    base64_method!(c"b32decode", _base64::b32decode, c"Decode Base32 data for the public base64 module"),
+    base64_method!(c"b32hexencode", _base64::b32hexencode, c"Encode with the Base32hex alphabet"),
+    base64_method!(c"b32hexdecode", _base64::b32hexdecode, c"Decode Base32hex data for the public base64 module"),
+    base64_method!(c"b85encode", _base64::b85encode, c"Encode with the Base85 alphabet"),
+    base64_method!(c"b85decode", _base64::b85decode, c"Decode Base85 data for the public base64 module"),
+    base64_method!(c"z85encode", _base64::z85encode, c"Encode with the Z85 alphabet"),
+    base64_method!(c"z85decode", _base64::z85decode, c"Decode Z85 data for the public base64 module"),
+    base64_method!(c"a85encode", _base64::a85encode, c"Encode with the Ascii85 alphabet"),
+    base64_method!(c"a85decode", _base64::a85decode, c"Decode Ascii85 data for the public base64 module"),
     PyMethodDef::zeroed(),
 ];
 

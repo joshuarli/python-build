@@ -32,8 +32,7 @@ def _load_native_zlib():
     raise ImportError("cannot locate the native zlib extension")
 
 
-def _install_rust_codecs():
-    native = _load_native_zlib()
+def _install_rust_codecs(native):
     import _zlib_rs as rust
 
     native_compress = native.compress
@@ -185,6 +184,13 @@ def _install_rust_codecs():
     sys.modules[__name__] = native
 
 
-_install_rust_codecs()
+_native = _load_native_zlib()
+# Installed functions share a private namespace with only their live globals.
+# Keeping it separate from the public module prevents arbitrary module
+# attributes from shadowing builtins or replacing the functions' sys binding.
+type(_install_rust_codecs)(
+    _install_rust_codecs.__code__, {"__name__": __name__, "sys": sys}
+)(_native)
+del _native
 del _install_rust_codecs
 del _load_native_zlib

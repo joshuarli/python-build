@@ -551,21 +551,28 @@ fill_and_set_sslerror(_sslmodulestate *state,
 
         lib = ERR_GET_LIB(errcode);
         reason = ERR_GET_REASON(errcode);
-        key = Py_BuildValue("ii", lib, reason);
-        if (key == NULL)
-            goto fail;
-        reason_obj = PyDict_GetItemWithError(state->err_codes_to_names, key);
-        Py_DECREF(key);
-        if (reason_obj == NULL && PyErr_Occurred()) {
-            goto fail;
-        }
         key = PyLong_FromLong(lib);
         if (key == NULL)
             goto fail;
+        PyObject *names = PyDict_GetItemWithError(state->err_names_by_library, key);
+        if (names == NULL && PyErr_Occurred()) {
+            Py_DECREF(key);
+            goto fail;
+        }
         lib_obj = PyDict_GetItemWithError(state->lib_codes_to_names, key);
         Py_DECREF(key);
         if (lib_obj == NULL && PyErr_Occurred()) {
             goto fail;
+        }
+        if (names != NULL) {
+            key = PyLong_FromLong(reason);
+            if (key == NULL)
+                goto fail;
+            reason_obj = PyDict_GetItemWithError(names, key);
+            Py_DECREF(key);
+            if (reason_obj == NULL && PyErr_Occurred()) {
+                goto fail;
+            }
         }
         if (errstr == NULL) {
             errstr = ERR_reason_error_string(errcode);
@@ -7236,6 +7243,32 @@ sslmodule_init_constants(PyObject *m)
     return 0;
 }
 
+/* Partitioning the eager error-name table by library lets small reason codes
+   use shared integer objects. Each library keeps its own namespace and each
+   mnemonic remains owned by this interpreter for stable exception metadata. */
+static PyObject *
+ssl_error_names_for_library(_sslmodulestate *state, int library)
+{
+    PyObject *key = PyLong_FromLong(library);
+    if (key == NULL) {
+        return NULL;
+    }
+    PyObject *names = NULL;
+    int found = PyDict_GetItemRef(state->err_names_by_library, key, &names);
+    if (found < 0) {
+        Py_DECREF(key);
+        return NULL;
+    }
+    if (found == 0) {
+        names = PyDict_New();
+        if (names != NULL && PyDict_SetItem(state->err_names_by_library, key, names) < 0) {
+            Py_CLEAR(names);
+        }
+    }
+    Py_DECREF(key);
+    return names;
+}
+
 static int
 sslmodule_init_errorcodes(PyObject *module)
 {
@@ -7245,8 +7278,8 @@ sslmodule_init_errorcodes(PyObject *module)
     struct py_ssl_library_code *libcode;
 
     /* Mappings for error codes */
-    state->err_codes_to_names = PyDict_New();
-    if (state->err_codes_to_names == NULL)
+    state->err_names_by_library = PyDict_New();
+    if (state->err_names_by_library == NULL)
         return -1;
     state->lib_codes_to_names = PyDict_New();
     if (state->lib_codes_to_names == NULL)
@@ -7254,18 +7287,25 @@ sslmodule_init_errorcodes(PyObject *module)
 
     errcode = error_codes;
     while (errcode->mnemonic != NULL) {
+        PyObject *names = ssl_error_names_for_library(state, errcode->library);
+        if (names == NULL) {
+            return -1;
+        }
         PyObject *mnemo = PyUnicode_FromString(errcode->mnemonic);
         if (mnemo == NULL) {
+            Py_DECREF(names);
             return -1;
         }
-        PyObject *key = Py_BuildValue("ii", errcode->library, errcode->reason);
+        PyObject *key = PyLong_FromLong(errcode->reason);
         if (key == NULL) {
             Py_DECREF(mnemo);
+            Py_DECREF(names);
             return -1;
         }
-        int rc = PyDict_SetItem(state->err_codes_to_names, key, mnemo);
+        int rc = PyDict_SetItem(names, key, mnemo);
         Py_DECREF(key);
         Py_DECREF(mnemo);
+        Py_DECREF(names);
         if (rc < 0) {
             return -1;
         }
@@ -7467,7 +7507,7 @@ sslmodule_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(state->PySSLWantWriteErrorObject);
     Py_VISIT(state->PySSLSyscallErrorObject);
     Py_VISIT(state->PySSLEOFErrorObject);
-    Py_VISIT(state->err_codes_to_names);
+    Py_VISIT(state->err_names_by_library);
     Py_VISIT(state->lib_codes_to_names);
     Py_VISIT(state->Sock_Type);
 
@@ -7491,7 +7531,7 @@ sslmodule_clear(PyObject *m)
     Py_CLEAR(state->PySSLWantWriteErrorObject);
     Py_CLEAR(state->PySSLSyscallErrorObject);
     Py_CLEAR(state->PySSLEOFErrorObject);
-    Py_CLEAR(state->err_codes_to_names);
+    Py_CLEAR(state->err_names_by_library);
     Py_CLEAR(state->lib_codes_to_names);
     Py_CLEAR(state->Sock_Type);
     Py_CLEAR(state->str_library);

@@ -23,8 +23,8 @@ typedef struct {
     PyObject *PySSLWantWriteErrorObject;
     PyObject *PySSLSyscallErrorObject;
     PyObject *PySSLEOFErrorObject;
-    /* Error mappings */
-    PyObject *err_codes_to_names;
+    /* Eager error mappings: library -> reason -> mnemonic, library -> name. */
+    PyObject *err_names_by_library;
     PyObject *lib_codes_to_names;
     /* socket type from module CAPI */
     PyTypeObject *Sock_Type;

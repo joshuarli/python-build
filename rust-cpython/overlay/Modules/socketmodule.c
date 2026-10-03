@@ -6981,6 +6981,318 @@ socket_inet_ntop(PyObject *self, PyObject *args)
     }
 }
 
+
+/* These builtins are bound to the public module rather than looked up through
+ * sys.modules, so retained converters continue to use their original module
+ * globals after module replacement. No converter imports the Rust helper. */
+static PyObject *
+rust_address_global(PyObject *module, const char *name)
+{
+    PyObject *key = PyUnicode_FromString(name);
+    if (key == NULL) {
+        return NULL;
+    }
+    PyObject *value = NULL;
+    int found = PyDict_GetItemRef(PyModule_GetDict(module), key, &value);
+    if (found == 0) {
+        PyErr_Format(PyExc_NameError, "name '%s' is not defined", name);
+        PyObject *exception = PyErr_GetRaisedException();
+        if (exception != NULL &&
+            PyErr_GivenExceptionMatches(exception, PyExc_NameError)) {
+            /* Preserve the original exception if recording its missing name
+             * fails, just as global-variable lookup does. */
+            if (PyObject_SetAttrString(exception, "name", key) < 0) {
+                PyErr_Clear();
+            }
+        }
+        PyErr_SetRaisedException(exception);
+    }
+    Py_DECREF(key);
+    return value;
+}
+
+static int
+rust_address_eligible(PyObject *module, PyObject *family)
+{
+    /* Both type results stay owned across metaclass callbacks, which may
+     * change an instance's class and release its original type. */
+    PyObject *family_type = Py_NewRef((PyObject *)Py_TYPE(family));
+    PyObject *inet = rust_address_global(module, "AF_INET");
+    if (inet == NULL) {
+        Py_DECREF(family_type);
+        return -1;
+    }
+    PyObject *inet_type = Py_NewRef((PyObject *)Py_TYPE(inet));
+    Py_DECREF(inet);
+    /* Tuple membership compares type objects, including custom metaclass
+     * equality; pointer-only type checks would bypass those operations. */
+    int eligible = PyObject_RichCompareBool((PyObject *)&PyLong_Type,
+                                          family_type, Py_EQ);
+    if (eligible == 0) {
+        eligible = PyObject_RichCompareBool(inet_type, family_type, Py_EQ);
+    }
+    Py_DECREF(inet_type);
+    Py_DECREF(family_type);
+    return eligible;
+}
+
+static int
+rust_address_equal(PyObject *module, PyObject *family, const char *name)
+{
+    PyObject *constant = rust_address_global(module, name);
+    if (constant == NULL) {
+        return -1;
+    }
+    /* Operator equality must call __eq__ even when both operands are the
+     * same object; the container-comparison identity shortcut is unsuitable. */
+    PyObject *equal = PyObject_RichCompare(family, constant, Py_EQ);
+    Py_DECREF(constant);
+    if (equal == NULL) {
+        return -1;
+    }
+    int result = PyObject_IsTrue(equal);
+    Py_DECREF(equal);
+    return result;
+}
+
+static int
+rust_address_enabled(PyObject *module)
+{
+    PyObject *helper = rust_address_global(module, "_socket_rs");
+    if (helper == NULL) {
+        return -1;
+    }
+    int enabled = helper != Py_None;
+    Py_DECREF(helper);
+    return enabled;
+}
+
+static PyObject *
+rust_address_call(PyObject *module, const char *name, int version,
+                  PyObject *address)
+{
+    /* Resolve the helper again after comparisons: a user-defined equality
+     * operation may rebind it before the method access. */
+    PyObject *helper = rust_address_global(module, "_socket_rs");
+    if (helper == NULL) {
+        return NULL;
+    }
+    PyObject *method = PyObject_GetAttrString(helper, name);
+    Py_DECREF(helper);
+    if (method == NULL) {
+        return NULL;
+    }
+    PyObject *number = PyLong_FromLong(version);
+    if (number == NULL) {
+        Py_DECREF(method);
+        return NULL;
+    }
+    PyObject *arguments[2] = {number, address};
+    PyObject *result = PyObject_Vectorcall(method, arguments, 2, NULL);
+    Py_DECREF(number);
+    Py_DECREF(method);
+    return result;
+}
+
+static int
+rust_address_arguments(PyObject *args, PyObject *kwargs, const char *function,
+                       const char *second)
+{
+    if (kwargs != NULL && PyDict_GET_SIZE(kwargs) != 0) {
+        PyObject *conflicts = PyList_New(0);
+        if (conflicts == NULL) {
+            return -1;
+        }
+        const char *names[2] = {"address_family", second};
+        for (int index = 0; index < 2; index++) {
+            PyObject *name = PyUnicode_FromString(names[index]);
+            if (name == NULL) {
+                Py_DECREF(conflicts);
+                return -1;
+            }
+            Py_ssize_t position = 0;
+            PyObject *key, *value;
+            while (PyDict_Next(kwargs, &position, &key, &value)) {
+                int equal = PyObject_RichCompareBool(name, key, Py_EQ);
+                if (equal < 0 || (equal && PyList_Append(conflicts, key) < 0)) {
+                    Py_DECREF(name);
+                    Py_DECREF(conflicts);
+                    return -1;
+                }
+            }
+            Py_DECREF(name);
+        }
+        if (PyList_GET_SIZE(conflicts) != 0) {
+            PyObject *separator = PyUnicode_FromString(", ");
+            PyObject *names = separator == NULL ? NULL :
+                PyUnicode_Join(separator, conflicts);
+            Py_XDECREF(separator);
+            Py_DECREF(conflicts);
+            if (names == NULL) {
+                return -1;
+            }
+            PyErr_Format(PyExc_TypeError,
+                "%s() got some positional-only arguments passed as keyword arguments: '%U'",
+                function, names);
+            Py_DECREF(names);
+        }
+        else {
+            Py_DECREF(conflicts);
+            Py_ssize_t position = 0;
+            PyObject *key, *value;
+            PyDict_Next(kwargs, &position, &key, &value);
+            PyErr_Format(PyExc_TypeError,
+                "%s() got an unexpected keyword argument '%S'", function, key);
+        }
+        return -1;
+    }
+    Py_ssize_t count = PyTuple_GET_SIZE(args);
+    if (count == 0) {
+        PyErr_Format(PyExc_TypeError,
+            "%s() missing 2 required positional arguments: 'address_family' and '%s'",
+            function, second);
+        return -1;
+    }
+    if (count == 1) {
+        PyErr_Format(PyExc_TypeError,
+            "%s() missing 1 required positional argument: '%s'", function, second);
+        return -1;
+    }
+    if (count != 2) {
+        PyErr_Format(PyExc_TypeError,
+            "%s() takes 2 positional arguments but %zd were given", function, count);
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *
+socket_public_inet_pton(PyObject *module, PyObject *args, PyObject *kwargs)
+{
+    if (rust_address_arguments(args, kwargs, "inet_pton", "ip_string") < 0) {
+        return NULL;
+    }
+    int enabled = rust_address_enabled(module);
+    if (enabled < 0) {
+        return NULL;
+    }
+    PyObject *family = PyTuple_GET_ITEM(args, 0);
+    PyObject *address = PyTuple_GET_ITEM(args, 1);
+    int eligible = enabled ? rust_address_eligible(module, family) : 0;
+    if (eligible < 0) {
+        return NULL;
+    }
+    if (eligible && PyUnicode_CheckExact(address)) {
+        int version = 0;
+        int equal = rust_address_equal(module, family, "AF_INET");
+        if (equal < 0) {
+            return NULL;
+        }
+        if (equal) {
+            version = 4;
+        }
+        else {
+            equal = rust_address_equal(module, family, "AF_INET6");
+            if (equal < 0) {
+                return NULL;
+            }
+            if (equal) {
+                version = 6;
+            }
+        }
+        if (version) {
+            PyObject *result = rust_address_call(module, "parse_address", version, address);
+            if (result != NULL || !PyErr_ExceptionMatches(PyExc_ValueError)) {
+                return result;
+            }
+            /* Native parsing owns the public exception and platform-specific
+             * forms rejected by Rust's strict address parser. */
+            PyErr_Clear();
+        }
+    }
+    return socket_inet_pton(module, args);
+}
+
+static PyObject *
+socket_public_inet_ntop(PyObject *module, PyObject *args, PyObject *kwargs)
+{
+    if (rust_address_arguments(args, kwargs, "inet_ntop", "packed_ip") < 0) {
+        return NULL;
+    }
+    int enabled = rust_address_enabled(module);
+    if (enabled < 0) {
+        return NULL;
+    }
+    PyObject *family = PyTuple_GET_ITEM(args, 0);
+    PyObject *address = PyTuple_GET_ITEM(args, 1);
+    int eligible = enabled ? rust_address_eligible(module, family) : 0;
+    if (eligible < 0) {
+        return NULL;
+    }
+    if (eligible && PyBytes_CheckExact(address)) {
+        Py_ssize_t length = PyBytes_GET_SIZE(address);
+        int equal = rust_address_equal(module, family, "AF_INET");
+        if (equal < 0) {
+            return NULL;
+        }
+        if (equal && length == 4) {
+            return rust_address_call(module, "format_address", 4, address);
+        }
+        equal = rust_address_equal(module, family, "AF_INET6");
+        if (equal < 0) {
+            return NULL;
+        }
+        static const char zero_prefix[12] = {0};
+        if (equal && length == 16 &&
+            memcmp(PyBytes_AS_STRING(address), zero_prefix, 12) != 0) {
+            return rust_address_call(module, "format_address", 6, address);
+        }
+    }
+    return socket_inet_ntop(module, args);
+}
+
+PyDoc_STRVAR(public_inet_pton_doc,
+"inet_pton($module, address_family, ip_string, /)\n--\n\n"
+"inet_pton(af, ip) -> packed IP address string\n\n"
+"Convert an IP address from string format to a packed string suitable\n"
+"for use with low-level network functions.");
+PyDoc_STRVAR(public_inet_ntop_doc,
+"inet_ntop($module, address_family, packed_ip, /)\n--\n\n"
+"inet_ntop(af, packed_ip) -> string formatted IP address\n\n"
+"Convert a packed IP address of the given family to string format.");
+
+static PyMethodDef public_address_methods[] = {
+    {"inet_pton", _PyCFunction_CAST(socket_public_inet_pton),
+     METH_VARARGS | METH_KEYWORDS, public_inet_pton_doc},
+    {"inet_ntop", _PyCFunction_CAST(socket_public_inet_ntop),
+     METH_VARARGS | METH_KEYWORDS, public_inet_ntop_doc},
+};
+
+static PyObject *
+socket_bind_address_converters(PyObject *self, PyObject *module)
+{
+    if (!PyModule_Check(module)) {
+        PyErr_SetString(PyExc_TypeError, "address converters require a module");
+        return NULL;
+    }
+    PyObject *name = PyModule_GetNameObject(module);
+    if (name == NULL) {
+        return NULL;
+    }
+    PyObject *pton = PyCFunction_NewEx(&public_address_methods[0], module, name);
+    PyObject *ntop = pton == NULL ? NULL :
+        PyCFunction_NewEx(&public_address_methods[1], module, name);
+    Py_DECREF(name);
+    if (ntop == NULL) {
+        Py_XDECREF(pton);
+        return NULL;
+    }
+    PyObject *result = PyTuple_Pack(2, pton, ntop);
+    Py_DECREF(pton);
+    Py_DECREF(ntop);
+    return result;
+}
+
 #endif /* HAVE_INET_PTON */
 
 #ifdef HAVE_GETADDRINFO
@@ -7535,6 +7847,8 @@ static PyMethodDef socket_methods[] = {
     _SOCKET_INET_NTOA_METHODDEF
 #endif
 #ifdef HAVE_INET_PTON
+    {"_bind_address_converters", socket_bind_address_converters,
+     METH_O, "Bind Rust address converters to the public socket module"},
     {"inet_pton",               socket_inet_pton,
      METH_VARARGS, inet_pton_doc},
     {"inet_ntop",               socket_inet_ntop,

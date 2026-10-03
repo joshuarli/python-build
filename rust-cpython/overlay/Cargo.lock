@@ -39,10 +39,10 @@ dependencies = [
 name = "_binascii_rs"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
+ "_base64",
  "cpython-build-helper",
+ "cpython-sys",
  "crc32fast",
- "data-encoding",
 ]
 
 [[package]]
@@ -206,6 +206,7 @@ name = "_hashlib_rs"
 version = "0.1.0"
 dependencies = [
  "cpython-build-helper",
+ "cpython-sys",
  "md-5 0.11.0",
  "sha1",
  "sha2",

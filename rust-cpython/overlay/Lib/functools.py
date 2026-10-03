@@ -349,30 +349,6 @@ except ImportError:
 ################################################################################
 
 
-class _PlaceholderType:
-    """The type of the Placeholder singleton.
-
-    Used as a placeholder for partial arguments.
-    """
-    __instance = None
-    __slots__ = ()
-
-    def __init_subclass__(cls, *args, **kwargs):
-        raise TypeError(f"type '{cls.__name__}' is not an acceptable base type")
-
-    def __new__(cls):
-        if cls.__instance is None:
-            cls.__instance = object.__new__(cls)
-        return cls.__instance
-
-    def __repr__(self):
-        return 'Placeholder'
-
-    def __reduce__(self):
-        return 'Placeholder'
-
-Placeholder = _PlaceholderType()
-
 def _partial_prepare_merger(args):
     if not args:
         return 0, None
@@ -444,79 +420,111 @@ def _partial_repr(self):
     args.extend(f"{k}={v!r}" for k, v in self.keywords.items())
     return f"{module}.{qualname}({', '.join(args)})"
 
-# Purely functional, no descriptor behaviour
-class partial:
-    """New function with partial application of the given arguments
-    and keywords.
-    """
-
-    __slots__ = ("func", "args", "keywords", "_phcount", "_merger",
-                 "__dict__", "__weakref__")
-
-    __new__ = _partial_new
-    __repr__ = recursive_repr()(_partial_repr)
-
-    def __call__(self, /, *args, **keywords):
-        phcount = self._phcount
-        if phcount:
-            try:
-                pto_args = self._merger(self.args + args)
-                args = args[phcount:]
-            except IndexError:
-                raise TypeError("missing positional arguments "
-                                "in 'partial' call; expected "
-                                f"at least {phcount}, got {len(args)}")
-        else:
-            pto_args = self.args
-        keywords = {**self.keywords, **keywords}
-        return self.func(*pto_args, *args, **keywords)
-
-    def __get__(self, obj, objtype=None):
-        if obj is None:
-            return self
-        return MethodType(self, obj)
-
-    def __reduce__(self):
-        return type(self), (self.func,), (self.func, self.args,
-               self.keywords or None, self.__dict__ or None)
-
-    def __setstate__(self, state):
-        if not isinstance(state, tuple):
-            raise TypeError("argument to __setstate__ must be a tuple")
-        if len(state) != 4:
-            raise TypeError(f"expected 4 items in state, got {len(state)}")
-        func, args, kwds, namespace = state
-        if (not callable(func) or not isinstance(args, tuple) or
-           (kwds is not None and not isinstance(kwds, dict)) or
-           (namespace is not None and not isinstance(namespace, dict))):
-            raise TypeError("invalid partial state")
-
-        if args and args[-1] is Placeholder:
-            raise TypeError("trailing Placeholders are not allowed")
-        phcount, merger = _partial_prepare_merger(args)
-
-        args = tuple(args) # just in case it's a subclass
-        if kwds is None:
-            kwds = {}
-        elif type(kwds) is not dict: # XXX does it need to be *exactly* dict?
-            kwds = dict(kwds)
-        if namespace is None:
-            namespace = {}
-
-        self.__dict__ = namespace
-        self.func = func
-        self.args = args
-        self.keywords = kwds
-        self._phcount = phcount
-        self._merger = merger
-
-    __class_getitem__ = classmethod(GenericAlias)
-
-
+# Native types own their singleton and descriptors; construct Python fallback
+# types only when the accelerator is unavailable. Select the types after their
+# shared helpers exist, without a temporary selector in the module namespace.
 try:
     from _functools import partial, Placeholder, _PlaceholderType
 except ImportError:
-    pass
+    class _PlaceholderType:
+        ("The type of the Placeholder singleton.\n"
+         "\n"
+         "    Used as a placeholder for partial arguments.\n"
+         "    ")
+        __instance = None
+        __slots__ = ()
+
+        def __init_subclass__(cls, *args, **kwargs):
+            raise TypeError(f"type '{cls.__name__}' is not an acceptable base type")
+
+        def __new__(cls):
+            if cls.__instance is None:
+                cls.__instance = object.__new__(cls)
+            return cls.__instance
+
+        def __repr__(self):
+            return 'Placeholder'
+
+        def __reduce__(self):
+            return 'Placeholder'
+
+    Placeholder = _PlaceholderType()
+
+    # Purely functional, no descriptor behaviour
+    class partial:
+        ("New function with partial application of the given arguments\n"
+         "    and keywords.\n"
+         "    ")
+
+        __slots__ = ("func", "args", "keywords", "_phcount", "_merger",
+                     "__dict__", "__weakref__")
+
+        __new__ = _partial_new
+        __repr__ = recursive_repr()(_partial_repr)
+
+        def __call__(self, /, *args, **keywords):
+            phcount = self._phcount
+            if phcount:
+                try:
+                    pto_args = self._merger(self.args + args)
+                    args = args[phcount:]
+                except IndexError:
+                    raise TypeError("missing positional arguments "
+                                    "in 'partial' call; expected "
+                                    f"at least {phcount}, got {len(args)}")
+            else:
+                pto_args = self.args
+            keywords = {**self.keywords, **keywords}
+            return self.func(*pto_args, *args, **keywords)
+
+        def __get__(self, obj, objtype=None):
+            if obj is None:
+                return self
+            return MethodType(self, obj)
+
+        def __reduce__(self):
+            return type(self), (self.func,), (self.func, self.args,
+                   self.keywords or None, self.__dict__ or None)
+
+        def __setstate__(self, state):
+            if not isinstance(state, tuple):
+                raise TypeError("argument to __setstate__ must be a tuple")
+            if len(state) != 4:
+                raise TypeError(f"expected 4 items in state, got {len(state)}")
+            func, args, kwds, namespace = state
+            if (not callable(func) or not isinstance(args, tuple) or
+               (kwds is not None and not isinstance(kwds, dict)) or
+               (namespace is not None and not isinstance(namespace, dict))):
+                raise TypeError("invalid partial state")
+
+            if args and args[-1] is Placeholder:
+                raise TypeError("trailing Placeholders are not allowed")
+            phcount, merger = _partial_prepare_merger(args)
+
+            args = tuple(args) # just in case it's a subclass
+            if kwds is None:
+                kwds = {}
+            elif type(kwds) is not dict: # XXX does it need to be *exactly* dict?
+                kwds = dict(kwds)
+            if namespace is None:
+                namespace = {}
+
+            self.__dict__ = namespace
+            self.func = func
+            self.args = args
+            self.keywords = kwds
+            self._phcount = phcount
+            self._merger = merger
+
+        __class_getitem__ = classmethod(GenericAlias)
+
+    # Keep partially available accelerators consistent with from-import binding:
+    # names imported before a missing attribute still replace their fallbacks.
+    try:
+        from _functools import partial, Placeholder, _PlaceholderType
+    except ImportError:
+        pass
+
 
 # Descriptor version
 class partialmethod:

@@ -194,7 +194,10 @@ fn zstd_error(code: usize) -> io::Error {
 }
 
 struct StreamCompressor {
-    cctx: CCtx<'static>,
+    // A completed frame needs no compression history. Keep its configured
+    // level while releasing the native workspace until another frame starts.
+    cctx: Option<CCtx<'static>>,
+    level: i32,
 }
 
 impl StreamCompressor {
@@ -202,16 +205,29 @@ impl StreamCompressor {
         let mut cctx = CCtx::create();
         cctx.set_parameter(CParameter::CompressionLevel(level))
             .map_err(zstd_error)?;
-        Ok(Self { cctx })
+        Ok(Self { cctx: Some(cctx), level })
+    }
+
+    fn context(&mut self) -> io::Result<&mut CCtx<'static>> {
+        if self.cctx.is_none() {
+            let mut cctx = CCtx::try_create()
+                .ok_or_else(|| io::Error::from(io::ErrorKind::OutOfMemory))?;
+            cctx.set_parameter(CParameter::CompressionLevel(self.level))
+                .map_err(zstd_error)?;
+            self.cctx = Some(cctx);
+        }
+        Ok(self.cctx.as_mut().unwrap())
     }
 
     fn reset(&mut self) {
-        let _ = self.cctx.reset(ResetDirective::SessionOnly);
+        if let Some(cctx) = self.cctx.as_mut() {
+            let _ = cctx.reset(ResetDirective::SessionOnly);
+        }
     }
 
     fn set_pledged(&mut self, size: u64) -> io::Result<()> {
         let size = if size == u64::MAX { None } else { Some(size) };
-        self.cctx.set_pledged_src_size(size).map_err(zstd_error)?;
+        self.context()?.set_pledged_src_size(size).map_err(zstd_error)?;
         Ok(())
     }
 
@@ -227,7 +243,7 @@ impl StreamCompressor {
         // One call with the frame's directive lets libzstd compress straight
         // into the result without staging the input in the context.
         let result = PyBuf::new(compress_bound(data.len()))
-            .and_then(|mut output| drive(&mut self.cctx, data, &mut output, directive).map(|()| output));
+            .and_then(|mut output| drive(self.context()?, data, &mut output, directive).map(|()| output));
         self.finish(result, mode)
     }
 
@@ -238,7 +254,7 @@ impl StreamCompressor {
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid flush mode")),
         };
         let result = PyBuf::new(MIN_OUTPUT_SIZE)
-            .and_then(|mut output| drive(&mut self.cctx, &[], &mut output, directive).map(|()| output));
+            .and_then(|mut output| drive(self.context()?, &[], &mut output, directive).map(|()| output));
         self.finish(result, mode)
     }
 
@@ -246,7 +262,9 @@ impl StreamCompressor {
         match result {
             Ok(output) => {
                 if mode == 2 {
-                    self.cctx.reset(ResetDirective::SessionOnly).map_err(zstd_error)?;
+                    // Discard the finished frame before result resizing can
+                    // fail, so the next call starts with a fresh session.
+                    self.cctx = None;
                 }
                 output.into_object()
             }

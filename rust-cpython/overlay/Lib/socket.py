@@ -59,49 +59,14 @@ try:
 except ImportError:
     _socket_rs = None
 
-# Keep the platform converters for inputs whose coercion or error handling is
-# defined by the native socket module.
-_native_inet_pton = inet_pton
-_native_inet_ntop = inet_ntop
+# Bind to this module so cached converters keep its helper and constants
+# even if another module replaces its entry in sys.modules.
+import sys
+inet_pton, inet_ntop = _socket._bind_address_converters(sys.modules[__name__])
 
-
-def inet_pton(address_family, ip_string, /):
-    if (_socket_rs is not None and type(address_family) in (int, type(AF_INET))
-            and type(ip_string) is str):
-        if address_family == AF_INET:
-            version = 4
-        elif address_family == AF_INET6:
-            version = 6
-        else:
-            version = 0
-        if version:
-            try:
-                return _socket_rs.parse_address(version, ip_string)
-            except ValueError:
-                pass
-    return _native_inet_pton(address_family, ip_string)
-
-
-def inet_ntop(address_family, packed_ip, /):
-    if (_socket_rs is not None and type(address_family) in (int, type(AF_INET))
-            and type(packed_ip) is bytes):
-        if address_family == AF_INET and len(packed_ip) == 4:
-            return _socket_rs.format_address(4, packed_ip)
-        if address_family == AF_INET6 and len(packed_ip) == 16:
-            # The platform spells IPv4-compatible addresses with dotted
-            # octets, while Rust formats their final words as hexadecimal.
-            if packed_ip[:12] == b'\0' * 12:
-                return _native_inet_ntop(address_family, packed_ip)
-            return _socket_rs.format_address(6, packed_ip)
-    return _native_inet_ntop(address_family, packed_ip)
-
-
-inet_pton.__doc__ = _native_inet_pton.__doc__
-inet_ntop.__doc__ = _native_inet_ntop.__doc__
 
 import io
 import os
-import sys
 from enum import IntEnum, IntFlag
 from functools import partial
 
