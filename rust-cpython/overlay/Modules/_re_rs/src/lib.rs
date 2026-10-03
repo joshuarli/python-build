@@ -1,6 +1,6 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
@@ -162,17 +162,46 @@ fn parses(pattern: &str) -> bool {
     accepted
 }
 
+struct CachedRegex {
+    expression: Regex,
+    insertion_rank: u16,
+}
+
 struct RegexCache {
-    expressions: HashMap<String, Regex>,
-    insertion_order: VecDeque<String>,
+    expressions: HashMap<String, CachedRegex>,
 }
 
 impl RegexCache {
     fn new() -> Self {
         Self {
             expressions: HashMap::new(),
-            insertion_order: VecDeque::new(),
         }
+    }
+
+    // Ranks are the dense insertion order 0..len, with at most 512 entries.
+    // Hits leave ranks unchanged. Removing rank zero preserves FIFO without
+    // retaining a second owned pattern string or a separate queue allocation.
+    fn insert_compiled(&mut self, pattern: &str, expression: &Regex) {
+        if self.expressions.len() >= CACHE_LIMIT {
+            self.expressions.retain(|_, cached| {
+                if cached.insertion_rank == 0 {
+                    false
+                } else {
+                    cached.insertion_rank -= 1;
+                    true
+                }
+            });
+        }
+        // The caller rechecked absence while holding the cache mutex. After
+        // eviction len is at most 511, so this conversion never truncates.
+        let insertion_rank = self.expressions.len() as u16;
+        self.expressions.insert(
+            pattern.to_owned(),
+            CachedRegex {
+                expression: expression.clone(),
+                insertion_rank,
+            },
+        );
     }
 }
 
@@ -213,23 +242,17 @@ fn portable_expression(pattern: &str) -> Option<Regex> {
     }
 
     if let Some(expression) = regex_cache().expressions.get(pattern) {
-        return Some(expression.clone());
+        return Some(expression.expression.clone());
     }
 
     let expression = RegexBuilder::new(pattern).unicode(false).build().ok()?;
+    #[cfg(test)]
+    fifo_rank::after_compile(pattern);
     let mut cache = regex_cache();
     if let Some(cached) = cache.expressions.get(pattern) {
-        return Some(cached.clone());
+        return Some(cached.expression.clone());
     }
-    if cache.expressions.len() >= CACHE_LIMIT {
-        if let Some(oldest) = cache.insertion_order.pop_front() {
-            cache.expressions.remove(&oldest);
-        }
-    }
-    cache.insertion_order.push_back(pattern.to_owned());
-    cache
-        .expressions
-        .insert(pattern.to_owned(), expression.clone());
+    cache.insert_compiled(pattern, &expression);
     Some(expression)
 }
 
@@ -466,3 +489,7 @@ pub static _RE_RS_MODULE: ModuleDef = ModuleDef {
 pub extern "C" fn PyInit__re_rs() -> *mut PyObject {
     _RE_RS_MODULE.init_multi_phase()
 }
+
+#[cfg(test)]
+#[path = "../tests/fifo_rank.rs"]
+mod fifo_rank;
