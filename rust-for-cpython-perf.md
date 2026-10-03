@@ -152,10 +152,25 @@ matched and no metric was unstable. Main and incumbent remain unchanged;
 sources, stages and the first verdict are preserved without an unchanged
 composition retry. CPU, timing and quietness were not checked.
 
-Distinct datetime module-export, threading context-import and ipaddress
-local-binding candidates continue independent qualification. The isolated
-typing cache-metadata change is also qualifying. Their source reviews and
-builds establish no memory improvement.
+The UUID-only projection at `b7cf5af` restored every other overlay route to
+the accepted source. Fresh clean58, full 50,158/2,748, three semantic cases,
+one live ABI case and scoped artifact verification passed. Its first and
+only rigorous all-71/all-23 memory-only gate **REJECTED**:
+`20261003T050216Z-perf-rust-vs-perf-u117`, verdict SHA256
+`6cc28ba1dfe75626e26401422d604d505b8688400aa4de7cdb371519aee487d5`.
+Twenty-two module-load guards, plistlib working peak (1.125x) and startup
+RSS (1.011x) regressed in both runs. UUID's pooled load was 0.923x, but its
+runs were improved/neutral, so no improvement qualified. Outputs matched
+and no metric was unstable. Main and incumbent remain unchanged; the
+first verdict and qualification evidence are preserved without an unchanged
+retry. CPU, timing and quietness were not checked.
+
+Distinct datetime module-export, corrected threading context-import,
+ipaddress local-binding and typing cache-metadata candidates have completed
+isolated correctness qualification. Tokenize's deferred legacy grammar has
+passed its clean build and focused suites; Decimal's immutable module export
+has passed source review. Primary memory comparisons remain necessary;
+these checks establish no accepted memory improvement.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
