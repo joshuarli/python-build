@@ -371,6 +371,16 @@ qualification remained unrun. Source and inert runner evidence are preserved;
 no unchanged retry or accepted memory change follows. CPU, timing and
 quietness were not checked.
 
+The contextlib lazy-helper activation candidate at `ebc7e9e` passed
+clean58 and complete contextlib, import, importlib and asyncio suites
+(4,227 run, 80 skipped, zero failures). Its first memory-only exploration
+was **NEUTRAL**: `20261003T134055Z-perf-rust-vs-perf-c145`, verdict SHA256
+`d08f1313a9551b206a43fec273a2ec49c36b0db2e66d419fc10671f4aaac4547`.
+All six module memory pairs and all 23 workload RSS rows were neutral.
+No target improved beyond the interval and floor. Native regression execution
+and full qualification remained unrun; the unchanged candidate is closed
+without acceptance or retry. CPU, timing and quietness were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
