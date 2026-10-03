@@ -275,7 +275,9 @@ error; both complete asyncio packages then passed unchanged (2,780/65 each),
 and a fresh full suite passed 50,158/2,748 with zero failures. The first
 failure is preserved and its cause remains unestablished.
 Its first rigorous all-71/all-23 memory-only acceptance gate **REJECTED**:
-`20261003T110616Z-perf-rust-vs-perf-p139`. Four module loads regressed
+`20261003T110616Z-perf-rust-vs-perf-p139`, verdict SHA256
+`94d6b389bac805abb55e8f42182dd8e34ead401a769ccb81f7eae360efa77999`.
+Four module loads regressed
 (asyncio, contextlib, csv and tomllib), as did configparser, dataclasses
 and logging working peaks. All 23 workload RSS rows were neutral.
 Many loads improved in both runs, including base64, datetime and JSON,
