@@ -268,6 +268,21 @@ unchanged candidate will not proceed to full qualification or acceptance.
 Main and incumbent remain unchanged. CPU, timing and quietness were not
 checked; no memory goal was completed by this experiment.
 
+The supported 4 KiB pool-layout candidate at `97e7c6e` completed clean58,
+focused 1,964/348 and native geometry, boundary, realloc, interpreter,
+fork and debug checks. Its first full suite had one asyncio stream callback
+error; both complete asyncio packages then passed unchanged (2,780/65 each),
+and a fresh full suite passed 50,158/2,748 with zero failures. The first
+failure is preserved and its cause remains unestablished.
+Its first rigorous all-71/all-23 memory-only acceptance gate **REJECTED**:
+`20261003T110616Z-perf-rust-vs-perf-p139`. Four module loads regressed
+(asyncio, contextlib, csv and tomllib), as did configparser, dataclasses
+and logging working peaks. All 23 workload RSS rows were neutral.
+Many loads improved in both runs, including base64, datetime and JSON,
+but the candidate remains unaccepted. No unchanged retry follows this
+gate; main and incumbent remain unchanged. CPU, timing and quietness
+were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
