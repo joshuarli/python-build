@@ -137,11 +137,25 @@ unchanged retry. CPU, timing and quietness were not checked.
 
 The separate narrow UUID/HMAC, struct, marshal and JSON candidates were
 composed at `c2c2d93` with accepted common bindings and carrier preserved.
-Their isolated clean58 and full 50,158/2,791 suite passed; fresh native ABI
-and artifact qualification remains in progress, with no memory measurement.
+Fresh primary qualification at `0157242` passed clean58, the full
+50,158/2,748 suite, all five native qualification lanes and 17 scoped
+artifact captures. Its first and only rigorous all-71/all-23 memory gate
+**REJECTED**: `20261003T035457Z-perf-rust-vs-perf-sp114`, verdict SHA256
+`cdee9b513434ddde700c9933c6fbe14017363c455b62c5ff3bfe9ce94efd992c`.
+Replicated regressions were `_strptime` load (1.037x), warnings load
+(1.072x), logging working peak (1.571x) and URL-normalization RSS (1.012x).
+UUID load improved to 0.843x in both runs; the rejected composition does
+not establish an accepted UUID improvement. HMAC, struct and JSON memory
+were neutral; marshal load worsened in only one run. Threading's observed
+load improvement has unchanged source and remains unattributed. Outputs
+matched and no metric was unstable. Main and incumbent remain unchanged;
+sources, stages and the first verdict are preserved without an unchanged
+composition retry. CPU, timing and quietness were not checked.
+
 Distinct datetime module-export, threading context-import and ipaddress
-local-binding candidates are also undergoing independent qualification.
-Their source reviews and builds establish no memory improvement.
+local-binding candidates continue independent qualification. The isolated
+typing cache-metadata change is also qualifying. Their source reviews and
+builds establish no memory improvement.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
