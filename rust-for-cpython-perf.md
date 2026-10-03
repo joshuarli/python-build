@@ -223,6 +223,20 @@ Existing arithmetic, workloads and guards are unchanged. This starts a new
 harness epoch requiring fresh memory-only calibration; historical ratios are
 not corrected or reinterpreted as acceptance.
 
+Fresh raw-counter-epoch calibration passed at
+`20261003T085725Z-calibrate-perf-upstream`, SHA256
+`0a1f6e5e269944035b3c1a6eadad6735d57f66ed76e79fbcc1cc4129feeb77d5`:
+all 23 workload RSS rows and four module kernels were neutral in both runs.
+Bounded two-module diagnostics then self-compared incumbent and candidate
+successfully, and compared warnings/threading across the two interpreters.
+These exploratory observations establish no acceptance. The candidate's
+physical footprint was already roughly 320 KiB higher before the target
+module imported. Threading's first growth was 128 KiB versus 96 KiB, with
+zero repeated growth; warnings showed larger first growth and variable
+repeated growth. Same startup module names and same-length bytecode filename
+rewrites do not identify the owner of this difference. The original candidate
+rejection remains terminal; no historical ratio is corrected.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
