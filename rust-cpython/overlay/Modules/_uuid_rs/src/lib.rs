@@ -1,41 +1,24 @@
-#![no_std]
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::mem::MaybeUninit;
+use std::ptr;
+use std::slice;
 
-mod ffi;
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::mem::MaybeUninit;
-use core::ptr;
-use core::slice;
-
-// Standalone extensions abort on panic; a static interpreter carrier owns
-// the panic runtime when this module is linked into its Rust image.
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    #[cfg_attr(target_os = "macos", link(name = "System"))]
-    #[cfg_attr(target_os = "linux", link(name = "c"))]
-    unsafe extern "C" {
-        fn abort() -> !;
-    }
-    unsafe { abort() }
-}
-
-use ffi::METH_FASTCALL;
-use ffi::PyBuffer_Release;
-use ffi::PyErr_SetString;
-use ffi::PyExc_TypeError;
-use ffi::PyExc_ValueError;
-use ffi::PyBytes_FromStringAndSize;
-use ffi::PyMethodDef;
-use ffi::PyMethodDefFuncPointer;
-use ffi::PyModuleDef;
-use ffi::PyModuleDef_HEAD_INIT;
-use ffi::PyModuleDef_Init;
-use ffi::PyObject;
-use ffi::PyObject_GetBuffer;
-use ffi::Py_buffer;
-use ffi::Py_ssize_t;
+use cpython_sys::METH_FASTCALL;
+use cpython_sys::PyBuffer_Release;
+use cpython_sys::PyErr_SetString;
+use cpython_sys::PyExc_TypeError;
+use cpython_sys::PyExc_ValueError;
+use cpython_sys::PyBytes_FromStringAndSize;
+use cpython_sys::PyMethodDef;
+use cpython_sys::PyMethodDefFuncPointer;
+use cpython_sys::PyModuleDef;
+use cpython_sys::PyModuleDef_HEAD_INIT;
+use cpython_sys::PyModuleDef_Init;
+use cpython_sys::PyObject;
+use cpython_sys::PyObject_GetBuffer;
+use cpython_sys::Py_buffer;
+use cpython_sys::Py_ssize_t;
 use uuid::Uuid;
 
 const PYBUF_SIMPLE: c_int = 0;
@@ -76,18 +59,18 @@ impl Drop for BorrowedBuffer {
     }
 }
 
-fn fail(exception: *mut PyObject, message: &'static core::ffi::CStr) -> *mut PyObject {
+fn fail(exception: *mut PyObject, message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe {
         PyErr_SetString(exception, message.as_ptr());
     }
     ptr::null_mut()
 }
 
-fn type_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { fail(PyExc_TypeError, message) }
 }
 
-fn value_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn value_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { fail(PyExc_ValueError, message) }
 }
 
@@ -125,17 +108,14 @@ pub unsafe extern "C" fn parse_hex(
     if nargs != 1 {
         return type_error(c"parse_hex() takes exactly one argument");
     }
-    let buffer = match BorrowedBuffer::from_object(unsafe { argument(args, 0) }) {
-        Ok(buffer) => buffer,
+    let text = match BorrowedBuffer::from_object(unsafe { argument(args, 0) }) {
+        Ok(buffer) => match std::str::from_utf8(buffer.as_slice()) {
+            Ok(text) => text.to_owned(),
+            Err(_) => return value_error(c"invalid UUID hexadecimal data"),
+        },
         Err(()) => return ptr::null_mut(),
     };
-    // Parsing makes no Python callbacks; keep the export alive through the
-    // borrowed UTF-8 view and release it on every return path.
-    let text = match core::str::from_utf8(buffer.as_slice()) {
-        Ok(text) => text,
-        Err(_) => return value_error(c"invalid UUID hexadecimal data"),
-    };
-    match Uuid::parse_str(text) {
+    match Uuid::parse_str(&text) {
         Ok(value) => return_bytes(value.as_bytes()),
         Err(_) => value_error(c"invalid UUID hexadecimal data"),
     }
@@ -246,11 +226,10 @@ fn formatted(args: *mut *mut PyObject, nargs: Py_ssize_t, simple: bool) -> *mut 
     }
     match read_uuid(unsafe { argument(args, 0) }) {
         Ok(value) => {
-            let mut storage = [0u8; 36];
             let text = if simple {
-                value.simple().encode_lower(&mut storage)
+                value.simple().to_string()
             } else {
-                value.hyphenated().encode_lower(&mut storage)
+                value.hyphenated().to_string()
             };
             return_bytes(text.as_bytes())
         }
