@@ -4,7 +4,7 @@ import abc
 import os
 import sys
 import _collections_abc
-lazy import _contextlib_rs
+import _contextlib_rs
 from collections import deque
 from functools import wraps
 lazy from inspect import (

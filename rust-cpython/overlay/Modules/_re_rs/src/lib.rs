@@ -14,9 +14,12 @@ use cpython_sys::{
     PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
     PyUnicode_AsUTF8AndSize, Py_DecRef, Py_ssize_t,
 };
-use regex::bytes::{Regex, RegexBuilder};
+use regex_automata::{meta::{self, Regex}, util::syntax, MatchKind};
 
 const CACHE_LIMIT: usize = 512;
+
+#[cfg(test)]
+mod source_owner_tests;
 
 // Compiling a pattern parses it here and remembers that it was accepted. The
 // search engine is built when a search first needs it: most compiled patterns
@@ -207,6 +210,19 @@ fn prepare_expression(pattern: &str) -> bool {
     accepted
 }
 
+// Keep the byte-regex builder's engine configuration without its original-text
+// owner: this bridge only returns spans and never formats the compiled regex.
+fn compile_expression(pattern: &str) -> Result<Regex, meta::BuildError> {
+    Regex::builder()
+        .configure(meta::Config::new()
+            .nfa_size_limit(Some(10 * (1 << 20)))
+            .hybrid_cache_capacity(2 * (1 << 20))
+            .match_kind(MatchKind::LeftmostFirst)
+            .utf8_empty(false))
+        .syntax(syntax::Config::default().unicode(false).utf8(false))
+        .build(pattern)
+}
+
 fn portable_expression(pattern: &str) -> Option<Regex> {
     if !supported_pattern(pattern) {
         return None;
@@ -216,7 +232,7 @@ fn portable_expression(pattern: &str) -> Option<Regex> {
         return Some(expression.clone());
     }
 
-    let expression = RegexBuilder::new(pattern).unicode(false).build().ok()?;
+    let expression = compile_expression(pattern).ok()?;
     let mut cache = regex_cache();
     if let Some(cached) = cache.expressions.get(pattern) {
         return Some(cached.clone());
