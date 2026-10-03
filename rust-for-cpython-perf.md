@@ -165,12 +165,27 @@ and no metric was unstable. Main and incumbent remain unchanged; the
 first verdict and qualification evidence are preserved without an unchanged
 retry. CPU, timing and quietness were not checked.
 
-Distinct datetime module-export, corrected threading context-import,
-ipaddress local-binding and typing cache-metadata candidates have completed
-isolated correctness qualification. Tokenize's deferred legacy grammar has
-passed its clean build and focused suites; Decimal's immutable module export
-has passed source review. Primary memory comparisons remain necessary;
-these checks establish no accepted memory improvement.
+The datetime-only immutable-export projection at `c2c77ed` completed fresh
+primary clean58, full 50,158/2,748, six native checks and scoped artifact
+verification. Its first and only rigorous all-71/all-23 memory-only gate
+**REJECTED**: `20261003T060151Z-perf-rust-vs-perf-d120`, verdict SHA256
+`c0764ff16ab81677a65e7202e39236098b7974e24e7b61c3c20ece65f362ee7c`.
+Thirteen module-load guards and ten workload RSS guards regressed in both
+runs. Datetime load and working peak were neutral in both runs. Textwrap and
+threading load improved with unchanged sources and remain unattributed.
+Outputs matched and no metric was unstable. Main and incumbent remain
+unchanged; source, stage and first verdict are preserved without an unchanged
+retry. CPU, timing and quietness were not checked.
+
+Corrected threading context-import, ipaddress local-binding, typing
+cache-metadata and tokenize deferred-grammar candidates have completed
+isolated correctness qualification. Decimal's immutable module export has
+passed its clean build, focused suite and full suite; fresh native
+qualification continues. Seven separate shared-helper immutable-export
+candidates have passed source review and await combined correctness
+qualification; SSL's builtin registration requires a legacy initializer and
+closed that scoped source hypothesis. Primary memory comparisons remain
+necessary; these checks establish no accepted memory improvement.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
