@@ -381,6 +381,17 @@ No target improved beyond the interval and floor. Native regression execution
 and full qualification remained unrun; the unchanged candidate is closed
 without acceptance or retry. CPU, timing and quietness were not checked.
 
+The same-meta-engine regex source-owner candidate at `3f977b2` passed
+clean58 and nine complete focused suites (810 run, 21 skipped, zero failures).
+The staged tree shrank by 21,213 bytes versus the accepted build; this is
+file size, not a residency result. Its first memory-only exploration
+**REJECTED**: `20261003T135537Z-perf-rust-vs-perf-r146`, verdict SHA256
+`1636a388ed9f6150d6071353b67e8cd1324193097f8c20c83a3da7ace095efe6`.
+Warnings load regressed (1.051x) in both runs; regex load and working peak
+and all 23 workload RSS rows were neutral. Supplemental Rust/Python fixtures
+and full qualification remained unrun. No unchanged retry or accepted memory
+change follows. CPU, timing and quietness were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
