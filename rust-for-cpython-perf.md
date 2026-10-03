@@ -349,6 +349,17 @@ guards regressed in both runs. Supplemental private Rust and Python fixtures
 remained unexecuted, and no full qualification or unchanged retry follows.
 No accepted memory goal changed. CPU, timing and quietness were not checked.
 
+The scoped 512 KiB arena candidate at `027a84d` passed clean58 and
+complete focused suites (2,033 run, 351 skipped, zero failures). Its first
+memory-only exploration **REJECTED**:
+`20261003T130133Z-perf-rust-vs-perf-a144`, verdict SHA256
+`57780fd588a9e62fddc612fbbfad63853a3a0c1258b81f7c62e3c77be6450fb9`.
+Asyncio and zstd load improved (0.978x and 0.900x), while logging working
+peak (1.793x) and zlib decoding RSS (1.012x) regressed in both runs.
+Native execution and full qualification remained unrun; no unchanged
+retry or accepted memory change follows. CPU, timing and quietness were
+not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
