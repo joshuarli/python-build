@@ -237,6 +237,20 @@ repeated growth. Same startup module names and same-length bytecode filename
 rewrites do not identify the owner of this difference. The original candidate
 rejection remains terminal; no historical ratio is corrected.
 
+External parked-child snapshots subsequently located an extra 192–208 KiB
+at startup before ctypes, with identical module sets; the changed Rust struct
+helper was absent from every recorded module set. A separate startup-only
+region diagnostic passed all process, source and stage checks. In that pair,
+candidate footprint was 128 KiB higher, matching extra dirty `Malloc Small`
+memory and default-zone fragmentation. Both maps displayed 2,087 default-zone
+allocations and 1,778 KiB allocated, with fragmentation 206 KiB versus
+334 KiB; these allocated-byte values are rounded. Other displayed region
+category totals matched. The saved report is
+`rust-cpython/results/startup-region-first-diagnostic/report.json`, SHA256
+`632b0ba1cf402a4f29314da958e985329c5702e59b85fb259a32477235208834`.
+This bounds a shared allocator hypothesis; it does not establish a general
+offset, identify individual allocation owners, or qualify any candidate.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
