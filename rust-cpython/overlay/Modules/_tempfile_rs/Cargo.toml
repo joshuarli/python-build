@@ -5,9 +5,6 @@ edition = "2024"
 rust-version.workspace = true
 license = "PSF-2.0"
 
-[features]
-static-module = []
-
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 
@@ -16,4 +13,4 @@ cpython-build-helper = { path = "../cpython-build-helper" }
 
 [lib]
 name = "_tempfile_rs"
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]

@@ -1,10 +1,9 @@
 //! Sequence choice and sampling through Python generator callbacks.
 //!
 //! Direct CPython declarations avoid adding a separate standard runtime
-//! to the extension. Standalone images own an aborting panic handler; the
-//! static-module route relies on its final carrier for the single panic
-//! implementation. Both routes use core only. Python owns sampling storage.
-#![no_std]
+//! to the extension. The builtin route uses the interpreter's existing
+//! Rust archive and panic runtime. Python owns all sampling allocations.
+#![cfg_attr(not(feature = "static-module"), no_std)]
 
 use core::cell::UnsafeCell;
 use core::ffi::{c_char, c_int, c_void};

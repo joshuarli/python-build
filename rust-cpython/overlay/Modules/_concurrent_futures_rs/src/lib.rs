@@ -1,8 +1,6 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_long, c_void};
-use core::ptr;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, Py_IS_TYPE, PyErr_Occurred, PyErr_SetString, PyExc_TypeError, Py_GetConstant,
@@ -16,19 +14,6 @@ use cpython_sys::{
 unsafe extern "C" {
     fn PyObject_RichCompare(left: *mut PyObject, right: *mut PyObject, op: c_int)
         -> *mut PyObject;
-}
-
-// A standalone extension owns its abort handler; a static carrier supplies
-// the panic runtime shared by its linked modules.
-#[cfg(not(feature = "static-module"))]
-unsafe extern "C" {
-    fn abort() -> !;
-}
-
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
 }
 
 const PY_EQ: c_int = 2;
@@ -289,7 +274,7 @@ unsafe extern "C" fn module_clear(module: *mut PyObject) -> c_int {
                 &mut (*names).add_exception,
                 &mut (*names).add_cancelled,
             ] {
-                let object = core::mem::replace(slot, ptr::null_mut());
+                let object = std::mem::replace(slot, ptr::null_mut());
                 if !object.is_null() {
                     Py_DecRef(object);
                 }
@@ -354,7 +339,7 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_concurrent_futures_rs".as_ptr() as *mut c_char,
     m_doc: c"Rust Future scheduling and result state transitions.".as_ptr() as *mut c_char,
-    m_size: core::mem::size_of::<State>() as Py_ssize_t,
+    m_size: std::mem::size_of::<State>() as Py_ssize_t,
     m_methods: METHODS.as_ptr() as *mut PyMethodDef,
     m_slots: SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
     m_traverse: None,

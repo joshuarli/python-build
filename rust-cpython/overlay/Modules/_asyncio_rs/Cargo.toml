@@ -5,10 +5,6 @@ edition = "2024"
 rust-version.workspace = true
 license = "PSF-2.0"
 
-[features]
-default = []
-static-module = []
-
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 
@@ -17,4 +13,4 @@ cpython-build-helper = { path = "../cpython-build-helper" }
 
 [lib]
 name = "_asyncio_rs"
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]

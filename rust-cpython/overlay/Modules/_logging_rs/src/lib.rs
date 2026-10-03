@@ -1,8 +1,6 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::ptr;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, PyErr_SetString, PyExc_TypeError, PyMethodDef,
@@ -106,17 +104,4 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__logging_rs() -> *mut PyObject {
     unsafe { PyModuleDef_Init(MODULE.0.get()) }
-}
-
-// Standalone extensions abort on panic; the aggregate supplies its own
-// handler when this module is linked with the static-module feature.
-#[cfg(not(feature = "static-module"))]
-unsafe extern "C" {
-    fn abort() -> !;
-}
-
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    unsafe { abort() }
 }

@@ -1,9 +1,7 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::ptr;
-use core::slice;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
+use std::slice;
 
 use cpython_sys::{
     METH_FASTCALL, METH_O, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, Py_DecRef,
@@ -12,14 +10,6 @@ use cpython_sys::{
     PyObject, PyObject_IsTrue, PyTuple_New, PyTuple_SetItem, PyUnicode_AsUTF8AndSize,
     PyUnicode_FromStringAndSize, Py_ssize_t, _Py_NoneStruct,
 };
-
-// A standalone extension owns its aborting panic path. A static carrier must
-// provide the single panic handler shared by all of its core-only helpers.
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { cpython_sys::Py_FatalError(c"panic in _codecs_rs".as_ptr()) }
-}
 
 const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
 
@@ -60,7 +50,7 @@ unsafe extern "C" fn decode_utf8(
         return ptr::null_mut();
     }
     let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), length as usize) };
-    let consumed = match core::str::from_utf8(bytes) {
+    let consumed = match std::str::from_utf8(bytes) {
         Ok(_) => bytes.len(),
         Err(error) if final_flag == 0 && error.error_len().is_none() => error.valid_up_to(),
         Err(_) => return none(),

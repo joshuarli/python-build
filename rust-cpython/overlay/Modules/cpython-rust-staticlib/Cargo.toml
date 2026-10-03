@@ -5,19 +5,19 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-_asyncio_rs = { path = "../_asyncio_rs", features = ["static-module"] }
-_bisect_rs = { path = "../_bisect_rs", features = ["static-module"] }
-_codecs_rs = { path = "../_codecs_rs", features = ["static-module"] }
-_concurrent_futures_rs = { path = "../_concurrent_futures_rs", features = ["static-module"] }
-_contextlib_rs = { path = "../_contextlib_rs", features = ["static-module"] }
-_heapq_rs = { path = "../_heapq_rs", features = ["static-module"] }
-_html_parser_rs = { path = "../_html_parser_rs", features = ["static-module"] }
-_itertools_rs = { path = "../_itertools_rs", features = ["static-module"] }
-_posixpath_rs = { path = "../_posixpath_rs", features = ["static-module"] }
+_asyncio_rs = { path = "../_asyncio_rs" }
+_base64 = { path = "../_base64" }
+_bisect_rs = { path = "../_bisect_rs" }
+_codecs_rs = { path = "../_codecs_rs" }
+_concurrent_futures_rs = { path = "../_concurrent_futures_rs" }
+_contextlib_rs = { path = "../_contextlib_rs" }
+_heapq_rs = { path = "../_heapq_rs" }
+_html_parser_rs = { path = "../_html_parser_rs" }
+_itertools_rs = { path = "../_itertools_rs" }
+_posixpath_rs = { path = "../_posixpath_rs" }
 _random_rs = { path = "../_random_rs", features = ["static-module"] }
-_ssl_rs = { path = "../_ssl_rs", features = ["static-module"] }
-_tempfile_rs = { path = "../_tempfile_rs", features = ["static-module"] }
-cpython-sys = { path = "../cpython-sys" }
+_ssl_rs = { path = "../_ssl_rs" }
+_tempfile_rs = { path = "../_tempfile_rs" }
 
 [lib]
 name = "cpython_rust_staticlib"

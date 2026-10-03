@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024"
 rust-version.workspace = true
 
-[features]
-static-module = []
-
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 
@@ -15,4 +12,4 @@ cpython-build-helper = { path = "../cpython-build-helper" }
 
 [lib]
 name = "_concurrent_futures_rs"
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]

@@ -1,8 +1,6 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_long, c_void};
-use core::ptr;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, PyBool_FromLong, Py_DecRef, PyErr_Occurred, PyErr_SetNone, PyErr_SetString,
@@ -513,13 +511,4 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__itertools_rs() -> *mut PyObject {
     unsafe { PyModuleDef_Init(MODULE.0.get()) }
-}
-
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    unsafe extern "C" {
-        fn abort() -> !;
-    }
-    unsafe { abort() }
 }

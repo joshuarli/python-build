@@ -1,16 +1,6 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::ptr;
-
-// The shared carrier supplies its panic handler; standalone failures terminate
-// through CPython rather than unwinding across request callbacks.
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    unsafe { cpython_sys::Py_FatalError(c"panic in _urllib_request_rs".as_ptr()) }
-}
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::Py_DecRef;
@@ -76,7 +66,7 @@ unsafe fn call(callable: *mut PyObject, args: &[*mut PyObject]) -> *mut PyObject
 
 unsafe fn call_method(
     receiver: *mut PyObject,
-    name: &'static core::ffi::CStr,
+    name: &'static std::ffi::CStr,
     args: &[*mut PyObject],
 ) -> *mut PyObject {
     let method = unsafe { PyObject_GetAttrString(receiver, name.as_ptr()) };
@@ -90,9 +80,9 @@ unsafe fn call_method(
 
 unsafe fn call_processor_chain(
     director: *mut PyObject,
-    collection_name: &'static core::ffi::CStr,
+    collection_name: &'static std::ffi::CStr,
     protocol: *mut PyObject,
-    suffix: &'static core::ffi::CStr,
+    suffix: &'static std::ffi::CStr,
     request: *mut PyObject,
     mut response: *mut PyObject,
 ) -> *mut PyObject {

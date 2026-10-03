@@ -1,22 +1,12 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_long, c_void};
-use core::ptr;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ptr;
 
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, PyErr_Occurred, PyErr_SetString, PyExc_TypeError, PyMethodDef,
     PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init,
     PyModuleDef_Slot, PyObject, Py_NewRef, Py_ssize_t, _Py_NoneStruct,
 };
-
-// A standalone extension owns its aborting panic path. A static carrier must
-// provide the single panic handler shared by its core-only helpers.
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { cpython_sys::Py_FatalError(c"panic in _collections_rs".as_ptr()) }
-}
 
 unsafe extern "C" {
     fn PyObject_GetIter(object: *mut PyObject) -> *mut PyObject;
@@ -27,7 +17,7 @@ unsafe extern "C" {
         object: *mut PyObject,
         key: *mut PyObject,
         value: *mut PyObject,
-    ) -> core::ffi::c_int;
+    ) -> std::ffi::c_int;
     fn PyLong_FromLong(value: c_long) -> *mut PyObject;
 }
 

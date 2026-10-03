@@ -1,24 +1,11 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_long, c_void};
-use core::ptr;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ptr;
 
 use cpython_sys::{
     PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyModuleDef_Slot,
     PyModule_AddObject, PyObject, Py_DecRef,
 };
-
-// The static carrier owns its panic handler; a standalone extension terminates
-// the process on panic rather than unwinding through a C callback boundary.
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    unsafe extern "C" {
-        fn abort() -> !;
-    }
-    unsafe { abort() }
-}
 
 const TLS_HANDSHAKE: c_int = 0;
 const TLS_READ: c_int = 1;

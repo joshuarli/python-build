@@ -1,10 +1,8 @@
-#![no_std]
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::mem::MaybeUninit;
-use core::ptr;
-use core::slice;
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::mem::MaybeUninit;
+use std::ptr;
+use std::slice;
 
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::METH_O;
@@ -31,19 +29,6 @@ use cpython_sys::Py_ssize_t;
 
 unsafe extern "C" {
     fn PyOS_FSPath(object: *mut PyObject) -> *mut PyObject;
-}
-
-#[cfg(not(feature = "static-module"))]
-unsafe extern "C" {
-    fn abort() -> !;
-}
-
-// Standalone extensions abort on panic; the interpreter archive supplies
-// its own panic handler when this module is linked into the builtin carrier.
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
 }
 
 /// Path units that fit in the on-stack scratch buffer; longer paths borrow
@@ -379,7 +364,7 @@ unsafe fn argument(args: *mut *mut PyObject, index: usize) -> *mut PyObject {
     unsafe { *args.add(index) }
 }
 
-fn type_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { cpython_sys::PyErr_SetString(cpython_sys::PyExc_TypeError, message.as_ptr()) };
     ptr::null_mut()
 }
