@@ -82,6 +82,29 @@ were not checked. No improvement was accepted; main and incumbent remain
 unchanged. Sources, stages and the first verdict remain preserved, with no
 unchanged retry authorized.
 
+Source95's first and only primary memory comparison **REJECTED**:
+`20261003T001010Z-perf-rust-vs-perf-cp95`, verdict SHA256
+`0a7bfcdd1a88347610c7c8e7e81dd506d04cd4c6e7de26435b81f37c9a93a02d`.
+The two-run rigorous all-71/all-23 memory-only comparison used matched
+prefixes and executables. Eighteen module-load guards regressed; every
+working peak and all 23 workload RSS rows were neutral. Decimal load
+improved to 0.793x, but the batch remains unaccepted. The observed textwrap,
+threading and typing improvements are not attributed to the three new helper
+implementations. Outputs matched and no metric was unstable. The clean
+58-extension build, full suite (50,158 run, 2,748 skipped, zero failures),
+88 supplemental behavioral units and 35 artifact checks passed. Preserved
+controller preparation failures did not launch duplicate target tests.
+CPU, timing and quietness were not checked. Main and incumbent remain
+unchanged; the source, stage and first verdict remain preserved without
+an unchanged retry.
+
+The next candidate isolates those three helper implementations from the
+rejected common-binding and carrier changes. Source101 passed independent
+source and lock review at `bc82da1`: only binascii, decimal, hashlib and
+their three local lock dependency lists differ from the accepted overlay.
+Fresh primary builds, correctness qualification and a first memory comparison
+are still required; source review establishes no memory improvement.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
