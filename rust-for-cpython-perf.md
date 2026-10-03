@@ -360,6 +360,17 @@ Native execution and full qualification remained unrun; no unchanged
 retry or accepted memory change follows. CPU, timing and quietness were
 not checked.
 
+The standalone StringIO zero-truncation candidate at `1cdf701` passed
+clean58 and complete I/O, logging, pickle and codecs suites (2,693 run,
+93 skipped, zero failures). Its first memory-only exploration **REJECTED**:
+`20261003T132012Z-perf-rust-vs-perf-i143`, verdict SHA256
+`4068c6171e8013103b80b87713f0ca92e6ad95f4a6ea32d8f9df0ea0135d033a`.
+Logging working peak improved to 0.571x in both runs, but six workload RSS
+guards regressed in both runs. The allocation regression fixtures and full
+qualification remained unrun. Source and inert runner evidence are preserved;
+no unchanged retry or accepted memory change follows. CPU, timing and
+quietness were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
