@@ -39,6 +39,87 @@ builds, correctness and RSS measurements use the perf host lease. A change
 to the performance harness requires fresh memory-only calibration before
 comparison.
 
+### Mimalloc experiment closed by the user (2026-10-03)
+
+The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
+`5a6129def99f135082bf575bc38a891c5c08d849` routed Rust heap fallbacks through
+one versioned, typed API to CPython's existing bundled mimalloc 2.1.2,
+preserving Python's allocator defaults and the existing Rust scratch arenas.
+It introduced no new native dependency or production change.
+
+The clean 58-extension build passed. Eleven complete focused suites ran
+2,417 tests with 371 skips; the full suite ran 50,158 tests with 2,791 skips
+and zero failures. The **43 additional individual skips remain unexplained**;
+this is not full correctness qualification. Provider lifecycle, cross-image
+ownership and allocator fixtures were prepared but not executed.
+
+After exact current-harness alignment, self-calibration
+`20261003T185634Z-calibrate-perf-mi150` passed for four modules and all 23
+workloads. Its first and only two-run exploratory comparison,
+`20261003T190116Z-perf-rust-vs-perf-mi150`, **REJECTED** four replicated memory
+regressions:
+
+| Memory guard | Candidate / incumbent |
+| --- | --- |
+| `bz2` load footprint | 1.082478x |
+| `difflib_unified_reordered` peak RSS | 1.015319x |
+| `gzip_extract_1m` peak RSS | 1.012620x |
+| `zlib_decode_1m` peak RSS | 1.012046x |
+
+No metric improved, outputs matched, and no metric was unstable. Both runs
+used the current `f741f178` harness, standard sampling, memory-only verdicts
+and matched prefixes/executable paths. CPU, timing and quietness were not
+requirements. Verdict SHA256 is
+`ff55e58e190e7882d2e0018bac5930afd549b2c703a635df472e3fbf43cb28b0`;
+independent saved-output audit SHA256 is
+`a9c0faa1f4a87d83b9e5f344667efc07631b23bd8b5086f785fb86012788057c`.
+These observations establish the rejection, without attributing the
+regressions to a particular allocator mechanism.
+
+Two supporting host-only preparations needed corrections: an initially
+incomplete input-pin closure was fixed before execution; the first executed
+capture failed because the configured Makefile has no `SYSCONFIGDATA_NAME`
+variable. The corrected capture derived the installed filename from the
+actual install rule and passed its source/resource/stage equality checks.
+This qualifies that capture only, not the provider's native behavior.
+
+The separate zstd-only callback candidate `7ca960bfb3f5dc2e94dfa03ee397f72cc9a71e87`
+passed source review and setup/doctor checks. Its clean build was interrupted
+at the user's cancellation and exited 130; no correctness suites or memory
+comparison ran. It has no measured rejection or memory benefit.
+
+The user ended all mimalloc work. Paired skip diagnostics, provider native
+qualification, zstd callbacks, page-extension tuning and further experiments
+are canceled. Sources, reviews and actual receipts remain preserved; no
+mimalloc change was accepted or integrated, and memory goals remain open.
+
+### Other closed memory experiments (2026-10-03)
+
+Inspect source `dbf4f19e4cc929aef29e9b34118ee899a7edbeba` deferred
+`importlib.machinery` with a lazy import. Its clean build, nine affected
+complete suites (4,325 tests, 26 skips) and five targeted fixtures passed.
+Fresh self-calibration passed. The first two-run memory-only exploration,
+`20261003T183154Z-perf-rust-vs-perf-im151`, rejected seven replicated workload
+RSS regressions: compileall, both difflib workloads, gzip extraction, small
+base64, zlib decoding and zlib streaming. Inspect load (0.989x) and working
+peak (1.000x) were neutral; no metric improved. Verdict SHA256 is
+`73305de145a5d6043d3e2939489a4eb7a513a95d326a97d2829393fa4849f9f4`.
+The source and receipts are preserved, with no unchanged retry, full-suite
+qualification or integration.
+
+The unchanged regex scratch-arena experiment with a shared abort-strategy
+Rust standard library also closed. Both matched driver cases passed all
+1,023 lifetime/local checks and exited cleanly. The static control's
+non-inline `std::env::current_dir` allocation stayed in its scratch arena;
+the shared case's allocation was outside that arena, with the caller address
+in the canonical shared library. This fails the preserved allocation-domain
+requirement for that tested caller. Symbol/load observers and the final
+runtime receipts passed independent audit
+`15251852f72146a9141cfa0bae64d43fb254649f9da0b8318f9bc85969306b85`.
+No memory measurement ran, and this result does not establish every caller's
+allocator behavior. No retry or allocator redirection follows this candidate.
+The independent static-carrier experiment remains open.
+
 The first all-71/all-23 memory-only gates for source75 (`perf-co75`),
 source76 (`perf-al76`) and source79 (`perf-se79`) rejected their candidates
 after clean release builds and complete correctness suites. Source79's
@@ -469,7 +550,7 @@ replays plus a copy of their generated shared-extension directory passed
 48 native checks and all 50 child-process completion records. These prove
 correctness; neither candidate has a primary memory measurement yet.
 
-A separate private, pinned-source Rust standard library emitted canonical
+An earlier private, pinned-source Rust standard library emitted canonical
 Cargo-owned abort-strategy `dylib` and `rlib` artifacts. The shared library
 SHA256 is `2e04de6fbe46ffd0285bd8362ec6e623f1d5ab548e3247510e4229ee2ae5b7a6`;
 its closure is 19 target libraries / 39 files plus four host scripts.
@@ -477,9 +558,9 @@ A first default-System consumer compiled with eight actual shared-library
 import bindings. Three bounded runtime children passed buffer ownership,
 concurrent thread calls and cross-thread handoff, with loaded-image and
 resolved-pointer ownership checks and captured successful completion.
-Custom-allocator routing, builtin coexistence, relocation/signing and memory
-savings remain unqualified. A separate custom-allocator compiler diagnostic
-is source-only and unbound; no compiler or runtime has executed it.
+Builtin coexistence, relocation/signing and memory savings were unqualified
+by those early checks. The later unchanged-arena experiment is closed with
+the allocation-domain failure recorded above.
 
 Doctor/status passed on the2026-09-30 resumption. The verified incumbent remains `7cf55a6`
 (clean58, full50,158/2,748) and its overlay matches documentation HEAD
