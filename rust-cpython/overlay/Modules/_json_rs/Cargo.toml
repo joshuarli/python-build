@@ -5,6 +5,9 @@ edition = "2024"
 rust-version.workspace = true
 license = "MIT"
 
+[dependencies]
+cpython-sys = { path = "../cpython-sys" }
+
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }
 

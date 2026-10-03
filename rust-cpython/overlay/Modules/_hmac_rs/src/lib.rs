@@ -1,39 +1,36 @@
-#![no_std]
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int, c_void};
+use std::mem::MaybeUninit;
+use std::ptr;
+use std::slice;
+use std::str;
 
-mod ffi;
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
-use core::mem::{MaybeUninit, align_of, size_of};
-use core::ptr;
-use core::slice;
-
-use ffi::METH_O;
-use ffi::METH_VARARGS;
-use ffi::PyCapsule_GetPointer;
-use ffi::PyCapsule_IsValid;
-use ffi::PyCapsule_New;
-use ffi::PyErr_Clear;
-use ffi::PyErr_NoMemory;
-use ffi::PyErr_SetString;
-use ffi::PyExc_TypeError;
-use ffi::PyExc_ValueError;
-use ffi::PyBytes_FromStringAndSize;
-use ffi::Py_IncRef;
-use ffi::Py_buffer;
-use ffi::PyBuffer_Release;
-use ffi::PyMethodDef;
-use ffi::PyMethodDefFuncPointer;
-use ffi::PyModuleDef;
-use ffi::PyModuleDef_HEAD_INIT;
-use ffi::PyModuleDef_Init;
-use ffi::PyObject;
-use ffi::PyObject_GetBuffer;
-use ffi::PyTuple_GetItem;
-use ffi::PyTuple_Size;
-use ffi::PyUnicode_AsUTF8AndSize;
-use ffi::PyUnicode_FromStringAndSize;
-use ffi::Py_ssize_t;
+use cpython_sys::METH_O;
+use cpython_sys::METH_VARARGS;
+use cpython_sys::PyCapsule_GetPointer;
+use cpython_sys::PyCapsule_IsValid;
+use cpython_sys::PyCapsule_New;
+use cpython_sys::PyErr_Clear;
+use cpython_sys::PyErr_NoMemory;
+use cpython_sys::PyErr_SetString;
+use cpython_sys::PyExc_TypeError;
+use cpython_sys::PyExc_ValueError;
+use cpython_sys::PyBytes_FromStringAndSize;
+use cpython_sys::Py_IncRef;
+use cpython_sys::Py_buffer;
+use cpython_sys::PyBuffer_Release;
+use cpython_sys::PyMethodDef;
+use cpython_sys::PyMethodDefFuncPointer;
+use cpython_sys::PyModuleDef;
+use cpython_sys::PyModuleDef_HEAD_INIT;
+use cpython_sys::PyModuleDef_Init;
+use cpython_sys::PyObject;
+use cpython_sys::PyObject_GetBuffer;
+use cpython_sys::PyTuple_GetItem;
+use cpython_sys::PyTuple_Size;
+use cpython_sys::PyUnicode_AsUTF8AndSize;
+use cpython_sys::PyUnicode_FromStringAndSize;
+use cpython_sys::Py_ssize_t;
 
 use hmac::{Hmac, KeyInit, Mac, SimpleHmac};
 use md5::Md5;
@@ -42,7 +39,7 @@ use sha2::{Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256};
 use sha3::{Sha3_224, Sha3_256, Sha3_384, Sha3_512};
 
 const PYBUF_SIMPLE: c_int = 0;
-const CAPSULE_NAME: &core::ffi::CStr = c"_hmac_rs.HMACState";
+const CAPSULE_NAME: &std::ffi::CStr = c"_hmac_rs.HMACState";
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
 #[derive(Clone)]
@@ -62,24 +59,24 @@ enum HmacState {
 }
 
 impl HmacState {
-    fn new(name: &[u8], key: &[u8]) -> Option<Self> {
+    fn new(name: &str, key: &[u8]) -> Option<Self> {
         match name {
-            b"md5" => Hmac::<Md5>::new_from_slice(key).ok().map(Self::Md5),
-            b"sha1" => Hmac::<Sha1>::new_from_slice(key).ok().map(Self::Sha1),
-            b"sha224" => Hmac::<Sha224>::new_from_slice(key).ok().map(Self::Sha224),
-            b"sha256" => Hmac::<Sha256>::new_from_slice(key).ok().map(Self::Sha256),
-            b"sha384" => Hmac::<Sha384>::new_from_slice(key).ok().map(Self::Sha384),
-            b"sha512" => Hmac::<Sha512>::new_from_slice(key).ok().map(Self::Sha512),
-            b"sha512_224" => Hmac::<Sha512_224>::new_from_slice(key)
+            "md5" => Hmac::<Md5>::new_from_slice(key).ok().map(Self::Md5),
+            "sha1" => Hmac::<Sha1>::new_from_slice(key).ok().map(Self::Sha1),
+            "sha224" => Hmac::<Sha224>::new_from_slice(key).ok().map(Self::Sha224),
+            "sha256" => Hmac::<Sha256>::new_from_slice(key).ok().map(Self::Sha256),
+            "sha384" => Hmac::<Sha384>::new_from_slice(key).ok().map(Self::Sha384),
+            "sha512" => Hmac::<Sha512>::new_from_slice(key).ok().map(Self::Sha512),
+            "sha512_224" => Hmac::<Sha512_224>::new_from_slice(key)
                 .ok()
                 .map(Self::Sha512_224),
-            b"sha512_256" => Hmac::<Sha512_256>::new_from_slice(key)
+            "sha512_256" => Hmac::<Sha512_256>::new_from_slice(key)
                 .ok()
                 .map(Self::Sha512_256),
-            b"sha3_224" => SimpleHmac::<Sha3_224>::new_from_slice(key).ok().map(Self::Sha3_224),
-            b"sha3_256" => SimpleHmac::<Sha3_256>::new_from_slice(key).ok().map(Self::Sha3_256),
-            b"sha3_384" => SimpleHmac::<Sha3_384>::new_from_slice(key).ok().map(Self::Sha3_384),
-            b"sha3_512" => SimpleHmac::<Sha3_512>::new_from_slice(key).ok().map(Self::Sha3_512),
+            "sha3_224" => SimpleHmac::<Sha3_224>::new_from_slice(key).ok().map(Self::Sha3_224),
+            "sha3_256" => SimpleHmac::<Sha3_256>::new_from_slice(key).ok().map(Self::Sha3_256),
+            "sha3_384" => SimpleHmac::<Sha3_384>::new_from_slice(key).ok().map(Self::Sha3_384),
+            "sha3_512" => SimpleHmac::<Sha3_512>::new_from_slice(key).ok().map(Self::Sha3_512),
             _ => None,
         }
     }
@@ -101,28 +98,20 @@ impl HmacState {
         }
     }
 
-    fn digest(&self, output: &mut [u8; 64]) -> usize {
-        macro_rules! finalize {
-            ($mac:expr) => {{
-                let digest = $mac.clone().finalize().into_bytes();
-                let size = digest.len();
-                output[..size].copy_from_slice(&digest);
-                size
-            }};
-        }
+    fn digest(&self) -> Vec<u8> {
         match self {
-            Self::Md5(mac) => finalize!(mac),
-            Self::Sha1(mac) => finalize!(mac),
-            Self::Sha224(mac) => finalize!(mac),
-            Self::Sha256(mac) => finalize!(mac),
-            Self::Sha384(mac) => finalize!(mac),
-            Self::Sha512(mac) => finalize!(mac),
-            Self::Sha512_224(mac) => finalize!(mac),
-            Self::Sha512_256(mac) => finalize!(mac),
-            Self::Sha3_224(mac) => finalize!(mac),
-            Self::Sha3_256(mac) => finalize!(mac),
-            Self::Sha3_384(mac) => finalize!(mac),
-            Self::Sha3_512(mac) => finalize!(mac),
+            Self::Md5(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha1(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha224(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha256(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha384(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha512(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha512_224(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha512_256(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha3_224(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha3_256(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha3_384(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sha3_512(mac) => mac.clone().finalize().into_bytes().to_vec(),
         }
     }
 }
@@ -156,19 +145,17 @@ impl Drop for BorrowedBuffer {
     }
 }
 
-fn set_type_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn set_type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
     ptr::null_mut()
 }
 
-fn set_value_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn set_value_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) };
     ptr::null_mut()
 }
 
-// The caller retains the arguments tuple, including this immutable Unicode
-// object, until all borrowed key/data buffers have been released.
-unsafe fn read_name<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
+unsafe fn read_name(object: *mut PyObject) -> Option<String> {
     let mut size: Py_ssize_t = 0;
     let name = unsafe { PyUnicode_AsUTF8AndSize(object, &mut size) };
     if name.is_null() {
@@ -179,7 +166,8 @@ unsafe fn read_name<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
         return None;
     }
     let bytes = unsafe { slice::from_raw_parts(name.cast::<u8>(), size as usize) };
-    Some(bytes)
+    let name = unsafe { str::from_utf8_unchecked(bytes) };
+    Some(name.to_owned())
 }
 
 unsafe fn tuple_item(args: *mut PyObject, index: Py_ssize_t, count: Py_ssize_t) -> Option<*mut PyObject> {
@@ -210,49 +198,14 @@ unsafe extern "C" fn destroy_state(capsule: *mut PyObject) {
     }
     let pointer = unsafe { PyCapsule_GetPointer(capsule, CAPSULE_NAME.as_ptr()) };
     if !pointer.is_null() {
-        unsafe { free_state(pointer.cast::<HmacState>()) };
+        unsafe { drop(Box::from_raw(pointer.cast::<HmacState>())) };
     } else {
         unsafe { PyErr_Clear() };
     }
 }
 
-// System's allocator uses malloc/free for these nonzero, normally aligned
-// states on the supported 64-bit macOS and Linux targets. Keep its infallible
-// Box allocation contract: exhaustion aborts rather than setting a Python error.
-const _: () = assert!(size_of::<usize>() == 8);
-const _: () = assert!(size_of::<HmacState>() > 0 && align_of::<HmacState>() <= 16);
-
-#[cfg_attr(target_os = "macos", link(name = "System"))]
-#[cfg_attr(target_os = "linux", link(name = "c"))]
-unsafe extern "C" {
-    fn malloc(size: usize) -> *mut c_void;
-    fn free(pointer: *mut c_void);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-    unsafe { abort() }
-}
-
-fn allocate_state(state: HmacState) -> *mut HmacState {
-    let pointer = unsafe { malloc(size_of::<HmacState>()) }.cast::<HmacState>();
-    if pointer.is_null() {
-        unsafe { abort() }
-    }
-    unsafe { pointer.write(state) };
-    pointer
-}
-
-unsafe fn free_state(pointer: *mut HmacState) {
-    // Preserve the crypto states' existing destruction and zeroize features
-    // before releasing their storage.
-    unsafe { ptr::drop_in_place(pointer) };
-    unsafe { free(pointer.cast::<c_void>()) };
-}
-
 fn make_capsule(state: HmacState) -> *mut PyObject {
-    let pointer = allocate_state(state);
+    let pointer = Box::into_raw(Box::new(state));
     let capsule = unsafe {
         PyCapsule_New(
             pointer.cast::<c_void>(),
@@ -261,7 +214,7 @@ fn make_capsule(state: HmacState) -> *mut PyObject {
         )
     };
     if capsule.is_null() {
-        unsafe { free_state(pointer) };
+        unsafe { drop(Box::from_raw(pointer)) };
     }
     capsule
 }
@@ -279,7 +232,7 @@ unsafe fn new_impl(args: *mut PyObject) -> *mut PyObject {
     let Some(key) = (unsafe { BorrowedBuffer::from_object(key_object) }) else {
         return ptr::null_mut();
     };
-    let Some(state) = HmacState::new(name, key.bytes()) else {
+    let Some(state) = HmacState::new(&name, key.bytes()) else {
         return set_value_error(c"unsupported HMAC digest");
     };
     make_capsule(state)
@@ -322,23 +275,25 @@ unsafe fn digest_impl(state_object: *mut PyObject) -> *mut PyObject {
     let Some(state) = (unsafe { get_state(state_object) }) else {
         return ptr::null_mut();
     };
-    let mut result = [0u8; 64];
-    let size = unsafe { &*state }.digest(&mut result);
-    bytes_from_slice(&result[..size])
+    let result = unsafe { &*state }.digest();
+    bytes_from_slice(&result)
 }
 
 unsafe fn hexdigest_impl(state_object: *mut PyObject) -> *mut PyObject {
     let Some(state) = (unsafe { get_state(state_object) }) else {
         return ptr::null_mut();
     };
-    let mut result = [0u8; 64];
-    let size = unsafe { &*state }.digest(&mut result);
-    let mut hex = [0u8; 128];
-    for (index, byte) in result[..size].iter().copied().enumerate() {
-        hex[index * 2] = HEX[(byte >> 4) as usize];
-        hex[index * 2 + 1] = HEX[(byte & 0x0f) as usize];
+    let result = unsafe { &*state }.digest();
+    let mut hex = Vec::with_capacity(result.len() * 2);
+    for byte in result {
+        hex.push(HEX[(byte >> 4) as usize]);
+        hex.push(HEX[(byte & 0x0f) as usize]);
     }
-    unsafe { PyUnicode_FromStringAndSize(hex.as_ptr().cast::<c_char>(), (size * 2) as Py_ssize_t) }
+    if hex.len() > Py_ssize_t::MAX as usize {
+        unsafe { PyErr_NoMemory() };
+        return ptr::null_mut();
+    }
+    unsafe { PyUnicode_FromStringAndSize(hex.as_ptr().cast::<c_char>(), hex.len() as Py_ssize_t) }
 }
 
 unsafe fn compute_digest_impl(args: *mut PyObject) -> *mut PyObject {
@@ -360,13 +315,12 @@ unsafe fn compute_digest_impl(args: *mut PyObject) -> *mut PyObject {
     let Some(data) = (unsafe { BorrowedBuffer::from_object(data_object) }) else {
         return ptr::null_mut();
     };
-    let Some(mut state) = HmacState::new(name, key.bytes()) else {
+    let Some(mut state) = HmacState::new(&name, key.bytes()) else {
         return set_value_error(c"unsupported HMAC digest");
     };
     state.update(data.bytes());
-    let mut result = [0u8; 64];
-    let size = state.digest(&mut result);
-    bytes_from_slice(&result[..size])
+    let result = state.digest();
+    bytes_from_slice(&result)
 }
 
 unsafe extern "C" fn new(
