@@ -434,9 +434,7 @@ def namedtuple(typename, field_names, *, rename=False, defaults=None, module=Non
         arg_list += ','
     repr_fmt = '(' + ', '.join(f'{name}=%r' for name in field_names) + ')'
     tuple_new = tuple.__new__
-    # Freeze callable bindings when the type is created. Sharing one immutable
-    # tuple keeps each method from retaining a separate cell for each callable.
-    method_bindings = tuple_new, dict, tuple, len, map, zip
+    _dict, _tuple, _len, _map, _zip = dict, tuple, len, map, zip
 
     # Create all the named tuple methods to be added to the class namespace
 
@@ -454,8 +452,8 @@ def namedtuple(typename, field_names, *, rename=False, defaults=None, module=Non
 
     @classmethod
     def _make(cls, iterable):
-        result = method_bindings[0](cls, iterable)
-        if method_bindings[3](result) != num_fields:
+        result = tuple_new(cls, iterable)
+        if _len(result) != num_fields:
             raise TypeError(f'Expected {num_fields} arguments, got {len(result)}')
         return result
 
@@ -463,7 +461,7 @@ def namedtuple(typename, field_names, *, rename=False, defaults=None, module=Non
                               'or iterable')
 
     def _replace(self, /, **kwds):
-        result = self._make(method_bindings[4](kwds.pop, field_names, self))
+        result = self._make(_map(kwds.pop, field_names, self))
         if kwds:
             raise TypeError(f'Got unexpected field names: {list(kwds)!r}')
         return result
@@ -477,11 +475,11 @@ def namedtuple(typename, field_names, *, rename=False, defaults=None, module=Non
 
     def _asdict(self):
         'Return a new dict which maps field names to their values.'
-        return method_bindings[1](method_bindings[5](self._fields, self))
+        return _dict(_zip(self._fields, self))
 
     def __getnewargs__(self):
         'Return self as a plain tuple.  Used by copy and pickle.'
-        return method_bindings[2](self)
+        return _tuple(self)
 
     # Modify function metadata to help with introspection and debugging
     for method in (

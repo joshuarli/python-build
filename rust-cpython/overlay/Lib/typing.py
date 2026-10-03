@@ -403,14 +403,12 @@ def _tp_cache(func=None, /, *, typed=False):
     For non-hashable arguments, the original function is used as a fallback.
     """
     def decorator(func):
-        # Keep the LRU reference in the module dictionary rather than in
-        # inner's closure, so an extension retaining types cannot keep that
-        # closure-to-cache reference cycle alive.
+        # The callback 'inner' references the newly created lru_cache
+        # indirectly by performing a lookup in the global '_caches' dictionary.
+        # This breaks a reference that can be problematic when combined with
+        # C API extensions that leak references to types. See GH-98253.
 
-        # The public inner function carries the original metadata. This
-        # private callable needs only the cache operations and user function,
-        # so it does not retain a second metadata dictionary and parameter closure.
-        cache = functools._lru_cache_wrapper(func, 128, typed, functools._CacheInfo)
+        cache = functools.lru_cache(typed=typed)(func)
         _caches[func] = cache
         _cleanups.append(cache.cache_clear)
         del cache

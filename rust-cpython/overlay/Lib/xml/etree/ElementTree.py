@@ -129,7 +129,7 @@ def _rust_parse(data):
     return target.close()
 
 
-lazy from . import ElementPath
+from . import ElementPath
 
 
 class ParseError(SyntaxError):

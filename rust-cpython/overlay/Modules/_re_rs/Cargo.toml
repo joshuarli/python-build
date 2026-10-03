@@ -7,9 +7,7 @@ rust-version.workspace = true
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 regex-syntax = { version = "=0.8.11", default-features = false, features = ["std"] }
-# Keep every matching engine, while allowing shared dispatch functions to stay
-# out of line instead of forcing their code into each calling search path.
-regex = { version = "=1.13.1", default-features = false, features = ["std", "perf-cache", "perf-dfa", "perf-onepass", "perf-backtrack", "perf-literal"] }
+regex = { version = "=1.13.1", default-features = false, features = ["std", "perf"] }
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }

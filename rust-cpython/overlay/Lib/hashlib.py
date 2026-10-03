@@ -79,9 +79,8 @@ __block_openssl_constructor = {
     'blake2b', 'blake2s',
 }
 
-# Only fixed import names and canonical native context names reach this table.
-_rust_hash_algorithms = ('md5', 'sha1', 'sha224', 'sha256',
-                         'sha384', 'sha512')
+_rust_hash_algorithms = frozenset({'md5', 'sha1', 'sha224', 'sha256',
+                                  'sha384', 'sha512'})
 _rust_hash_module = None
 
 

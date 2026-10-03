@@ -3,30 +3,18 @@
 //!
 //! Nothing here allocates through Rust: the output buffer is the result
 //! `bytes`, the writer's reference table and the reader's reference list use
-//! Python's allocator, and no path can panic or unwind, which keeps Rust's
-//! allocator and panic runtime out of the extension image.
+//! Python's allocator. The standalone extension uses core and local CPython
+//! declarations; its aborting panic handler never unwinds across the C ABI.
 
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
-use std::ptr;
-use std::slice;
+#![no_std]
 
-use cpython_sys::{
-    PyBool_Type, PyBytes_FromStringAndSize, PyBytes_Type, PyCapsule_New, PyComplex_FromDoubles,
-    PyComplex_ImagAsDouble, PyComplex_RealAsDouble, PyComplex_Type, PyCode_Type, Py_DecRef,
-    Py_IncRef, PyDict_New, PyDict_Next, PyDict_SetItem, PyDict_Type, PyErr_Clear, PyErr_Occurred,
-    PyFloat_FromDouble, PyFloat_Type, PyFrozenSet_New, PyFrozenSet_Type,
-    PyIter_Next, PyList_Append, PyList_GetItem, PyList_New, PyList_SetItem, PyList_Sort,
-    PyList_Type, PyLong_AsLongLongAndOverflow, PyLong_Export, PyLong_FreeExport,
-    PyLong_FromLongLong, PyLong_GetNativeLayout, PyLong_Type, PyLongExport, PyLongWriter_Create,
-    PyLongWriter_Discard, PyLongWriter_Finish, PyMem_Calloc, PyMem_Free, PyMem_Realloc, PyModule_Add,
-    PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyModuleDef_Slot, PyObject,
-    PyObject_GetIter, PyObject_IsTrue, PySet_Add, PySet_New, PySet_Type, PyTuple_GetItem,
-    PyTuple_New, PyTuple_SetItem, PyTuple_Type, PyTypeObject, PyUnicode_AsEncodedString,
-    PyUnicode_DecodeUTF8, PyUnicode_InternInPlace, PyUnicode_Type, Py_ssize_t, _Py_NoneStruct,
-    _PyBytes_Resize, _object, PyFloatObject, PyListObject, PyTupleObject, PyVarObject, _longobject,
-};
-use cpython_sys::{PyBytes_AsString, PyBytes_Size, PyList_Size};
+use core::ffi::{c_char, c_int, c_void};
+use core::mem::MaybeUninit;
+use core::ptr;
+use core::slice;
+
+mod ffi;
+use ffi::*;
 
 const FLAG_REF: u8 = 0x80;
 const MAX_DEPTH: usize = 128;
@@ -71,7 +59,7 @@ impl PyRef {
 
     fn into_raw(self) -> *mut PyObject {
         let value = self.0;
-        std::mem::forget(self);
+        core::mem::forget(self);
         value
     }
 }
@@ -268,7 +256,7 @@ impl Encoder {
         let old = self.slots;
         let old_size = if old.is_null() { 0 } else { self.mask + 1 };
         let size = if old_size == 0 { 64 } else { old_size * 2 };
-        let slots = unsafe { PyMem_Calloc(size, std::mem::size_of::<Slot>()) }.cast::<Slot>();
+        let slots = unsafe { PyMem_Calloc(size, core::mem::size_of::<Slot>()) }.cast::<Slot>();
         if slots.is_null() {
             return Err(());
         }
@@ -798,7 +786,7 @@ impl<'a> Decoder<'a> {
         }
         if index == self.capacity {
             let capacity = if self.capacity == 0 { 64 } else { self.capacity * 2 };
-            let bytes = capacity * std::mem::size_of::<*mut PyObject>();
+            let bytes = capacity * core::mem::size_of::<*mut PyObject>();
             let grown = unsafe { PyMem_Realloc(self.references.cast::<c_void>(), bytes) };
             if grown.is_null() {
                 return Err(());
@@ -965,7 +953,7 @@ impl<'a> Decoder<'a> {
                 Ok(Decoded::Object(PyRef(ptr::addr_of_mut!(_Py_NoneStruct))))
             }
             b'T' | b'F' if !flag => {
-                let value = unsafe { cpython_sys::PyBool_FromLong((tag == b'T') as _) };
+                let value = unsafe { PyBool_FromLong((tag == b'T') as _) };
                 Ok(Decoded::Object(unsafe { PyRef::from_raw(value) }?))
             }
             b'i' => {
@@ -1164,7 +1152,7 @@ static API: Api = Api {
     loads: api_loads,
 };
 
-struct ModuleDef(std::cell::UnsafeCell<PyModuleDef>);
+struct ModuleDef(core::cell::UnsafeCell<PyModuleDef>);
 
 unsafe impl Sync for ModuleDef {}
 
@@ -1205,7 +1193,7 @@ static MODULE_SLOTS: ModuleSlots = ModuleSlots([
     },
 ]);
 
-static MODULE: ModuleDef = ModuleDef(std::cell::UnsafeCell::new(PyModuleDef {
+static MODULE: ModuleDef = ModuleDef(core::cell::UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_marshal_rs".as_ptr() as *mut _,
     m_doc: c"Rust support for Python marshal records".as_ptr() as *mut _,

@@ -1,62 +1,72 @@
-use std::cell::UnsafeCell;
-use std::collections::HashMap;
-use std::ffi::{c_char, c_int, c_void};
-use std::hash::{BuildHasherDefault, Hasher};
-use std::ptr;
-use std::slice;
+//! JSON encoding and parsing over borrowed input and Python-owned storage.
+#![no_std]
 
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::PyBool_Type;
-use cpython_sys::PyDict_New;
-use cpython_sys::PyDict_Next;
-use cpython_sys::PyDict_SetItem;
-use cpython_sys::PyDict_Type;
-use cpython_sys::PyErr_Clear;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_Occurred;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyFloat_AsDouble;
-use cpython_sys::PyFloat_FromDouble;
-use cpython_sys::PyFloat_Type;
-use cpython_sys::PyList_GetItem;
-use cpython_sys::PyList_New;
-use cpython_sys::PyList_SetItem;
-use cpython_sys::PyList_Size;
-use cpython_sys::PyList_Type;
-use cpython_sys::PyLong_AsLongLongAndOverflow;
-use cpython_sys::PyLong_FromLongLong;
-use cpython_sys::PyLong_FromString;
-use cpython_sys::PyLong_Type;
-use cpython_sys::PyMem_Free;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyOS_double_to_string;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_IsTrue;
-use cpython_sys::PyObject_Str;
-use cpython_sys::PyTuple_GetItem;
-use cpython_sys::PyTypeObject;
-use cpython_sys::_object;
-use cpython_sys::PyTuple_Size;
-use cpython_sys::PyTuple_Type;
-use cpython_sys::PyUnicode_AsUTF8AndSize;
-use cpython_sys::PyUnicode_DATA;
-use cpython_sys::PyUnicode_FromStringAndSize;
-use cpython_sys::PyUnicode_GetLength;
-use cpython_sys::PyUnicode_KIND;
-use cpython_sys::PyUnicode_New;
-use cpython_sys::PyUnicode_Type;
-use cpython_sys::Py_DecRef;
-use cpython_sys::Py_IncRef;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::_Py_FalseStruct;
-use cpython_sys::_Py_NoneStruct;
-use cpython_sys::_Py_NotImplementedStruct;
-use cpython_sys::_Py_TrueStruct;
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::hash::{Hash, Hasher};
+use core::ptr;
+use core::slice;
+
+mod ffi;
+
+use ffi::METH_FASTCALL;
+use ffi::PyBool_Type;
+use ffi::PyDict_New;
+use ffi::PyDict_Next;
+use ffi::PyDict_SetItem;
+use ffi::PyDict_Type;
+use ffi::PyErr_Clear;
+use ffi::PyErr_NoMemory;
+use ffi::PyErr_Occurred;
+use ffi::PyErr_SetString;
+use ffi::PyExc_TypeError;
+use ffi::PyFloat_AsDouble;
+use ffi::PyFloat_FromDouble;
+use ffi::PyFloat_Type;
+use ffi::PyList_GetItem;
+use ffi::PyList_New;
+use ffi::PyList_SetItem;
+use ffi::PyList_Size;
+use ffi::PyList_Type;
+use ffi::PyLong_AsLongLongAndOverflow;
+use ffi::PyLong_FromLongLong;
+use ffi::PyLong_FromString;
+use ffi::PyLong_Type;
+use ffi::PyMem_Free;
+use ffi::PyMethodDef;
+use ffi::PyMethodDefFuncPointer;
+use ffi::PyModuleDef;
+use ffi::PyModuleDef_HEAD_INIT;
+use ffi::PyModuleDef_Init;
+use ffi::PyOS_double_to_string;
+use ffi::PyObject;
+use ffi::PyObject_IsTrue;
+use ffi::PyObject_Str;
+use ffi::PyTuple_GetItem;
+use ffi::PyTypeObject;
+use ffi::_object;
+use ffi::PyTuple_Size;
+use ffi::PyTuple_Type;
+use ffi::PyUnicode_AsUTF8AndSize;
+use ffi::PyUnicode_DATA;
+use ffi::PyUnicode_FromStringAndSize;
+use ffi::PyUnicode_GetLength;
+use ffi::PyUnicode_KIND;
+use ffi::PyUnicode_New;
+use ffi::PyUnicode_Type;
+use ffi::Py_DecRef;
+use ffi::Py_IncRef;
+use ffi::Py_ssize_t;
+use ffi::_Py_FalseStruct;
+use ffi::_Py_NoneStruct;
+use ffi::_Py_NotImplementedStruct;
+use ffi::_Py_TrueStruct;
+
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" { fn abort() -> !; }
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! { unsafe { abort() } }
 
 const MAX_DEPTH: usize = 128;
 const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -334,7 +344,7 @@ impl<S: Sink> Encoder<S> {
             if text.is_null() {
                 return Err(());
             }
-            let length = unsafe { std::ffi::CStr::from_ptr(text) }.to_bytes().len();
+            let length = unsafe { core::ffi::CStr::from_ptr(text) }.to_bytes().len();
             self.out.extend_from_slice(unsafe { slice::from_raw_parts(text.cast::<u8>(), length) });
             unsafe { PyMem_Free(text.cast::<c_void>()) };
             Ok(())
@@ -417,16 +427,191 @@ impl Hasher for FastHasher {
     }
 }
 
+// Unsupported syntax and preexisting conversion failures keep their decoder
+// fallback. New workspace allocation failures must propagate MemoryError.
+#[derive(Copy, Clone)]
+enum DecodeFailure { Decline, Allocation }
+
+// Releasing an unattached Python result may invoke allocator callbacks. Keep
+// the new workspace allocation exception alive across that early cleanup too.
+unsafe fn release_failed_owner(object: *mut PyObject, failure: DecodeFailure) {
+    let error = if matches!(failure, DecodeFailure::Allocation) {
+        unsafe { ffi::PyErr_GetRaisedException() }
+    } else { ptr::null_mut() };
+    unsafe { Py_DecRef(object) };
+    if matches!(failure, DecodeFailure::Allocation) {
+        if error.is_null() { unsafe { PyErr_NoMemory(); } }
+        else { unsafe { ffi::PyErr_SetRaisedException(error); } }
+    }
+}
+
+// Growable scratch storage owns only plain Copy values; Python references are
+// owned separately by the parser and memo. Reallocation failure preserves the
+// prior allocation and propagates MemoryError after call-local cleanup.
+struct Workspace<T: Copy> {
+    data: *mut T,
+    length: usize,
+    capacity: usize,
+}
+
+impl<T: Copy> Workspace<T> {
+    fn new() -> Self {
+        Self { data: ptr::null_mut(), length: 0, capacity: 0 }
+    }
+
+    fn len(&self) -> usize { self.length }
+
+    fn reserve(&mut self, additional: usize) -> Result<(), DecodeFailure> {
+        let required = self.length.checked_add(additional).ok_or_else(|| { unsafe { PyErr_NoMemory(); } DecodeFailure::Allocation })?;
+        if required <= self.capacity { return Ok(()); }
+        let capacity = required.max(self.capacity.checked_mul(2).unwrap_or(required)).max(8);
+        let bytes = capacity.checked_mul(core::mem::size_of::<T>())
+            .filter(|&bytes| bytes <= Py_ssize_t::MAX as usize)
+            .ok_or_else(|| { unsafe { PyErr_NoMemory(); } DecodeFailure::Allocation })?;
+        let data = unsafe { ffi::PyMem_Realloc(self.data.cast(), bytes) }.cast::<T>();
+        if data.is_null() {
+            unsafe { PyErr_NoMemory(); }
+            return Err(DecodeFailure::Allocation);
+        }
+        self.data = data;
+        self.capacity = capacity;
+        Ok(())
+    }
+
+    fn push(&mut self, value: T) -> Result<(), DecodeFailure> {
+        self.reserve(1)?;
+        unsafe { self.data.add(self.length).write(value) };
+        self.length += 1;
+        Ok(())
+    }
+
+    fn extend_from_slice(&mut self, values: &[T]) -> Result<(), DecodeFailure> {
+        self.reserve(values.len())?;
+        if !values.is_empty() {
+            unsafe { ptr::copy_nonoverlapping(values.as_ptr(), self.data.add(self.length), values.len()) };
+        }
+        self.length += values.len();
+        Ok(())
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        if self.length == 0 { return None; }
+        self.length -= 1;
+        Some(unsafe { self.data.add(self.length).read() })
+    }
+
+    fn clear(&mut self) { self.length = 0; }
+    fn truncate(&mut self, length: usize) { self.length = length; }
+    fn as_slice(&self) -> &[T] {
+        if self.length == 0 { &[] } else { unsafe { slice::from_raw_parts(self.data, self.length) } }
+    }
+    fn as_ptr(&self) -> *const T { self.data }
+}
+
+impl<T: Copy> Drop for Workspace<T> {
+    fn drop(&mut self) {
+        if !self.data.is_null() { unsafe { PyMem_Free(self.data.cast()) }; }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct KeyEntry<'a> {
+    hash: u64,
+    bytes: &'a [u8],
+    object: *mut PyObject,
+}
+
+// Borrowed byte keys are valid for the complete call. Each occupied slot owns
+// one Unicode reference; byte equality resolves every hash collision. Rehash
+// copies slots without changing ownership and commits only after allocation.
+struct KeyMemo<'a> {
+    slots: Workspace<Option<KeyEntry<'a>>>,
+    length: usize,
+}
+
+impl<'a> KeyMemo<'a> {
+    fn new() -> Self { Self { slots: Workspace::new(), length: 0 } }
+
+    fn hash(bytes: &[u8]) -> u64 {
+        let mut hasher = FastHasher::default();
+        bytes.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn get(&self, bytes: &[u8]) -> Option<*mut PyObject> {
+        let capacity = self.slots.len();
+        if capacity == 0 { return None; }
+        let hash = Self::hash(bytes);
+        let mut index = hash as usize & (capacity - 1);
+        loop {
+            match self.slots.as_slice()[index] {
+                Some(entry) if entry.hash == hash && entry.bytes == bytes => return Some(entry.object),
+                Some(_) => index = (index + 1) & (capacity - 1),
+                None => return None,
+            }
+        }
+    }
+
+    fn insert(&mut self, bytes: &'a [u8], object: *mut PyObject) -> Result<(), DecodeFailure> {
+        let capacity = self.slots.len();
+        if self.length >= capacity / 2 {
+            let new_capacity = if capacity == 0 { 8 } else {
+                capacity.checked_mul(2).ok_or_else(|| { unsafe { PyErr_NoMemory(); } DecodeFailure::Allocation })?
+            };
+            let mut slots = Workspace::new();
+            slots.reserve(new_capacity)?;
+            for _ in 0..new_capacity { slots.push(None)?; }
+            for entry in self.slots.as_slice().iter().flatten().copied() {
+                Self::place(&mut slots, entry);
+            }
+            self.slots = slots;
+        }
+        Self::place(&mut self.slots, KeyEntry { hash: Self::hash(bytes), bytes, object });
+        self.length += 1;
+        unsafe { Py_IncRef(object) };
+        Ok(())
+    }
+
+    fn place(slots: &mut Workspace<Option<KeyEntry<'a>>>, entry: KeyEntry<'a>) {
+        let mut index = entry.hash as usize & (slots.len() - 1);
+        while slots.as_slice()[index].is_some() { index = (index + 1) & (slots.len() - 1); }
+        unsafe { slots.data.add(index).write(Some(entry)) };
+    }
+}
+
+impl Drop for KeyMemo<'_> {
+    fn drop(&mut self) {
+        for entry in self.slots.as_slice().iter().flatten() {
+            unsafe { Py_DecRef(entry.object) };
+        }
+    }
+}
+
 struct Parser<'a> {
     input: &'a [u8],
     position: usize,
     // Owned references not yet attached to a parent; released on failure.
-    stack: Vec<*mut PyObject>,
-    keys: HashMap<&'a [u8], *mut PyObject, BuildHasherDefault<FastHasher>>,
-    scratch: Vec<u8>,
+    stack: Workspace<*mut PyObject>,
+    keys: KeyMemo<'a>,
+    scratch: Workspace<u8>,
+}
+
+impl Drop for Parser<'_> {
+    fn drop(&mut self) {
+        while let Some(object) = self.stack.pop() { unsafe { Py_DecRef(object) }; }
+    }
 }
 
 impl<'a> Parser<'a> {
+    // On failure the new reference has not entered the stack's ownership.
+    unsafe fn push_owned(&mut self, object: *mut PyObject) -> Result<(), DecodeFailure> {
+        if let Err(error) = self.stack.push(object) {
+            unsafe { release_failed_owner(object, error) };
+            return Err(error);
+        }
+        Ok(())
+    }
+
     fn skip_whitespace(&mut self) {
         while let Some(byte) = self.input.get(self.position) {
             if matches!(byte, b' ' | b'\t' | b'\n' | b'\r') {
@@ -437,21 +622,21 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect(&mut self, literal: &[u8]) -> Result<(), ()> {
+    fn expect(&mut self, literal: &[u8]) -> Result<(), DecodeFailure> {
         if self.input[self.position..].starts_with(literal) {
             self.position += literal.len();
             Ok(())
         } else {
-            Err(())
+            Err(DecodeFailure::Decline)
         }
     }
 
-    unsafe fn parse_value(&mut self, depth: usize) -> Result<*mut PyObject, ()> {
+    unsafe fn parse_value(&mut self, depth: usize) -> Result<*mut PyObject, DecodeFailure> {
         if depth > MAX_DEPTH {
-            return Err(());
+            return Err(DecodeFailure::Decline);
         }
         self.skip_whitespace();
-        let byte = *self.input.get(self.position).ok_or(())?;
+        let byte = *self.input.get(self.position).ok_or(DecodeFailure::Decline)?;
         match byte {
             b'"' => {
                 let text = unsafe { self.parse_string_object(false) }?;
@@ -476,11 +661,11 @@ impl<'a> Parser<'a> {
                 Ok(unsafe { new_none() })
             }
             b'-' | b'0'..=b'9' => unsafe { self.parse_number() },
-            _ => Err(()),
+            _ => Err(DecodeFailure::Decline),
         }
     }
 
-    unsafe fn parse_array(&mut self, depth: usize) -> Result<*mut PyObject, ()> {
+    unsafe fn parse_array(&mut self, depth: usize) -> Result<*mut PyObject, DecodeFailure> {
         self.position += 1;
         let base = self.stack.len();
         self.skip_whitespace();
@@ -489,7 +674,7 @@ impl<'a> Parser<'a> {
         } else {
             loop {
                 let item = unsafe { self.parse_value(depth + 1) }?;
-                self.stack.push(item);
+                unsafe { self.push_owned(item) }?;
                 self.skip_whitespace();
                 match self.input.get(self.position) {
                     Some(b',') => self.position += 1,
@@ -497,29 +682,31 @@ impl<'a> Parser<'a> {
                         self.position += 1;
                         break;
                     }
-                    _ => return Err(()),
+                    _ => return Err(DecodeFailure::Decline),
                 }
             }
         }
         let count = self.stack.len() - base;
         let list = unsafe { PyList_New(count as Py_ssize_t) };
         if list.is_null() {
-            return Err(());
+            return Err(DecodeFailure::Decline);
         }
-        for (index, item) in self.stack.drain(base..).enumerate() {
+        for index in 0..count {
+            let item = self.stack.as_slice()[base + index];
             // PyList_SetItem steals the reference.
             unsafe { PyList_SetItem(list, index as Py_ssize_t, item) };
         }
+        self.stack.truncate(base);
         Ok(list)
     }
 
-    unsafe fn parse_object(&mut self, depth: usize) -> Result<*mut PyObject, ()> {
+    unsafe fn parse_object(&mut self, depth: usize) -> Result<*mut PyObject, DecodeFailure> {
         self.position += 1;
         let dict = unsafe { PyDict_New() };
         if dict.is_null() {
-            return Err(());
+            return Err(DecodeFailure::Decline);
         }
-        self.stack.push(dict);
+        unsafe { self.push_owned(dict) }?;
         self.skip_whitespace();
         if self.input.get(self.position) == Some(&b'}') {
             self.position += 1;
@@ -529,20 +716,20 @@ impl<'a> Parser<'a> {
         loop {
             self.skip_whitespace();
             if self.input.get(self.position) != Some(&b'"') {
-                return Err(());
+                return Err(DecodeFailure::Decline);
             }
             let key = unsafe { self.parse_string_object(true) }?;
-            self.stack.push(key);
+            unsafe { self.push_owned(key) }?;
             self.skip_whitespace();
             if self.input.get(self.position) != Some(&b':') {
-                return Err(());
+                return Err(DecodeFailure::Decline);
             }
             self.position += 1;
             let value = unsafe { self.parse_value(depth + 1) }?;
             let status = unsafe { PyDict_SetItem(dict, key, value) };
             unsafe { Py_DecRef(value) };
             if status != 0 {
-                return Err(());
+                return Err(DecodeFailure::Decline);
             }
             self.stack.pop();
             unsafe { Py_DecRef(key) };
@@ -553,7 +740,7 @@ impl<'a> Parser<'a> {
                     self.position += 1;
                     break;
                 }
-                _ => return Err(()),
+                _ => return Err(DecodeFailure::Decline),
             }
         }
         self.stack.pop();
@@ -562,7 +749,7 @@ impl<'a> Parser<'a> {
 
     /// Parse the string at `position` (an opening quote) into a new reference.
     /// Keys without escapes are shared within one document.
-    unsafe fn parse_string_object(&mut self, is_key: bool) -> Result<*mut PyObject, ()> {
+    unsafe fn parse_string_object(&mut self, is_key: bool) -> Result<*mut PyObject, DecodeFailure> {
         let input = self.input;
         let start = self.position + 1;
         let mut end = start;
@@ -573,40 +760,42 @@ impl<'a> Parser<'a> {
                     self.position = end + 1;
                     if !is_key {
                         let object = unsafe { new_unicode(text) };
-                        return if object.is_null() { Err(()) } else { Ok(object) };
+                        return if object.is_null() { Err(DecodeFailure::Decline) } else { Ok(object) };
                     }
                     if let Some(object) = self.keys.get(text) {
-                        unsafe { Py_IncRef(*object) };
-                        return Ok(*object);
+                        unsafe { Py_IncRef(object) };
+                        return Ok(object);
                     }
                     let object = unsafe { new_unicode(text) };
                     if object.is_null() {
-                        return Err(());
+                        return Err(DecodeFailure::Decline);
                     }
-                    unsafe { Py_IncRef(object) };
-                    self.keys.insert(text, object);
+                    if let Err(error) = self.keys.insert(text, object) {
+                        unsafe { release_failed_owner(object, error) };
+                        return Err(error);
+                    }
                     return Ok(object);
                 }
                 Some(b'\\') => break,
-                Some(byte) if *byte < 0x20 => return Err(()),
+                Some(byte) if *byte < 0x20 => return Err(DecodeFailure::Decline),
                 Some(_) => end += 1,
-                None => return Err(()),
+                None => return Err(DecodeFailure::Decline),
             }
         }
         // Slow path: the string contains escapes.
         self.scratch.clear();
-        self.scratch.extend_from_slice(&input[start..end]);
+        self.scratch.extend_from_slice(&input[start..end])?;
         let mut index = end;
         loop {
             match input.get(index) {
                 Some(b'"') => {
                     self.position = index + 1;
-                    let object = unsafe { new_unicode(&self.scratch) };
-                    return if object.is_null() { Err(()) } else { Ok(object) };
+                    let object = unsafe { new_unicode(self.scratch.as_slice()) };
+                    return if object.is_null() { Err(DecodeFailure::Decline) } else { Ok(object) };
                 }
                 Some(b'\\') => {
                     index += 1;
-                    let escape = *input.get(index).ok_or(())?;
+                    let escape = *input.get(index).ok_or(DecodeFailure::Decline)?;
                     index += 1;
                     let replacement = match escape {
                         b'"' => b'"',
@@ -622,38 +811,38 @@ impl<'a> Parser<'a> {
                             index += 4;
                             if (0xd800..0xdc00).contains(&codepoint) {
                                 if input.get(index) != Some(&b'\\') || input.get(index + 1) != Some(&b'u') {
-                                    return Err(());
+                                    return Err(DecodeFailure::Decline);
                                 }
                                 let low = Self::hex4(input, index + 2)?;
                                 if !(0xdc00..0xe000).contains(&low) {
-                                    return Err(());
+                                    return Err(DecodeFailure::Decline);
                                 }
                                 index += 6;
                                 codepoint = 0x1_0000 + ((codepoint - 0xd800) << 10) + (low - 0xdc00);
                             } else if (0xdc00..0xe000).contains(&codepoint) {
-                                return Err(());
+                                return Err(DecodeFailure::Decline);
                             }
-                            let character = char::from_u32(codepoint).ok_or(())?;
+                            let character = char::from_u32(codepoint).ok_or(DecodeFailure::Decline)?;
                             let mut buffer = [0; 4];
-                            self.scratch.extend_from_slice(character.encode_utf8(&mut buffer).as_bytes());
+                            self.scratch.extend_from_slice(character.encode_utf8(&mut buffer).as_bytes())?;
                             continue;
                         }
-                        _ => return Err(()),
+                        _ => return Err(DecodeFailure::Decline),
                     };
-                    self.scratch.push(replacement);
+                    self.scratch.push(replacement)?;
                 }
-                Some(byte) if *byte < 0x20 => return Err(()),
+                Some(byte) if *byte < 0x20 => return Err(DecodeFailure::Decline),
                 Some(byte) => {
-                    self.scratch.push(*byte);
+                    self.scratch.push(*byte)?;
                     index += 1;
                 }
-                None => return Err(()),
+                None => return Err(DecodeFailure::Decline),
             }
         }
     }
 
-    fn hex4(input: &[u8], index: usize) -> Result<u32, ()> {
-        let digits = input.get(index..index + 4).ok_or(())?;
+    fn hex4(input: &[u8], index: usize) -> Result<u32, DecodeFailure> {
+        let digits = input.get(index..index + 4).ok_or(DecodeFailure::Decline)?;
         let mut value = 0;
         for digit in digits {
             value = value * 16
@@ -661,13 +850,13 @@ impl<'a> Parser<'a> {
                     b'0'..=b'9' => u32::from(digit - b'0'),
                     b'a'..=b'f' => u32::from(digit - b'a' + 10),
                     b'A'..=b'F' => u32::from(digit - b'A' + 10),
-                    _ => return Err(()),
+                    _ => return Err(DecodeFailure::Decline),
                 };
         }
         Ok(value)
     }
 
-    unsafe fn parse_number(&mut self) -> Result<*mut PyObject, ()> {
+    unsafe fn parse_number(&mut self) -> Result<*mut PyObject, DecodeFailure> {
         let input = self.input;
         let start = self.position;
         let mut index = start;
@@ -681,7 +870,7 @@ impl<'a> Parser<'a> {
                     index += 1;
                 }
             }
-            _ => return Err(()),
+            _ => return Err(DecodeFailure::Decline),
         }
         let integer_end = index;
         let mut is_float = false;
@@ -692,7 +881,7 @@ impl<'a> Parser<'a> {
                 index += 1;
             }
             if index == digits {
-                return Err(());
+                return Err(DecodeFailure::Decline);
             }
             is_float = true;
         }
@@ -706,15 +895,15 @@ impl<'a> Parser<'a> {
                 index += 1;
             }
             if index == digits {
-                return Err(());
+                return Err(DecodeFailure::Decline);
             }
             is_float = true;
         }
         self.position = index;
         let text = &input[start..index];
         let object = if is_float {
-            let text = unsafe { std::str::from_utf8_unchecked(text) };
-            let value = text.parse::<f64>().map_err(|_| ())?;
+            let text = unsafe { core::str::from_utf8_unchecked(text) };
+            let value = text.parse::<f64>().map_err(|_| DecodeFailure::Decline)?;
             unsafe { PyFloat_FromDouble(value) }
         } else if integer_end - start <= 18 {
             let negative = text[0] == b'-';
@@ -725,11 +914,11 @@ impl<'a> Parser<'a> {
             unsafe { PyLong_FromLongLong(if negative { -value } else { value }) }
         } else {
             self.scratch.clear();
-            self.scratch.extend_from_slice(text);
-            self.scratch.push(0);
+            self.scratch.extend_from_slice(text)?;
+            self.scratch.push(0)?;
             unsafe { PyLong_FromString(self.scratch.as_ptr().cast::<c_char>(), ptr::null_mut(), 10) }
         };
-        if object.is_null() { Err(()) } else { Ok(object) }
+        if object.is_null() { Err(DecodeFailure::Decline) } else { Ok(object) }
     }
 }
 
@@ -759,29 +948,38 @@ unsafe extern "C" fn loads(
     let mut parser = Parser {
         input,
         position: 0,
-        stack: Vec::new(),
-        keys: HashMap::default(),
-        scratch: Vec::new(),
+        stack: Workspace::new(),
+        keys: KeyMemo::new(),
+        scratch: Workspace::new(),
     };
     let mut result = unsafe { parser.parse_value(0) };
     if let Ok(value) = result {
         parser.skip_whitespace();
         if parser.position != input.len() {
             unsafe { Py_DecRef(value) };
-            result = Err(());
+            result = Err(DecodeFailure::Decline);
         }
     }
-    for object in parser.stack.drain(..) {
-        unsafe { Py_DecRef(object) };
-    }
-    for object in parser.keys.drain().map(|(_, object)| object) {
-        unsafe { Py_DecRef(object) };
-    }
+    // Hold the actual allocation exception while reference and buffer cleanup
+    // can invoke Python allocator callbacks. Restore it after all owners die.
+    let allocation_error = if matches!(result, Err(DecodeFailure::Allocation)) {
+        unsafe { ffi::PyErr_GetRaisedException() }
+    } else {
+        ptr::null_mut()
+    };
+    drop(parser);
     match result {
         Ok(value) => value,
-        Err(()) => {
-            // Conversion limits and allocation failures should be reported by
-            // CPython's decoder after this Rust fast path declines the input.
+        Err(DecodeFailure::Allocation) => {
+            if allocation_error.is_null() {
+                unsafe { PyErr_NoMemory(); }
+            } else {
+                unsafe { ffi::PyErr_SetRaisedException(allocation_error); }
+            }
+            ptr::null_mut()
+        }
+        Err(DecodeFailure::Decline) => {
+            // Preexisting syntax/conversion declines retain CPython fallback.
             unsafe { PyErr_Clear() };
             unsafe { decline() }
         }

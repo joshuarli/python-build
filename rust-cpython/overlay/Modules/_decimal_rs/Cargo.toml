@@ -6,6 +6,8 @@ rust-version.workspace = true
 license = "PSF-2.0"
 
 [dependencies]
+cpython-sys = { path = "../cpython-sys" }
+num-bigint = "=0.4.8"
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }

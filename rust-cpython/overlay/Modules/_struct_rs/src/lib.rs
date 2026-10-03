@@ -1,20 +1,32 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
-use std::ptr;
-use std::slice;
+#![no_std]
+
+use core::cell::UnsafeCell;
+use core::ffi::{c_char, c_int, c_void};
+use core::mem::{MaybeUninit, size_of};
+use core::ptr::{self, NonNull};
+use core::slice;
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use cpython_sys::{
-    METH_FASTCALL, PyBool_FromLong, PyBool_Type, PyByteArray_Type, PyBytes_FromStringAndSize,
+mod ffi;
+
+use ffi::{
+    METH_FASTCALL, PyBool_FromLong, PyBool_Type, PyByteArray_Type, PyBytes_AsString, PyBytes_FromStringAndSize,
     PyBytes_Type, PyErr_Clear, PyErr_NoMemory, PyFloat_AsDouble, PyFloat_FromDouble,
     PyFloat_Type, PyLong_AsLongLong, PyLong_AsSsize_t, PyLong_AsUnsignedLongLong,
     PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type, PyMethodDef,
     PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject,
     PyObject_GetBuffer, PyObject_Type, PyTuple_GetItem, PyTuple_New, PyTuple_SetItem,
     PyTuple_Size, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_Type, Py_DecRef,
-    Py_ssize_t, Py_buffer, PyBuffer_Release,
+    Py_ssize_t, Py_buffer, PyBuffer_Release, PyMem_Free, PyMem_Malloc, Py_NewRef,
 };
+
+// A standalone helper owns its abort handler; the static carrier owns one
+// shared handler when this helper is linked into the interpreter.
+#[cfg(not(feature = "static-module"))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe { ffi::Py_FatalError(c"Rust struct helper panicked".as_ptr()) }
+}
 
 const PYBUF_SIMPLE: c_int = 0;
 const MAX_FORMAT_SIZE: usize = 1 << 26;
@@ -35,9 +47,94 @@ struct Operation {
 
 struct FormatPlan {
     endian: Endian,
-    operations: Vec<Operation>,
+    operations: OperationStorage,
     size: usize,
     value_count: usize,
+}
+
+struct OwnedObject {
+    object: *mut PyObject,
+}
+
+impl OwnedObject {
+    fn from_new(object: *mut PyObject) -> Option<Self> {
+        if object.is_null() { None } else { Some(Self { object }) }
+    }
+
+    fn into_raw(mut self) -> *mut PyObject {
+        let object = self.object;
+        self.object = ptr::null_mut();
+        object
+    }
+}
+
+impl Drop for OwnedObject {
+    fn drop(&mut self) {
+        if !self.object.is_null() {
+            unsafe { Py_DecRef(self.object) };
+        }
+    }
+}
+
+// The extra reference keeps the immutable UTF-8 storage alive even if a
+// later Python allocation reenters this module.
+struct FormatText {
+    _owner: OwnedObject,
+    text: *const u8,
+    length: usize,
+}
+
+impl FormatText {
+    fn as_slice(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.text, self.length) }
+    }
+}
+
+// Only the initialized prefix is exposed. Operations contain no owning
+// fields, and PyMem supplies alignment for this integer-only record.
+struct OperationStorage {
+    data: NonNull<Operation>,
+    length: usize,
+    capacity: usize,
+}
+
+impl OperationStorage {
+    fn new(capacity: usize) -> Result<Self, ()> {
+        if capacity == 0 {
+            return Ok(Self { data: NonNull::dangling(), length: 0, capacity: 0 });
+        }
+        let bytes = capacity.checked_mul(size_of::<Operation>())
+            .filter(|bytes| *bytes <= isize::MAX as usize);
+        let Some(bytes) = bytes else {
+            unsafe { PyErr_NoMemory() };
+            return Err(());
+        };
+        let data = unsafe { PyMem_Malloc(bytes) }.cast::<Operation>();
+        let Some(data) = NonNull::new(data) else {
+            unsafe { PyErr_NoMemory() };
+            return Err(());
+        };
+        Ok(Self { data, length: 0, capacity })
+    }
+
+    fn push(&mut self, operation: Operation) -> bool {
+        if self.length == self.capacity { return false; }
+        unsafe { self.data.as_ptr().add(self.length).write(operation) };
+        self.length += 1;
+        true
+    }
+
+    fn as_slice(&self) -> &[Operation] {
+        unsafe { slice::from_raw_parts(self.data.as_ptr(), self.length) }
+    }
+}
+
+impl Drop for OperationStorage {
+    fn drop(&mut self) {
+        if self.capacity != 0 {
+            unsafe { PyMem_Free(self.data.as_ptr().cast::<c_void>()) };
+        }
+    }
 }
 
 struct BorrowedBuffer {
@@ -80,7 +177,7 @@ unsafe fn is_exact_type(object: *mut PyObject, type_object: *mut PyTypeObject) -
     matches
 }
 
-unsafe fn exact_format(object: *mut PyObject) -> Option<Vec<u8>> {
+unsafe fn exact_format(object: *mut PyObject) -> Option<FormatText> {
     let unicode_type = unsafe { ptr::addr_of_mut!(PyUnicode_Type) };
     if !unsafe { is_exact_type(object, unicode_type) } {
         return None;
@@ -95,7 +192,11 @@ unsafe fn exact_format(object: *mut PyObject) -> Option<Vec<u8>> {
     if !text.is_ascii() {
         return None;
     }
-    Some(text.to_vec())
+    Some(FormatText {
+        _owner: OwnedObject { object: unsafe { Py_NewRef(object) } },
+        text: utf8.cast::<u8>(),
+        length: length as usize,
+    })
 }
 
 fn field_size(code: u8) -> Option<usize> {
@@ -109,7 +210,9 @@ fn field_size(code: u8) -> Option<usize> {
     })
 }
 
-fn parse_format(format: &[u8]) -> Option<FormatPlan> {
+fn scan_format(format: &[u8], mut emit: impl FnMut(Operation) -> bool)
+    -> Option<(Endian, usize, usize, usize)>
+{
     let (endian, mut index) = match format.first().copied() {
         Some(b'<') => (Endian::Little, 1),
         Some(b'>') | Some(b'!') => (Endian::Big, 1),
@@ -125,7 +228,7 @@ fn parse_format(format: &[u8]) -> Option<FormatPlan> {
         _ => return None,
     };
 
-    let mut operations = Vec::new();
+    let mut operation_count = 0usize;
     let mut size = 0usize;
     let mut value_count = 0usize;
     while index < format.len() {
@@ -162,20 +265,35 @@ fn parse_format(format: &[u8]) -> Option<FormatPlan> {
         if value_count > MAX_FORMAT_SIZE {
             return None;
         }
-        operations.push(Operation {
+        operation_count = operation_count.checked_add(1)?;
+        if !emit(Operation {
             code,
             count,
             offset: size,
             size: operation_size,
-        });
+        }) { return None; }
         size = next_size;
     }
-    Some(FormatPlan {
+    Some((endian, size, value_count, operation_count))
+}
+
+fn parse_format(format: &[u8]) -> Result<Option<FormatPlan>, ()> {
+    // Validate the entire format before allocating: unsupported syntax and
+    // size overflow must still reach the native struct error oracle.
+    let Some((endian, size, value_count, operation_count)) = scan_format(format, |_| true) else {
+        return Ok(None);
+    };
+    let mut operations = OperationStorage::new(operation_count)?;
+    // The format owner keeps this immutable text unchanged between scans.
+    if scan_format(format, |operation| operations.push(operation)).is_none() {
+        return Ok(None);
+    }
+    Ok(Some(FormatPlan {
         endian,
         operations,
         size,
         value_count,
-    })
+    }))
 }
 
 unsafe fn tuple_item(tuple: *mut PyObject, index: usize) -> *mut PyObject {
@@ -193,7 +311,7 @@ unsafe fn signed_value(object: *mut PyObject) -> Option<i64> {
         return None;
     }
     let value = unsafe { PyLong_AsLongLong(object) };
-    if value == -1 && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
+    if value == -1 && !unsafe { ffi::PyErr_Occurred() }.is_null() {
         unsafe { PyErr_Clear() };
         return None;
     }
@@ -205,7 +323,7 @@ unsafe fn unsigned_value(object: *mut PyObject) -> Option<u64> {
         return None;
     }
     let value = unsafe { PyLong_AsUnsignedLongLong(object) };
-    if value == u64::MAX && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
+    if value == u64::MAX && !unsafe { ffi::PyErr_Occurred() }.is_null() {
         unsafe { PyErr_Clear() };
         return None;
     }
@@ -313,7 +431,7 @@ unsafe fn encode_integer(
             if !(unsafe { exact_integer(object) }) {
                 return false;
             }
-            let truth = unsafe { cpython_sys::PyObject_IsTrue(object) };
+            let truth = unsafe { ffi::PyObject_IsTrue(object) };
             if truth < 0 {
                 unsafe { PyErr_Clear() };
                 return false;
@@ -351,22 +469,36 @@ unsafe fn pack_values(
     plan: &FormatPlan,
     values: *mut PyObject,
     value_count: Py_ssize_t,
-) -> Option<Vec<u8>> {
+) -> Result<Option<OwnedObject>, ()> {
     if value_count < 0 || value_count as usize != plan.value_count {
-        return None;
+        return Ok(None);
     }
-    let mut output = vec![0u8; plan.size];
+    let Some(bytes) = OwnedObject::from_new(unsafe {
+        PyBytes_FromStringAndSize(ptr::null(), plan.size as Py_ssize_t)
+    }) else { return Err(()); };
+    // The nonempty bytes object is private until every field succeeds. No
+    // callback or source buffer can hold a reference to its mutable storage.
+    let output = if plan.size == 0 {
+        &mut []
+    } else {
+        let data = unsafe { PyBytes_AsString(bytes.object) };
+        if data.is_null() { return Err(()); }
+        unsafe {
+            ptr::write_bytes(data.cast::<u8>(), 0, plan.size);
+            slice::from_raw_parts_mut(data.cast::<u8>(), plan.size)
+        }
+    };
     let mut value_index = 0usize;
-    for operation in &plan.operations {
+    for operation in plan.operations.as_slice() {
         match operation.code {
             b'x' => {}
             b's' => {
                 let object = unsafe { tuple_item(values, value_index) };
                 value_index += 1;
                 if !unsafe { exact_buffer(object) } {
-                    return None;
+                    return Ok(None);
                 }
-                let buffer = BorrowedBuffer::from_object(object)?;
+                let Some(buffer) = BorrowedBuffer::from_object(object) else { return Ok(None); };
                 let source = buffer.as_slice();
                 let copied = source.len().min(operation.size);
                 output[operation.offset..operation.offset + copied]
@@ -377,31 +509,31 @@ unsafe fn pack_values(
                     let object = unsafe { tuple_item(values, value_index) };
                     value_index += 1;
                     if !unsafe { exact_buffer(object) } {
-                        return None;
+                        return Ok(None);
                     }
-                    let buffer = BorrowedBuffer::from_object(object)?;
+                    let Some(buffer) = BorrowedBuffer::from_object(object) else { return Ok(None); };
                     let source = buffer.as_slice();
                     if source.len() != 1 {
-                        return None;
+                        return Ok(None);
                     }
                     output[operation.offset + repeat] = source[0];
                 }
             }
             code => {
-                let width = field_size(code)?;
+                let Some(width) = field_size(code) else { return Ok(None); };
                 for repeat in 0..operation.count {
                     let object = unsafe { tuple_item(values, value_index) };
                     value_index += 1;
                     let start = operation.offset + repeat * width;
                     let target = &mut output[start..start + width];
                     if !unsafe { encode_integer(code, plan.endian, object, target) } {
-                        return None;
+                        return Ok(None);
                     }
                 }
             }
         }
     }
-    Some(output)
+    Ok(Some(bytes))
 }
 
 fn return_bytes(bytes: &[u8]) -> *mut PyObject {
@@ -422,19 +554,22 @@ unsafe fn pack_call(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObjec
     let Some(format) = format else {
         return not_handled();
     };
-    let Some(plan) = parse_format(&format) else {
-        return not_handled();
+    let plan = match parse_format(format.as_slice()) {
+        Ok(Some(plan)) => plan,
+        Ok(None) => return not_handled(),
+        Err(()) => return ptr::null_mut(),
     };
     let values = unsafe { *args.add(1) };
-    let tuple_type = unsafe { ptr::addr_of_mut!(cpython_sys::PyTuple_Type) };
+    let tuple_type = unsafe { ptr::addr_of_mut!(ffi::PyTuple_Type) };
     if !unsafe { is_exact_type(values, tuple_type) } {
         return not_handled();
     }
     let count = unsafe { PyTuple_Size(values) };
-    let Some(bytes) = (unsafe { pack_values(&plan, values, count) }) else {
-        return not_handled();
-    };
-    return_bytes(&bytes)
+    match unsafe { pack_values(&plan, values, count) } {
+        Ok(Some(bytes)) => bytes.into_raw(),
+        Ok(None) => not_handled(),
+        Err(()) => ptr::null_mut(),
+    }
 }
 
 fn not_handled() -> *mut PyObject {
@@ -516,7 +651,7 @@ unsafe fn unpack_values(plan: &FormatPlan, input: &[u8]) -> *mut PyObject {
         return ptr::null_mut();
     }
     let mut value_index = 0usize;
-    for operation in &plan.operations {
+    for operation in plan.operations.as_slice() {
         match operation.code {
             b'x' => {}
             b's' => {
@@ -569,8 +704,10 @@ unsafe fn unpack_call(
     let Some(format) = format else {
         return not_handled();
     };
-    let Some(plan) = parse_format(&format) else {
-        return not_handled();
+    let plan = match parse_format(format.as_slice()) {
+        Ok(Some(plan)) => plan,
+        Ok(None) => return not_handled(),
+        Err(()) => return ptr::null_mut(),
     };
     let buffer_object = unsafe { *args.add(1) };
     if !unsafe { exact_buffer(buffer_object) } {
@@ -586,7 +723,7 @@ unsafe fn unpack_call(
             return not_handled();
         }
         let offset = unsafe { PyLong_AsSsize_t(offset_object) };
-        if offset == -1 && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
+        if offset == -1 && !unsafe { ffi::PyErr_Occurred() }.is_null() {
             unsafe { PyErr_Clear() };
             return not_handled();
         }
