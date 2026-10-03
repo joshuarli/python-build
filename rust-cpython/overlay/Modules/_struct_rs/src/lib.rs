@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::MaybeUninit;
 use std::ptr;
@@ -10,10 +9,12 @@ use cpython_sys::{
     PyBytes_Type, PyErr_Clear, PyErr_NoMemory, PyFloat_AsDouble, PyFloat_FromDouble,
     PyFloat_Type, PyLong_AsLongLong, PyLong_AsSsize_t, PyLong_AsUnsignedLongLong,
     PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type, PyMethodDef,
-    PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject,
+    PyABIInfo, PyMethodDefFuncPointer, PyObject, PySlot, PySlot_INTPTR, PySlot_STATIC,
+    PySlot__bindgen_ty_1, PySlot__bindgen_ty_2,
     PyObject_GetBuffer, PyObject_Type, PyTuple_GetItem, PyTuple_New, PyTuple_SetItem,
     PyTuple_Size, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_Type, Py_DecRef,
-    Py_ssize_t, Py_buffer, PyBuffer_Release,
+    Py_ssize_t, Py_buffer, PyBuffer_Release, Py_mod_abi, Py_mod_doc, Py_mod_methods,
+    Py_mod_name, Py_mod_state_clear, Py_mod_state_free,
 };
 
 const PYBUF_SIMPLE: c_int = 0;
@@ -637,18 +638,6 @@ pub extern "C" fn _struct_rs_clear(_object: *mut PyObject) -> c_int {
 
 pub extern "C" fn _struct_rs_free(_object: *mut c_void) {}
 
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 pub static _STRUCT_RS_MODULE_METHODS: [PyMethodDef; 4] = [
     PyMethodDef {
         ml_name: c"pack".as_ptr() as *mut c_char,
@@ -677,21 +666,81 @@ pub static _STRUCT_RS_MODULE_METHODS: [PyMethodDef; 4] = [
     PyMethodDef::zeroed(),
 ];
 
-pub static _STRUCT_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_struct_rs".as_ptr() as *mut _,
-        m_doc: c"Rust implementation of standard binary record packing".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: &_STRUCT_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(_struct_rs_clear),
-        m_free: Some(_struct_rs_free),
-    }),
+// The loader reads these process-lifetime tables without modifying them.
+// Each interpreter owns its module and copied Python method objects.
+struct ModuleSlots([PySlot; 9]);
+unsafe impl Sync for ModuleSlots {}
+
+unsafe extern "C" fn module_exec(_module: *mut PyObject) -> c_int { 0 }
+
+// The source lock fixes the complete non-stable CPython 3.16.0a0 GIL ABI.
+// The loader checks major/minor version and GIL compatibility before methods
+// are installed; build_version alone is not a complete runtime identity check.
+static ABI_INFO: PyABIInfo = PyABIInfo {
+    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
+    build_version: 0x031000a0, abi_version: 0x031000a0,
 };
 
+#[cfg(not(target_pointer_width = "64"))]
+compile_error!("struct slot export requires the supported 64-bit CPython ABI");
+
+const _: () = {
+    assert!(std::mem::size_of::<PySlot>() == 16);
+    assert!(std::mem::align_of::<PySlot>() == 8);
+    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
+    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
+    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
+    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
+    assert!(std::mem::size_of::<PyABIInfo>() == 12);
+    assert!(std::mem::align_of::<PyABIInfo>() == 4);
+};
+
+const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
+    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
+}
+
+// Method definitions outlive the copied slots and remain immutable.
+const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
+    let mut slot = data_slot(id, value);
+    slot.sl_flags |= PySlot_STATIC as u16;
+    slot
+}
+
+const fn function_slot(id: u32, value: unsafe extern "C" fn()) -> PySlot {
+    PySlot { sl_id: id as u16, sl_flags: 0,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_func: Some(value) } }
+}
+
+// The generated bindings omit function-like compatibility macros for these
+// non-limited slot identifiers; the native oracle checks the header values.
+const MODULE_EXEC_SLOT: u32 = 85;
+const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
+
+static MODULE_SLOTS: ModuleSlots = ModuleSlots([
+    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
+    data_slot(Py_mod_name, c"_struct_rs".as_ptr() as *mut c_void),
+    data_slot(Py_mod_doc,
+        c"Rust implementation of standard binary record packing".as_ptr() as *mut c_void),
+    static_data_slot(Py_mod_methods, _STRUCT_RS_MODULE_METHODS.as_ptr() as *mut c_void),
+    function_slot(MODULE_EXEC_SLOT, unsafe { std::mem::transmute::<
+        unsafe extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(module_exec) }),
+    // Preserve the old definition's shared-GIL support and own-GIL rejection.
+    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 1 } },
+    function_slot(Py_mod_state_clear, unsafe { std::mem::transmute::<
+        extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(_struct_rs_clear) }),
+    function_slot(Py_mod_state_free, unsafe { std::mem::transmute::<
+        extern "C" fn(*mut c_void), unsafe extern "C" fn()>(_struct_rs_free) }),
+    PySlot { sl_id: 0, sl_flags: 0,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
+]);
+
 #[unsafe(no_mangle)]
-pub extern "C" fn PyInit__struct_rs() -> *mut PyObject {
-    _STRUCT_RS_MODULE.init_multi_phase()
+pub extern "C" fn PyModExport__struct_rs() -> *mut PySlot {
+    MODULE_SLOTS.0.as_ptr() as *mut PySlot
 }

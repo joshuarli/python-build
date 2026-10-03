@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::mem::{self, MaybeUninit};
 use std::ptr;
@@ -21,10 +20,11 @@ use cpython_sys::PyLong_AsLong;
 use cpython_sys::PyLong_AsSsize_t;
 use cpython_sys::PyMethodDef;
 use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyModuleDef_Slot;
+use cpython_sys::{
+    PyABIInfo, PySlot, PySlot__bindgen_ty_1, PySlot__bindgen_ty_2,
+    Py_mod_abi, Py_mod_doc, Py_mod_methods, Py_mod_name,
+    Py_mod_state_clear, Py_mod_state_free, PySlot_INTPTR, PySlot_STATIC,
+};
 use cpython_sys::PyNumber_Index;
 use cpython_sys::PyObject;
 use cpython_sys::PyObject_GetBuffer;
@@ -981,18 +981,6 @@ pub extern "C" fn _zlib_rs_clear(_object: *mut PyObject) -> c_int {
 
 pub extern "C" fn _zlib_rs_free(_object: *mut c_void) {}
 
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 pub static _ZLIB_RS_MODULE_METHODS: [PyMethodDef; 14] = [
     PyMethodDef {
         ml_name: c"compress_once".as_ptr() as *mut c_char,
@@ -1075,50 +1063,86 @@ pub static _ZLIB_RS_MODULE_METHODS: [PyMethodDef; 14] = [
     PyMethodDef::zeroed(),
 ];
 
+// The loader reads these process-lifetime tables but never mutates them.
+// Python references and copied module metadata belong to each interpreter.
+struct ModuleSlots([PySlot; 9]);
+unsafe impl Sync for ModuleSlots {}
+
 unsafe extern "C" fn module_exec(_module: *mut PyObject) -> c_int {
     0
 }
 
-struct ModuleSlots([PyModuleDef_Slot; 3]);
-
-unsafe impl Sync for ModuleSlots {}
-
-// These are the generated slot IDs in the pinned CPython 3.16 fork.
-const PY_MOD_EXEC: c_int = 85;
-const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2 as *mut c_void;
-
-// Each codec state is owned by a capsule, and the module definition has no mutable state.
-static _ZLIB_RS_MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    PyModuleDef_Slot {
-        slot: PY_MOD_EXEC,
-        value: module_exec as *const () as *mut c_void,
-    },
-    PyModuleDef_Slot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
-    PyModuleDef_Slot {
-        slot: 0,
-        value: ptr::null_mut(),
-    },
-]);
-
-pub static _ZLIB_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_zlib_rs".as_ptr() as *mut _,
-        m_doc: c"Rust DEFLATE codecs for zlib.".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: &_ZLIB_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: _ZLIB_RS_MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
-        m_traverse: None,
-        m_clear: Some(_zlib_rs_clear),
-        m_free: Some(_zlib_rs_free),
-    }),
+// The full non-stable ABI is the locked CPython 3.16.0a0 GIL build.
+// The loader validates the major/minor version and GIL ABI before installing
+// methods; the build source lock supplies the exact interpreter revision.
+static ABI_INFO: PyABIInfo = PyABIInfo {
+    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
+    build_version: 0x031000a0, abi_version: 0x031000a0,
 };
 
+#[cfg(not(target_pointer_width = "64"))]
+compile_error!("zlib slot export requires the supported 64-bit CPython ABI");
+
+const _: () = {
+    assert!(std::mem::size_of::<PySlot>() == 16);
+    assert!(std::mem::align_of::<PySlot>() == 8);
+    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
+    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
+    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
+    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
+    assert!(std::mem::size_of::<PyABIInfo>() == 12);
+    assert!(std::mem::align_of::<PyABIInfo>() == 4);
+};
+
+const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
+    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
+}
+
+// The loader retains method definitions after copying the slots. Their array
+// is immutable and lives for the process, so its pointer has static ownership.
+const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
+    let mut slot = data_slot(id, value);
+    slot.sl_flags |= PySlot_STATIC as u16;
+    slot
+}
+
+const fn function_slot(id: u32, value: unsafe extern "C" fn()) -> PySlot {
+    PySlot { sl_id: id as u16, sl_flags: 0,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_func: Some(value) } }
+}
+
+// The non-limited ABI uses these new slot IDs. The binding generator omits
+// their function-like compatibility macros; the native oracle checks them
+// against the interpreter headers before this helper is qualified.
+const MODULE_EXEC_SLOT: u32 = 85;
+const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
+
+// Codec capsules own all mutable state. The omitted state-size and traverse
+// slots preserve zero module state and no traversal callback. Clear and free
+// retain their existing no-op callbacks.
+static MODULE_SLOTS: ModuleSlots = ModuleSlots([
+    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
+    data_slot(Py_mod_name, c"_zlib_rs".as_ptr() as *mut c_void),
+    data_slot(Py_mod_doc, c"Rust DEFLATE codecs for zlib.".as_ptr() as *mut c_void),
+    static_data_slot(Py_mod_methods, _ZLIB_RS_MODULE_METHODS.as_ptr() as *mut c_void),
+    function_slot(MODULE_EXEC_SLOT, unsafe { std::mem::transmute::<
+        unsafe extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(module_exec) }),
+    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 2 } },
+    function_slot(Py_mod_state_clear, unsafe { std::mem::transmute::<
+        extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(_zlib_rs_clear) }),
+    function_slot(Py_mod_state_free, unsafe { std::mem::transmute::<
+        extern "C" fn(*mut c_void), unsafe extern "C" fn()>(_zlib_rs_free) }),
+    PySlot { sl_id: 0, sl_flags: 0,
+        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
+        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
+]);
+
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn PyInit__zlib_rs() -> *mut PyObject {
-    _ZLIB_RS_MODULE.init_multi_phase()
+pub extern "C" fn PyModExport__zlib_rs() -> *mut PySlot {
+    MODULE_SLOTS.0.as_ptr() as *mut PySlot
 }
