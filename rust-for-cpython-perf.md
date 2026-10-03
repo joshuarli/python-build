@@ -339,6 +339,16 @@ or establish the earlier vmmap difference's cause. The completed evidence
 SHA256 is `108d71c5fb37c68e885f8bb116571c717288315c107c0a83e7dbde4cdb199921`;
 no gate, goal, or historical ratio was changed.
 
+The shared Rust regex-key candidate at `6ac55c2` passed clean58 and seven
+complete focused suites (737 run, 18 skipped, zero failures). Its first
+memory-only exploration **REJECTED**:
+`20261003T124015Z-perf-rust-vs-perf-k142`, verdict SHA256
+`9b2ee2386156b13cd175f39a5a90adc33d66d89b584f25e14e6d446726309415`.
+Both regex memory metrics were neutral; warnings load and six workload RSS
+guards regressed in both runs. Supplemental private Rust and Python fixtures
+remained unexecuted, and no full qualification or unchanged retry follows.
+No accepted memory goal changed. CPU, timing and quietness were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
