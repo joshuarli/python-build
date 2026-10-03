@@ -313,6 +313,32 @@ and native probes never ran. No full suite, acceptance gate or unchanged
 retry follows this rejection. Main, incumbent and accepted memory goals
 remain unchanged; CPU, timing and quietness were not checked.
 
+The scoped 256 KiB arena candidate at `4445d8c` retained 16 KiB pools,
+the 512-byte cutoff and existing retention rules. Clean58 and focused
+2,033/351 correctness checks passed. Its first memory-only exploratory
+comparison **REJECTED**:
+`20261003T121037Z-perf-rust-vs-perf-a141`, verdict SHA256
+`2fd798c0589d2a4cb44ada3225ad2a2d9cd7aa0dd8c2f02be2491f73e903689e`.
+Datetime and decimal loads improved (0.646x and 0.857x), as did zstd and
+configparser working peaks (0.800x and 0.955x). Asyncio and logging working
+peaks regressed (3.062x and 1.701x); all 23 workload RSS rows were neutral.
+The unchanged candidate is closed without native execution, full-suite
+qualification, or acceptance. Its unexecuted native binding also omitted
+a required git input; that source-review gap is preserved. Main, incumbent
+and accepted memory goals remain unchanged. CPU, timing and quietness
+were not checked.
+
+A separate public malloc-counter embedder diagnostic completed two stage-
+specific compiles and two healthy initialization/finalization traces against
+the accepted interpreter and preserved candidate136. Its exact live-block
+counts and reserved-byte totals matched at all three checkpoints; candidate136
+reported 32 more in-use bytes before configuration, after initialization and
+after finalization. Initialization added equal reported in-use bytes in
+this instrumented context. These counters do not measure physical residency
+or establish the earlier vmmap difference's cause. The completed evidence
+SHA256 is `108d71c5fb37c68e885f8bb116571c717288315c107c0a83e7dbde4cdb199921`;
+no gate, goal, or historical ratio was changed.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
