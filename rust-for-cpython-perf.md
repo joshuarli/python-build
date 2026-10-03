@@ -95,6 +95,59 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+Regex source `c81b21257d2e449d9c4e70a2d60f42860bca199f` reduced the
+acceptance-hint memo table from 512 to 64 slots while preserving its 60 KiB
+scratch arena, engine configuration, FIFO cache and allocation domains.
+The clean 58-extension build, four complete affected suites (582 tests,
+60 skips) and three native Python cases passed. Fresh self-calibration passed.
+Its sole two-run, matched-prefix/executable memory-only exploration,
+`20261003T201827Z-perf-rust-vs-perf-rm154`, was **NEUTRAL**: all four modules'
+load and working metrics and all 23 final workload RSS classifications were
+neutral. Three workloads were worse in one run only; no replicated regression
+or improvement occurred. The smaller logical table did not demonstrate
+physical savings. Verdict SHA256 is
+`040ff03d9b6e074f4e1db8bdd74374ad5e82564cc7b257721a9333024f6b3397`;
+independent saved-output audit SHA256 is
+`fd850497e40c4b0acf0fb16fe5c40e3fcf7bb49494b26fbfbdb9e7e7cd4c5e6a`.
+Private Rust unit tests and full qualification remain unrun; no unchanged
+retry or integration follows the neutral result.
+
+Collections source `a488f1e7b7fb03403288d0ddd63a5f1fe6c0e9e3` isolated the
+immutable loader-export change previously tested in an eleven-route batch.
+It passed a clean 58-extension build and seven complete suites (666 tests,
+three skips). Fresh self-calibration passed. Its first and only two-run
+memory-only exploration, `20261003T205555Z-perf-rust-vs-perf-collections-singleton`,
+**REJECTED** eleven replicated workload RSS regressions: catalog request/search,
+compileall, both difflib workloads, gzip, process pool, both base64 workloads
+and both zlib workloads (1.010–1.017x). Collections load and working peak were
+neutral; no metric improved. Four additional workload rows were worse in one
+run only and remained neutral. Verdict SHA256 is
+`9d9dcaeb4b5b2ca01acbca74b3ab4e5a9b4b7b6acd565e1affd6af766be0d698`;
+independent saved-output audit SHA256 is
+`b6645a826ed82ec641483f33dcf4b9c06c14ec65e5aa7127e3ce227094b0cf2d`.
+The singleton resolves the earlier lack of a separate measurement. Native
+custom fixtures and full qualification remain unrun; there is no unchanged
+retry or integration.
+
+Pickle source `5e7735d57252629c23096bee170d54779003a80e` restored the previously
+unmeasured single-parse candidate. It validates and consumes one typed tree,
+avoiding an earlier generic validation parse whose tree was already dropped
+before the second parse. This targets allocation high-water and retention.
+Private admission can become narrower;
+the existing C fallback preserves public behavior. A clean 58-extension build,
+seven complete suites (4,085 tests, 121 skips) and four fresh native fixtures
+passed. Fresh self-calibration passed. The sole two-run memory-only exploration,
+`20261003T211427Z-perf-rust-vs-perf-pickle-singleparse137`, was **NEUTRAL**:
+pickle load was 0.984x with interval [0.943, 1.053], working peak was 1.000x,
+and all 23 workload RSS classifications were neutral. No physical benefit
+was demonstrated. Verdict SHA256 is
+`90655887e45583c2e7bd1bb10820a34beb2c763b33c903705e80f6da8fea1e78`.
+Independent noise-aware saved-output audit SHA256 is
+`61c5eeb74d7639181a82bd93eaa1c346ba1690a6171ee11ec93f2cd65611b661`;
+it verified 40 module samples, 92 workload summaries and 600 saved memory/output
+payloads. Warmup outputs were not separately retained. Full qualification
+remains unrun. There is no unchanged retry, absolute-goal resampling or integration.
+
 Inspect source `dbf4f19e4cc929aef29e9b34118ee899a7edbeba` deferred
 `importlib.machinery` with a lazy import. Its clean build, nine affected
 complete suites (4,325 tests, 26 skips) and five targeted fixtures passed.
