@@ -41,11 +41,13 @@ check(PyObject *self, PyObject *filename)
         dlclose(image);
         return NULL;
     }
+    Py_ssize_t state_size = -1;
+    int state_size_ok = PyModule_GetStateSize(helper, &state_size) == 0;
     const uint16_t ids[] = {Py_mod_abi, Py_mod_name, Py_mod_doc, Py_mod_methods,
         Py_mod_exec, Py_mod_multiple_interpreters, Py_mod_state_clear,
         Py_mod_state_free, 0};
     int valid = slots != NULL && slots == export_slots()
-        && PyModule_GetDef(helper) == NULL && PyModule_GetState(helper) == NULL
+        && PyModule_GetDef(helper) == NULL && state_size_ok && state_size == 0
         && token == slots && PyErr_Occurred() == NULL;
     for (size_t index = 0; valid && index < sizeof(ids)/sizeof(ids[0]); index++) {
         const uint16_t flags = index == 3 ? PySlot_INTPTR | PySlot_STATIC

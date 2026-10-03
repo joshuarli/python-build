@@ -128,6 +128,9 @@ class SlotExportTests(unittest.TestCase):
             self.assertEqual(socket.inet_pton(socket.AF_INET, "127.0.0.1"), b"\x7f\0\0\1")
             left, right = socket.socketpair()
             try:
+                with self.assertRaisesRegex(AttributeError, "NoneType.*send"):
+                    left.send(b"fallback")
+                sys.modules.pop("_socket_rs")
                 count = left.send(b"fallback")
                 self.assertGreater(count, 0)
                 self.assertEqual(right.recv(count), b"fallback"[:count])
