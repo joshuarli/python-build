@@ -1,3 +1,4 @@
+use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::mem::MaybeUninit;
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -9,9 +10,8 @@ use cpython_sys::{
     PyErr_CheckSignals, PyErr_Occurred, PyErr_SetFromErrno, PyErr_SetString, PyEval_RestoreThread,
     PyEval_SaveThread, PyExc_OSError,
     PyExc_TypeError, PyExc_ValueError, PyLong_AsLong, PyLong_FromSsize_t,
-    PyMethodDef, PyMethodDefFuncPointer, PyABIInfo, PySlot,
-    PySlot__bindgen_ty_1, PySlot__bindgen_ty_2, PySlot_INTPTR, PySlot_STATIC,
-    Py_mod_abi, Py_mod_name, Py_mod_doc, Py_mod_methods, PyObject, PyObject_GetBuffer,
+    PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT,
+    PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyObject_GetBuffer,
     PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_ssize_t,
 };
 
@@ -21,6 +21,8 @@ unsafe extern "C" {
 }
 
 const PYBUF_SIMPLE: c_int = 0;
+const PY_MOD_MULTIPLE_INTERPRETERS_SLOT: c_int = 86;
+const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: usize = 2;
 
 fn fail(exception: *mut PyObject, message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { PyErr_SetString(exception, message.as_ptr()) };
@@ -216,47 +218,19 @@ unsafe extern "C" fn socket_recv(
     }
 }
 
-struct ModuleSlots([PySlot; 6]);
+struct ModuleDef(UnsafeCell<PyModuleDef>);
+unsafe impl Sync for ModuleDef {}
+
+struct ModuleSlots(UnsafeCell<[PyModuleDef_Slot; 2]>);
 unsafe impl Sync for ModuleSlots {}
 
-// The non-stable ABI is the locked CPython 3.16.0a0 GIL build. The loader
-// checks major/minor and GIL compatibility; the source lock pins the revision.
-static ABI_INFO: PyABIInfo = PyABIInfo {
-    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
-    build_version: 0x031000a0, abi_version: 0x031000a0,
-};
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("socket slot export requires the supported 64-bit CPython ABI");
-
-const _: () = {
-    assert!(std::mem::size_of::<PySlot>() == 16);
-    assert!(std::mem::align_of::<PySlot>() == 8);
-    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
-    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
-    assert!(std::mem::size_of::<PyABIInfo>() == 12);
-    assert!(std::mem::align_of::<PyABIInfo>() == 4);
-};
-
-const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
-}
-
-// Method objects retain these definitions after slot copying. The immutable
-// array lives for the process, so its pointer has static ownership.
-const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
-    let mut slot = data_slot(id, value);
-    slot.sl_flags |= PySlot_STATIC as u16;
-    slot
-}
-
-// The non-limited compatibility macro is function-like and not generated
-// by bindgen; the native header oracle checks this identifier's exact value.
-const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
+static MODULE_SLOTS: ModuleSlots = ModuleSlots(UnsafeCell::new([
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS_SLOT,
+        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED as *mut c_void,
+    },
+    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
+]));
 
 static METHODS: [PyMethodDef; 5] = [
     PyMethodDef {
@@ -286,20 +260,19 @@ static METHODS: [PyMethodDef; 5] = [
     PyMethodDef::zeroed(),
 ];
 
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
-    data_slot(Py_mod_name, c"_socket_rs".as_ptr() as *mut c_void),
-    data_slot(Py_mod_doc, c"Rust address conversion and blocking socket I/O".as_ptr() as *mut c_void),
-    static_data_slot(Py_mod_methods, METHODS.as_ptr() as *mut c_void),
-    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 2 } },
-    PySlot { sl_id: 0, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
-]);
+static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
+    m_base: PyModuleDef_HEAD_INIT,
+    m_name: c"_socket_rs".as_ptr() as *mut c_char,
+    m_doc: c"Rust address conversion and blocking socket I/O".as_ptr() as *mut c_char,
+    m_size: 0,
+    m_methods: METHODS.as_ptr() as *mut PyMethodDef,
+    m_slots: MODULE_SLOTS.0.get().cast(),
+    m_traverse: None,
+    m_clear: None,
+    m_free: None,
+}));
 
 #[unsafe(no_mangle)]
-pub extern "C" fn PyModExport__socket_rs() -> *mut PySlot {
-    MODULE_SLOTS.0.as_ptr() as *mut PySlot
+pub extern "C" fn PyInit__socket_rs() -> *mut PyObject {
+    unsafe { PyModuleDef_Init(MODULE.0.get()) }
 }

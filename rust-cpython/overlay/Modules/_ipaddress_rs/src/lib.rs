@@ -1,39 +1,30 @@
-#![no_std]
+use std::cell::UnsafeCell;
+use std::ffi::{c_char, c_int};
+use std::mem::MaybeUninit;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::ptr;
+use std::slice;
+use std::str;
 
-mod ffi;
-
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int};
-use core::mem::MaybeUninit;
-use core::net::{Ipv4Addr, Ipv6Addr};
-use core::ptr;
-use core::slice;
-use core::str;
-
-use ffi::METH_FASTCALL;
-use ffi::Py_buffer;
-use ffi::PyBytes_FromStringAndSize;
-use ffi::PyErr_NoMemory;
-use ffi::PyErr_Occurred;
-use ffi::PyErr_SetString;
-use ffi::PyExc_TypeError;
-use ffi::PyExc_ValueError;
-use ffi::PyLong_AsLong;
-use ffi::PyMethodDef;
-use ffi::PyMethodDefFuncPointer;
-use ffi::PyModuleDef;
-use ffi::PyModuleDef_HEAD_INIT;
-use ffi::PyModuleDef_Init;
-use ffi::PyObject;
-use ffi::PyObject_GetBuffer;
-use ffi::PyUnicode_AsUTF8AndSize;
-use ffi::PyBuffer_Release;
-use ffi::Py_ssize_t;
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { ffi::abort() }
-}
+use cpython_sys::METH_FASTCALL;
+use cpython_sys::Py_buffer;
+use cpython_sys::PyBytes_FromStringAndSize;
+use cpython_sys::PyErr_NoMemory;
+use cpython_sys::PyErr_Occurred;
+use cpython_sys::PyErr_SetString;
+use cpython_sys::PyExc_TypeError;
+use cpython_sys::PyExc_ValueError;
+use cpython_sys::PyLong_AsLong;
+use cpython_sys::PyMethodDef;
+use cpython_sys::PyMethodDefFuncPointer;
+use cpython_sys::PyModuleDef;
+use cpython_sys::PyModuleDef_HEAD_INIT;
+use cpython_sys::PyModuleDef_Init;
+use cpython_sys::PyObject;
+use cpython_sys::PyObject_GetBuffer;
+use cpython_sys::PyUnicode_AsUTF8AndSize;
+use cpython_sys::PyBuffer_Release;
+use cpython_sys::Py_ssize_t;
 
 const PYBUF_SIMPLE: c_int = 0;
 
@@ -66,12 +57,12 @@ impl Drop for BorrowedBuffer {
     }
 }
 
-fn set_type_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn set_type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
     ptr::null_mut()
 }
 
-fn set_value_error(message: &'static core::ffi::CStr) -> *mut PyObject {
+fn set_value_error(message: &'static std::ffi::CStr) -> *mut PyObject {
     unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) };
     ptr::null_mut()
 }
@@ -210,7 +201,7 @@ pub extern "C" fn _ipaddress_rs_clear(_object: *mut PyObject) -> c_int {
     0
 }
 
-pub extern "C" fn _ipaddress_rs_free(_object: *mut core::ffi::c_void) {}
+pub extern "C" fn _ipaddress_rs_free(_object: *mut std::ffi::c_void) {}
 
 pub struct ModuleDef {
     ffi: UnsafeCell<PyModuleDef>,

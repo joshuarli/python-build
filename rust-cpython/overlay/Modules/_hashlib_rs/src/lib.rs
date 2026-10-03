@@ -6,10 +6,8 @@ use std::slice;
 use cpython_sys::{
     METH_NOARGS, METH_O, METH_VARARGS, PyBytes_FromStringAndSize, PyErr_NoMemory,
     PyErr_SetString, PyExc_ValueError, PyGetSetDef, PyLong_FromLong, PyMethodDef,
-    PyMethodDefFuncPointer, PyModule_AddObject, PyABIInfo, PySlot,
-    PySlot__bindgen_ty_1, PySlot__bindgen_ty_2, PySlot_INTPTR, PySlot_STATIC,
-    Py_mod_abi, Py_mod_name, Py_mod_doc, Py_mod_methods, Py_mod_state_size,
-    Py_mod_state_clear, Py_mod_state_free, PyObject, PyObject_Free, PyObject_GetAttrString, PyObject_GetBuffer,
+    PyMethodDefFuncPointer, PyModule_AddObject, PyModuleDef, PyModuleDef_HEAD_INIT,
+    PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyObject_Free, PyObject_GetAttrString, PyObject_GetBuffer,
     PyObject_HashNotImplemented, PyObject_Type, PyType_FromSpec, PyType_GenericAlloc, PyTypeObject, PyType_Slot,
     PyType_Spec, PyUnicode_FromFormat, PyUnicode_FromStringAndSize, Py_NewRef,
     Py_DecRef, Py_buffer, Py_ssize_t, Py_tp_dealloc, Py_tp_getset, Py_tp_hash,
@@ -421,55 +419,35 @@ unsafe extern "C" fn exec_module(module: *mut PyObject) -> c_int {
     0
 }
 
-// The loader copies module metadata and keeps static method definitions.
-// Python objects and HASH heap types remain owned by each interpreter.
-struct HashModuleSlots([PySlot; 10]);
+struct HashModuleSlots([PyModuleDef_Slot; 3]);
+
 unsafe impl Sync for HashModuleSlots {}
 
 // These are the generated slot IDs in the pinned CPython 3.16 fork.
-// The binding generator omits function-like non-limited slot macros.
-const PY_MOD_EXEC: u32 = 85;
-const PY_MOD_MULTIPLE_INTERPRETERS: u16 = 86;
+const PY_MOD_EXEC: c_int = 85;
+const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
+const PY_MOD_MULTIPLE_INTERPRETERS_SUPPORTED: *mut c_void = 1 as *mut c_void;
 
-// The full non-stable ABI is the locked CPython 3.16.0a0 GIL build.
-// The loader checks the major/minor version and GIL compatibility.
-static ABI_INFO: PyABIInfo = PyABIInfo {
-    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
-    build_version: 0x031000a0, abi_version: 0x031000a0,
-};
+static MODULE_SLOTS: HashModuleSlots = HashModuleSlots([
+    PyModuleDef_Slot { slot: PY_MOD_EXEC, value: exec_module as *const () as *mut c_void },
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: PY_MOD_MULTIPLE_INTERPRETERS_SUPPORTED,
+    },
+    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
+]);
 
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("hashlib slot export requires the supported 64-bit CPython ABI");
-
-const _: () = {
-    assert!(size_of::<PySlot>() == 16);
-    assert!(std::mem::align_of::<PySlot>() == 8);
-    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
-    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
-    assert!(size_of::<PyABIInfo>() == 12);
-    assert!(std::mem::align_of::<PyABIInfo>() == 4);
-};
-
-const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
+pub struct ModuleDef {
+    ffi: std::cell::UnsafeCell<PyModuleDef>,
 }
 
-const fn function_slot(id: u32, value: unsafe extern "C" fn()) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_func: Some(value) } }
+impl ModuleDef {
+    fn init(&'static self) -> *mut PyObject {
+        unsafe { PyModuleDef_Init(self.ffi.get()) }
+    }
 }
 
-// CPython retains this process-lifetime array instead of copying its entries.
-const fn methods_slot() -> PySlot {
-    let mut slot = data_slot(Py_mod_methods, MODULE_METHODS.as_ptr() as *mut c_void);
-    slot.sl_flags |= PySlot_STATIC as u16;
-    slot
-}
+unsafe impl Sync for ModuleDef {}
 
 pub static MODULE_METHODS: [PyMethodDef; 2] = [
     PyMethodDef {
@@ -481,29 +459,21 @@ pub static MODULE_METHODS: [PyMethodDef; 2] = [
     PyMethodDef::zeroed(),
 ];
 
-static MODULE_SLOTS: HashModuleSlots = HashModuleSlots([
-    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
-    data_slot(Py_mod_name, c"_hashlib_rs".as_ptr() as *mut c_void),
-    data_slot(Py_mod_doc, c"RustCrypto digest implementations used by hashlib.".as_ptr() as *mut c_void),
-    methods_slot(),
-    PySlot { sl_id: Py_mod_state_size as u16, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_size: 0 } },
-    function_slot(PY_MOD_EXEC, unsafe { std::mem::transmute::<
-        unsafe extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(exec_module) }),
-    PySlot { sl_id: PY_MOD_MULTIPLE_INTERPRETERS, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 1 } },
-    function_slot(Py_mod_state_clear, unsafe { std::mem::transmute::<
-        unsafe extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(clear_module) }),
-    function_slot(Py_mod_state_free, unsafe { std::mem::transmute::<
-        unsafe extern "C" fn(*mut c_void), unsafe extern "C" fn()>(free_module) }),
-    PySlot { sl_id: 0, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
-]);
+pub static MODULE: ModuleDef = ModuleDef {
+    ffi: std::cell::UnsafeCell::new(PyModuleDef {
+        m_base: PyModuleDef_HEAD_INIT,
+        m_name: c"_hashlib_rs".as_ptr() as *mut c_char,
+        m_doc: c"RustCrypto digest implementations used by hashlib.".as_ptr() as *mut c_char,
+        m_size: 0,
+        m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
+        m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
+        m_traverse: None,
+        m_clear: Some(clear_module),
+        m_free: Some(free_module),
+    }),
+};
 
 #[unsafe(no_mangle)]
-pub extern "C" fn PyModExport__hashlib_rs() -> *mut PySlot {
-    MODULE_SLOTS.0.as_ptr() as *mut PySlot
+pub extern "C" fn PyInit__hashlib_rs() -> *mut PyObject {
+    MODULE.init()
 }

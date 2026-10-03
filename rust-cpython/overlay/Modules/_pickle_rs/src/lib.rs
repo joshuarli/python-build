@@ -1,3 +1,4 @@
+use std::cell::UnsafeCell;
 use std::collections::HashSet;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
@@ -9,11 +10,8 @@ use cpython_sys::{
     PyErr_NoMemory, PyErr_Occurred, PyErr_SetString, PyExc_TypeError,
     PyExc_UnicodeEncodeError, PyFloat_AsDouble, PyFloat_FromDouble, PyList_Append,
     PyList_GetItem, PyList_New, PyList_Size, PyLong_AsLong, PyLong_AsLongLong,
-    PyLong_FromLongLong, PyMethodDef, PyMethodDefFuncPointer,
-    PyABIInfo, PySlot, PySlot__bindgen_ty_1, PySlot__bindgen_ty_2,
-    Py_mod_abi, Py_mod_doc, Py_mod_methods, Py_mod_name,
-    Py_mod_state_clear, Py_mod_state_free, PySlot_INTPTR, PySlot_STATIC,
-    PyObject, PyObject_Type, PyTuple_New,
+    PyLong_FromLongLong, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_Slot,
+    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyObject_Type, PyTuple_New,
     PyTuple_SetItem, PyTypeObject, PyUnicode_AsUTF8AndSize,
     PyUnicode_FromStringAndSize, Py_DecRef, Py_IncRef, PyBytes_Type, PyBool_Type,
     PyDict_Type, PyFloat_Type, PyList_Type, PyLong_Type, PyUnicode_Type, Py_ssize_t,
@@ -733,56 +731,39 @@ pub extern "C" fn _pickle_rs_clear(_object: *mut PyObject) -> c_int {
 
 pub extern "C" fn _pickle_rs_free(_object: *mut c_void) {}
 
-// CPython copies these immutable slots into each interpreter's module. The
-// codec retains no Python objects or mutable state between calls.
-struct ModuleSlots([PySlot; 8]);
+struct ModuleDef(UnsafeCell<PyModuleDef>);
+
+impl ModuleDef {
+    fn init(&'static self) -> *mut PyObject {
+        unsafe { PyModuleDef_Init(self.0.get()) }
+    }
+}
+
+unsafe impl Sync for ModuleDef {}
+
+const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
+
+struct ModuleSlots(UnsafeCell<[PyModuleDef_Slot; 2]>);
+
+impl ModuleSlots {
+    const fn as_mut_ptr(&self) -> *mut PyModuleDef_Slot {
+        self.0.get().cast::<PyModuleDef_Slot>()
+    }
+}
+
+// The codec keeps no Python objects or mutable state between calls.
 unsafe impl Sync for ModuleSlots {}
 
-// The non-stable ABI requires the locked CPython 3.16 GIL build. The loader
-// checks the major/minor version and GIL compatibility; the source lock pins
-// the full interpreter revision independently of the release-level bits.
-static ABI_INFO: PyABIInfo = PyABIInfo {
-    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
-    build_version: 0x031000a0, abi_version: 0x031000a0,
-};
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("pickle slot export requires the supported 64-bit CPython ABI");
-
-const _: () = {
-    assert!(std::mem::size_of::<PySlot>() == 16);
-    assert!(std::mem::align_of::<PySlot>() == 8);
-    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
-    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
-    assert!(std::mem::size_of::<PyABIInfo>() == 12);
-    assert!(std::mem::align_of::<PyABIInfo>() == 4);
-};
-
-const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
-}
-
-// Method definitions outlive each module: CPython retains their pointer after
-// copying the slots, so the immutable table declares process-lifetime storage.
-const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
-    let mut slot = data_slot(id, value);
-    slot.sl_flags |= PySlot_STATIC as u16;
-    slot
-}
-
-const fn function_slot(id: u32, value: unsafe extern "C" fn()) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_func: Some(value) } }
-}
-
-// The non-limited compatibility macro is omitted by the binding generator.
-// The native header oracle verifies the interpreter's corresponding slot ID.
-const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
+static MODULE_SLOTS: ModuleSlots = ModuleSlots(UnsafeCell::new([
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: 2usize as *mut c_void,
+    },
+    PyModuleDef_Slot {
+        slot: 0,
+        value: ptr::null_mut(),
+    },
+]));
 
 static METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
@@ -800,26 +781,19 @@ static METHODS: [PyMethodDef; 3] = [
     PyMethodDef::zeroed(),
 ];
 
-// Omitted state-size, execution and traversal slots retain zero state and no
-// execution/traversal hooks; the clear/free callbacks keep their original ABI.
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
-    data_slot(Py_mod_name, c"_pickle_rs".as_ptr() as *mut c_void),
-    data_slot(Py_mod_doc, c"Rust pickle codec for common builtin object graphs".as_ptr() as *mut c_void),
-    static_data_slot(Py_mod_methods, METHODS.as_ptr() as *mut c_void),
-    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 2 } },
-    function_slot(Py_mod_state_clear, unsafe { std::mem::transmute::<
-        extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(_pickle_rs_clear) }),
-    function_slot(Py_mod_state_free, unsafe { std::mem::transmute::<
-        extern "C" fn(*mut c_void), unsafe extern "C" fn()>(_pickle_rs_free) }),
-    PySlot { sl_id: 0, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
-]);
+static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
+    m_base: PyModuleDef_HEAD_INIT,
+    m_name: c"_pickle_rs".as_ptr() as *mut _,
+    m_doc: c"Rust pickle codec for common builtin object graphs".as_ptr() as *mut _,
+    m_size: 0,
+    m_methods: METHODS.as_ptr() as *mut _,
+    m_slots: MODULE_SLOTS.as_mut_ptr(),
+    m_traverse: None,
+    m_clear: Some(_pickle_rs_clear),
+    m_free: Some(_pickle_rs_free),
+}));
 
 #[unsafe(no_mangle)]
-pub extern "C" fn PyModExport__pickle_rs() -> *mut PySlot {
-    MODULE_SLOTS.0.as_ptr() as *mut PySlot
+pub extern "C" fn PyInit__pickle_rs() -> *mut PyObject {
+    MODULE.init()
 }

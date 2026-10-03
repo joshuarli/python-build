@@ -1,12 +1,12 @@
+use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
 
 use cpython_sys::{
     METH_FASTCALL, PyErr_SetString, PyExc_TypeError, PyExc_ValueError, PyMethodDef,
-    PyMethodDefFuncPointer, PyABIInfo, PySlot, PySlot__bindgen_ty_1,
-    PySlot__bindgen_ty_2, Py_mod_abi, Py_mod_name, Py_mod_doc, Py_mod_methods,
-    PySlot_INTPTR, PySlot_STATIC, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize,
+    PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_Slot, PyModuleDef_HEAD_INIT,
+    PyModuleDef_Init, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize,
     Py_ssize_t,
 };
 use num_bigint::BigUint;
@@ -89,65 +89,40 @@ static METHODS: [PyMethodDef; 3] = [
     PyMethodDef::zeroed(),
 ];
 
-// These tables live for the process. The loader copies their values into
-// interpreter-owned modules without writing to the helper's mapped image.
-struct ModuleSlots([PySlot; 6]);
+const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
+
+struct ModuleSlots([PyModuleDef_Slot; 2]);
+
 unsafe impl Sync for ModuleSlots {}
 
-// The full non-stable ABI requires the locked CPython 3.16 GIL build.
-// The loader checks major/minor and GIL compatibility; the source lock pins
-// the exact revision because the loader does not enforce release-level bits.
-static ABI_INFO: PyABIInfo = PyABIInfo {
-    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
-    build_version: 0x031000a0, abi_version: 0x031000a0,
-};
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("decimal slot export requires the supported 64-bit CPython ABI");
-
-const _: () = {
-    assert!(std::mem::size_of::<PySlot>() == 16);
-    assert!(std::mem::align_of::<PySlot>() == 8);
-    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
-    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
-    assert!(std::mem::size_of::<PyABIInfo>() == 12);
-    assert!(std::mem::align_of::<PyABIInfo>() == 4);
-};
-
-const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
-}
-
-// The interpreter retains the method definitions after copying the slots.
-// Their immutable process-lifetime array requires explicit static ownership.
-const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
-    let mut slot = data_slot(id, value);
-    slot.sl_flags |= PySlot_STATIC as u16;
-    slot
-}
-
-// The binding generator omits the function-like compatibility macro for
-// this slot. A native header oracle verifies its identifier and integer value.
-const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
-
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
-    data_slot(Py_mod_name, c"_decimal_rs".as_ptr() as *mut c_void),
-    data_slot(Py_mod_doc, c"Exact integer coefficient arithmetic for decimal.Decimal.".as_ptr() as *mut c_void),
-    static_data_slot(Py_mod_methods, METHODS.as_ptr() as *mut c_void),
-    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 2 } },
-    PySlot { sl_id: 0, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
+static SLOTS: ModuleSlots = ModuleSlots([
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: 2usize as *mut c_void,
+    },
+    PyModuleDef_Slot {
+        slot: 0,
+        value: ptr::null_mut(),
+    },
 ]);
 
+struct ModuleDef(UnsafeCell<PyModuleDef>);
+
+unsafe impl Sync for ModuleDef {}
+
+static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
+    m_base: PyModuleDef_HEAD_INIT,
+    m_name: c"_decimal_rs".as_ptr() as *mut _,
+    m_doc: c"Exact integer coefficient arithmetic for decimal.Decimal.".as_ptr() as *mut _,
+    m_size: 0,
+    m_methods: METHODS.as_ptr() as *mut _,
+    m_slots: SLOTS.0.as_ptr() as *mut _,
+    m_traverse: None,
+    m_clear: None,
+    m_free: None,
+}));
+
 #[unsafe(no_mangle)]
-pub extern "C" fn PyModExport__decimal_rs() -> *mut PySlot {
-    MODULE_SLOTS.0.as_ptr() as *mut PySlot
+pub extern "C" fn PyInit__decimal_rs() -> *mut PyObject {
+    unsafe { PyModuleDef_Init(MODULE.0.get()) }
 }

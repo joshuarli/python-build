@@ -32,7 +32,6 @@ from io import TextIOWrapper
 import itertools as _itertools
 import re
 import sys
-from _thread import RLock as _GrammarLock
 from token import *
 from token import EXACT_TOKEN_TYPES
 import _tokenize
@@ -60,64 +59,29 @@ class TokenInfo(collections.namedtuple('TokenInfo', 'type string start end line'
         else:
             return self.type
 
-# The compatibility grammar is independent of native token generation. Each
-# module execution owns its deferred values, including fresh mutable containers.
-# Attribute access and dir expose these names before initialization; raw module
-# globals omit them, so deletion before first resolution raises AttributeError.
-_legacy_pattern_names = (
-    'Whitespace', 'Comment', 'Ignore', 'Name', 'Hexnumber',
-    'Binnumber', 'Octnumber', 'Decnumber', 'Intnumber', 'Exponent',
-    'Pointfloat', 'Expfloat', 'Floatnumber', 'Imagnumber', 'Number',
-    'StringPrefix', 'Single', 'Double', 'Single3', 'Double3',
-    'Triple', 'String', 'Special', 'Funny', 'PlainToken',
-    'Token', 'ContStr', 'PseudoExtras', 'PseudoToken', 'endpats',
-    'single_quoted', 'triple_quoted',
-)
-_legacy_operators = tuple(sorted(EXACT_TOKEN_TYPES, reverse=True))
-_legacy_pattern_lock = _GrammarLock()
-_legacy_patterns_initialized = False
-# Fork can discard the thread currently constructing the compatibility grammar.
-# Reset only synchronization in the child; leave the grammar deferred. Reload
-# replaces the lock while the single registered callback reads the current one.
-if not globals().get('_legacy_pattern_fork_registered', False):
-    import os as _legacy_os
-    if hasattr(_legacy_os, 'register_at_fork'):
-        def _reset_legacy_pattern_lock():
-            _legacy_pattern_lock._at_fork_reinit()
-        _legacy_os.register_at_fork(after_in_child=_reset_legacy_pattern_lock)
-        _legacy_pattern_fork_registered = True
-    del _legacy_os
-for _legacy_name in _legacy_pattern_names:
-    globals().pop(_legacy_name, None)
-del _legacy_name
-
-
-def __getattr__(name):
-    global _legacy_patterns_initialized
-    if name not in _legacy_pattern_names:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    with _legacy_pattern_lock:
-        namespace = globals()
-        if name in namespace:
-            return namespace[name]
-        if _legacy_patterns_initialized:
-            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-        from _tokenize_patterns import _build_patterns
-        values = _build_patterns(_legacy_operators)
-        for pattern_name, value in values.items():
-            namespace.setdefault(pattern_name, value)
-        _legacy_patterns_initialized = True
-        return namespace[name]
-
-
-def __dir__():
-    if _legacy_patterns_initialized:
-        return sorted(globals())
-    return sorted(set(globals()) | set(_legacy_pattern_names))
-
 def group(*choices): return '(' + '|'.join(choices) + ')'
 def any(*choices): return group(*choices) + '*'
 def maybe(*choices): return group(*choices) + '?'
+
+# Note: we use unicode matching for names ("\w") but ascii matching for
+# number literals.
+Whitespace = r'[ \f\t]*'
+Comment = r'#[^\r\n]*'
+Ignore = Whitespace + any(r'\\\r?\n' + Whitespace) + maybe(Comment)
+Name = r'\w+'
+
+Hexnumber = r'0[xX](?:_?[0-9a-fA-F])+'
+Binnumber = r'0[bB](?:_?[01])+'
+Octnumber = r'0[oO](?:_?[0-7])+'
+Decnumber = r'(?:0(?:_?0)*|[1-9](?:_?[0-9])*)'
+Intnumber = group(Hexnumber, Binnumber, Octnumber, Decnumber)
+Exponent = r'[eE][-+]?[0-9](?:_?[0-9])*'
+Pointfloat = group(r'[0-9](?:_?[0-9])*\.(?:[0-9](?:_?[0-9])*)?',
+                   r'\.[0-9](?:_?[0-9])*') + maybe(Exponent)
+Expfloat = r'[0-9](?:_?[0-9])*' + Exponent
+Floatnumber = group(Pointfloat, Expfloat)
+Imagnumber = group(r'[0-9](?:_?[0-9])*[jJ]', Floatnumber + r'[jJ]')
+Number = group(Imagnumber, Floatnumber, Intnumber)
 
 # Return the empty string, plus all of the valid string prefixes.
 def _all_string_prefixes():
@@ -138,6 +102,62 @@ def _all_string_prefixes():
 @functools.lru_cache
 def _compile(expr):
     return re.compile(expr, re.UNICODE)
+
+# Note that since _all_string_prefixes includes the empty string,
+#  StringPrefix can be the empty string (making it optional).
+StringPrefix = group(*_all_string_prefixes())
+
+# Tail end of ' string.
+Single = r"[^'\\]*(?:\\.[^'\\]*)*'"
+# Tail end of " string.
+Double = r'[^"\\]*(?:\\.[^"\\]*)*"'
+# Tail end of ''' string.
+Single3 = r"[^'\\]*(?:(?:\\.|'(?!''))[^'\\]*)*'''"
+# Tail end of """ string.
+Double3 = r'[^"\\]*(?:(?:\\.|"(?!""))[^"\\]*)*"""'
+Triple = group(StringPrefix + "'''", StringPrefix + '"""')
+# Single-line ' or " string.
+String = group(StringPrefix + r"'[^\n'\\]*(?:\\.[^\n'\\]*)*'",
+               StringPrefix + r'"[^\n"\\]*(?:\\.[^\n"\\]*)*"')
+
+# Sorting in reverse order puts the long operators before their prefixes.
+# Otherwise if = came before ==, == would get recognized as two instances
+# of =.
+Special = group(*map(re.escape, sorted(EXACT_TOKEN_TYPES, reverse=True)))
+Funny = group(r'\r?\n', Special)
+
+PlainToken = group(Number, Funny, String, Name)
+Token = Ignore + PlainToken
+
+# First (or only) line of ' or " string.
+ContStr = group(StringPrefix + r"'[^\n'\\]*(?:\\.[^\n'\\]*)*" +
+                group("'", r'\\\r?\n'),
+                StringPrefix + r'"[^\n"\\]*(?:\\.[^\n"\\]*)*' +
+                group('"', r'\\\r?\n'))
+PseudoExtras = group(r'\\\r?\n|\z', Comment, Triple)
+PseudoToken = Whitespace + group(PseudoExtras, Number, Funny, ContStr, Name)
+
+# For a given string prefix plus quotes, endpats maps it to a regex
+#  to match the remainder of that string. _prefix can be empty, for
+#  a normal single or triple quoted string (with no prefix).
+endpats = {}
+for _prefix in _all_string_prefixes():
+    endpats[_prefix + "'"] = Single
+    endpats[_prefix + '"'] = Double
+    endpats[_prefix + "'''"] = Single3
+    endpats[_prefix + '"""'] = Double3
+del _prefix
+
+# A set of all of the single and triple quoted string prefixes,
+#  including the opening quotes.
+single_quoted = set()
+triple_quoted = set()
+for t in _all_string_prefixes():
+    for u in (t + '"', t + "'"):
+        single_quoted.add(u)
+    for u in (t + '"""', t + "'''"):
+        triple_quoted.add(u)
+del t, u
 
 tabsize = 8
 

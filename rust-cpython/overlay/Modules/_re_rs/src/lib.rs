@@ -10,11 +10,8 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use cpython_sys::{
     METH_FASTCALL, PyBool_FromLong, PyErr_Clear, PyErr_Occurred, PyLong_AsLong,
-    PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer,
-    PyABIInfo, PySlot, PySlot__bindgen_ty_1, PySlot__bindgen_ty_2,
-    Py_mod_abi, Py_mod_doc, Py_mod_methods, Py_mod_name, Py_mod_state_size,
-    Py_mod_state_clear, Py_mod_state_free, PySlot_INTPTR, PySlot_STATIC,
-    PyObject, PyTuple_New, PyTuple_SetItem,
+    PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
+    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
     PyUnicode_AsUTF8AndSize, Py_DecRef, Py_ssize_t,
 };
 use regex::bytes::{Regex, RegexBuilder};
@@ -417,60 +414,17 @@ pub extern "C" fn _re_rs_clear(_object: *mut PyObject) -> c_int {
 
 pub extern "C" fn _re_rs_free(_object: *mut c_void) {}
 
-// The loader copies these immutable slots into interpreter-owned metadata.
-// The regex scratch storage and engine cache retain their original ownership.
-struct ModuleSlots([PySlot; 11]);
-unsafe impl Sync for ModuleSlots {}
-
-unsafe extern "C" fn module_exec(_module: *mut PyObject) -> c_int { 0 }
-
-// The full ABI descriptor requires the pinned interpreter's major/minor and
-// GIL ABI. Its build version identifies the source version, but the loader
-// does not require all build/release-level version bits to match.
-static ABI_INFO: PyABIInfo = PyABIInfo {
-    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
-    build_version: 0x031000a0, abi_version: 0x031000a0,
-};
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("regex slot export requires the supported 64-bit CPython ABI");
-
-const _: () = {
-    assert!(std::mem::size_of::<PySlot>() == 16);
-    assert!(std::mem::align_of::<PySlot>() == 8);
-    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
-    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
-    assert!(std::mem::size_of::<PyABIInfo>() == 12);
-    assert!(std::mem::align_of::<PyABIInfo>() == 4);
-};
-
-const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
+pub struct ModuleDef {
+    ffi: UnsafeCell<PyModuleDef>,
 }
 
-// CPython retains method definitions after copying the slots. The original
-// immutable method array lives for the process and requires static ownership.
-const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
-    let mut slot = data_slot(id, value);
-    slot.sl_flags |= PySlot_STATIC as u16;
-    slot
+impl ModuleDef {
+    fn init_multi_phase(&'static self) -> *mut PyObject {
+        unsafe { PyModuleDef_Init(self.ffi.get()) }
+    }
 }
 
-const fn function_slot(id: u32, value: unsafe extern "C" fn()) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_func: Some(value) } }
-}
-
-// The non-limited ABI selects these IDs through compatibility macros that the
-// binding generator omits. Their values are checked against native headers.
-const MODULE_EXEC_SLOT: u32 = 85;
-const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
-const MODULE_GIL_SLOT: u16 = 87;
+unsafe impl Sync for ModuleDef {}
 
 pub static _RE_RS_MODULE_METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
@@ -493,33 +447,22 @@ pub static _RE_RS_MODULE_METHODS: [PyMethodDef; 3] = [
     PyMethodDef::zeroed(),
 ];
 
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
-    data_slot(Py_mod_name, c"_re_rs".as_ptr() as *mut c_void),
-    data_slot(Py_mod_doc, c"Rust regular-expression search for a compatible ASCII subset.".as_ptr() as *mut c_void),
-    PySlot { sl_id: Py_mod_state_size as u16, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_size: 0 } },
-    static_data_slot(Py_mod_methods, _RE_RS_MODULE_METHODS.as_ptr() as *mut c_void),
-    function_slot(MODULE_EXEC_SLOT, unsafe { std::mem::transmute::<
-        unsafe extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(module_exec) }),
-    // The helper's global arena and cache still exclude isolated own-GIL use.
-    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 0 } },
-    PySlot { sl_id: MODULE_GIL_SLOT, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 0 } },
-    function_slot(Py_mod_state_clear, unsafe { std::mem::transmute::<
-        extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(_re_rs_clear) }),
-    function_slot(Py_mod_state_free, unsafe { std::mem::transmute::<
-        extern "C" fn(*mut c_void), unsafe extern "C" fn()>(_re_rs_free) }),
-    PySlot { sl_id: 0, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
-]);
+pub static _RE_RS_MODULE: ModuleDef = ModuleDef {
+    ffi: UnsafeCell::new(PyModuleDef {
+        m_base: PyModuleDef_HEAD_INIT,
+        m_name: c"_re_rs".as_ptr() as *mut _,
+        m_doc: c"Rust regular-expression search for a compatible ASCII subset.".as_ptr()
+            as *mut _,
+        m_size: 0,
+        m_methods: &_RE_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
+        m_slots: ptr::null_mut(),
+        m_traverse: None,
+        m_clear: Some(_re_rs_clear),
+        m_free: Some(_re_rs_free),
+    }),
+};
 
 #[unsafe(no_mangle)]
-pub extern "C" fn PyModExport__re_rs() -> *mut PySlot {
-    MODULE_SLOTS.0.as_ptr() as *mut PySlot
+pub extern "C" fn PyInit__re_rs() -> *mut PyObject {
+    _RE_RS_MODULE.init_multi_phase()
 }
