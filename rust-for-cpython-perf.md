@@ -285,6 +285,21 @@ but the candidate remains unaccepted. No unchanged retry follows this
 gate; main and incumbent remain unchanged. CPU, timing and quietness
 were not checked.
 
+The static intern-table pre-sizing candidate at `45e7cf7` completed a clean
+58-extension build and focused correctness checks (3,929 run, 390 skipped,
+zero failures). The initial focused invocation used the obsolete
+`test_unicode` suite name; its import failure is preserved, and the corrected
+complete string and neighboring suites passed without source or test changes.
+Its first memory-only exploratory comparison **REJECTED**:
+`20261003T114444Z-perf-rust-vs-perf-i138`, verdict SHA256
+`8af3fcb1e543bc84af0d684801fd8a25114b094f08ed2df36a8bb53da5c4c4dc`.
+Warnings load (1.059x) and compileall RSS (1.014x) regressed in both runs;
+no metric improved in both runs. The candidate will not receive an unchanged
+retry or further qualification. Supplemental native fixtures passed source
+review but never executed; actual table counts and replacement traces remain
+unproven. Main, incumbent and the accepted memory snapshot remain unchanged.
+CPU, timing and quietness were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
