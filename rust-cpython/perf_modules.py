@@ -1394,7 +1394,7 @@ def measure(route: str, iterations: int) -> dict[str, object]:
         again = getattr(after_second, field) - getattr(after_first, field)
         return max(0, once - again)
 
-    return {
+    result = {
         "route": route,
         "iterations": iterations,
         "cpu_seconds_per_iteration": cpu / iterations,
@@ -1404,6 +1404,20 @@ def measure(route: str, iterations: int) -> dict[str, object]:
         "working_peak_bytes": max(0, end.ri_interval_max_phys_footprint - start.ri_phys_footprint),
         "digest": digest,
     }
+    # Serialize retained counters after every measured snapshot. Keeping the
+    # first and repeated growth separate permits attribution without changing
+    # the fixed-footprint estimate or introducing work between snapshots.
+    result["raw_memory_counters"] = {
+        phase: {
+            "ri_phys_footprint": snapshot.ri_phys_footprint,
+            "ri_resident_size": snapshot.ri_resident_size,
+            "ri_interval_max_phys_footprint": snapshot.ri_interval_max_phys_footprint,
+        }
+        for phase, snapshot in (("before", before), ("after_first", after_first),
+                                ("after_second", after_second), ("loop_start", start),
+                                ("loop_end", end))
+    }
+    return result
 
 
 def main(argv: list[str]) -> int:
