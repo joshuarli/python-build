@@ -3,7 +3,9 @@
 import os as _os
 import sys as _sys
 import _thread
-import _contextvars
+# Thread contexts are selected at start, independently of synchronization
+# objects and the main-thread handle created during module initialization.
+lazy import _contextvars
 
 from time import monotonic as _time
 from _weakrefset import WeakSet
@@ -1122,17 +1124,28 @@ class Thread:
         if self._started.is_set():
             raise RuntimeError("threads can only be started once")
 
+        # Resolve import hooks before registering this pending thread. Import
+        # code can reinitialize thread bookkeeping, including after a fork.
+        _contextvars
+
         with _active_limbo_lock:
             _limbo[self] = self
 
-        if self._context is None:
-            # No context provided
-            if _sys.flags.thread_inherit_context:
-                # start with a copy of the context of the caller
-                self._context = _contextvars.copy_context()
-            else:
-                # start with an empty context
-                self._context = _contextvars.Context()
+        try:
+            if self._context is None:
+                # No context provided
+                if _sys.flags.thread_inherit_context:
+                    # start with a copy of the context of the caller
+                    self._context = _contextvars.copy_context()
+                else:
+                    # start with an empty context
+                    self._context = _contextvars.Context()
+        except BaseException:
+            # Context resolution can fail before a native worker exists.
+            # Remove the pending registration so the same thread can retry.
+            with _active_limbo_lock:
+                _limbo.pop(self, None)
+            raise
 
         try:
             # Start joinable thread

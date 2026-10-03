@@ -1,14 +1,12 @@
+use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
 
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, PyErr_Occurred, PyErr_SetString, PyExc_TypeError,
-    PyLong_AsLong, PyLong_FromLong, PyMethodDef, PyMethodDefFuncPointer,
-    PyABIInfo, PySlot, PySlot__bindgen_ty_1, PySlot__bindgen_ty_2,
-    Py_mod_abi, Py_mod_doc, Py_mod_methods,
-    Py_mod_name, Py_mod_state_clear, Py_mod_state_free, PySlot_INTPTR, PySlot_STATIC,
-    PyObject, PyTuple_New, PyTuple_SetItem,
+    PyLong_AsLong, PyLong_FromLong, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
+    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyTuple_New, PyTuple_SetItem,
     PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_ssize_t,
 };
 
@@ -233,60 +231,28 @@ unsafe extern "C" fn add_datetime(_module: *mut PyObject, args: *mut *mut PyObje
 pub extern "C" fn _datetime_rs_clear(_obj: *mut PyObject) -> c_int { 0 }
 pub extern "C" fn _datetime_rs_free(_obj: *mut c_void) {}
 
-// The loader reads these process-lifetime tables but never mutates them.
-// Python references and copied module metadata belong to each interpreter.
-struct ModuleSlots([PySlot; 9]);
+pub struct ModuleDef { ffi: UnsafeCell<PyModuleDef> }
+unsafe impl Sync for ModuleDef {}
+
+struct ModuleSlots([PyModuleDef_Slot; 3]);
 unsafe impl Sync for ModuleSlots {}
 
 unsafe extern "C" fn module_exec(_module: *mut PyObject) -> c_int { 0 }
 
-// The full non-stable ABI is the locked CPython 3.16.0a0 GIL build.
-// The loader validates the major/minor version and GIL ABI before installing
-// methods; the build source lock supplies the exact interpreter revision.
-static ABI_INFO: PyABIInfo = PyABIInfo {
-    abiinfo_major_version: 1, abiinfo_minor_version: 0, flags: 2,
-    build_version: 0x031000a0, abi_version: 0x031000a0,
-};
-
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("datetime slot export requires the supported 64-bit CPython ABI");
-
-const _: () = {
-    assert!(std::mem::size_of::<PySlot>() == 16);
-    assert!(std::mem::align_of::<PySlot>() == 8);
-    assert!(std::mem::offset_of!(PySlot, sl_id) == 0);
-    assert!(std::mem::offset_of!(PySlot, sl_flags) == 2);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_1) == 4);
-    assert!(std::mem::offset_of!(PySlot, __bindgen_anon_2) == 8);
-    assert!(std::mem::size_of::<PyABIInfo>() == 12);
-    assert!(std::mem::align_of::<PyABIInfo>() == 4);
-};
-
-const fn data_slot(id: u32, value: *mut c_void) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: PySlot_INTPTR as u16,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: value } }
-}
-
-// The loader retains method definitions after copying the slots. Their array
-// is immutable and lives for the process, so its pointer has static ownership.
-const fn static_data_slot(id: u32, value: *mut c_void) -> PySlot {
-    let mut slot = data_slot(id, value);
-    slot.sl_flags |= PySlot_STATIC as u16;
-    slot
-}
-
-const fn function_slot(id: u32, value: unsafe extern "C" fn()) -> PySlot {
-    PySlot { sl_id: id as u16, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_func: Some(value) } }
-}
-
-// The non-limited ABI uses these new slot IDs. The binding generator omits
-// their function-like compatibility macros; the native oracle checks them
-// against the interpreter headers before this helper is qualified.
-const MODULE_EXEC_SLOT: u32 = 85;
-const MODULE_MULTIPLE_INTERPRETERS_SLOT: u16 = 86;
+static MODULE_SLOTS: ModuleSlots = ModuleSlots([
+    PyModuleDef_Slot {
+        slot: 85,
+        value: module_exec as *const () as *mut c_void,
+    },
+    PyModuleDef_Slot {
+        slot: 86,
+        value: 2 as *mut c_void,
+    },
+    PyModuleDef_Slot {
+        slot: 0,
+        value: ptr::null_mut(),
+    },
+]);
 
 pub static METHODS: [PyMethodDef; 8] = [
     method(c"parse_date", parse_date),
@@ -305,26 +271,19 @@ const fn method(name: &'static std::ffi::CStr, function: unsafe extern "C" fn(*m
         ml_flags: METH_FASTCALL, ml_doc: ptr::null_mut() }
 }
 
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    data_slot(Py_mod_abi, &ABI_INFO as *const PyABIInfo as *mut c_void),
-    data_slot(Py_mod_name, c"_datetime_rs".as_ptr() as *mut c_void),
-    data_slot(Py_mod_doc, c"Rust datetime field operations.".as_ptr() as *mut c_void),
-    static_data_slot(Py_mod_methods, METHODS.as_ptr() as *mut c_void),
-    function_slot(MODULE_EXEC_SLOT, unsafe { std::mem::transmute::<
-        unsafe extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(module_exec) }),
-    PySlot { sl_id: MODULE_MULTIPLE_INTERPRETERS_SLOT, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_uint64: 2 } },
-    function_slot(Py_mod_state_clear, unsafe { std::mem::transmute::<
-        extern "C" fn(*mut PyObject) -> c_int, unsafe extern "C" fn()>(_datetime_rs_clear) }),
-    function_slot(Py_mod_state_free, unsafe { std::mem::transmute::<
-        extern "C" fn(*mut c_void), unsafe extern "C" fn()>(_datetime_rs_free) }),
-    PySlot { sl_id: 0, sl_flags: 0,
-        __bindgen_anon_1: PySlot__bindgen_ty_1 { sl_reserved: 0 },
-        __bindgen_anon_2: PySlot__bindgen_ty_2 { sl_ptr: ptr::null_mut() } },
-]);
+pub static MODULE: ModuleDef = ModuleDef { ffi: UnsafeCell::new(PyModuleDef {
+    m_base: PyModuleDef_HEAD_INIT,
+    m_name: c"_datetime_rs".as_ptr() as *mut _,
+    m_doc: c"Rust datetime field operations.".as_ptr() as *mut _,
+    m_size: 0,
+    m_methods: METHODS.as_ptr() as *mut _,
+    m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
+    m_traverse: None,
+    m_clear: Some(_datetime_rs_clear),
+    m_free: Some(_datetime_rs_free),
+}) };
 
 #[unsafe(no_mangle)]
-pub extern "C" fn PyModExport__datetime_rs() -> *mut PySlot {
-    MODULE_SLOTS.0.as_ptr() as *mut PySlot
+pub extern "C" fn PyInit__datetime_rs() -> *mut PyObject {
+    unsafe { PyModuleDef_Init(MODULE.ffi.get()) }
 }
