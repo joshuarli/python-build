@@ -177,15 +177,28 @@ Outputs matched and no metric was unstable. Main and incumbent remain
 unchanged; source, stage and first verdict are preserved without an unchanged
 retry. CPU, timing and quietness were not checked.
 
-Corrected threading context-import, ipaddress local-binding, typing
-cache-metadata and tokenize deferred-grammar candidates have completed
-isolated correctness qualification. Decimal's immutable module export has
-passed its clean build, focused suite and full suite; fresh native
-qualification continues. Seven separate shared-helper immutable-export
-candidates have passed source review and await combined correctness
-qualification; SSL's builtin registration requires a legacy initializer and
-closed that scoped source hypothesis. Primary memory comparisons remain
-necessary; these checks establish no accepted memory improvement.
+The corrected threading projection at `388a4be` completed fresh primary
+clean58, full 50,158/2,748 and six regression cases with unchanged source
+and process cleanup. Its first and only rigorous all-71/all-23 memory-only
+gate **REJECTED**: `20261003T065737Z-perf-rust-vs-perf-t121`, verdict SHA256
+`fca51d4de43c03d48889f8ffdf7b0684af9d8e0e58fdd5ad8a14d63e3248bc35`.
+Threading load improved to 0.750x in both runs and working peak was neutral.
+Thirteen module-load guards, logging working peak (1.776x) and seven
+workload RSS guards regressed in both runs. Textwrap load improved with
+unchanged source and remains unattributed. Outputs matched and no metric
+was unstable. Main and incumbent remain unchanged; source, stage and first
+verdict are preserved without an unchanged retry. CPU, timing and quietness
+were not checked.
+
+Ipaddress local-binding, typing cache-metadata, tokenize deferred-grammar
+and Decimal immutable-export candidates have completed isolated correctness
+qualification. Seven separate shared-helper immutable-export candidates
+passed a combined clean58 and full 50,158/2,791 suite; fresh native
+qualification continues. SSL's builtin registration requires a legacy
+initializer and closed that scoped source hypothesis. The exact 54-file
+union of these eleven routes passed independent source review; fresh primary
+correctness and memory comparisons remain necessary. These checks establish
+no accepted memory improvement.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
