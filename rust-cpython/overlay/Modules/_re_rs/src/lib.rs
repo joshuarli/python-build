@@ -6,7 +6,7 @@ use std::ptr;
 use std::slice;
 use std::str;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use cpython_sys::{
     METH_FASTCALL, PyBool_FromLong, PyErr_Clear, PyErr_Occurred, PyLong_AsLong,
@@ -163,10 +163,8 @@ fn parses(pattern: &str) -> bool {
 }
 
 struct RegexCache {
-    // The lookup map and FIFO retain the same immutable pattern allocation.
-    // Atomic ownership keeps the cache transferable between calling threads.
-    expressions: HashMap<Arc<str>, Regex>,
-    insertion_order: VecDeque<Arc<str>>,
+    expressions: HashMap<String, Regex>,
+    insertion_order: VecDeque<String>,
 }
 
 impl RegexCache {
@@ -225,14 +223,13 @@ fn portable_expression(pattern: &str) -> Option<Regex> {
     }
     if cache.expressions.len() >= CACHE_LIMIT {
         if let Some(oldest) = cache.insertion_order.pop_front() {
-            cache.expressions.remove(oldest.as_ref());
+            cache.expressions.remove(&oldest);
         }
     }
-    let key = Arc::<str>::from(pattern);
-    cache.insertion_order.push_back(Arc::clone(&key));
+    cache.insertion_order.push_back(pattern.to_owned());
     cache
         .expressions
-        .insert(key, expression.clone());
+        .insert(pattern.to_owned(), expression.clone());
     Some(expression)
 }
 
@@ -469,7 +466,3 @@ pub static _RE_RS_MODULE: ModuleDef = ModuleDef {
 pub extern "C" fn PyInit__re_rs() -> *mut PyObject {
     _RE_RS_MODULE.init_multi_phase()
 }
-
-#[cfg(test)]
-#[path = "../tests/shared_cache_keys.rs"]
-mod shared_cache_keys;
