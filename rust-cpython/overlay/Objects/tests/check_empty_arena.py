@@ -3,6 +3,7 @@ import importlib.util
 import pathlib
 import sys
 import sysconfig
+import threading
 import unittest
 
 OBSERVER = pathlib.Path(sys.argv.pop(1)).resolve()
@@ -10,7 +11,7 @@ OBSERVER = pathlib.Path(sys.argv.pop(1)).resolve()
 class EmptyArenaRelease(unittest.TestCase):
     def test_live_block_retention_final_release_and_reacquisition(self):
         self.assertFalse(sysconfig.get_config_var("Py_GIL_DISABLED"))
-        self.assertEqual(sys.modules.get("threading"), None)
+        self.assertEqual(threading.active_count(), 1)
         spec = importlib.util.spec_from_file_location("_empty_arena_fixture", OBSERVER)
         observer = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(observer)

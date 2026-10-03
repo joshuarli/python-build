@@ -251,6 +251,23 @@ category totals matched. The saved report is
 This bounds a shared allocator hypothesis; it does not establish a general
 offset, identify individual allocation owners, or qualify any candidate.
 
+The separate last-empty-pymalloc-arena candidate at `4c4257f` completed
+clean58 and focused correctness checks (1,964 run, 348 skipped, zero failures;
+four multiprocessing-fork submodules skipped on macOS). A supplemental
+allocator-hook regression failed on the incumbent with the expected retained
+arena assertion and passed on the candidate in normal and debug modes, with
+three allocation/free waves each. The initial fixture incorrectly assumed
+`unittest` had not imported threading; its preserved failure was corrected
+to assert one active thread, without changing the production patch.
+Its first memory-only exploratory probe **REJECTED**:
+`20261003T095850Z-perf-rust-vs-perf-a137`, verdict SHA256
+`627c84de315e8207ec974d2d52f3e92d584bf7e2f833a6213f9e2f04f93ae0d7`.
+JSON load (1.041x) and startup RSS (1.012x) regressed in both runs.
+Zstd load improved (0.892x), while working peak remained neutral. The
+unchanged candidate will not proceed to full qualification or acceptance.
+Main and incumbent remain unchanged. CPU, timing and quietness were not
+checked; no memory goal was completed by this experiment.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
