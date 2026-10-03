@@ -102,8 +102,27 @@ The next candidate isolates those three helper implementations from the
 rejected common-binding and carrier changes. Source101 passed independent
 source and lock review at `bc82da1`: only binascii, decimal, hashlib and
 their three local lock dependency lists differ from the accepted overlay.
-Fresh primary builds, correctness qualification and a first memory comparison
-are still required; source review establishes no memory improvement.
+Source101 then completed fresh primary qualification at `0335db3`: clean58,
+the full 50,158/2,748 suite, 25 native units and 13 artifact observations
+passed independent audits. Its first and only rigorous all-71/all-23
+memory-only comparison **REJECTED**:
+`20261003T012923Z-perf-rust-vs-perf-sa101`, verdict SHA256
+`2bde57d9ce5039616b7e7df4390703b97dd09999f4c0c8155ae166223c801cfe`.
+Seventeen module-load guards, logging working peak (1.643x), compileall RSS
+(1.015x) and serialization RSS (1.014x) regressed in both runs. The three
+changed helpers' load and working metrics were neutral. Threading load
+improved to 0.750x, but its source was unchanged and that observation is not
+attributed to this candidate. No outputs differed and no metric was unstable.
+Removing Rust std from these three DLLs established no accepted memory win.
+Main and incumbent remain unchanged; source, stage, preparation failures and
+first verdict are preserved without an unchanged retry. CPU, wall time and
+quietness were not checked.
+
+The next primary candidate uses independently qualified algorithm and
+retained-object changes across 14 routes. Separate narrow UUID/HMAC, struct,
+marshal and JSON source candidates have passed independent reviews while
+preserving the accepted common bindings and carrier. Those reviews establish
+no compiled closure, runtime qualification or memory improvement.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
