@@ -681,22 +681,17 @@ PYMEM_CLEANBYTE (meaning uninitialized memory is getting used).
 The pymalloc allocator
 ======================
 
-Python has a *pymalloc* allocator optimized for small objects with a short
-lifetime. The small-request cutoff is 1024 bytes on GIL-enabled macOS arm64
-builds and 512 bytes on other builds. It uses memory mappings called "arenas"
-with a fixed size of either 256 KiB on 32-bit platforms or 1 MiB on 64-bit
-platforms. When Python is configured with :option:`--with-pymalloc-hugepages`,
+Python has a *pymalloc* allocator optimized for small objects (smaller or equal
+to 512 bytes) with a short lifetime. It uses memory mappings called "arenas"
+with a fixed size of 256 KiB on 32-bit platforms and on GIL-enabled Apple
+arm64 builds, or 1 MiB on other 64-bit builds. Apple arm64 builds retain
+16 KiB pools and the 512-byte small-allocation threshold. An explicitly
+configured hugepage build retains its larger arena geometry. When Python is configured with :option:`--with-pymalloc-hugepages`,
 the arena size on 64-bit platforms is increased to 2 MiB to match the huge page
 size, and arena allocation will attempt to use huge pages (``MAP_HUGETLB`` on
 Linux, ``MEM_LARGE_PAGES`` on Windows) with automatic fallback to regular pages.
 It falls back to :c:func:`PyMem_RawMalloc` and
-:c:func:`PyMem_RawRealloc` for allocations larger than that cutoff, and when
-pool allocation cannot satisfy a request. This cutoff describes an allocator
-layout policy, not a change to the allocator domains or requested-size APIs.
-Wrappers installed for the Raw domain can therefore observe fewer fallback
-calls for requests between 513 and 1024 bytes on GIL-enabled macOS arm64.
-Reallocation of an existing Raw-managed block continues to use the Raw
-allocator even if its new size is below the cutoff.
+:c:func:`PyMem_RawRealloc` for allocations larger than 512 bytes.
 
 *pymalloc* is the :ref:`default allocator <default-memory-allocators>` of the
 :c:macro:`PYMEM_DOMAIN_MEM` (ex: :c:func:`PyMem_Malloc`) and
@@ -738,7 +733,10 @@ Customize pymalloc Arena Allocator
 
 .. c:function:: void PyObject_GetArenaAllocator(PyObjectArenaAllocator *allocator)
 
-   Get the arena allocator.
+   Get the arena allocator. Arena callbacks receive the configured arena
+   size; they must not assume a fixed size across platforms or build
+   configurations. Each free callback receives the same pointer and size
+   supplied for the corresponding allocation.
 
 .. c:function:: void PyObject_SetArenaAllocator(PyObjectArenaAllocator *allocator)
 
@@ -757,8 +755,8 @@ mimalloc is a general purpose allocator with excellent performance
 characteristics, initially developed by Daan Leijen for the runtime systems
 of the Koka and Lean languages.
 
-Unlike :ref:`pymalloc <pymalloc>`, which is optimized for small objects up to the platform
-cutoff, mimalloc handles allocations of any size.
+Unlike :ref:`pymalloc <pymalloc>`, which is optimized for small objects (512
+bytes or fewer), mimalloc handles allocations of any size.
 
 In the :term:`free-threaded <free threading>` build, mimalloc is the default
 and **required** allocator for the :c:macro:`PYMEM_DOMAIN_MEM` and

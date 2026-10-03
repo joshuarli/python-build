@@ -154,19 +154,13 @@ typedef unsigned int pymem_uint;  /* assuming >= 16 bits */
  * will be allocated from preallocated memory pools on 64-bit.
  *
  * The following invariants must hold:
- *      1) ALIGNMENT <= SMALL_REQUEST_THRESHOLD <= 64 * ALIGNMENT
+ *      1) ALIGNMENT <= SMALL_REQUEST_THRESHOLD <= 512
  *      2) SMALL_REQUEST_THRESHOLD is evenly divisible by ALIGNMENT
  *
  * Although not required, for better performance and space efficiency,
  * it is recommended that SMALL_REQUEST_THRESHOLD is set to a power of 2.
  */
-/* Apple arm64 GIL builds keep requests through 1024 bytes in pymalloc;
- * Raw remains the fallback for larger requests and failed pool allocation. */
-#if defined(__APPLE__) && defined(__aarch64__) && !defined(Py_GIL_DISABLED)
-#  define SMALL_REQUEST_THRESHOLD 1024
-#else
-#  define SMALL_REQUEST_THRESHOLD 512
-#endif
+#define SMALL_REQUEST_THRESHOLD 512
 #define NB_SMALL_SIZE_CLASSES   (SMALL_REQUEST_THRESHOLD / ALIGNMENT)
 
 /*
@@ -199,7 +193,11 @@ typedef unsigned int pymem_uint;  /* assuming >= 16 bits */
 
 #if SIZEOF_VOID_P > 4
 /* on 64-bit platforms use larger pools and arenas if we can */
+/* Smaller arenas reduce the unit retained by a live pool on GIL-enabled
+ * Apple arm64 builds.  Keep the configured hugepage arena geometry intact. */
+#if !(defined(__APPLE__) && defined(__aarch64__) && !defined(Py_GIL_DISABLED) && !defined(PYMALLOC_USE_HUGEPAGES))
 #define USE_LARGE_ARENAS
+#endif
 #if WITH_PYMALLOC_RADIX_TREE
 /* large pools only supported if radix-tree is enabled */
 #define USE_LARGE_POOLS
@@ -528,8 +526,9 @@ struct _obmalloc_mgmt {
 
    memory address bit allocation for keys
 
-   ARENA_BITS is configurable: 20 (1 MiB) by default on 64-bit, or
-   21 (2 MiB) when PYMALLOC_USE_HUGEPAGES is enabled.  All bit widths
+   ARENA_BITS is configurable: 18 (256 KiB) on GIL-enabled Apple arm64,
+   20 (1 MiB) on other 64-bit builds, or 21 (2 MiB) when
+   PYMALLOC_USE_HUGEPAGES is enabled.  All bit widths
    below are derived from ARENA_BITS automatically.
 
    64-bit pointers, IGNORE_BITS=0 and 2^20 arena size (default):
