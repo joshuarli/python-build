@@ -200,6 +200,13 @@ union of these eleven routes passed independent source review; fresh primary
 correctness and memory comparisons remain necessary. These checks establish
 no accepted memory improvement.
 
+The eleven-route union is applied in the primary checkout at `17a82b0`.
+Its 54 overlay files match the reviewed donors exactly, with shared bindings,
+carrier and controller policy preserved. Fresh clean build `perf-m136` is
+running; all eleven routes require fresh native checks and the full suite
+before their first primary memory comparison. Historical route qualifications
+do not substitute for these results.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
