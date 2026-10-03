@@ -300,6 +300,19 @@ review but never executed; actual table counts and replacement traces remain
 unproven. Main, incumbent and the accepted memory snapshot remain unchanged.
 CPU, timing and quietness were not checked.
 
+The scoped 1024-byte pymalloc-cutoff candidate at `3b99e53` retained
+the accepted 16 KiB pools and 1 MiB arenas. Its clean build verified 58 Rust
+extensions and complete focused suites passed (2,033 run, 351 skipped,
+zero failures). Its first memory-only exploratory comparison **REJECTED**:
+`20261003T115749Z-perf-rust-vs-perf-t140`, verdict SHA256
+`fd9371f6966ca908431aedff9bc5b7b79406a39c89ac7150b0f422d08e7f4bb6`.
+Twelve module loads, two working peaks and eight workload RSS guards
+regressed in both runs. Threading load improved (0.625x), but the candidate
+remains unaccepted. Native execution bindings passed source review; compiler
+and native probes never ran. No full suite, acceptance gate or unchanged
+retry follows this rejection. Main, incumbent and accepted memory goals
+remain unchanged; CPU, timing and quietness were not checked.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
