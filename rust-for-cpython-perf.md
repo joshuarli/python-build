@@ -392,6 +392,27 @@ and all 23 workload RSS rows were neutral. Supplemental Rust/Python fixtures
 and full qualification remained unrun. No unchanged retry or accepted memory
 change follows. CPU, timing and quietness were not checked.
 
+The dense-rank FIFO regex candidate at `726606a` replaces duplicate queue
+keys with bounded insertion ranks while retaining the accepted engine,
+allocator, mutex and FFI. Clean58, nine focused suites (810 run, 21 skipped),
+the full default-resource suite (50,158 run, 2,748 skipped, zero failures),
+and three Python plus four Rust regressions passed independent review.
+Its first rigorous all-71/all-23 memory-only gate **REJECTED**:
+`20261003T154857Z-perf-rust-vs-perf-f147`, verdict SHA256
+`05e1aae5129075641d459d83be0fae37b59022ea807778d1a0ec7c8cf3b0b621`.
+Concurrent-futures load (1.016x), compileall RSS (1.013x) and gzip RSS (1.012x)
+regressed in both runs. Typing and textwrap load improvements are unattributed;
+regex memory stayed neutral. Source, correctness and the first verdict remain
+preserved, with no unchanged retry or accepted memory change. CPU, timing
+and quietness were not checked.
+
+A separate pinned-source shared abort-runtime review verified the official
+nightly source archive and 31 vendored package identities with 1,231 file
+checksums. Exact compiler sources support abort-mode std linkage, but the
+System-only provider repeats rejected cohort75. Custom allocator roots,
+staticlib-carrier linkage and canonical runtime installation remain unresolved.
+No new producer diagnostic, runtime or source candidate was executed.
+
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
 typed ABI and native provider checks, all semantic fixtures, and two
@@ -2468,103 +2489,106 @@ so they provide no Rust concurrency evidence.
 
 ### Current module memory goal table
 
-The latest applicable full snapshot compares unchanged verified incumbent
-`7cf55a6` with pristine control `7351620`: [full all-71/all-23 evidence](rust-cpython/results/perf-bench/20261001T083549Z-perf-upstream-vs-perf-rust/verdict.json),
-followed by [once-only rigorous classification](rust-cpython/results/perf-bench/20261001T084855Z-goals-perf-upstream-vs-perf-rust/verdict.json).
-The merged memory-only result is **15 OVER, 5 UNCLEAR, 50 MET, 1 BEYOND**,
-leaving **20 unresolved module goals**. This supersedes the older
-`20260930T231721Z` table; `20261001T053304Z` uses an earlier launch context.
-No source improvement or candidate acceptance is claimed.
+The current-harness full snapshot compares unchanged verified incumbent
+`7cf55a6` with pristine control `7351620`: [all-71/all-23 evidence](rust-cpython/results/perf-bench/20261003T152630Z-perf-upstream-vs-perf-rust/verdict.json),
+followed by the [once-only rigorous classification](rust-cpython/results/perf-bench/20261003T160906Z-goals-perf-upstream-vs-perf-rust/verdict.json) of its ten
+UNCLEAR rows. The merged result is **15 OVER, 8 UNCLEAR, 47 MET, 1 BEYOND**,
+leaving **23 unresolved module goals**. The eight remaining UNCLEAR rows
+exceed 1.01x on a memory metric and remain targets under the uncertainty rule;
+no further unchanged classification draw is scheduled.
 
-Both snapshots use the same clean harness fingerprint
-`886f55c165e0ecac49dbefe1b1dfd833c347a74b63c6c35a733942161c13fa39`, matched
-39-character home aliases and 54-character executable paths. Raw module
-digests match, and observed executable/base-executable/prefix/exec-prefix
-match requested aliases. CPU/wall/quiet criteria are excluded.
-[Self-calibration](rust-cpython/results/perf-bench/20261001T083131Z-calibrate-perf-upstream/verdict.json)
-precedes the full comparison. Compiled artifact paths and mapping/host state
-remain uncontrolled; this comparison does not authorize offsets, floor
-changes or closed-source retries.
+Both snapshots use current harness fingerprint
+`f741f1781d58cc62d9b585b7894b2e63cdab30e4807a3a556cb56376ac5795ab`,
+two independent runs, ten module rounds, matched home aliases and executable
+paths, and matching module outputs. [Memory-only self-calibration](rust-cpython/results/perf-bench/20261003T144625Z-calibrate-perf-upstream/verdict.json)
+passed before these measurements. CPU, timing and quietness are excluded.
+The full verdict SHA256 is `ad7b7b514c71022e5ef3c851ebdd6348c3d8a50990ae30e4fe4954fdd11d6e5f`;
+the follow-up SHA256 is `275bc3cb74121bbfd075c9412dc5bb8c84d8d0a7c7baf0b93f9d6794a566f256`.
 
-The 15 focused rows below use `084855Z`; all other rows retain `083549Z`.
-Focused rows are binascii, collections, compression.zstd, functools, hashlib,
-logging, marshal, pickle, socket, sqlite3, ssl, struct, uuid, warnings and
-xml.etree.ElementTree. Ratios are each row's saved pooled median; statuses
-are its saved memory-only goal classifications.
+The historical `886f55c1` harness snapshot remains preserved as
+15 OVER / 5 UNCLEAR / 50 MET / 1 BEYOND. The current caller context differs;
+these fresh ratios do not establish a source improvement, an offset, or
+context invariance. Compiled paths and mapping/host state remain uncontrolled.
+No candidate was accepted and baseline files remain unchanged.
+
+The ten focused rows use `160906Z`: `_strptime`, collections, hashlib,
+html.parser, ipaddress, logging, socket, sqlite3, ssl and xml.etree.ElementTree.
+All other rows use `152630Z`. Ratios are saved pooled medians; statuses are
+saved memory-only classifications.
 
 | Route | Load footprint | Working peak | Memory status |
 | --- | --- | --- | --- |
-| `_strptime` | 1.009x MET | 1.000x MET | MET |
-| `argparse` | 0.790x BEYOND | 1.000x MET | MET |
-| `ast` | 0.718x BEYOND | 1.000x MET | MET |
-| `asyncio` | 0.923x MET | 0.344x BEYOND | MET |
-| `base64` | 1.072x OVER | 1.000x MET | OVER |
+| `_strptime` | 1.019x UNCLEAR | 1.000x MET | UNCLEAR |
+| `argparse` | 0.779x BEYOND | 1.000x MET | MET |
+| `ast` | 0.728x BEYOND | 1.000x MET | MET |
+| `asyncio` | 0.928x MET | 0.333x BEYOND | MET |
+| `base64` | 1.084x OVER | 1.000x MET | OVER |
 | `binascii` | 1.009x MET | 1.000x MET | MET |
 | `bisect` | 1.000x MET | 1.000x MET | MET |
-| `bz2` | 0.992x MET | 1.000x MET | MET |
-| `codecs` | 0.983x MET | 1.000x MET | MET |
-| `collections` | 1.250x UNCLEAR | 1.000x MET | UNCLEAR |
-| `compression.zstd` | 0.799x BEYOND | 1.250x OVER | OVER |
-| `concurrent.futures` | 0.478x BEYOND | 1.000x MET | MET |
-| `configparser` | 0.589x BEYOND | 0.712x BEYOND | BEYOND |
-| `contextlib` | 1.004x MET | 1.000x MET | MET |
-| `csv` | 0.935x MET | 1.000x MET | MET |
-| `dataclasses` | 0.893x MET | 0.566x BEYOND | MET |
-| `datetime` | 2.125x OVER | 1.000x MET | OVER |
-| `decimal` | 1.938x OVER | 1.000x MET | OVER |
-| `difflib` | 0.141x BEYOND | 1.000x MET | MET |
-| `email` | 0.923x MET | 0.851x BEYOND | MET |
-| `fnmatch` | 0.371x BEYOND | 1.000x MET | MET |
-| `fractions` | 1.000x MET | 1.000x MET | MET |
+| `bz2` | 0.995x MET | 1.000x MET | MET |
+| `codecs` | 0.991x MET | 1.000x MET | MET |
+| `collections` | 1.325x UNCLEAR | 1.000x MET | UNCLEAR |
+| `compression.zstd` | 0.798x BEYOND | 1.250x OVER | OVER |
+| `concurrent.futures` | 0.476x BEYOND | 1.000x MET | MET |
+| `configparser` | 0.587x BEYOND | 0.724x BEYOND | BEYOND |
+| `contextlib` | 1.006x MET | 1.000x MET | MET |
+| `csv` | 0.937x MET | 1.000x MET | MET |
+| `dataclasses` | 0.904x MET | 0.562x BEYOND | MET |
+| `datetime` | 1.750x OVER | 1.000x MET | OVER |
+| `decimal` | 1.857x OVER | 1.000x MET | OVER |
+| `difflib` | 0.145x BEYOND | 1.000x MET | MET |
+| `email` | 0.932x MET | 0.872x BEYOND | MET |
+| `fnmatch` | 0.376x BEYOND | 1.000x MET | MET |
+| `fractions` | 1.006x MET | 1.000x MET | MET |
 | `functools` | 1.000x MET | 1.000x MET | MET |
 | `glob` | 0.331x BEYOND | 1.000x MET | MET |
-| `gzip` | 0.760x BEYOND | 1.000x MET | MET |
-| `hashlib` | 1.012x UNCLEAR | 1.000x MET | UNCLEAR |
+| `gzip` | 0.758x BEYOND | 1.000x MET | MET |
+| `hashlib` | 1.010x MET | 1.000x MET | MET |
 | `heapq` | 1.000x MET | 1.000x MET | MET |
-| `hmac` | 1.009x MET | 1.000x MET | MET |
-| `html.parser` | 1.000x MET | 1.000x MET | MET |
-| `http.client` | 0.988x MET | 1.000x MET | MET |
-| `importlib.metadata` | 0.869x BEYOND | 1.000x MET | MET |
-| `importlib.resources` | 0.836x BEYOND | 1.000x MET | MET |
-| `inspect` | 1.029x OVER | 1.000x MET | OVER |
-| `io` | 1.001x MET | 1.000x MET | MET |
-| `ipaddress` | 1.042x OVER | 1.000x MET | OVER |
+| `hmac` | 1.008x MET | 1.000x MET | MET |
+| `html.parser` | 1.010x UNCLEAR | 1.000x MET | UNCLEAR |
+| `http.client` | 0.992x MET | 1.000x MET | MET |
+| `importlib.metadata` | 0.864x BEYOND | 1.000x MET | MET |
+| `importlib.resources` | 0.838x BEYOND | 1.000x MET | MET |
+| `inspect` | 1.043x OVER | 1.000x MET | OVER |
+| `io` | 1.003x MET | 1.000x MET | MET |
+| `ipaddress` | 1.034x UNCLEAR | 1.000x MET | UNCLEAR |
 | `itertools` | 1.000x MET | 1.000x MET | MET |
 | `json` | 0.802x BEYOND | 1.000x MET | MET |
-| `logging` | 0.600x BEYOND | 1.000x MET | MET |
+| `logging` | 0.604x BEYOND | 1.018x UNCLEAR | UNCLEAR |
 | `lzma` | 0.111x BEYOND | 1.000x MET | MET |
-| `marshal` | 1.030x OVER | 1.000x MET | OVER |
-| `multiprocessing` | 0.900x MET | 1.000x MET | MET |
+| `marshal` | 1.039x OVER | 1.000x MET | OVER |
+| `multiprocessing` | 0.907x MET | 1.000x MET | MET |
 | `os.path` | 1.000x MET | 1.000x MET | MET |
-| `pathlib` | 0.538x BEYOND | 1.000x MET | MET |
-| `pickle` | 1.067x OVER | 1.000x MET | OVER |
-| `plistlib` | 0.223x BEYOND | 0.917x MET | MET |
-| `random` | 0.667x BEYOND | 1.000x MET | MET |
-| `re` | 1.720x OVER | 1.000x MET | OVER |
-| `shlex` | 0.555x BEYOND | 1.000x MET | MET |
+| `pathlib` | 0.599x BEYOND | 1.000x MET | MET |
+| `pickle` | 1.059x OVER | 1.000x MET | OVER |
+| `plistlib` | 0.247x BEYOND | 0.895x MET | MET |
+| `random` | 0.800x MET | 1.000x MET | MET |
+| `re` | 1.699x OVER | 1.000x MET | OVER |
+| `shlex` | 0.549x BEYOND | 1.000x MET | MET |
 | `shutil` | 0.823x BEYOND | 1.000x MET | MET |
-| `socket` | 1.051x OVER | 1.000x MET | OVER |
-| `sqlite3` | 1.015x UNCLEAR | 1.000x MET | UNCLEAR |
-| `ssl` | 1.024x UNCLEAR | 1.000x MET | UNCLEAR |
-| `statistics` | 0.576x BEYOND | 1.000x MET | MET |
-| `struct` | 1.021x UNCLEAR | 1.000x MET | UNCLEAR |
-| `subprocess` | 0.890x MET | 1.000x MET | MET |
-| `tarfile` | 0.822x BEYOND | 1.000x MET | MET |
+| `socket` | 1.074x OVER | 1.000x MET | OVER |
+| `sqlite3` | 1.030x UNCLEAR | 1.000x MET | UNCLEAR |
+| `ssl` | 1.034x UNCLEAR | 1.000x MET | UNCLEAR |
+| `statistics` | 0.582x BEYOND | 1.000x MET | MET |
+| `struct` | 1.021x OVER | 1.000x MET | OVER |
+| `subprocess` | 0.898x MET | 1.000x MET | MET |
+| `tarfile` | 0.802x BEYOND | 1.000x MET | MET |
 | `tempfile` | 0.319x BEYOND | 1.000x MET | MET |
-| `textwrap` | 0.088x BEYOND | 1.000x MET | MET |
+| `textwrap` | 0.087x BEYOND | 1.000x MET | MET |
 | `threading` | 1.600x OVER | 1.000x MET | OVER |
-| `tokenize` | 1.043x OVER | 1.000x MET | OVER |
-| `tomllib` | 0.084x BEYOND | 1.000x MET | MET |
-| `typing` | 1.200x OVER | 1.000x MET | OVER |
+| `tokenize` | 1.046x OVER | 1.000x MET | OVER |
+| `tomllib` | 0.096x BEYOND | 1.000x MET | MET |
+| `typing` | 1.208x OVER | 1.000x MET | OVER |
 | `unicodedata` | 1.000x MET | 1.000x MET | MET |
-| `urllib.parse` | 0.399x BEYOND | 1.000x MET | MET |
-| `urllib.request` | 0.914x MET | 1.000x MET | MET |
-| `uuid` | 1.087x OVER | 1.000x MET | OVER |
+| `urllib.parse` | 0.376x BEYOND | 1.000x MET | MET |
+| `urllib.request` | 0.917x MET | 1.000x MET | MET |
+| `uuid` | 1.170x OVER | 1.000x MET | OVER |
 | `warnings` | 1.000x MET | 1.000x MET | MET |
-| `xml.etree.ElementTree` | 0.993x MET | 1.000x MET | MET |
-| `zipfile` | 0.294x BEYOND | 1.000x MET | MET |
-| `zipimport` | 0.584x BEYOND | 1.000x MET | MET |
-| `zlib` | 1.024x OVER | 1.000x MET | OVER |
+| `xml.etree.ElementTree` | 1.015x UNCLEAR | 1.188x UNCLEAR | UNCLEAR |
+| `zipfile` | 0.292x BEYOND | 1.000x MET | MET |
+| `zipimport` | 0.594x BEYOND | 1.000x MET | MET |
+| `zlib` | 1.031x OVER | 1.000x MET | OVER |
 
 ### Focused goals after memory batch 5
 
@@ -2732,35 +2756,36 @@ visible below; CPU work has not started.
 
 ### Latest completed absolute workload memory comparison
 
-The same [full snapshot](rust-cpython/results/perf-bench/20261001T083549Z-perf-upstream-vs-perf-rust/verdict.json)
-reads **16 RSS regressions, 3 neutral, 4 improved** across all 23 unchanged
-workloads. This supersedes the older `20260930T233748Z` table. Memory-only
-decision is REJECT for outstanding absolute debt, with no output mismatch
-or unstable metric recorded. No baseline files were refreshed.
+The current [full snapshot](rust-cpython/results/perf-bench/20261003T152630Z-perf-upstream-vs-perf-rust/verdict.json) reads **16 RSS regressions,
+3 neutral, 4 improved** across all 23 workloads. This is fresh evidence for
+unchanged incumbent source under `f741f178`, superseding the older table while
+preserving its historical result. The memory-only decision is REJECT for
+outstanding absolute debt, with no output mismatch or unstable metric.
+Baseline files remain unchanged.
 
 | Workload | Peak RSS | Memory verdict |
 | --- | --- | --- |
-| `catalog_json_export` | 0.991x | neutral |
+| `catalog_json_export` | 0.986x | improved |
 | `catalog_request_path` | 1.033x | regressed |
-| `catalog_search_form` | 1.017x | regressed |
-| `catalog_url_normalize` | 1.009x | neutral |
-| `compileall_source` | 1.081x | regressed |
-| `difflib_unified_mostly_equal` | 0.948x | improved |
-| `difflib_unified_reordered` | 0.948x | improved |
-| `django_asgi_request` | 1.052x | regressed |
-| `django_orm_10k` | 1.051x | regressed |
-| `django_template_realistic` | 1.046x | regressed |
-| `django_wsgi_first_request` | 1.077x | regressed |
-| `django_wsgi_request` | 1.050x | regressed |
-| `gzip_extract_1m` | 0.983x | improved |
+| `catalog_search_form` | 1.019x | regressed |
+| `catalog_url_normalize` | 1.010x | neutral |
+| `compileall_source` | 1.076x | regressed |
+| `difflib_unified_mostly_equal` | 0.950x | improved |
+| `difflib_unified_reordered` | 0.950x | improved |
+| `django_asgi_request` | 1.050x | regressed |
+| `django_orm_10k` | 1.049x | regressed |
+| `django_template_realistic` | 1.050x | regressed |
+| `django_wsgi_first_request` | 1.079x | regressed |
+| `django_wsgi_request` | 1.049x | regressed |
+| `gzip_extract_1m` | 0.985x | neutral |
 | `import_django` | 1.051x | regressed |
-| `multiprocess_pool` | 1.027x | regressed |
-| `python_startup` | 1.021x | regressed |
+| `multiprocess_pool` | 1.021x | regressed |
+| `python_startup` | 1.020x | regressed |
 | `rust_base64_large` | 1.019x | regressed |
-| `rust_base64_small` | 1.004x | neutral |
-| `serialization_roundtrip` | 1.035x | regressed |
-| `zip_read_wheel` | 1.017x | regressed |
-| `zipimport_cold` | 1.065x | regressed |
+| `rust_base64_small` | 1.005x | neutral |
+| `serialization_roundtrip` | 1.039x | regressed |
+| `zip_read_wheel` | 1.020x | regressed |
+| `zipimport_cold` | 1.068x | regressed |
 | `zlib_decode_1m` | 0.932x | improved |
 | `zlib_stream_4k` | 1.019x | regressed |
 
