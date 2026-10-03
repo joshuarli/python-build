@@ -118,11 +118,30 @@ Main and incumbent remain unchanged; source, stage, preparation failures and
 first verdict are preserved without an unchanged retry. CPU, wall time and
 quietness were not checked.
 
-The next primary candidate uses independently qualified algorithm and
-retained-object changes across 14 routes. Separate narrow UUID/HMAC, struct,
-marshal and JSON source candidates have passed independent reviews while
-preserving the accepted common bindings and carrier. Those reviews establish
-no compiled closure, runtime qualification or memory improvement.
+The algorithm and retained-object candidate across 14 routes completed fresh
+primary qualification at `58e6f3e`: clean58, full 50,158/2,748, 47 fresh
+supplemental cases and 11 artifact observations passed independent audits.
+Its first and only rigorous all-71/all-23 memory-only comparison **REJECTED**:
+`20261003T023244Z-perf-rust-vs-perf-ag106`, verdict SHA256
+`87ec7b31dfcd9bc698c5fbab72734f5459366095d110a3a0dfce6be13da52932`.
+Fourteen module-load guards, startup RSS (1.015x) and multiprocessing RSS
+(1.013x) regressed in both runs. Typing load improved to 0.969x; its source
+changed, but the rejected batch establishes no accepted improvement.
+Textwrap, threading, urllib.parse and UUID load also improved with unchanged
+sources and remain unattributed. Every working-peak metric was neutral;
+zstd's peak remained 327,680 bytes on both sides. Decimal's pooled load
+ratio was 0.862x but did not replicate an improvement in both runs.
+Outputs matched and no metric was unstable. Main and incumbent remain
+unchanged; the source, stage and first verdict are preserved without an
+unchanged retry. CPU, timing and quietness were not checked.
+
+The separate narrow UUID/HMAC, struct, marshal and JSON candidates were
+composed at `c2c2d93` with accepted common bindings and carrier preserved.
+Their isolated clean58 and full 50,158/2,791 suite passed; fresh native ABI
+and artifact qualification remains in progress, with no memory measurement.
+Distinct datetime module-export, threading context-import and ipaddress
+local-binding candidates are also undergoing independent qualification.
+Their source reviews and builds establish no memory improvement.
 
 The original C UUID and Rust UUID helper image completed primary qualification
 at `41b85a6`: clean58, all 50,158 default-resource tests / 2,748 skips,
