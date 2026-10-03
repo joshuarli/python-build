@@ -7,9 +7,6 @@ rust-version.workspace = true
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
 regex-syntax = { version = "=0.8.11", default-features = false, features = ["std"] }
-regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "syntax", "meta", "nfa-pikevm", "hybrid", "dfa-onepass", "nfa-backtrack", "perf-inline", "perf-literal"] }
-
-[dev-dependencies]
 regex = { version = "=1.13.1", default-features = false, features = ["std", "perf"] }
 
 [build-dependencies]

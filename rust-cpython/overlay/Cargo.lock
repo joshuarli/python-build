@@ -383,7 +383,6 @@ dependencies = [
  "cpython-build-helper",
  "cpython-sys",
  "regex",
- "regex-automata",
  "regex-syntax",
 ]
 
