@@ -120,6 +120,17 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+Collections keyword source `79db5aa` deferred the private `keyword.iskeyword`
+binding until first namedtuple validation. Its clean build verified 58 Rust
+extensions; three complete focused suites passed 256 tests with one skip,
+and three owned regression cases passed. The single-run quick memory-only
+exploration `20261004T021235Z-perf-rust-vs-perf-ck157` found no collections
+load or working-peak improvement (both 1.000x). Four workload RSS rows were
+worse in that run, giving an exploratory REJECT; these are not replicated
+regressions or acceptance evidence. The candidate is closed without full
+qualification, integration or an unchanged retry. Deferring the import
+changed private capture timing without demonstrating physical savings.
+
 Regex source `c81b21257d2e449d9c4e70a2d60f42860bca199f` reduced the
 acceptance-hint memo table from 512 to 64 slots while preserving its 60 KiB
 scratch arena, engine configuration, FIFO cache and allocation domains.
