@@ -89,6 +89,30 @@ class BorrowedSREContractTests(unittest.TestCase):
                     self.assertEqual(_re_rs.search_compiled(pattern, subject), span)
                     self.assert_public_matches_native(pattern, subject)
 
+    def test_empty_complement_classes_keep_definitive_rust_no_match(self):
+        import _re_rs
+        original = _re_rs.search_compiled
+        calls = []
+        def traced(pattern, subject):
+            result = original(pattern, subject)
+            calls.append((pattern, subject, result))
+            return result
+        sources = (r'[^\s\S]', r'[^\d\D]', r'[^\w\W]', r'[^\S\s]',
+                   r'a[^\s\S]', r'[^\d\D]a', r'[^\w\W]|a')
+        with mock.patch.object(_re_rs, 'search_compiled', traced):
+            for source in sources:
+                pattern = re.compile(source)
+                self.assertTrue(_re_rs.prepare_compiled(pattern), source)
+                for subject in ('', 'a', 'b', '\x1c', 'aa'):
+                    with self.subTest(source=source, subject=subject):
+                        expected = pattern.search(subject)
+                        span = (1, 0, 0) if expected is None else (2, *expected.span())
+                        self.assertEqual(original(pattern, subject), span)
+                        self.assert_public_matches_native(pattern, subject)
+                        self.assertIs(calls[-1][0], pattern)
+                        self.assertEqual(calls[-1][1:], (subject, span))
+        self.assertEqual(len(calls), len(sources) * 5)
+
     def test_public_search_calls_executor_and_preserves_pattern_owner(self):
         import _re_rs
         original = _re_rs.search_compiled
