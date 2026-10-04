@@ -209,6 +209,18 @@ import dictionary or reach a fresh C initializer. Its failed receipt is
 preserved; it establishes no C module-map regression. The live fixture is
 corrected before the candidate build, with valid existing tests retained.
 
+Corrected native-import candidate251 clean-built58 verified Rust extensions
+in216 seconds. All17 focused cases passed: Python and direct C bootstrap
+ownership, native keyword reconstruction, custom bindings/provider errors,
+module-map behavior, observed Rust codec dispatch and own-GIL lifecycles.
+Complete pickle/pickletools suites passed1274 tests with61 skips in2.8s.
+Target discovery `20261004T201104Z` improved pickle load0.795x
+[0.760,0.855] in both runs, with working peak neutral. The all23 request
+`20261004T201139Z` stopped early on replicated compileall_source RSS
+regression1.020x [1.019,1.021]. Remaining entities were not completely sampled.
+The candidate is closed without all71/full qualification, unchanged retry
+or adoption. The target gain establishes no accepted module or workload goal.
+
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
 initial snapshot, completing the zstd screen. Agent capacity is underused;
