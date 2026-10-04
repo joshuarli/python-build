@@ -280,9 +280,41 @@ complete datetime/time/strptime suites (1285 tests,83 skips). Clean stage
 `perf-datetime255-qualified`, source700ec02, then verified58 release Rust
 extensions in215s and passed those native/complete module checks again.
 Its corrected matched-path rigorous target `20261004T212941Z` improved load
-0.571x [0.571,0.667] in both runs, working neutral. Broad all71/all23
-memory-only qualification is pending; no adoption or absolute goal completion
-is claimed. Natural-path target/workload receipts remain excluded.
+0.571x [0.571,0.667] in both runs, working neutral. Broad matched-path
+all71/all23 memory-only gate `20261004T213147Z` completed in685.1s and
+REJECTed replicated logging working-peak regression1.852x [1.786,1.870].
+Datetime load remained improved0.571x [0.500,0.667], and every application
+RSS guard was neutral. This mechanism is closed without full correctness
+qualification, adoption or unchanged retry. Its local gain establishes no
+accepted absolute goal. Natural-path receipts remain excluded.
+
+Warnings256's original Python module-map admission bypassed a provider still
+present in the interpreter's internal import dictionary. The kept minimal
+regression passed accepted and genuinely failed a model of the candidate
+facade using the same accepted native callbacks. This is modeled dispatch
+evidence, not compiled candidate qualification. Corrected source2f573d4
+checks internal helper presence in C before argument conversion; every
+present entry declines into the unchanged Python import/cache path. Resolved
+module and None cache owners remain sticky. Twelve regression cases and
+independent source review are prepared; compiler/native/memory checks remain.
+
+Threading257 retains its original Python from-import path for every present
+helper entry, while absent-key calls execute the unchanged Rust transition
+through the existing native thread carrier. Private absent-helper import
+events are deliberately omitted; standalone helper API remains available.
+Accepted verification passed two provider/reentry cases and failed the
+separate absent-helper ownership case as expected. Primary source3b073ed
+is building; six candidate cases, native ownership and memory remain unproved.
+
+The subsequent bounded audit of26 closed candidates found zero adoptions,
+nine target-neutral closures and17 memory-guard rejections. A standard full
+71-module/23-workload two-run comparison launches approximately1883 root
+children, plus probes and fixture preparation. Workload timing rounds and
+quiet-host waits are already disabled. Build and benchmark timers start
+before lease acquisition, so saved durations include unmeasured queue wait.
+Source work overlaps draws; native builds/tests retain the exclusive RSS
+isolation boundary. Seven independent follow-ups were restarted after another
+one-active-child snapshot; this does not establish sustained full utilization.
 
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
