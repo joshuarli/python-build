@@ -39,6 +39,31 @@ builds, correctness and RSS measurements use the perf host lease. A change
 to the performance harness requires fresh memory-only calibration before
 comparison.
 
+### Verification workflow correction (2026-10-03)
+
+The coordinator found that execution was underusing both agent lanes and the
+host. At inspection, only two of 31 subagents were active; the ten-core,
+64 GiB host was about 72% CPU idle, had no swap activity and had over 400 GiB
+of free disk. Repeated bespoke input scans, review packets and wrapper
+approvals had serialized ordinary setup and focused host tests. These were
+coordinator-added procedures, not requirements of the memory acceptance
+contract. Wrapper failures also obscured a genuine test-fixture receipt-path
+error.
+
+Use ordinary `perf.py` setup, builds and target suites with the existing host
+lease and verified stages. Run pure controller unit tests directly in their
+isolated worktree with the installed controller interpreter and an owned
+temporary directory. Keep focused checks during iteration; use exploratory
+memory results to discard losers before full qualification. Complete suites,
+clean committed builds, fresh calibration when required, replicated memory
+verdicts, output checks and Rust coverage still precede acceptance. Existing
+failed receipts remain preserved. No CPU, timing or quiet-host gate applies.
+
+The corrected ordinary host checks passed 20/20 and 31/31; the 31-case test
+process took 0.037 seconds. Normal shared-runtime build `shared-normal156`
+has started through `perf.py` with six jobs. These establish test and build
+progress only; no new module or workload memory goal has been accepted.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
