@@ -4404,6 +4404,47 @@ new private module names. Its clean build verified58 extensions in394s,
 including measurement-lease waiting. Individual candidate fixtures and
 target-only screens remain pending; no component is adopted.
 
+## Memory sprint continuation (2026-10-04, UUID258)
+
+UUID258 hosts the eight unchanged Rust callbacks in the existing shared C
+`_uuid` image while keeping the separately importable helper API. Cold helper
+absence captures the C provider; subsequent standalone-helper patches have a
+different owner. That private ownership and import-hook timing boundary is
+explicit, and the unchanged accepted ownership oracle remains recorded as an
+expected candidate failure rather than being weakened.
+
+The first build failed because the replacement `makesetup` had mode0644.
+Donor `bf0c351` restores0755 without changing its bytes; its two generator
+cases now invoke the script directly and pass. Primary `37a199c` built clean
+in215s with58 verified Rust extensions. Twelve native cases, eight callback
+address/image checks, eight standalone API checks, actual Cargo archive/link
+proof and own-GIL lifecycle pass. Complete UUID/OS suites pass667 tests with
+118 skips. The replay leaves archive, shared images and installed stage
+unchanged; all owned children and temporary directories are drained.
+
+Matched two-run target discovery `20261004T223850Z` reads NEUTRAL: pooled
+load0.922x [0.873,0.942], with one neutral and one improved run; working peak
+is neutral. Its sole rigorous follow-up `20261004T223933Z` also reads NEUTRAL:
+load0.941x [0.905,0.962], again neutral/improved. The first independent interval
+is [0.887,1.000061], so replication does not establish an improvement.
+UUID258 closes without all23/all71 sampling, full-suite qualification,
+adoption or unchanged retry. All memory goals remain binding.
+
+Base64259 source `48af6e55` passes independent source review and six accepted
+baseline cases; its eleven candidate cases and memory checks are pending.
+Its distinct hypothesis removes helper-module construction by hosting the
+unchanged method table in shared C binascii. Socket260 is preparing a similar
+module-owner change in an isolated worktree. Both experiments explicitly
+record cold-helper import/late-helper ownership boundaries; public behavior,
+initial helper overrides, Rust coverage and full correctness remain required.
+
+Two actual incumbent import-time profiles of Django ASGI and ORM each record
+the same39 Rust helpers once. This establishes shared loading, not duplicate
+retained objects or physical savings. A bounded build-attribution comparison
+also finds matching Cargo metadata and compiler flags for an unchanged
+collections route despite different absolute build paths; artifact section
+comparison remains necessary before attributing whole-image hash changes.
+
 ## Objective after coverage
 
 Make the covered stdlib faster and more resource efficient on representative
