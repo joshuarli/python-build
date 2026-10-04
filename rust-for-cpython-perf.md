@@ -61,8 +61,21 @@ failed receipts remain preserved. No CPU, timing or quiet-host gate applies.
 
 The corrected ordinary host checks passed 20/20 and 31/31; the 31-case test
 process took 0.037 seconds. Normal shared-runtime build `shared-normal156`
-has started through `perf.py` with six jobs. These establish test and build
-progress only; no new module or workload memory goal has been accepted.
+subsequently completed and its memory comparison rejected the candidate, as
+recorded below. No new module or workload memory goal was accepted.
+
+The follow-up sprint audit measured 87–93% host CPU idle, zero swap use and
+412 GiB free disk. Only four of the authorized 31 subagents were active at
+its initial snapshot. Recent clean builds took roughly four to five minutes;
+5,545 focused tests took 100 seconds, a full correctness suite took 497 seconds,
+and two-run standard memory comparisons took 296–377 seconds. The full rigorous
+71-module/all-23-workload comparison took 1,307 seconds, including lease waits
+and verification. These costs do not explain the extended coordination delays.
+Run at most two native builders on the ten-core host while independent source
+work proceeds; keep RSS draws exclusive. Validate typed descriptors and every
+declared compiler-unit expectation before another clean build. First screen all
+affected modules and all 23 workloads with standard memory-only sampling;
+reserve full rigorous comparisons and full/native qualification for survivors.
 
 ### Mimalloc experiment closed by the user (2026-10-03)
 
