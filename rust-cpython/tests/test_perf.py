@@ -583,6 +583,62 @@ class IncrementalPlanTests(unittest.TestCase):
         self.assertEqual(plan, {"changed": ["Lib/new.py"], "removed": [], "clean_only": []})
 
 
+class BuiltinPreflightTests(unittest.TestCase):
+    def source_failure(self, defect, message):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp).resolve()
+            source = root / 'source'
+            carrier = source / 'Modules/cpython-rust-staticlib'
+            carrier.mkdir(parents=True)
+            (source / 'Modules/Setup.local').write_text('*static*\n_collections_rs\n')
+            declaration = carrier / 'builtin-helpers.json'
+            declaration.write_text(json.dumps({'schema': 1, 'helpers': ['_collections_rs']}))
+            manifest = carrier / 'Cargo.toml'
+            manifest.write_text('[dependencies]\n_collections_rs = { path = "../_collections_rs" }\n')
+            (source / 'Cargo.toml').write_text('[profile.release]\npanic = "abort"\n')
+            recipe = ('cpython-rust-staticlib: cpython-sys\n'
+                      '\t$(CARGO_HOME)/bin/cargo build --lib --locked '
+                      '--package cpython-rust-staticlib --profile $(CARGO_PROFILE) '
+                      '--message-format=json >$(abs_builddir)/rust-staticlib-artifacts.jsonl\n')
+            if defect == 'declaration':
+                declaration.unlink()
+            elif defect == 'dependency':
+                manifest.write_text('[dependencies]\n_collections_rs = { path = "../wrong" }\n')
+            elif defect == 'receipt':
+                recipe = recipe.split(' --message-format=')[0] + '\n'
+            elif defect == 'panic':
+                (source / 'Cargo.toml').write_text('[profile.release]\npanic = "unwind"\n')
+            (source / 'Makefile.pre.in').write_text(recipe)
+            paths = {'source_parent': root / 'parent', 'overlay_manifest': root / 'manifest.json',
+                     'build': root / 'build', 'cargo_log': root / 'cargo.log'}
+            patches.enter_context(mock.patch.object(perf.lb, '_toolchain', return_value=(None, None)))
+            patches.enter_context(mock.patch.object(perf.lb, '_llvm_ready'))
+            patches.enter_context(mock.patch.object(perf, '_git_state', return_value={}))
+            patches.enter_context(mock.patch.object(perf, '_common_dir', return_value=root / '.git'))
+            patches.enter_context(mock.patch.object(perf, '_git', return_value=str(root / '.git')))
+            patches.enter_context(mock.patch.object(perf.lb, '_extract_fresh', return_value=source))
+            patches.enter_context(mock.patch.object(perf, '_stage_overlay', return_value=({}, [])))
+            patches.enter_context(mock.patch.object(perf.lb, '_environment', return_value={}))
+            command = patches.enter_context(mock.patch.object(
+                perf.lb, '_require_command', side_effect=AssertionError('external command reached')))
+            with self.assertRaisesRegex(perf.LaneError, message):
+                perf._build_locked('fixture', paths, empty_overlay=False, jobs=1,
+                                   incremental=False, state={'configured': False})
+            command.assert_not_called()
+
+    def test_missing_declaration_fails_before_fetch(self):
+        self.source_failure('declaration', 'no explicit declaration')
+
+    def test_wrong_carrier_dependency_fails_before_fetch(self):
+        self.source_failure('dependency', 'outside the declared static carrier')
+
+    def test_missing_genuine_receipt_recipe_fails_before_fetch(self):
+        self.source_failure('receipt', 'Cargo JSON receipt')
+
+    def test_non_abort_carrier_fails_before_fetch(self):
+        self.source_failure('panic', 'requires abort panic')
+
+
 class TreeAndArtifactTests(unittest.TestCase):
     def test_built_members_survive_interleaved_cargo_progress(self):
         with tempfile.TemporaryDirectory() as temp:
