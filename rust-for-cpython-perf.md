@@ -4430,20 +4430,37 @@ is [0.887,1.000061], so replication does not establish an improvement.
 UUID258 closes without all23/all71 sampling, full-suite qualification,
 adoption or unchanged retry. All memory goals remain binding.
 
-Base64259 source `48af6e55` passes independent source review and six accepted
-baseline cases; its eleven candidate cases and memory checks are pending.
-Its distinct hypothesis removes helper-module construction by hosting the
-unchanged method table in shared C binascii. Socket260 is preparing a similar
-module-owner change in an isolated worktree. Both experiments explicitly
-record cold-helper import/late-helper ownership boundaries; public behavior,
-initial helper overrides, Rust coverage and full correctness remain required.
+Base64259 donor `48af6e55`, primary `47fe324`, removes helper-module
+construction by hosting the unchanged method table in shared C binascii.
+Its clean build passes in214s with58 verified Rust extensions. Six accepted
+baseline cases and eleven candidate cases pass, as do the getter/table image
+checks, all21 callback pointer/flag checks and21 standalone API comparisons.
+Actual Cargo archive/link proof leaves stage and artifacts unchanged. Complete
+base64/binascii/email/zipfile suites pass2,712 tests with22 skips. Two host
+generator cases exercise six direct executable invocations and preserve the
+disabled/static/partial/custom/first-wins configurations.
+
+Its first matched two-run target screen `20261004T224754Z` reads NEUTRAL:
+base64 load1.011x [0.978,1.034], binascii load1.019x [1.000,1.038], both
+working peaks neutral. Base64259 closes without all23/all71 sampling,
+full-suite qualification, adoption or unchanged retry. The cold-helper
+import/late-helper ownership boundary remains documented as experimental.
+Socket260 is preparing a similar module-owner change in an isolated worktree;
+public behavior, initial helper overrides, Rust coverage and full correctness
+remain required. A separate source scout is checking whether decimal's
+eligible exact-integer path can avoid its native/string/big-integer/string
+conversion buffers without weakening arithmetic or signal semantics.
 
 Two actual incumbent import-time profiles of Django ASGI and ORM each record
 the same39 Rust helpers once. This establishes shared loading, not duplicate
 retained objects or physical savings. A bounded build-attribution comparison
 also finds matching Cargo metadata and compiler flags for an unchanged
 collections route despite different absolute build paths; artifact section
-comparison remains necessary before attributing whole-image hash changes.
+comparison finds collections and CSV sections/layout identical; their byte
+differences are install ID, UUID and signature metadata. Zlib's longer install
+ID shifts its text offset by64 bytes and changes real code/data bytes despite
+equal segment sizes. This is not an RSS explanation, and the previously
+rejected before-link stable-install-ID experiment209 remains closed.
 
 ## Objective after coverage
 
