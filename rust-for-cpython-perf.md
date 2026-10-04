@@ -133,6 +133,20 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+Expanded shared-runtime source `49232b3` completed a clean build with 58
+verified extensions and fresh proofs for all twelve selected standalone roots.
+Twenty-five complete focused suites passed 10,473 tests with 533 skips and zero
+failures. After aligning the diagnostic controller to current `f741f178`, its
+two-run standard memory-only comparison
+`20261004T032802Z-perf-rust-vs-perf-shared-expanded155` **REJECTED**: asyncio
+load footprint regressed to 1.021x and `catalog_json_export` RSS to 1.011x in
+both runs. SSL load improved to 0.949x; every selected standalone load target
+and all working peaks were neutral. The comparison took 420 seconds, matched
+runtime prefixes and executable paths, and had no output mismatch. No full
+suite, native qualification, integration or unchanged retry follows. These
+current-harness regressions also remain guards for the distinct experiment
+that keeps the core carrier on its original compiler/runtime policy.
+
 Shared-runtime source `2da6e40` completed an ordinary clean build with 58
 verified Rust extensions and 14 complete focused suites (5,545 tests, 160
 skips, zero failures). Its ownership proof binds the original thirteen
