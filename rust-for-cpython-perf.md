@@ -295,8 +295,13 @@ facade using the same accepted native callbacks. This is modeled dispatch
 evidence, not compiled candidate qualification. Corrected source2f573d4
 checks internal helper presence in C before argument conversion; every
 present entry declines into the unchanged Python import/cache path. Resolved
-module and None cache owners remain sticky. Twelve regression cases and
-independent source review are prepared; compiler/native/memory checks remain.
+module and None cache owners remain sticky. Primary sourcee2d5ece clean-built
+58 verified Rust extensions in224s. All five required suites passed1803 tests
+with23 skips in27s. All12 native cases, four core callback ownership checks,
+standalone private API and genuine Cargo carrier/helper provenance passed;
+the replay preserved archive/core/stage bytes and actual `fresh:false` flags.
+Matched standard target `20261004T215507Z` completed in9s and was NEUTRAL:
+load0.988x [0.958,1.052], working1.000x. No adoption or goal gain is claimed.
 
 Threading257 retains its original Python from-import path for every present
 helper entry, while absent-key calls execute the unchanged Rust transition
@@ -304,7 +309,15 @@ through the existing native thread carrier. Private absent-helper import
 events are deliberately omitted; standalone helper API remains available.
 Accepted verification passed two provider/reentry cases and failed the
 separate absent-helper ownership case as expected. Primary source3b073ed
-is building; six candidate cases, native ownership and memory remain unproved.
+clean-built58 verified Rust extensions in214s. Complete affected/checklist
+suites passed4630 tests with240 skips. All six native cases and callback
+image-ownership checks passed; genuine Cargo carrier/helper JSON replay
+preserved archive/core/stage bytes and actual `fresh:false` flags. Standard
+matched target `20261004T215333Z` read load0.625x [0.625,0.833] but was
+NEUTRAL because only one run resolved an improvement. Its sole rigorous
+qualification `20261004T215618Z` improved load0.625x [0.625,0.729] in both
+runs, working neutral. All23 memory screening is running; acceptance and
+absolute goal completion remain unproved.
 
 The subsequent bounded audit of26 closed candidates found zero adoptions,
 nine target-neutral closures and17 memory-guard rejections. A standard full
