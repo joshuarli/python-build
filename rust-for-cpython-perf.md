@@ -120,6 +120,21 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+Shared-runtime source `2da6e40` completed an ordinary clean build with 58
+verified Rust extensions and 14 complete focused suites (5,545 tests, 160
+skips, zero failures). Its ownership proof binds the original thirteen
+carrier dependencies, twelve builtin registrations, four I/O exports and
+the shared provider. Build-driver regressions for verbose Cargo receipt
+output and repeated producer/move calls were reproduced and fixed.
+
+The two-run, standard-profile memory-only exploration
+`20261004T023704Z-perf-rust-vs-perf-shared-normal156` **REJECTED** a replicated
+`tempfile` load-footprint regression: 1.061x [1.048, 1.084]. All other twelve
+measured module memory rows and all 23 workload RSS guards were neutral;
+no memory metric improved. No full-suite, normal-stage embedding/relocation
+qualification or integration follows this result. The expanded standalone
+experiment remains separate and must guard this known tempfile regression.
+
 Collections keyword source `79db5aa` deferred the private `keyword.iskeyword`
 binding until first namedtuple validation. Its clean build verified 58 Rust
 extensions; three complete focused suites passed 256 tests with one skip,
