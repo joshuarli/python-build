@@ -144,6 +144,19 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+The zlib EOF-trailer repair is qualified as a correctness change, with no
+memory-saving claim. Primary source `fc5611c` passes a clean 58-extension
+build, both public and direct Rust capsule-copy regressions, and the complete
+default suite: 50,158 run, 2,748 skipped, zero failures. Flush now preserves
+the existing unconsumed-tail state after moving its input buffer, matching
+the native C behavior without cloning the input. Fresh memory-only calibration
+`20261004T040812Z-calibrate-perf-rust` is CALIBRATION-OK. The two-run standard
+primary gate `20261004T041157Z-perf-rust-vs-perf-correct158` is NEUTRAL for
+zlib load/working peak and all 23 workload RSS guards, with no mismatches or
+unstable metrics. The original module/workload memory goals remain unresolved;
+this qualification does not change their accepted counts. The incumbent build
+must be refreshed after integration.
+
 Regex no-inlining source `d043b476` removed only the forced-inlining feature
 while retaining the existing cache, DFA, one-pass, backtracking and literal
 features. Its actual staged target feature graph matched that selection; the
