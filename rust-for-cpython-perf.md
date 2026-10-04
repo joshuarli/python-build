@@ -77,6 +77,17 @@ declared compiler-unit expectation before another clean build. First screen all
 affected modules and all 23 workloads with standard memory-only sampling;
 reserve full rigorous comparisons and full/native qualification for survivors.
 
+The latest live snapshot again found only one implementation subagent active,
+with the host about 75% idle, no swap activity and 408 GiB free disk. The
+coordinator remains a scheduling bottleneck. Independent follow-ups now cover
+measurement orchestration cost, a mechanism-level implementation frontier and
+saved physical-memory attribution, without blocking ordinary lane execution.
+The primary zlib trailer correctness fix passed 50,158 tests with the accepted
+2,748 skip count; its memory qualification remains pending. Standalone-only
+shared-runtime trial `cold160` subsequently rejected eight replicated module
+load regressions, with all 23 workload RSS guards neutral. It receives no
+full-suite rerun or unchanged measurement retry, and provides no memory win.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
