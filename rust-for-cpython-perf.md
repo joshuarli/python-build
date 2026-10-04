@@ -193,7 +193,18 @@ and tests are preserved. Distinct follow-up249 changes that native import
 site while preserving existing facade bindings and captured partial
 lifecycle. Source work proceeds independently of plistlib246, whose baseline
 four cases, exact compiled24B/8B node-layout check and bounded source review
-passed. Its primary248 build is pending; no new goal is claimed.
+passed. Primary248 then clean-built58 verified Rust extensions in217 seconds;
+all71 plistlib suite tests and four frozen native cases passed. Target
+discovery `20261004T195852Z` was NEUTRAL: load0.827x [0.719,1.059],
+working1.000x [0.881,1.051]. The writer-offset mechanism is closed without
+broad/full qualification, unchanged retry or adoption. No new goal is claimed.
+
+The native pickle follow-up249 passed six accepted-baseline cases, with
+two expected ownership failures, and an initial bounded source review. A
+further source check found that CPython imports support custom module maps:
+the new raw dictionary-presence check can bypass their provider hooks.
+Focused baseline reproduction and a narrower optimization boundary precede
+the candidate build. Original fixtures and failed receipts remain preserved.
 
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
