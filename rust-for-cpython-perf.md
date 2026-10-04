@@ -39,6 +39,26 @@ builds, correctness and RSS measurements use the perf host lease. A change
 to the performance harness requires fresh memory-only calibration before
 comparison.
 
+### Reuse accepted artifacts without a canonical rebuild (2026-10-04)
+
+After a primary candidate passes complete correctness and the broad memory
+gate, retain its original named stage, build report, source commit and stage
+digest as the accepted runtime. Do not rebuild and repeat the same suites
+solely to rename it `perf-rust`. Source workers prepare isolated changes;
+subsequent builds and comparisons run from the primary checkout with explicit
+accepted and candidate build names. Existing stage verification and host
+leases remain mandatory.
+
+Named baselines bypass the harness's `@incumbent` ancestry check. Before each
+comparison, explicitly verify that the candidate's recorded build commit
+descends from the accepted runtime's recorded build commit. Preserve original
+reports and paths; never rewrite provenance or move installation prefixes.
+Use explicit names for calibration and absolute goals too. The `@incumbent`
+alias and default goal commands still refer to `perf-rust`, which becomes a
+legacy snapshot when a different named runtime is accepted. Baseline recording
+still requires the canonical alias pair and is deferred to final confirmation.
+This replaces the duplicate canonical rebuild/test step in the older workflow.
+
 ### Verification workflow correction (2026-10-03)
 
 The coordinator found that execution was underusing both agent lanes and the
@@ -350,14 +370,455 @@ Verdict `20261004T093243Z-perf-rust-vs-perf-regex-primary191` SHA256 is
 All owned handles drained; no full suite, reroll or integration followed.
 The accepted production source remains `e702f23`.
 
-Diagnostic work192 now observes live allocation callers and owner lifetimes in
-datetime, decimal, typing and the actual serialization workload. Module probes
-distinguish first and second setup growth; the serialization probe observes
-old/new graph overlap inside its unchanged loop. These instrumented captures
-identify traced Python allocations, not Rust malloc ownership or acceptance
-RSS. They run through ordinary TEST leases against verified control and
-accepted stages without rebuilding or changing the measuring stick.
+Diagnostic work192 completed paired captures for datetime, decimal, typing
+and the actual serialization workload. Typing import allocations differed by
+only 1,260 traced bytes; serialization retained essentially identical decoded
+graphs and wire buffers. Date formatting and decimal arithmetic traces instead
+identified fresh method-name strings consistent with retention by CPython's
+pointer-keyed type cache. These are traced Python allocation observations, not
+Rust malloc ownership or acceptance RSS. The datetime probe used a randomized
+hash under isolated startup, so its original matching-digest claim was
+retracted; subsequent native tests check explicit values.
 
+Sources193/194/195 respectively reject necessarily unsupported pickle lists
+before reserving their child workspace, and reuse interpreter-owned names in
+datetime and decimal while resolving mutable helper callables every time.
+Native legacy getters retain their original precedence when both attribute
+slots exist. Original batch197 compiled successfully but was withheld from
+tests and measurement until that precedence correction; its compiler evidence
+is preserved separately. Corrected batch198 (`d8b4f83`, fixture-only descendant
+`111333c`) built all 58 images and passed seventeen complete focused suites
+(6,985 / 323) and twenty-one native tests, including four dual-slot contracts.
+
+The first standard comparison198 was NEUTRAL with no replicated regressions:
+datetime load pooled 0.571x and decimal 0.809x, but each improved in only one
+run. One predefined higher-sample comparison on the same artifact resolved
+that uncertainty without changing floors or replication. It ACCEPTED datetime
+load 0.598x and decimal 0.815x in both runs; all other checked module metrics
+and all 23 workload RSS guards were neutral. Pickle load worsened in one run
+only, which remains preserved rather than represented as an improvement.
+Verdict `20261004T101328Z-perf-rust-vs-perf-memory-primary198` SHA256 is
+`1a510d1c45c55fc7c48ea32a22b2be062bd2685801147b172119daebedbecc9a`.
+This is exploratory evidence, not integration or absolute goal completion.
+
+The first full198 suite ran 50,158 tests / 2,748 skips and failed one process
+pool remote-traceback assertion. The relevant process and test sources match
+the accepted build byte-for-byte. The exact method subsequently passed for
+Fork, Forkserver and Spawn on both installations. An exit-status polling race
+is plausible but unproved; no speculative fix or test weakening followed.
+The one complete recheck on the same artifact passed: 50,158 tests / 2,748
+skips, 464 test files OK, zero failures, in 249 seconds with four workers.
+The original failure remains preserved. The same artifact's all-71-module /
+all-23-workload standard two-run memory-only gate subsequently REJECTED in
+685.7 seconds: tarfile load 1.066x [1.047, 1.078] regressed in both runs.
+Datetime load 0.661x and decimal 0.800x improved in both runs; pickle and all
+23 workload RSS rows were neutral. No mismatch or unstable row occurred.
+Verdict `20261004T103037Z-perf-rust-vs-perf-memory-primary198` SHA256 is
+`a5e95fb96f7dedeadecf102a3e42e986866752794b1f939a15a3f86674d81ceb`.
+The rejected source and artifact remain preserved, with no unchanged retry
+or adoption. Batch199 isolates the datetime/decimal name changes from the
+memory-neutral pickle budget change; no cause for the tarfile regression is
+established. Its single clean build passed in 216 seconds (58 Rust images),
+ten complete focused suites passed (2,900 / 202), and all fourteen native
+cases passed. One legacy-fixture launcher failed because an extra `-v`
+argument prevented its artifact loader from running; the receipt is retained,
+and the corrected invocation passed without source changes or a rebuild.
+Its first standard two-run memory screen over eleven modules, including
+tarfile, and all 23 workloads REJECTED in 261.9 seconds. Logging working peak
+1.222x [1.185, 1.259] and five workload RSS rows regressed in both runs:
+catalog request path 1.014x, gzip extraction 1.015x, startup 1.014x, large
+base64 1.011x and zlib streaming 1.017x. Datetime and decimal load rows were
+coded neutral, despite pooled ratios 0.667x and 0.832x; tarfile was neutral
+overall with one worse run. No mismatch or unstable row occurred.
+Verdict `20261004T104927Z-perf-rust-vs-perf-memory-primary199` SHA256 is
+`c5f87eadc1b6c4e42dbb31904b05a83d83b6bd2d79eade97e9fd94b1b53f6701`.
+No full qualification, retry or adoption follows. This isolation does not
+establish the cause of either batch's regressions.
+Contextlib source196 independently applies canonical attribute names while
+preserving legacy getters. Its three-case baseline reproducer failed the
+expected canonical-name identity assertion; the other two semantic/lifecycle
+cases passed, with stage guards and cleanup passing. Candidate native and
+Primary203 isolated that change from datetime, decimal and pickle changes.
+Its clean build passed in 216 seconds (58 images), eleven complete focused
+suites passed (6,315 / 153), and five native cases passed. Its first standard
+two-run eleven-module/all-23-workload screen REJECTED in 266.3 seconds:
+catalog request path 1.016x, catalog search form 1.013x, reordered difflib
+1.015x, gzip extraction 1.017x, multiprocessing pool 1.012x and small base64
+1.014x RSS all regressed in both runs. Contextlib load 1.008x and working
+peak 1.000x were neutral. No mismatch or unstable row occurred.
+Verdict `20261004T110249Z-perf-rust-vs-perf-contextlib-primary203` SHA256 is
+`3fa6d7d86f6a5e53200f76dec2c5ab21b0bad4a663b83937623c55908f336939`.
+The source and artifact are preserved without full qualification, retry
+or adoption.
+
+A narrow C-bridge audit found two distinct additional name-lookup prospects:
+the fixed SQLite kernel performs 12,000 `column` and at least 3,001 `step`
+lookups per run; socket performs 200 `send` and 200 `recv` lookups. Zstd has
+six kernel-reached operation names and sixteen lookups per loop. These counts
+describe fresh-name lookup paths, not retained names or physical savings.
+Sources200/201/202 are ready and passed independent source review. Accepted
+baseline runs reproduced SQLite's step/column identity failures, socket's
+ordinary and own-GIL identity failures, and all seven zstd operation-name
+identity failures. Socket's other three ordinary contracts passed; its later
+own-GIL lifecycle assertions were not reached. A wrong SQLite step-error test
+was corrected to the observed existing behavior (query returns None), and the
+selected semantic case passed; canonical assertions remain intact. These are
+behavioral reproductions, not resident-memory evidence.
+Primary204 combines these three independent C-bridge changes for one clean
+build and qualification, excluding the rejected prior candidates. No image,
+provider, allocator or callable-cache experiment is revived.
+Its single clean build passed in 218 seconds (58 verified Rust images),
+all 21 complete focused suites passed (7,651 / 602), and seventeen native
+cases passed, including shared dual-slot tests and interpreter lifecycle
+checks. The first standard two-run thirteen-module/all-23-workload screen
+REJECTED in 273.3 seconds: gzip extraction RSS 1.015x, startup 1.013x and
+zlib streaming 1.012x regressed in both runs. SQLite load 1.014x, socket
+0.980x and zstd 1.000x were all coded neutral, as were their working peaks.
+The other twenty workload RSS rows were neutral; no mismatch or unstable
+row occurred. Verdict `20261004T111726Z-perf-rust-vs-perf-cnames-primary204`
+SHA256 is `a3aae3a480e1886b6366fa3a80d8b4c6316e97f445b6043621031e2961e8b32a`.
+No full qualification, retry or adoption follows; source and artifacts remain
+preserved. Repeated small guard increases are under saved-evidence review,
+without causal attribution or a changed acceptance threshold.
+
+Distinct inspect prospect205 targets the three parameter metadata names
+(`name`, `kind`, `default`), reached 84,000 times per fixed kernel run.
+Its source-only lane preserves original lookup for legacy and custom modern
+getters, canonicalizing names only for the generic getter. This is a source
+prospect. The accepted-stage retention regression reproduced nineteen blocks
+and 876 bytes released after clearing the type cache and collecting; its
+twelve-block bound failed, while its 1,024-byte bound passed. This proves a
+modest logical retention difference, not a page-sized resident-memory owner.
+Primary210 compiled this source cleanly in 216 seconds. All five Python
+contracts and its compiled dual-slot case passed, including the retention
+bound; six complete focused suites passed (1,696 / 1). The first standard
+two-run six-module/all-23-workload memory screen REJECTED in 229.6 seconds:
+inspect load 1.011x [0.995, 1.028] and working peak were neutral, while logging
+working peak 1.563x, reordered-diff RSS 1.016x and zlib-stream RSS 1.015x
+regressed in both runs. Verdict
+`20261004T123505Z-perf-rust-vs-perf-inspect210` SHA256 is
+`3d27cb03403624a0ad9a3a87bae978180914ea1a2d934400b47663afd832b6a3`.
+No full suite, broad comparison, unchanged retry or adoption follows.
+
+The same-source rebuild diagnostic206 completed four startup children and
+twelve observers under the ordinary test lease, with successful stage guards
+and cleanup. The original qualified regex185 artifact and canonical accepted
+artifact have identical production overlays, normalized interpreter paths,
+loaded module names and code filenames. The former showed 352/576 KiB more
+process RSS; stage-owned dirty pages were identical, while malloc-zone
+residency and fragmentation were higher. Allocation counts were identical
+and printed allocated bytes differed by only 1 KiB. This descriptive probe
+does not establish causality or acceptance. A separate source/artifact audit
+found absolute Cargo output paths in macOS dylib install names, with different
+load-command lengths and text offsets. A stable install-name experiment will
+control that known layout input; it is not yet an explanation for RSS.
+
+The latest sprint inspection found ten CPU cores, 64 GiB RAM, no swap
+activity, 381 GiB free disk and load averages around 1.3. All 31 agents had
+completed at that snapshot, and no native qualification was running.
+Coordinator latency and low useful reassignment remain avoidable delays.
+Recent clean builds took 216–218 seconds, initial memory comparisons
+262–273 seconds, full correctness about 249 seconds, and broad all-module
+memory qualification about 686 seconds. Shared-host measurements serialize;
+independent source implementation and analysis need not. Repeated source
+scouts and sub-page logical savings should not displace physical-memory
+attribution and distinct implementation hypotheses.
+
+For a candidate that survives the focused/native checks and initial memory
+screen, run the one broad all-71/all-23 memory gate before the full correctness
+suite. Its result remains provisional: adoption requires both that gate and
+the complete suite to pass on the same unchanged clean artifact. This changes
+coordinator ordering, not acceptance criteria or sampling. Candidate198 spent
+500 seconds on two full-suite attempts before its broad memory rejection;
+the reversed order would have avoided that work. Initial-screen losers still
+receive neither a broad comparison nor the full suite.
+
+Stable-install-name candidate207 built cleanly in 217 seconds. Three build-helper
+tests and six complete focused suites passed (1,891 / 38), but the artifact
+contract failed for binascii: its requested own install name was followed by
+the base64 dependency's install-name arguments, leaving the linked image
+with base64's identity. The other 57 identities and unchanged threading/struct
+header-shift checks passed. Cargo's dependency-argument propagation is under
+source investigation; no memory measurement or adoption
+follows this failed artifact contract.
+
+Distinct candidate208 releases binary plist flattening's deduplication maps
+and traversal scratch before output and offset allocation. Frozen mapping
+snapshot owners remain alive through serialization. The fixed graph has at
+least 17,404 bytes of logical map/scratch payload before spare capacity and
+bucket overhead. This is an allocation-overlap hypothesis, not a proven
+working-peak improvement; clean compilation and ownership/output fixtures
+precede its memory screen.
+Its clean build passed in 217 seconds; four native fixtures passed on both
+the accepted and candidate interpreters, and five complete focused suites
+passed (1,679 / 62). The first standard two-run seven-module/all-23-workload
+memory screen REJECTED in 232.7 seconds. Plistlib load improved to
+0.629x [0.547, 0.778] in both runs; working peak was neutral at
+0.957x [0.830, 1.087]. Catalog request, gzip extraction, small base64, wheel
+reading and zlib decoding RSS regressed in both runs. Verdict
+`20261004T120549Z-perf-rust-vs-perf-plistlib208` SHA256 is
+`a2aa02ce1c629b91af867419dc3f97a57e86923a5a78cb8c93ee68b62ca2ab23`.
+No full suite, broad comparison, unchanged retry or adoption follows.
+
+Corrected install-name candidate209 uses package-local Cargo linker arguments
+for the new identity pair. Cargo's cdylib-specific arguments propagate to
+dependent cdylib links; package-local arguments avoid that overwrite. Existing
+general helper directives remain unchanged. A fresh clean build must establish
+all actual image identities before memory measurement; source reasoning alone
+does not qualify this change.
+The corrected clean build passed in 216 seconds. All three artifact checks
+passed, including all 58 exact install names, binascii's distinct identity,
+and unchanged small-helper header geometry. Three Rust helper tests and six
+complete focused suites passed (1,891 / 38), with unchanged stage guards.
+Its first standard two-run twelve-module/all-23-workload memory screen
+REJECTED in 265 seconds. Logging working peak regressed in both runs to
+1.667x [1.667, 1.704], with raw medians 442,368 versus 737,280 bytes. All
+23 workload RSS rows and the other module memory classifications were neutral;
+there were no mismatches or unstable rows. Verdict
+`20261004T121603Z-perf-rust-vs-perf-installid209` SHA256 is
+`55cfaec799700c96957a3486be6921991295ef6cb1d7f71b2f8079f39fd708cd`.
+No full suite, broad comparison, retry or adoption follows. The controlled
+install-name input is verified, but its memory result does not explain the
+earlier rebuild variation or establish a generally beneficial layout change.
+
+
+### Current throughput audit (2026-10-04)
+
+Exploratory memory comparisons now stop after an entity has all requested
+independent runs and the existing verdict proves a replicated memory
+regression. Survivors, gates, calibration, goals, timing comparisons and
+baseline recording still collect the full selection. Partial reports retain
+all raw observations and output mismatches, publish verdicts and goals only
+for fully sampled entities, and identify incomplete sampling with
+`sampling_complete`, `incomplete_entities` and `stopped_after`. No partial
+comparison can establish acceptance. Source220 passed62 controller tests;
+independent review passed the same tests. Existing logs show76–95 seconds
+of continuation after the first replicated failure in four earlier screens;
+this is an upper bound on possible savings, not a measured end-to-end gain.
+The harness change requires fresh memory-only calibration before comparisons.
+
+The live audit found one running child out of 31 before three bounded audit
+tasks were assigned. The host has ten cores, 64 GiB RAM, zero swap use and
+377 GiB free disk. The latest ten measured candidates (187, 188, 191, 198,
+199, 203, 204, 208, 209 and 210) produced eight target-neutral rejections,
+two target-improved rejections and no adoptions. Their comparisons alone
+consumed 48.6 minutes. Low candidate yield, coordinator delay, repeated
+mechanism discovery and the exclusive measurement queue are the current
+bottlenecks; agent slots and host memory are not exhausted.
+
+Ordinary source edits may use a dedicated incremental exploration stage for
+focused correctness and the first standard two-run memory screen. The harness
+requires a clean build for gate evidence, not for rejecting exploration
+candidates. Structural changes that its incremental planner refuses still
+require clean builds. An exploration survivor must qualify again on one clean
+committed artifact: focused/native checks, the broad all-71/all-23 memory gate
+and the full correctness suite all remain required before adoption. No saved
+incremental duration establishes a numerical speedup yet. Reuse qualified
+artifacts and avoid fixture-only rebuilds; preserve sampling, output checks,
+memory floors and regression guards.
+
+Logging diagnostic211 completed four children and 36 observers with unchanged
+stage and harness guards. Both images retained identical stream-associated
+allocations. Tracing and snapshot work removed the original untraced
+18-page differential, so the probe cannot attribute its cause or overturn209's
+rejection. Findings are saved under
+`bisect-core-source/rust-cpython/results/logging-loop-owner-attribution211/`
+in the memory-wave worktrees; report SHA256 is
+`b851b43b421af8d51a81299612b09f43afb2a947ec8cedad5005df0255cef1ad`.
+
+Plistlib output-growth experiment212 changes the result buffer's geometric
+growth from doubling to 3/2 with checked signed sizes. Source `7579075` starts
+from accepted production and does not retain208's early-map-drop change. The
+original208 stage/report/logs are preserved at
+`rust-cpython/results/plistlib208-original/`; its configured build name was
+reused for mutable exploration. Incremental compilation took 35.3 seconds,
+versus the preceding 216.7-second clean build. Six native checks and five
+focused suites passed (1,679 / 62). Its first standard two-run seven-module/
+all-23-workload memory screen REJECTED: plistlib load0.934x and working0.957x
+were neutral, and seven workload RSS rows regressed in both runs. Verdict is
+`20261004T130338Z-perf-rust-vs-perf-plistlib208`. Reserved capacity fell in the
+source model, without demonstrated physical benefit. No clean qualification,
+full suite, broad gate, unchanged retry or adoption follows this rejection.
+
+ElementTree captured-text experiment213 stores owned references to eligible
+long exact ASCII strings instead of copying their payload into the complete
+prevalidated output buffer. Coalesced literal spans retain callback order;
+subclasses, escaped and non-ASCII text keep the copied path. Writer callbacks
+still receive fresh strings, while captured owners gain one temporary
+reference through emission. Source `bf2b96b` starts from accepted production,
+without212's growth change. Six native ownership/callback/error tests passed.
+Five actual focused suites passed across two executions (869 / 13); the first
+selection's two nonexistent optional suite names remain preserved as a driver
+error, and the three successful suites were not rerun. Incremental compilation
+took 35.2 seconds. The first standard two-run seven-module/all-23-workload
+screen REJECTED: ElementTree load1.039x and working1.073x were neutral, while
+compileall, small-base64 and zlib-decode RSS regressed in both runs. Verdict is
+`20261004T131655Z-perf-rust-vs-perf-plistlib208`; this reused exploration build
+name is distinct from the original208 and212 artifacts/results. No clean
+qualification, full suite, broad gate, unchanged retry or adoption follows.
+The two incremental builds were about six minutes shorter in total than two
+recent clean builds; this comparison does not establish identical-work speedup.
+Neither candidate produced an accepted
+memory improvement. The accepted runtime and absolute goals are unchanged.
+
+Decimal bounded-integer experiment214 isolates historical `e1b1476`'s checked
+u128 arithmetic and 39-byte stack formatting on current accepted production.
+Cargo settings, std, allocator, C dispatch and module ABI remain unchanged.
+The earlier primary `4ea59fa` combined this mechanism with no_std/PyMem and
+read decimal memory-neutral, so it did not establish this isolated variant's
+result. Current source `8b95feb` passed all five supplemental tests on both
+baseline and candidate. Four actual focused suites passed (1,194 / 14) across
+three suites plus the correctly named numeric-tower suite; a nonexistent
+`test_numbers` selection error is preserved, without repeating passing suites.
+Its 35-second incremental build verified all58 helpers. The first standard
+two-run seven-module/all-23-workload memory screen REJECTED: decimal load0.962x
+and working1.000x were neutral in both runs. Six workload RSS rows regressed
+in both runs. Verdict is `20261004T134303Z-perf-rust-vs-perf-plistlib208`.
+This now closes the standalone std/default-allocator arithmetic variant as
+well as preserving the older combined result. No clean qualification, full
+suite, broad gate, unchanged retry or adoption follows.
+
+The renewed sprint audit found 24 unresolved load-only goals and three
+working-only goals (zstd, plistlib and ElementTree), with none unresolved on
+both metrics. At the live snapshot all31 children were complete and the host
+had no native work, no swap use and376 GiB free disk. Agent slots are being
+underused; physical RSS comparisons remain exclusive. Recent tiny-allocation
+and temporary-buffer work has low yield against predominantly retained-import
+goals. Prioritize distinct retained owners and source attribution, without
+reopening closed mechanisms or treating logical allocation reductions as RSS
+wins. Raise focused-suite workers to four when the host is otherwise free;
+initial exploration may run the complete direct-route suites and native
+contracts, deferring distant neighbor suites until survival. All affected
+suites remain required before final adoption. Keep two-run sampling, memory
+floors and all final guards unchanged. Ordinary source review of borrowed
+binary plist tables215 found no change-relative bug; incremental compilation
+verified58 extensions in35 seconds. Native and memory qualification remain
+pending, and its modeled11,032-byte payload removal is not a physical-memory
+claim.
+
+Borrowed binary plist table experiment215 retains immutable wire slices
+instead of allocating decoded offset and recursive-reference vectors. Source
+`0d8a321` preserves object sharing, cycles, checked bounds and value-before-key
+callback order. Its35-second incremental build verified58 extensions; six
+native methods passed on accepted and candidate interpreters, and complete
+`test_plistlib` passed71 tests with no skips at four workers. The first standard
+two-run seven-module/all23-workload screen REJECTED: plistlib load0.840x
+[0.560,1.104] and working0.868x [0.727,1.000] were neutral in both runs;
+compileall RSS regressed in both. There were no mismatches or unstable metrics.
+Verdict `20261004T135810Z-perf-rust-vs-perf-plistlib208` SHA256 is
+`aa0d6be4a5e4af60dd353b1c40de71451750da2944ec1bf581f89469c1c75a22`.
+No unchanged retry, higher-resolution comparison, clean qualification, broad
+gate, full suite or adoption follows. The modeled11,032-byte removal did not
+prove a physical-memory win; accepted goals remain unchanged.
+
+Functools retained-class experiment216 defers construction of the comparator
+wrapper class until cmp_to_key or private attribute lookup. Private _KeyWrapper
+is absent from the module dictionary before materialization but remains
+available through lookup and dir; Rust still performs all six comparisons.
+Source review identified concurrent first-use publication returning different
+classes. A controlled two-thread test passed on accepted production and failed
+on the initial candidate; atomic dictionary setdefault publication fixes it.
+Native execution then exposed a read-only slot-descriptor metadata assignment;
+normalizing only actual Python functions fixes that separate defect. Both
+failed receipts remain preserved. Corrected source `3b1af79` compiled all58
+extensions in33 seconds. Standalone factory checks on both interpreters,
+seven candidate contracts and the own-GIL fixture passed with clean reaping,
+temporary cleanup and unchanged stages. Complete test_functools passed335
+with no skips. The renewed standard memory-only calibration passed in226.1 seconds with
+all selected module and workload rows neutral. Its verdict is
+`20261004T141639Z-calibrate-perf-rust`, SHA256
+`a7253086be588567ba049b5525045bb81c3f29dec2cfa781882d49c0a8ea1a73`.
+The first standard two-run eleven-module/all23-workload comparison REJECTED
+in263.3 seconds: every module memory classification was neutral, and catalog
+request, compileall, reordered diff and zlib streaming RSS regressed in both
+runs. There were no output mismatches or unstable metrics. Verdict is
+`20261004T142109Z-perf-rust-vs-perf-plistlib208`, SHA256
+`5c2ba5f3fd6ee69cf5c7dc21e4a0578a702e23161af6c99cf44bded0a4a52f91`.
+No higher-resolution comparison, unchanged retry, clean qualification, broad
+gate, full suite or adoption follows. This closes the standalone functools
+class-deferral experiment; distinct CSV and zlib class owners remain separate
+source prospects. Accepted goals are unchanged.
+
+CSV writer-class experiment217 defers only the private _RustWriter type;
+reader-only CSV imports, including the catalog JSON export module, do not
+construct its class, methods or property. Attribute lookup and dir preserve
+private discovery; deprecated-version lookup and missing-name errors remain
+unchanged. Source `8e1d414` built all58 helpers incrementally in34 seconds.
+Accepted public writer behavior passed, the accepted ownership test failed at
+the expected eager-class assertion, and four candidate cases passed. Complete
+test_csv passed134 tests with four skips. The first standard two-run seven-
+module/all23-workload memory screen REJECTED: CSV load0.953x and working1.000x
+were neutral; catalog JSON export RSS0.999x was neutral. Catalog request,
+mostly-equal diff and wheel-read RSS regressed in both runs. Verdict is
+`20261004T143509Z-perf-rust-vs-perf-plistlib208`; there were no mismatches or
+unstable metrics. No unchanged retry, higher-resolution comparison, clean
+qualification, broad gate, full suite or adoption follows. Accepted goals are
+unchanged. Source review of the separate zlib stream-type experiment218
+identified late default evaluation; installer-time bindings and staged-source
+fixture selection were corrected before native execution.
+
+Zlib stream-type experiment218 passed twelve native cases and complete
+test_zlib (85 tests, two skips). Its incremental build took33 seconds. The
+first standard two-run seven-module/all23-workload memory screen REJECTED in
+236.9 seconds: zlib load1.001x and working1.000x were neutral; zipfile load
+and catalog request, catalog URL, compileall and reordered-diff RSS regressed
+in both runs. No mismatches or unstable metrics occurred. Verdict
+`20261004T144944Z-perf-rust-vs-perf-plistlib208` SHA256 is
+`b0735a24978f83194bf7a2bde5c0180fad6caaccc53ea86b2959589840877e31`.
+The stage is preserved in results/zlib218-original with digest
+`460b211b7553e3bcdb14de4311a008002b6db7819fee1624e943f9b8a47008d4`.
+No unchanged retry, clean qualification, broad gate, full suite or adoption
+follows. Candidates212–218 produced no replicated target improvements or
+adoptions; their first screens consumed1,665 seconds altogether.
+
+The original fresh-decompressor copy failure is a real accepted-runtime bug,
+not an invalid test. An ordinary three-stage observation established that
+pristine C passes copy(), copy.copy() and copy.deepcopy() before input, while
+both accepted Rust and218 fail all three with inconsistent-stream-state
+errors. Compressor copies pass on all three stages. The pinned zlib-rs
+inflate-copy implementation rejects a null output pointer even when output
+capacity is zero. Separate failing regression641e569 is preserved;219 is a
+distinct correctness fix from accepted source, without218's rejected class
+deferral. No memory saving is claimed for this bug or its pending fix.
+
+Correctness219 source `cc98605` compiled incrementally in34 seconds, verifying
+all58 helpers. Independent source review established that the copied native
+state retains no stack-stream backpointer. Four runtime regressions passed
+on pristine C and219; accepted Rust passed active-copy behavior and failed
+the three pristine-copy operations as expected. Complete test_zlib passed
+85 tests with two skips. Native receipt SHA256 is
+`00857d7d304ea544df6e6183db8efca63f0ffb2d46c4b98207493a3fc5918080`.
+Memory qualification and complete integrated correctness remain pending;
+the candidate is not adopted and accepted goals remain unchanged.
+
+After220's harness change, fresh six-module/all23-workload memory-only
+calibration passed in225.6 seconds with full sampling. Verdict
+`20261004T151101Z-calibrate-perf-rust` SHA256 is
+`a9c6019677f333843901e8aeed0d246ca1addf0a9775441978facce28f0a2b22`;
+harness SHA256 is
+`968693ccc6db5cb935f219a8db6f9b15cd62c0996c87335a3b70fecfd732c90c`.
+Correctness219's first memory screen then REJECTED in169.3 seconds after
+zlib decoding RSS regressed1.012x in both runs. It stopped after that
+workload's second observation, preserving the first run's remaining raw
+data and publishing no replicated module-memory claims. Verdict
+`20261004T151537Z-perf-rust-vs-perf-plistlib208` SHA256 is
+`5dd00cb662089fcac950bb5cc6d3bc5dc0bac9e5b11e7e17afbcb5bb6b5b176e`.
+No unchanged retry or qualification follows; the corrected source remains
+preserved but unadopted. This establishes real early rejection, not a
+controlled speed comparison with earlier candidates.
+
+The separate post-logging region diagnostic completed four fresh processes
+and twelve external observers with matching outputs and successful cleanup.
+Original185 and canonical accepted source had identical printed allocated
+bytes/counts (3509KiB/3036), but original185 retained384/416KiB more malloc-
+zone residency. Dirty stage-image bytes matched; canonical image residency
+was16KiB higher. This locates the retained differential in malloc-zone
+fragmentation rather than extra dirty images, without proving its cause.
+The maps describe post-output parked processes; measured counters were
+captured before parking, without tracing or heap inspection. It is diagnostic
+evidence only and cannot overturn a rejection. The report in
+results/logging-post-driver-attribution212 has SHA256
+`0824e0492cf90ccc3f8ccd2c137968c6759fe17c048a46669da886999bfb9d56`.
 
 ### Mimalloc experiment closed by the user (2026-10-03)
 
@@ -3461,6 +3922,284 @@ Candidate acceptance compares against the qualified incumbent, retains
 replicated memory guards and output checks, and requires complete suites.
 Completion requires all 71 module load/peak goals MET or BEYOND and all 23
 absolute workload RSS rows neutral or improved. Debt does not waive any goal.
+
+## Sprint friction audit (2026-10-04)
+
+The initial live-agent snapshot had zero running children among 31 available
+child slots. This was coordinator underuse. The host has 10 cores, 64 GiB
+RAM, zero swap usage/traffic, and 374 GiB free disk; it was lightly loaded.
+Agent capacity is remote reasoning capacity, not 32 local compiler cores.
+Source implementations, fixture preparation and independent review overlap;
+RSS measurements remain exclusive to avoid competing allocations changing
+resident-page behavior. Native exploration uses incremental builds (recently
+34–35 seconds rather than 216–218 seconds clean), at most two builders,
+and no clean/full qualification for rejected discoveries.
+
+The latest 15 measured source candidates produced zero adoptions. Median
+first-screen duration was 233.3 seconds; workload RSS guards rejected 14,
+and logging working peak rejected the other. Most intended target metrics
+were neutral. Allocation reductions are not resident-page reductions:
+saved same-source observations had nearly equal live allocations but
+hundreds of KiB of different malloc-zone residency. The causes remain
+unproven. Twenty-four unresolved module goals are load-only and three are
+working-only; module-local temporary-buffer optimizations mostly address
+already-passing working metrics.
+
+Exploratory all23 sampling on every candidate was an avoidable coordinator
+policy. Discovery now selects only the target module and directly affected
+workloads, retaining standard two-run replication, output checks, floors,
+matched paths and stage guards. A target discovery survivor must pass broad
+all71/all23 memory checks before clean/full qualification and adoption.
+This changes verification order, not acceptance or completion requirements.
+CPU, timing and host quietness do not gate any memory step. Calibration is
+reused for six hours unless stage, harness, toolchain or host conditions
+invalidate it; no per-candidate refresh.
+
+The bounded follow-up audit found44.7 minutes of recorded comparisons in
+the latest15 closed verdicts: four target-only terminal comparisons took
+60.3s total, ten focused-module/all23 requests took2233.3s, and one broad
+request early-rejected after386.4s. Five documented clean builds totaled
+1099s; seven incremental builds totaled242.5s. These durations are not
+additive sprint wall time: source work and builds overlap, and recorded
+timers can include lease waits. No full qualification suite ran after those
+rejections. Exact coordinator idle time is unavailable from the receipts;
+the zero-active-child snapshot proves underuse at that instant only.
+New candidates use unique runtime tags and suite names from the pinned test
+inventory to avoid stage identity bookkeeping and incorrect suite requests.
+Source work continues during exclusive memory draws. Native builds and tests
+wait for that lease;31 reasoning lanes cannot create31 local compiler cores.
+
+StringIO222 passed six behavior and three allocator checks and complete
+I/O/logging suites (1,316 run, 33 skipped), then early-rejected in 169.4s:
+`20261004T155539Z-perf-rust-vs-perf-plistlib208`, replicated zlib streaming
+RSS regression. The candidate and raw partial observations are archived;
+there is no published replicated module result or adoption. Region223
+retained XML's working excess, but zstd's excess was inconsistent and
+plistlib reversed direction; endpoint maps do not establish a causal owner.
+
+Compact XML tokens224 replace copied long plain ASCII text with inline
+owner-index tokens plus strong references. Source accounting models 60 KiB
+less reserved capacity, not a measured RSS gain. Its independent source
+review found no concrete hole; callbacks temporarily observe one extra
+reference to captured exact strings, restored after return. The incremental
+build verified 58 release extensions in 34s and the complete two direct
+XML suites passed (480 run, 12 skipped). Seven native behavior cases passed on accepted and candidate stages; three
+actual-production decoder tests also passed. Target-only standard two-run
+discovery finished in 8.8s: `20261004T162031Z-perf-rust-vs-perf-plistlib208`
+reads NEUTRAL, load 1.027x and working 0.920x, both neutral in both runs.
+The candidate is closed without all23 screening, clean/full qualification,
+unchanged retry or adoption. Accepted goal status remains unchanged.
+
+### Threading metadata and single-engine regex candidates
+
+Threading226 source `518c34a` moves the helper's method, slot and module
+definitions into the existing C thread translation unit, and statically
+links its unchanged Rust transition callback through the existing carrier.
+The private helper now has builtin provenance and no `__file__`. Its clean
+build verified 57 installed shared Rust extensions in 217s; the helper is
+builtin instead. Six native lifecycle/dispatch cases passed, and its actual
+builtin callable address equals the exported Rust callback. Complete
+`test_thread` and `test_threading` passed 281 tests with five skips. Static
+symbols place helper and existing thread tables on the same 16 KiB page
+at `0x530000`; this establishes binary cohabitation, not an RSS saving.
+
+The first standard two-run target screen finished in 8.8s:
+`20261004T164205Z-perf-rust-vs-perf-threading226`. Load is neutral because
+one run is neutral and one better, despite pooled 0.583x [0.500, 0.667];
+working peak is neutral. A single rigorous absolute target check on the
+same artifact, ten rounds per run, then read load 0.800x [0.800, 0.800]
+improved in both runs, with working peak neutral at the floor:
+`20261004T164556Z-perf-upstream-vs-perf-threading226`. This is exploratory
+evidence of the actual goal, not adoption. All71/all23 screening against the incumbent early-rejected on replicated
+compileall RSS 1.019x [1.018, 1.019]:
+`20261004T164732Z-perf-rust-vs-perf-threading226`. The complete request
+stopped at that run2 workload; no replicated module result is published
+from this partial broad screen. The candidate is closed without full
+correctness qualification, adoption or unchanged retry. The focused
+absolute target result remains exploratory and changes no accepted goal.
+
+Regex225 aims to replace its duplicate legacy execution backend with the
+existing borrowed SRE engine, retaining pinned regex-syntax parsing. The
+old legacy helper's compiler-size admission is an implementation resource
+policy, distinct from syntax and public results. The replacement explicitly
+may execute valid patterns previously declined only by the old compiler's
+allocation limit. Nullable-repeat scratch admission uses a documented 10 MiB
+budget and may decline additional private-helper cases; public `re` uses
+its existing fallback on decline. Canonical compiled-pattern routing stays
+unchanged. Old helper results are retained as baseline evidence, with
+separate candidate admission tests. The clean build verified 58 release
+extensions in 234s; complete `test_re` passed 169 tests with four skips.
+All 22 native contract tests and 49,324 old/new span comparisons passed,
+including interrupt identity and recovery. The helper binary shrank from
+1,273,600 to 611,840 bytes, but target-only memory discovery was NEUTRAL:
+`20261004T171905Z-perf-rust-vs-perf-regex225`, load
+0.987x [0.949, 1.014] and working peak 1.000x, neutral in both runs.
+The candidate is closed without broad screening, full qualification,
+unchanged retry or adoption. Binary size does not establish resident-memory
+savings. The original baseline's claim that `a**` was invalid was
+wrong: the locked Rust parser accepts it. The corrected baseline passed
+all three cases, and the original failed receipt remains preserved.
+
+The warnings227/collections228 metadata batch229 encountered two integration
+failures before measurement. Its first install failed because warnings had
+both shared and static registrations; `bbc3f6a` removed the shared duplicate.
+The second build compiled and installed, but final artifact verification
+rejected the missing explicit builtin declaration for collections. Both
+failures are retained; neither build is qualified. These were missed source
+contract checks, not host resource limits. Declaration and carrier review
+now precede the next build.
+Adding the declaration exposed the absent Cargo JSON artifact receipt;
+incremental attempt6009 also failed final verification. The existing carrier
+recipe now captures genuine Cargo JSON without a pipe or hidden exit status
+in `6573c4c`. Both declaration and receipt source regressions failed before
+their fixes and passed afterward. The required clean rebuild is pending;
+the verifier and memory acceptance rules remain unchanged.
+The corrected clean build passed in216s with56 shared release extensions
+and the explicit collections builtin artifact proof. Complete collections,
+deque and warnings suites passed392 tests with8 skips. Six collections and
+seven warnings native contracts passed, with actual Rust callback-address
+equality, clean child reaps and unchanged stage guards. Warnings' genuine
+Cargo archive/rlib/final-core proof passed separately through existing
+parsers. An initial host assertion incorrectly expected the export-only
+parser to expose a local C initializer; that failure is retained separately.
+The standard target screen took15.0s and was NEUTRAL:
+`20261004T173223Z-perf-rust-vs-perf-c-metadata229`, collections load0.800x
+[0.733,1.000] and warnings1.031x [0.988,1.090], both working peaks neutral.
+One rigorous control comparison took27.6s:
+`20261004T173400Z-goals-perf-upstream-vs-perf-c-metadata229`, collections
+MET at the64KiB floor, warnings OVER at1.05x. These remain exploratory;
+Rigorous paired target qualification then remained NEUTRAL:
+`20261004T174030Z-perf-rust-vs-perf-c-metadata229`, collections pooled
+load0.757x [0.667,0.917] and warnings1.031x [1.013,1.050], but neither
+established an improvement in both independent runs. Working peaks were
+neutral. The batch is closed without all23/all71 screening, full
+qualification, unchanged retry or adoption. Local goal evidence does not
+replace replicated paired acceptance.
+
+The accepted interpreter's fifteen previously UNCLEAR goals received one
+rigorous two-run, ten-round clarification:
+`20261004T173621Z-goals-perf-upstream-vs-perf-rust`. Binascii is now MET;
+UUID and warnings are OVER; twelve remain UNCLEAR and unresolved. Combining
+that partial clarification with the unchanged full accepted snapshot leaves
+14OVER,12UNCLEAR,44MET and1BEYOND. This is an evidence update, not a new
+integration or a full completion run. The original all23 workload evidence
+is unchanged. Collections remains UNCLEAR at1.25x in this accepted run,
+which motivates one rigorous paired qualification of its candidate gain.
+
+Collections-only230 removes the nonwinning warnings change from229. Its
+clean build verified57 shared release extensions and the collections
+builtin proof in216s; six native contracts and callback-address equality
+passed, as did392 tests with8 skips across collections/deque/warnings.
+Standard target discovery took8.8s and remained NEUTRAL:
+`20261004T175244Z-perf-rust-vs-perf-collections230`, pooled load0.733x
+[0.619,0.917], but neutral in both independent runs. One rigorous target
+qualification likewise remained NEUTRAL:
+`20261004T175455Z-perf-rust-vs-perf-collections230`, pooled0.800x
+[0.733,1.000], working peak neutral. The isolated composition is closed
+without broad screening, full qualification, unchanged retry or adoption.
+
+Candidate filtering had incorrectly required savings at least as large as
+the64KiB load or256KiB working floor in some source assessments. Those
+floors normalize measured values; they are not minimum saving sizes. Above
+the normalized floor, smaller repeatable resident-page reductions can
+qualify under the unchanged1% practical threshold. New source assessments
+use the actual gap and normalized ratios.
+
+Datetime231 placed C-owned metadata beside the accepted builtin datetime
+tables, preserving existing Rust bridge code. Its clean build verified57
+shared extensions in216s; six native cases, seven callback addresses and
+actual Cargo archive/rlib/core symbol proofs passed. Complete datetime,
+strptime and time suites passed1285 tests with83 skips. Target discovery
+`20261004T181219Z-perf-rust-vs-perf-datetime231` improved load0.714x
+[0.625,0.833] in both runs, with working peak neutral. The all23 RSS screen
+`20261004T181314Z-perf-rust-vs-perf-datetime231` stopped after141.4s on
+replicated python_startup RSS regression1.013x [1.012,1.015]. This candidate
+is closed without adoption, all71 sampling, remaining suites or unchanged
+retry. Old unchanged-table carrier packing also stays closed.
+
+Typing233 similarly removes Rust-owned module metadata while retaining
+both Rust callback algorithms and separate C builtin typing state. The
+private helper becomes builtin and has no file attribute; public typing
+behavior is unchanged. Its clean build verified57 shared extensions in216s.
+Eight native cases, both callback addresses and actual Cargo
+archive/rlib/core symbol proofs passed; complete typing and annotationlib
+suites passed856 tests. Target discovery
+`20261004T183153Z-perf-rust-vs-perf-typing233` improved load0.953x
+[0.938,0.984] in both runs, with working peak neutral. The all23 workload
+RSS screen `20261004T183312Z-perf-rust-vs-perf-typing233` stopped after152.4s
+on replicated gzip_extract_1m RSS regression1.014x [1.013,1.015]. Typing233
+is closed without adoption, all71 sampling, remaining suites or unchanged
+retry. The partial broad screen does not publish a replicated typing result.
+
+Inspect235 consolidates the original sorting epilogue across Rust and Python
+collection paths, removing one retained nested key code object. Its clean
+build verified58 shared extensions in219s; seven fresh native cases and
+own-GIL fallback passed, as did381 complete test_inspect tests. An incorrect
+baseline fixture expected one dynamic-class descriptor and included a
+compiler-generated integer attribute; the accepted implementation returns
+the descriptor twice. The fixture was corrected to preserve that behavior,
+and the original failure remains recorded. Target discovery
+`20261004T184543Z-perf-rust-vs-perf-inspect235` reads NEUTRAL: load1.011x
+[1.006,1.017], working1.000x. The candidate is closed without all23/all71
+sampling, remaining suites, unchanged retry or adoption.
+
+Tokenizer234 consolidates C fallback replay into the existing generator,
+removing the private `_c_tokenizer_tokens` function. Its clean build
+verified58 shared extensions in232s; eight baseline and candidate cases
+passed, as did137 complete test_tokenize tests. A fixture had wrongly
+expected C fallback for ASCII bytes with an explicit encoding; the accepted
+Rust scanner handles them. That expectation was corrected and its original
+failure preserved. Target discovery
+`20261004T185530Z-perf-rust-vs-perf-tokenize234` took9.0s and reads NEUTRAL:
+load1.006x [0.997,1.022], working1.000x. This candidate is closed without
+broad sampling, remaining suites, unchanged retry or adoption.
+
+Socket237 obtains the same native `_functools.partial` directly when the
+Python functools facade is absent. Existing facade bindings, including
+patches, and ImportError fallback behavior remain tested. The intentional
+boundary is the absent facade's import side effect and import-hook event.
+Five accepted-stage semantic cases passed; fresh facade absence failed as
+expected. Candidate six cases and full own-GIL lifecycle passed, as did750
+socket suite tests with262 skips. The clean build verified58 shared
+extensions in230s. Target discovery
+`20261004T185358Z-perf-rust-vs-perf-socket237` improved load0.392x
+[0.375,0.408] in both runs, with working peak neutral. The all23 RSS screen
+`20261004T185630Z-perf-rust-vs-perf-socket237` completed in196.8s: every
+workload RSS row neutral, socket load0.392x [0.381,0.396] improved in both
+runs. Absolute target goals
+`20261004T190223Z-goals-perf-upstream-vs-perf-socket237` read load0.41x
+(440/1072KiB) BEYOND and working peak MET. Gated all71/all23 screening
+`20261004T190325Z-perf-rust-vs-perf-socket237` completed in683.9s and
+REJECTED: replicated gzip, http.client, marshal, tarfile, zipfile and zlib
+load regressions, plus logging working peak1.852x. Socket stayed improved
+and all23 workload RSS rows stayed neutral. Socket237 is closed without
+adoption, full correctness qualification or unchanged retry.
+
+Configured-source comparison found socket.py to be the sole common-file
+production difference; C/Rust/Cargo sources and compiler policies matched.
+All58 recorded Rust extension hashes nevertheless differ between the two
+builds. The unrelated module regressions therefore have unresolved build
+attribution; neither source identity nor a local win waives the measured
+guards. No physical cause has been established.
+
+Controller-only preflight236 is integrated: source declarations, carrier
+dependencies, abort policy and genuine Cargo receipt capture are checked
+before external build commands, with post-build artifact proofs retained.
+The integration also carries the previously tested exploratory early-stop
+and scratch-cleanup changes onto main, so new branches retain them. A first
+controller check found that the preflight tests depended on ExitStack from
+those earlier changes; carrying the complete tested controller restored all
+71 passing tests. The runtime overlay still matches accepted e702f23
+byte-for-byte. Memory calibration must be refreshed for this controller
+identity before further qualification.
+
+Exploratory batch243 combines four independently prepared Python changes:
+CSV reader predicate inlining, release of Fraction's completed operator
+factory, cold alternate-digit data, and cold IPv6 validation. Six production
+files match their frozen donors exactly; the header adds exactly the two
+new private module names. Its clean build verified58 extensions in394s,
+including measurement-lease waiting. Individual candidate fixtures and
+target-only screens remain pending; no component is adopted.
 
 ## Objective after coverage
 
