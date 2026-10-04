@@ -4439,6 +4439,38 @@ target-only screens remain pending; no component is adopted.
 
 ## Memory sprint continuation (2026-10-04, UUID258)
 
+Collections261 subsequently tested the cold helper-module ownership boundary
+through a raw Rust callback in the existing C core. The unchanged standalone
+helper remains installed; existing module-map entries retain the original
+import and override path. Fixture-first source reproduced and fixed a
+replaceable builtin-type anchor, and independent review corrected one
+wrong-Counter fixture assertion. Those failures remain preserved.
+Primary source4077b21 clean-built in217.1s with58 verified release extensions;
+the nearest complete collections suite passed120 tests with1 skip.
+
+Its matched-home/executable standard two-run target screen at233540Z was
+NEUTRAL: pooled load0.691 [0.646,0.817], independently neutral/better;
+working1.000 neutral. The sole predefined rigorous screen at233609Z also
+read NEUTRAL: load0.800 [0.667,0.800], independently neutral/better, with
+first-run upper bound1.000; working1.000 neutral. The verdict SHA256s are
+`be44c964d3abfcb931a78d8f9d2b03e4d5d6f34104667ff2a696ddc779947287`
+and`399364b324d9430f67172f85473ae9b4f839384c1872be12f2d9620e62e0d1fa`.
+Collections261 is closed without native ownership qualification, all23/all71
+sampling, full-suite qualification, unchanged retry or adoption. Its candidate
+stage remains a070cb204ff50283669d1e5392fd04dbf754eb1d9c4a94b828e3b6159c8c5072;
+the accepted overlay and26 unresolved module/12 workload RSS picture remain
+unchanged. Early target screening avoided unnecessary broad qualification.
+
+Bounded follow-ups found no distinct zstd context/workspace duplication or
+ElementTree intermediate document graph. JSON already builds Python objects
+directly; its eager fallback decoder owns less than roughly1KiB and remains
+reachable through identity, override and construction-time behavior, so no
+clear contract-preserving removal followed. Pickle262 instead targets its
+per-call heap-allocated object-identity set: the existing100-node visit budget
+bounds insertion attempts and may permit stack storage. This source hypothesis
+has no runtime or resident-memory proof yet; prior list-reservation, repeated
+parser and initializer-ownership trials remain closed.
+
 UUID258 hosts the eight unchanged Rust callbacks in the existing shared C
 `_uuid` image while keeping the separately importable helper API. Cold helper
 absence captures the C provider; subsequent standalone-helper patches have a
