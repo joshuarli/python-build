@@ -201,10 +201,13 @@ broad/full qualification, unchanged retry or adoption. No new goal is claimed.
 
 The native pickle follow-up249 passed six accepted-baseline cases, with
 two expected ownership failures, and an initial bounded source review. A
-further source check found that CPython imports support custom module maps:
-the new raw dictionary-presence check can bypass their provider hooks.
-Focused baseline reproduction and a narrower optimization boundary precede
-the candidate build. Original fixtures and failed receipts remain preserved.
+further baseline check passed a Python module-map membership-hook case. The
+Python facade needs a narrower optimization boundary to preserve that
+behavior. A separate proposed C virtual-provider case was a wrong oracle:
+rebinding Python `sys.modules` did not replace the interpreter's native
+import dictionary or reach a fresh C initializer. Its failed receipt is
+preserved; it establishes no C module-map regression. The live fixture is
+corrected before the candidate build, with valid existing tests retained.
 
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
