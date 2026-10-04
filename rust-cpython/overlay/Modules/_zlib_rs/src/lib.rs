@@ -483,14 +483,22 @@ unsafe fn inflate_run(
 
 /// Keep unused input after the end of the stream and the input left when the
 /// output limit was reached, as the C module's `save_unconsumed_input` does.
-fn save_unconsumed(d: &mut Decompressor, input: &[u8], consumed: usize, err: c_int) {
+/// The old tail's presence matters even if the caller moved its buffer out
+/// before inflating: EOF trailing bytes then remain in both tail attributes.
+fn save_unconsumed(
+    d: &mut Decompressor,
+    input: &[u8],
+    consumed: usize,
+    err: c_int,
+    had_unconsumed_tail: bool,
+) {
     let leftover = &input[consumed.min(input.len())..];
     let mut has_input = !leftover.is_empty();
     if err == Z_STREAM_END && has_input {
         d.unused_data.extend_from_slice(leftover);
         has_input = false;
     }
-    if has_input || !d.unconsumed_tail.is_empty() {
+    if has_input || had_unconsumed_tail {
         d.unconsumed_tail = leftover.to_vec();
     }
 }
@@ -815,7 +823,8 @@ unsafe extern "C" fn decompressor_decompress(
         Ok(result) => result,
         Err(_) => return ptr::null_mut(),
     };
-    save_unconsumed(decompressor, input, consumed, err);
+    let had_unconsumed_tail = !decompressor.unconsumed_tail.is_empty();
+    save_unconsumed(decompressor, input, consumed, err, had_unconsumed_tail);
     if err == Z_STREAM_END {
         decompressor.eof = true;
     } else if err != Z_OK && err != Z_BUF_ERROR {
@@ -861,7 +870,7 @@ unsafe extern "C" fn decompressor_flush(
             return ptr::null_mut();
         }
     };
-    save_unconsumed(decompressor, &input, consumed, err);
+    save_unconsumed(decompressor, &input, consumed, err, !input.is_empty());
     // At the end of the stream, release the zlib state.
     if err == Z_STREAM_END {
         decompressor.eof = true;
