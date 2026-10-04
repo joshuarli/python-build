@@ -121,6 +121,53 @@ also costs a new clean build when a neighbor regresses. Use incremental builds
 for correctness iteration, first screens before full qualification, and clean
 committed survivor builds with complete suites before acceptance.
 
+### Sprint bottleneck update (2026-10-04)
+
+The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
+free disk; the host was mostly idle. Only one subagent was running at the
+initial snapshot, completing the zstd screen. Agent capacity is underused;
+the 31-agent allowance has not translated into 31 independent implementations.
+Most saved scouts are closed without a distinct removable owner. Scheduling,
+repeated historical rediscovery and excessive coordinator procedures have
+added avoidable delay. Source work and pure tests can run alongside draws;
+native builds/tests currently wait behind the exclusive measurement lease.
+
+Primary borrowed-SRE trial184 passed its clean build, 13 focused suites
+(3,756 tests / 75 skips), and 11 native fixtures. Its first standard two-run
+screen rejected logging load **1.035x**, despite regex load **0.704x** improving;
+all 23 workload RSS guards were neutral. The verdict is
+`20261004T070306Z-perf-rust-vs-perf-regex-primary184`, SHA256
+`9bd6ed82b985c84ff07aa5a6461aafebdb6de11787e937a32c71c46653285225`.
+No full suite, broad gate or unchanged retry follows this rejection.
+
+Zstd provider182 passed 11 focused suites (2,715 / 192) and seven native
+fixtures, then finished its first screen in **236.4 seconds**. All target,
+neighbor and workload memory rows were neutral; working memory remained
+327,680 bytes on both sides. The exploratory draw matched PYTHONHOME but
+not executable paths and establishes no acceptance. Verdict
+`20261004T071332Z-perf-rust-vs-perf-zstd-provider182` has SHA256
+`69e53673776fa2f98b879e9f03d7b2117def99894f152897c9fec4f4359eca3e`.
+Candidate `1c3635e` and receipts are preserved; no full qualification or
+unchanged retry follows. Sharing the provider removed bundled code, without
+a demonstrated resident-memory gain.
+
+Clean builds recently cost about four minutes, focused suites roughly
+12 seconds in the latest codecs/zstd runs, full correctness about eight
+minutes, and the codecs broad standard comparison about fifteen minutes.
+A second zstd clean build after a fixture-only correction repeated about
+four minutes of compilation. Use incremental correctness iteration, avoid
+rebuilding unchanged production code solely for fixture corrections, and
+run full correctness once per qualified source rather than in both worker
+and primary paths. Keep committed clean builds, stage verification, complete
+suites and replicated memory guards before acceptance. Full suites may use
+four workers when the host is otherwise available; focused suites use two.
+
+Distinct regex trial185 moves the typed borrowed-pattern accessor from core
+libpython into helper-owned C glue, preserving the executor and native
+contracts while leaving the core SRE source unchanged. This tests a new source
+placement hypothesis; the trial184 regression has no established causal
+attribution. No new module or absolute workload goal has been accepted.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
