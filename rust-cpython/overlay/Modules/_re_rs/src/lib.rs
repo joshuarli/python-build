@@ -513,7 +513,7 @@ unsafe extern "C" fn search_compiled(
         return unsafe { search_result(0, 0, 0) };
     };
     match borrowed_sre::search_with_interrupt(code, subject.as_bytes(), || {
-        unsafe { PyErr_CheckSignals() } != 0
+        (unsafe { PyErr_CheckSignals() }) != 0
     }) {
         Ok(Some((start, end))) => unsafe { search_result(2, start, end) },
         Ok(None) => unsafe { search_result(1, 0, 0) },
