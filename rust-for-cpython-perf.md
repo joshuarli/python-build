@@ -227,9 +227,10 @@ Public functions become builtins; private Python loader globals disappear.
 The clean primary build verified58 release Rust extensions in215 seconds;
 all47 struct suite tests and12 additional dispatch/lifecycle cases passed.
 Target-only discovery `20261004T204522Z` was NEUTRAL: load1.000x
-[0.990,1.010], working1.000x. The source and failed-to-improve result are
-preserved; no broad sampling, full qualification, unchanged retry or adoption
-follows. Removing Python code objects did not establish a resident-page gain.
+[0.990,1.010], working1.000x. The coordinator subsequently found that this
+command omitted matched executable/prefix flags. Preserve this natural-path
+receipt; the candidate requires a corrected matched-path target screen before
+closing or qualifying it. No adoption or goal improvement is established.
 
 An isolated compileall diagnostic compared accepted and rejected251 stages
 at six import/workload checkpoints. Both compiled the same23 sources, and
@@ -252,9 +253,15 @@ All six additional cases, two callback image-ownership checks, actual Cargo
 archive/compile/link provenance and standalone API checks passed. Target-only
 discovery `20261004T205708Z` completed in7.6s with NEUTRAL verdict:
 load1.168x [1.072,1.307], neutral in one run and worse in the other;
-working1.000x in both. The candidate is closed without broad sampling,
-full qualification, unchanged retry or adoption. Helper-owner deletion did
-not establish a physical memory improvement.
+working1.000x in both. This command also omitted matched executable/prefix
+flags. Preserve it as a natural-path observation; perform the corrected target
+screen before closing or qualifying the candidate. No adoption is established.
+
+The same command error affected datetime255's standard and rigorous target
+discoveries and its all23 discovery. Its rigorous natural-path load0.667x
+improvement and neutral workload rows do not qualify acceptance. Corrected
+commands explicitly include `--matched-prefix --matched-executable`; the
+unchanged harness's existing matched-path calibration remains current.
 
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
