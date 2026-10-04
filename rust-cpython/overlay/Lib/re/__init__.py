@@ -182,7 +182,19 @@ def _prepare_rust_pattern(pattern):
         return
     rust = _get_rust_re()
     if rust is not None:
-        rust.prepare(pattern.pattern, pattern.flags)
+        if _uses_compiled_rust(rust):
+            rust.prepare_compiled(pattern)
+        else:
+            rust.prepare(pattern.pattern, pattern.flags)
+
+def _uses_compiled_rust(rust):
+    # Legacy hooks are live attributes. Replacements keep receiving strings;
+    # the ordinary native route borrows the already compiled program instead.
+    guard = getattr(rust, '_legacy_hooks_intact', None)
+    return (callable(guard)
+            and callable(getattr(rust, 'prepare_compiled', None))
+            and callable(getattr(rust, 'search_compiled', None))
+            and guard())
 
 def _rust_search(pattern, string):
     if type(pattern.pattern) is not str or type(string) is not str:
@@ -192,7 +204,10 @@ def _rust_search(pattern, string):
     rust = _get_rust_re()
     if rust is None:
         return _RUST_SEARCH_UNSUPPORTED
-    status, start, end = rust.search(pattern.pattern, string, pattern.flags)
+    if _uses_compiled_rust(rust):
+        status, start, end = rust.search_compiled(pattern, string)
+    else:
+        status, start, end = rust.search(pattern.pattern, string, pattern.flags)
     if status == 0:
         return _RUST_SEARCH_UNSUPPORTED
     if status == 1:

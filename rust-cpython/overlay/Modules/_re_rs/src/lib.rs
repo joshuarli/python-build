@@ -9,12 +9,26 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use cpython_sys::{
-    METH_FASTCALL, PyBool_FromLong, PyErr_Clear, PyErr_Occurred, PyLong_AsLong,
+    METH_FASTCALL, PyBool_FromLong, PyCFunction_GetFunction, PyCFunction_GetSelf,
+    PyErr_CheckSignals, PyErr_Clear, PyErr_NoMemory, PyErr_Occurred, PyErr_SetString, PyLong_AsLong,
     PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
     PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
-    PyUnicode_AsUTF8AndSize, Py_DecRef, Py_ssize_t,
+    PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength,
+    PyUnicode_ReadChar, Py_DecRef, Py_ssize_t,
 };
 use regex::bytes::{Regex, RegexBuilder};
+
+mod borrowed_sre;
+
+unsafe extern "C" {
+    fn _PySRE_BorrowPattern(
+        pattern: *mut PyObject,
+        code: *mut *const u32,
+        length: *mut Py_ssize_t,
+        source: *mut *mut PyObject,
+        flags: *mut c_int,
+    ) -> c_int;
+}
 
 const CACHE_LIMIT: usize = 512;
 
@@ -408,6 +422,129 @@ unsafe extern "C" fn search(
     unsafe { search_impl(args, nargs) }
 }
 
+// Code and source remain owned by the live Pattern argument. Neither slice
+// leaves the call, and execution keeps the GIL so the owner cannot disappear.
+unsafe fn compiled_code<'a>(pattern: *mut PyObject) -> Option<&'a [u32]> {
+    let mut code = ptr::null();
+    let mut length = 0;
+    let mut source = ptr::null_mut();
+    let mut flags = 0;
+    if unsafe { _PySRE_BorrowPattern(pattern, &mut code, &mut length, &mut source, &mut flags) } != 1
+        || code.is_null()
+        || length <= 0
+        || length as usize > isize::MAX as usize / std::mem::size_of::<u32>()
+        || (flags != 0 && flags != 32)
+    {
+        return None;
+    }
+    let pattern = unsafe { ascii_unicode(source) }?;
+    if !supported_pattern(pattern) {
+        return None;
+    }
+    Some(unsafe { slice::from_raw_parts(code, length as usize) })
+}
+
+// Reject non-ASCII before requesting UTF-8, so an unsupported subject does
+// not acquire an encoded cache merely because Rust inspected eligibility.
+unsafe fn compiled_subject<'a>(subject: *mut PyObject) -> Option<&'a str> {
+    let length = unsafe { PyUnicode_GetLength(subject) };
+    if length < 0 {
+        unsafe { PyErr_Clear() };
+        return None;
+    }
+    for index in 0..length {
+        if unsafe { PyUnicode_ReadChar(subject, index) } > 127 {
+            unsafe { PyErr_Clear() };
+            return None;
+        }
+    }
+    unsafe { ascii_unicode(subject) }
+}
+
+unsafe extern "C" fn prepare_compiled(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 1 {
+        return unsafe { PyBool_FromLong(0) };
+    }
+    let Some(code) = (unsafe { compiled_code(*args) }) else {
+        return unsafe { PyBool_FromLong(0) };
+    };
+    match borrowed_sre::validate(code) {
+        Ok(()) => unsafe { PyBool_FromLong(1) },
+        Err(borrowed_sre::Error::Unsupported) => unsafe { PyBool_FromLong(0) },
+        Err(error) => unsafe { compiled_error(error) },
+    }
+}
+
+unsafe fn compiled_error(error: borrowed_sre::Error) -> *mut PyObject {
+    match error {
+        borrowed_sre::Error::AllocationFailed => unsafe { PyErr_NoMemory() },
+        borrowed_sre::Error::Interrupted => ptr::null_mut(),
+        borrowed_sre::Error::InvalidProgram => {
+            unsafe { PyErr_SetString(cpython_sys::PyExc_RuntimeError, c"invalid borrowed SRE program".as_ptr()) };
+            ptr::null_mut()
+        }
+        borrowed_sre::Error::Unsupported => unsafe { search_result(0, 0, 0) },
+    }
+}
+
+unsafe extern "C" fn search_compiled(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    if nargs != 2 {
+        return unsafe { search_result(0, 0, 0) };
+    }
+    let Some(code) = (unsafe { compiled_code(*args) }) else {
+        return unsafe { search_result(0, 0, 0) };
+    };
+    let Some(subject) = (unsafe { compiled_subject(*args.add(1)) }) else {
+        return unsafe { search_result(0, 0, 0) };
+    };
+    match borrowed_sre::search_with_interrupt(code, subject.as_bytes(), || {
+        unsafe { PyErr_CheckSignals() } != 0
+    }) {
+        Ok(Some((start, end))) => unsafe { search_result(2, start, end) },
+        Ok(None) => unsafe { search_result(1, 0, 0) },
+        Err(borrowed_sre::Error::Unsupported) => unsafe { search_result(0, 0, 0) },
+        Err(error) => unsafe { compiled_error(error) },
+    }
+}
+
+unsafe fn native_hook(module: *mut PyObject, name: *const c_char, function: *const ()) -> bool {
+    let hook = unsafe { PyObject_GetAttrString(module, name) };
+    if hook.is_null() {
+        unsafe { PyErr_Clear() };
+        return false;
+    }
+    let actual = unsafe { PyCFunction_GetFunction(hook) };
+    let intact = actual.is_some_and(|actual| actual as *const () == function)
+        && unsafe { PyCFunction_GetSelf(hook) } == module;
+    unsafe { Py_DecRef(hook) };
+    if !unsafe { PyErr_Occurred() }.is_null() {
+        unsafe { PyErr_Clear() };
+        return false;
+    }
+    intact
+}
+
+// Compare native implementation and bound-module identities on each call.
+// A replacement legacy hook must still observe the original string API.
+unsafe extern "C" fn legacy_hooks_intact(
+    module: *mut PyObject,
+    _args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    let intact = nargs == 0
+        && unsafe { native_hook(module, c"prepare".as_ptr(), prepare as *const ()) }
+        && unsafe { native_hook(module, c"search".as_ptr(), search as *const ()) };
+    unsafe { PyBool_FromLong(intact.into()) }
+}
+
 pub extern "C" fn _re_rs_clear(_object: *mut PyObject) -> c_int {
     0
 }
@@ -426,7 +563,7 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-pub static _RE_RS_MODULE_METHODS: [PyMethodDef; 3] = [
+pub static _RE_RS_MODULE_METHODS: [PyMethodDef; 6] = [
     PyMethodDef {
         ml_name: c"prepare".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer {
@@ -443,6 +580,24 @@ pub static _RE_RS_MODULE_METHODS: [PyMethodDef; 3] = [
         },
         ml_flags: METH_FASTCALL,
         ml_doc: c"Search an ASCII string with a supported expression.".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"prepare_compiled".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: prepare_compiled },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Check a borrowed compiled ASCII expression.".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"search_compiled".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: search_compiled },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Search with borrowed canonical SRE code.".as_ptr() as *mut c_char,
+    },
+    PyMethodDef {
+        ml_name: c"_legacy_hooks_intact".as_ptr() as *mut c_char,
+        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: legacy_hooks_intact },
+        ml_flags: METH_FASTCALL,
+        ml_doc: c"Check native legacy-hook identities.".as_ptr() as *mut c_char,
     },
     PyMethodDef::zeroed(),
 ];
