@@ -276,8 +276,13 @@ with unchanged stage guards. Its first standard two-run screen
 `20261004T062812Z-perf-rust-vs-perf-codecs-primary181` improved codecs load
 (0.801x), with io, logging and all 23 workload RSS guards neutral, no mismatch
 and no unstable metric. Complete default correctness then passed all 50,158 tests with 2,748 skips
-in eight minutes three seconds. The all-71/all-23 standard two-run memory-only
-gate is queued behind regex screening. This exploratory result is not acceptance.
+in eight minutes three seconds. The all-71/all-23 standard two-run memory-only gate
+`20261004T064444Z-perf-rust-vs-perf-codecs-primary181` REJECTED replicated
+argparse load regression (1.030x) and startup RSS regression (1.011x). Codecs
+load improved (0.809x), while working peak, logging and the other 22 workload
+RSS guards were neutral. The isolated candidate is closed without another
+draw or incumbent change. Correctness and target improvement do not establish
+accepted saving or goal completion.
 
 The next regex hypothesis borrows the canonical compiled pattern's SRE
 instructions rather than retaining a second Rust engine on the public route.
@@ -305,8 +310,8 @@ The first two-run standard screen
 All 23 workload RSS guards were neutral or improved; three Django rows
 improved (0.988x–0.989x). No mismatch, regression or unstable metric occurred.
 Primary source `34c1263` is prepared with all nine overlay files byte-identical
-to the clean-qualified donor. Its build waits for the codecs gate outcome so
-that qualification uses the accepted baseline. No new memory goal is marked
+to the clean-qualified donor. After the codecs gate rejected its separate candidate, the primary regex
+clean build started against unchanged accepted baseline `f2ba588`. No new memory goal is marked
 complete; exploratory savings are not accepted goals.
 
 Zstd provider sharing is a distinct source mechanism in an isolated worktree
@@ -317,8 +322,11 @@ so explicit dynamic-provider build glue is required. Valid legacy-frame
 acceptance may expand to match pristine CPython and must be tested and
 documented. There is no new native library or allocator change. Source `6b47d2` is committed with provider and codec fixtures. Existing Rust
 package versions and checksums remain unchanged; no physical saving or goal
-completion is claimed. Setup and the original-C legacy-frame oracle precede
-a scheduled clean build.
+completion is claimed. Setup and the original-C legacy-frame oracle passed:
+the original and incumbent C decoders return abc at EOF, while accepted Rust
+raises Unknown frame descriptor. Four accepted baseline behavior fixtures
+also passed. Its clean build is now running alongside regex, with three jobs
+per builder. No memory comparison precedes clean correctness verification.
 
 The proposed datetime fixed-field transfer was closed before production edits
 or a build: archived source `29a8ba8` already eliminated the same Unicode
