@@ -36,14 +36,27 @@ fn claim(marks: &mut [u8], start: usize, end: usize) -> Result<(), Error> {
     Ok(())
 }
 // Each executable word and operand has one role. Forward targets must never
-// enter an operand, including branch offsets and repeat bounds.
+// enter an operand, including branch offsets and repeat bounds. Validation
+// covers unreachable instructions too: an empty character class emits FAILURE
+// before a tail that execution never reaches but the compiler still includes.
 pub fn validate(code: &[u32]) -> Result<(), Error> {
     if code.is_empty() { return Err(Error::InvalidProgram); }
     let mut marks = Vec::new();
     marks.try_reserve_exact(code.len()).map_err(|_| Error::AllocationFailed)?;
     marks.resize(code.len(), 0);
     let mut pending = Vec::new(); push(&mut pending, 0usize)?;
-    while let Some(pc) = pending.pop() {
+    let mut structural_cursor = 0;
+    loop {
+        let pc = match pending.pop() {
+            Some(pc) => pc,
+            None => {
+                while structural_cursor < code.len() && marks[structural_cursor] != 0 {
+                    structural_cursor += 1;
+                }
+                if structural_cursor == code.len() { break; }
+                structural_cursor
+            }
+        };
         if pc >= code.len() || marks[pc] == 2 { return Err(Error::InvalidProgram); }
         if marks[pc] == 1 { continue; }
         match word(code, pc)? {
@@ -281,6 +294,15 @@ mod tests {
     #[test] fn interruption_is_distinct_from_no_match() {
         let code = [OP_LITERAL, 97, OP_SUCCESS];
         assert_eq!(search_with_interrupt(&code, &vec![98; 2048], || true), Err(Error::Interrupted));
+    }
+    #[test] fn failure_validates_unreachable_tail_without_matching_it() {
+        let code = [OP_FAILURE, OP_SUCCESS];
+        assert_eq!(validate(&code), Ok(()));
+        assert_eq!(search(&code, b"a"), Ok(None));
+        let branch = [OP_BRANCH, 4, OP_FAILURE, OP_JUMP, 7,
+            5, OP_LITERAL, 97, OP_JUMP, 2, 0, OP_SUCCESS];
+        assert_eq!(search(&branch, b"ba"), Ok(Some((1, 2))));
+        assert_eq!(search(&[OP_FAILURE, OP_LITERAL], b""), Err(Error::InvalidProgram));
     }
     #[test] fn malformed_targets_and_unsupported_are_distinct() {
         assert_eq!(search(&[OP_JUMP, 0, OP_SUCCESS], b""), Err(Error::InvalidProgram));
