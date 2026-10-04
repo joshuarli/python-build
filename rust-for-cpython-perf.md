@@ -190,6 +190,39 @@ the codecs broad comparison's 915.9 seconds included approximately 210 seconds
 of waiting/preflight, so its post-acquisition/preflight span was about 706
 seconds. These timings are not compiler-only or pure sampling measurements.
 
+Primary185 source `f792e33` passed its single clean build in 216.8 seconds
+(58 verified Rust extensions), all 13 focused suites (3,756 / 75), and twelve
+native fixtures with stage guards and temporary-directory cleanup passing.
+Its built `Modules/_sre/sre.c` SHA256 matches the incumbent exactly:
+`7eede3058b7de42e657ac99130ce8dfb8d351a0f65cc54e1443853b8a4292aae`.
+The first exploratory two-run screen
+`20261004T073412Z-perf-rust-vs-perf-regex-primary185` finished in 233.6 seconds
+and read ACCEPT: regex load 0.699x improved, `import_django` RSS 0.987x
+improved, and all other checked memory rows neutral. Verdict SHA256 is
+`e4abdd5c1b6a28006a51274d11d5da7c5e77b777b41c3a4cc22a6444537b1dc0`.
+Logging remains a concern: its pooled load was 1.035x, with one run neutral
+and one worse. This is exploratory evidence, not acceptance or resolution.
+
+Full correctness subsequently passed with four workers in 252 seconds:
+50,158 tests / 2,748 skips, zero failures, 464 test files OK. The same artifact's
+all-71-module/all-23-workload standard two-run memory-only gate is running
+under owner63's handle93403, controller91727, with matched home and executable
+paths. No source or incumbent advance precedes its actual terminal verdict.
+
+Distinct follow-up187 source `c6118fd` keeps the borrowed-program validator's
+word-role and pending-offset storage inline for small programs, with fallible
+heap growth for larger ones. This targets two new transient heap vectors;
+search continuation storage, allocator ownership and legacy caches are
+unchanged. The existing locked `smallvec` 1.16.1 version/checksum is retained
+and its license is recorded. Source work overlapped185 qualification; pure
+tests are queued behind the measurement lease and remain unrun. No physical
+saving or goal completion is claimed.
+
+The live coordinator state was reduced from accumulated 334 KiB history to
+current operational fields; the original ignored JSON is preserved separately
+as `coordinator-state-history-20261004T073600Z.json`. Historical evidence remains
+available without presenting stale running entries as current work.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
