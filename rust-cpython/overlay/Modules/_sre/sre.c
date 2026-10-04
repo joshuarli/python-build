@@ -548,8 +548,11 @@ _PySRE_BorrowPattern(PyObject *pattern, const uint32_t **code,
 {
     PyObject *module = PyType_GetModuleByDef(Py_TYPE(pattern), &sremodule);
     if (module == NULL) {
-        PyErr_Clear();
-        return 0;
+        if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+            PyErr_Clear();
+            return 0;
+        }
+        return -1;
     }
     _sremodulestate *state = get_sre_module_state(module);
     if (!Py_IS_TYPE(pattern, state->Pattern_Type)) {

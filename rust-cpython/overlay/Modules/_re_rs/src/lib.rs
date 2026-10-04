@@ -10,10 +10,11 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use cpython_sys::{
     METH_FASTCALL, PyBool_FromLong, PyCFunction_GetFunction, PyCFunction_GetSelf,
-    PyErr_CheckSignals, PyErr_Clear, PyErr_NoMemory, PyErr_Occurred, PyErr_SetString, PyLong_AsLong,
+    PyDict_GetItemString, PyErr_CheckSignals, PyErr_Clear, PyErr_NoMemory,
+    PyErr_Occurred, PyErr_SetString, PyLong_AsLong, PyModule_GetDict,
     PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
     PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
-    PyObject_GetAttrString, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength,
+    PyObject_Type, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength,
     PyUnicode_ReadChar, Py_DecRef, Py_ssize_t,
 };
 use regex::bytes::{Regex, RegexBuilder};
@@ -470,6 +471,9 @@ unsafe extern "C" fn prepare_compiled(
         return unsafe { PyBool_FromLong(0) };
     }
     let Some(code) = (unsafe { compiled_code(*args) }) else {
+        if !unsafe { PyErr_Occurred() }.is_null() {
+            return ptr::null_mut();
+        }
         return unsafe { PyBool_FromLong(0) };
     };
     match borrowed_sre::validate(code) {
@@ -500,6 +504,9 @@ unsafe extern "C" fn search_compiled(
         return unsafe { search_result(0, 0, 0) };
     }
     let Some(code) = (unsafe { compiled_code(*args) }) else {
+        if !unsafe { PyErr_Occurred() }.is_null() {
+            return ptr::null_mut();
+        }
         return unsafe { search_result(0, 0, 0) };
     };
     let Some(subject) = (unsafe { compiled_subject(*args.add(1)) }) else {
@@ -516,19 +523,20 @@ unsafe extern "C" fn search_compiled(
 }
 
 unsafe fn native_hook(module: *mut PyObject, name: *const c_char, function: *const ()) -> bool {
-    let hook = unsafe { PyObject_GetAttrString(module, name) };
+    let dictionary = unsafe { PyModule_GetDict(module) };
+    let hook = unsafe { PyDict_GetItemString(dictionary, name) };
     if hook.is_null() {
-        unsafe { PyErr_Clear() };
+        return false;
+    }
+    let kind = unsafe { PyObject_Type(hook) };
+    let native = kind == ptr::addr_of_mut!(cpython_sys::PyCFunction_Type).cast();
+    unsafe { Py_DecRef(kind) };
+    if !native {
         return false;
     }
     let actual = unsafe { PyCFunction_GetFunction(hook) };
     let intact = actual.is_some_and(|actual| actual as *const () == function)
         && unsafe { PyCFunction_GetSelf(hook) } == module;
-    unsafe { Py_DecRef(hook) };
-    if !unsafe { PyErr_Occurred() }.is_null() {
-        unsafe { PyErr_Clear() };
-        return false;
-    }
     intact
 }
 
