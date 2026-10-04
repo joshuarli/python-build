@@ -304,6 +304,19 @@ The older logging186 capture compared candidate builds rather than control;
 its identical allocation counts therefore do not explain the absolute excess.
 Observer evidence will guide source work, not qualify memory acceptance.
 
+Attribution189 completed once, with four target children and sixteen region
+captures exiting zero and reaped, matching outputs and unchanged stage/harness
+guards. Accepted regex adds 16 KiB dirty DATA plus 48 KiB DATA_CONST in
+`_re_rs`; datetime adds 16 KiB in each segment in `_datetime_rs`. Startup
+already differs in libpython dirty segments by 16/32 KiB. Malloc-zone live
+allocation counts and bytes also differ, but accepted absolute physical
+counters were lower in this capture. It parks before import and after one
+retained setup/call, without the kernel's second setup subtraction. These
+are ownership observations, not acceptance ratios, caller attribution or a
+reproduction of the gate excess. Read-only symbol/relocation attribution190
+now checks which mutable definitions and Rust runtime tables occupy those
+helper pages, before proposing another source change.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
