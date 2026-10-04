@@ -4445,11 +4445,37 @@ base64 load1.011x [0.978,1.034], binascii load1.019x [1.000,1.038], both
 working peaks neutral. Base64259 closes without all23/all71 sampling,
 full-suite qualification, adoption or unchanged retry. The cold-helper
 import/late-helper ownership boundary remains documented as experimental.
-Socket260 is preparing a similar module-owner change in an isolated worktree;
-public behavior, initial helper overrides, Rust coverage and full correctness
-remain required. A separate source scout is checking whether decimal's
-eligible exact-integer path can avoid its native/string/big-integer/string
-conversion buffers without weakening arithmetic or signal semantics.
+Socket260 donor `e820f84`, production `8ec7295`, primary compiled `6aadc34`,
+hosts the unchanged callbacks in the original shared C socket image. The
+initially absent helper is skipped; after native activation, helper absence
+uses Rust directly. Initial helper providers and present-helper dynamic I/O
+lookups retain their original path and callable lifetime across retries.
+Cold-helper import-hook and deletion behavior are explicit private boundaries.
+Its clean build passes in214s with58 verified Rust extensions. Eight corrected
+accepted-baseline cases pass. All11 corrected candidate cases and the fresh
+before-facade script pass; the unchanged old-hook contract separately fails
+at the expected first ownership assertion, with no errors or skips. Two
+initial fixture failures remain preserved: an incorrect hook/loader setup,
+then a membership trap that intercepted legitimate importlib work. Fixture
+fixes leave production and the installed stage unchanged; current fixture
+commit `5d10e41` is recorded separately from compiled source.
+
+Actual Cargo archive/link proof, table/getter ownership, all four C aliases,
+both direct I/O exports, standalone helper and C initializers, and four private
+API/socketpair comparisons pass. All processes and temporary directories are
+drained and stage/source/harness checks match. All seven socket suites pass
+4,033 tests with396 skips, including the resource-denied socketserver module,
+in57.6s. Its sole matched two-run target screen `20261004T230857Z` reads
+NEUTRAL: load1.000x [0.959,1.028], working peak1.000x. Socket260 closes without
+all23/all71 sampling, full-suite qualification, adoption or unchanged retry.
+
+The decimal direct-output source scout closes without a patch: `8f0f124`
+already used stack-only output, with no output Unicode, Python argument or
+per-call capsule allocation. Raw limb output would remove formatting and
+reparsing work, but no distinct heap saving was established. Its exact
+historical memory-verdict pin remains unknown; this is a source closure,
+not a new measured result. A startup codec scout likewise finds borrowed
+buffers and required results rather than a new removable heap owner.
 
 Two actual incumbent import-time profiles of Django ASGI and ORM each record
 the same39 Rust helpers once. This establishes shared loading, not duplicate
