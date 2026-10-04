@@ -954,6 +954,20 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         name: [] for name in [*evaluated_workloads, *evaluated_modules]}
     iterations: dict[str, int] = {}
     rounds = PROFILE_MODULE_ROUNDS[profile]
+    early_rejection = (memory_only and not gate and not self_compare and not record_baselines
+                       and not slug_prefix and runs >= 2)
+    stopped_after: dict[str, Any] | None = None
+
+    def replicated_regression(name: str) -> bool:
+        # Only completed replication can make the remaining samples unnecessary.
+        # All survivor and acceptance paths still collect their entire selection.
+        if not early_rejection or len(observations[name]) != runs:
+            return False
+        entity = perf_verdict.entity_verdict(observations[name])
+        decision = perf_verdict.decide({name: entity}, targets=[name], runs=runs,
+                                       quiet=None, gate=False, memory_only=True)
+        return bool(decision["regressions"])
+
     started = time.monotonic()
     label = f"calibrate {baseline_ref}" if self_compare else f"{baseline_ref} vs {candidate_ref}"
     harness_identity = _harness_identity()
@@ -1021,29 +1035,51 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
                 observations[workload].append(perf_verdict.mismatch_observation("workload")
                                               if summary is None else perf_verdict.run_observation(
                                                   summary, memory_only=memory_only))
+                if replicated_regression(workload):
+                    stopped_after = {"run": run, "entity": workload}
+                    break
+            if stopped_after is not None:
+                break
             for route in evaluated_modules:
                 print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
                       flush=True)
                 observations[route].append(_measure_module(baseline, candidate, route,
                                                             iterations=iterations[route], rounds=rounds,
                                                             scratch=scratch, memory_only=memory_only))
+                if replicated_regression(route):
+                    stopped_after = {"run": run, "entity": route}
+                    break
+            if stopped_after is not None:
+                break
             if not memory_only:
                 samples.append(_host_sample(min_idle))
-        for side in {id(baseline): baseline, id(candidate): candidate}.values():
-            _verify_stage(side)
-        shutil.rmtree(scratch, ignore_errors=True)
-        if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
-            raise LaneError("measurement harness changed during sampling")
+        try:
+            for side in {id(baseline): baseline, id(candidate): candidate}.values():
+                _verify_stage(side)
+            if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
+                raise LaneError("measurement harness changed during sampling")
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
     quiet = all(sample["quiet"] for sample in samples) if samples else None
-    entities = {name: perf_verdict.entity_verdict(runs_) for name, runs_ in observations.items()}
+    incomplete_entities = [name for name, records in observations.items() if len(records) != runs]
+    entities = {name: perf_verdict.entity_verdict(records)
+                for name, records in observations.items() if name not in incomplete_entities}
+    # A single output mismatch remains decisive even when that entity's memory
+    # sampling is incomplete. Do not turn its partial metrics into replicated claims.
+    decision_entities = dict(entities)
+    for name in incomplete_entities:
+        if any(record["mismatch"] for record in observations[name]):
+            decision_entities[name] = perf_verdict.entity_verdict(
+                [perf_verdict.mismatch_observation(observations[name][0]["kind"])])
     known = sorted(KNOWN_CONTROL_MISMATCHES) if baseline["ref"] == "@control" else []
     if self_compare:
         decision = perf_verdict.calibration(entities, runs=runs, quiet=quiet, gate=gate,
                                             memory_only=memory_only)
     else:
-        decision = perf_verdict.decide(entities, targets=targets, runs=runs, quiet=quiet, gate=gate,
+        decision = perf_verdict.decide(decision_entities, targets=targets, runs=runs, quiet=quiet, gate=gate,
                                        known_mismatches=known, memory_only=memory_only)
-    goals = ({name: perf_verdict.goal_status(entities[name], memory_only=memory_only) for name in evaluated_modules}
+    goals = ({name: perf_verdict.goal_status(entities[name], memory_only=memory_only)
+              for name in evaluated_modules if name in entities}
              if baseline["ref"] == "@control" and not self_compare else {})
     record = {
         "baseline": {"ref": baseline["ref"], "label": _label(baseline), "stage": str(baseline["stage"])},
@@ -1059,6 +1095,9 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         "host_samples": samples,
         "entities": entities,
         "raw": observations,
+        "sampling_complete": not incomplete_entities,
+        "incomplete_entities": incomplete_entities,
+        "stopped_after": stopped_after,
         "decision": decision,
         "goals": goals,
         "seconds": round(time.monotonic() - started, 1),

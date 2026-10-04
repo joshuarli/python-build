@@ -7,7 +7,7 @@ run no benchmarks, and never touch the real host lease.
 from __future__ import annotations
 
 import fcntl
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 import json
 import sys
 import tempfile
@@ -44,6 +44,146 @@ def sample(cpu, load=0, peak=0, digest="d"):
 
 def module(base, cand):
     return pv.module_observation(base, cand)
+
+
+class ExploratoryEarlyRejectionTests(unittest.TestCase):
+    def measure(self, classes=("worse", "worse"), *, bad_module=False, mismatch=False,
+                guard_error=None, harness_changed=False, **options):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            sides = {ref: {"ref": ref, "name": ref[1:], "stage": root / ref[1:],
+                           "python": Path("/python"), "report": {}}
+                     for ref in ("@control", "@incumbent")}
+            calls = []
+            counts = {}
+            def observation(name, kind):
+                counts[name] = counts.get(name, 0) + 1
+                bad = name == ("json" if bad_module else "first")
+                cls = classes[counts[name] - 1] if bad else "neutral"
+                ratio = {"worse": 1.2, "better": 0.8, "neutral": 1.0}[cls]
+                metrics = {metric: {"class": cls, "ratios": [ratio] * 3,
+                                    "ci95": [ratio, ratio]}
+                           for metric in (("load_footprint", "working_peak")
+                                          if kind == "module" else ("peak_rss",))}
+                metrics["cpu"] = {"class": "worse", "ratios": [2.0] * 3,
+                                  "ci95": [2.0, 2.0]}
+                return {"kind": kind, "metrics": metrics,
+                        "mismatch": mismatch and name == "tail"}
+            def workload(baseline, candidate, name, **kwargs):
+                calls.append(("workload", name))
+                return observation(name, "workload")
+            def module(baseline, candidate, name, **kwargs):
+                self.assertEqual(kwargs["rounds"], 5)
+                self.assertEqual(kwargs["iterations"], 37)
+                calls.append(("module", name))
+                return observation(name, "module")
+            def patch(name, **kwargs):
+                return patches.enter_context(mock.patch.object(perf, name, **kwargs))
+            patch("LANE", new=root)
+            identity = {"source_sha256": "fixture"}
+            patch("_harness_identity", side_effect=[identity, identity,
+                  {"source_sha256": "changed"} if harness_changed else identity])
+            patch("selection", return_value=(["first", "tail", "json", "csv"],
+                                              ["first", "tail"], ["json", "csv"]))
+            patch("host_lease", return_value=nullcontext())
+            patch("resolve", side_effect=sides.__getitem__)
+            checks = patch("_verify_stage", side_effect=guard_error)
+            gates = patch("_gate_checks")
+            patch("_host_sample", return_value={"quiet": True})
+            patch("_module_iterations", return_value=37)
+            patch("_run_bench", side_effect=workload)
+            patch("_measure_module", side_effect=module)
+            patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
+            arguments = dict(baseline_ref="@incumbent", candidate_ref="@control",
+                             workloads=["first", "tail"], modules=["json", "csv"], gate=False,
+                             runs=len(classes), profile="standard", timing_only=False, min_idle=0,
+                             self_compare=False, record_baselines=False, memory_only=True)
+            arguments.update(options)
+            try:
+                record = perf._measure(**arguments)
+            finally:
+                self.assertFalse(list(root.glob("results/perf-bench/*/tmp")))
+            self.assertEqual(checks.call_count, 2 if arguments["self_compare"] else 4)
+            self.assertEqual(gates.call_count, int(arguments["gate"]))
+            saved = json.loads((Path(record["directory"]) / "verdict.json").read_text())
+            self.assertEqual(saved, record)
+            return record, calls
+
+    def test_replicated_workload_regression_stops_remaining_calls_and_retains_raw(self):
+        record, calls = self.measure(mismatch=True)
+        self.assertEqual(calls, [("workload", "first"), ("workload", "tail"),
+                                 ("module", "json"), ("module", "csv"), ("workload", "first")])
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertFalse(record["sampling_complete"])
+        self.assertEqual(record["incomplete_entities"], ["tail", "json", "csv"])
+        self.assertEqual(record["stopped_after"], {"run": 2, "entity": "first"})
+        self.assertEqual(list(record["entities"]), ["first"])
+        self.assertEqual(len(record["raw"]["first"]), 2)
+        self.assertTrue(record["raw"]["tail"][0]["mismatch"])
+        self.assertEqual(record["decision"]["mismatches"], ["tail"])
+
+    def test_control_comparison_omits_incomplete_absolute_goals(self):
+        record, calls = self.measure(baseline_ref="@control", candidate_ref="@incumbent")
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertEqual(record["goals"], {})
+        self.assertEqual(record["incomplete_entities"], ["tail", "json", "csv"])
+        record, calls = self.measure(bad_module=True, baseline_ref="@control",
+                                     candidate_ref="@incumbent")
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertEqual(set(record["goals"]), {"json"})
+
+    def test_output_mismatch_without_regression_retains_complete_checks(self):
+        record, calls = self.measure(("neutral", "neutral"), mismatch=True)
+        self.assertEqual(len(calls), 8)
+        self.assertTrue(record["sampling_complete"])
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertEqual(record["decision"]["mismatches"], ["tail"])
+
+    def test_replicated_module_regression_stops_module_tail(self):
+        record, calls = self.measure(bad_module=True)
+        self.assertEqual(calls[-1], ("module", "json"))
+        self.assertEqual(len(calls), 7)
+        self.assertEqual(record["incomplete_entities"], ["csv"])
+
+    def test_one_worse_then_neutral_keeps_complete_evidence(self):
+        record, calls = self.measure(("worse", "neutral"))
+        self.assertEqual(len(calls), 8)
+        self.assertTrue(record["sampling_complete"])
+        self.assertEqual(record["decision"]["regressions"], [])
+        self.assertIsNone(record["stopped_after"])
+
+    def test_three_runs_require_all_three_regressions(self):
+        record, calls = self.measure(("worse", "worse", "worse"))
+        self.assertEqual(len(calls), 9)
+        self.assertEqual(record["stopped_after"]["run"], 3)
+        record, calls = self.measure(("worse", "worse", "neutral"))
+        self.assertEqual(len(calls), 12)
+        self.assertTrue(record["sampling_complete"])
+
+    def test_timing_regression_does_not_stop_memory_survivors(self):
+        for classes in (("neutral", "neutral"), ("better", "better")):
+            with self.subTest(classes=classes):
+                record, calls = self.measure(classes)
+                self.assertEqual(len(calls), 8)
+                self.assertTrue(record["sampling_complete"])
+                self.assertEqual(record["decision"]["regressions"], [])
+
+    def test_nonexploratory_modes_and_single_run_keep_full_sampling(self):
+        for options in ({"gate": True}, {"self_compare": True}, {"slug_prefix": "goals-"},
+                        {"record_baselines": True}, {"memory_only": False}):
+            with self.subTest(options=options):
+                record, calls = self.measure(**options)
+                self.assertEqual(len(calls), 8)
+                self.assertTrue(record["sampling_complete"])
+        record, calls = self.measure(("worse",))
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(record["sampling_complete"])
+
+    def test_final_stage_and_harness_errors_are_not_hidden_by_early_rejection(self):
+        with self.assertRaisesRegex(perf.LaneError, "stage changed"):
+            self.measure(guard_error=[None, None, perf.LaneError("stage changed")])
+        with self.assertRaisesRegex(perf.LaneError, "harness changed"):
+            self.measure(harness_changed=True)
 
 
 class WorkloadProfileTests(unittest.TestCase):
