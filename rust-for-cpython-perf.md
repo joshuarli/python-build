@@ -242,6 +242,20 @@ starting difference. This single traced/checkpointed draw identifies allocator
 free-capacity residency as the observed excess; it neither proves its cause
 nor replaces the replicated acceptance verdict. No allocator trial is reopened.
 
+Decimal254 links unchanged Rust arithmetic into the C decimal image and
+avoids constructing the private helper when its module key is absent;
+present entries preserve import/dynamic lookup and explicit private import
+retains its standalone API. The absent-key path deliberately omits private
+helper import events. Its clean build verified58 release Rust extensions
+in214 seconds; the complete decimal suite passed735 tests with9 skips.
+All six additional cases, two callback image-ownership checks, actual Cargo
+archive/compile/link provenance and standalone API checks passed. Target-only
+discovery `20261004T205708Z` completed in7.6s with NEUTRAL verdict:
+load1.168x [1.072,1.307], neutral in one run and worse in the other;
+working1.000x in both. The candidate is closed without broad sampling,
+full qualification, unchanged retry or adoption. Helper-owner deletion did
+not establish a physical memory improvement.
+
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
 initial snapshot, completing the zstd screen. Agent capacity is underused;
