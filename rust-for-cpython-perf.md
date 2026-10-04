@@ -133,6 +133,18 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+Regex no-inlining source `d043b476` removed only the forced-inlining feature
+while retaining the existing cache, DFA, one-pass, backtracking and literal
+features. Its actual staged target feature graph matched that selection; the
+clean build verified 58 extensions, eighteen complete suites passed 6,839 tests
+with 491 skips, and seven existing native routing/eligibility fixtures passed.
+The first and only current-`f741f178`, two-run standard memory-only screen
+`20261004T034156Z-perf-rust-vs-perf-ri161` **REJECTED**: compileall RSS regressed
+to 1.013x and email working peak to 1.034x. Regex load (1.010x) and working
+peak (1.000x) were neutral. Improvements in unchanged datetime and shlex routes
+remain unattributed. No full qualification, integration or unchanged retry
+follows. The smaller feature selection established no physical regex saving.
+
 The fourteen-root variant, source `aeaeb3`, added UUID and decimal to that
 closed shared-runtime selection. Its clean build verified 58 extensions and
 all sixty expected compiler-unit occurrences; thirty-one complete focused
