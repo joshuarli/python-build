@@ -172,6 +172,29 @@ without all23/all71 sampling, full qualification, unchanged isolation retries
 or adoption. Their logical owner reductions did not establish resident-memory
 improvements. The controller changes preserve accepted runtime overlay bytes.
 
+The following three-route candidate247 clean-built in217 seconds with58
+verified Rust extensions. Seven complete focused suites passed1844 tests
+with65 skips in2.9 seconds. HTML239 passed13 differential cases and three
+own-GIL create/run/destroy cycles; collections245 passed all seven cases,
+including own-GIL lifecycle and observed Rust subtraction. Collections
+target discovery `20261004T195017Z` was NEUTRAL: load0.900x [0.800,1.000],
+working1.000x. HTML discovery `20261004T195112Z` was NEUTRAL despite pooled
+load0.956x [0.940,0.980]: one independent run was neutral. Its sole rigorous
+target qualification `20261004T195246Z` remained NEUTRAL at0.975x
+[0.960,0.985]. Both mechanisms are closed without broad/full qualification,
+unchanged retries or adoption. These are combined-candidate observations,
+not isolated source attribution.
+
+Pickle244's six semantic cases passed, but ordinary and own-GIL ownership
+checks failed: unchanged CPython `_pickle.c` still imports
+`functools.partial` into per-interpreter state. The Python-only change cannot
+remove that owner; no pickle memory screen followed. The original failure
+and tests are preserved. Distinct follow-up249 changes that native import
+site while preserving existing facade bindings and captured partial
+lifecycle. Source work proceeds independently of plistlib246, whose baseline
+four cases, exact compiled24B/8B node-layout check and bounded source review
+passed. Its primary248 build is pending; no new goal is claimed.
+
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
 initial snapshot, completing the zstd screen. Agent capacity is underused;
