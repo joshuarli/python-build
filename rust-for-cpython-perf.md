@@ -317,6 +317,30 @@ reproduction of the gate excess. Read-only symbol/relocation attribution190
 now checks which mutable definitions and Rust runtime tables occupy those
 helper pages, before proposing another source change.
 
+Attribution190 bound the saved region addresses to the exact installed images.
+Datetime's constant page has 381 loader fixups, only fifteen in the 304-byte
+method/slot tables; regex's three constant pages have 863, 741 and 699 fixups,
+only fifteen in its 192-byte method table. Mutable 104-byte module definitions
+share DATA pages with lazy imports, TLS and Rust globals. Regex's first DATA
+page also contains part of its scratch storage. Removing just module tables
+therefore has no established exclusive page to reclaim; no new export or
+shared-image candidate follows these observations. The bounded findings remain
+in the ignored `dirty-helper-page-attribution190` results directory.
+
+Distinct lane191 targets execution storage rather than module layout. The
+borrowed executor currently creates an immutable repeat snapshot and pending
+alternative per matched character even for canonical single-character
+REPEAT_ONE/MIN_REPEAT_ONE programs. A five-second ordinary accepted-incumbent
+sample (`20261004T091901Z-perf-rust-module-re-sample`) reaches repeat_step,
+continuation pushes and RawVec growth. This confirms the route is exercised,
+without proving an RSS cause or using timing as acceptance. The candidate
+uses compact repeat continuations with bounded storage for that admitted
+subset, preserving general repeat behavior, priority, fallible growth and
+interruption polling. Validator storage, legacy engine and allocator stay
+unchanged. Four independent repeat/capture/long-input fixtures already pass
+on the incumbent; candidate source and pure storage checks are in progress.
+
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
