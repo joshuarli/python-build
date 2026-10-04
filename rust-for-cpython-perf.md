@@ -223,6 +223,26 @@ current operational fields; the original ignored JSON is preserved separately
 as `coordinator-state-history-20261004T073600Z.json`. Historical evidence remains
 available without presenting stale running entries as current work.
 
+Primary185's broad gate subsequently **ACCEPTED**, actual exit zero and all
+owner handles drained. The 687-second standard two-run memory-only comparison
+`20261004T074316Z-perf-rust-vs-perf-regex-primary185` covers all 71 modules and
+all 23 workloads under clean harness `f741f178`, with matched home/executable
+paths. Regex load **0.670x [0.653, 0.702]** improved in both runs; working peak
+was neutral. Every other module memory row was neutral, and workload RSS was
+neutral except `django_wsgi_first_request` **0.985x** improved. Mismatches,
+unstable rows and replicated regressions were empty. Verdict SHA256 is
+`dcf6b119e74de20bf9220ac4c4aadcc7ecdc67625873174b5cbd4711fecc0475`.
+Source `f792e33` is qualified for integration. This is an incumbent-relative
+memory improvement; absolute module/workload goals against control remain
+unproven until refreshed. CPU work remains out of scope.
+
+Follow-up187's seventeen pure Rust tests passed under the normal test lease
+(fourteen existing cases plus three inline/spill/error invariants). Its first
+launcher failed before compilation because it guessed a missing Cargo path;
+that receipt is preserved. The corrected launcher used the installed locked
+nightly toolchain, offline/locked dependencies and two jobs. No native-helper
+or physical-memory result is claimed for187 yet.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
