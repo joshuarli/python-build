@@ -32,7 +32,7 @@ unsafe extern "C" {
 
 const CACHE_LIMIT: usize = 512;
 
-// Compiling a pattern parses it here and remembers that it was accepted. The
+// Legacy string preparation parses here and remembers that it was accepted. The
 // search engine is built when a search first needs it: most compiled patterns
 // are never searched through the module-level functions, so engines built at
 // compile time were retained heap for nothing.
