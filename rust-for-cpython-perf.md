@@ -88,6 +88,39 @@ shared-runtime trial `cold160` subsequently rejected eight replicated module
 load regressions, with all 23 workload RSS guards neutral. It receives no
 full-suite rerun or unchanged measurement retry, and provides no memory win.
 
+The next sprint inspection again found one active subagent out of 31. The
+host had ten cores, 64 GiB RAM, zero swap use, 402 GiB free disk and about
+74% CPU idle. Coordination, excessive review work and failure to reassign
+completed agents remain larger delays than host capacity. Seven independent
+follow-ups were restarted for concrete source mechanisms, allocation
+attribution and measurement orchestration cost; their work does not require
+the native host lease. Keep source work parallel, at most two native builders,
+and RSS comparisons exclusive. A pending measurement currently also blocks
+new builds and target tests under the existing lease; this intentionally
+leaves CPU headroom during draws. Read-only installation scans took about
+0.20 seconds per stage (one first scan took 0.35 seconds). Removing 90 repeated
+scans would save an estimated 18 seconds, about 1.5% of a long comparison or
+7% of a short one; this is not an end-to-end measured speedup. The existing
+benchmark controller has no summary-reuse interface, so this is a modest
+follow-up rather than the critical path.
+Additional agent occupancy alone is not progress: source hypotheses must
+identify a distinct removable owner rather than repeat closed experiments.
+
+The latest audit (2026-10-03 23:22 local) found one running subagent out of
+31, 85% instantaneous CPU idle, zero swap and 395 GiB free disk. The host
+remains underused outside exclusive draws. Three lanes now cover codecs-only
+primary qualification, native regex integration, and its independent executor
+fix. Thirty-one lanes are an available ceiling, not thirty-one simultaneously
+running jobs; closed scouts require distinct mechanisms before being reopened.
+The practical bottlenecks are coordinator latency, low useful agent occupancy,
+shared startup/dylib/allocator costs across otherwise independent modules,
+physical RSS gains failing to follow logical allocation reductions, and the
+exclusive comparison queue. Source and pure correctness work can overlap draws;
+native builds/tests currently cannot under the existing lease. Batch isolation
+also costs a new clean build when a neighbor regresses. Use incremental builds
+for correctness iteration, first screens before full qualification, and clean
+committed survivor builds with complete suites before acceptance.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
@@ -155,7 +188,144 @@ primary gate `20261004T041157Z-perf-rust-vs-perf-correct158` is NEUTRAL for
 zlib load/working peak and all 23 workload RSS guards, with no mismatches or
 unstable metrics. The original module/workload memory goals remain unresolved;
 this qualification does not change their accepted counts. The incumbent build
-must be refreshed after integration.
+was refreshed at main `f2ba588`: clean 58-extension build, both installed
+regressions passed, and all 50,158 default-resource tests passed with 2,748
+skips. Its six-route/all-workload memory-only self-calibration passed.
+
+Source `cd43345` compiles the existing typed CPython bindings against Rust
+`core`, then removes Rust `std` from the typing, threading, UUID, collections,
+SQLite and ipaddress helpers. Host-side binding generation still uses `std`;
+target declarations retain their original types and layout through core
+aliases. UUID retains its OS entropy path and uses borrowed parsing and
+fixed-size formatting buffers. The combined clean build verified all 58
+extensions in 229 seconds. Thirty-one focused suites passed 10,348 tests with
+582 skips, and all six native fixture groups passed. Two initial fixture
+expectations were corrected after identical failures on the accepted build:
+UUID retains its existing subinterpreter restriction, and public SQLite
+decode errors remain OperationalError. The first two-run standard memory-only
+screen `20261004T044903Z-perf-rust-vs-perf-core-batch168` REJECTED replicated
+compileall RSS (1.017x) and catalog request-path RSS (1.013x) regressions.
+UUID load improved to 0.870x; the other five targets and all fourteen working
+peaks were neutral. The batch is closed without redraw or full qualification.
+No saving or goal completion is accepted. The UUID-only source branch passed
+a clean build, 4,096 focused tests with 158 skips, and five native fixtures.
+Its first replicated screen left UUID load neutral (pooled 0.887x), with all
+23 workload RSS guards neutral. The sole replicated improvement was typing
+load (0.961x); typing's helper source is unchanged but its shared binding
+dependency changed, so the improvement is unattributed. The clean primary
+build at `c131bf7` verified all 58 extensions; eight focused suites passed
+4,096 tests with 158 skips and five native fixtures passed with an unchanged
+stage. Its first primary screen `20261004T052400Z-perf-rust-vs-perf-uuid-primary164`
+improved UUID load in both runs (0.885x pooled), with all 23 workload RSS
+guards neutral and no mismatch or unstable metric. Complete default-resource
+correctness then passed 50,158 tests with 2,748 skips in 512 seconds. Broad
+memory acceptance remains pending, so this is not yet an accepted saving or
+goal completion. The separate algorithm-only UUID variant, retaining the
+original runtime, was rejected by replicated logging load regression
+(1.049x); UUID load and all 23 workload RSS guards were neutral. Neither
+variant establishes accepted goal completion. Fresh incumbent self-calibration
+`20261004T043812Z-calibrate-perf-rust` passed for all six targets and all 23
+workloads before the screen.
+The initial typing/threading link failures were corrected by explicit system
+library linkage. UUID's feature change also required Cargo to remove twelve
+unreachable packages from its lock; retained versions/checksums are unchanged,
+and locked offline fetching passes. Individual source branches remain available
+for isolation if the combined memory screen rejects the batch.
+
+Three distinct allocation candidates have clean builds, focused correctness
+evidence and completed first replicated memory screens:
+
+- HTML source `689d18e` defers the 144-line Python parsing fallback until it
+  is called, preserving live parser globals, callbacks and the Rust scanner.
+  Seventy focused tests and four native/fallback fixtures passed. The private
+  fallback implementation's code location and traceback gain a wrapper frame.
+  Its first screen was NEUTRAL for HTMLParser, regex and all 23 RSS guards;
+  the candidate is closed without integration or another draw.
+- Codecs source `06cf0f4` encodes Unicode scalars directly into exact-sized
+  Python bytes without caching UTF-8 on the input. The accepted helper first
+  failed the retained-size fixture by growing a Latin-1 string by 6,001 bytes;
+  the candidate passes all six fixtures and 2,864 focused tests with 364 skips.
+  Its first screen improved codecs load in both runs (0.807x), with io and
+  all 23 workload RSS guards neutral. Final qualification remains pending.
+- Marshal source `a97723c` obtains uncached deoptimized bytecode through a new
+  private C getter, `_PyCode_GetCodeForMarshal`, retaining existing cache
+  identity when one already exists. Wire reference flags and owner cleanup
+  are preserved. The accepted helper retained 39,424 bytes in the regression;
+  the candidate passes that invariant and all six other wire, alias, ownership,
+  specialization and monitoring cases. Nine suites passed 3,275 tests with
+  75 skips. No public marshal API or capsule layout changes.
+  Its first screen REJECTED replicated pickle load regression (1.053x);
+  marshal load and all 23 RSS guards were neutral. The source is excluded.
+
+Each clean build verified all 58 Rust extensions. Correctness and logical
+allocation reductions alone establish no physical memory saving or completed
+goal. To avoid separate full qualification cycles, primary batch source
+`4d8bc80` combines only the surviving UUID and codecs changes. Its clean build
+verified 58 extensions in 224 seconds; thirteen selected suites expanded to
+21 files and passed 6,960 tests with 522 skips. All eleven native fixtures
+passed with an unchanged stage. Its first sixteen-module/all-workload screen
+`20261004T061215Z-perf-rust-vs-perf-memory-batch180` REJECTED replicated
+logging load regression (1.059x); codecs load improved (0.807x), UUID load
+and all 23 workload RSS guards were neutral. No full qualification or unchanged
+redraw follows this rejection. A distinct primary source `37fd67e` now isolates
+only the three codecs files against accepted main `f2ba588`, preserving the
+original UUID, binding, runtime and lock sources. The isolated clean build
+verified all 58 extensions in 241 seconds. Five selected suites expanded to
+13 files and passed 2,864 tests with 364 skips; all six native fixtures passed
+with unchanged stage guards. Its first standard two-run screen
+`20261004T062812Z-perf-rust-vs-perf-codecs-primary181` improved codecs load
+(0.801x), with io, logging and all 23 workload RSS guards neutral, no mismatch
+and no unstable metric. Complete default correctness then passed all 50,158 tests with 2,748 skips
+in eight minutes three seconds. The all-71/all-23 standard two-run memory-only
+gate is queued behind regex screening. This exploratory result is not acceptance.
+
+The next regex hypothesis borrows the canonical compiled pattern's SRE
+instructions rather than retaining a second Rust engine on the public route.
+Four independent source components cover the C/Rust bridge, execution frames,
+allocation-free atoms and constants, and native differential fixtures. Pure
+execution passed 13 tests and 9,583 comparisons against controller-generated
+canonical programs. Those checks do not establish native 3.16 qualification.
+The accepted build also reproduced a whitespace correctness bug: native
+compiled search matches U+001C with `\\s`, while the current public Rust path
+returns no match. The new native fixture retains that regression. The integrated
+candidate's clean build verified all 58 extensions in 239 seconds. All ten
+native contract fixtures passed, including the whitespace regression. Twelve
+of thirteen focused suites passed; test_re exposed four errors on empty
+complement classes. Their canonical programs contain FAILURE followed by an
+unreachable SUCCESS, which the initial validator rejected. The executor
+repair validates those unreachable instruction tails without changing FAILURE
+semantics or narrowing supported coverage.
+The corrected final source `c5bd2ba` then passed a clean 58-extension build,
+all thirteen focused suites (3,756 tests, 75 skips), and eleven native fixtures,
+including 35 Rust-dispatched empty-complement searches. Its first standard
+memory-only screen is running; no full qualification precedes a survivor.
+The first two-run standard screen
+`20261004T064050Z-perf-rust-vs-perf-sre176` improved re load to 0.696x
+[0.676, 0.722], with working peak and all six dependent-module guards neutral.
+All 23 workload RSS guards were neutral or improved; three Django rows
+improved (0.988x–0.989x). No mismatch, regression or unstable metric occurred.
+Primary source `34c1263` is prepared with all nine overlay files byte-identical
+to the clean-qualified donor. Its build waits for the codecs gate outcome so
+that qualification uses the accepted baseline. No new memory goal is marked
+complete; exploratory savings are not accepted goals.
+
+Zstd provider sharing is a distinct source mechanism in an isolated worktree
+based on accepted main `f2ba588`. It retains both module images while binding
+Rust to the exact existing C zstd 1.5.7 dylib, eliminating the bundled second
+engine. Ordinary pkg-config selection alone still links the available archive,
+so explicit dynamic-provider build glue is required. Valid legacy-frame
+acceptance may expand to match pristine CPython and must be tested and
+documented. There is no new native library or allocator change. Source `6b47d2` is committed with provider and codec fixtures. Existing Rust
+package versions and checksums remain unchanged; no physical saving or goal
+completion is claimed. Setup and the original-C legacy-frame oracle precede
+a scheduled clean build.
+
+The proposed datetime fixed-field transfer was closed before production edits
+or a build: archived source `29a8ba8` already eliminated the same Unicode
+substring, Rust Vec and Python tuple/integer carriers while retaining all seven
+Python methods. Its historical screens were memory-neutral. The prepared new
+baseline fixtures remain unrun. A saved mechanism index is being assembled to
+prevent repeated source briefs from reaching the build queue.
 
 Regex no-inlining source `d043b476` removed only the forced-inlining feature
 while retaining the existing cache, DFA, one-pass, backtracking and literal
