@@ -4467,9 +4467,23 @@ directly; its eager fallback decoder owns less than roughly1KiB and remains
 reachable through identity, override and construction-time behavior, so no
 clear contract-preserving removal followed. Pickle262 instead targets its
 per-call heap-allocated object-identity set: the existing100-node visit budget
-bounds insertion attempts and may permit stack storage. This source hypothesis
-has no runtime or resident-memory proof yet; prior list-reservation, repeated
-parser and initializer-ownership trials remain closed.
+bounds insertion attempts and permits stack storage. Fixture-first source
+3dbcea3 and primary2c4791d replace only that set with100 pointer-sized stack
+slots. Independent source review confirms the bound, identity semantics,
+recursive ownership and error/protocol precedence. All seven unchanged
+identity/boundary fixtures pass on the accepted runtime. The candidate clean
+build passed in216.6s with58 release extensions verified, and the nearest
+complete pickle suite passed1070 tests with47 skips.
+
+Its matched-home/executable standard two-run target screen at234712Z was
+NEUTRAL: pickle load0.997 [0.981,1.040], working1.000 and serialization RSS
+1.000 [0.997,1.003], with no output mismatch or replicated regression.
+Pickle262 is closed without candidate native/ABI qualification, all23/all71
+sampling, full-suite qualification, unchanged retry or adoption. Its stage
+is6f647fea7b58fb739151f98b8ff5a4ecff05ff6eda8153dfbb8b0594e15d6d56.
+Eliminating the real per-call hash-set heap allocation did not establish an
+RSS saving. Prior list-reservation, repeated-parser and initializer-ownership
+trials remain closed; the accepted memory goals remain unchanged.
 
 UUID258 hosts the eight unchanged Rust callbacks in the existing shared C
 `_uuid` image while keeping the separately importable helper API. Cold helper
