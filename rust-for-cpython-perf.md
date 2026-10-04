@@ -143,6 +143,31 @@ committed survivor builds with complete suites before acceptance.
 
 ### Sprint bottleneck update (2026-10-04)
 
+The later twenty-trial audit found zero adoptions: fourteen memory-guard
+rejections and six target-neutral closures. Recorded terminal comparisons
+totalled 61.3 minutes; eight recent clean builds totalled 29.7 minutes, with a
+median 217.75 seconds. Six target-only screens had a median 9.45 seconds;
+twelve focused/all23 requests had a median 232.4 seconds. These command
+duration sums overlap, generally include unseparated lease waits, and are
+not additive sprint wall time. The last accepted optimization remains
+regex185's gate at 2026-10-04T07:43:16Z, integrated as `e702f23`.
+
+At the latest reassignment snapshot all 31 children were idle. The host had
+ten cores, 64 GiB RAM, no swap activity and 363 GiB free disk. Coordinator
+latency, repeated closed hypotheses, fixture mistakes and low resident-page
+yield remain avoidable costs. The shared host serializes RSS measurements
+and queues native builds/tests behind them; source work can overlap.
+Restarted work covers two accepted-baseline checks, source frontiers for
+unresolved module/application goals and existing-artifact attribution of
+cross-route guards. Filling every agent slot without a distinct hypothesis
+does not shorten qualification. No memory guard or completion goal is waived.
+
+Four-route candidate243 passed its complete focused suites
+(459 tests, 52 skips, 0.286 seconds) and 27 additional native/ownership cases.
+CSV240, fractions242, IPv6238 and strptime241 remain unaccepted pending
+separate target screens and survivor qualification. The controller changes
+require refreshed calibration; they preserve accepted runtime overlay bytes.
+
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
 initial snapshot, completing the zstd screen. Agent capacity is underused;
