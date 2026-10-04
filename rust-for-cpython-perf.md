@@ -168,6 +168,28 @@ contracts while leaving the core SRE source unchanged. This tests a new source
 placement hypothesis; the trial184 regression has no established causal
 attribution. No new module or absolute workload goal has been accepted.
 
+Logging attribution186 completed once under the ordinary test lease, with
+all three children and twelve `vmmap` captures exiting zero, cleanup complete,
+and stages unchanged. Incumbent, worker176 and primary184 had identical
+displayed live allocation counts (2,449 before import, 2,962 after the second
+setup/call) and rounded allocated bytes (2,214 KiB to 3,118 KiB). Mapped DATA
+totals matched, while dirty default-malloc-zone totals differed. This locates
+variation in allocator commitment/fragmentation in this capture, without
+identifying a caller or establishing the earlier gate's causal mechanism.
+Worker176 logging already had a pooled 1.039x increase; primary184's 1.035x
+result was classified worse by its confidence bounds. The classification
+change is not evidence that primary placement introduced that cost.
+Raw evidence remains at
+`/Users/josh/d/python-build-perf-worktrees/memory-wave-20261002/inspect-text-signature/rust-cpython/results/logging-region-attribution186/`.
+
+Trial185 will receive one primary clean build and qualification, avoiding
+worker and primary rebuilds of identical source. First-screen rejection still
+stops full qualification; survivors retain full correctness and broad memory
+guards. Reported build and comparison timers start before lease acquisition;
+the codecs broad comparison's 915.9 seconds included approximately 210 seconds
+of waiting/preflight, so its post-acquisition/preflight span was about 706
+seconds. These timings are not compiler-only or pure sampling measurements.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
