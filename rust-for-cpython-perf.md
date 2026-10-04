@@ -337,8 +337,26 @@ without proving an RSS cause or using timing as acceptance. The candidate
 uses compact repeat continuations with bounded storage for that admitted
 subset, preserving general repeat behavior, priority, fallible growth and
 interruption polling. Validator storage, legacy engine and allocator stay
-unchanged. Four independent repeat/capture/long-input fixtures already pass
-on the incumbent; candidate source and pure storage checks are in progress.
+unchanged. Source `541381f` passed eighteen Rust tests, including 9,583 canonical span
+comparisons and bounded-storage/interruption checks. Primary candidate
+`5efe2a8` built all 58 images, passed 3,756 focused tests (75 skipped), and
+passed all 23 native contract tests. Its first standard two-run memory-only
+screen **REJECTED**: regex load 0.924x remained neutral, logging working peak
+1.679x and search-form RSS 1.012x regressed in both runs. Other workload RSS
+rows were neutral. The continuation enum also increases ordinary branch-state
+size, so logical storage bounds alone never established a physical win.
+Verdict `20261004T093243Z-perf-rust-vs-perf-regex-primary191` SHA256 is
+`530075f3701ebdb3f349a356978c08bfc44b2280997c3d952fcd6cbb7173c6de`.
+All owned handles drained; no full suite, reroll or integration followed.
+The accepted production source remains `e702f23`.
+
+Diagnostic work192 now observes live allocation callers and owner lifetimes in
+datetime, decimal, typing and the actual serialization workload. Module probes
+distinguish first and second setup growth; the serialization probe observes
+old/new graph overlap inside its unchanged loop. These instrumented captures
+identify traced Python allocations, not Rust malloc ownership or acceptance
+RSS. They run through ordinary TEST leases against verified control and
+accepted stages without rebuilding or changing the measuring stick.
 
 
 ### Mimalloc experiment closed by the user (2026-10-03)
