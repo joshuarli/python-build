@@ -7,13 +7,25 @@ creates the canonical Match and capture objects through the existing adapter.
 The ordinary route does not prepare a second regex engine, populate the Rust
 expression cache, or enter the parser scratch arena.
 
-`_PySRE_BorrowPattern` is a private typed C boundary in `_sre/sre.c` declared by
-`_sre/rust_sre.h`. It accepts the exact Pattern type obtained from its defining
-module state, checks that its source is an exact ASCII Unicode object, and lends
+`re_rs_borrow_pattern` is a private typed C boundary in the helper's
+`pattern_view.c`. The interpreter's `_sre` source remains unchanged. The getter
+obtains the static module definition from `PyInit__sre`, which returns the
+already initialized definition without importing a module or executing slots.
+It checks the pinned five-pointer module-state size before reading that state,
+and uses `PyType_GetModuleByDef` to recognize the exact defining module and its
+Pattern type. It checks that the source is an exact ASCII Unicode object and lends
 its immutable `uint32_t` code, code length, source and resolved flags. No reference
-is transferred. The Pattern argument must remain live and the GIL held until
+is transferred. Arguments belong to the calling interpreter. The Pattern
+argument must remain live and the GIL held until
 Rust finishes reading both borrowed slices. Wrong types or non-ASCII source
-return unsupported; no pattern-object layout is reproduced in Rust.
+return unsupported; no pattern-object layout is reproduced in Rust. C uses the
+configured interpreter's `Modules/_sre/sre.h`, including its conditional debug
+fields, and its generated `pyconfig.h`. `build.rs` compiles and archives the
+accessor with `PY_CC`, `PY_CPPFLAGS`, `PY_CFLAGS`, and the configured archiver,
+without a new crate. The exported flags retain the configured target, SDK, and
+deployment selection; the helper adds only PIC, hidden visibility, and the
+configured build/source include directories. It does not claim to receive the
+expanded core module's `PY_STDMODULE_CFLAGS` value.
 
 `prepare_compiled(pattern)` checks the existing portable syntax selector, flags
 0 or 32, and supported bytecode without building a duplicate program.

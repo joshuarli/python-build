@@ -22,7 +22,7 @@ use regex::bytes::{Regex, RegexBuilder};
 mod borrowed_sre;
 
 unsafe extern "C" {
-    fn _PySRE_BorrowPattern(
+    fn re_rs_borrow_pattern(
         pattern: *mut PyObject,
         code: *mut *const u32,
         length: *mut Py_ssize_t,
@@ -430,7 +430,7 @@ unsafe fn compiled_code<'a>(pattern: *mut PyObject) -> Option<&'a [u32]> {
     let mut length = 0;
     let mut source = ptr::null_mut();
     let mut flags = 0;
-    if unsafe { _PySRE_BorrowPattern(pattern, &mut code, &mut length, &mut source, &mut flags) } != 1
+    if unsafe { re_rs_borrow_pattern(pattern, &mut code, &mut length, &mut source, &mut flags) } != 1
         || code.is_null()
         || length <= 0
         || length as usize > isize::MAX as usize / std::mem::size_of::<u32>()

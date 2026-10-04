@@ -44,6 +44,37 @@ def match_details(match):
 
 
 class BorrowedSREContractTests(unittest.TestCase):
+    def test_pattern_view_ignores_python_identity_spoofs_and_none_source(self):
+        import _re_rs
+        import _sre
+        from re import _constants
+
+        class FakePattern:
+            @property
+            def __class__(self):
+                raise AssertionError('Python class lookup is not native identity')
+
+            @property
+            def pattern(self):
+                raise AssertionError('foreign pattern attributes must not be read')
+
+            @property
+            def flags(self):
+                raise AssertionError('foreign flags must not be read')
+
+        fake = FakePattern()
+        self.assertFalse(_re_rs.prepare_compiled(fake))
+        self.assertEqual(_re_rs.search_compiled(fake, 'a'), (0, 0, 0))
+        pattern = re.compile('a')
+        with mock.patch.dict(sys.modules, {'_sre': fake}):
+            self.assertTrue(_re_rs.prepare_compiled(pattern))
+            self.assertEqual(_re_rs.search_compiled(pattern, 'ba'), (2, 1, 2))
+        anonymous = _sre.compile(None, 0, [int(_constants.SUCCESS)], 0, {}, ())
+        self.assertFalse(_re_rs.prepare_compiled(anonymous))
+        self.assertEqual(_re_rs.search_compiled(anonymous, 'a'), (0, 0, 0))
+        self.assertTrue(_re_rs.prepare_compiled(pattern))
+        self.assertEqual(_re_rs.search_compiled(pattern, 'a'), (2, 0, 1))
+
     def assert_public_matches_native(self, pattern, subject):
         expected = pattern.search(subject)
         actual = re.search(pattern, subject)
