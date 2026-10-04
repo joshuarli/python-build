@@ -20,6 +20,7 @@ sys.path.insert(0, str(LANE))
 
 import perf  # noqa: E402
 import perf_verdict as pv  # noqa: E402
+import builtin_modules  # noqa: E402
 
 
 def summary(wall_ci, *, wall_ratios=(1.0, 1.0, 1.0), cpu=None, status="pass", memory=None):
@@ -584,7 +585,7 @@ class IncrementalPlanTests(unittest.TestCase):
 
 
 class BuiltinPreflightTests(unittest.TestCase):
-    def source_failure(self, defect, message):
+    def source_failure(self, defect, message, *, reaches_fetch=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp).resolve()
             source = root / 'source'
@@ -608,6 +609,8 @@ class BuiltinPreflightTests(unittest.TestCase):
                 recipe = recipe.split(' --message-format=')[0] + '\n'
             elif defect == 'panic':
                 (source / 'Cargo.toml').write_text('[profile.release]\npanic = "unwind"\n')
+            elif defect == 'masked-status':
+                recipe = recipe.rstrip() + ' || true\n'
             (source / 'Makefile.pre.in').write_text(recipe)
             paths = {'source_parent': root / 'parent', 'overlay_manifest': root / 'manifest.json',
                      'build': root / 'build', 'cargo_log': root / 'cargo.log'}
@@ -621,10 +624,15 @@ class BuiltinPreflightTests(unittest.TestCase):
             patches.enter_context(mock.patch.object(perf.lb, '_environment', return_value={}))
             command = patches.enter_context(mock.patch.object(
                 perf.lb, '_require_command', side_effect=AssertionError('external command reached')))
-            with self.assertRaisesRegex(perf.LaneError, message):
+            error = AssertionError if reaches_fetch else perf.LaneError
+            with self.assertRaisesRegex(error, message):
                 perf._build_locked('fixture', paths, empty_overlay=False, jobs=1,
                                    incremental=False, state={'configured': False})
-            command.assert_not_called()
+            if reaches_fetch:
+                command.assert_called_once()
+                self.assertIn('fetch', command.call_args.args[0])
+            else:
+                command.assert_not_called()
 
     def test_missing_declaration_fails_before_fetch(self):
         self.source_failure('declaration', 'no explicit declaration')
@@ -637,6 +645,37 @@ class BuiltinPreflightTests(unittest.TestCase):
 
     def test_non_abort_carrier_fails_before_fetch(self):
         self.source_failure('panic', 'requires abort panic')
+
+    def test_masked_cargo_failure_is_rejected_before_fetch(self):
+        self.source_failure('masked-status', 'Cargo JSON receipt')
+
+    def test_valid_source_reaches_fetch_without_claiming_artifact_proof(self):
+        self.source_failure(None, 'external command reached', reaches_fetch=True)
+
+    def test_postbuild_verification_still_requires_actual_cargo_receipt(self):
+        def read(path, owner):
+            if path.name == 'config.c':
+                return b''
+            self.assertEqual(path.name, 'rust-staticlib-artifacts.jsonl')
+            raise builtin_modules.BuiltinArtifactError('actual Cargo receipt missing')
+        with mock.patch.object(builtin_modules, 'validate_builtin_source',
+                               return_value=['_collections_rs']) as preflight, \
+                mock.patch.object(builtin_modules.SourceArtifacts, 'read', side_effect=read):
+            with self.assertRaisesRegex(builtin_modules.BuiltinArtifactError,
+                                        'actual Cargo receipt missing'):
+                builtin_modules.verify_builtin_artifacts(Path('/source'), Path('/build'),
+                    Path('/stage'), 'aarch64-apple-darwin', ())
+            preflight.assert_called_once()
+
+    def test_routes_outside_existing_declaration_contract_need_no_new_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp).resolve()
+            (source / 'Modules').mkdir()
+            (source / 'Modules/Setup.local').write_text('*static*\n_typing_rs\n')
+            self.assertEqual(builtin_modules.validate_builtin_source(
+                source, 'aarch64-apple-darwin', ()), [])
+            self.assertEqual(builtin_modules.verify_builtin_artifacts(
+                source, source / 'build', source / 'stage', 'aarch64-apple-darwin', ()), {})
 
 
 class TreeAndArtifactTests(unittest.TestCase):
