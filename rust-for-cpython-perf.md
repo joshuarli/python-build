@@ -280,6 +280,30 @@ contract/fixture work overlaps implementation; physical savings require a
 new first screen. No custom ABI, allocator redesign or mimalloc revival is
 part of the lane.
 
+Primary188 source `35a27b6` passed its single clean build in 216.6 seconds
+(59 verified Rust images), all thirteen affected suites (3,756 / 75), and
+all 31 native fixture cases. Its first standard two-run memory-only screen
+**REJECTED** in 234.3 seconds: gzip RSS 1.016x, wheel reading RSS 1.014x,
+and zlib streaming RSS 1.016x regressed in both runs. All seven module memory
+rows were neutral; regex load was 0.961x [0.911, 1.000], with no demonstrated
+improvement. Verdict `20261004T085627Z-perf-rust-vs-perf-regex-primary188`
+SHA256 is `dafb8bb9b65374412424646a0aa6fff0b7e1a4c8ba7047d2c9b6bf55feeae410`.
+Outputs matched, the current harness was clean, and no metric was unstable.
+No full suite, retry or integration follows; accepted runtime remains185.
+
+An independent source inventory check found that the pinned generator includes
+every internal Rust extension in `sys.stdlib_module_names`. Trial188 omitted
+its new backend there. Preserved worker commit `91e14bf` adds the name and a
+source regression that failed before the fix and passed afterward. The native
+assertion remains unrun; this correctness fix does not justify rerolling the
+rejected memory candidate. Future new-image briefs must include this inventory.
+
+Attribution189 now compares pristine control directly with the accepted
+incumbent for regex and datetime, using one bounded physical-region capture.
+The older logging186 capture compared candidate builds rather than control;
+its identical allocation counts therefore do not explain the absolute excess.
+Observer evidence will guide source work, not qualify memory acceptance.
+
 ### Mimalloc experiment closed by the user (2026-10-03)
 
 The broad Rust-heap mimalloc candidate is **rejected and closed**. Source
