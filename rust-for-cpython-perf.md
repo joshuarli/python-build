@@ -164,9 +164,13 @@ does not shorten qualification. No memory guard or completion goal is waived.
 
 Four-route candidate243 passed its complete focused suites
 (459 tests, 52 skips, 0.286 seconds) and 27 additional native/ownership cases.
-CSV240, fractions242, IPv6238 and strptime241 remain unaccepted pending
-separate target screens and survivor qualification. The controller changes
-require refreshed calibration; they preserve accepted runtime overlay bytes.
+Refreshed calibration `20261004T193341Z` passed all23 workloads and six
+modules in 226.3 seconds. Separate standard two-run target screens were all
+NEUTRAL: CSV load1.036x, fractions1.012x, IPv6/ipaddress0.984x and
+strptime1.019x; working peaks were1.000x. These four candidates are closed
+without all23/all71 sampling, full qualification, unchanged isolation retries
+or adoption. Their logical owner reductions did not establish resident-memory
+improvements. The controller changes preserve accepted runtime overlay bytes.
 
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
