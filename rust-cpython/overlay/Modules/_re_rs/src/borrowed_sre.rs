@@ -127,6 +127,38 @@ fn repeat_step(state: State, repeats: &mut Vec<Repeat>, alternatives: &mut Vec<S
         None => Ok(Some(tail)),
     }
 }
+// Discard snapshots whose branches have finished. Parent indices precede child
+// indices, so compaction rewrites each live parent before its children and keeps
+// memory proportional to pending paths rather than all explored paths.
+fn compact_repeats(repeats: &mut Vec<Repeat>, current: &mut Option<State>, alternatives: &mut [State]) -> Result<(), Error> {
+    let length = repeats.len();
+    let mut mapping = Vec::new();
+    mapping.try_reserve_exact(length).map_err(|_| Error::AllocationFailed)?;
+    mapping.resize(length, usize::MAX);
+    for state in current.iter().chain(alternatives.iter()) {
+        let mut parent = state.repeat;
+        while let Some(index) = parent {
+            let mark = mapping.get_mut(index).ok_or(Error::InvalidProgram)?;
+            if *mark != usize::MAX { break; }
+            *mark = length;
+            parent = repeats[index].parent;
+        }
+    }
+    let mut kept = 0;
+    for index in 0..length {
+        if mapping[index] == usize::MAX { continue; }
+        let mut repeat = repeats[index];
+        repeat.parent = repeat.parent.map(|parent| mapping[parent]);
+        repeats[kept] = repeat;
+        mapping[index] = kept;
+        kept += 1;
+    }
+    for state in current.iter_mut().chain(alternatives.iter_mut()) {
+        state.repeat = state.repeat.map(|index| mapping[index]);
+    }
+    repeats.truncate(kept);
+    Ok(())
+}
 pub fn search(code: &[u32], input: &[u8]) -> Result<Option<(usize, usize)>, Error> {
     search_with_interrupt(code, input, || false)
 }
@@ -140,7 +172,14 @@ pub fn search_with_interrupt(code: &[u32], input: &[u8], mut poll: impl FnMut() 
         let mut current = Some(State { pc: 0, pos: start, repeat: None });
         while let Some(mut state) = current {
             ticks = ticks.wrapping_add(1);
-            if ticks & 1023 == 0 && poll() { return Err(Error::Interrupted); }
+            if ticks & 1023 == 0 {
+                if poll() { return Err(Error::Interrupted); }
+                if repeats.len() > 1024 {
+                    let mut selected = Some(state);
+                    compact_repeats(&mut repeats, &mut selected, &mut alternatives)?;
+                    state = selected.ok_or(Error::InvalidProgram)?;
+                }
+            }
             if let Some(index) = state.repeat {
                 if repeats[index].until == state.pc {
                     current = repeat_step(state, &mut repeats, &mut alternatives)?;
@@ -209,6 +248,35 @@ mod tests {
             OP_LITERAL, 97, OP_SUCCESS, OP_MAX_UNTIL, OP_LITERAL, 98, OP_SUCCESS];
         assert_eq!(search(&code, b"aaab"), Ok(Some((0, 4))));
         assert_eq!(search(&code, b"aaa"), Ok(None));
+    }
+    #[test] fn repeat_arena_compaction_retains_only_live_parent_chains() {
+        let base = Repeat { parent: None, body: 1, until: 2, tail: 3, min: 0,
+            max: 9, count: 1, previous: Some(0), greedy: true };
+        let mut repeats = vec![base, base, Repeat { parent: Some(0), ..base }, base];
+        let mut current = Some(State { pc: 1, pos: 2, repeat: Some(2) });
+        let mut alternatives = vec![State { pc: 3, pos: 1, repeat: Some(0) }];
+        compact_repeats(&mut repeats, &mut current, &mut alternatives).unwrap();
+        assert_eq!(repeats.len(), 2);
+        assert_eq!(current.unwrap().repeat, Some(1));
+        assert_eq!(repeats[1].parent, Some(0));
+        assert_eq!(alternatives[0].repeat, Some(0));
+    }
+    #[test] fn dead_branch_snapshots_do_not_accumulate() {
+        let repeat = Repeat { parent: None, body: 1, until: 2, tail: 3, min: 0,
+            max: 9, count: 1, previous: Some(0), greedy: true };
+        let mut repeats = vec![repeat];
+        let mut current = Some(State { pc: 1, pos: 0, repeat: Some(0) });
+        let mut alternatives = vec![State { pc: 3, pos: 0, repeat: Some(0) }];
+        for _ in 0..20 {
+            // Finished branches have no references in the pending states.
+            for _ in 0..1024 { push(&mut repeats, repeat).unwrap(); }
+            compact_repeats(&mut repeats, &mut current, &mut alternatives).unwrap();
+            assert_eq!(repeats.len(), 1);
+        }
+        let code = [14, 4, 0, 1, u32::MAX, 23, 19, 0, u32::MAX,
+            17, 0, 16, 97, 7, 3, 15, 7, 5, 16, 97, 15, 2, 0, 17, 1, 18, 16, 98, 1];
+        assert_eq!(search(&code, b"aaaaaaaaaaaaaaaa"), Ok(None));
+        assert_eq!(search(&code, b"aaaaaaaaaaaaaaaab"), Ok(Some((0, 17))));
     }
     #[test] fn interruption_is_distinct_from_no_match() {
         let code = [OP_LITERAL, 97, OP_SUCCESS];
