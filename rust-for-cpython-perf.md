@@ -301,7 +301,10 @@ with23 skips in27s. All12 native cases, four core callback ownership checks,
 standalone private API and genuine Cargo carrier/helper provenance passed;
 the replay preserved archive/core/stage bytes and actual `fresh:false` flags.
 Matched standard target `20261004T215507Z` completed in9s and was NEUTRAL:
-load0.988x [0.958,1.052], working1.000x. No adoption or goal gain is claimed.
+load0.988x [0.958,1.052], working1.000x. Normal interpreter startup initializes
+default filters in C; no normal-startup Rust helper owner was established by
+the bounded source trace. The candidate is closed without additional startup,
+all23/full qualification, unchanged retry or adoption. No goal gain is claimed.
 
 Threading257 retains its original Python from-import path for every present
 helper entry, while absent-key calls execute the unchanged Rust transition
@@ -316,8 +319,22 @@ preserved archive/core/stage bytes and actual `fresh:false` flags. Standard
 matched target `20261004T215333Z` read load0.625x [0.625,0.833] but was
 NEUTRAL because only one run resolved an improvement. Its sole rigorous
 qualification `20261004T215618Z` improved load0.625x [0.625,0.729] in both
-runs, working neutral. All23 memory screening is running; acceptance and
-absolute goal completion remain unproved.
+runs, working neutral. Matched all23 exploration `20261004T215733Z` stopped
+after139.6s on replicated compileall_source RSS regression1.017x
+[1.014,1.020]. Six workload results completed; the other18 entities, including
+threading, were incompletely sampled. The candidate is closed without all71,
+full correctness qualification, unchanged retry or adoption. The target gain
+establishes no accepted absolute goal.
+
+Distinct UUID258 source work targets helper-module construction by retaining
+unchanged Rust callbacks in the existing shared C UUID image. Its explicit
+experimental private-owner boundary captures the C provider when the helper
+was initially absent. Initial present-provider import/cache and later namespace
+overrides must retain their behavior; later module-map replacement is ignored.
+A separately imported standalone helper remains available, but patching it no
+longer modifies the already captured public provider. Keep an unchanged
+accepted-behavior comparison fixture and test the new ownership separately.
+No UUID source implementation, compilation or memory improvement is yet proved.
 
 The subsequent bounded audit of26 closed candidates found zero adoptions,
 nine target-neutral closures and17 memory-guard rejections. A standard full
