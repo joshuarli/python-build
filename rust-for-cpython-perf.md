@@ -4128,6 +4128,39 @@ absolute workload RSS rows neutral or improved. Debt does not waive any goal.
 
 ## Sprint friction audit (2026-10-04)
 
+The 23:29 UTC recheck found all31 child agents idle, with10 host cores,
+64 GiB RAM, zero swap use and350 GiB free disk. This is a snapshot, not a
+measured utilization average. The current frontier assessment supports one
+distinct source-ready implementation, collections261; a JSON fallback
+singleton assessment is a new bounded source investigation. The agent
+ceiling is31, but filling slots with closed hypotheses does not create
+31 useful implementations. The stitched accepted memory picture still has
+26 unresolved module goals and12 absolute workload RSS regressions; it is
+not a fresh full completion verdict.
+
+Move the rejection-only target screen before expensive native ownership,
+ABI and own-GIL qualification: build, run the smallest meaningful regression
+and nearest focused suite, then take matched-prefix/matched-executable
+standard two-run target memory samples. Only promising survivors receive
+complete native proof and every affected complete suite, followed by all23
+workloads and final clean broad71/all23/default-resource qualification.
+This order changes no acceptance invariant. Compatible source exploration
+uses incremental builds; carrier/Cargo/registrar topology still requires a
+clean build. Source investigation continues during exclusive RSS draws;
+native builds and tests share the host only outside those draws, with at
+most two builders and a combined worker budget appropriate to ten cores.
+
+Recorded examples put target screens near9s, eligible incremental builds
+near33–35s, clean builds near216s and one full broad comparison near684s.
+Build/benchmark durations include unseparated lease waits; native proof
+cost and coordinator idle duration are unmeasured. Roughly18s of repeated
+installation-size summaries is only2.6% of that broad example. The larger
+frictions are coordinator latency, low physical-memory experiment yield,
+repeat mechanism investigation, fixture/wrapper mistakes and serialized
+measurement. Logical allocation and binary-size savings do not by themselves
+prove fewer resident pages. Do not replace final replication or Rust-route
+proof with modeled savings, and do not reopen the canceled mimalloc work.
+
 The initial live-agent snapshot had zero running children among 31 available
 child slots. This was coordinator underuse. The host has 10 cores, 64 GiB
 RAM, zero swap usage/traffic, and 374 GiB free disk; it was lightly loaded.
