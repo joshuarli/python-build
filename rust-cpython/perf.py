@@ -1010,6 +1010,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         directory = LANE / "results" / "perf-bench" / f"{stamp}-{slug}"
         scratch = directory / "tmp"
         scratch.mkdir(parents=True)
+        contexts.callback(shutil.rmtree, scratch, ignore_errors=True)
         # Memory-only acceptance retains the same kernels and iteration
         # calibration, but host CPU idle and power state cannot delay it.
         if not memory_only:

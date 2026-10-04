@@ -48,7 +48,7 @@ def module(base, cand):
 
 class ExploratoryEarlyRejectionTests(unittest.TestCase):
     def measure(self, classes=("worse", "worse"), *, bad_module=False, mismatch=False,
-                guard_error=None, harness_changed=False, **options):
+                guard_error=None, harness_changed=False, sampling_error=None, **options):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             sides = {ref: {"ref": ref, "name": ref[1:], "stage": root / ref[1:],
@@ -71,11 +71,15 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
                         "mismatch": mismatch and name == "tail"}
             def workload(baseline, candidate, name, **kwargs):
                 calls.append(("workload", name))
+                if sampling_error == "workload":
+                    raise perf.LaneError("workload failed")
                 return observation(name, "workload")
             def module(baseline, candidate, name, **kwargs):
                 self.assertEqual(kwargs["rounds"], 5)
                 self.assertEqual(kwargs["iterations"], 37)
                 calls.append(("module", name))
+                if sampling_error == "module":
+                    raise perf.LaneError("module failed")
                 return observation(name, "module")
             def patch(name, **kwargs):
                 return patches.enter_context(mock.patch.object(perf, name, **kwargs))
@@ -90,7 +94,9 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
             checks = patch("_verify_stage", side_effect=guard_error)
             gates = patch("_gate_checks")
             patch("_host_sample", return_value={"quiet": True})
-            patch("_module_iterations", return_value=37)
+            patch("_module_iterations", return_value=37,
+                  side_effect=perf.LaneError("iterations failed")
+                  if sampling_error == "iterations" else None)
             patch("_run_bench", side_effect=workload)
             patch("_measure_module", side_effect=module)
             patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
@@ -178,6 +184,12 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         record, calls = self.measure(("worse",))
         self.assertEqual(len(calls), 4)
         self.assertTrue(record["sampling_complete"])
+
+    def test_iteration_and_sampling_errors_remove_scratch(self):
+        for operation in ("iterations", "workload", "module"):
+            with self.subTest(operation=operation), self.assertRaisesRegex(
+                    perf.LaneError, operation + " failed"):
+                self.measure(sampling_error=operation)
 
     def test_final_stage_and_harness_errors_are_not_hidden_by_early_rejection(self):
         with self.assertRaisesRegex(perf.LaneError, "stage changed"):
