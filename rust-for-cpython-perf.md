@@ -231,6 +231,10 @@ Target-only discovery `20261004T204522Z` was NEUTRAL: load1.000x
 command omitted matched executable/prefix flags. Preserve this natural-path
 receipt; the candidate requires a corrected matched-path target screen before
 closing or qualifying it. No adoption or goal improvement is established.
+Corrected matched-path discovery `20261004T212619Z` completed in10.9s:
+load1.005x [0.990,1.010] and working1.000x were NEUTRAL. The candidate is
+now closed on this valid target result without broad/full qualification or
+adoption. The earlier natural-path receipt remains preserved.
 
 An isolated compileall diagnostic compared accepted and rejected251 stages
 at six import/workload checkpoints. Both compiled the same23 sources, and
@@ -256,12 +260,29 @@ load1.168x [1.072,1.307], neutral in one run and worse in the other;
 working1.000x in both. This command also omitted matched executable/prefix
 flags. Preserve it as a natural-path observation; perform the corrected target
 screen before closing or qualifying the candidate. No adoption is established.
+Corrected matched-path discovery `20261004T212751Z` completed in8.3s:
+load1.077x [1.000,1.168] and working1.000x were NEUTRAL. The candidate is
+now closed without broad/full qualification or adoption.
 
 The same command error affected datetime255's standard and rigorous target
 discoveries and its all23 discovery. Its rigorous natural-path load0.667x
 improvement and neutral workload rows do not qualify acceptance. Corrected
 commands explicitly include `--matched-prefix --matched-executable`; the
 unchanged harness's existing matched-path calibration remains current.
+
+Datetime255 keeps its seven unchanged Rust callbacks in the existing builtin
+carrier and avoids helper-module construction on absent-key public calls.
+A minimal present-None/custom-import regression passed accepted and failed
+the initial candidate; the kept test verifies the corrected explicit absence
+flag independently of the imported module pointer. Incremental exploration
+passed all six focused cases, seven core callback ownership checks and the
+complete datetime/time/strptime suites (1285 tests,83 skips). Clean stage
+`perf-datetime255-qualified`, source700ec02, then verified58 release Rust
+extensions in215s and passed those native/complete module checks again.
+Its corrected matched-path rigorous target `20261004T212941Z` improved load
+0.571x [0.571,0.667] in both runs, working neutral. Broad all71/all23
+memory-only qualification is pending; no adoption or absolute goal completion
+is claimed. Natural-path target/workload receipts remain excluded.
 
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
