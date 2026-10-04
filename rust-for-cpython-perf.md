@@ -133,6 +133,18 @@ mimalloc change was accepted or integrated, and memory goals remain open.
 
 ### Other closed memory experiments (2026-10-03)
 
+The fourteen-root variant, source `aeaeb3`, added UUID and decimal to that
+closed shared-runtime selection. Its clean build verified 58 extensions and
+all sixty expected compiler-unit occurrences; thirty-one complete focused
+suites passed 12,334 tests with 665 skips and zero failures. Its first and
+only current-`f741f178`, two-run standard memory-only comparison
+`20261004T033424Z-perf-rust-vs-perf-shared-expanded159` **REJECTED** replicated
+RSS regressions in `compileall_source` (1.011x) and `gzip_extract_1m` (1.012x).
+All twenty-seven measured modules' memory rows were neutral; UUID's 0.925x
+and decimal's 0.928x pooled load estimates did not establish replicated
+improvements. The other twenty-one workload RSS guards were neutral. No
+full/native qualification, integration or unchanged retry follows.
+
 Expanded shared-runtime source `49232b3` completed a clean build with 58
 verified extensions and fresh proofs for all twelve selected standalone roots.
 Twenty-five complete focused suites passed 10,473 tests with 533 skips and zero
