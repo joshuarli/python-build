@@ -221,6 +221,27 @@ regression1.020x [1.019,1.021]. Remaining entities were not completely sampled.
 The candidate is closed without all71/full qualification, unchanged retry
 or adoption. The target gain establishes no accepted module or workload goal.
 
+Struct253 moves the public dispatch adapters into the existing C module,
+retaining the unchanged lazy Rust helper and original native fallbacks.
+Public functions become builtins; private Python loader globals disappear.
+The clean primary build verified58 release Rust extensions in215 seconds;
+all47 struct suite tests and12 additional dispatch/lifecycle cases passed.
+Target-only discovery `20261004T204522Z` was NEUTRAL: load1.000x
+[0.990,1.010], working1.000x. The source and failed-to-improve result are
+preserved; no broad sampling, full qualification, unchanged retry or adoption
+follows. Removing Python code objects did not establish a resident-page gain.
+
+An isolated compileall diagnostic compared accepted and rejected251 stages
+at six import/workload checkpoints. Both compiled the same23 sources, and
+all target/observer processes were reaped with stage/source guards intact.
+Before compilation, candidate physical footprint was800KiB greater, matching
+extra default malloc-zone residency despite identical live allocation counts
+and nearly identical live bytes. Normalized image residency matched except
+candidate libpython clean TEXT was16KiB smaller. Compilation narrowed the
+starting difference. This single traced/checkpointed draw identifies allocator
+free-capacity residency as the observed excess; it neither proves its cause
+nor replaces the replicated acceptance verdict. No allocator trial is reopened.
+
 The latest host check found ten cores, 64 GiB RAM, no swap use and 392 GiB
 free disk; the host was mostly idle. Only one subagent was running at the
 initial snapshot, completing the zstd screen. Agent capacity is underused;
