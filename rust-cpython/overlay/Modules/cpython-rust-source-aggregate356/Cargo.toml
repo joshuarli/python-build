@@ -1,0 +1,19 @@
+[package]
+name = "cpython-rust-source-aggregate356"
+version = "0.1.0"
+edition = "2024"
+license = "PSF-2.0"
+rust-version.workspace = true
+
+[dependencies]
+_csv_rs = { path = "../_csv_rs" }
+_json_rs = { path = "../_json_rs" }
+_typing_rs = { path = "../_typing_rs" }
+_tokenize_rs = { path = "../_tokenize_rs" }
+_datetime_rs = { path = "../_datetime_rs" }
+_threading_rs = { path = "../_threading_rs" }
+_uuid_rs = { path = "../_uuid_rs" }
+
+[lib]
+name = "cpython_rust_source_aggregate356"
+crate-type = ["cdylib"]

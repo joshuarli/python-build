@@ -777,6 +777,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpython-rust-source-aggregate356"
+version = "0.1.0"
+dependencies = [
+ "_csv_rs",
+ "_datetime_rs",
+ "_json_rs",
+ "_threading_rs",
+ "_tokenize_rs",
+ "_typing_rs",
+ "_uuid_rs",
+]
+
+[[package]]
 name = "cpython-rust-staticlib"
 version = "0.1.0"
 dependencies = [
