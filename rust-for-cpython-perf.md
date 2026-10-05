@@ -4506,6 +4506,61 @@ retry, final clean/full qualification, final gate or adoption follows. The
 accepted overlay and 26 unresolved module goals and 12 absolute workload memory goals
 remain unchanged.
 
+
+Two small shared-image trials followed as 266 and 267. The perfect co-import
+condition used by inventory264 was a source-selection assumption, not a memory
+acceptance requirement. These trials instead selected observed co-use in module
+kernels while retaining single-helper kernels as guards. Both preserve original
+helper bodies, facades, independent initializers, lifecycle definitions, allocator
+and linker policy. Original extension names become relative aliases to one
+canonical binary; resolved file identity deliberately changes.
+
+Tokenize/warnings266 donor b917c2e/8784134 was primary-built at bc8b7b6 in 217s
+with 58 verified release extensions. The original four behavior/lifecycle cases
+passed on the accepted stage. Complete warnings/tokenize suites passed 328 tests
+with 6 skips. The first three-case candidate run failed a fixture assertion that
+compared the canonical installation parent with the temporary prefix's lexical
+parent; receipt 88300/d182cb is preserved. Fixture-only ea1ac46 (primary7b11e3d)
+canonicalizes both parents, retaining every relative-alias, definition and export
+assertion. The same three cases then passed as 29761/e37c4a; production and the
+built stage stayed unchanged. Stage identity is
+41e152a04410ab40a426c299f8d47e3d21f91b9a68ec2d716d0e5e5ea6a02eff.
+
+Its matched standard two-run warnings screen at 20261005T011012Z was NEUTRAL:
+load 1.024 [1.000,1.051], independently worse/neutral; working 1.000 neutral.
+The recorded 186.9s includes waiting behind the second trial's build lease;
+it is not the target sampling time. Verdict SHA256 is
+c5e8ebbcc65db30ad021dc23ccc1fba28f0f7903a24210abb8d0c96ac51338bb.
+No target retry, deferred lifecycle/native ownership tests, broad workload/module
+sampling, final qualification or adoption follows.
+
+Dataclasses/logging267 retained its null-slot single-phase dataclasses admission
+and logging's own-GIL slots. Fixture-first e5e10ef, production3934acf and license
+follow-up ffb1d2f clean-built in its isolated worktree in 224s with 58 verified
+release extensions. Five original baseline cases and four early candidate cases
+passed, including original admission, mutable hooks, independent module ownership
+and the new alias identity. Complete dataclasses/logging suites passed 570 tests
+with 6 skips. Its candidate stage is
+a3b7d5941c60c3040ec17296ab51953c9a3612b36bf12a4e5afcc909207b4b30.
+
+The matched standard two-run contextlib/asyncio screen at 20261005T011421Z took
+19s and was NEUTRAL on all memory rows: contextlib load 1.002 [1.000,1.004],
+asyncio load 1.006 [1.002,1.009], both independently neutral; working 1.000.
+Verdict SHA256 is
+c93bad8bac357b6ae6629b6ace80553e539696a73ff95dcb6b5353091f769faf.
+The target load is about 8.5 MiB, making its 1% practical threshold about 85 KiB:
+the proposed 32 KiB fixup-page saving was too small by itself to qualify. Future
+source selection must compare the saving with the actual target scale before
+implementation. No unchanged retry, deferred candidate tests, broad sampling,
+primary rebuild, final qualification or adoption follows.
+
+Read-only accounting verifies both built pairs actually collapsed two separate
+CONST/DATA fixup pages into one each. Total mapped extents fell 48 KiB for266 and
+64 KiB for267, and both alias pairs resolve to one regular file/inode. This proves
+artifact layout, not resident or physical-footprint saving. Accounting SHA256 is
+dbb11031c6c4cf86bf6d0b794ed250e9eaf327b03c1a92218c3913be5882f033.
+Both trials are closed. Accepted e702 and all unresolved memory goals remain.
+
 Collections261 subsequently tested the cold helper-module ownership boundary
 through a raw Rust callback in the existing C core. The unchanged standalone
 helper remains installed; existing module-map entries retain the original
