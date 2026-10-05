@@ -5680,6 +5680,25 @@ only the linker portion, while all recorded inputs, outputs and the accepted
 stage remain unchanged. Ordinary clean352 is the next installed-candidate
 attempt; no351 runtime suite or RSS verdict is claimed.
 
+Clean352 at `e94ebd3` passes in245s with58 verified Rust extensions. Complete
+CSV/JSON/pathlib/typing/tokenize suites pass2,633/414 in3.1s. Its matched-prefix,
+matched-executable standard two-run memory-only screen passes the known zlib
+RSS guard as NEUTRAL1.007x [1.001,1.013], then REJECTS in28.9s on pathlib load
+1.292x [1.250,1.429], regressed in both runs. CSV load0.963x and JSON1.040x
+are neutral, and completed working rows are neutral. Typing/tokenize sampling
+is incomplete after early rejection. Verdict `20261005T185046Z-perf-rust-vs-perf-std352`
+SHA256 `b74b9f21a6b99af377be34d18162be39c1265149f1cbad1096b023eb8f00fb35`.
+This candidate is closed without native/moved/full survivor qualification or
+adoption. The reduced provider resolves that guard in this sample; it does
+not establish an accepted memory improvement or absolute goal completion.
+
+Conditional datetime, threading and UUID roster patches and their combined
+eight-consumer source pass bounded tests/review without native execution.
+The next distinct sharing delta excludes pathlib, whose accepted memory goal
+already passes and whose new load regression is now measured, while keeping
+its existing stock Rust owner and every coverage route. The eight-consumer
+source epoch stays unmeasured; no rejection or RSS saving is invented for it.
+
 A bounded build-cost audit attributes only15.27–17.88s to std Cargo and
 11.34–12.00s to consumer Cargo in the233.6–238.4s successful clean builds.
 The remaining206–209s cover phases without separate timing; this does not
