@@ -5792,6 +5792,18 @@ and18 other harness inputs remain identical, allowing proven calibration344
 reuse. Installed correctness and RSS qualification remain pending. These
 diagnostics do not change the accepted runtime or memory-goal counts.
 
+The first ordinary356 build compiles all82 consumer units with zero/reaped
+exits, then fails an incorrect receipt assumption: unchanged helper manifests
+emit both `cdylib` and `rlib`, while the verifier expected archive-only output.
+Fixture-first correction357 (`7bb6097`, `8125b9ad`) requires the exact original
+two-type sequence and retains the archive/full-metadata binding proof. Only
+the aggregate is published; unused dependency images remain private build
+outputs. Corrected verification of the saved82-unit graph and signed aggregate
+normalization both pass, preserving System-only linkage and both16KiB data
+segments. All70 host recipe/layout tests pass. A new ordinary build name,
+`perf-aggregate357`, preserves the failed356 sources, receipts and artifacts.
+Neither source correction nor diagnostic evidence establishes an RSS win.
+
 The19:17 UTC sprint inspection finds one running child before three finite
 audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
 disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
