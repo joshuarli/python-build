@@ -5330,6 +5330,18 @@ are reaped and accepted/control stage guards pass. This closes the tested
 formats, not every hypothetical linkage strategy. Accepted runtime and
 memory goal counts remain unchanged.
 
+Candidate333 is the final bounded encoding variant: a 16,202-byte payload
+with a 3,091-byte decoder graph in the host model. Independent source review,
+20 fallback contracts, nine wire contracts and the complete pickle suites
+pass; the incremental native build takes34 seconds with58 verified helpers.
+Target verdict `20261005T115340Z`, SHA256
+`1d4edb6ddd2880994bf235ef31f8315558f1357e9394be6116a594f50fcdd69e`,
+is NEUTRAL: load0.974270x [0.945097,1.026124], working1.0x [1.0,1.03125],
+neutral in both independent runs. Close this source-encoding family without
+retry, adoption, broad screening or final qualification. The archived
+exploration preserves its report and logs; accepted runtime and goal counts
+remain unchanged.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
