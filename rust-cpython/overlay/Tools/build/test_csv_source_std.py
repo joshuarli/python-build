@@ -171,7 +171,7 @@ class SourceStdArguments(unittest.TestCase):
                 self.assertEqual(recipe.artifact(originals[name]['path']), originals[name])
                 self.assertNotEqual(recipe.digest(path), originals[name]['sha256'])
 
-    def test_source_closure_includes_five_helpers_without_neighbor_source(self):
+    def test_source_closure_includes_eight_helpers_without_neighbor_source(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
             source, build, library = root / 'source', root / 'build', root / 'library'
@@ -179,7 +179,7 @@ class SourceStdArguments(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b'owned source')
                 return path
-            selected = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs')
+            selected = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
             helper_sources = [write(source / 'Modules' / name / 'src/lib.rs') for name in selected]
             neighbor = write(source / 'Modules/_socket_rs/src/lib.rs')
             for relative in ('Cargo.toml', 'Cargo.lock', 'Python/stdlib_module_names.h',
@@ -200,7 +200,7 @@ class SourceStdArguments(unittest.TestCase):
     def test_joint_consumer_arguments_select_exact_packages_once(self):
         args = recipe.consumer_arguments('cargo', Path('/source'), 2)
         self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'],
-                         ['_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs'])
+                         ['_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'])
         self.assertIn('--locked', args)
         self.assertIn('--offline', args)
         self.assertIn('target-applies-to-host=false', args)
@@ -213,7 +213,7 @@ class SourceStdArguments(unittest.TestCase):
                 for raw in pair:
                     argv += ['--extern', label + '=' + raw]
             return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
-        names = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs')
+        names = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
         units = [unit(name) for name in names]
         self.assertEqual(set(recipe.consumer_units(units, pairs)), set(names))
         for index in range(len(units)):
@@ -301,7 +301,7 @@ class SourceStdArguments(unittest.TestCase):
                                  'provider_install_id': '@rpath/libstd-test.dylib', 'rpath': '@loader_path/../../rust-cpython'}
             binding = write(root / 'c_api.rs', b'configured C API')
             metadata = {'sha256': 'archive', 'compiler_revision': 'compiler', 'library_cargo_lock_sha256': 'lock'}
-            receipt = {'schema_version': 4, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+            receipt = {'schema_version': 6, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
                        'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                        'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'compiler',
                                   'std_lock_sha256': 'lock', 'input_files': {}},
@@ -313,7 +313,7 @@ class SourceStdArguments(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
             import copy
-            for kind in ('missing-json', 'missing-pathlib', 'missing-typing', 'missing-tokenize', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
+            for kind in ('missing-json', 'missing-pathlib', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'old-five-schema', 'old-six-schema', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
                 altered = copy.deepcopy(receipt)
                 if kind == 'missing-json':
                     del altered['consumers']['_json_rs']
@@ -323,6 +323,12 @@ class SourceStdArguments(unittest.TestCase):
                     del altered['consumers']['_typing_rs']
                 elif kind == 'missing-tokenize':
                     del altered['consumers']['_tokenize_rs']
+                elif kind in ('missing-datetime', 'missing-threading', 'missing-uuid'):
+                    del altered['consumers']['_' + kind.removeprefix('missing-') + '_rs']
+                elif kind == 'old-five-schema':
+                    altered['schema_version'] = 4
+                elif kind == 'old-six-schema':
+                    altered['schema_version'] = 5
                 elif kind == 'old-three-schema':
                     altered['schema_version'] = 3
                 elif kind == 'old-schema':
@@ -446,6 +452,39 @@ class SourceStdArguments(unittest.TestCase):
         for original in [['--crate-name', 'build_script_build'],
                          ['--target', recipe.TARGET, '--print=cfg']]:
             self.assertEqual(recipe.target_arguments(original, {}, []), original)
+
+    def test_exact_verbose_version_query_keeps_owned_compiler_and_host_arguments(self):
+        from unittest.mock import Mock, patch
+        spec = importlib.util.spec_from_file_location('csv_logger', Path(__file__).with_name('csv_source_std_rustc.py'))
+        logger = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logger)
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            compiler = root / 'rustc'
+            compiler.write_bytes(b'compiler')
+            config = root / 'config.json'
+            config.write_text(json.dumps({'rustc': str(compiler), 'rustc_sha256': recipe.digest(compiler),
+                                         'target_directory': str(root), 'source_files': {},
+                                         'runtime_pairs': {'std': ['/target/std', '/target/std.rmeta']},
+                                         'runtime_directories': [], 'receipts': str(root / 'receipts')}))
+            process = Mock(pid=123456)
+            process.poll.return_value = 0
+            process.wait.return_value = 0
+            with patch.dict(os.environ, {'CSV_SOURCE_STD_RUSTC_CONFIG': str(config)}), \
+                 patch.object(logger.sys, 'argv', ['logger', '--verbose', '--version']), \
+                 patch.object(logger.subprocess, 'Popen', return_value=process) as spawn, \
+                 patch.object(logger.os, 'getpgid', return_value=123456):
+                self.assertEqual(logger.main(), 0)
+            self.assertEqual(spawn.call_args.args[0], [str(compiler), '--verbose', '--version'])
+            self.assertTrue(spawn.call_args.kwargs['start_new_session'])
+            row = json.loads((root / 'receipts' / (str(os.getpid()) + '.json')).read_text())
+            self.assertEqual(row['argv'], row['original_argv'])
+            self.assertTrue(row['query'])
+            self.assertEqual(row['role'], 'compiler_query')
+            self.assertEqual((row['state'], row['exit_code'], row['reaped_exit']), ('reaped', 0, 0))
+        for argv in (['--version', '--verbose'], ['--verbose', '--version', 'probe.rs'],
+                     ['--verbose', '--version', '--target', recipe.TARGET]):
+            self.assertFalse(recipe.is_query(argv))
 
     def test_conflicting_source_runtime_extern_is_not_overridden(self):
         with self.assertRaises(ValueError):
