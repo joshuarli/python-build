@@ -5392,11 +5392,11 @@ public query failed because its host configuration lacked the required
 target-applies-to-host flag; the corrected query preserves that failure.
 The queries perform no compiler build, registry fetch or installed-toolchain
 mutation.
-Cargo explicitly selects static `std` despite its source declaring a dylib;
-shared abort-runtime producer/consumer transport remains unproved. The graph
-also contains an injected unused `panic_unwind` root; final linkage must
-retain abort and cannot be inferred from graph presence alone. Source pins,
-complete notices and thread/subinterpreter ownership need proof before any
+Cargo initially selects static `std` despite its source declaring a dylib.
+The graph contains an injected unused `panic_unwind` root; graph presence
+alone does not establish final linkage. The subsequent source-built abort
+producer and consumer pass compilation, linkage and runtime transport.
+Complete notices and subinterpreter ownership still need proof before any
 adoption. Recorded48 passing/23 unresolved modules and12 workload RSS
 regressions remain unchanged.
 
@@ -5407,9 +5407,15 @@ jobserver descriptors; both errors are corrected with preserved failures.
 The successful build retains an optional probe debug-stripping warning:
 installed rust-objcopy cannot load libLLVM. No tool installation or fallback
 is introduced. The first producer-only dylib replay fails because the capture
-omitted the actual build-script variable `STD_ENV_ARCH`; metadata, externs
-and abort policy remain fixed while the capture is corrected. No shared
-runtime or memory improvement has been established.
+omitted the actual build-script variable `STD_ENV_ARCH`; the next attempts
+fail on archive format and paired metadata. These failures remain preserved.
+Producer V4 and consumer V2 succeed with the exact source dependency graph.
+The linkage packet proves seven consumer undefined symbols bind to that
+`std` dylib, with no `panic_unwind` or private out-of-line `std` copy. The
+actual runtime fixture passes on the main thread and eight foreign threads,
+including capacity and repeated-handle checks; its child is reaped, temporary
+files removed and accepted stage unchanged. One CSV source recipe remains
+pending. No workload RSS qualification or adoption is established.
 
 Diagnostic339 verifies a distinct retained input owner in both accepted and
 rebuilt interpreters: six installed bytecode files retain their original
@@ -5418,9 +5424,26 @@ nested code filenames through an owned alias and code references are dropped.
 Both executions, source/bytecode hashes, stage guards and cleanup pass.
 The61-file static roster has549 extra character bytes and704 modeled block
 capacity bytes in the rebuild; these are not a physical RSS explanation.
-The owner exists in pristine C too. Source feasibility for avoiding obsolete
-import filenames remains unproved, with public marshal, reference aliases
-and deliberately different nested filenames requiring preservation.
+The owner exists in pristine C too. Experiment340 now implements and tests
+a source-loader mechanism that preserves public marshal, reference aliases
+and deliberately different nested filenames. A new private source reader
+uses a completion callback for the live type check, verbose notification and
+filename fixer. Filename-role strings are temporarily mortal during decoding
+and callbacks; strings with surviving owners regain immortal ownership. The
+callback adds a private tracing/profiling frame. Callback exceptions retain
+their identity and order, while failed mortal canonicalization raises
+`MemoryError`; bookkeeping failure preserves its exception and promotes the
+filename to immortal ownership.
+
+Experiment340 passes all11 native fixture cases. The accepted interpreter
+passes10 semantics cases and fails the frozen retention check as expected
+(34,129 versus the8,192-byte bound). Six complete focused suites pass with
+1,567 tests and24 skips in4.6s after the23s incremental build. The47.5s
+target screen returns ACCEPT-explore: typing load ratio0.959797 improves in
+both runs, while collections, inspect and four workloads remain neutral.
+The all71-module/all23-workload broad screen is running; this exploration
+result is not adoption. Recorded48 passing/23 unresolved modules and12
+workload RSS regressions remain unchanged.
 
 ### Sprint audit update (2026-10-05)
 
