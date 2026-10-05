@@ -692,11 +692,15 @@ class SourceStdExportClosure(unittest.TestCase):
             code.write_bytes(b'code')
             original = ['rustc', '--crate-type', 'rlib', '--out-dir', '/old',
                         '--extern', 'priv:core=' + str(code.with_suffix('.rmeta')),
-                        '-C', 'metadata=identity', '--emit=dep-info,metadata,link']
+                        '-C', 'metadata=identity', '-C', 'linker=/pinned/clang', '--emit=dep-info,metadata,link']
             full = recipe.producer_arguments(original, root / 'full')
-            restricted = recipe.restricted_producer_arguments(original, root / 'provider', root / 'exports.txt')
-            self.assertEqual(restricted[:-2], recipe.producer_arguments(original, root / 'provider'))
-            self.assertEqual(restricted[-2:], ['-C', 'link-arg=-Wl,-exported_symbols_list,' + str(root / 'exports.txt')])
+            restricted = recipe.restricted_producer_arguments(original, root / 'provider', root / 'provider-linker.py')
+            expected = recipe.producer_arguments(original, root / 'provider')
+            expected[expected.index('linker=/pinned/clang')] = 'linker=' + str(root / 'provider-linker.py')
+            self.assertEqual(restricted, expected)
+            self.assertNotIn('linker=/pinned/clang', restricted)
+            with self.assertRaisesRegex(ValueError, 'one explicit'):
+                recipe.restricted_producer_arguments(original + ['-C', 'linker=/another'], root, root / 'linker')
             self.assertIn('metadata=identity', full)
 
     def test_replay_receipt_authenticates_two_raw_outputs_and_owned_compiler_commands(self):
@@ -726,14 +730,15 @@ class SourceStdExportClosure(unittest.TestCase):
             closure = recipe.provider_export_closure(full_surface, consumers, native_surface)
             export_file = write(root / 'provider-exports.txt', ''.join(s + '\n' for s in closure['symbols']).encode())
             original = ['rustc', '--crate-name', 'std', '--target', recipe.TARGET,
-                        '--crate-type', 'rlib', '--out-dir', '/original', '-C', 'metadata=unchanged']
+                        '--crate-type', 'rlib', '--out-dir', '/original', '-C', 'metadata=unchanged', '-C', 'linker=/pinned/clang']
             full_argv = recipe.producer_arguments(original, Path(full['path']).parent)
-            restricted_argv = recipe.restricted_producer_arguments(original, Path(compiled['path']).parent, Path(export_file['path']))
-            policy = {'schema_version': 1, 'closure': closure, 'full_provider': full,
+            restricted_argv = recipe.restricted_producer_arguments(original, Path(compiled['path']).parent, root / 'provider-linker.py')
+            policy = {'schema_version': 2, 'closure': closure, 'full_provider': full,
                       'full_metadata': full_metadata, 'restricted_metadata': restricted_metadata,
                       'exports_file': export_file, 'restricted_compiler_artifact': compiled,
                       'restricted_surface': restricted_surface, 'full_argv': full_argv,
-                      'restricted_argv': restricted_argv, 'native_api': core}
+                      'restricted_argv': restricted_argv, 'native_api': core,
+                      'linker_config': write(root / 'provider-linker-config.json', b'{"clang":"/pinned/clang"}')}
             records = {name: {'compiler_artifact': write(root / ('lib' + name + '.dylib'), name.encode())}
                        for name in recipe.CONSUMERS}
             receipt = {'build': str(root.parent), 'export_policy': policy, 'provider': {**final, 'raw_artifact': {**compiled, 'path': final['path']}},
@@ -743,7 +748,7 @@ class SourceStdExportClosure(unittest.TestCase):
                                     for argv in (full_argv, restricted_argv)]}
             surfaces = {b'full': full_surface, b'restricted': restricted_surface, b'normalized': final_surface, b'native Python': native_surface,
                         **{name.encode(): surface for name, surface in consumers.items()}}
-            with patch.object(recipe, 'macho_link_surface', side_effect=lambda data: surfaces[data]):
+            with patch.object(recipe, 'macho_link_surface', side_effect=lambda data: surfaces[data]), patch.object(recipe, 'verify_provider_linker'):
                 recipe.verify_export_policy(receipt, root)
                 receipt['commands'][1]['reaped_exit'] = 1
                 with self.assertRaisesRegex(ValueError, 'compiler command'):
@@ -752,6 +757,76 @@ class SourceStdExportClosure(unittest.TestCase):
                 Path(compiled['path']).write_bytes(b'changed compiler output')
                 with self.assertRaisesRegex(ValueError, 'artifact changed'):
                     recipe.verify_export_policy(receipt, root)
+
+    def test_provider_linker_captures_original_policy_and_reaps_inherited_group(self):
+        from unittest.mock import patch, Mock
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            (root / 'logs').mkdir()
+            temporary = root / 'tmp/rustc123'
+            temporary.mkdir(parents=True)
+            generated = temporary / 'list'
+            generated.write_text('_b\n_a\n')
+            exports = root / 'provider-exports.txt'
+            exports.write_text('_a\n')
+            clang = root / 'clang'
+            clang.write_bytes(b'pinned compiler')
+            config_path = root / 'provider-linker-config.json'
+            config = {'root': str(root), 'clang': str(clang),
+                      'files': {str(clang): recipe.digest(clang), str(exports): recipe.digest(exports)},
+                      'exports': recipe.artifact(exports), 'full_exports': ['_a', '_b'],
+                      'output': str(root / 'restricted-provider/libstd.dylib')}
+            config_path.write_text(json.dumps(config))
+            arguments = ['-dynamiclib', '-Wl,-exported_symbols_list', '-Wl,' + str(generated),
+                         '-o', config['output']]
+            process = Mock(pid=223)
+            process.wait.return_value = 0
+            process.poll.return_value = 0
+            with patch.dict(os.environ, {'CSV_SOURCE_STD_LINKER_SHA256': recipe.digest(recipe.__file__)}), \
+                    patch.object(recipe.os, 'getpgrp', return_value=222), \
+                    patch.object(recipe.os, 'getppid', return_value=222), \
+                    patch.object(recipe.os, 'getpgid', return_value=222), \
+                    patch.object(recipe.subprocess, 'Popen', return_value=process) as spawn:
+                with self.assertRaises(SystemExit) as result:
+                    recipe.provider_linker_main(config_path, recipe.digest(config_path), arguments)
+                self.assertEqual(result.exception.code, 0)
+            self.assertNotIn('start_new_session', spawn.call_args.kwargs)
+            self.assertEqual(spawn.call_args.args[0][3], '-Wl,' + str(exports))
+            proof = json.loads((root / 'provider-linker-receipt.json').read_text())
+            self.assertEqual(proof['pgid'], proof['compiler_pgid'])
+            self.assertEqual(proof['reaped_exit'], 0)
+            self.assertEqual((root / 'original-provider-exports.txt').read_bytes(), generated.read_bytes())
+            self.assertEqual(process.wait.call_count, 2)
+            policy = {'linker_config': recipe.artifact(config_path), 'linker_script': recipe.artifact(recipe.__file__),
+                      'linker_receipt': recipe.artifact(root / 'provider-linker-receipt.json'),
+                      'generated_exports': recipe.artifact(root / 'original-provider-exports.txt'),
+                      'exports_file': recipe.artifact(exports),
+                      'restricted_compiler_artifact': {'path': config['output']},
+                      'closure': {'provider_surface': {'exports': {'_a': 0, '_b': 0}}}}
+            recipe.verify_provider_linker(policy, root, {'pid': 222, 'pgid': 222})
+            with self.assertRaisesRegex(ValueError, 'lifecycle'):
+                recipe.verify_provider_linker(policy, root, {'pid': 224, 'pgid': 224})
+            for path in (root / 'original-provider-exports.txt', root / 'provider-linker-receipt.json',
+                         root / 'logs/provider-linker.stdout', root / 'logs/provider-linker.stderr'):
+                path.unlink()
+            generated.write_text('_not_the_full_surface\n')
+            with patch.dict(os.environ, {'CSV_SOURCE_STD_LINKER_SHA256': recipe.digest(recipe.__file__)}), \
+                    patch.object(recipe.subprocess, 'Popen') as spawn:
+                with self.assertRaisesRegex(ValueError, 'full provider surface'):
+                    recipe.provider_linker_main(config_path, recipe.digest(config_path), arguments)
+                spawn.assert_not_called()
+            generated.write_text('_a\n_b\n')
+            process.wait.side_effect = [RuntimeError('interrupted wait'), -9]
+            process.poll.return_value = None
+            with patch.dict(os.environ, {'CSV_SOURCE_STD_LINKER_SHA256': recipe.digest(recipe.__file__)}), \
+                    patch.object(recipe.os, 'getpgrp', return_value=222), \
+                    patch.object(recipe.os, 'getppid', return_value=222), \
+                    patch.object(recipe.os, 'getpgid', return_value=222), \
+                    patch.object(recipe.subprocess, 'Popen', return_value=process):
+                with self.assertRaisesRegex(RuntimeError, 'interrupted wait'):
+                    recipe.provider_linker_main(config_path, recipe.digest(config_path), arguments)
+            process.kill.assert_called_once()
+            self.assertEqual(json.loads((root / 'provider-linker-receipt.json').read_text())['reaped_exit'], -9)
 
     def test_dynamic_python_lookup_requires_exact_bound_core_definition_not_name_prefix(self):
         consumers = self.consumers()

@@ -26,6 +26,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import tarfile
 import tomllib
@@ -492,8 +493,117 @@ def provider_export_closure(provider, consumers, native_api=None):
             'consumer_surfaces': consumers, 'native_api_surface': native_api}
 
 
-def restricted_producer_arguments(original, output, exports_path):
-    return producer_arguments(original, output) + ['-C', 'link-arg=-Wl,-exported_symbols_list,' + str(exports_path)]
+def replace_provider_export_argument(arguments, exports_path, expected_output):
+    arguments = list(arguments)
+    positions = [i for i, arg in enumerate(arguments) if 'exported_symbols_list' in arg]
+    if (len(positions) != 1 or arguments[positions[0]] != '-Wl,-exported_symbols_list'
+            or any(arg.startswith('@') for arg in arguments)
+            or arguments.count('-o') != 1 or '-dynamiclib' not in arguments):
+        raise ValueError('unsupported or multiple provider export policies')
+    index = positions[0]
+    if index + 1 >= len(arguments) or not arguments[index + 1].startswith('-Wl,/'):
+        raise ValueError('missing split provider export-list path')
+    generated = Path(arguments[index + 1][4:])
+    if (',' in str(generated) or generated.name != 'list' or not generated.parent.name.startswith('rustc')
+            or arguments[arguments.index('-o') + 1] != str(expected_output)
+            or not exports_path.is_absolute() or ',' in str(exports_path)):
+        raise ValueError('provider export-list/output ownership changed')
+    arguments[index + 1] = '-Wl,' + str(exports_path)
+    return arguments, generated
+
+
+def restricted_producer_arguments(original, output, linker_path):
+    arguments = producer_arguments(original, output)
+    positions = [i for i, arg in enumerate(arguments) if arg.startswith('linker=')]
+    if len(positions) != 1 or positions[0] == 0 or arguments[positions[0] - 1] != '-C':
+        raise ValueError('producer must have one explicit original linker')
+    arguments[positions[0]] = 'linker=' + str(linker_path)
+    return arguments
+
+
+def provider_linker_main(config_path, config_sha256, arguments):
+    # The outer owned rustc group also owns clang: no new session is created.
+    if digest(config_path) != config_sha256 or digest(__file__) != os.environ['CSV_SOURCE_STD_LINKER_SHA256']:
+        raise ValueError('provider linker source/config identity changed')
+    config = json.loads(Path(config_path).read_text())
+    verify_files(config['files'])
+    exports = Path(config['exports']['path'])
+    replaced, generated = replace_provider_export_argument(arguments, exports, Path(config['output']))
+    root = Path(config['root'])
+    if (generated.resolve(strict=True) != generated or not generated.is_relative_to(root)
+            or generated.is_symlink()):
+        raise ValueError('generated export list escaped its owned temporary directory')
+    before = generated.stat()
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+        raise ValueError('generated export list is not a private regular file')
+    data = generated.read_bytes()
+    after = generated.stat()
+    if (any(getattr(before, key) != getattr(after, key) for key in ('st_dev', 'st_ino', 'st_mode', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+            or sorted(data.decode().splitlines()) != config['full_exports']):
+        raise ValueError('original generated export list differs from full provider surface')
+    retained = root / 'original-provider-exports.txt'
+    with retained.open('xb') as stream:
+        stream.write(data)
+    compiler_pgid = os.getpgrp()
+    parent_pid = os.getppid()
+    if compiler_pgid != parent_pid:
+        raise ValueError('provider linker does not inherit its owned compiler group')
+    row = {'original_argv': [config['clang'], *arguments],
+           'replaced_argv': [config['clang'], *replaced], 'generated_path': str(generated),
+           'generated_list': artifact(retained), 'config': artifact(config_path),
+           'script': artifact(__file__), 'exports_file': artifact(exports),
+           'clang': artifact(config['clang']), 'parent_pid': parent_pid, 'compiler_pgid': compiler_pgid}
+    process = None
+    try:
+        with (root / 'logs/provider-linker.stdout').open('x') as stdout, (root / 'logs/provider-linker.stderr').open('x') as stderr:
+            process = subprocess.Popen(row['replaced_argv'], stdout=stdout, stderr=stderr,
+                                       pass_fds=jobserver_fds(os.environ.get('CARGO_MAKEFLAGS', '')))
+            row.update(pid=process.pid, pgid=os.getpgid(process.pid))
+            if row['pgid'] != compiler_pgid:
+                raise ValueError('clang escaped the compiler process group')
+            row['exit_code'] = process.wait()
+    finally:
+        if process is not None:
+            if process.poll() is None:
+                process.kill()
+            row['reaped_exit'] = process.wait()
+        verify_files(config['files'])
+        row['stdout'] = artifact(root / 'logs/provider-linker.stdout')
+        row['stderr'] = artifact(root / 'logs/provider-linker.stderr')
+        with (root / 'provider-linker-receipt.json').open('x') as stream:
+            stream.write(json.dumps(row, indent=2) + '\n')
+    raise SystemExit(row['exit_code'])
+
+
+def verify_provider_linker(policy, root, compiler_command):
+    proof = json.loads(Path(policy['linker_receipt']['path']).read_text())
+    config = json.loads(Path(policy['linker_config']['path']).read_text())
+    for key in ('linker_script', 'linker_config', 'linker_receipt', 'generated_exports'):
+        if artifact(policy[key]['path']) != policy[key]:
+            raise ValueError('provider linker proof artifact changed: ' + key)
+    verify_files(config['files'])
+    replaced, generated = replace_provider_export_argument(proof['original_argv'][1:],
+                                                            Path(policy['exports_file']['path']),
+                                                            Path(policy['restricted_compiler_artifact']['path']))
+    if (proof['replaced_argv'] != [config['clang'], *replaced]
+            or proof['original_argv'][0] != config['clang'] or proof['generated_path'] != str(generated)
+            or not generated.is_relative_to(root) or proof['generated_list'] != policy['generated_exports']
+            or proof['config'] != policy['linker_config'] or proof['script'] != policy['linker_script']
+            or proof['exports_file'] != policy['exports_file']
+            or sorted(Path(policy['generated_exports']['path']).read_text().splitlines()) != sorted(policy['closure']['provider_surface']['exports'])
+            or config['full_exports'] != sorted(policy['closure']['provider_surface']['exports'])
+            or config['output'] != policy['restricted_compiler_artifact']['path']
+            or config['exports'] != policy['exports_file'] or config['root'] != str(root)
+            or proof['parent_pid'] != compiler_command['pid']
+            or proof['compiler_pgid'] != compiler_command['pgid'] or proof['pgid'] != compiler_command['pgid']
+            or type(proof['pid']) is not int or proof['pid'] <= 1
+            or proof['exit_code'] != 0 or proof['reaped_exit'] != 0):
+        raise ValueError('provider linker exact replacement/lifecycle proof changed')
+    for key in ('clang', 'stdout', 'stderr'):
+        if artifact(proof[key]['path']) != proof[key]:
+            raise ValueError('provider linker captured artifact changed')
+    if config['files'].get(config['clang']) != proof['clang']['sha256']:
+        raise ValueError('provider linker lacks pinned clang')
 
 
 def verify_restricted_provider(full, restricted, closure, full_metadata, restricted_metadata):
@@ -914,7 +1024,7 @@ def verify_export_policy(receipt, root):
     if 'export_policy' not in receipt:
         raise ValueError('missing provider export policy')
     policy = receipt['export_policy']
-    if policy['schema_version'] != 1:
+    if policy['schema_version'] != 2:
         raise ValueError('unsupported provider export policy')
     for key in ('full_provider', 'full_metadata', 'restricted_metadata',
                 'exports_file', 'restricted_compiler_artifact', 'native_api'):
@@ -949,7 +1059,10 @@ def verify_export_policy(receipt, root):
         raise ValueError('normalized provider changed its restricted link surface')
     std_unit = select_std_unit(receipt['units'])
     expected_full = producer_arguments(std_unit['argv'], full.parent)
-    expected_restricted = restricted_producer_arguments(std_unit['argv'], root / 'restricted-provider', Path(policy['exports_file']['path']))
+    config = json.loads(Path(policy['linker_config']['path']).read_text())
+    if [arg[7:] for arg in std_unit['argv'] if arg.startswith('linker=')] != [config['clang']]:
+        raise ValueError('producer original linker differs from pinned clang')
+    expected_restricted = restricted_producer_arguments(std_unit['argv'], root / 'restricted-provider', root / 'provider-linker.py')
     if policy['full_argv'] != expected_full or policy['restricted_argv'] != expected_restricted:
         raise ValueError('provider replay arguments changed')
     for argv in (expected_full, expected_restricted):
@@ -958,6 +1071,7 @@ def verify_export_policy(receipt, root):
                 or type(matches[0].get('pid')) is not int or matches[0]['pid'] <= 1
                 or matches[0].get('pgid') != matches[0]['pid']):
             raise ValueError('provider replay lacks exact successful owned compiler command')
+    verify_provider_linker(policy, root, next(command for command in receipt['commands'] if command['argv'] == expected_restricted))
     raw = receipt['provider']['raw_artifact']
     compiled = policy['restricted_compiler_artifact']
     if (raw['path'] != str(final) or raw['sha256'] != compiled['sha256'] or raw['size'] != compiled['size']):
@@ -1180,19 +1294,45 @@ def build_recipe(source, build, target, profile, jobs):
         files[str(exports_path)] = digest(exports_path)
         restricted_directory = root / 'restricted-provider'
         restricted_directory.mkdir()
-        restricted_argv = restricted_producer_arguments(original, restricted_directory, exports_path)
-        run(restricted_argv, Path(std_unit['cwd']), source_env, root / 'logs/std-provider-restricted', commands)
+        original_linkers = [arg[7:] for arg in original if arg.startswith('linker=')]
+        if original_linkers != [clang]:
+            raise ValueError('producer original linker differs from pinned clang')
+        linker_path = root / 'provider-linker.py'
+        linker_config = root / 'provider-linker-config.json'
+        link_files = {**files, **runtime_files}
+        link_files[str(provider)] = digest(provider)
+        config_data = {'root': str(root), 'clang': str(Path(clang).resolve(strict=True)),
+                       'files': link_files, 'exports': artifact(exports_path),
+                       'output': str(restricted_directory / provider.name),
+                       'full_exports': sorted(full_surface['exports'])}
+        linker_config.write_text(json.dumps(config_data, indent=2) + '\n')
+        script_source = Path(__file__).read_text()
+        ending = "if __name__ == '__main__':\n    main()"
+        if not script_source.endswith(ending + '\n'):
+            raise ValueError('provider linker source entrypoint changed')
+        linker_path.write_text('#!' + sys.executable + ' -E\n' + script_source[:-len(ending + '\n')]
+                               + "if __name__ == '__main__':\n    provider_linker_main("
+                               + repr(str(linker_config)) + ', ' + repr(digest(linker_config)) + ', sys.argv[1:])\n')
+        linker_path.chmod(0o755)
+        for path in (linker_config, linker_path):
+            files[str(path)] = digest(path)
+        restricted_environment = {**source_env, 'CSV_SOURCE_STD_LINKER_SHA256': digest(linker_path)}
+        restricted_argv = restricted_producer_arguments(original, restricted_directory, linker_path)
+        run(restricted_argv, Path(std_unit['cwd']), restricted_environment, root / 'logs/std-provider-restricted', commands)
         restricted_compiler = restricted_directory / provider.name
         restricted_metadata = restricted_compiler.with_suffix('.rmeta')
         runtime_files[str(restricted_metadata)] = digest(restricted_metadata)
         restricted_surface = macho_link_surface(restricted_compiler.read_bytes())
         verify_restricted_provider(full_surface, restricted_surface, closure,
                                    digest(metadata), digest(restricted_metadata))
-        export_policy = {'schema_version': 1, 'closure': closure, 'full_provider': full_provider,
+        export_policy = {'schema_version': 2, 'closure': closure, 'full_provider': full_provider,
                          'full_metadata': artifact(metadata), 'restricted_metadata': artifact(restricted_metadata),
                          'full_argv': replay, 'restricted_argv': restricted_argv,
                          'exports_file': artifact(exports_path), 'restricted_surface': restricted_surface,
-                         'native_api': native_api}
+                         'native_api': native_api, 'linker_script': artifact(linker_path),
+                         'linker_config': artifact(linker_config),
+                         'linker_receipt': artifact(root / 'provider-linker-receipt.json'),
+                         'generated_exports': artifact(root / 'original-provider-exports.txt')}
         # Normalization edits only the final copy. Both replay output directories
         # retain their original compiler bytes and metadata indefinitely.
         export_policy['restricted_compiler_artifact'] = artifact(restricted_compiler)
