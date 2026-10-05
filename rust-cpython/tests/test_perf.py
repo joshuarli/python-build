@@ -859,7 +859,8 @@ class IncrementalPlanTests(unittest.TestCase):
 
 
 class IncrementalRecipeTests(unittest.TestCase):
-    def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True):
+    def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
+                 empty_overlay=False, missing_current_member=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             if not source_std:
@@ -886,18 +887,22 @@ class IncrementalRecipeTests(unittest.TestCase):
             proof.verify_builtin_artifacts.return_value = {"fixture": "verified"}
             members = {"_base64", "cpython-sys", "_fixture_rs"}
             commands = []
+            preparations = []
             def command(argv, *, log, **kwargs):
                 commands.append(argv)
                 if "install" in argv and failed_install:
                     log.write_text("install failed")
                     raise perf.LaneError("install failed")
-                log.write_text("cargo --profile release\ncargo --profile dev" if "install" in argv and bad_install
-                               else "cargo --profile release")
+                compiled = members - ({"_fixture_rs"} if "install" in argv and missing_current_member else set())
+                transcript = "cargo --profile release\n" + "".join(
+                    "Compiling " + member + " v0.1.0\n" for member in sorted(compiled))
+                log.write_text(transcript + ("cargo --profile dev" if "install" in argv and bad_install else ""))
                 if "install" in argv:
                     python = paths["stage"] / "bin/python3.16"
                     python.parent.mkdir(parents=True, exist_ok=True)
                     python.write_text("installed fixture")
             def prepare_std(prepared_paths, env):
+                preparations.append(prepared_paths)
                 self.assertTrue(source_std, "Linux must not prepare source Std")
                 self.assertTrue(prepared_paths["build"].is_dir())
                 if not incremental:
@@ -914,7 +919,6 @@ class IncrementalRecipeTests(unittest.TestCase):
                 "_builtin_artifact_verifier": lambda: (proof, []),
                 "_perf_flags": lambda *a: {"CPPFLAGS": "", "CFLAGS": "fixture flags"},
                 "_overlay_members": lambda: {"_fixture_rs"},
-                "_built_members": lambda *a: members,
                 "_build_python": lambda build: build / "python.exe",
             }
             for name, value in fixtures.items():
@@ -933,38 +937,64 @@ class IncrementalRecipeTests(unittest.TestCase):
             extensions = patches.enter_context(mock.patch.object(
                 perf, "verify_release_artifacts", return_value={str(i): "hash" for i in range(58)}))
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
-            if bad_install or failed_install:
-                with self.assertRaisesRegex(perf.LaneError, "profile dev|install failed"):
-                    perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
+            compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
+            clear_mirror = perf._clear_csv_source_std_mirror
+            def cleanup_mirror(prepared_paths):
+                self.assertTrue((prepared_paths["build"] / "Makefile").exists(),
+                                "mirror ownership must be checked before deleting the old build")
+                clear_mirror(prepared_paths)
+            cleanup = patches.enter_context(mock.patch.object(perf, "_clear_csv_source_std_mirror", side_effect=cleanup_mirror))
+            single_install = incremental or (source_std and not empty_overlay)
+            if bad_install or failed_install or missing_current_member:
+                with self.assertRaisesRegex(perf.LaneError, "profile dev|install failed|did not compile Rust members"):
+                    perf._build_locked("fixture", paths, empty_overlay=empty_overlay, jobs=4,
                                        incremental=incremental, state={"configured": True})
                 extensions.assert_not_called()
                 proof.verify_builtin_artifacts.assert_not_called()
+                if not missing_current_member:
+                    compiled.assert_not_called()
             else:
-                report = perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
+                report = perf._build_locked("fixture", paths, empty_overlay=empty_overlay, jobs=4,
                                             incremental=incremental, state={"configured": True})
                 self.assertEqual(len(report["rust_extensions_sha256"]), 58)
-                self.assertEqual(report["rust_builtin_artifacts"], {"fixture": "verified"})
+                self.assertEqual(report["rust_builtin_artifacts"], {} if empty_overlay else {"fixture": "verified"})
                 self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
                 self.assertEqual(report["incremental"], incremental)
-                self.assertEqual(report["rust_source_std"], {"fixture": "verified"} if source_std else None)
-                self.assertEqual((source / "Lib/pickle.py").read_text(), "new")
-                proof.validate_builtin_source.assert_called_once()
-                proof.verify_builtin_artifacts.assert_called_once()
+                self.assertEqual(report["rust_source_std"], {"fixture": "verified"} if source_std and not empty_overlay else None)
+                self.assertEqual((source / "Lib/pickle.py").read_text(), "old" if empty_overlay else "new")
+                self.assertEqual(proof.validate_builtin_source.call_count, int(not empty_overlay))
+                self.assertEqual(proof.verify_builtin_artifacts.call_count, int(not empty_overlay))
                 extensions.assert_called_once()
-                checks.assert_called_once_with(paths["install_log"] if incremental else paths["build_log"],
+                checks.assert_called_once_with(paths["install_log"] if single_install else paths["build_log"],
                                                paths["install_log"])
+            if not incremental and not bad_install and not failed_install:
+                compiled.assert_called_once_with(paths["install_log"] if single_install else paths["build_log"], members)
+            self.assertEqual(cleanup.call_count, int(not incremental and source_std and not empty_overlay))
+            self.assertEqual(len(preparations), int(source_std and not empty_overlay))
             make = [argv for argv in commands if argv[0] == "/make"]
-            self.assertEqual(make, ([["/make", "-j4", "install", *perf.MAKE_VARS]] if incremental else
+            self.assertEqual(make, ([["/make", "-j4", "install", *perf.MAKE_VARS]] if single_install else
                                    [["/make", "-j4", *perf.MAKE_VARS],
                                     ["/make", "install", *perf.MAKE_VARS]]))
-            if incremental:
+            if single_install:
                 self.assertFalse(paths["build_log"].exists())
 
     def test_incremental_builds_and_installs_once_then_verifies_artifacts(self):
         self.exercise(True)
 
-    def test_clean_build_keeps_separate_build_and_install(self):
+    def test_clean_source_std_builds_and_installs_once_then_verifies_current_members(self):
         self.exercise(False)
+
+    def test_clean_pristine_control_keeps_separate_build_and_install(self):
+        self.exercise(False, empty_overlay=True)
+
+    def test_clean_rejects_missing_current_member_despite_stale_release_transcript(self):
+        self.exercise(False, missing_current_member=True)
+
+    def test_clean_rejects_current_dev_transcript(self):
+        self.exercise(False, bad_install=True)
+
+    def test_clean_install_failure_does_not_claim_artifact_proof(self):
+        self.exercise(False, failed_install=True)
 
     def test_linux_keeps_existing_release_route_without_source_std_preparation(self):
         self.exercise(False, source_std=False)
@@ -1039,6 +1069,59 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                 self.assertNotIn('; mv ', branch)
             self.assertIn("mv target/", generated)
 
+
+
+class CsvSourceStdMirrorCleanupTests(unittest.TestCase):
+    def exercise(self, defect=None):
+        with tempfile.TemporaryDirectory() as temp:
+            lane = Path(temp).resolve()
+            paths = perf._paths("fixture", lane)
+            work = paths["build"].parent
+            mirror = work / "rust-cpython"
+            mirror.mkdir(parents=True)
+            marker = mirror / ".csv-source-std-owner.json"
+            marker.write_text(json.dumps({"build": str(paths["build"])}))
+            provider = mirror / "libstd-owned.dylib"
+            provider.write_bytes(b"previous finalized provider")
+            sibling = work / "unrelated"
+            sibling.write_bytes(b"retain")
+            if defect == "foreign":
+                marker.write_text(json.dumps({"build": str(lane / "foreign-build")}))
+            elif defect == "marker-link":
+                owner = work / "owner.json"
+                marker.rename(owner)
+                marker.symlink_to(owner)
+            elif defect == "mirror-link":
+                original = work / "original"
+                mirror.rename(original)
+                mirror.symlink_to(original, target_is_directory=True)
+                provider = original / provider.name
+            elif defect == "candidate":
+                lane = lane / "different-lane"
+            with mock.patch.object(perf, "LANE", lane):
+                if defect:
+                    with self.assertRaises(perf.LaneError):
+                        perf._clear_csv_source_std_mirror(paths)
+                    self.assertTrue(provider.is_file())
+                else:
+                    perf._clear_csv_source_std_mirror(paths)
+                    self.assertFalse(mirror.exists())
+            self.assertEqual(sibling.read_bytes(), b"retain")
+
+    def test_removes_only_previous_owned_candidate_mirror(self):
+        self.exercise()
+
+    def test_rejects_foreign_build_owner(self):
+        self.exercise("foreign")
+
+    def test_rejects_symlinked_owner_marker(self):
+        self.exercise("marker-link")
+
+    def test_rejects_symlinked_mirror(self):
+        self.exercise("mirror-link")
+
+    def test_rejects_mirror_outside_candidate_work_tree(self):
+        self.exercise("candidate")
 
 
 class CsvSourceStdInstallTests(unittest.TestCase):

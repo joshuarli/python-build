@@ -441,6 +441,28 @@ def _csv_source_std_recipe(source: Path):
     return recipe
 
 
+# The build mirror is outside the build directory because the helper's relative
+# loader path resolves there. A clean build may clear only its declared owner.
+def _clear_csv_source_std_mirror(paths: dict[str, Path]) -> None:
+    build = paths["build"]
+    work = build.parent
+    mirror = work / "rust-cpython"
+    if not mirror.exists() and not mirror.is_symlink():
+        return
+    if (build != work / "build" or work.parent != LANE / "work/perf"
+            or not work.name.startswith("perf-") or build.resolve() != build
+            or paths["source_parent"] != work / "source"):
+        raise LaneError("CSV source-Std mirror has no isolated candidate work owner")
+    if not mirror.is_dir() or mirror.resolve() != mirror:
+        raise LaneError("CSV source-Std mirror directory is not canonical")
+    marker = mirror / ".csv-source-std-owner.json"
+    if not marker.is_file() or marker.is_symlink() or marker.stat().st_nlink != 1:
+        raise LaneError("CSV source-Std mirror owner marker is missing or aliased")
+    if json.loads(marker.read_text()) != {"build": str(build)}:
+        raise LaneError("CSV source-Std mirror belongs to a different build")
+    shutil.rmtree(mirror)
+
+
 def _prepare_csv_source_std(paths: dict[str, Path], env: dict[str, str]) -> dict[str, str]:
     env.update(lb._rust_std_source_environment(paths["source_parent"].parent / "rust-std-source"))
     metadata, source_input = lb._read_rust_std_lock()
@@ -706,6 +728,8 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
                  "--without-ensurepip"]
     std_metadata = None
     if not incremental:
+        if not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
+            _clear_csv_source_std_mirror(paths)
         for path in (paths["build"], paths["stage"]):
             if path.exists():
                 shutil.rmtree(path)
@@ -718,16 +742,18 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         if setup_local.is_file():
             _copy_file(setup_local, paths["build"] / "Modules" / "Setup.local")
         state["configured"] = True
-    if incremental:
-        if not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
+    if incremental or std_metadata is not None:
+        if incremental and not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
             std_metadata = _prepare_csv_source_std(paths, env)
-        # Install depends on the complete build. One parallel invocation avoids
-        # rebuilding native targets twice; its transcript is the current proof.
+        # Install depends on the complete build. A single invocation preserves
+        # the source runtime's pinned libpython bytes through publication; its
+        # current transcript proves both compilation and installation.
         paths["build_log"].unlink(missing_ok=True)
         lb._require_command([str(toolchain.make), f"-j{workers}", "install", *MAKE_VARS],
                             cwd=paths["build"], env=env, log=paths["install_log"], sealed=sandbox)
         _check_logs(paths["install_log"], paths["install_log"])
     else:
+        # Pristine and non-source-runtime clean builds keep their two-step recipe.
         lb._require_command([str(toolchain.make), f"-j{workers}", *MAKE_VARS], cwd=paths["build"],
                             env=env, log=paths["build_log"], sealed=sandbox)
         lb._require_command([str(toolchain.make), "install", *MAKE_VARS], cwd=paths["build"],
@@ -751,7 +777,8 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         raise LaneError("perf workspace is missing members: "
                         + ", ".join(sorted(required - members)))
     if not incremental:
-        missing = required - set(_built_members(paths["build_log"], members))
+        compile_log = paths["install_log"] if std_metadata is not None else paths["build_log"]
+        missing = required - set(_built_members(compile_log, members))
         if missing:
             raise LaneError("perf build did not compile Rust members: " + ", ".join(sorted(missing)))
     rust_source_std = (_install_csv_source_std(source, paths, std_metadata)
