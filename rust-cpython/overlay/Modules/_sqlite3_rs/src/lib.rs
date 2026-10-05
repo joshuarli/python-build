@@ -23,50 +23,16 @@ unsafe extern "C" {
     fn PyEval_RestoreThread(thread: *mut c_void);
 }
 
-// Opaque SQLite handles retain the C extension's ownership and lifetime.
-enum SqliteStatement {}
-enum SqliteDatabase {}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct ApiHeader {
-    version: u32,
-    size: usize,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct SqliteApi {
-    header: ApiHeader,
-    step: Option<unsafe extern "C" fn(*mut SqliteStatement) -> c_int>,
-    column_type: Option<unsafe extern "C" fn(*mut SqliteStatement, c_int) -> c_int>,
-    column_int64: Option<unsafe extern "C" fn(*mut SqliteStatement, c_int) -> i64>,
-    column_double: Option<unsafe extern "C" fn(*mut SqliteStatement, c_int) -> c_double>,
-    column_text: Option<unsafe extern "C" fn(*mut SqliteStatement, c_int) -> *const u8>,
-    column_blob: Option<unsafe extern "C" fn(*mut SqliteStatement, c_int) -> *const c_void>,
-    column_bytes: Option<unsafe extern "C" fn(*mut SqliteStatement, c_int) -> c_int>,
-    errcode: Option<unsafe extern "C" fn(*mut SqliteDatabase) -> c_int>,
-}
-
+#[link(name = "sqlite3")]
 unsafe extern "C" {
-    fn PyCapsule_Import(name: *const c_char, no_block: c_int) -> *mut c_void;
-    fn PyModule_GetState(module: *mut PyObject) -> *mut c_void;
-}
-
-// Module state contains only copied native pointers, never Python objects.
-// A failed execution leaves its zero-initialized function fields unbound.
-unsafe fn module_api(module: *mut PyObject) -> Option<SqliteApi> {
-    let state = unsafe { PyModule_GetState(module) }.cast::<SqliteApi>();
-    if state.is_null() {
-        return None;
-    }
-    let api = unsafe { *state };
-    if api.step.is_none() {
-        unsafe { PyErr_SetString(cpython_sys::PyExc_RuntimeError,
-                                 c"SQLite native API is not initialized".as_ptr()) };
-        return None;
-    }
-    Some(api)
+    fn sqlite3_step(statement: *mut c_void) -> c_int;
+    fn sqlite3_column_type(statement: *mut c_void, column: c_int) -> c_int;
+    fn sqlite3_column_int64(statement: *mut c_void, column: c_int) -> i64;
+    fn sqlite3_column_double(statement: *mut c_void, column: c_int) -> c_double;
+    fn sqlite3_column_text(statement: *mut c_void, column: c_int) -> *const u8;
+    fn sqlite3_column_blob(statement: *mut c_void, column: c_int) -> *const c_void;
+    fn sqlite3_column_bytes(statement: *mut c_void, column: c_int) -> c_int;
+    fn sqlite3_errcode(database: *mut c_void) -> c_int;
 }
 
 /// Step the statement with the GIL released so SQLite callbacks can re-enter Python.
@@ -74,7 +40,7 @@ unsafe fn module_api(module: *mut PyObject) -> Option<SqliteApi> {
 /// # Safety
 /// The C cursor supplies a live statement pointer and a valid fast-call array.
 unsafe extern "C" fn step(
-    module: *mut PyObject,
+    _module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
@@ -86,9 +52,8 @@ unsafe extern "C" fn step(
     if statement.is_null() && !unsafe { PyErr_Occurred() }.is_null() {
         return ptr::null_mut();
     }
-    let Some(api) = (unsafe { module_api(module) }) else { return ptr::null_mut(); };
     let thread = unsafe { PyEval_SaveThread() };
-    let code = unsafe { (api.step.unwrap())(statement.cast()) };
+    let code = unsafe { sqlite3_step(statement) };
     unsafe { PyEval_RestoreThread(thread) };
     unsafe { PyLong_FromLong(code.into()) }
 }
@@ -99,7 +64,7 @@ unsafe extern "C" fn step(
 /// # Safety
 /// The C cursor supplies live statement/database pointers and a valid column index.
 unsafe extern "C" fn column(
-    module: *mut PyObject,
+    _module: *mut PyObject,
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
@@ -120,27 +85,26 @@ unsafe extern "C" fn column(
         return ptr::null_mut();
     }
     let index = index as c_int;
-    let Some(api) = (unsafe { module_api(module) }) else { return ptr::null_mut(); };
-    match unsafe { (api.column_type.unwrap())(statement.cast(), index) } {
+    match unsafe { sqlite3_column_type(statement, index) } {
         SQLITE_NULL => unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) },
-        SQLITE_INTEGER => unsafe { PyLong_FromLongLong((api.column_int64.unwrap())(statement.cast(), index)) },
-        SQLITE_FLOAT => unsafe { PyFloat_FromDouble((api.column_double.unwrap())(statement.cast(), index)) },
+        SQLITE_INTEGER => unsafe { PyLong_FromLongLong(sqlite3_column_int64(statement, index)) },
+        SQLITE_FLOAT => unsafe { PyFloat_FromDouble(sqlite3_column_double(statement, index)) },
         SQLITE_TEXT => {
-            let data = unsafe { (api.column_text.unwrap())(statement.cast(), index) };
-            if data.is_null() && unsafe { (api.errcode.unwrap())(database.cast()) } == SQLITE_NOMEM {
+            let data = unsafe { sqlite3_column_text(statement, index) };
+            if data.is_null() && unsafe { sqlite3_errcode(database) } == SQLITE_NOMEM {
                 unsafe { PyErr_NoMemory() };
                 return ptr::null_mut();
             }
-            let size = unsafe { (api.column_bytes.unwrap())(statement.cast(), index) };
+            let size = unsafe { sqlite3_column_bytes(statement, index) };
             unsafe { PyUnicode_FromStringAndSize(data.cast::<c_char>(), size as Py_ssize_t) }
         }
         SQLITE_BLOB => {
-            let data = unsafe { (api.column_blob.unwrap())(statement.cast(), index) };
-            if data.is_null() && unsafe { (api.errcode.unwrap())(database.cast()) } == SQLITE_NOMEM {
+            let data = unsafe { sqlite3_column_blob(statement, index) };
+            if data.is_null() && unsafe { sqlite3_errcode(database) } == SQLITE_NOMEM {
                 unsafe { PyErr_NoMemory() };
                 return ptr::null_mut();
             }
-            let size = unsafe { (api.column_bytes.unwrap())(statement.cast(), index) };
+            let size = unsafe { sqlite3_column_bytes(statement, index) };
             unsafe { PyBytes_FromStringAndSize(data.cast::<c_char>(), size as Py_ssize_t) }
         }
         _ => {
@@ -156,31 +120,7 @@ unsafe impl Sync for ModuleDef {}
 struct ModuleSlots([PyModuleDef_Slot; 3]);
 unsafe impl Sync for ModuleSlots {}
 
-unsafe extern "C" fn module_exec(module: *mut PyObject) -> c_int {
-    let pointer = unsafe { PyCapsule_Import(c"_sqlite3._RUST_API".as_ptr(), 0) };
-    if pointer.is_null() {
-        return -1;
-    }
-    let header = unsafe { *pointer.cast::<ApiHeader>() };
-    if header.version != 1 || header.size != std::mem::size_of::<SqliteApi>() {
-        unsafe { PyErr_SetString(cpython_sys::PyExc_ImportError,
-                                 c"incompatible SQLite native API".as_ptr()) };
-        return -1;
-    }
-    let api = unsafe { *pointer.cast::<SqliteApi>() };
-    if api.step.is_none() || api.column_type.is_none() || api.column_int64.is_none()
-        || api.column_double.is_none() || api.column_text.is_none()
-        || api.column_blob.is_none() || api.column_bytes.is_none() || api.errcode.is_none()
-    {
-        unsafe { PyErr_SetString(cpython_sys::PyExc_ImportError,
-                                 c"incomplete SQLite native API".as_ptr()) };
-        return -1;
-    }
-    let state = unsafe { PyModule_GetState(module) }.cast::<SqliteApi>();
-    if state.is_null() {
-        return -1;
-    }
-    unsafe { ptr::write(state, api) };
+unsafe extern "C" fn module_exec(_module: *mut PyObject) -> c_int {
     0
 }
 
@@ -223,7 +163,7 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
     m_base: PyModuleDef_HEAD_INIT,
     m_name: c"_sqlite3_rs".as_ptr() as *mut c_char,
     m_doc: c"SQLite cursor operations.".as_ptr() as *mut c_char,
-    m_size: std::mem::size_of::<SqliteApi>() as Py_ssize_t,
+    m_size: 0,
     m_methods: METHODS.as_ptr() as *mut PyMethodDef,
     m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
     m_traverse: None,
