@@ -66,6 +66,28 @@ class LayoutTests(unittest.TestCase):
         with mock.patch.object(layout.csv_source_std, 'macho_link_surface', return_value=surface or self.surface()):
             return layout.verify_aggregate_layout(blob)
 
+    def test_requires_exact_eleven_initializer_contract_and_schema_two(self):
+        expected = {'_PyInit__' + name + '_rs' for name in
+                    ('csv', 'json', 'typing', 'tokenize', 'datetime', 'threading', 'uuid',
+                     'collections', 'sqlite3', 'warnings', 'socket')}
+        self.assertEqual(layout.INIT_EXPORTS, expected)
+        surface = self.surface()
+        surface['exports'] = dict.fromkeys(expected, 0)
+        proof = self.check(image(), surface)
+        self.assertEqual(proof['schema'], 2)
+        for name in ('collections', 'sqlite3', 'warnings', 'socket'):
+            with self.subTest(helper=name):
+                missing = self.surface()
+                missing['exports'] = dict.fromkeys(expected - {'_PyInit__' + name + '_rs'}, 0)
+                with self.assertRaisesRegex(ValueError, 'strong initializers'):
+                    self.check(image(), missing)
+
+    def test_rejects_weak_new_initializer(self):
+        surface = self.surface()
+        surface['exports']['_PyInit__socket_rs'] = 4
+        with self.assertRaisesRegex(ValueError, 'strong initializers'):
+            self.check(image(), surface)
+
     def test_retains_tls_bss_inventory_and_exact_page_boundary(self):
         proof = self.check(image(section_flags=0x12))
         self.assertEqual(proof['segments']['__DATA']['sections'][0]['type'], 0x12)
