@@ -5626,6 +5626,26 @@ the narrow correction must preserve exact TLS kind flags and prove the saved
 full-provider/consumer/native-core closure before another build. No candidate
 stage, restricted metadata equality, RSS win or goal-count change is established.
 
+The narrow TLS correction `6f805c5` passes45 recipe tests and independent
+review, then reparses all seven saved images without byte changes; the exact
+required export closure has29 symbols. Clean349 at primary `86dffe6` reaches
+both successful producer replays. Their7,465,885B full metadata files have
+identical SHA256 `ab4627f150ae2a4d9cd1c1e0447de7e8223b926ab3f7a72aaec7557d1758ce97`.
+Both dylibs remain1,333,040B with the same1,687 exports, so the exact-export
+gate stops publication: appending an export list does not override rustc's
+generated list. There is still no installed candidate or memory verdict.
+
+Small discovery compiles under the existing perf build lease establish the
+linker behavior before another full build. Appending keeps1,778 exports and
+an exclusion list fails because Darwin ld prohibits combining export and
+unexport lists. Replacing the one actual generated-list argument yields
+exactly two requested exports in the probe, identical full metadata and a
+successful reaped clang child in its owned compiler process group. Discovery
+leaves the accepted stage unchanged and is not acceptance evidence. A narrow
+producer-only adapter must now bind the original generated list, unchanged
+arguments, exact replacement, pinned clang and child lifetime; actual std
+linkage, runtime correctness and RSS remain unproved.
+
 Calibration reuse for third-consumer builder-only changes is independently
 proven against successful calibration344: only `_install_csv_source_std`
 changes in the entire perf.py AST, every other node and18 other harness
