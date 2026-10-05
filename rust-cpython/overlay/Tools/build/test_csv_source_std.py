@@ -766,6 +766,23 @@ class SourceStdExportClosure(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'native Python definition'):
             recipe.provider_export_closure(self.provider(), consumers, {'exports': {'__RNvneeded': 0}})
 
+    def test_restricted_linker_replaces_one_generated_policy_without_appending_another(self):
+        original = ['-dynamiclib', '-Wl,-exported_symbols_list', '-Wl,/owned/tmp/rustc123/list',
+                    '-arch', 'arm64', '-o', '/owned/restricted-provider/libstd.dylib', '-Wl,-dead_strip']
+        replaced, generated = recipe.replace_provider_export_argument(original, Path('/owned/provider-exports.txt'),
+                                                                       Path('/owned/restricted-provider/libstd.dylib'))
+        self.assertEqual(generated, Path('/owned/tmp/rustc123/list'))
+        self.assertEqual(replaced, [original[0], original[1], '-Wl,/owned/provider-exports.txt', *original[3:]])
+        self.assertEqual(original[2], '-Wl,/owned/tmp/rustc123/list')
+        for invalid in (original + ['-Wl,-unexported_symbols_list,/other'],
+                        original + original[1:3], original + ['@response'],
+                        [*original[:2], '-Wl,/path,withcomma', *original[3:]],
+                        [*original[:1], '-Wl,-exported_symbols_list,/combined', *original[3:]],
+                        [*original[:1], '-Xlinker', '-exported_symbols_list', *original[3:]]):
+            with self.assertRaises(ValueError):
+                recipe.replace_provider_export_argument(invalid, Path('/owned/provider-exports.txt'),
+                                                        Path('/owned/restricted-provider/libstd.dylib'))
+
     def test_restricted_system_import_subset_preserves_addends_and_original_identity(self):
         full = self.provider()
         closure = recipe.provider_export_closure(full, self.consumers())
