@@ -112,13 +112,16 @@ def _read_lock() -> tuple[dict[str, Any], Input]:
         entries = load_lock(SOURCE_LOCK)
     except (OSError, json.JSONDecodeError, KeyError, TypeError, InputError) as error:
         raise LaneError(f"cannot read Rust-for-CPython source lock: {error}") from error
-    if len(entries) != 1:
-        raise LaneError(f"{SOURCE_LOCK}: expected exactly one source input")
-    entry = entries[0]
+    names = {entry.name for entry in entries}
+    if "cpython-rust" not in names or names - {"cpython-rust", "rust-std-src"}:
+        raise LaneError(f"{SOURCE_LOCK}: expected CPython and only the named Rust std input")
+    entry = next(entry for entry in entries if entry.name == "cpython-rust")
     required = {
         "repository", "branch", "commit", "version", "license",
         "cargo_lock_sha256",
     }
+    if not isinstance(metadata, dict):
+        raise LaneError(f"{SOURCE_LOCK}: source metadata must be an object")
     missing = sorted(required - metadata.keys())
     if missing:
         raise LaneError(f"{SOURCE_LOCK}: source metadata is missing {', '.join(missing)}")
@@ -132,6 +135,86 @@ def _read_lock() -> tuple[dict[str, Any], Input]:
     ):
         raise LaneError(f"{SOURCE_LOCK}: source metadata and archive pin disagree")
     return metadata, entry
+
+
+def _read_rust_std_lock() -> tuple[dict[str, Any], Input]:
+    # The compiler source is a separate archive owner, never a replacement for
+    # CPython or a registry package with an invented path-crate checksum.
+    _read_lock()
+    try:
+        document = json.loads(SOURCE_LOCK.read_text())
+        metadata = document["rust_std_source"]
+        entries = [entry for entry in load_lock(SOURCE_LOCK)
+                   if entry.name == "rust-std-src"]
+        required = {"version", "compiler_revision", "library_cargo_lock_sha256", "license"}
+        if not isinstance(metadata, dict) or required - metadata.keys():
+            raise LaneError(f"{SOURCE_LOCK}: incomplete Rust std source metadata")
+        if len(entries) != 1:
+            raise LaneError(f"{SOURCE_LOCK}: expected the named Rust std source input")
+        entry = entries[0]
+        revision = metadata["compiler_revision"]
+        lock_hash = metadata["library_cargo_lock_sha256"]
+        if (not isinstance(metadata["license"], str) or not metadata["license"]
+                or entry.version != metadata["version"]
+                or entry.license != metadata["license"]
+                or entry.role != "build-source" or entry.target != MACOS_TARGET
+                or entry.url != f"https://static.rust-lang.org/dist/{RUST_CHANNEL.removeprefix('nightly-')}/rust-src-nightly.tar.xz"
+                or type(entry.size) is not int or entry.size <= 0
+                or not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None
+                or not isinstance(lock_hash, str) or re.fullmatch(r"[0-9a-f]{64}", lock_hash) is None):
+            raise LaneError(f"{SOURCE_LOCK}: Rust std metadata and archive pin disagree")
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, InputError) as error:
+        raise LaneError(f"cannot read Rust std source lock: {error}") from error
+    return metadata, entry
+
+
+def _rust_std_source_root(extraction: Path) -> Path:
+    metadata, _entry = _read_rust_std_lock()
+    archive = extraction / "rust-src-nightly"
+    library = archive / "rust-src/lib/rustlib/src/rust/library"
+    try:
+        if ((archive / "version").read_text().strip() != metadata["version"]
+                or (archive / "git-commit-hash").read_text().strip() != metadata["compiler_revision"]
+                or hashlib.sha256((library / "Cargo.lock").read_bytes()).hexdigest()
+                != metadata["library_cargo_lock_sha256"]):
+            raise LaneError("Rust std extracted version, revision or Cargo.lock differs from its pin")
+        for name in ("std", "core", "alloc", "panic_abort"):
+            if not (library / name / "Cargo.toml").is_file():
+                raise LaneError(f"Rust std source is missing {name}/Cargo.toml")
+    except OSError as error:
+        raise LaneError(f"cannot verify extracted Rust std source: {error}") from error
+    return library
+
+
+def _extract_rust_std_source(destination: Path) -> Path:
+    _metadata, source_input = _read_rust_std_lock()
+    blob = Cache(CACHE_ROOT).require(source_input)
+    # Fresh extraction restores all source bytes from the verified archive,
+    # including path crates that Cargo does not checksum. Header checks alone
+    # cannot authorize reuse of a previously modified compiler-source tree.
+    if destination.exists():
+        shutil.rmtree(destination)
+    return _rust_std_source_root(safe_extract(blob, destination))
+
+
+def _rust_std_source_environment(destination: Path) -> dict[str, str]:
+    metadata, source_input = _read_rust_std_lock()
+    library = _extract_rust_std_source(destination)
+    receipt = destination / "source-input.json"
+    receipt.write_text(json.dumps({
+        "schema": 1,
+        "input": dataclasses.asdict(source_input),
+        "input_identity": source_input.identity(),
+        "compiler_revision": metadata["compiler_revision"],
+        "library_cargo_lock_sha256": metadata["library_cargo_lock_sha256"],
+        "library": str(library.resolve()),
+    }, indent=2, sort_keys=True) + "\n")
+    return {
+        "PYTHON_BUILD_RUST_STD_SOURCE": str(library.resolve()),
+        "PYTHON_BUILD_RUST_STD_REVISION": metadata["compiler_revision"],
+        "PYTHON_BUILD_RUST_STD_LOCK_SHA256": metadata["library_cargo_lock_sha256"],
+        "PYTHON_BUILD_RUST_STD_INPUT_RECEIPT": str(receipt.resolve()),
+    }
 
 
 def _toolchain():
@@ -756,6 +839,13 @@ def fetch() -> int:
     except (InputError, OSError) as error:
         raise LaneError(f"cannot fetch the pinned CPython source: {error}") from error
     print(f"OK    source archive ({route}) -> {source_blob}")
+    if not IS_LINUX:
+        _std_metadata, std_input = _read_rust_std_lock()
+        try:
+            std_blob = Cache(CACHE_ROOT).fetch(std_input)
+        except (InputError, OSError) as error:
+            raise LaneError(f"cannot fetch the pinned Rust std source: {error}") from error
+        print(f"OK    Rust std source archive -> {std_blob}")
     _fetch_llvm(toolchain)
     print(f"OK    LLVM {toolchain.llvm_version} -> {toolchain.llvm_prefix}")
     if IS_LINUX:

@@ -18,6 +18,23 @@
       "target": "aarch64-apple-darwin",
       "license": "PSF-2.0",
       "purpose": "Pinned CPython 3.16.0a0 Rust-for-CPython source for an isolated native Apple Silicon research build"
+    },
+    {
+      "name": "rust-std-src",
+      "version": "1.100.0-nightly (574ff7d98 2026-09-14)",
+      "url": "https://static.rust-lang.org/dist/2026-09-15/rust-src-nightly.tar.xz",
+      "sha256": "dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5",
+      "size": 5927464,
+      "role": "build-source",
+      "target": "aarch64-apple-darwin",
+      "license": "MIT OR Apache-2.0",
+      "purpose": "Matching Rust compiler source for isolated source-built abort std; incorporated third-party licenses retained with the CSV route"
     }
-  ]
+  ],
+  "rust_std_source": {
+    "version": "1.100.0-nightly (574ff7d98 2026-09-14)",
+    "compiler_revision": "574ff7d98bd6d037e5236a8453029173b32631fd",
+    "library_cargo_lock_sha256": "75848db58a70444bfb62c649b103d19c5d92fede325eb0c8c0e5442848448669",
+    "license": "MIT OR Apache-2.0"
+  }
 }
