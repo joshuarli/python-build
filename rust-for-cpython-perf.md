@@ -5775,6 +5775,23 @@ establish a removable saving. Report SHA256 is
 Historical aggregate image attempts remain closed; any new packing proposal
 needs a concrete single-helper cold-data bound beyond aggregate image shrink.
 
+Source aggregate356 replaces the seven separate consumers and separate std
+image with one fresh static source-std image and seven relative extension
+aliases. Original helper bodies, initializers, module state, allocator,
+panic policy and public routes remain unchanged; pathlib stays stock.
+Admission requires protected `__DATA_CONST` and writable `__DATA` each to
+occupy at most one16KiB mapped page, not merely a smaller file. The original
+82-unit Cargo diagnostic compiles successfully but rejects an unused iconv
+load. A captured root replay and a subsequent fresh82-unit Cargo graph both
+pass with the aggregate-only `-Wl,-dead_strip_dylibs` option, System-only
+loads and the two-page bound. No load allowlist or page protection is relaxed.
+The frozen source at `9419e983` adds the recipe, layout proof and canonical
+installer;70 recipe/layout/inherited host tests pass. Builder report metadata
+changes from `rust_source_std` to `rust_source_aggregate`; measurement code
+and18 other harness inputs remain identical, allowing proven calibration344
+reuse. Installed correctness and RSS qualification remain pending. These
+diagnostics do not change the accepted runtime or memory-goal counts.
+
 The19:17 UTC sprint inspection finds one running child before three finite
 audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
 disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
