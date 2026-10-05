@@ -47,7 +47,7 @@ class SourceAggregate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
             args = ['--crate-name', recipe.CRATE, '--crate-type', 'cdylib', '--emit=dep-info,link',
-                    '--target', recipe.TARGET, '--sysroot', '/old']
+                    '--target', recipe.TARGET, '--sysroot', '/old', '-C', 'link-arg=-Wl,-dead_strip_dylibs']
             for name in recipe.CONSUMERS:
                 metadata = root / ('lib' + name + '.rmeta')
                 metadata.write_bytes(b'full')
@@ -64,6 +64,61 @@ class SourceAggregate(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'dynamic'):
                 recipe.target_arguments([*args, '-C', 'prefer-dynamic'], pairs, [], '/owned')
 
+    def test_compiler_logger_keeps_owned_lifetime_and_verified_probe_bypass(self):
+        import ast
+        original = Path(recipe.std.__file__).with_name('csv_source_std_rustc.py').read_text()
+        changed = recipe.logger_source()
+        compile(changed, 'aggregate-logger', 'exec')
+        imports = '    from csv_source_aggregate import target_arguments, helper_dependencies, CRATE\n'
+        row = ("    if not query and '--crate-name' in args and args[args.index('--crate-name') + 1] == CRATE:\n"
+               "        row['aggregate_dependencies'] = helper_dependencies(args)\n")
+        self.assertEqual(changed.replace(imports, '').replace(row, ''), original)
+        calls = [node for node in ast.walk(ast.parse(changed)) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Attribute) and node.func.attr == 'Popen']
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(next(keyword.value.value for keyword in calls[0].keywords if keyword.arg == 'start_new_session'))
+        self.assertIn("if config['runtime_pairs'] and not probe and not query:", changed)
+
+    def test_root_inputs_are_exact_successful_rlib_units_not_separate_helper_images(self):
+        import copy
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw).resolve()
+            pairs = {name: ['/' + name + '.rlib', '/' + name + '.rmeta'] for name in ('std', 'core', 'alloc')}
+            rows = []
+            original = ['rustc', '--crate-name', recipe.CRATE, '--crate-type', 'cdylib', '--emit=dep-info,link',
+                        '--target', recipe.TARGET, '--sysroot', '/original', '--out-dir', str(folder),
+                        '-C', 'link-arg=-Wl,-dead_strip_dylibs']
+            for name in recipe.CONSUMERS:
+                output = folder / name
+                output.mkdir()
+                for suffix in ('rlib', 'rmeta'):
+                    (output / ('lib' + name + '.' + suffix)).write_bytes((name + suffix).encode())
+                args = ['rustc', '--crate-name', name, '--crate-type', 'rlib', '--target', recipe.TARGET,
+                        '--sysroot', '/owned', '--out-dir', str(output)]
+                for runtime, paths in pairs.items():
+                    for path in paths:
+                        args += ['--extern', runtime + '=' + path]
+                rows.append({'argv': args, 'query': False, 'exit_code': 0, 'reaped_exit': 0})
+                original += ['--extern', name + '=' + str(output / ('lib' + name + '.rmeta'))]
+            actual = ['rustc', *recipe.target_arguments(original[1:], pairs, [], '/owned')]
+            root = {'original_argv': original, 'argv': actual, 'query': False, 'exit_code': 0,
+                    'reaped_exit': 0, 'aggregate_dependencies': recipe.helper_dependencies(actual)}
+            recipe.select_graph([*rows, root], pairs, '/owned', [])
+            for defect in ('missing', 'helper-image', 'wrong-input', 'root-arg', 'root-fail'):
+                altered, newroot = copy.deepcopy(rows), copy.deepcopy(root)
+                if defect == 'missing':
+                    altered.pop()
+                elif defect == 'helper-image':
+                    altered[0]['argv'][altered[0]['argv'].index('--crate-type') + 1] = 'cdylib'
+                elif defect == 'wrong-input':
+                    newroot['aggregate_dependencies']['_csv_rs'][0]['sha256'] = 'different'
+                elif defect == 'root-arg':
+                    newroot['argv'] += ['-C', 'prefer-dynamic']
+                else:
+                    newroot['exit_code'] = 1
+                with self.subTest(defect=defect), self.assertRaises(ValueError):
+                    recipe.select_graph([*altered, newroot], pairs, '/owned', [])
+
     def test_python_dynamic_lookups_are_only_exact_strong_input_bound_api_definitions(self):
         surface = {'loads': ['/usr/lib/libSystem.B.dylib'], 'exports': {name: 0 for name in recipe.INITS},
                    'imports': [{'symbol': '_malloc', 'ordinal': 1, 'weak': False},
@@ -79,6 +134,104 @@ class SourceAggregate(unittest.TestCase):
             recipe.verify_binding_surface({**surface, 'loads': [*surface['loads'], '@rpath/libstd.dylib']}, native)
         with self.assertRaises(ValueError):
             recipe.verify_binding_surface({**surface, 'exports': {**surface['exports'], '_new_api': 0}}, native)
+
+    def test_receipt_rejects_alias_runtime_metadata_and_canonical_owner_changes(self):
+        import copy
+        with tempfile.TemporaryDirectory() as raw:
+            work = Path(raw).resolve()
+            source, build = work / 'source', work / 'build'
+            source.mkdir(); build.mkdir()
+            root = build / 'source-aggregate356'
+            root.mkdir()
+            def write(path, content):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+                return recipe.std.artifact(path)
+            def runtime_unit(name, dependencies=()):
+                output = root / 'std-target' / name
+                for suffix in ('rlib', 'rmeta'):
+                    write(output / ('lib' + name + '.' + suffix), (name + suffix).encode())
+                argv = ['rustc', '--crate-name', name, '--crate-type', 'rlib', '--target', recipe.TARGET,
+                        '--out-dir', str(output)]
+                for dependency in dependencies:
+                    argv += ['--extern', dependency + '=' + str(root / 'std-target' / dependency / ('lib' + dependency + '.rmeta'))]
+                return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
+            core = runtime_unit('core')
+            alloc = runtime_unit('alloc', ('core',))
+            std = runtime_unit('std', ('core', 'alloc'))
+            runtime_rows = [std, core, alloc]
+            runtime = recipe.prepare_runtime(root, std, runtime_rows)
+            leaves = []
+            root_args = ['rustc', '--crate-name', recipe.CRATE, '--crate-type', 'cdylib', '--emit=dep-info,link',
+                         '--target', recipe.TARGET, '--sysroot', '/original',
+                         '--out-dir', str(root / 'consumer-target' / 'aggregate'),
+                         '-C', 'link-arg=-Wl,-dead_strip_dylibs']
+            for name in recipe.CONSUMERS:
+                output = root / 'consumer-target' / name
+                for suffix in ('rlib', 'rmeta'):
+                    write(output / ('lib' + name + '.' + suffix), (name + suffix).encode())
+                argv = ['rustc', '--crate-name', name, '--crate-type', 'rlib', '--target', recipe.TARGET,
+                        '--out-dir', str(output), '--sysroot', runtime['target_sysroot']['path']]
+                for label, pair in runtime['pairs'].items():
+                    for path in pair:
+                        argv += ['--extern', label + '=' + path]
+                leaves.append({'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0})
+                root_args += ['--extern', name + '=' + str(output / ('lib' + name + '.rmeta'))]
+            actual = ['rustc', *recipe.target_arguments(root_args[1:], runtime['pairs'], runtime['directories'], runtime['target_sysroot']['path'])]
+            unit = {'argv': actual, 'original_argv': root_args, 'query': False, 'exit_code': 0,
+                    'reaped_exit': 0, 'aggregate_dependencies': recipe.helper_dependencies(actual)}
+            compiler_path = recipe.std.runtime_output_paths(unit)[0].with_suffix('.dylib')
+            raw_image = write(compiler_path, b'raw')
+            raw_metadata = write(compiler_path.with_suffix('.rmeta'), b'root metadata')
+            finalized = write(root / 'final' / recipe.BASENAME, b'signed')
+            canonical = write(build / 'target' / recipe.TARGET / 'release' / recipe.BASENAME, b'signed')
+            surface = {'loads': ['/usr/lib/libSystem.B.dylib'], 'exports': {name: 0 for name in recipe.INITS},
+                       'imports': [], 'install_id': '@rpath/' + recipe.BASENAME}
+            layout = {'link_surface': surface}
+            aggregate = {**canonical, 'final_artifact': finalized, 'compiler_artifact': raw_image,
+                         'metadata': raw_metadata, 'unit_receipt': unit, 'install_id': surface['install_id'],
+                         'layout': layout, 'raw_layout': layout, 'mandatory_exports': []}
+            consumers = {}
+            for name, leaf in zip(recipe.CONSUMERS, leaves):
+                alias = Path(canonical['path']).with_name('lib' + name + '.dylib')
+                alias.symlink_to(recipe.BASENAME)
+                code, metadata = recipe.std.runtime_artifacts(leaf)
+                consumers[name] = {'path': str(alias), 'sha256': canonical['sha256'], 'size': canonical['size'],
+                                   'rlib': recipe.std.artifact(code), 'metadata': recipe.std.artifact(metadata), 'unit_receipt': leaf}
+            native = write(build / 'libpython3.16.dylib', b'input-bound native Python')
+            binding = write(root / 'consumer-target/cpython-sys/c_api.rs', b'typed API')
+            metadata = {'sha256': 'archive', 'compiler_revision': 'revision', 'library_cargo_lock_sha256': 'lock'}
+            receipt = {'schema_version': 1, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+                       'profile': 'release', 'panic': 'abort', 'allocator': 'System',
+                       'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'revision',
+                                  'std_lock_sha256': 'lock', 'input_files': {}},
+                       'runtime_pairs': runtime['pairs'], 'runtime_files': runtime['files'],
+                       'runtime_directories': runtime['directories'], 'target_sysroot': runtime['target_sysroot'],
+                       'aggregate': aggregate, 'native_api': native, 'consumers': consumers,
+                       'generated_bindings': [binding], 'units': [*runtime_rows, *leaves, unit]}
+            packet = root / 'receipt.json'
+            with patch.object(recipe, 'verify_aggregate_layout', return_value=layout), \
+                 patch.object(recipe.std, 'macho_link_surface', return_value=surface), \
+                 patch.object(recipe.std, 'verify_compiler_units'):
+                packet.write_text(json.dumps(receipt))
+                self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
+                for defect in ('schema', 'runtime', 'metadata', 'native-owner', 'canonical', 'extra-helper'):
+                    altered = copy.deepcopy(receipt)
+                    if defect == 'schema':
+                        altered['schema_version'] = 8
+                    elif defect == 'runtime':
+                        altered['runtime_pairs']['std'] = altered['runtime_pairs']['core']
+                    elif defect == 'metadata':
+                        altered['aggregate']['metadata']['sha256'] = 'wrong'
+                    elif defect == 'native-owner':
+                        altered['native_api'] = raw_image
+                    elif defect == 'canonical':
+                        altered['aggregate']['path'] = consumers['_csv_rs']['path']
+                    else:
+                        altered['consumers']['_pathlib_rs'] = consumers['_csv_rs']
+                    packet.write_text(json.dumps(altered))
+                    with self.subTest(defect=defect), self.assertRaises(ValueError):
+                        recipe.verify_build_receipt(source, build, recipe.TARGET, metadata)
 
     def test_publication_has_one_canonical_copy_and_only_relative_same_directory_aliases(self):
         with tempfile.TemporaryDirectory() as raw:
