@@ -512,12 +512,23 @@ def replace_provider_export_argument(arguments, exports_path, expected_output):
     return arguments, generated
 
 
+def producer_linker_positions(arguments, pinned_clang=None):
+    positions = [i for i, arg in enumerate(arguments) if arg.startswith('linker=')]
+    if (not positions or any(i == 0 or arguments[i - 1] != '-C' for i in positions)
+            or any(arg.startswith(('-Clinker', '-C=linker', '--codegen=linker')) for arg in arguments)
+            or len({arguments[i] for i in positions}) != 1):
+        raise ValueError('producer must have one explicit original linker identity')
+    if pinned_clang is not None and arguments[positions[0]] != 'linker=' + pinned_clang:
+        raise ValueError('producer original linker differs from pinned clang')
+    return positions
+
+
 def restricted_producer_arguments(original, output, linker_path):
     arguments = producer_arguments(original, output)
-    positions = [i for i, arg in enumerate(arguments) if arg.startswith('linker=')]
-    if len(positions) != 1 or positions[0] == 0 or arguments[positions[0] - 1] != '-C':
-        raise ValueError('producer must have one explicit original linker')
-    arguments[positions[0]] = 'linker=' + str(linker_path)
+    positions = producer_linker_positions(arguments)
+    # Cargo can repeat the same linker through target settings and codegen flags.
+    # Rustc uses the last setting; retain earlier settings and every other argument.
+    arguments[positions[-1]] = 'linker=' + str(linker_path)
     return arguments
 
 
@@ -1060,8 +1071,7 @@ def verify_export_policy(receipt, root):
     std_unit = select_std_unit(receipt['units'])
     expected_full = producer_arguments(std_unit['argv'], full.parent)
     config = json.loads(Path(policy['linker_config']['path']).read_text())
-    if [arg[7:] for arg in std_unit['argv'] if arg.startswith('linker=')] != [config['clang']]:
-        raise ValueError('producer original linker differs from pinned clang')
+    producer_linker_positions(std_unit['argv'], config['clang'])
     expected_restricted = restricted_producer_arguments(std_unit['argv'], root / 'restricted-provider', root / 'provider-linker.py')
     if policy['full_argv'] != expected_full or policy['restricted_argv'] != expected_restricted:
         raise ValueError('provider replay arguments changed')
@@ -1294,9 +1304,7 @@ def build_recipe(source, build, target, profile, jobs):
         files[str(exports_path)] = digest(exports_path)
         restricted_directory = root / 'restricted-provider'
         restricted_directory.mkdir()
-        original_linkers = [arg[7:] for arg in original if arg.startswith('linker=')]
-        if original_linkers != [clang]:
-            raise ValueError('producer original linker differs from pinned clang')
+        producer_linker_positions(original, clang)
         linker_path = root / 'provider-linker.py'
         linker_config = root / 'provider-linker-config.json'
         link_files = {**files, **runtime_files}
