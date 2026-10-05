@@ -5746,6 +5746,35 @@ remain unchanged. Diagnostic result `std355-consumer-graph-probe-v1/result.json`
 SHA256 is `4e1e2b72fd2ea80294c0760353748c7089b5d249bbf27eebae5e75cecb90336c`.
 This is compiler feasibility, not an installed candidate or memory verdict.
 
+Ordinary clean355 at `6d13d39` passes in247.8s with58 verified Rust extensions.
+The seven affected suites plus stock pathlib pass4,158 tests with468 skips in
+17.8s. Candidate stage identity is
+`886af72127947f46bcb1e0034913db2cb2dcd1459839a902bb5b3e5b01528e98`.
+The fresh two-run memory screen REJECTS in35.2s: JSON load1.045959x
+[1.023229,1.058702], worse in both runs. CSV load is neutral1.072125x;
+completed working rows are neutral. Zlib streaming RSS is pooled neutral
+1.017311x [1.015810,1.018812], with per-run worse/neutral; preserve the adverse
+first run. Sampling stops after JSON in run2, leaving six module entities
+incomplete. Verdict `20261005T193153Z-perf-rust-vs-perf-std355` SHA256 is
+`acdb13ff994d1fd0ee5ff1c4f8ae403c6d131f6bb81da3c855d2ba012ddcd476`.
+The unchanged seven roster is closed without adoption, native/moved contract
+execution, full suites or all-workload qualification. Goal counts stay unchanged.
+
+A separate paired, parked JSON diagnostic preserves the exact setup/call
+order and retained objects, observes four phases with external vmmap, and
+finishes with matching output digests, reaped children, removed temporary paths
+and unchanged source/harness/stage identities. The consumer still dirties one
+16KiB DATA and one16KiB DATA_CONST page on each side; the candidate's separate
+std provider adds another page of each kind. After the first call its malloc
+zone has identical allocation counts/allocated bytes and one fewer resident
+page. Both first-call physical totals are equal within24B, while the candidate
+starts48KiB lower. This perturbed single pair identifies an additional32KiB
+native-image owner; it does not explain the complete replicated regression or
+establish a removable saving. Report SHA256 is
+`fef22330453099a604e024b02d7b92515e1342317604705583b03dea68ed9cd2`.
+Historical aggregate image attempts remain closed; any new packing proposal
+needs a concrete single-helper cold-data bound beyond aggregate image shrink.
+
 The19:17 UTC sprint inspection finds one running child before three finite
 audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
 disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
