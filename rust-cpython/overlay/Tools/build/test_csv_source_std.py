@@ -603,5 +603,122 @@ class SourceStdArguments(unittest.TestCase):
 
 
 
+
+class SourceStdExportClosure(unittest.TestCase):
+    def provider(self):
+        exports = {name: 0 for name in recipe.EXPORT_SAFETY_ROOTS}
+        exports.update({'_needed': 0, '_unused': 0,
+                        '___isOSVersionAtLeast': 4, '___isPlatformVersionAtLeast': 4})
+        return {'install_id': '/owned/full/libstd-hash.dylib',
+                'loads': ['/usr/lib/libSystem.B.dylib'], 'exports': exports,
+                'imports': [{'ordinal': 1, 'weak': False, 'symbol': '_malloc'}]}
+
+    def consumers(self):
+        result = {name: {'loads': ['/owned/full/libstd-hash.dylib'], 'imports': []}
+                  for name in recipe.CONSUMERS}
+        result['_csv_rs']['imports'] = [{'ordinal': 1, 'weak': False, 'symbol': '_needed'}]
+        return result
+
+    def test_export_closure_uses_exact_provider_ordinal_and_accepts_empty_consumer(self):
+        consumers = self.consumers()
+        consumers['_json_rs']['loads'].append('/usr/lib/libSystem.B.dylib')
+        consumers['_json_rs']['imports'].append({'ordinal': 2, 'weak': False, 'symbol': '_unused'})
+        closure = recipe.provider_export_closure(self.provider(), consumers)
+        self.assertIn('_needed', closure['symbols'])
+        self.assertNotIn('_unused', closure['symbols'])
+        self.assertEqual(closure['consumer_imports']['_typing_rs'], [])
+        self.assertTrue(set(recipe.EXPORT_SAFETY_ROOTS) <= set(closure['symbols']))
+        self.assertIn('___isOSVersionAtLeast', closure['symbols'])
+
+    def test_missing_consumer_or_provider_symbol_fails_instead_of_flat_union_fallback(self):
+        consumers = self.consumers()
+        del consumers['_typing_rs']
+        with self.assertRaisesRegex(ValueError, 'roster'):
+            recipe.provider_export_closure(self.provider(), consumers)
+        consumers = self.consumers()
+        consumers['_csv_rs']['imports'][0]['symbol'] = '_missing'
+        with self.assertRaisesRegex(ValueError, 'definition'):
+            recipe.provider_export_closure(self.provider(), consumers)
+
+    def test_weak_self_and_flat_lookup_bindings_are_rejected(self):
+        for ordinal in (0, -1, -2, -3, 2):
+            provider = self.provider()
+            provider['imports'][0]['ordinal'] = ordinal
+            with self.assertRaisesRegex(ValueError, 'provider import'):
+                recipe.provider_export_closure(provider, self.consumers())
+        consumers = self.consumers()
+        consumers['_csv_rs']['imports'][0]['weak'] = True
+        with self.assertRaisesRegex(ValueError, 'weak'):
+            recipe.provider_export_closure(self.provider(), consumers)
+
+    def test_provider_weak_definition_and_allocator_roots_are_exact(self):
+        for symbol in (*recipe.EXPORT_SAFETY_ROOTS, '___isOSVersionAtLeast'):
+            provider = self.provider()
+            del provider['exports'][symbol]
+            with self.assertRaisesRegex(ValueError, 'safety root'):
+                recipe.provider_export_closure(provider, self.consumers())
+        provider = self.provider()
+        provider['exports']['_new_weak'] = 4
+        with self.assertRaisesRegex(ValueError, 'weak definition'):
+            recipe.provider_export_closure(provider, self.consumers())
+
+    def test_restricted_metadata_changes_and_missing_or_extra_exports_fail(self):
+        full = self.provider()
+        closure = recipe.provider_export_closure(full, self.consumers())
+        restricted = {**full, 'exports': {s: full['exports'][s] for s in closure['symbols']}}
+        recipe.verify_restricted_provider(full, restricted, closure, 'same', 'same')
+        with self.assertRaisesRegex(ValueError, 'metadata'):
+            recipe.verify_restricted_provider(full, restricted, closure, 'first', 'second')
+        for symbol in ('_needed', '_unused'):
+            changed = {**restricted, 'exports': dict(restricted['exports'])}
+            if symbol in changed['exports']:
+                del changed['exports'][symbol]
+            else:
+                changed['exports'][symbol] = 0
+            with self.assertRaisesRegex(ValueError, 'export'):
+                recipe.verify_restricted_provider(full, changed, closure, 'same', 'same')
+
+    def test_restricted_replay_preserves_all_original_arguments_except_output_and_link_list(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            code = root / 'libcore.rlib'
+            code.write_bytes(b'code')
+            original = ['rustc', '--crate-type', 'rlib', '--out-dir', '/old',
+                        '--extern', 'priv:core=' + str(code.with_suffix('.rmeta')),
+                        '-C', 'metadata=identity', '--emit=dep-info,metadata,link']
+            full = recipe.producer_arguments(original, root / 'full')
+            restricted = recipe.restricted_producer_arguments(original, root / 'provider', root / 'exports.txt')
+            self.assertEqual(restricted[:-2], recipe.producer_arguments(original, root / 'provider'))
+            self.assertEqual(restricted[-2:], ['-C', 'link-arg=-Wl,-exported_symbols_list,' + str(root / 'exports.txt')])
+            self.assertIn('metadata=identity', full)
+
+    def test_macho_surface_rejects_truncated_unaligned_and_wrong_image_headers(self):
+        import _struct
+        def image(commands, count=1, kind=6):
+            return _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, kind, count, len(commands), 0, 0) + commands
+        for data in (b'', image(_struct.pack('<II', 2, 9) + b'x'),
+                     image(_struct.pack('<II', 2, 24)), image(b'', 0, 8)):
+            with self.assertRaises(ValueError):
+                recipe.macho_link_surface(data)
+
+    def test_macho_surface_keeps_chained_import_ordinals_and_flags(self):
+        import _struct
+        def command(tag, name):
+            text = name.encode() + b'\0'
+            size = (24 + len(text) + 7) & ~7
+            return _struct.pack('<6I', tag, size, 24, 0, 0, 0) + text + bytes(size - 24 - len(text))
+        load = command(12, '/usr/lib/libSystem.B.dylib')
+        identity = command(13, '/owned/libstd.dylib')
+        payload = _struct.pack('<7I', 0, 28, 32, 36, 1, 1, 0) + _struct.pack('<II', 0, 1 | (1 << 8)) + b'_malloc\0'
+        offset = 32 + len(load) + len(identity) + 16
+        commands = load + identity + _struct.pack('<4I', 0x80000034, 16, offset, len(payload))
+        data = _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 3, len(commands), 0, 0) + commands + payload
+        surface = recipe.macho_link_surface(data)
+        self.assertEqual(surface['imports'], [{'ordinal': 1, 'weak': True, 'symbol': '_malloc'}])
+        self.assertEqual(surface['install_id'], '/owned/libstd.dylib')
+        with self.assertRaises(ValueError):
+            recipe.macho_link_surface(data[:-1])
+
+
 if __name__ == '__main__':
     unittest.main()
