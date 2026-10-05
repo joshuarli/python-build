@@ -5868,6 +5868,33 @@ These section facts do not explain resident RSS. Parked workload attribution
 must distinguish image, core/shared-cache lookup and heap owners before any
 changed candidate is proposed. Accepted memory-goal counts remain unchanged.
 
+Parked361 executes the unchanged eight-iteration zlib workload twice on the
+seven/eleven-helper stages with matching outputs and verified input/stage
+identities. Both children are reaped and temporary aliases removed. Named
+image resident and dirty deltas are zero; the aggregate's additional mapped
+LINKEDIT tail is not resident. All RSS differences match extra resident
+DefaultMallocZone pages:20 before workload loading,28 after import,35 after
+the first run and37 after the second. Live allocation counts and rounded
+allocated bytes match. The aggregate is not loaded at the first checkpoint.
+This single observer-perturbed pair localizes the difference to heap pages
+but does not identify a causal allocation site or justify a repeated screen.
+Report SHA256 is
+`374a98065f0131b35fd76ee38c8adb21998fa3045c51bf249bf49be5699d609e`.
+
+The SQLite correction's incremental attempt correctly fails when install
+relinks the pinned libpython input; the original359 stage, complete source/
+build/compiler receipts and report are preserved separately. Fresh360 at
+`41ee1592` passes its227.9s clean build, all three delegate regressions and
+two capsule tests, and complete SQLite/dbm/shelve suites (954 run/14 skipped).
+The original combined exception oracle now passes unchanged, with native
+function ownership, four joined workers, three shared-GIL cycles, three
+own-GIL success/refusal cycles and relocation under a path with spaces.
+Stage SHA256 is
+`1d90628ca3f7da2df44b7df0c181a3e3939dea59ef58ac6a69ec7f85a227a080`.
+This verifies correctness, not a new memory mechanism. Rejected aggregation
+is not adopted or screened unchanged again; interpreter/image crossover
+attribution is the next diagnostic before proposing another memory change.
+
 The renewed throughput audit finds23 unresolved module goals (21 load,
 zstd working OVER and ElementTree working UNCLEAR) and12 absolute workload
 RSS regressions. Seven recent shared-runtime strategies342/343/345/346/352/
