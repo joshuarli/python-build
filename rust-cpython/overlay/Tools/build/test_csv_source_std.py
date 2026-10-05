@@ -841,10 +841,12 @@ class SourceStdExportClosure(unittest.TestCase):
     def test_chained_pointer_site_addends_distinguish_identical_import_tables(self):
         zero = recipe.macho_link_surface(self.chained_image())['imports']
         positive = recipe.macho_link_surface(self.chained_image(site_addend=1))['imports']
-        negative = recipe.macho_link_surface(self.chained_image(site_addend=-1, table_addend=-5))['imports']
+        negative = recipe.macho_link_surface(self.chained_image(site_addend=1, table_addend=-5))['imports']
         self.assertEqual(zero[0]['addend'], 0)
         self.assertEqual(positive[0]['addend'], 1)
-        self.assertEqual(negative[0]['addend'], -6)
+        self.assertEqual(negative[0]['addend'], -4)
+        self.assertEqual(recipe.macho_link_surface(self.chained_image(site_addend=128))['imports'][0]['addend'], 128)
+        self.assertEqual(recipe.macho_link_surface(self.chained_image(site_addend=255, table_addend=-5))['imports'][0]['addend'], 250)
         self.assertNotEqual(zero, positive)
 
     def test_chained_pointer_formats_and_site_bounds_fail_closed(self):
@@ -852,7 +854,7 @@ class SourceStdExportClosure(unittest.TestCase):
                      self.chained_image(next_stride=4095)):
             with self.assertRaises(ValueError):
                 recipe.macho_link_surface(data)
-        self.assertEqual(recipe.macho_link_surface(self.chained_image(pointer_format=2, site_addend=-128))['imports'][0]['addend'], -128)
+        self.assertEqual(recipe.macho_link_surface(self.chained_image(pointer_format=2, site_addend=128))['imports'][0]['addend'], 128)
 
     def test_macho_surface_keeps_chained_import_ordinals_and_flags(self):
         data = self.chained_image()

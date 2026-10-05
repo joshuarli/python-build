@@ -345,7 +345,7 @@ def macho_link_surface(data):
             symbol, _ = string(blob, strings + name)
             import_table.append({'ordinal': ordinal, 'weak': weak, 'symbol': symbol, 'addend': addend})
         # Import-table addends alone do not describe a binding: each supported
-        # 64-bit pointer carries its own signed eight-bit addend as well.
+        # 64-bit pointer carries an unsigned eight-bit addend as well.
         require(starts + 4 <= len(blob), 'fixups starts header')
         segment_count, = struct.unpack_from('<I', blob, starts)
         require(segment_count == len(segments) and starts + 4 + segment_count * 4 <= table,
@@ -394,8 +394,6 @@ def macho_link_surface(data):
                             index = bits & 0xffffff
                             require(index < len(import_table), 'fixups pointer import index')
                             addend = (bits >> 24) & 255
-                            if addend >= 128:
-                                addend -= 256
                             entry = import_table[index]
                             combined = entry['addend'] + addend
                             require(-(1 << 63) <= combined < 1 << 63, 'fixups combined addend overflow')
