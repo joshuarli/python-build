@@ -146,8 +146,11 @@ def select_graph(units, pairs, view, directories):
     selected = std.consumer_units(units, pairs, view)
     for name, unit in selected.items():
         types = [unit['argv'][i + 1] for i, arg in enumerate(unit['argv'][:-1]) if arg == '--crate-type']
-        if types != ['rlib']:
-            raise ValueError('aggregate helper emitted a separate image: ' + name)
+        # Unchanged helper manifests emit both private images and archives.
+        # Only the exact archive and full metadata pair is bound into the root;
+        # publication installs the aggregate image and its relative aliases.
+        if types != ['cdylib', 'rlib']:
+            raise ValueError('aggregate helper compiler types changed: ' + name)
         std.runtime_artifacts(unit)
     roots = [unit for unit in units if not unit['query'] and '--crate-name' in unit['argv']
              and unit['argv'][unit['argv'].index('--crate-name') + 1] == CRATE]
