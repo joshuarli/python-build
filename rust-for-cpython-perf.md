@@ -4439,6 +4439,41 @@ target-only screens remain pending; no component is adopted.
 
 ## Memory sprint continuation (2026-10-04, UUID258)
 
+The subsequent accepted-only co-import inventory264 completed71 successful
+fresh-kernel observations at the unchanged e702 stage. Each observation records
+helper origins after baseline, declared imports, first setup/call and second
+setup/call. First and second results match, stage/source guards pass and every
+owned process group is reaped. The initial multiprocessing diagnostic lacked
+the spawn entry-point guard; that forced-9 failure is preserved and only that
+route was rerun with a versioned guarded launcher, making72 attempts overall.
+After excluding builtin/nonshared, no_std and always-baseline helpers, no pair
+has identical presence vectors at every phase across all71 kernels. This
+closes the proposed equivalence-derived shared-image partition without an
+implementation; import equivalence alone would not prove resident savings.
+The completed summary SHA256 is
+`f5947fdeb4b51f64e25aaf56fbdf98cf0b4f2e821a89203f439ae9b5966b9d6c`.
+
+Post-inventory inspection found the six unchanged regex kernel programs have
+42,69,36,70,45 and40 words. An independent source bound limits their validator
+pending list to20 entries: ordinary instructions add no net pending entry,
+at most17 disjoint four-word repeat headers add one each, and the sole
+two-arm branch adds at most two. Both buffers therefore fit the closed187
+256-word/32-entry inline-storage experiment. Allocation-free validator
+algorithm263 has no uncovered fixed-kernel allocation owner and closes before
+implementation. This conclusion does not cover uncaptured workload programs.
+
+Regex265 instead targets the cold helper module/image through the existing
+core SRE owner, using the unchanged borrowed-program executor in a small local
+kernel crate. The standalone helper and its allocator remain separate. This
+experiment intentionally suppresses the initial private helper import on the
+cold path, including unsupported programs that return False/status0 and use
+the native Pattern fallback. Context refusals return NotImplemented before
+conversion and retain the original getter/cache/preloaded-provider path;
+existing getter overrides, module-map entries and interpreter behavior remain
+contracts. Its original accepted borrowed-program fixture passes all12 cases,
+including legacy hooks and own-GIL fallback. Source implementation is underway;
+no candidate runtime, footprint saving, acceptance or goal completion exists.
+
 Collections261 subsequently tested the cold helper-module ownership boundary
 through a raw Rust callback in the existing C core. The unchanged standalone
 helper remains installed; existing module-map entries retain the original
