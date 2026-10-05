@@ -144,41 +144,39 @@ def input_files(source, build, library, compiler):
     return files
 
 
-def materialize_vendor(library, cargo_home, destination):
+def validate_vendor(library):
     lock = tomllib.loads((library / 'Cargo.lock').read_text())
-    archives, files = [], {}
-    destination.mkdir()
+    records, files = [], {}
     for package in lock['package']:
         if 'source' not in package:
             continue
-        name = package['name'] + '-' + package['version']
-        matches = list((cargo_home / 'registry/cache').glob('*/' + name + '.crate'))
-        if len(matches) != 1 or digest(matches[0]) != package['checksum']:
-            raise ValueError('locked std registry archive missing or changed: ' + name)
-        archives.append(artifact(matches[0]))
-        folder = destination / name
-        checks = {}
-        with tarfile.open(matches[0], 'r:gz') as stream:
-            for member in stream.getmembers():
-                parts = Path(member.name).parts
-                if not parts or parts[0] != name or '..' in parts or Path(member.name).is_absolute():
-                    raise ValueError('std archive member outside package')
-                if member.isdir():
-                    continue
-                if not member.isfile() or len(parts) < 2:
-                    raise ValueError('std archive member is not a regular file')
-                path = folder.joinpath(*parts[1:])
-                path.parent.mkdir(parents=True, exist_ok=True)
-                if path.exists():
-                    raise ValueError('duplicate std archive member')
-                path.write_bytes(stream.extractfile(member).read())
-                relative = '/'.join(parts[1:])
-                checks[relative] = digest(path)
-                files[str(path)] = checks[relative]
+        folder = library / 'vendor' / (package['name'] + '-' + package['version'])
         checksum = folder / '.cargo-checksum.json'
-        checksum.write_text(json.dumps({'package': package['checksum'], 'files': checks}) + '\n')
-        files[str(checksum)] = digest(checksum)
-    return archives, files
+        checks = json.loads(checksum.read_text())
+        if checks['package'] != package['checksum']:
+            raise ValueError('stdlib vendor package checksum mismatch')
+        for raw, expected in checks['files'].items():
+            path = folder / raw
+            if not path.resolve(strict=True).is_relative_to(folder.resolve()) or digest(path) != expected:
+                raise ValueError('stdlib vendor file changed: ' + raw)
+            files[str(path.resolve())] = expected
+        files[str(checksum.resolve())] = digest(checksum)
+        records.append({'name': package['name'], 'version': package['version'],
+                        'source': package['source'], 'checksum': package['checksum']})
+    return records, files
+
+
+def runtime_artifacts(unit):
+    args = unit['argv']
+    name = args[args.index('--crate-name') + 1]
+    extra = next(args[i + 1].split('=', 1)[1] for i, arg in enumerate(args[:-1])
+                 if arg == '-C' and args[i + 1].startswith('extra-filename='))
+    folder = Path(args[args.index('--out-dir') + 1])
+    code = folder / ('lib' + name + extra + '.rlib')
+    full = code.with_suffix('.rmeta')
+    if not code.is_file() or not full.is_file():
+        raise ValueError('missing exact runtime code/full metadata pair: ' + name)
+    return code, full
 
 
 def runtime_closure(std_unit, units):
@@ -456,7 +454,7 @@ def build_recipe(source, build, target, profile, jobs):
                     'cargo_sha256': digest(cargo), 'commit_hash': REVISION, 'sysroot': str(sysroot)}
         files = input_files(source, build, library, compiler)
         files[str(input_receipt)] = digest(input_receipt)
-        std_registry, vendor_files = materialize_vendor(library, Path(env['CARGO_HOME']), root / 'vendor')
+        std_registry, vendor_files = validate_vendor(library)
         files.update(vendor_files)
         registry, registry_sources = validate_csv_cache(source, Path(env['CARGO_HOME']))
         files.update(registry_sources)
@@ -498,7 +496,7 @@ def build_recipe(source, build, target, profile, jobs):
                     '--config', 'host.linker=' + json.dumps(clang), '--config', 'target.' + target + '.linker=' + json.dumps(clang),
                     '--config', 'host.rustflags=' + json.dumps(flags), '--config', 'target.' + target + '.rustflags=' + json.dumps(flags),
                     '--config', 'source.crates-io.replace-with="csv-std-vendor"',
-                    '--config', 'source.csv-std-vendor.directory=' + json.dumps(str(root / 'vendor'))]
+                    '--config', 'source.csv-std-vendor.directory=' + json.dumps(str(library / 'vendor'))]
         run(std_args, probe, std_env, root / 'logs/std-build', commands, 900)
         units = [json.loads(p.read_text()) for p in (root / 'std-units').glob('*.json')]
         std_unit = select_std_unit(units)
@@ -527,20 +525,15 @@ def build_recipe(source, build, target, profile, jobs):
                 continue
             if unit['exit_code'] != 0 or unit['reaped_exit'] != 0:
                 raise ValueError('failed source std dependency unit')
-            folder = Path(args[args.index('--out-dir') + 1])
-            libraries = list(folder.glob('*.rlib'))
-            if not libraries:
-                continue
-            directories.append(str(folder))
-            for code in libraries:
-                full = code.with_suffix('.rmeta')
-                runtime_files[str(code)] = digest(code)
-                runtime_files[str(full)] = digest(full)
+            code, full = runtime_artifacts(unit)
+            directories.append(str(code.parent))
+            runtime_files[str(code)] = digest(code)
+            runtime_files[str(full)] = digest(full)
             name = args[args.index('--crate-name') + 1]
             if name in ('core', 'alloc'):
-                if len(libraries) != 1 or name in pairs:
+                if name in pairs:
                     raise ValueError('ambiguous source runtime pair')
-                pairs[name] = [str(libraries[0]), str(libraries[0].with_suffix('.rmeta'))]
+                pairs[name] = [str(code), str(full)]
         if set(pairs) != {'std', 'core', 'alloc'}:
             raise ValueError('missing source runtime pair')
         config.update(target_directory=str(root / 'csv-target'), receipts=str(root / 'csv-units'),
@@ -582,7 +575,7 @@ def build_recipe(source, build, target, profile, jobs):
                               'std_source_path': str(library), 'std_archive_sha256': STD_ARCHIVE_SHA256,
                               'std_revision': REVISION, 'std_lock_sha256': STD_LOCK_SHA256, 'input_files': files,
                               'input_receipt': artifact(input_receipt)},
-                   'registry_archives': registry + std_registry, 'runtime_pairs': pairs, 'runtime_files': runtime_files,
+                   'registry_archives': registry, 'std_registry_packages': std_registry, 'runtime_pairs': pairs, 'runtime_files': runtime_files,
                    'provider': {**artifact(provider), 'install_id': install_id, 'dependencies': dependencies['provider'],
                                 'raw_artifact': raw_provider, 'build_mirror_path': mirror['path'],
                                 'build_mirror_sha256': mirror['sha256']},

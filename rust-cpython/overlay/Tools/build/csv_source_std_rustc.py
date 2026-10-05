@@ -48,9 +48,9 @@ def main():
     receipt = receipts / (str(os.getpid()) + '.json')
     process = subprocess.Popen([str(compiler), *args], start_new_session=True,
                                pass_fds=jobserver_fds(os.environ.get('CARGO_MAKEFLAGS', '')))
-    row.update(pid=process.pid, pgid=os.getpgid(process.pid), started_ns=time.time_ns())
-    receipt.write_text(json.dumps(row, indent=2) + '\n')
     try:
+        row.update(pid=process.pid, pgid=os.getpgid(process.pid), started_ns=time.time_ns())
+        receipt.write_text(json.dumps(row, indent=2) + '\n')
         row['exit_code'] = process.wait(timeout=180)
     finally:
         if process.poll() is None:

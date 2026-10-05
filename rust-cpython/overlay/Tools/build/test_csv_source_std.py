@@ -99,29 +99,63 @@ class SourceStdArguments(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'different owner'):
                 recipe.publish_build_mirror(provider, build)
 
-    def test_vendor_materialization_checks_archive_before_using_package_bytes(self):
+    def test_archive_vendor_checksum_validation_preserves_inputs_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as raw:
+            library = Path(raw).resolve()
+            package = library / 'vendor/tiny-1.0.0'
+            package.mkdir(parents=True)
+            source = package / 'lib.rs'
+            source.write_bytes(b'pub fn value() {}')
+            checksum = 'a' * 64
+            (library / 'Cargo.lock').write_text('version=4\n[[package]]\nname="tiny"\nversion="1.0.0"\nsource="registry+https://github.com/rust-lang/crates.io-index"\nchecksum="' + checksum + '"\n')
+            (package / '.cargo-checksum.json').write_text(json.dumps({'package': checksum, 'files': {'lib.rs': recipe.digest(source)}}))
+            before = {str(p): recipe.digest(p) for p in library.rglob('*') if p.is_file()}
+            records, files = recipe.validate_vendor(library)
+            self.assertEqual(records[0]['checksum'], checksum)
+            recipe.verify_files(files)
+            self.assertEqual(before, {str(p): recipe.digest(p) for p in library.rglob('*') if p.is_file()})
+            source.write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, 'vendor file changed'):
+                recipe.validate_vendor(library)
+
+    def test_runtime_output_selection_uses_exact_identity_in_shared_directory(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
-            library = root / 'library'
-            library.mkdir()
-            cache = root / 'cargo/registry/cache/index'
-            cache.mkdir(parents=True)
-            archive = cache / 'tiny-1.0.0.crate'
-            with tarfile.open(archive, 'w:gz') as stream:
-                data = b'[package]\nname="tiny"\nversion="1.0.0"\n'
-                member = tarfile.TarInfo('tiny-1.0.0/Cargo.toml')
-                member.size = len(data)
-                stream.addfile(member, io.BytesIO(data))
-            checksum = recipe.digest(archive)
-            (library / 'Cargo.lock').write_text('version=4\n[[package]]\nname="tiny"\nversion="1.0.0"\nsource="registry+https://github.com/rust-lang/crates.io-index"\nchecksum="' + checksum + '"\n')
-            archives, files = recipe.materialize_vendor(library, root / 'cargo', root / 'vendor')
-            self.assertEqual(archives[0]['sha256'], checksum)
-            recipe.verify_files(files)
-            record = json.loads((root / 'vendor/tiny-1.0.0/.cargo-checksum.json').read_text())
-            self.assertEqual(record['package'], checksum)
-            archive.write_bytes(b'tampered')
-            with self.assertRaisesRegex(ValueError, 'missing or changed'):
-                recipe.materialize_vendor(library, root / 'cargo', root / 'different-vendor')
+            for name in ('core-a', 'alloc-b', 'std-c'):
+                (root / ('lib' + name + '.rlib')).write_bytes(b'code')
+                (root / ('lib' + name + '.rmeta')).write_bytes(b'metadata')
+            unit = {'argv': ['rustc', '--crate-name', 'core', '-C', 'extra-filename=-a', '--out-dir', str(root)]}
+            code, full = recipe.runtime_artifacts(unit)
+            self.assertEqual(code.name, 'libcore-a.rlib')
+            self.assertEqual(full.name, 'libcore-a.rmeta')
+
+    def test_initial_receipt_failure_still_kills_and_reaps_compiler(self):
+        from unittest.mock import patch, Mock
+        spec = importlib.util.spec_from_file_location('csv_logger', Path(__file__).with_name('csv_source_std_rustc.py'))
+        logger = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logger)
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            compiler = root / 'rustc'
+            compiler.write_bytes(b'compiler')
+            config = root / 'config.json'
+            config.write_text(json.dumps({'rustc': str(compiler), 'rustc_sha256': recipe.digest(compiler),
+                                         'target_directory': str(root), 'source_files': {}, 'runtime_pairs': None,
+                                         'receipts': str(root / 'receipts')}))
+            process = Mock(pid=123456)
+            process.poll.return_value = None
+            process.wait.return_value = -9
+            with patch.dict(os.environ, {'CSV_SOURCE_STD_RUSTC_CONFIG': str(config)}), \
+                 patch.object(logger.sys, 'argv', ['logger', '-vV']), \
+                 patch.object(logger.subprocess, 'Popen', return_value=process), \
+                 patch.object(logger.os, 'getpgid', return_value=123456), \
+                 patch.object(logger.os, 'killpg') as kill, \
+                 patch.object(Path, 'write_text', side_effect=OSError('receipt unavailable')):
+                with self.assertRaises(OSError):
+                    logger.main()
+                kill.assert_called_once_with(123456, logger.signal.SIGKILL)
+                process.wait.assert_called_once()
+
 
 
 if __name__ == '__main__':
