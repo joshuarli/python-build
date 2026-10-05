@@ -39,6 +39,40 @@ builds, correctness and RSS measurements use the perf host lease. A change
 to the performance harness requires fresh memory-only calibration before
 comparison.
 
+### Current memory measurements (2026-10-05)
+
+The unchanged accepted runtime remains `perf-rust` at `e702f238`. A fresh
+complete71-module memory-only assessment takes565.0s with matched home and
+executable aliases, two independent runs and unchanged output checks. Its raw
+counts are11 OVER,15 UNCLEAR,44 MET and1 BEYOND. Verdict SHA256 is
+`a7ac78979c8b3201ce8afe68e1d9d68b535a60cffa05c0a9ec12654561cfef96`.
+The single rigorous follow-up over all15 uncertain routes takes218.3s;
+SSL and plistlib pass, three routes read OVER and ten remain UNCLEAR with
+pooled ratios above1.01. Those ten remain unresolved under the established
+uncertainty rule. Combined raw counts are14 OVER,10 UNCLEAR,46 MET and
+1 BEYOND: **47 passing and24 unresolved** after that treatment. Follow-up
+SHA256 is
+`0ecd5d8351ff6586d7877868c24e0278fe2195b22e84746cd4f88f4a11249504`.
+This replaces the older stitched48/23 picture; changed classifications on
+unchanged source do not establish new source improvements. Workload absolute
+RSS completion remains separately required; its last complete picture has
+12 regressions. No CPU, timing or host quietness requirement applies.
+
+The next distinct source experiment releases compiler arenas before code
+execution. Pinned CPython currently retains the main file/string/interactive
+AST arena through evaluation; compiled code owns its references independently,
+and the existing compile-string path already frees its arena before execution.
+A recursion-free C allocator observer reproduces retained8224-byte compiler
+chunks during controlled exec/linecache callbacks on the accepted runtime.
+Seven lifetime cases fail as expected and parser-error cleanup passes; all
+chunks are freed at API return. An initial observer incorrectly included
+unrelated traceback imports; the corrected filename-scoped oracle preserves
+the original allocation bookkeeping and all eight judges. Implementation and
+memory qualification remain pending. This changes arena lifetime rather than
+the allocator. Rejected aggregation sources/artifacts remain preserved on their
+closed branch; the active candidate returns to accepted compiled Rust inputs
+plus the separately verified SQLite exception repair.
+
 ### Reuse accepted artifacts without a canonical rebuild (2026-10-04)
 
 After a primary candidate passes complete correctness and the broad memory
