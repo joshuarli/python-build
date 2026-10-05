@@ -45,6 +45,28 @@ class SourceAggregate(unittest.TestCase):
                 with self.subTest(name=name, defect=defect), self.assertRaises(ValueError):
                     recipe.consumer_units(changed, pairs, '/owned')
 
+    def test_sqlite_capsule_owner_and_shared_header_are_required_source_inputs(self):
+        with tempfile.TemporaryDirectory() as raw:
+            source = Path(raw).resolve()
+            for name in ('_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs'):
+                for filename in ('Cargo.toml', 'build.rs', 'src/lib.rs'):
+                    path = source / 'Modules' / name / filename
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(name + filename)
+            paths = [source / 'Modules/_sqlite' / name for name in ('module.c', 'rust_api.h')]
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(path.name)
+            with patch.object(recipe.std, 'input_files', return_value={}):
+                files = recipe.input_files(source, None, None, None)
+            for path in paths:
+                self.assertEqual(files[str(path)], recipe.digest(path))
+                original = path.read_bytes()
+                path.unlink()
+                with self.subTest(missing=path.name), patch.object(recipe.std, 'input_files', return_value={}), self.assertRaises(FileNotFoundError):
+                    recipe.input_files(source, None, None, None)
+                path.write_bytes(original)
+
     def test_new_consumer_sources_are_pinned_without_mutating_std_roster(self):
         with tempfile.TemporaryDirectory() as raw:
             source = Path(raw).resolve()
@@ -55,6 +77,11 @@ class SourceAggregate(unittest.TestCase):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(name + filename)
                     expected[str(path)] = recipe.digest(path)
+            for filename in ('module.c', 'rust_api.h'):
+                path = source / 'Modules/_sqlite' / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(filename)
+                expected[str(path)] = recipe.digest(path)
             with patch.object(recipe.std, 'input_files', return_value={'original': 'unchanged'}):
                 self.assertEqual(recipe.input_files(source, None, None, None), {'original': 'unchanged', **expected})
             self.assertEqual(len(recipe.std.CONSUMERS), 7)
