@@ -5646,6 +5646,37 @@ producer-only adapter must now bind the original generated list, unchanged
 arguments, exact replacement, pinned clang and child lifetime; actual std
 linkage, runtime correctness and RSS remain unproved.
 
+The exact production adapter probe subsequently passes with the configured
+build interpreter and production receipt verifier:1,778 exports become the
+two requested symbols and full metadata stays identical. Clean350 at primary
+`c950a45` still stops before the restricted replay. All98 recorded compiler
+units succeed and are reaped, but Cargo's actual std command has two identical
+explicit pinned-clang linker settings; the adapter wrongly requires one.
+The correction validates both identities and changes only the last effective
+setting. Its next discovery replay uses the saved actual std command, full
+provider and five consumers in a separate output namespace, before another
+clean build. The failed350 epoch remains intact; it establishes no RSS result.
+
+The duplicate-setting regression is reproduced before correction; all48
+recipe tests pass afterward. The separate saved350 producer replay passes
+with both actual linker arguments:1,687 exports become the exact29-symbol
+closure, the provider shrinks from1,333,040B to414,688B, and7,465,885B full
+metadata remains byte-identical. The production restricted-provider and
+linker-receipt verifiers pass, including the owned/reaped compiler and clang
+children. Original350 inputs and the accepted stage remain unchanged.
+This diagnostic is not runtime or memory acceptance; ordinary clean351
+must still establish an installed candidate and replicated RSS results.
+
+A bounded build-cost audit attributes only15.27–17.88s to std Cargo and
+11.34–12.00s to consumer Cargo in the233.6–238.4s successful clean builds.
+The remaining206–209s cover phases without separate timing; this does not
+establish that verification dominates. Clean builds recreate unchanged
+CPython and stock helper outputs. Incremental failed-root retirement lacks
+the prior artifact identities and complete ownership roster needed for a
+small safe reset, so no recovery framework is added. Saved-input producer
+replays avoid that repeated clean cost while validating recipe corrections;
+final candidate qualification still requires its ordinary clean build.
+
 Calibration reuse for third-consumer builder-only changes is independently
 proven against successful calibration344: only `_install_csv_source_std`
 changes in the entire perf.py AST, every other node and18 other harness
