@@ -4864,6 +4864,33 @@ load1.000x and working1.000x, neutral in both runs. No mismatch, all23/broad/ful
 qualification, adoption or unchanged retry follows. The exact new verdict is
 `20261005T034802Z-perf-rust-vs-perf-regex-primary185/verdict.json`.
 
+## Pickle direct output284: wire copy removed, memory neutral
+
+Fixture-first donor `1c77372`, primary `9f4c0a8`, replaces the compact
+serializer's intermediate Vec with a counting/bounded-output writer over
+the same already-owned value tree. Both passes use the same locked serializer
+and writer type; no Python conversion or callbacks repeat. Output allocates
+exact unpublished PyBytes storage, checks every write, releases it on error
+and retains the protocol patch and decline behavior. Independent review passes.
+The fixed compact wire is61 bytes, with an old128-byte Vec reservation; the
+large serialization workload declines before this output path. No physical
+savings or improvement to that workload is inferred.
+
+All7 fixtures pass on accepted and candidate interpreters, including wire
+goldens, capacity/Unicode boundaries, eligible graphs, alias/cycle declines
+and provider/error identity. Complete pickle/re suites pass1,239/51 in2.6s.
+The compatible configured tree158 has the accepted Cargo.lock and unchanged
+module/configuration rules; it restores accepted regex sources alongside the
+pickle change and passes a36.4s incremental build with58 verified extensions.
+Children are reaped and temporary/stage/source guards pass.
+
+The8.6s matched two-run target screen is NEUTRAL: pickle load1.009842x
+[0.999895,1.039225], working1.000x, both neutral in both runs. Verdict
+`20261005T035623Z-perf-rust-vs-perf-correct158/verdict.json`, SHA
+`f0da852724ae9624304f38f818e0d43bd04a12ca26f3dba555b758524939132c`.
+No all23/broad/full qualification, adoption or unchanged reroll follows.
+The two representation-unit tests remain UNRUN after this early closure.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
