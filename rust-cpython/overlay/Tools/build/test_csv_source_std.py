@@ -464,6 +464,80 @@ class SourceStdArguments(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'library owner'):
                     bootstrap.build_library_path(build, {'DYLD_LIBRARY_PATH': value})
 
+    def test_target_sysroot_contains_only_one_std_and_exact_transitive_runtime_pairs(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            def unit(name, dependencies=()):
+                folder = root / 'compiled' / name
+                folder.mkdir(parents=True)
+                for suffix in ('rlib', 'rmeta'):
+                    (folder / ('lib' + name + '-source.' + suffix)).write_bytes((name + suffix).encode())
+                argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET,
+                        '--out-dir', str(folder), '-C', 'extra-filename=-source']
+                for dep in dependencies:
+                    argv += ['--extern', dep + '=' + str(root / 'compiled' / dep / ('lib' + dep + '-source.rmeta'))]
+                return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
+            core = unit('core')
+            alloc = unit('alloc', ('core',))
+            std = unit('std', ('alloc', 'core'))
+            unused = unit('proc_macro')
+            provider = root / 'full-provider'
+            provider.mkdir()
+            for suffix in ('dylib', 'rmeta'):
+                (provider / ('libstd-source.' + suffix)).write_bytes(('producer ' + suffix).encode())
+            pairs = {'std': [str(provider / ('libstd-source.' + x)) for x in ('dylib', 'rmeta')],
+                     'core': [str(x) for x in recipe.runtime_output_paths(core)],
+                     'alloc': [str(x) for x in recipe.runtime_output_paths(alloc)]}
+            rows = [std, alloc, core, unused]
+            view = recipe.create_target_sysroot(root, pairs, std, rows)
+            sources = {entry['source']['path'] for entry in view['files']}
+            self.assertEqual(sources, {x for pair in pairs.values() for x in pair})
+            self.assertNotIn(str(recipe.runtime_output_paths(std)[0]), sources)
+            self.assertTrue(all(Path(entry['copy']['path']).parent ==
+                                root / 'target-sysroot/lib/rustlib' / recipe.TARGET / 'lib' for entry in view['files']))
+            recipe.verify_target_sysroot(root, view, pairs, std, rows)
+            with self.assertRaises(FileExistsError):
+                recipe.create_target_sysroot(root, pairs, std, rows)
+            extra = Path(view['files'][0]['copy']['path']).parent / 'libcore-installed.rmeta'
+            extra.write_bytes(b'installed runtime')
+            with self.assertRaisesRegex(ValueError, 'inventory'):
+                recipe.verify_target_sysroot(root, view, pairs, std, rows)
+            extra.unlink()
+            Path(view['files'][0]['copy']['path']).write_bytes(b'changed runtime')
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                recipe.verify_target_sysroot(root, view, pairs, std, rows)
+
+    def test_target_sysroot_rejects_distinct_runtime_sources_with_the_same_basename(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            left, right = root / 'left', root / 'right'
+            left.mkdir(); right.mkdir()
+            for folder in (left, right):
+                (folder / 'libstd.rmeta').write_bytes(b'same bytes')
+            pairs = {'std': [str(left / 'libstd.rmeta'), str(right / 'libstd.rmeta')]}
+            from unittest.mock import patch
+            with patch.object(recipe, 'runtime_closure', return_value=[]):
+                with self.assertRaisesRegex(ValueError, 'basename'):
+                    recipe.create_target_sysroot(root, pairs, {}, [])
+            self.assertFalse((root / 'target-sysroot').exists())
+
+    def test_implicit_core_sysroot_switch_keeps_original_host_and_query_arguments(self):
+        pairs = {name: ['/' + name + '.code', '/' + name + '.rmeta'] for name in ('std', 'core', 'alloc')}
+        original = ['--crate-name', 'cfg_if', '--target', recipe.TARGET, '--sysroot', '/installed-view']
+        actual = recipe.target_arguments(original, pairs, [], '/source-target-view')
+        self.assertEqual(actual[actual.index('--sysroot') + 1], '/source-target-view')
+        self.assertNotIn('/installed-view', actual)
+        for name, paths in pairs.items():
+            for path in paths:
+                self.assertIn(name + '=' + path, actual)
+        for args in (['--crate-name', 'build_script_build', '--sysroot', '/installed-view'],
+                     ['--target', recipe.TARGET, '--print=cfg', '--sysroot', '/installed-view']):
+            self.assertEqual(recipe.target_arguments(args, {}, [], '/source-target-view'), args)
+        for args in (['--target', recipe.TARGET],
+                     [*original, '--sysroot', '/second-view']):
+            with self.assertRaisesRegex(ValueError, 'sysroot'):
+                recipe.target_arguments(args, pairs, [], '/source-target-view')
+
     def test_target_no_std_uses_code_and_full_metadata_for_all_runtime_crates(self):
         pairs = {'std': ['/provider/libstd.dylib', '/provider/libstd.rmeta'],
                  'core': ['/core/libcore.rlib', '/core/libcore.rmeta'],
