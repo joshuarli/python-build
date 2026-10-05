@@ -47,6 +47,11 @@ def input_files(source, build, library, compiler):
         for path in sorted(directory.rglob('*')):
             if path.is_file():
                 files[str(path.resolve(strict=True))] = digest(path)
+    # The Rust SQLite consumer calls a table published by the native module.
+    # Both sides of that typed contract belong to the compiler input identity.
+    for name in ('module.c', 'rust_api.h'):
+        path = source / 'Modules/_sqlite' / name
+        files[str(path.resolve(strict=True))] = digest(path)
     return files
 
 
