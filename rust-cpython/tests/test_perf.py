@@ -977,13 +977,39 @@ class IncrementalRecipeTests(unittest.TestCase):
 
 
 class CsvSourceStdMakeTests(unittest.TestCase):
-    def test_generator_routes_only_macos_release_csv_through_source_std(self):
+    def test_json_first_and_csv_first_emit_one_build_owner(self):
+        script = LANE / 'overlay/Modules/makesetup'
+        for names in (('_json_rs', '_csv_rs'), ('_csv_rs', '_json_rs')):
+            with self.subTest(order=names), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                setup = root / 'Setup'
+                setup.write_text('*shared*\n' + ''.join(name + ' ' + name + '/Cargo.toml ' + name + '/src/lib.rs\n' for name in names))
+                template = root / 'Makefile.pre'
+                template.write_text('# Definitions added by makesetup\n')
+                result = perf.subprocess.run([str(script), '-s', 'Modules', '-c', '-', '-m', str(template), str(setup)],
+                                             cwd=root, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                generated = (root / 'Makefile').read_text()
+                self.assertEqual(generated.count('csv_source_std.py build'), 1)
+                self.assertEqual(generated.count('csv_source_std.py publish'), 2)
+                owner = next(line for line in generated.splitlines() if 'csv_source_std.py build' in line)
+                self.assertNotIn('Modules/_json_rs$(EXT_SUFFIX)', owner)
+                self.assertNotIn('Modules/_csv_rs$(EXT_SUFFIX)', owner)
+                for name in names:
+                    self.assertIn('--consumer ' + name, generated)
+                    self.assertIn('Modules/' + name + '$(EXT_SUFFIX): source-std338/receipt.json;', generated)
+                for line in generated.splitlines():
+                    if 'csv_source_std.py publish' in line:
+                        self.assertIn('PYTHON_BUILD_DIR=$(abs_builddir)', line)
+
+    def test_generator_has_one_joint_owner_and_retains_ordinary_fallbacks(self):
         script = LANE / "overlay/Modules/makesetup"
         self.assertTrue(script.stat().st_mode & 0o111)
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             setup = root / "Setup"
             setup.write_text("*shared*\n_csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs\n"
+                             "_json_rs _json_rs/Cargo.toml _json_rs/src/lib.rs\n"
                              "_base64 _base64/Cargo.toml _base64/src/lib.rs\n"
                              "_socket_rs _socket_rs/Cargo.toml _socket_rs/src/lib.rs\n")
             template = root / "Makefile.pre"
@@ -996,12 +1022,21 @@ class CsvSourceStdMakeTests(unittest.TestCase):
             self.assertIn("ifeq ($(CARGO_TARGET):$(CARGO_PROFILE),aarch64-apple-darwin:release)", generated)
             self.assertIn("--source $(abs_srcdir) --build $(abs_builddir)", generated)
             self.assertIn("--target $(CARGO_TARGET) --profile $(CARGO_PROFILE) --jobs $(CARGO_BUILD_JOBS)", generated)
-            for name in ("_base64", "_socket_rs", "_csv_rs"):
+            for name in ("_base64", "_socket_rs", "_csv_rs", "_json_rs"):
                 self.assertIn("--package " + name + " --profile $(CARGO_PROFILE)", generated)
             self.assertIn("$(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt", generated)
             for name in ("_posixsubprocess", "math", "select", "_struct", "_sha2", "zlib", "fcntl"):
                 self.assertIn("Modules/" + name + "$(EXT_SUFFIX)", generated)
-            self.assertIn("cp target/", generated)
+            self.assertEqual(sum(line.startswith('source-std338/receipt.json:') and '; ' in line for line in generated.splitlines()), 1)
+            for name in ('_csv_rs', '_json_rs'):
+                self.assertIn('--consumer ' + name, generated)
+                self.assertIn('$(srcdir)/Modules/' + name + '/build.rs', generated)
+                self.assertIn('$(srcdir)/Modules/' + name + '/src/*.rs', generated)
+            selected = generated.split('ifeq ($(CARGO_TARGET):$(CARGO_PROFILE),aarch64-apple-darwin:release)')
+            for block in selected[1:]:
+                branch = block.split('else', 1)[0]
+                self.assertNotIn('cargo build -vvv', branch)
+                self.assertNotIn('; mv ', branch)
             self.assertIn("mv target/", generated)
 
 
@@ -1033,22 +1068,32 @@ class CsvSourceStdInstallTests(unittest.TestCase):
             mirror = build.parent / "rust-cpython" / provider.name
             csv = build / "target" / perf.lb.TARGET / "release/lib_csv_rs.dylib"
             helper = build / "Modules/_csv_rs.cpython-316-darwin.so"
-            installed = stage / "lib/python3.16/lib-dynload/_csv_rs.so"
+            installed = stage / "lib/python3.16/lib-dynload/_csv_rs.cpython-316-darwin.so"
             for path, data in [(provider, b"provider"), (mirror, b"provider"),
                                (csv, b"csv"), (helper, b"csv"), (installed, b"csv")]:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
+            json_paths = [build / 'target' / perf.lb.TARGET / 'release/lib_json_rs.dylib',
+                          build / 'Modules/_json_rs.cpython-316-darwin.so',
+                          stage / 'lib/python3.16/lib-dynload/_json_rs.cpython-316-darwin.so']
+            for path in json_paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'json')
             receipt_path = build / "source-std338/receipt.json"
             receipt_path.write_text('{"fixture": true}')
             install_id = "@rpath/" + provider.name
-            receipt = {"schema_version": 1, "status": "complete", "target": perf.lb.TARGET,
+            receipt = {"schema_version": 2, "status": "complete", "target": perf.lb.TARGET,
                        "profile": "release", "panic": "abort", "allocator": "System",
                        "provider": {"path": str(provider), "sha256": perf._sha256_file(provider),
                                     "size": provider.stat().st_size, "install_id": install_id,
                                     "build_mirror_path": str(mirror), "build_mirror_sha256": perf._sha256_file(mirror)},
-                       "csv": {"path": str(csv), "sha256": perf._sha256_file(csv), "size": csv.stat().st_size,
+                       "consumers": {"_csv_rs": {"path": str(csv), "sha256": perf._sha256_file(csv), "size": csv.stat().st_size,
                                "provider_install_id": install_id,
-                               "rpath": "@loader_path/../../rust-cpython"}}
+                               "rpath": "@loader_path/../../rust-cpython"},
+                                     "_json_rs": {"path": str(json_paths[0]),
+                                                  "sha256": perf._sha256_file(json_paths[0]), "size": 4,
+                                                  "provider_install_id": install_id,
+                                                  "rpath": "@loader_path/../../rust-cpython"}}}
             if defect == "mirror":
                 mirror.write_bytes(b"wrong")
             elif defect == "owner":
@@ -1057,6 +1102,12 @@ class CsvSourceStdInstallTests(unittest.TestCase):
                 receipt["allocator"] = "custom"
             elif defect == "csv":
                 installed.write_bytes(b"wrong")
+            if defect == 'json':
+                json_paths[2].write_bytes(b'changed')
+            elif defect == 'missing-json':
+                del receipt['consumers']['_json_rs']
+            elif defect == 'json-provider':
+                receipt['consumers']['_json_rs']['provider_install_id'] = '@rpath/another-std.dylib'
             recipe = mock.Mock()
             recipe.verify_build_receipt.return_value = receipt
             patches.enter_context(mock.patch.object(perf, "LANE", lane))
@@ -1064,7 +1115,7 @@ class CsvSourceStdInstallTests(unittest.TestCase):
             patches.enter_context(mock.patch.object(perf.lb.macho, "read_header", return_value=mock.Mock(arch="arm64")))
             patches.enter_context(mock.patch.object(perf.lb.macho, "signature_status", return_value=(defect != "signature", "fixture")))
             patches.enter_context(mock.patch.object(perf.lb.macho, "dylib_id", return_value=install_id))
-            patches.enter_context(mock.patch.object(perf.lb.macho, "rpaths", side_effect=lambda path: [] if path.name == provider.name else [receipt["csv"]["rpath"]]))
+            patches.enter_context(mock.patch.object(perf.lb.macho, "rpaths", side_effect=lambda path: [] if path.name == provider.name else [receipt["consumers"]["_csv_rs"]["rpath"]]))
             def dependencies(path):
                 if path.name == provider.name:
                     return ["/usr/lib/libSystem.B.dylib"]
@@ -1100,6 +1151,15 @@ class CsvSourceStdInstallTests(unittest.TestCase):
 
     def test_rejects_changed_installed_csv(self):
         self.exercise("csv")
+
+    def test_rejects_changed_json_before_installing_provider(self):
+        self.exercise('json')
+
+    def test_rejects_missing_json_consumer(self):
+        self.exercise('missing-json')
+
+    def test_rejects_separate_json_provider(self):
+        self.exercise('json-provider')
 
     def test_rejects_invalid_signature_before_installing_provider(self):
         self.exercise("signature")

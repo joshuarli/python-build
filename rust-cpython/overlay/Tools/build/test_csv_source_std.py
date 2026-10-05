@@ -14,6 +14,25 @@ spec.loader.exec_module(recipe)
 
 
 class SourceStdArguments(unittest.TestCase):
+    def test_consumer_id_remains_compiler_owned_after_release_bytes_are_normalized(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            output = root / 'target/release/build/_csv_rs/hash/out'
+            output.mkdir(parents=True)
+            compiled = output / 'lib_csv_rs.dylib'
+            compiled.write_bytes(b'original compiler output')
+            release = root / 'target/release/lib_csv_rs.dylib'
+            release.write_bytes(compiled.read_bytes())
+            unit = {'argv': ['rustc', '--crate-name', '_csv_rs', '--crate-type', 'cdylib',
+                             '--out-dir', str(output)]}
+            raw_record = recipe.artifact(compiled)
+            self.assertEqual(recipe.consumer_install_id(unit, release, root), str(compiled))
+            release.write_bytes(b'normalized and signed release')
+            self.assertEqual(recipe.consumer_install_id(unit, release, root), str(compiled))
+            self.assertEqual(recipe.artifact(compiled), raw_record)
+            self.assertNotEqual(recipe.artifact(release)['sha256'], raw_record['sha256'])
+
+
     def test_consumer_self_id_is_verified_separately_from_its_actual_dependencies(self):
         own = '/owned/target/release/build/_csv_rs/hash/out/lib_csv_rs.dylib'
         provider = '@rpath/libstd-hash.dylib'
@@ -32,23 +51,6 @@ class SourceStdArguments(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'non-system'):
             recipe.runtime_dependencies(foreign_loads, foreign, own, provider)
 
-    def test_consumer_id_remains_compiler_owned_after_release_bytes_are_normalized(self):
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw).resolve()
-            output = root / 'target/release/build/_csv_rs/hash/out'
-            output.mkdir(parents=True)
-            compiled = output / 'lib_csv_rs.dylib'
-            compiled.write_bytes(b'original compiler output')
-            release = root / 'target/release/lib_csv_rs.dylib'
-            release.write_bytes(compiled.read_bytes())
-            unit = {'argv': ['rustc', '--crate-name', '_csv_rs', '--crate-type', 'cdylib',
-                             '--out-dir', str(output)]}
-            raw_record = recipe.artifact(compiled)
-            self.assertEqual(recipe.consumer_install_id(unit, release, root), str(compiled))
-            release.write_bytes(b'normalized and signed release')
-            self.assertEqual(recipe.consumer_install_id(unit, release, root), str(compiled))
-            self.assertEqual(recipe.artifact(compiled), raw_record)
-            self.assertNotEqual(recipe.artifact(release)['sha256'], raw_record['sha256'])
 
     def test_verified_host_capability_probe_preserves_original_args_and_failure_receipt(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -81,6 +83,29 @@ class SourceStdArguments(unittest.TestCase):
             with self.assertRaises(ValueError):
                 recipe.host_capability_probe(args, {**environment, 'OUT_DIR': str(root / 'foreign')}, str(package), files, target)
 
+    def test_runtime_alias_resolves_by_exact_metadata_artifact_not_extern_label(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            def unit(name, suffix):
+                for extension in ('.rmeta', '.rlib'):
+                    (root / ('lib' + name + suffix + extension)).write_bytes(b'unit artifact')
+                return {'argv': ['rustc', '--crate-name', name, '--target', recipe.TARGET,
+                                 '--out-dir', str(root), '-C', 'extra-filename=' + suffix],
+                        'query': False, 'exit_code': 0, 'reaped_exit': 0}
+            shim = unit('rustc_std_workspace_core', '-7038bf0a')
+            std = unit('std', '-producer')
+            probe = {'argv': ['rustc', '--crate-name', 'probe', '--target', recipe.TARGET,
+                              '--out-dir', str(root), '--crate-type', 'cdylib'],
+                     'query': False, 'exit_code': 0, 'reaped_exit': 0}
+            metadata = root / 'librustc_std_workspace_core-7038bf0a.rmeta'
+            std['argv'] += ['--extern', 'priv:core=' + str(metadata)]
+            self.assertEqual(recipe.runtime_closure(std, [std, shim, probe]), [std, shim])
+            with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
+                recipe.runtime_closure(std, [std])
+            with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
+                recipe.runtime_closure(std, [std, shim, dict(shim)])
+
+
     def test_native_prerequisite_ignores_neighbor_rust_helper_and_rejects_missing_or_duplicate(self):
         with tempfile.TemporaryDirectory() as raw:
             modules = Path(raw).resolve()
@@ -95,6 +120,193 @@ class SourceStdArguments(unittest.TestCase):
             (modules / '_struct.other.so').unlink()
             with self.assertRaisesRegex(ValueError, 'missing'):
                 recipe.native_prerequisite(modules, '_struct')
+
+    def test_joint_normalization_proves_each_self_id_and_keeps_raw_compiler_images(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            provider = root / 'provider/libstd-test.dylib'
+            provider.parent.mkdir()
+            provider.write_bytes(b'std')
+            consumers, units, originals = {}, {}, {}
+            for name in recipe.CONSUMERS:
+                output = root / 'consumer-target/release/build' / name / 'hash/out'
+                output.mkdir(parents=True)
+                compiled = output / ('lib' + name + '.dylib')
+                compiled.write_bytes(name.encode())
+                release = root / 'consumer-target/release' / compiled.name
+                release.write_bytes(compiled.read_bytes())
+                consumers[name] = release
+                units[name] = {'argv': ['rustc', '--crate-name', name, '--crate-type', 'cdylib', '--out-dir', str(output)]}
+                originals[name] = recipe.artifact(compiled)
+            calls, provider_loads = [], {str(path): str(provider) for path in consumers.values()}
+            def run(argv, cwd, environment, log, commands, timeout=180):
+                calls.append(argv)
+                image = Path(argv[-1])
+                if argv[0] == '/usr/bin/install_name_tool':
+                    if argv[1] == '-change':
+                        provider_loads[str(image)] = argv[3]
+                    return ''
+                if argv[0] == '/usr/bin/codesign':
+                    if argv[1] == '--force':
+                        image.write_bytes(image.read_bytes() + b' signed')
+                    return ''
+                own = '@rpath/' + provider.name if image == provider else str(Path(originals[next(n for n,p in consumers.items() if p == image)]['path']))
+                loads = ['/usr/lib/libSystem.B.dylib'] if image == provider else [provider_loads[str(image)], '/usr/lib/libSystem.B.dylib']
+                if argv[1] == '-L':
+                    return str(image) + ':\n' + ''.join('\t' + value + ' (compatibility version 0.0.0)\n' for value in [own, *loads])
+                result = 'Load command 0\n cmd LC_ID_DYLIB\n name ' + own + ' (offset 24)\n'
+                for i, value in enumerate(loads, 1):
+                    result += 'Load command ' + str(i) + '\n cmd LC_LOAD_DYLIB\n name ' + value + ' (offset 24)\n'
+                if image != provider:
+                    result += 'Load command 3\n cmd LC_RPATH\n cmdsize 64\n path @loader_path/../../rust-cpython (offset 12)\n'
+                return result
+            with patch.object(recipe, 'run', side_effect=run):
+                install_id, rpath, dependencies = recipe.normalized_outputs(provider, consumers, {}, [], root, units)
+            self.assertEqual(install_id, '@rpath/libstd-test.dylib')
+            self.assertEqual(rpath, '@loader_path/../../rust-cpython')
+            self.assertEqual(sum(call[:2] == ['/usr/bin/codesign', '--force'] and call[-1] == provider for call in calls), 1)
+            for name, path in consumers.items():
+                self.assertEqual(dependencies[name], [install_id, '/usr/lib/libSystem.B.dylib'])
+                self.assertEqual(recipe.artifact(originals[name]['path']), originals[name])
+                self.assertNotEqual(recipe.digest(path), originals[name]['sha256'])
+
+    def test_joint_consumer_arguments_select_exact_packages_once(self):
+        args = recipe.consumer_arguments('cargo', Path('/source'), 2)
+        self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'],
+                         ['_csv_rs', '_json_rs'])
+        self.assertIn('--locked', args)
+        self.assertIn('--offline', args)
+        self.assertIn('target-applies-to-host=false', args)
+
+    def test_joint_output_units_require_each_consumer_and_same_runtime_pairs(self):
+        pairs = {name: ['/' + name + '.code', '/' + name + '.rmeta'] for name in ('std', 'core', 'alloc')}
+        def unit(name):
+            argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET]
+            for label, pair in pairs.items():
+                for raw in pair:
+                    argv += ['--extern', label + '=' + raw]
+            return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
+        csv, json = unit('_csv_rs'), unit('_json_rs')
+        self.assertEqual(set(recipe.consumer_units([csv, json], pairs)), {'_csv_rs', '_json_rs'})
+        for rows in ([csv], [csv, json, json], [csv, {**json, 'exit_code': 1}],
+                     [csv, {**json, 'argv': json['argv'][:-2]}]):
+            with self.assertRaises(ValueError):
+                recipe.consumer_units(rows, pairs)
+
+    def test_publication_checks_receipt_before_copy_and_keeps_signed_source(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            build, source = root / 'build', root / 'source'
+            (build / 'Modules').mkdir(parents=True)
+            source.mkdir()
+            published = build / 'target' / recipe.TARGET / 'release/lib_json_rs.dylib'
+            published.parent.mkdir(parents=True)
+            published.write_bytes(b'signed json')
+            record = recipe.artifact(published)
+            receipt = {'consumers': {'_json_rs': record}}
+            output = build / 'Modules/_json_rs.cpython-316-darwin.so'
+            with patch.object(recipe, 'verify_build_receipt', return_value=receipt) as verify:
+                recipe.publish_consumer(source, build, recipe.TARGET, '_json_rs', output, {})
+                verify.assert_called_once()
+                self.assertEqual(output.read_bytes(), b'signed json')
+                self.assertEqual(published.read_bytes(), b'signed json')
+                with self.assertRaises(ValueError):
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_pickle_rs', output, {})
+                with self.assertRaises(ValueError):
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_json_rs', root / output.name, {})
+            output.unlink()
+            with patch.object(recipe, 'verify_build_receipt', side_effect=ValueError('changed JSON')):
+                with self.assertRaises(ValueError):
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_json_rs', output, {})
+            self.assertFalse(output.exists())
+
+    def test_completed_joint_receipt_rejects_missing_json_source_runtime_or_final_bytes(self):
+        with tempfile.TemporaryDirectory() as raw:
+            work = Path(raw).resolve()
+            source, build = work / 'source', work / 'build'
+            root = build / 'source-std338'
+            root.mkdir(parents=True)
+            def write(path, data):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                return recipe.artifact(path)
+            provider = write(root / 'provider/libstd-test.dylib', b'provider')
+            mirror = write(work / 'rust-cpython/libstd-test.dylib', b'provider')
+            (work / 'rust-cpython/.csv-source-std-owner.json').write_text(json.dumps({'build': str(build)}))
+            pairs = {}
+            runtime_files = {}
+            for name in ('std', 'core', 'alloc'):
+                pair = []
+                for suffix in ('code', 'rmeta'):
+                    record = write(root / (name + '.' + suffix), b'runtime')
+                    pair.append(record['path'])
+                    runtime_files[record['path']] = record['sha256']
+                pairs[name] = pair
+            rows, records = [], {}
+            for name in recipe.CONSUMERS:
+                record = write(build / 'target' / recipe.TARGET / ('release/lib' + name + '.dylib'), name.encode())
+                final = write(root / 'consumer-target' / recipe.TARGET / ('release/lib' + name + '.dylib'), name.encode())
+                compiled = write(root / 'consumer-target' / recipe.TARGET / ('release/build/' + name + '/hash/out/lib' + name + '.dylib'), name.encode())
+                owned_source = write(source / 'Modules' / name / 'src/lib.rs', b'original helper')
+                argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET, '--crate-type', 'cdylib',
+                        '--out-dir', str(Path(compiled['path']).parent)]
+                for label, pair in pairs.items():
+                    for path in pair:
+                        argv += ['--extern', label + '=' + path]
+                unit = {'argv': argv, 'original_argv': argv, 'environment': {}, 'cwd': str(source),
+                        'query': False, 'exit_code': 0, 'reaped_exit': 0, 'source_files': {}}
+                rows.append(unit)
+                records[name] = {**record, 'artifact_path': final['path'], 'artifact_sha256': final['sha256'],
+                                 'compiler_artifact': compiled, 'install_id': compiled['path'], 'raw_artifact': compiled,
+                                 'source': owned_source, 'unit_receipt': unit,
+                                 'provider_install_id': '@rpath/libstd-test.dylib', 'rpath': '@loader_path/../../rust-cpython'}
+            binding = write(root / 'c_api.rs', b'configured C API')
+            metadata = {'sha256': 'archive', 'compiler_revision': 'compiler', 'library_cargo_lock_sha256': 'lock'}
+            receipt = {'schema_version': 2, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+                       'profile': 'release', 'panic': 'abort', 'allocator': 'System',
+                       'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'compiler',
+                                  'std_lock_sha256': 'lock', 'input_files': {}},
+                       'runtime_files': runtime_files, 'runtime_pairs': pairs, 'units': rows,
+                       'provider': {**provider, 'install_id': '@rpath/libstd-test.dylib',
+                                    'build_mirror_path': mirror['path'], 'build_mirror_sha256': mirror['sha256']},
+                       'consumers': records, 'generated_bindings': [binding]}
+            path = root / 'receipt.json'
+            path.write_text(json.dumps(receipt))
+            self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
+            import copy
+            for kind in ('missing-json', 'wrong-provider', 'missing-pair', 'wrong-unit'):
+                altered = copy.deepcopy(receipt)
+                if kind == 'missing-json':
+                    del altered['consumers']['_json_rs']
+                elif kind == 'wrong-provider':
+                    altered['consumers']['_json_rs']['provider_install_id'] = '@rpath/other.dylib'
+                elif kind == 'missing-pair':
+                    altered['units'][1]['argv'] = altered['units'][1]['argv'][:-2]
+                else:
+                    altered['consumers']['_json_rs']['unit_receipt'] = altered['units'][0]
+                path.write_text(json.dumps(altered))
+                with self.subTest(kind=kind), self.assertRaises(ValueError):
+                    recipe.verify_build_receipt(source, build, recipe.TARGET, metadata)
+            path.write_text(json.dumps(receipt))
+            final = Path(records['_json_rs']['artifact_path'])
+            final.write_bytes(b'changed JSON')
+            with self.assertRaisesRegex(ValueError, 'final release artifact'):
+                recipe.verify_build_receipt(source, build, recipe.TARGET, metadata)
+
+    def test_fresh_recipe_rejects_old_selected_publication_without_deleting_it(self):
+        with tempfile.TemporaryDirectory() as raw:
+            build = Path(raw).resolve()
+            recipe.check_fresh_consumer_outputs(build, recipe.TARGET)
+            for path in (build / 'Modules/_json_rs.cpython-316-darwin.so',
+                         build / 'target' / recipe.TARGET / 'release/lib_csv_rs.dylib'):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'old artifact')
+                with self.assertRaisesRegex(ValueError, 'pre-existing consumer'):
+                    recipe.check_fresh_consumer_outputs(build, recipe.TARGET)
+                self.assertEqual(path.read_bytes(), b'old artifact')
+                path.unlink()
 
     def test_bootstrap_imports_owned_modules_without_changing_controller_imports(self):
         from unittest.mock import patch
@@ -229,8 +441,7 @@ class SourceStdArguments(unittest.TestCase):
 
     def test_runtime_closure_excludes_planned_unwind_root_and_rejects_missing_identity(self):
         def unit(name, dependencies=()):
-            argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET, '--out-dir', '/' + name,
-                    '-C', 'extra-filename=']
+            argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET, '--out-dir', '/' + name]
             for dep in dependencies:
                 argv += ['--extern', 'priv:' + dep + '=/' + dep + '/lib' + dep + '.rmeta']
             return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
@@ -238,28 +449,6 @@ class SourceStdArguments(unittest.TestCase):
         self.assertEqual(recipe.runtime_closure(std, [std, core, extra]), [std, core])
         with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
             recipe.runtime_closure(std, [std, extra])
-
-    def test_runtime_alias_resolves_by_exact_metadata_artifact_not_extern_label(self):
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw).resolve()
-            def unit(name, suffix):
-                for extension in ('.rmeta', '.rlib'):
-                    (root / ('lib' + name + suffix + extension)).write_bytes(b'unit artifact')
-                return {'argv': ['rustc', '--crate-name', name, '--target', recipe.TARGET,
-                                 '--out-dir', str(root), '-C', 'extra-filename=' + suffix],
-                        'query': False, 'exit_code': 0, 'reaped_exit': 0}
-            shim = unit('rustc_std_workspace_core', '-7038bf0a')
-            std = unit('std', '-producer')
-            probe = {'argv': ['rustc', '--crate-name', 'probe', '--target', recipe.TARGET,
-                              '--out-dir', str(root), '--crate-type', 'cdylib'],
-                     'query': False, 'exit_code': 0, 'reaped_exit': 0}
-            metadata = root / 'librustc_std_workspace_core-7038bf0a.rmeta'
-            std['argv'] += ['--extern', 'priv:core=' + str(metadata)]
-            self.assertEqual(recipe.runtime_closure(std, [std, shim, probe]), [std, shim])
-            with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
-                recipe.runtime_closure(std, [std])
-            with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
-                recipe.runtime_closure(std, [std, shim, dict(shim)])
 
     def test_mirror_reuse_requires_same_build_owner_and_final_bytes(self):
         with tempfile.TemporaryDirectory() as raw:

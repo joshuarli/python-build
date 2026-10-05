@@ -1,8 +1,10 @@
-"""Build only the macOS release CSV helper against one source-built abort std.
+"""Build the macOS release CSV and JSON helpers against one source-built abort std.
 
 The ordinary workspace, helper bodies and Cargo lock are unchanged. Host build
 scripts retain their installed host runtime. Target libraries instead receive
 code and full metadata from a single freshly compiled standard-library graph.
+The completed receipt binds exactly two named consumer artifacts to that provider;
+module publication copies signed bytes only after the entire receipt verifies.
 """
 import os
 import sys
@@ -23,6 +25,7 @@ import tarfile
 import tomllib
 
 TARGET = 'aarch64-apple-darwin'
+CONSUMERS = ('_csv_rs', '_json_rs')
 REVISION = '574ff7d98bd6d037e5236a8453029173b32631fd'
 STD_LOCK_SHA256 = '75848db58a70444bfb62c649b103d19c5d92fede325eb0c8c0e5442848448669'
 STD_ARCHIVE_SHA256 = 'dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5'
@@ -207,7 +210,7 @@ def native_prerequisite(modules, name):
 
 def input_files(source, build, library, compiler):
     files = {}
-    for directory in (source / 'Modules/_csv_rs', source / 'Modules/cpython-sys',
+    for directory in (*(source / 'Modules' / name for name in CONSUMERS), source / 'Modules/cpython-sys',
                       source / 'Modules/cpython-build-helper', source / 'Include', library):
         for path in sorted(directory.rglob('*')):
             if path.is_file():
@@ -299,7 +302,7 @@ def runtime_closure(std_unit, units):
     return list(selected.values())
 
 
-def validate_csv_cache(source, cargo_home):
+def validate_consumer_cache(source, cargo_home):
     packages = tomllib.loads((source / 'Cargo.lock').read_text())['package']
     selected = {}
     def visit(package):
@@ -312,16 +315,17 @@ def validate_csv_cache(source, cargo_home):
             matches = [p for p in packages if p['name'] == fields[0]
                        and (len(fields) < 2 or p['version'] == fields[1])]
             if len(matches) != 1:
-                raise ValueError('ambiguous CSV lock dependency: ' + raw)
+                raise ValueError('ambiguous consumer lock dependency: ' + raw)
             visit(matches[0])
-    visit(next(p for p in packages if p['name'] == '_csv_rs'))
+    for name in CONSUMERS:
+        visit(next(p for p in packages if p['name'] == name))
     result, source_files = [], {}
     for package in selected.values():
         if 'source' not in package:
             continue
         matches = list((cargo_home / 'registry/cache').glob('*/' + package['name'] + '-' + package['version'] + '.crate'))
         if len(matches) != 1 or digest(matches[0]) != package['checksum']:
-            raise ValueError('CSV registry archive missing or changed: ' + package['name'])
+            raise ValueError('consumer registry archive missing or changed: ' + package['name'])
         archive = matches[0]
         result.append(artifact(archive))
         source_directory = cargo_home / 'registry/src' / archive.parent.name / (package['name'] + '-' + package['version'])
@@ -405,36 +409,81 @@ def consumer_install_id(unit, library, root):
     return str(output)
 
 
-def normalized_outputs(provider, csv, environment, commands, root, csv_unit):
-    csv_id = consumer_install_id(csv_unit, csv, root)
-    if digest(csv_id) != digest(csv):
-        raise ValueError('consumer release artifact differs from its compiler output before normalization')
+def normalized_outputs(provider, consumers, environment, commands, root, units):
+    if set(consumers) != set(CONSUMERS):
+        raise ValueError('expected exactly CSV and JSON consumer outputs')
+    consumer_ids = {name: consumer_install_id(units[name], path, root) for name, path in consumers.items()}
+    for name, path in consumers.items():
+        if digest(consumer_ids[name]) != digest(path):
+            raise ValueError('consumer release artifact differs from its compiler output before normalization: ' + name)
     install_id = '@rpath/' + provider.name
     run(['/usr/bin/install_name_tool', '-id', install_id, provider], root, environment, root / 'logs/provider-id', commands)
-    loads = run(['/usr/bin/otool', '-L', csv], root, environment, root / 'logs/csv-loads-before', commands)
-    old = next((line.strip().split(' (')[0] for line in loads.splitlines()[1:]
-                if provider.name in line), None)
-    if old is None:
-        raise ValueError('CSV does not link source std provider')
-    if old != install_id:
-        run(['/usr/bin/install_name_tool', '-change', old, install_id, csv], root, environment, root / 'logs/csv-provider-id', commands)
     rpath = '@loader_path/../../rust-cpython'
-    run(['/usr/bin/install_name_tool', '-add_rpath', rpath, csv], root, environment, root / 'logs/csv-rpath', commands)
-    for label, path in [('provider', provider), ('csv', csv)]:
+    for label, path in consumers.items():
+        loads = run(['/usr/bin/otool', '-L', path], root, environment, root / ('logs/' + label + '-loads-before'), commands)
+        matches = [line.strip().split(' (')[0] for line in loads.splitlines()[1:] if provider.name in line]
+        if len(matches) != 1:
+            raise ValueError('consumer does not link exactly one source std provider: ' + label)
+        if matches[0] != install_id:
+            run(['/usr/bin/install_name_tool', '-change', matches[0], install_id, path], root, environment, root / ('logs/' + label + '-provider-id'), commands)
+        run(['/usr/bin/install_name_tool', '-add_rpath', rpath, path], root, environment, root / ('logs/' + label + '-rpath'), commands)
+    outputs = {'provider': provider, **consumers}
+    for label, path in outputs.items():
         run(['/usr/bin/codesign', '--force', '--sign', '-', path], root, environment, root / ('logs/' + label + '-sign'), commands)
         run(['/usr/bin/codesign', '--verify', '--strict', path], root, environment, root / ('logs/' + label + '-verify'), commands)
     observed = {}
-    for label, path in [('provider', provider), ('csv', csv)]:
+    for label, path in outputs.items():
         text = run(['/usr/bin/otool', '-L', path], root, environment, root / ('logs/' + label + '-loads-final'), commands)
         commands_text = run(['/usr/bin/otool', '-l', path], root, environment, root / ('logs/' + label + '-commands-final'), commands)
         dependencies = runtime_dependencies(text, commands_text,
-                                            install_id if label == 'provider' else csv_id,
+                                            install_id if label == 'provider' else consumer_ids[label],
                                             None if label == 'provider' else install_id)
         paths = re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset', commands_text)
         if paths != ([] if label == 'provider' else [rpath]):
             raise ValueError('unexpected runtime search path')
         observed[label] = dependencies
     return install_id, rpath, observed
+
+
+def consumer_arguments(cargo, source, jobs):
+    args = [cargo, 'build', '-vv', '--manifest-path', source / 'Cargo.toml']
+    for name in CONSUMERS:
+        args.extend(['--package', name])
+    return args + ['--target', TARGET, '--release', '--locked', '--offline', '-j' + str(jobs),
+                   '-Zhost-config', '-Ztarget-applies-to-host', '--config', 'target-applies-to-host=false']
+
+
+def consumer_units(units, pairs):
+    if set(pairs) != {'std', 'core', 'alloc'}:
+        raise ValueError('consumer runtime identities are incomplete')
+    selected = {}
+    for name in CONSUMERS:
+        matches = [u for u in units if not u['query'] and '--crate-name' in u['argv']
+                   and u['argv'][u['argv'].index('--crate-name') + 1] == name
+                   and '--target' in u['argv'] and u['argv'][u['argv'].index('--target') + 1] == TARGET]
+        if len(matches) != 1 or matches[0]['exit_code'] != 0 or matches[0]['reaped_exit'] != 0:
+            raise ValueError('consumer lacks one successful target compiler unit: ' + name)
+        unit = matches[0]
+        externs = [unit['argv'][i + 1] for i, x in enumerate(unit['argv'][:-1]) if x == '--extern']
+        for runtime, pair in pairs.items():
+            if len(pair) != 2 or any(runtime + '=' + raw not in externs for raw in pair):
+                raise ValueError('consumer compiler runtime pair missing: ' + name + '/' + runtime)
+        selected[name] = unit
+    return selected
+
+
+def publish_consumer(source, build, target, name, output, source_metadata):
+    build = build.resolve()
+    if (target != TARGET or name not in CONSUMERS or output.parent != build / 'Modules'
+            or output.resolve() != output or not output.name.startswith(name + '.')
+            or not output.name.endswith('.so')):
+        raise ValueError('consumer module output has an unexpected owner')
+    receipt = verify_build_receipt(source, build, target, source_metadata)
+    record = receipt['consumers'][name]
+    shutil.copyfile(record['path'], output)
+    if artifact(output)['sha256'] != record['sha256']:
+        raise ValueError('consumer changed during module publication: ' + name)
+    return artifact(output)
 
 
 def publish_build_mirror(provider, build):
@@ -461,7 +510,7 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     source, build = source.resolve(), build.resolve()
     root = build / 'source-std338'
     receipt = json.loads((root / 'receipt.json').read_text())
-    if receipt['schema_version'] != 1 or receipt['status'] != 'complete' or receipt['target'] != target:
+    if receipt['schema_version'] != 2 or receipt['status'] != 'complete' or receipt['target'] != target:
         raise ValueError('incomplete CSV source std receipt')
     identity = receipt['source']
     if identity['path'] != str(source) or receipt['build'] != str(build):
@@ -474,18 +523,21 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
         raise ValueError('CSV source runtime policy changed')
     verify_files(identity['input_files'])
     verify_files(receipt['runtime_files'])
-    for label in ('provider', 'csv'):
-        record = receipt[label]
+    if set(receipt['consumers']) != set(CONSUMERS):
+        raise ValueError('expected exactly CSV and JSON consumer receipts')
+    for label, record in {'provider': receipt['provider'], **receipt['consumers']}.items():
         path = Path(record['path'])
         if not path.resolve().is_relative_to(build) or artifact(path) != {k: record[k] for k in ('path', 'sha256', 'size')}:
             raise ValueError('CSV final artifact changed: ' + label)
     provider = Path(receipt['provider']['path'])
     if provider.parent != root / 'provider' or receipt['provider']['install_id'] != '@rpath/' + provider.name:
         raise ValueError('provider output placement or identity changed')
-    if Path(receipt['csv']['path']) != build / 'target' / target / 'release/lib_csv_rs.dylib':
-        raise ValueError('published CSV output placement changed')
-    if receipt['csv']['rpath'] != '@loader_path/../../rust-cpython':
-        raise ValueError('CSV runtime search path changed')
+    for name, record in receipt['consumers'].items():
+        if Path(record['path']) != build / 'target' / target / ('release/lib' + name + '.dylib'):
+            raise ValueError('published consumer output placement changed: ' + name)
+        if (record['rpath'] != '@loader_path/../../rust-cpython'
+                or record['provider_install_id'] != receipt['provider']['install_id']):
+            raise ValueError('consumer runtime loader contract changed: ' + name)
     mirror = Path(receipt['provider']['build_mirror_path'])
     if (mirror != build.parent / 'rust-cpython' / Path(receipt['provider']['path']).name
             or mirror.resolve(strict=True) != mirror
@@ -495,25 +547,25 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     owner = mirror.parent / '.csv-source-std-owner.json'
     if json.loads(owner.read_text()) != {'build': str(build)}:
         raise ValueError('build provider mirror owner changed')
-    verify_compiler_units(receipt['units'], identity['input_files'], root / 'csv-target')
-    csv_unit = receipt['csv']['unit_receipt']
-    if csv_unit not in receipt['units'] or csv_unit['query']:
-        raise ValueError('CSV output lacks its successful compiler unit')
-    if receipt['csv']['install_id'] != consumer_install_id(csv_unit, Path(receipt['csv']['artifact_path']), root):
-        raise ValueError('CSV compiler-owned install identity changed')
-    compiler_artifact = receipt['csv']['compiler_artifact']
-    if (compiler_artifact['path'] != receipt['csv']['install_id']
-            or artifact(compiler_artifact['path']) != compiler_artifact
-            or compiler_artifact['sha256'] != receipt['csv']['raw_artifact']['sha256']
-            or compiler_artifact['size'] != receipt['csv']['raw_artifact']['size']):
-        raise ValueError('CSV raw compiler artifact correspondence changed')
-    for name, pair in receipt['runtime_pairs'].items():
-        for raw in pair:
-            if not any(x == name + '=' + raw for i, x in enumerate(csv_unit['argv'])
-                       if i and csv_unit['argv'][i - 1] == '--extern'):
-                raise ValueError('CSV compiler runtime pair missing: ' + name)
-    if artifact(receipt['csv']['artifact_path'])['sha256'] != receipt['csv']['sha256']:
-        raise ValueError('published CSV differs from final release artifact')
+    verify_compiler_units(receipt['units'], identity['input_files'], root / 'consumer-target')
+    selected = consumer_units(receipt['units'], receipt['runtime_pairs'])
+    for name, record in receipt['consumers'].items():
+        if record['unit_receipt'] != selected[name]:
+            raise ValueError('consumer output lacks its successful compiler unit: ' + name)
+        if record['install_id'] != consumer_install_id(selected[name], Path(record['artifact_path']), root):
+            raise ValueError('consumer compiler-owned install identity changed: ' + name)
+        compiled = record['compiler_artifact']
+        if (compiled['path'] != record['install_id'] or artifact(compiled['path']) != compiled
+                or compiled['sha256'] != record['raw_artifact']['sha256']
+                or compiled['size'] != record['raw_artifact']['size']):
+            raise ValueError('consumer raw compiler artifact correspondence changed: ' + name)
+        final = artifact(record['artifact_path'])
+        if final['sha256'] != record['sha256'] or final['sha256'] != record['artifact_sha256']:
+            raise ValueError('published consumer differs from final release artifact: ' + name)
+        if artifact(source / 'Modules' / name / 'src/lib.rs') != record['source']:
+            raise ValueError('consumer source owner changed: ' + name)
+    if len(receipt['generated_bindings']) != 1:
+        raise ValueError('expected one fresh target C API generation')
     for record in receipt['generated_bindings']:
         if artifact(record['path']) != record:
             raise ValueError('generated C API source changed')
@@ -530,7 +582,7 @@ def cleanup_compilers(root):
     # Wrapper children have independent process groups so a failed Cargo process
     # cannot leave native compiler descendants running after this recipe exits.
     report = {'groups': [], 'faults': []}
-    for directory in ('std-units', 'csv-units'):
+    for directory in ('std-units', 'consumer-units'):
         for path in sorted((root / directory).glob('*.json')):
             try:
                 row = json.loads(path.read_text())
@@ -554,9 +606,18 @@ def cleanup_compilers(root):
     return report
 
 
+def check_fresh_consumer_outputs(build, target):
+    # A fresh joint owner cannot inherit a helper compiled by another Cargo rule.
+    for name in CONSUMERS:
+        modules = list((build / 'Modules').glob(name + '.*.so'))
+        published = build / 'target' / target / ('release/lib' + name + '.dylib')
+        if modules or published.exists() or published.is_symlink():
+            raise ValueError('pre-existing consumer output requires a clean build: ' + name)
+
+
 def build_recipe(source, build, target, profile, jobs):
     if sys.platform != 'darwin' or target != TARGET or profile != 'release':
-        raise ValueError('source std CSV recipe supports macOS arm64 release only')
+        raise ValueError('source std CSV/JSON recipe supports macOS arm64 release only')
     source, build = source.resolve(strict=True), build.resolve(strict=True)
     library = Path(os.environ['PYTHON_BUILD_RUST_STD_SOURCE']).resolve(strict=True)
     if os.environ['PYTHON_BUILD_RUST_STD_REVISION'] != REVISION or os.environ['PYTHON_BUILD_RUST_STD_LOCK_SHA256'] != STD_LOCK_SHA256:
@@ -579,9 +640,10 @@ def build_recipe(source, build, target, profile, jobs):
         return receipt
     if root.exists():
         raise ValueError('incomplete source std outputs exist; a clean build is required')
+    check_fresh_consumer_outputs(build, target)
     root.mkdir()
     commands, units = [], []
-    status = {'schema_version': 1, 'status': 'building', 'commands': commands}
+    status = {'schema_version': 2, 'status': 'building', 'commands': commands}
     (root / 'logs').mkdir()
     (root / 'tmp').mkdir()
     inherited = dict(os.environ)
@@ -608,7 +670,7 @@ def build_recipe(source, build, target, profile, jobs):
         files[str(input_receipt)] = digest(input_receipt)
         std_registry, vendor_files = validate_vendor(library)
         files.update(vendor_files)
-        registry, registry_sources = validate_csv_cache(source, Path(env['CARGO_HOME']))
+        registry, registry_sources = validate_consumer_cache(source, Path(env['CARGO_HOME']))
         files.update(registry_sources)
         clang = env['PY_CC']
         if not Path(clang).is_file():
@@ -693,42 +755,48 @@ def build_recipe(source, build, target, profile, jobs):
                 pairs[name] = [str(code), str(full)]
         if set(pairs) != {'std', 'core', 'alloc'}:
             raise ValueError('missing source runtime pair')
-        config.update(target_directory=str(root / 'csv-target'), receipts=str(root / 'csv-units'),
+        config.update(target_directory=str(root / 'consumer-target'), receipts=str(root / 'consumer-units'),
                       runtime_pairs=pairs, runtime_directories=list(dict.fromkeys(directories)))
         config_path.write_text(json.dumps(config, indent=2) + '\n')
-        csv_env = dict(env, CARGO_TARGET_DIR=config['target_directory'], CARGO_NET_OFFLINE='true',
-                       RUSTC=str(logger), CSV_SOURCE_STD_RUSTC_CONFIG=str(config_path))
-        csv_args = [cargo, 'build', '-vv', '--manifest-path', source / 'Cargo.toml', '--package', '_csv_rs',
-                    '--target', target, '--release', '--locked', '--offline', '-j' + str(jobs),
-                    '-Zhost-config', '-Ztarget-applies-to-host', '--config', 'target-applies-to-host=false',
-                    '--config', 'host.linker=' + json.dumps(clang), '--config', 'target.' + target + '.linker=' + json.dumps(clang),
-                    '--config', 'target.' + target + '.rustflags=' + json.dumps(flags)]
-        run(csv_args, source, csv_env, root / 'logs/csv-build', commands, 900)
+        consumer_env = dict(env, CARGO_TARGET_DIR=config['target_directory'], CARGO_NET_OFFLINE='true',
+                            RUSTC=str(logger), CSV_SOURCE_STD_RUSTC_CONFIG=str(config_path))
+        consumer_args = consumer_arguments(cargo, source, jobs) + [
+            '--config', 'host.linker=' + json.dumps(clang),
+            '--config', 'target.' + target + '.linker=' + json.dumps(clang),
+            '--config', 'target.' + target + '.rustflags=' + json.dumps(flags)]
+        run(consumer_args, source, consumer_env, root / 'logs/consumer-build', commands, 900)
         # The normal build's member proof reads Cargo's real verbose transcript.
         # Reused outputs do not emit compiler evidence from a previous invocation.
-        sys.stdout.write((root / 'logs/csv-build.stdout').read_text())
-        sys.stderr.write((root / 'logs/csv-build.stderr').read_text())
+        sys.stdout.write((root / 'logs/consumer-build.stdout').read_text())
+        sys.stderr.write((root / 'logs/consumer-build.stderr').read_text())
         sys.stdout.flush()
         sys.stderr.flush()
-        csv_units = [json.loads(p.read_text()) for p in (root / 'csv-units').glob('*.json')]
-        verify_compiler_units(csv_units, files, root / 'csv-target')
-        csv = root / 'csv-target' / target / 'release/lib_csv_rs.dylib'
-        csv_unit = next(unit for unit in csv_units if '--crate-name' in unit['argv']
-                        and unit['argv'][unit['argv'].index('--crate-name') + 1] == '_csv_rs')
-        raw_provider, raw_csv = artifact(provider), artifact(csv)
-        csv_id = consumer_install_id(csv_unit, csv, root)
-        compiler_artifact = artifact(csv_id)
-        install_id, rpath, dependencies = normalized_outputs(provider, csv, env, commands, root, csv_unit)
+        target_units = [json.loads(p.read_text()) for p in (root / 'consumer-units').glob('*.json')]
+        verify_compiler_units(target_units, files, root / 'consumer-target')
+        selected = consumer_units(target_units, pairs)
+        consumers = {name: root / 'consumer-target' / target / ('release/lib' + name + '.dylib') for name in CONSUMERS}
+        raw_provider = artifact(provider)
+        raw_consumers = {name: artifact(path) for name, path in consumers.items()}
+        consumer_ids = {name: consumer_install_id(selected[name], path, root) for name, path in consumers.items()}
+        compiler_artifacts = {name: artifact(path) for name, path in consumer_ids.items()}
+        install_id, rpath, dependencies = normalized_outputs(provider, consumers, env, commands, root, selected)
         mirror = publish_build_mirror(provider, build)
-        publish = build / 'target' / target / 'release/lib_csv_rs.dylib'
-        publish.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(csv, publish)
+        records = {}
+        for name, path in consumers.items():
+            publish = build / 'target' / target / ('release/lib' + name + '.dylib')
+            publish.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, publish)
+            records[name] = {**artifact(publish), 'artifact_path': str(path), 'artifact_sha256': digest(path),
+                             'install_id': consumer_ids[name], 'compiler_artifact': compiler_artifacts[name],
+                             'provider_install_id': install_id, 'rpath': rpath, 'dependencies': dependencies[name],
+                             'raw_artifact': raw_consumers[name],
+                             'source': artifact(source / 'Modules' / name / 'src/lib.rs'), 'unit_receipt': selected[name]}
         verify_files(files)
         verify_files(runtime_files)
-        bindings = [unit['generated_c_api_before_compile'] for unit in csv_units if 'generated_c_api_before_compile' in unit]
+        bindings = [unit['generated_c_api_before_compile'] for unit in target_units if 'generated_c_api_before_compile' in unit]
         if len(bindings) != 1:
             raise ValueError('expected one fresh target C API generation')
-        receipt = {'schema_version': 1, 'status': 'complete', 'build': str(build), 'target': target,
+        receipt = {'schema_version': 2, 'status': 'complete', 'build': str(build), 'target': target,
                    'recipe_environment': recipe_environment(build, inherited),
                    'profile': profile, 'panic': 'abort', 'allocator': 'System', 'compiler': compiler,
                    'source': {'path': str(source), 'workspace_lock_sha256': digest(source / 'Cargo.lock'),
@@ -739,13 +807,8 @@ def build_recipe(source, build, target, profile, jobs):
                    'provider': {**artifact(provider), 'install_id': install_id, 'dependencies': dependencies['provider'],
                                 'raw_artifact': raw_provider, 'build_mirror_path': mirror['path'],
                                 'build_mirror_sha256': mirror['sha256']},
-                   'csv': {**artifact(publish), 'artifact_path': str(csv), 'artifact_sha256': digest(csv),
-                           'install_id': csv_id,
-                           'compiler_artifact': compiler_artifact,
-                           'provider_install_id': install_id, 'rpath': rpath, 'raw_artifact': raw_csv,
-                           'source': artifact(source / 'Modules/_csv_rs/src/lib.rs'),
-                           'unit_receipt': csv_unit},
-                   'generated_bindings': bindings, 'units': units + csv_units, 'commands': commands}
+                   'consumers': records,
+                   'generated_bindings': bindings, 'units': units + target_units, 'commands': commands}
         (root / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
         return verify_build_receipt(source, build, target, source_metadata)
     except BaseException as error:
@@ -767,16 +830,26 @@ def build_recipe(source, build, target, profile, jobs):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('operation', choices=['build'])
+    parser.add_argument('operation', choices=['build', 'publish'])
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--target', required=True)
     parser.add_argument('--profile', choices=['release'], required=True)
-    parser.add_argument('--jobs', type=int, required=True)
+    parser.add_argument('--jobs', type=int)
+    parser.add_argument('--consumer', choices=CONSUMERS)
+    parser.add_argument('--output', type=Path)
     args = parser.parse_args()
-    if args.jobs < 1:
-        parser.error('jobs must be positive')
-    build_recipe(args.source, args.build, args.target, args.profile, args.jobs)
+    if args.operation == 'build':
+        if args.jobs is None or args.jobs < 1 or args.consumer is not None or args.output is not None:
+            parser.error('build requires positive jobs and no publication arguments')
+        build_recipe(args.source, args.build, args.target, args.profile, args.jobs)
+    else:
+        if args.consumer is None or args.output is None or args.jobs is not None or args.target != TARGET:
+            parser.error('publication requires one consumer/output and the supported target')
+        metadata = {'sha256': STD_ARCHIVE_SHA256, 'compiler_revision': REVISION,
+                    'library_cargo_lock_sha256': STD_LOCK_SHA256}
+        publish_consumer(args.source, args.build, args.target, args.consumer, args.output, metadata)
+
 
 
 if __name__ == '__main__':

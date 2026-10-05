@@ -465,11 +465,14 @@ def _install_csv_source_std(source: Path, paths: dict[str, Path],
         receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
     except (ValueError, RuntimeError) as error:
         raise LaneError(f"CSV source-Std artifact proof failed: {error}") from error
-    if (receipt["schema_version"] != 1 or receipt["status"] != "complete"
+    if (receipt["schema_version"] != 2 or receipt["status"] != "complete"
             or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
             or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
         raise LaneError("CSV source-Std receipt has an incompatible runtime policy")
-    provider, csv = receipt["provider"], receipt["csv"]
+    provider = receipt["provider"]
+    consumers = receipt["consumers"]
+    if set(consumers) != {"_csv_rs", "_json_rs"}:
+        raise LaneError("Source-Std requires exactly CSV and JSON consumer receipts")
     provider_path = Path(provider["path"])
     basename = provider_path.name
     mirror = work / "rust-cpython" / basename
@@ -478,25 +481,21 @@ def _install_csv_source_std(source: Path, paths: dict[str, Path],
             or provider_path != build / "source-std338/provider" / basename
             or Path(provider["build_mirror_path"]) != mirror
             or provider["build_mirror_sha256"] != provider["sha256"]
-            or provider["install_id"] != install_id
-            or csv["provider_install_id"] != install_id
-            or csv["rpath"] != "@loader_path/../../rust-cpython"):
-        raise LaneError("CSV source-Std provider paths or loader contract differ")
-    published = build / "target" / lb.TARGET / "release/lib_csv_rs.dylib"
-    if Path(csv["path"]) != published:
-        raise LaneError("CSV source-Std published artifact has an unexpected owner")
-    installed = list(stage.glob("lib/python3.*/lib-dynload/_csv_rs*.so"))
-    if len(installed) != 1:
-        raise LaneError("CSV source-Std requires exactly one installed CSV helper")
-    helpers = list((build / "Modules").glob("_csv_rs*.so"))
-    if len(helpers) != 1:
-        raise LaneError("CSV source-Std requires exactly one built CSV helper")
-    helper = helpers[0]
+            or provider["install_id"] != install_id):
+        raise LaneError("Source-Std provider paths or loader contract differ")
     artifacts = [(provider_path, provider["sha256"], provider["size"]),
-                 (mirror, provider["sha256"], provider["size"]),
-                 (published, csv["sha256"], csv["size"]),
-                 (helper, csv["sha256"], csv["size"]),
-                 (installed[0], csv["sha256"], csv["size"])]
+                 (mirror, provider["sha256"], provider["size"])]
+    for name, record in consumers.items():
+        published = build / "target" / lb.TARGET / ("release/lib" + name + ".dylib")
+        if (Path(record["path"]) != published or record["provider_install_id"] != install_id
+                or record["rpath"] != "@loader_path/../../rust-cpython"):
+            raise LaneError("Source-Std consumer owner or loader contract differs: " + name)
+        installed = list(stage.glob("lib/python3.*/lib-dynload/" + name + ".*.so"))
+        helpers = list((build / "Modules").glob(name + ".*.so"))
+        if len(installed) != 1 or len(helpers) != 1:
+            raise LaneError("Source-Std requires one installed and built consumer: " + name)
+        artifacts.extend((path, record["sha256"], record["size"])
+                         for path in (published, helpers[0], installed[0]))
     for path, digest, size in artifacts:
         if (not path.is_file() or path.resolve() != path or path.stat().st_size != size
                 or _sha256_file(path) != digest):
@@ -515,7 +514,7 @@ def _install_csv_source_std(source: Path, paths: dict[str, Path],
             if lb.macho.dylib_id(path) != install_id or lb.macho.rpaths(path):
                 raise LaneError(f"CSV source-Std provider is not relocatable: {path}")
         elif (dependencies.count(install_id) != 1
-              or lb.macho.rpaths(path) != [csv["rpath"]]):
+              or lb.macho.rpaths(path) != ["@loader_path/../../rust-cpython"]):
             raise LaneError(f"CSV source-Std helper loader contract differs: {path}")
     staged = stage / "lib/rust-cpython" / basename
     if staged.parent.resolve() != staged.parent:
