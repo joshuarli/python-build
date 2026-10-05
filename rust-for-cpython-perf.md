@@ -4789,6 +4789,69 @@ generator-to-comprehension cleanup removes no persistent load owner.
 
 ## Objective after coverage
 
+### Sprint audit update (2026-10-05)
+
+The live recheck found one running child among31 available child slots before
+restarting independent verification, source-admission and route scouts. This
+is coordinator underuse. The host snapshot has10 logical CPUs,64GiB RAM,
+zero swap usage/traffic and343GiB free disk; it is lightly loaded. There are
+226 registered worktrees, which add state-management cost but have not
+exhausted disk space. No measured coordinator-idle total is available.
+
+Actual recent costs: clean builds214–224s; compatible incremental builds
+32.9–34.3s; target screens8.3–16s. Focused suites range from275ms to2.9s
+in the cited recent examples. A saved complete suite took252s, followed by
+a687s broad71/all23 gate; another complete suite took483s. Timers may
+include lease waits. Build/test leases can overlap; measurements remain
+exclusive. Thirty-one reasoning lanes do not supply31 local compiler cores.
+
+The fastest qualifying order remains compatible incremental build, minimal
+meaningful regression and nearest complete suite, replicated target plus
+known affected memory guards, then all23 and broader qualification only for
+survivors. Fixture-only edits do not require recompiling an unchanged stage.
+Reuse valid calibration; do not perform CPU, timing or quietness gates during
+memory work. Final clean builds, complete suites and replicated absolute
+module/workload proof remain required. Preserve existing measured failures.
+
+The64KiB load and256KiB working floors normalize denominators, not admission
+sizes. Earlier size-only dismissals of compat-pickle and the cold ZIP
+compressor were invalid; reopened compat-pickle analysis still finds no
+removable persistent owner. Small concrete candidates remain eligible.
+The principal technical uncertainty is physical attribution: fewer objects
+or buffer bytes do not establish fewer resident pages, and a target win can
+coexist with a replicated cross-route memory regression.
+
+### Plistlib references280: larger local win, second workload rejection
+
+Fixture-first donor280 `6aff775` adds a lossless narrow reference arena to
+277/278: u16 entries promote to u32 before an out-of-range append. Previous
+references, order and full u32 values are preserved. Modeled fixed-kernel
+capacity drops about8KiB. Primary `adf7073` incremental build passes34.3s;
+all14 independent byte/behavior cases pass on accepted and candidate stages,
+including the actual65,536-index promotion boundary. Complete plistlib
+passes71/0. Source review passes; five prepared Rust unit tests remain UNRUN.
+
+The16s matched target screen reports working0.680x [0.556,0.814], improved
+in both runs; load0.685x is better/neutral. The selected difflib RSS guard
+is neutral in both runs. Verdict
+`20261005T030058Z-perf-rust-vs-perf-pl277a/verdict.json`, SHA
+`b557d6e76bad841581c624c1bac174fca23b95ed4b0ef1dcf74fb8749072434a`.
+The all23 request REJECTS after150.2s: zlib streaming RSS1.016085x
+[1.015826,1.016345], worse in both runs. Twelve entities complete; eleven
+workloads and plistlib are incomplete. Verdict
+`20261005T030236Z-perf-rust-vs-perf-pl277a/verdict.json`, SHA
+`13f6e8a7f004093fb0a3449c2790444e9b9b8e4333df04d92dcb7a6246628251`.
+Broad/full qualification and native Rust-unit execution are canceled.
+No acceptance, absolute goal change or unchanged reroll follows.
+
+The bounded current-artifact audit finds identical mapped segment extents
+and fixup-page sets in accepted/candidate zlib, difflib, struct and core.
+Zlib/difflib section bytes and offsets match exactly. Struct/core embedded
+build paths shift some readonly sections64 bytes; normalized data/pointer
+targets match and code differences are address immediates. This does not
+establish RSS causality or an extra mapped-page owner. No allocator revival,
+random build-name change or previously closed layout trial follows.
+
 Make the covered stdlib faster and more resource efficient on representative
 application workloads without sacrificing Python-level correctness. Compare
 against matched upstream CPython 3.16 and the preceding accepted fork. Keep
