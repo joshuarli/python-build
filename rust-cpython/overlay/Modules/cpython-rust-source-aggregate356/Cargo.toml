@@ -14,6 +14,9 @@ _datetime_rs = { path = "../_datetime_rs" }
 _threading_rs = { path = "../_threading_rs" }
 _uuid_rs = { path = "../_uuid_rs" }
 
+[build-dependencies]
+cpython-build-helper = { path = "../cpython-build-helper" }
+
 [lib]
 name = "cpython_rust_source_aggregate356"
 crate-type = ["cdylib"]

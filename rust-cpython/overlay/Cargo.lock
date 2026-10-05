@@ -787,6 +787,7 @@ dependencies = [
  "_tokenize_rs",
  "_typing_rs",
  "_uuid_rs",
+ "cpython-build-helper",
 ]
 
 [[package]]

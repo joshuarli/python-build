@@ -11,8 +11,10 @@ added. CSV dependency license evidence remains in
 `../_csv_rs/THIRD_PARTY_LICENSES.md`; JSON dependency evidence remains in
 `../_json_rs/THIRD_PARTY_LICENSES.md`. The inherited UUID dependency is
 `uuid` 1.26.1 (MIT OR Apache-2.0), with its existing `std`, `v3`, `v4`, `v5`
-features and their original locked dependency closure. The existing CPython
-binding/build helper dependency closure is retained unchanged.
+features and their original locked dependency closure. The aggregate root also calls the existing local `cpython-build-helper` from
+its build script so the root cdylib receives the original platform linker
+policy. The existing CPython binding/build helper dependency closure is
+retained unchanged.
 
 The source-built Rust standard library retains its original MIT OR Apache-2.0
 license and notices. This crate does not supply a replacement allocator,
