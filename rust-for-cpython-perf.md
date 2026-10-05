@@ -5390,7 +5390,8 @@ selection through an owned sysroot view passes with eight compiler queries,
 31 graph units, unchanged inputs/stage and reaped children. The initial
 public query failed because its host configuration lacked the required
 target-applies-to-host flag; the corrected query preserves that failure.
-No compiler build, registry fetch or installed-toolchain mutation occurred.
+The queries perform no compiler build, registry fetch or installed-toolchain
+mutation.
 Cargo explicitly selects static `std` despite its source declaring a dylib;
 shared abort-runtime producer/consumer transport remains unproved. The graph
 also contains an injected unused `panic_unwind` root; final linkage must
@@ -5398,6 +5399,28 @@ retain abort and cannot be inferred from graph presence alone. Source pins,
 complete notices and thread/subinterpreter ownership need proof before any
 adoption. Recorded48 passing/23 unresolved modules and12 workload RSS
 regressions remain unchanged.
+
+The isolated source-runtime dependency build subsequently passes in16.76s,
+with37 compiler receipts reaped and source/accepted-stage guards intact.
+The first wrapper rejected libc's ordinary version query and closed Cargo's
+jobserver descriptors; both errors are corrected with preserved failures.
+The successful build retains an optional probe debug-stripping warning:
+installed rust-objcopy cannot load libLLVM. No tool installation or fallback
+is introduced. The first producer-only dylib replay fails because the capture
+omitted the actual build-script variable `STD_ENV_ARCH`; metadata, externs
+and abort policy remain fixed while the capture is corrected. No shared
+runtime or memory improvement has been established.
+
+Diagnostic339 verifies a distinct retained input owner in both accepted and
+rebuilt interpreters: six installed bytecode files retain their original
+immortal interned filenames after the real source loader rewrites root and
+nested code filenames through an owned alias and code references are dropped.
+Both executions, source/bytecode hashes, stage guards and cleanup pass.
+The61-file static roster has549 extra character bytes and704 modeled block
+capacity bytes in the rebuild; these are not a physical RSS explanation.
+The owner exists in pristine C too. Source feasibility for avoiding obsolete
+import filenames remains unproved, with public marshal, reference aliases
+and deliberately different nested filenames requiring preservation.
 
 ### Sprint audit update (2026-10-05)
 
