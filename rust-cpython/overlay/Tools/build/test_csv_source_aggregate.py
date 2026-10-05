@@ -11,6 +11,54 @@ spec.loader.exec_module(recipe)
 
 
 class SourceAggregate(unittest.TestCase):
+    def test_eleven_consumers_have_independent_success_runtime_and_sysroot_proofs(self):
+        import copy
+        expected = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs',
+                    '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
+        self.assertEqual(recipe.CONSUMERS, expected)
+        self.assertEqual(recipe.SCHEMA, 2)
+        self.assertEqual(len(recipe.std.CONSUMERS), 7)
+        pairs = {name: ['/' + name + '.rlib', '/' + name + '.rmeta'] for name in ('std', 'core', 'alloc')}
+        units = []
+        for name in expected:
+            args = ['rustc', '--crate-name', name, '--crate-type', 'cdylib', '--crate-type', 'rlib',
+                    '--target', recipe.TARGET, '--sysroot', '/owned']
+            for runtime, paths in pairs.items():
+                for path in paths:
+                    args += ['--extern', runtime + '=' + path]
+            units.append({'argv': args, 'query': False, 'exit_code': 0, 'reaped_exit': 0})
+        self.assertEqual(set(recipe.consumer_units(units, pairs, '/owned')), set(expected))
+        for name in expected[-4:]:
+            for defect in ('missing', 'failed', 'runtime', 'sysroot', 'duplicate'):
+                changed = copy.deepcopy(units)
+                index = expected.index(name)
+                if defect == 'missing':
+                    changed.pop(index)
+                elif defect == 'failed':
+                    changed[index]['reaped_exit'] = 1
+                elif defect == 'runtime':
+                    changed[index]['argv'].remove('core=/core.rmeta')
+                elif defect == 'sysroot':
+                    changed[index]['argv'][changed[index]['argv'].index('/owned')] = '/installed'
+                else:
+                    changed.append(copy.deepcopy(changed[index]))
+                with self.subTest(name=name, defect=defect), self.assertRaises(ValueError):
+                    recipe.consumer_units(changed, pairs, '/owned')
+
+    def test_new_consumer_sources_are_pinned_without_mutating_std_roster(self):
+        with tempfile.TemporaryDirectory() as raw:
+            source = Path(raw).resolve()
+            expected = {}
+            for name in ('_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs'):
+                for filename in ('Cargo.toml', 'build.rs', 'src/lib.rs', 'src/extra.rs'):
+                    path = source / 'Modules' / name / filename
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(name + filename)
+                    expected[str(path)] = recipe.digest(path)
+            with patch.object(recipe.std, 'input_files', return_value={'original': 'unchanged'}):
+                self.assertEqual(recipe.input_files(source, None, None, None), {'original': 'unchanged', **expected})
+            self.assertEqual(len(recipe.std.CONSUMERS), 7)
+
     def test_exact_root_is_one_joint_cargo_owner_for_seven_unchanged_dependencies(self):
         args = recipe.consumer_arguments('/cargo', Path('/source'), 2)
         self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'], [recipe.PACKAGE])
