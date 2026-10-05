@@ -5507,6 +5507,20 @@ normalization defect and still needs native qualification. The next physical
 memory experiment requires two consumers sharing the provider; the single
 CSV stage establishes build transport only.
 
+The normalization correction subsequently passes22 controller tests and
+ordinary CSV V6 installation:60.4s,58 verified release extensions, provider
+1,325,440B and CSV73,488B. Installed callback/error/thread/interpreter checks
+and a moved-tree provider check pass; complete CSV tests pass134/4. Fresh
+memory-only calibration takes237.9s and reads all23 workloads/eight modules
+neutral. Corrected joint CSV+JSON implementation then passes28 recipe and94
+controller tests. Its first clean build compiles all91 recorded units with
+zero/reaped exits and publishes both signed consumers, but the separate
+install invocation relinks libpython and correctly fails the pinned-input
+check. The preserved failure establishes no installed-stage or RSS result.
+The clean source-runtime path must use one parallel install invocation and
+derive its compilation proof from that same transcript; pristine control
+keeps its existing recipe. Neither memory goal counts nor adoption change.
+
 The14:50 UTC inspection found two running children, no native build or
 measurement,86.44% CPU idle,15GiB unused RAM, no swap traffic and327GiB
 free disk. This is a point-in-time observation, not average utilization.
