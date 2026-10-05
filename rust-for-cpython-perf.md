@@ -4923,6 +4923,36 @@ That stitched picture is not a fresh full71 completion proof. The23 absolute
 workload RSS goals are not remeasured here; their12 recorded regressions
 remain unresolved. No overlay adoption, CPU work or goal-completion claim.
 
+### Live sprint bottlenecks and ipaddress closure (2026-10-05)
+
+The04:13 UTC snapshot finds all31 children completed, no active native
+command,10 host CPUs,64GiB RAM, zero swap use and342GiB free disk. Load
+averages are1.37/1.27/1.29. This establishes idle capacity at inspection;
+it does not measure average utilization or total coordinator delay.
+
+The latest four implementations281–284 pass their focused correctness
+checks but all target comparisons are NEUTRAL. Three compatible incremental
+builds take roughly33–36s, versus214s for socket281's clean build; target
+comparisons take8.6–9.3s. The implementation frontier is empty after these
+closures. Agent occupancy alone will not supply additional distinct owners.
+
+The newly confirmed ipaddress load excess is not explained by duplicate
+functools descriptors: both versions have four cached properties, four LRU
+decorators and two ordering decorators, with matching implementations and
+cache layouts. The fixed kernel reaches only the final network's broadcast
+property; Rust avoids the control's additional cached hostmask. Native
+output bytes are temporary, and no Rust heap cache or capsule owner was
+found. The48KiB excess remains unattributed. This bounded source inquiry
+made no edits and launched no native work; it is not a global exhaustion
+claim or a measured rejection of a new candidate.
+
+Remaining friction includes coordinator scheduling, investigation of
+already closed mechanisms, temporary-allocation edits aimed at load-only
+debts, bespoke fixture-runner mistakes, and a large historical plan with
+superseded instructions. Preserve historical evidence, but use the current
+memory-first contract and corrected survivor-only verification order.
+No CPU, timing or host-quietness requirement delays memory work.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
