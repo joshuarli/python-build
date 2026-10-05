@@ -4689,6 +4689,59 @@ ID shifts its text offset by64 bytes and changes real code/data bytes despite
 equal segment sizes. This is not an RSS explanation, and the previously
 rejected before-link stable-install-ID experiment209 remains closed.
 
+## Cold capability helpers272–275: closed target discovery (2026-10-05)
+
+An accepted/control six-checkpoint `compileall_source` diagnostic found
+`TemporaryDirectory` first use loading shutil and its compression capability
+providers. The accepted-only `_shutil_rs`, `_zlib_rs` and `_lzma_rs` images
+retained288KiB resident/96KiB dirty in the saved trace. The entire736KiB
+preparation increment was not removable helper cost; control loaded the
+common providers earlier. The diagnostic is attribution, not acceptance.
+Report: owner259 `results/accepted-control-attribution268/actual-output/report.json`,
+SHA `bb72021bee2455f1f90dfed5b03685d329c96bdb9f4e47d663c4953f82c45803`.
+
+Shutil274 matched already measured deferral `5aa4e4d` and was closed before
+editing. Distinct LZMA272/zlib273 cold-helper candidates were combined with
+two private `_imp` cache/importer queries275. The original clean build at
+`baf84bd` passed214s/58 verified Rust extensions; corrected source `7f944b1`
+rebuilt incrementally in33s. Complete lzma/zlib/shutil/tempfile suites passed
+557 tests/83 skips in731ms. Accepted behavior fixtures passed19 cases;
+candidate codec fixtures passed30 and native query fixtures passed9, including
+own-GIL checks. All owned children were reaped, temporary directories removed,
+and frozen-fixture/stage guards passed.
+
+Retained regression-first fixtures also established real candidate defects:
+Python-visible module-map membership traps passed accepted code and failed
+the initial candidate; those fixes are included in `7f944b1`. Independent
+review then found a plain rebound dictionary concealing the bootstrap object
+and reentrant zlib import overwriting a provider owning an existing stream.
+Actual selected execution confirmed accepted LZMA PASS/candidate assertion
+failure and zlib candidate `RuntimeError` for a foreign provider's stream
+state. The latter runner expected an assertion failure and exited1 when the
+child reported an error; the original error receipt remains preserved.
+Source fixes `eac81947`/`53dc21c1` and a combined private sys query
+`10e132dc` are preserved unexecuted in isolated branches; none was adopted.
+
+The rejection-only matched standard two-run memory screen on built
+`7f944b1` took13.1s and was **NEUTRAL**: shutil load1.001x
+[1.000,1.005], working1.000x; compileall RSS1.006x [0.999,1.013]. No output
+mismatch or replicated target improvement. Verdict
+`20261005T022024Z-perf-rust-vs-perf-cold272/verdict.json`, SHA
+`cde0f2c569541993d7781cb2094aa2cb48b2574f77d6a6cd3f0e151bf5269014`.
+Further rebuilds, broad draws and full qualification were canceled. The
+known edge-case defects do not affect accepted code. All71/all23 goals and
+accepted overlay `e702f23` remain unchanged; no CPU/quiet gate was applied.
+
+The contemporaneous host has10 cores,64GiB RAM, zero swap use and344GiB
+free disk. Source implementation, fixture preparation, independent review
+and bounded owner scouts overlapped with root-native execution. The new
+target screen cost13.1s versus33s incremental/214s clean compilation;
+the expensive full loop did not run after neutral discovery. The bottleneck
+remains finding physical resident savings that survive actual workload
+measurement, together with coordinator latency and repeated closed leads.
+Candidate admission must use the actual target's meaningful memory scale;
+there is no universal64KiB minimum that excludes smaller module-page wins.
+
 ## Objective after coverage
 
 Make the covered stdlib faster and more resource efficient on representative
