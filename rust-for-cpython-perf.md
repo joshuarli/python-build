@@ -4742,6 +4742,51 @@ measurement, together with coordinator latency and repeated closed leads.
 Candidate admission must use the actual target's meaningful memory scale;
 there is no universal64KiB minimum that excludes smaller module-page wins.
 
+## Plistlib writer277–279: local peak win, workload rejection (2026-10-05)
+
+The blanket64KiB source-admission filter was removed. A guarded paired
+four-operation diagnostic of the exact plistlib kernel identified binary
+dumping as the accepted run's observed page-growth phase:64KiB then16KiB
+and16KiB, with the other operations flat. Instrumentation perturbs allocation
+state; this is attribution only. Owner259's
+`results/plistlib-phase279/actual-output/report.json` SHA is
+`a94e434ae48c13410f610745b72daf7ac06c0fa94c70ff230df6d506984e5e89`.
+
+Two independently reviewed writer owners were combined at primary `b27ba41`:
+277 `0317364` partitions integer deduplication into signed i64 and high
+unsigned u64 keys;278 `119be5a` stores node tags separately from full-width
+typed payloads. Nominal fixed-input capacities shrink about8KiB and7KiB,
+respectively. No pointer tagging, smaller length limits, output changes,
+coverage removal, dependencies or CPU/quiet gates. Fixture-first tests use
+the independent Python writer for exact bytes and cover all node variants,
+integer boundaries, aliases/cycles, callback reentry/GC, snapshots and declines.
+All10 cases pass on accepted and candidate interpreters; complete plistlib
+passes71/0. Clean build23157 passes214s/58 verified Rust extensions. All
+native children are reaped, temporary directories gone, and guards pass.
+
+The8.3s matched standard two-run target screen shows working peak0.785x
+[0.696,0.863], improved in both runs; load0.833x is neutral in both.
+Verdict `20261005T024108Z-perf-rust-vs-perf-pl277a/verdict.json`, SHA
+`abb74d56b03ba4deb8333844b06eed1cb8a2dd6d40c4614b9477c9bd2712ccea`.
+The all23-workload request then rejects after158.6s on replicated difflib
+mostly-equal RSS1.012x [1.012075,1.012094]. Sixteen entities complete; seven
+workloads and the plistlib entity are incomplete. No all23 pass or accepted
+module-goal improvement is claimed. Verdict
+`20261005T024215Z-perf-rust-vs-perf-pl277a/verdict.json`, SHA
+`5d1d1f5f44cd0636f56aa8a5cb987c5f9c0eb2d52a4b05384356aa0228a84f98`.
+The cross-route cause is unknown. Broad71/full qualification and the prepared
+three Rust representation-unit tests are canceled; no adoption or unchanged
+retry. Accepted overlay e702 and absolute module/workload goals remain binding.
+
+A difflib source follow-up disproves the proposed large string-span-vector
+owner: accepted matching already indexes borrowed tuples and existing position
+lists. Fixed workload sizes are512/511 and396/396 lines. Preserving dynamic
+backend overrides retains the historical b snapshot, leaving only about4KiB
+or3KiB transient tuple storage removable by a new callback-safe list view.
+No source-supported100KiB owner was found and no edit followed. The separate
+compat-pickle source scout also found required shared tuple/dictionary owners;
+generator-to-comprehension cleanup removes no persistent load owner.
+
 ## Objective after coverage
 
 Make the covered stdlib faster and more resource efficient on representative
