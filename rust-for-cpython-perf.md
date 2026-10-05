@@ -5463,8 +5463,23 @@ accepted lock; compilation still uses `--locked --offline`. The second
 compile fails in a `no_std` dependency with duplicate primitive definitions,
 requiring explicit matching source `core`/`alloc` resolution alongside `std`.
 Both failures, child cleanup and unchanged accepted-stage guards are recorded.
-The next source pairing correction does not change dependency versions or
-algorithms. No CSV runtime or RSS improvement has been proved.
+The next attempts resolve source `core`/`alloc`, add the exact provider metadata
+search directory, and copy the authoritative generated CPython module-name
+header. The fifth prototype compiles successfully: all 44 compiler units are
+reaped with zero exit status and the accepted stage is unchanged. Its unchanged
+CSV helper is 73,760 bytes; 16 Rust imports bind to source `std`, 12 Python C API
+imports remain dynamic, and the expected module initializer is exported.
+
+The real prototype passes bounded callback/error checks, four Python threads,
+three shared-GIL interpreter cycles and three own-GIL rejection/fallback cycles.
+The initial fixture incorrectly equates private empty-row serialization with
+the C writer; the accepted helper proves that assumption wrong. The corrected
+fixture keeps the actual private-helper output and unchanged public fallback
+checks. Both failed and passing receipts remain preserved. Runtime proof SHA256
+is `957650c9b3f49f8ee0f417b141fbbb1666bfc536bf3500322b49ccd728a45b5e`.
+Normal reproducible installation, complete suites, relocation and RSS evidence
+remain unqualified. Three isolated implementation lanes now own source pins
+and notices, the producer/consumer recipe, and ordinary stage verification.
 Recorded48 passing/23 unresolved modules and12 workload RSS regressions
 remain unchanged.
 
