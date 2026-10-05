@@ -5012,6 +5012,53 @@ The recorded memory picture remains48 passing/23 unresolved modules and12
 absolute workload RSS regressions. No fresh full71 proof, debt waiver,
 accepted runtime change or memory-completion claim follows this wave.
 
+### Retained cache screens292–293 (2026-10-05)
+
+Two new retained-owner implementations pass native correctness but close
+without adoption. The accepted e702 overlay and48 passing/23 unresolved
+module picture, with12 absolute workload RSS regressions, remain unchanged.
+No CPU, timing or quiet-host requirement participates.
+
+- Struct293 `59866e9` delays the C format-cache dictionary until native
+  conversion; Rust-only calls retain no empty dictionary. Five existing
+  lifecycle/error/reentry/thread/subinterpreter contracts pass accepted;
+  the cold-owner assertion fails as expected. All seven candidate contracts
+  pass, followed by complete test_struct47/0 in349ms. The compatible
+  configured-tree build verifies58 Rust artifacts in34s. Its first natural
+  path screen is neutral; a once-only correction adds the required matched
+  home/executable flags and remains neutral in both runs, load1.000x and
+  working1.000x. Corrected verdict `20261005T052854Z-perf-rust-vs-perf-zstd288`,
+  SHA256 `13fcbbca118a6516d83480a27ef69a840dd4dfd15de9156575563126516c1003`. Earlier natural evidence is preserved, not
+  treated as a matched comparison. GC introspection and allocation-failure
+  timing change only in this unadopted source. Optional allocation-fault
+  fixture b5766c3 remains unrun after target closure.
+- Importlib292 `6d8ab11` avoids newly cached bytecode exclusively in the
+  internal C pyc writer; the public Rust marshal getter stays unchanged.
+  It preserves warm-cache identity, deoptimization and wire reference flags
+  with temporary ownership. The immutable corrected fixture passes four
+  accepted cases and fails six expected retention assertions; the candidate
+  passes all ten. Clean build217s verifies58 artifacts; complete compileall,
+  marshal and code suites pass264/14 in6.9s. The matched two-run compileall
+  RSS target screen REJECTS1.017241x [1.016129,1.018354],6.4s. Verdict
+  `20261005T053059Z-perf-rust-vs-perf-importlib292`, SHA256
+  `4229ace80529b311718eff0234bf09834c75c4dde045b3f299e0dec115979199`.
+  No all23, full correctness, adoption or unchanged retry follows.
+
+The original marshal fixture used a ctypes argument owner that changed
+selective wire flags; its failure is preserved. A subsequent shared-file
+mutation failed the post-run fixture hash guard. Final source e81b261 is
+snapshotted immutably before accepted/candidate execution, SHA256
+`352d088deee54f2ccdef150e0f704069b8dd8b068cabefaf2d4e326659517f22`;
+those final executions pass stage/fixture guards and reap their children.
+
+Bounded source inquiries294/295 find no new large retained owner in the
+actual application branches or SSL/SQLite/CSV/fractions tables. SSL's
+ce59916 private error-name dictionary trial was missing from the central
+index and is now indexed; its original memory rejection remains binding.
+These inquiries do not establish impossibility or waive any goal. Fractions
+297's independent seven-case fixture passes on accepted; its distinct Rust
+text-grammar implementation remains unqualified in its isolated source lane.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
