@@ -862,7 +862,7 @@ class IncrementalPlanTests(unittest.TestCase):
 
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
-                 empty_overlay=False, missing_current_member=False):
+                 empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             if not source_std:
@@ -870,6 +870,12 @@ class IncrementalRecipeTests(unittest.TestCase):
             source = root / "source"
             source.mkdir()
             (source / "Cargo.lock").write_text("locked fixture")
+            aggregate_manifest = source / 'Modules/cpython-rust-source-aggregate356/Cargo.toml'
+            (source / 'Cargo.toml').write_text('[workspace]\nmembers = ' +
+                ('["Modules/cpython-rust-source-aggregate356"]\n' if aggregate else '[]\n'))
+            if aggregate and not missing_aggregate:
+                aggregate_manifest.parent.mkdir(parents=True)
+                aggregate_manifest.write_text('[package]\nname = "cpython-rust-source-aggregate356"\n')
             (source / "Lib").mkdir()
             (source / "Lib/pickle.py").write_text("old")
             paths = {name: root / name for name in (
@@ -892,6 +898,11 @@ class IncrementalRecipeTests(unittest.TestCase):
             preparations = []
             def command(argv, *, log, **kwargs):
                 commands.append(argv)
+                if "fetch" in argv and missing_aggregate:
+                    self.assertIn('--locked', argv)
+                    self.assertIn('--manifest-path', argv)
+                    self.assertIn('cpython-rust-source-aggregate356', (source / 'Cargo.toml').read_text())
+                    raise perf.LaneError('Cargo declared aggregate dependency is missing')
                 if "install" in argv and failed_install:
                     log.write_text("install failed")
                     raise perf.LaneError("install failed")
@@ -905,7 +916,7 @@ class IncrementalRecipeTests(unittest.TestCase):
                     python.write_text("installed fixture")
             def prepare_std(prepared_paths, env):
                 preparations.append(prepared_paths)
-                self.assertTrue(source_std, "Linux must not prepare source Std")
+                self.assertTrue(source_std and aggregate, "ordinary workspace must not prepare source Std")
                 self.assertTrue(prepared_paths["build"].is_dir())
                 if not incremental:
                     self.assertTrue(prepared_paths["stage"].is_dir())
@@ -940,7 +951,15 @@ class IncrementalRecipeTests(unittest.TestCase):
                 perf, "verify_release_artifacts", return_value={str(i): "hash" for i in range(58)}))
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
             compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
-            single_install = incremental or (source_std and not empty_overlay)
+            single_install = incremental or (source_std and aggregate and not empty_overlay)
+            if missing_aggregate:
+                with self.assertRaisesRegex(perf.LaneError, "Cargo declared aggregate dependency is missing"):
+                    perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
+                                       incremental=incremental, state={"configured": True})
+                self.assertEqual(preparations, [])
+                self.assertFalse(any(argv[0] == "/make" for argv in commands))
+                extensions.assert_not_called()
+                return
             if bad_install or failed_install or missing_current_member:
                 with self.assertRaisesRegex(perf.LaneError, "profile dev|install failed|did not compile Rust members"):
                     perf._build_locked("fixture", paths, empty_overlay=empty_overlay, jobs=4,
@@ -956,7 +975,7 @@ class IncrementalRecipeTests(unittest.TestCase):
                 self.assertEqual(report["rust_builtin_artifacts"], {} if empty_overlay else {"fixture": "verified"})
                 self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
                 self.assertEqual(report["incremental"], incremental)
-                self.assertEqual(report["rust_source_aggregate"], {"fixture": "verified"} if source_std and not empty_overlay else None)
+                self.assertEqual(report["rust_source_aggregate"], {"fixture": "verified"} if source_std and aggregate and not empty_overlay else None)
                 self.assertEqual((source / "Lib/pickle.py").read_text(), "old" if empty_overlay else "new")
                 self.assertEqual(proof.validate_builtin_source.call_count, int(not empty_overlay))
                 self.assertEqual(proof.verify_builtin_artifacts.call_count, int(not empty_overlay))
@@ -965,7 +984,7 @@ class IncrementalRecipeTests(unittest.TestCase):
                                                paths["install_log"])
             if not incremental and not bad_install and not failed_install:
                 compiled.assert_called_once_with(paths["install_log"] if single_install else paths["build_log"], members)
-            self.assertEqual(len(preparations), int(source_std and not empty_overlay))
+            self.assertEqual(len(preparations), int(source_std and aggregate and not empty_overlay))
             make = [argv for argv in commands if argv[0] == "/make"]
             self.assertEqual(make, ([["/make", "-j4", "install", *perf.MAKE_VARS]] if single_install else
                                    [["/make", "-j4", *perf.MAKE_VARS],
@@ -999,6 +1018,16 @@ class IncrementalRecipeTests(unittest.TestCase):
 
     def test_incremental_install_failure_does_not_claim_artifact_proof(self):
         self.exercise(True, failed_install=True)
+
+
+    def test_accepted_nonaggregate_clean_uses_ordinary_release_build(self):
+        self.exercise(False, aggregate=False)
+
+    def test_accepted_nonaggregate_incremental_skips_source_std_preparation(self):
+        self.exercise(True, aggregate=False)
+
+    def test_declared_missing_aggregate_dependency_fails_locked_fetch(self):
+        self.exercise(False, missing_aggregate=True)
 
 
 class SourceAggregateMakeTests(unittest.TestCase):
