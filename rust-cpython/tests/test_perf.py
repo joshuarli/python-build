@@ -815,9 +815,11 @@ class IncrementalPlanTests(unittest.TestCase):
 
 
 class IncrementalRecipeTests(unittest.TestCase):
-    def exercise(self, incremental, *, bad_install=False, failed_install=False):
+    def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
+            if not source_std:
+                patches.enter_context(mock.patch.object(perf.lb, "TARGET", "x86_64-unknown-linux-gnu"))
             source = root / "source"
             source.mkdir()
             (source / "Cargo.lock").write_text("locked fixture")
@@ -851,7 +853,17 @@ class IncrementalRecipeTests(unittest.TestCase):
                     python = paths["stage"] / "bin/python3.16"
                     python.parent.mkdir(parents=True, exist_ok=True)
                     python.write_text("installed fixture")
+            def prepare_std(prepared_paths, env):
+                self.assertTrue(source_std, "Linux must not prepare source Std")
+                self.assertTrue(prepared_paths["build"].is_dir())
+                if not incremental:
+                    self.assertTrue(prepared_paths["stage"].is_dir())
+                    self.assertFalse((prepared_paths["build"] / "Makefile").exists())
+                env["PYTHON_BUILD_RUST_STD_SOURCE"] = "verified source"
+                return {"sha256": "fixture"}
             fixtures = {
+                "_prepare_csv_source_std": prepare_std,
+                "_install_csv_source_std": lambda *a: {"fixture": "verified"},
                 "_git_state": lambda: {"commit": "fixture"},
                 "_existing_source": lambda parent: source,
                 "_stage_overlay": lambda paths: ({"sha256": "fixture"}, ["Lib/pickle.py"]),
@@ -890,6 +902,7 @@ class IncrementalRecipeTests(unittest.TestCase):
                 self.assertEqual(report["rust_builtin_artifacts"], {"fixture": "verified"})
                 self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
                 self.assertEqual(report["incremental"], incremental)
+                self.assertEqual(report["rust_source_std"], {"fixture": "verified"} if source_std else None)
                 self.assertEqual((source / "Lib/pickle.py").read_text(), "new")
                 proof.validate_builtin_source.assert_called_once()
                 proof.verify_builtin_artifacts.assert_called_once()
@@ -909,11 +922,143 @@ class IncrementalRecipeTests(unittest.TestCase):
     def test_clean_build_keeps_separate_build_and_install(self):
         self.exercise(False)
 
+    def test_linux_keeps_existing_release_route_without_source_std_preparation(self):
+        self.exercise(False, source_std=False)
+
     def test_incremental_rejects_current_dev_transcript_despite_stale_release_log(self):
         self.exercise(True, bad_install=True)
 
     def test_incremental_install_failure_does_not_claim_artifact_proof(self):
         self.exercise(True, failed_install=True)
+
+
+class CsvSourceStdMakeTests(unittest.TestCase):
+    def test_generator_routes_only_macos_release_csv_through_source_std(self):
+        script = LANE / "overlay/Modules/makesetup"
+        self.assertTrue(script.stat().st_mode & 0o111)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            setup = root / "Setup"
+            setup.write_text("*shared*\n_csv_rs _csv_rs/Cargo.toml _csv_rs/src/lib.rs\n"
+                             "_base64 _base64/Cargo.toml _base64/src/lib.rs\n"
+                             "_socket_rs _socket_rs/Cargo.toml _socket_rs/src/lib.rs\n")
+            template = root / "Makefile.pre"
+            template.write_text("# Definitions added by makesetup\n")
+            result = perf.subprocess.run([str(script), "-c", "-", "-m", str(template), str(setup)],
+                                         cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            generated = (root / "Makefile").read_text()
+            self.assertEqual(generated.count("csv_source_std.py build"), 1)
+            self.assertIn("ifeq ($(CARGO_TARGET):$(CARGO_PROFILE),aarch64-apple-darwin:release)", generated)
+            self.assertIn("--source $(abs_srcdir) --build $(abs_builddir)", generated)
+            self.assertIn("--target $(CARGO_TARGET) --profile $(CARGO_PROFILE) --jobs $(CARGO_BUILD_JOBS)", generated)
+            for name in ("_base64", "_socket_rs", "_csv_rs"):
+                self.assertIn("--package " + name + " --profile $(CARGO_PROFILE)", generated)
+            self.assertIn("$(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt", generated)
+            for name in ("_posixsubprocess", "math", "select", "_struct", "_sha2", "zlib", "fcntl"):
+                self.assertIn("Modules/" + name + "$(EXT_SUFFIX)", generated)
+            self.assertIn("cp target/", generated)
+            self.assertIn("mv target/", generated)
+
+
+
+class CsvSourceStdInstallTests(unittest.TestCase):
+    def test_preparation_uses_named_input_owner_and_lock_metadata(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = {"source_parent": root / "source"}
+            env = {"CPPFLAGS": "existing"}
+            metadata = {"compiler_revision": "revision", "library_cargo_lock_sha256": "lock"}
+            with mock.patch.object(perf.lb, "_rust_std_source_environment", create=True,
+                                   return_value={"PYTHON_BUILD_RUST_STD_SOURCE": "verified"}) as prepare, \
+                 mock.patch.object(perf.lb, "_read_rust_std_lock", create=True,
+                                   return_value=(metadata, mock.Mock(sha256="archive"))):
+                result = perf._prepare_csv_source_std(paths, env)
+            prepare.assert_called_once_with(root / "rust-std-source")
+            self.assertEqual(result, {"sha256": "archive", **metadata})
+            self.assertEqual(env, {"CPPFLAGS": "existing", "PYTHON_BUILD_RUST_STD_SOURCE": "verified"})
+
+    def exercise(self, defect=None):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            lane = Path(temp).resolve()
+            paths = perf._paths("fixture", lane)
+            build, stage = paths["build"], paths["stage"]
+            source = paths["source_parent"] / "cpython"
+            source.mkdir(parents=True)
+            provider = build / "source-std338/provider/libstd-source.dylib"
+            mirror = build.parent / "rust-cpython" / provider.name
+            csv = build / "target" / perf.lb.TARGET / "release/lib_csv_rs.dylib"
+            helper = build / "Modules/_csv_rs.cpython-316-darwin.so"
+            installed = stage / "lib/python3.16/lib-dynload/_csv_rs.so"
+            for path, data in [(provider, b"provider"), (mirror, b"provider"),
+                               (csv, b"csv"), (helper, b"csv"), (installed, b"csv")]:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            receipt_path = build / "source-std338/receipt.json"
+            receipt_path.write_text('{"fixture": true}')
+            install_id = "@rpath/" + provider.name
+            receipt = {"schema_version": 1, "status": "complete", "target": perf.lb.TARGET,
+                       "profile": "release", "panic": "abort", "allocator": "System",
+                       "provider": {"path": str(provider), "sha256": perf._sha256_file(provider),
+                                    "size": provider.stat().st_size, "install_id": install_id,
+                                    "build_mirror_path": str(mirror), "build_mirror_sha256": perf._sha256_file(mirror)},
+                       "csv": {"path": str(csv), "sha256": perf._sha256_file(csv), "size": csv.stat().st_size,
+                               "provider_install_id": install_id,
+                               "rpath": "@loader_path/../../rust-cpython"}}
+            if defect == "mirror":
+                mirror.write_bytes(b"wrong")
+            elif defect == "owner":
+                receipt["provider"]["build_mirror_path"] = str(lane / "rust-cpython" / provider.name)
+            elif defect == "policy":
+                receipt["allocator"] = "custom"
+            elif defect == "csv":
+                installed.write_bytes(b"wrong")
+            recipe = mock.Mock()
+            recipe.verify_build_receipt.return_value = receipt
+            patches.enter_context(mock.patch.object(perf, "LANE", lane))
+            patches.enter_context(mock.patch.object(perf, "_csv_source_std_recipe", return_value=recipe))
+            patches.enter_context(mock.patch.object(perf.lb.macho, "read_header", return_value=mock.Mock(arch="arm64")))
+            patches.enter_context(mock.patch.object(perf.lb.macho, "signature_status", return_value=(defect != "signature", "fixture")))
+            patches.enter_context(mock.patch.object(perf.lb.macho, "dylib_id", return_value=install_id))
+            patches.enter_context(mock.patch.object(perf.lb.macho, "rpaths", side_effect=lambda path: [] if path.name == provider.name else [receipt["csv"]["rpath"]]))
+            def dependencies(path):
+                if path.name == provider.name:
+                    return ["/usr/lib/libSystem.B.dylib"]
+                return [install_id, "/unowned/lib.dylib" if defect == "dependency" else "/usr/lib/libSystem.B.dylib"]
+            patches.enter_context(mock.patch.object(perf.lb.macho, "dependencies", side_effect=dependencies))
+            if defect:
+                with self.assertRaises(perf.LaneError):
+                    perf._install_csv_source_std(source, paths, {"sha256": "archive"})
+                self.assertFalse((stage / "lib/rust-cpython" / provider.name).exists())
+            else:
+                result = perf._install_csv_source_std(source, paths, {"sha256": "archive"})
+                staged = stage / "lib/rust-cpython" / provider.name
+                self.assertEqual(staged.read_bytes(), provider.read_bytes())
+                self.assertEqual(result["staged_provider_sha256"], perf._sha256_file(staged))
+                self.assertEqual(result["receipt_sha256"], perf._sha256_file(receipt_path))
+                recipe.verify_build_receipt.assert_called_once_with(source, build, perf.lb.TARGET,
+                                                                    {"sha256": "archive"})
+
+    def test_rejects_changed_allocator_policy(self):
+        self.exercise("policy")
+
+    def test_rejects_unowned_dependency(self):
+        self.exercise("dependency")
+
+    def test_installs_verified_signed_provider_bytes(self):
+        self.exercise()
+
+    def test_rejects_changed_build_mirror(self):
+        self.exercise("mirror")
+
+    def test_rejects_mirror_outside_candidate_owner(self):
+        self.exercise("owner")
+
+    def test_rejects_changed_installed_csv(self):
+        self.exercise("csv")
+
+    def test_rejects_invalid_signature_before_installing_provider(self):
+        self.exercise("signature")
 
 
 class BuiltinPreflightTests(unittest.TestCase):

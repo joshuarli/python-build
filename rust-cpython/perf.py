@@ -427,6 +427,111 @@ def verify_release_artifacts(build: Path, stage: Path, members: set[str]) -> dic
     return installed
 
 
+def _csv_source_std_recipe(source: Path):
+    path = source / "Tools/build/csv_source_std.py"
+    overlay = LANE / "overlay/Tools/build/csv_source_std.py"
+    if path.is_symlink() or not path.is_file() or path.read_bytes() != overlay.read_bytes():
+        raise LaneError("CSV source-Std verifier is not the current owned overlay source")
+    spec = importlib.util.spec_from_file_location("csv_source_std", path)
+    if spec is None or spec.loader is None:
+        raise LaneError("cannot load CSV source-Std artifact verifier")
+    recipe = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = recipe
+    spec.loader.exec_module(recipe)
+    return recipe
+
+
+def _prepare_csv_source_std(paths: dict[str, Path], env: dict[str, str]) -> dict[str, str]:
+    env.update(lb._rust_std_source_environment(paths["source_parent"].parent / "rust-std-source"))
+    metadata, source_input = lb._read_rust_std_lock()
+    return {"sha256": source_input.sha256,
+            "compiler_revision": metadata["compiler_revision"],
+            "library_cargo_lock_sha256": metadata["library_cargo_lock_sha256"]}
+
+
+# The build imports its Modules helper before installation. Its relative rpath
+# resolves to a mirror in this candidate's work directory, while the identical
+# staged helper resolves to lib/rust-cpython. Only finalized signed bytes move.
+def _install_csv_source_std(source: Path, paths: dict[str, Path],
+                            source_metadata: dict[str, str]) -> dict[str, Any]:
+    build, stage = paths["build"], paths["stage"]
+    work = build.parent
+    if (build != work / "build" or work.parent != LANE / "work/perf"
+            or not work.name.startswith("perf-") or work.resolve() != work
+            or paths["source_parent"] != work / "source"):
+        raise LaneError("CSV source-Std mirror has no isolated candidate work owner")
+    recipe = _csv_source_std_recipe(source)
+    try:
+        receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
+    except (ValueError, RuntimeError) as error:
+        raise LaneError(f"CSV source-Std artifact proof failed: {error}") from error
+    if (receipt["schema_version"] != 1 or receipt["status"] != "complete"
+            or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
+            or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
+        raise LaneError("CSV source-Std receipt has an incompatible runtime policy")
+    provider, csv = receipt["provider"], receipt["csv"]
+    provider_path = Path(provider["path"])
+    basename = provider_path.name
+    mirror = work / "rust-cpython" / basename
+    install_id = "@rpath/" + basename
+    if (not basename.startswith("libstd-") or not basename.endswith(".dylib")
+            or provider_path != build / "source-std338/provider" / basename
+            or Path(provider["build_mirror_path"]) != mirror
+            or provider["build_mirror_sha256"] != provider["sha256"]
+            or provider["install_id"] != install_id
+            or csv["provider_install_id"] != install_id
+            or csv["rpath"] != "@loader_path/../../rust-cpython"):
+        raise LaneError("CSV source-Std provider paths or loader contract differ")
+    published = build / "target" / lb.TARGET / "release/lib_csv_rs.dylib"
+    if Path(csv["path"]) != published:
+        raise LaneError("CSV source-Std published artifact has an unexpected owner")
+    installed = list(stage.glob("lib/python3.*/lib-dynload/_csv_rs*.so"))
+    if len(installed) != 1:
+        raise LaneError("CSV source-Std requires exactly one installed CSV helper")
+    helpers = list((build / "Modules").glob("_csv_rs*.so"))
+    if len(helpers) != 1:
+        raise LaneError("CSV source-Std requires exactly one built CSV helper")
+    helper = helpers[0]
+    artifacts = [(provider_path, provider["sha256"], provider["size"]),
+                 (mirror, provider["sha256"], provider["size"]),
+                 (published, csv["sha256"], csv["size"]),
+                 (helper, csv["sha256"], csv["size"]),
+                 (installed[0], csv["sha256"], csv["size"])]
+    for path, digest, size in artifacts:
+        if (not path.is_file() or path.resolve() != path or path.stat().st_size != size
+                or _sha256_file(path) != digest):
+            raise LaneError(f"CSV source-Std finalized bytes differ: {path}")
+        if lb.macho.read_header(path).arch != "arm64":
+            raise LaneError(f"CSV source-Std artifact is not arm64: {path}")
+        signed, detail = lb.macho.signature_status(path)
+        if not signed:
+            raise LaneError(f"CSV source-Std artifact signature is invalid: {path}: {detail}")
+        dependencies = lb.macho.dependencies(path)
+        is_provider = path.name == basename
+        if any(not dep.startswith(("/usr/lib/", "/System/Library/Frameworks/"))
+               and not (not is_provider and dep == install_id) for dep in dependencies):
+            raise LaneError(f"CSV source-Std artifact has an unowned dependency: {path}")
+        if is_provider:
+            if lb.macho.dylib_id(path) != install_id or lb.macho.rpaths(path):
+                raise LaneError(f"CSV source-Std provider is not relocatable: {path}")
+        elif (dependencies.count(install_id) != 1
+              or lb.macho.rpaths(path) != [csv["rpath"]]):
+            raise LaneError(f"CSV source-Std helper loader contract differs: {path}")
+    staged = stage / "lib/rust-cpython" / basename
+    if staged.parent.resolve() != staged.parent:
+        raise LaneError("CSV source-Std installed provider directory is aliased")
+    if staged.is_symlink() or (staged.exists() and _sha256_file(staged) != provider["sha256"]):
+        raise LaneError("CSV source-Std installed provider collides with different bytes")
+    _copy_file(provider_path, staged)
+    if _sha256_file(staged) != provider["sha256"]:
+        raise LaneError("CSV source-Std provider changed during installation")
+    signed, detail = lb.macho.signature_status(staged)
+    if not signed:
+        raise LaneError(f"CSV source-Std staged provider signature is invalid: {detail}")
+    return {"receipt": receipt, "receipt_sha256": _sha256_file(build / "source-std338/receipt.json"),
+            "staged_provider": str(staged), "staged_provider_sha256": provider["sha256"]}
+
+
 def _builtin_artifact_verifier():
     proof_path = LANE / "builtin_modules.py"
     common_dir = _common_dir()
@@ -600,11 +705,14 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     configure = [str(source / "configure"), f"--prefix={paths['stage']}", "--enable-shared",
                  "--enable-experimental-jit=no", "--with-tail-call-interp=no",
                  "--without-ensurepip"]
+    std_metadata = None
     if not incremental:
         for path in (paths["build"], paths["stage"]):
             if path.exists():
                 shutil.rmtree(path)
             path.mkdir(parents=True)
+        if not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
+            std_metadata = _prepare_csv_source_std(paths, env)
         lb._require_command(configure, cwd=paths["build"], env=env,
                             log=paths["configure_log"], sealed=sandbox)
         setup_local = source / "Modules" / "Setup.local"
@@ -612,6 +720,8 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             _copy_file(setup_local, paths["build"] / "Modules" / "Setup.local")
         state["configured"] = True
     if incremental:
+        if not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
+            std_metadata = _prepare_csv_source_std(paths, env)
         # Install depends on the complete build. One parallel invocation avoids
         # rebuilding native targets twice; its transcript is the current proof.
         paths["build_log"].unlink(missing_ok=True)
@@ -645,6 +755,8 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         missing = required - set(_built_members(paths["build_log"], members))
         if missing:
             raise LaneError("perf build did not compile Rust members: " + ", ".join(sorted(missing)))
+    rust_source_std = (_install_csv_source_std(source, paths, std_metadata)
+                       if std_metadata is not None else None)
     rust_extensions = verify_release_artifacts(paths["build"], paths["stage"], members)
     rust_builtins = {}
     if not empty_overlay:
@@ -677,6 +789,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             "(configure defaults to dev without its PGO flag)",
         "rust_extensions_sha256": rust_extensions,
         "rust_builtin_artifacts": rust_builtins,
+        "rust_source_std": rust_source_std,
         "pgo": False,
         "lto": False,
         "interpreter": lb._module_report(paths["stage"], python, toolchain),
