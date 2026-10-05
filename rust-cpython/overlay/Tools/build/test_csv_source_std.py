@@ -703,6 +703,28 @@ class SourceStdExportClosure(unittest.TestCase):
                 recipe.restricted_producer_arguments(original + ['-C', 'linker=/another'], root, root / 'linker')
             self.assertIn('metadata=identity', full)
 
+    def test_restricted_replay_replaces_last_identical_cargo_linker_only(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            clang = '/Users/josh/d/python-build/.cache/llvm/toolchains/23.1.2-d7c26fc6177e42842e2d1ffaad31aec057c56a924392b1a23d830abe2c5d53b1/bin/clang'
+            # Cargo's target linker and explicit codegen flags both name clang.
+            original = ['rustc', '--crate-type', 'rlib', '--out-dir', '/old',
+                        '-C', 'linker=' + clang, '--cfg', 'feature="backtrace"',
+                        '-C', 'metadata=identity', '-C', 'panic=abort', '-C', 'linker=' + clang]
+            expected = recipe.producer_arguments(original, root / 'restricted')
+            expected[-1] = 'linker=' + str(root / 'provider-linker.py')
+            actual = recipe.restricted_producer_arguments(original, root / 'restricted', root / 'provider-linker.py')
+            self.assertEqual(actual, expected)
+            self.assertEqual(actual.count('linker=' + clang), 1)
+            self.assertEqual(recipe.producer_linker_positions(original, clang), [6, 14])
+            for changed in (original[:-1] + ['linker=/different/clang'],
+                            original[:5] + ['--cfg'] + original[6:],
+                            original + ['-Clinker=/different/clang']):
+                with self.assertRaises(ValueError):
+                    recipe.restricted_producer_arguments(changed, root, root / 'adapter')
+            with self.assertRaisesRegex(ValueError, 'pinned clang'):
+                recipe.producer_linker_positions(original, '/different/clang')
+
     def test_replay_receipt_authenticates_two_raw_outputs_and_owned_compiler_commands(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as raw:
