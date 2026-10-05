@@ -5702,6 +5702,25 @@ already passes and whose new load regression is now measured, while keeping
 its existing stock Rust owner and every coverage route. The eight-consumer
 source epoch stays unmeasured; no rejection or RSS saving is invented for it.
 
+The distinct seven-consumer source `0f555be` keeps CSV, JSON, typing, tokenize,
+datetime, threading and UUID under one source runtime, while pathlib retains
+its stock Rust build/publication path. Receipt schema7 requires exactly those
+seven consumers and preserves export-policy schema2, compiler metadata,
+linker, parser and lifetime checks. The helper bodies, facades, Cargo locks
+and GIL slots are unchanged. ROOT passes51 recipe and108 controller tests;
+bounded independent source review passes. The exact host compiler identity
+query `--verbose --version` is admitted for the pinned UUID dependency's
+version check; extra/reversed query shapes remain rejected. Source readiness
+does not prove new native linkage, relocation or memory results.
+
+Calibration reuse is independently proven for this seven-consumer source:
+only `_install_csv_source_std` differs from calibrated `7cf2c51` in the
+entire perf.py AST, and18 other harness files, measurement globals/options
+and the accepted-stage digest remain unchanged. Current full harness SHA256
+is `35a6959b4e74203da16e2de5e7ab271a048b55691674f778c7c9475323187e4e`.
+The old CSV/JSON calibration selection is not an expanded seven-consumer
+runtime or RSS result. Ordinary clean354 and fresh replicated guards are next.
+
 A bounded build-cost audit attributes only15.27–17.88s to std Cargo and
 11.34–12.00s to consumer Cargo in the233.6–238.4s successful clean builds.
 The remaining206–209s cover phases without separate timing; this does not
