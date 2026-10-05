@@ -5844,6 +5844,30 @@ Independent review verifies the80-byte C/Rust ABI, nullable zero-initialized
 module state, import ordering and unchanged GIL semantics. One sole native
 builder may now use eight jobs; two concurrent builders retain four each.
 
+Ordinary359 at `99d4813` passes its227.1s clean build with58 verified Rust
+extensions,21 complete affected suites (6,719 run/753 skipped/59.7s) and
+two installed capsule validation/recovery tests. Stage SHA256 is
+`38b896067909fb1b30d8d835a05753097d5e08461618f9111a66a7a3c5358702`.
+The combined native contract stops at a swallowed SQLite helper exception;
+the unchanged assertion fails on both the accepted and359 stages. Their
+cursor source is byte-identical. Three minimal regression tests reproduce
+missing RuntimeError and TypeError propagation while ordinary SQLite user
+callback policy passes. Fixture-first source360 preserves a pending Python
+exception from a negative Rust step result before the cursor clears genuine
+SQLite callback exceptions; native validation remains pending.
+
+The exploratory359 memory screen REJECTS before any module sampling:
+zlib streaming RSS1.014x [1.013,1.016], worse in both independent runs.
+All twelve selected module rows are incomplete. Verdict SHA256 is
+`695295f1109d56138a080bde270f89c564fc99b124564ff0ff61e13178bfa3bf`.
+No adoption or broader qualification follows. Comparing actual7/11 helper
+artifacts finds the same21 TEXT pages, one protected CONST page and one DATA
+page, plus one additional LINKEDIT page. Fixup streams still fit their first
+LINKEDIT page; new symbol/string material contributes most file growth.
+These section facts do not explain resident RSS. Parked workload attribution
+must distinguish image, core/shared-cache lookup and heap owners before any
+changed candidate is proposed. Accepted memory-goal counts remain unchanged.
+
 The renewed throughput audit finds23 unresolved module goals (21 load,
 zstd working OVER and ElementTree working UNCLEAR) and12 absolute workload
 RSS regressions. Seven recent shared-runtime strategies342/343/345/346/352/
