@@ -174,7 +174,7 @@ class SourceStdArguments(unittest.TestCase):
     def test_joint_consumer_arguments_select_exact_packages_once(self):
         args = recipe.consumer_arguments('cargo', Path('/source'), 2)
         self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'],
-                         ['_csv_rs', '_json_rs'])
+                         ['_csv_rs', '_json_rs', '_pathlib_rs'])
         self.assertIn('--locked', args)
         self.assertIn('--offline', args)
         self.assertIn('target-applies-to-host=false', args)
@@ -187,10 +187,12 @@ class SourceStdArguments(unittest.TestCase):
                 for raw in pair:
                     argv += ['--extern', label + '=' + raw]
             return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
-        csv, json = unit('_csv_rs'), unit('_json_rs')
-        self.assertEqual(set(recipe.consumer_units([csv, json], pairs)), {'_csv_rs', '_json_rs'})
-        for rows in ([csv], [csv, json, json], [csv, {**json, 'exit_code': 1}],
-                     [csv, {**json, 'argv': json['argv'][:-2]}]):
+        csv, json, pathlib = (unit(name) for name in ('_csv_rs', '_json_rs', '_pathlib_rs'))
+        self.assertEqual(set(recipe.consumer_units([csv, json, pathlib], pairs)),
+                         {'_csv_rs', '_json_rs', '_pathlib_rs'})
+        for rows in ([csv, json], [csv, json, pathlib, pathlib],
+                     [csv, json, {**pathlib, 'exit_code': 1}],
+                     [csv, json, {**pathlib, 'argv': pathlib['argv'][:-2]}]):
             with self.assertRaises(ValueError):
                 recipe.consumer_units(rows, pairs)
 
@@ -201,25 +203,25 @@ class SourceStdArguments(unittest.TestCase):
             build, source = root / 'build', root / 'source'
             (build / 'Modules').mkdir(parents=True)
             source.mkdir()
-            published = build / 'target' / recipe.TARGET / 'release/lib_json_rs.dylib'
+            published = build / 'target' / recipe.TARGET / 'release/lib_pathlib_rs.dylib'
             published.parent.mkdir(parents=True)
-            published.write_bytes(b'signed json')
+            published.write_bytes(b'signed pathlib')
             record = recipe.artifact(published)
-            receipt = {'consumers': {'_json_rs': record}}
-            output = build / 'Modules/_json_rs.cpython-316-darwin.so'
+            receipt = {'consumers': {'_pathlib_rs': record}}
+            output = build / 'Modules/_pathlib_rs.cpython-316-darwin.so'
             with patch.object(recipe, 'verify_build_receipt', return_value=receipt) as verify:
-                recipe.publish_consumer(source, build, recipe.TARGET, '_json_rs', output, {})
+                recipe.publish_consumer(source, build, recipe.TARGET, '_pathlib_rs', output, {})
                 verify.assert_called_once()
-                self.assertEqual(output.read_bytes(), b'signed json')
-                self.assertEqual(published.read_bytes(), b'signed json')
+                self.assertEqual(output.read_bytes(), b'signed pathlib')
+                self.assertEqual(published.read_bytes(), b'signed pathlib')
                 with self.assertRaises(ValueError):
                     recipe.publish_consumer(source, build, recipe.TARGET, '_pickle_rs', output, {})
                 with self.assertRaises(ValueError):
-                    recipe.publish_consumer(source, build, recipe.TARGET, '_json_rs', root / output.name, {})
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_pathlib_rs', root / output.name, {})
             output.unlink()
-            with patch.object(recipe, 'verify_build_receipt', side_effect=ValueError('changed JSON')):
+            with patch.object(recipe, 'verify_build_receipt', side_effect=ValueError('changed pathlib')):
                 with self.assertRaises(ValueError):
-                    recipe.publish_consumer(source, build, recipe.TARGET, '_json_rs', output, {})
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_pathlib_rs', output, {})
             self.assertFalse(output.exists())
 
     def test_completed_joint_receipt_rejects_missing_json_source_runtime_or_final_bytes(self):
@@ -264,7 +266,7 @@ class SourceStdArguments(unittest.TestCase):
                                  'provider_install_id': '@rpath/libstd-test.dylib', 'rpath': '@loader_path/../../rust-cpython'}
             binding = write(root / 'c_api.rs', b'configured C API')
             metadata = {'sha256': 'archive', 'compiler_revision': 'compiler', 'library_cargo_lock_sha256': 'lock'}
-            receipt = {'schema_version': 2, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+            receipt = {'schema_version': 3, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
                        'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                        'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'compiler',
                                   'std_lock_sha256': 'lock', 'input_files': {}},
@@ -276,10 +278,14 @@ class SourceStdArguments(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
             import copy
-            for kind in ('missing-json', 'wrong-provider', 'missing-pair', 'wrong-unit'):
+            for kind in ('missing-json', 'missing-pathlib', 'old-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
                 altered = copy.deepcopy(receipt)
                 if kind == 'missing-json':
                     del altered['consumers']['_json_rs']
+                elif kind == 'missing-pathlib':
+                    del altered['consumers']['_pathlib_rs']
+                elif kind == 'old-schema':
+                    altered['schema_version'] = 2
                 elif kind == 'wrong-provider':
                     altered['consumers']['_json_rs']['provider_install_id'] = '@rpath/other.dylib'
                 elif kind == 'missing-pair':
@@ -299,7 +305,8 @@ class SourceStdArguments(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             build = Path(raw).resolve()
             recipe.check_fresh_consumer_outputs(build, recipe.TARGET)
-            for path in (build / 'Modules/_json_rs.cpython-316-darwin.so',
+            for path in (build / 'Modules/_pathlib_rs.cpython-316-darwin.so',
+                         build / 'target' / recipe.TARGET / 'release/lib_pathlib_rs.dylib',
                          build / 'target' / recipe.TARGET / 'release/lib_csv_rs.dylib'):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b'old artifact')
