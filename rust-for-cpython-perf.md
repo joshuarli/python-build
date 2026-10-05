@@ -5305,6 +5305,31 @@ EOF contexts repeat previously closed lifetime candidates. Accepted runtime
 and the 48 passing/23 unresolved module picture, with 12 workload RSS
 regressions, remain unchanged. No CPU, timing or quiet-host gate applies.
 
+### Bounded block source and shared-runtime probes (2026-10-05)
+
+Candidate331 holds a 17,719-byte fallback payload and a small decoder; the
+host model totals 20,668 retained bytes. Exact source reconstruction, eight
+definition ASTs, optimization levels, callback isolation and malformed-block
+bounds pass independent source review. The primary incremental build takes
+33 seconds with 58 verified helpers; 20 contracts, nine wire contracts and
+the complete pickle suites pass (1,283 run, 61 skipped). The standard target
+screen is NEUTRAL. One higher-sample confirmation takes 14.3 seconds and has
+pooled load 0.960775x, interval [0.948557,0.979783], but its independent runs
+read better/neutral: the second interval reaches 0.993093x and does not clear
+the existing 1% practical floor. Working peak remains neutral. Preserve the
+actual NEUTRAL verdict `20261005T113323Z`; no broader qualification, adoption
+or unchanged retry follows. Encoded source remains an unadopted private
+representation change.
+
+Probe332 compiles a Rust dylib carrier with static standard-library code and
+the existing abort strategy, using only installed pinned artifacts. Both
+ordinary consumer cdylib link modes fail dependency reconciliation and
+panic-runtime compatibility. One separately bounded Rust-dylib consumer
+also fails; no consumer artifact or memory saving exists. All probe groups
+are reaped and accepted/control stage guards pass. This closes the tested
+formats, not every hypothetical linkage strategy. Accepted runtime and
+memory goal counts remain unchanged.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
