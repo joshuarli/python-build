@@ -487,14 +487,14 @@ def _install_csv_source_std(source: Path, paths: dict[str, Path],
         receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
     except (ValueError, RuntimeError) as error:
         raise LaneError(f"CSV source-Std artifact proof failed: {error}") from error
-    if (receipt["schema_version"] != 3 or receipt["status"] != "complete"
+    if (receipt["schema_version"] != 4 or receipt["status"] != "complete"
             or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
             or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
         raise LaneError("CSV source-Std receipt has an incompatible runtime policy")
     provider = receipt["provider"]
     consumers = receipt["consumers"]
-    if set(consumers) != {"_csv_rs", "_json_rs", "_pathlib_rs"}:
-        raise LaneError("Source-Std requires exactly CSV, JSON and pathlib consumer receipts")
+    if set(consumers) != {"_csv_rs", "_json_rs", "_pathlib_rs", "_typing_rs", "_tokenize_rs"}:
+        raise LaneError("Source-Std requires exactly CSV, JSON, pathlib, typing and tokenize consumer receipts")
     provider_path = Path(provider["path"])
     basename = provider_path.name
     mirror = work / "rust-cpython" / basename

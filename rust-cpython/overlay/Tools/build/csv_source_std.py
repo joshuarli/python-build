@@ -1,9 +1,9 @@
-"""Build the macOS release CSV, JSON and pathlib helpers against one source-built abort std.
+"""Build the macOS release CSV, JSON, pathlib, typing and tokenize helpers against one source-built abort std.
 
 The ordinary workspace, helper bodies and Cargo lock are unchanged. Host build
 scripts retain their installed host runtime. Target libraries instead receive
 code and full metadata from a single freshly compiled standard-library graph.
-The completed receipt binds exactly three named consumer artifacts to that provider;
+The completed receipt binds exactly five named consumer artifacts to that provider;
 module publication copies signed bytes only after the entire receipt verifies.
 """
 import os
@@ -25,7 +25,7 @@ import tarfile
 import tomllib
 
 TARGET = 'aarch64-apple-darwin'
-CONSUMERS = ('_csv_rs', '_json_rs', '_pathlib_rs')
+CONSUMERS = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs')
 REVISION = '574ff7d98bd6d037e5236a8453029173b32631fd'
 STD_LOCK_SHA256 = '75848db58a70444bfb62c649b103d19c5d92fede325eb0c8c0e5442848448669'
 STD_ARCHIVE_SHA256 = 'dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5'
@@ -411,7 +411,7 @@ def consumer_install_id(unit, library, root):
 
 def normalized_outputs(provider, consumers, environment, commands, root, units):
     if set(consumers) != set(CONSUMERS):
-        raise ValueError('expected exactly CSV, JSON and pathlib consumer outputs')
+        raise ValueError('expected exactly CSV, JSON, pathlib, typing and tokenize consumer outputs')
     consumer_ids = {name: consumer_install_id(units[name], path, root) for name, path in consumers.items()}
     for name, path in consumers.items():
         if digest(consumer_ids[name]) != digest(path):
@@ -510,7 +510,7 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     source, build = source.resolve(), build.resolve()
     root = build / 'source-std338'
     receipt = json.loads((root / 'receipt.json').read_text())
-    if receipt['schema_version'] != 3 or receipt['status'] != 'complete' or receipt['target'] != target:
+    if receipt['schema_version'] != 4 or receipt['status'] != 'complete' or receipt['target'] != target:
         raise ValueError('incomplete CSV source std receipt')
     identity = receipt['source']
     if identity['path'] != str(source) or receipt['build'] != str(build):
@@ -524,7 +524,7 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     verify_files(identity['input_files'])
     verify_files(receipt['runtime_files'])
     if set(receipt['consumers']) != set(CONSUMERS):
-        raise ValueError('expected exactly CSV, JSON and pathlib consumer receipts')
+        raise ValueError('expected exactly CSV, JSON, pathlib, typing and tokenize consumer receipts')
     for label, record in {'provider': receipt['provider'], **receipt['consumers']}.items():
         path = Path(record['path'])
         if not path.resolve().is_relative_to(build) or artifact(path) != {k: record[k] for k in ('path', 'sha256', 'size')}:
@@ -617,7 +617,7 @@ def check_fresh_consumer_outputs(build, target):
 
 def build_recipe(source, build, target, profile, jobs):
     if sys.platform != 'darwin' or target != TARGET or profile != 'release':
-        raise ValueError('source std CSV/JSON/pathlib recipe supports macOS arm64 release only')
+        raise ValueError('source std CSV/JSON/pathlib/typing/tokenize recipe supports macOS arm64 release only')
     source, build = source.resolve(strict=True), build.resolve(strict=True)
     library = Path(os.environ['PYTHON_BUILD_RUST_STD_SOURCE']).resolve(strict=True)
     if os.environ['PYTHON_BUILD_RUST_STD_REVISION'] != REVISION or os.environ['PYTHON_BUILD_RUST_STD_LOCK_SHA256'] != STD_LOCK_SHA256:
@@ -643,7 +643,7 @@ def build_recipe(source, build, target, profile, jobs):
     check_fresh_consumer_outputs(build, target)
     root.mkdir()
     commands, units = [], []
-    status = {'schema_version': 3, 'status': 'building', 'commands': commands}
+    status = {'schema_version': 4, 'status': 'building', 'commands': commands}
     (root / 'logs').mkdir()
     (root / 'tmp').mkdir()
     inherited = dict(os.environ)
@@ -796,7 +796,7 @@ def build_recipe(source, build, target, profile, jobs):
         bindings = [unit['generated_c_api_before_compile'] for unit in target_units if 'generated_c_api_before_compile' in unit]
         if len(bindings) != 1:
             raise ValueError('expected one fresh target C API generation')
-        receipt = {'schema_version': 3, 'status': 'complete', 'build': str(build), 'target': target,
+        receipt = {'schema_version': 4, 'status': 'complete', 'build': str(build), 'target': target,
                    'recipe_environment': recipe_environment(build, inherited),
                    'profile': profile, 'panic': 'abort', 'allocator': 'System', 'compiler': compiler,
                    'source': {'path': str(source), 'workspace_lock_sha256': digest(source / 'Cargo.lock'),
