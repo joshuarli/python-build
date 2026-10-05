@@ -134,12 +134,13 @@ def verify_compiler_units(units, source_files, target_directory):
         verify_files(unit['source_files'])
 
 
-def target_arguments(original, pairs, directories):
+def target_arguments(original, pairs, directories, target_sysroot=None):
     args = list(original)
     if is_query(args) or '--target' not in args or args[args.index('--target') + 1] != TARGET:
         return args
-    # An implicit no_std core from the installed sysroot cannot coexist with the
-    # core carried by source std. Select all three identities explicitly.
+    # Explicit code/full-metadata pairs select the source runtime. The owned
+    # target sysroot also prevents implicit no_std core lookup from escaping
+    # to the installed runtime; ordinary host compiler units return unchanged.
     for name in ('std', 'core', 'alloc'):
         if any(x.split('=', 1)[0].split(':')[-1] == name for i, x in enumerate(args)
                if i and args[i - 1] == '--extern'):
@@ -147,6 +148,12 @@ def target_arguments(original, pairs, directories):
     for name in ('std', 'core', 'alloc'):
         for path in pairs[name]:
             args.extend(['--extern', name + '=' + path])
+    if target_sysroot is None:
+        raise ValueError('target compiler requires an owned sysroot')
+    positions = [i for i, arg in enumerate(args) if arg == '--sysroot']
+    if len(positions) != 1 or positions[0] + 1 >= len(args) or any(arg.startswith('--sysroot=') for arg in args):
+        raise ValueError('target compiler requires exactly one explicit sysroot')
+    args[positions[0] + 1] = str(target_sysroot)
     provider = str(Path(pairs['std'][0]).parent)
     for directory in dict.fromkeys([provider, *directories]):
         value = 'dependency=' + directory
@@ -760,6 +767,81 @@ def runtime_closure(std_unit, units):
     return list(selected.values())
 
 
+def target_sysroot_sources(pairs, std_unit, units):
+    # The replayed std pair replaces Cargo's original std pair. Every other
+    # runtime crate is the exact reachable code/full-metadata pair from Cargo.
+    if set(pairs) != {'std', 'core', 'alloc'} or any(len(pair) != 2 for pair in pairs.values()):
+        raise ValueError('target sysroot runtime identities are incomplete')
+    paths = list(pairs['std'])
+    selected_pairs = {}
+    for unit in runtime_closure(std_unit, units):
+        args = unit['argv']
+        name = args[args.index('--crate-name') + 1]
+        if name != 'std':
+            pair = [str(path) for path in runtime_artifacts(unit)]
+            paths.extend(pair)
+            if name in ('core', 'alloc'):
+                if name in selected_pairs:
+                    raise ValueError('ambiguous target sysroot runtime identity')
+                selected_pairs[name] = pair
+    sources = {}
+    for raw in dict.fromkeys(paths):
+        path = Path(raw)
+        info = path.lstat()
+        if path.resolve(strict=True) != path or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError('target sysroot source must be a canonical regular file')
+        if path.name in sources:
+            raise ValueError('ambiguous target sysroot basename: ' + path.name)
+        sources[path.name] = artifact(path)
+    if selected_pairs != {name: pairs[name] for name in ('core', 'alloc')}:
+        raise ValueError('target sysroot core/alloc pair differs from source runtime closure')
+    return sources
+
+
+def create_target_sysroot(root, pairs, std_unit, units):
+    sources = target_sysroot_sources(pairs, std_unit, units)
+    if root.resolve(strict=True) != root or not root.is_dir():
+        raise ValueError('target sysroot build owner changed')
+    view = root / 'target-sysroot'
+    view.mkdir()
+    directory = view / 'lib/rustlib' / TARGET / 'lib'
+    directory.mkdir(parents=True)
+    files = []
+    for name, source in sorted(sources.items()):
+        target = directory / name
+        shutil.copyfile(source['path'], target)
+        copied = artifact(target)
+        if copied['sha256'] != source['sha256'] or copied['size'] != source['size'] or artifact(source['path']) != source:
+            raise ValueError('target sysroot source changed while copying')
+        files.append({'source': source, 'copy': copied})
+    return {'path': str(view), 'files': files}
+
+
+def verify_target_sysroot(root, record, pairs, std_unit, units):
+    view = root / 'target-sysroot'
+    if record['path'] != str(view) or view.resolve(strict=True) != view or not view.is_dir():
+        raise ValueError('target sysroot owner changed')
+    sources = target_sysroot_sources(pairs, std_unit, units)
+    directory = view / 'lib/rustlib' / TARGET / 'lib'
+    expected = [{'source': source, 'copy': {'path': str(directory / name),
+                 'sha256': source['sha256'], 'size': source['size']}}
+                for name, source in sorted(sources.items())]
+    if record['files'] != expected:
+        raise ValueError('target sysroot source closure changed')
+    entries = [view / 'lib', view / 'lib/rustlib', view / 'lib/rustlib' / TARGET, directory]
+    entries.extend(directory / name for name in sources)
+    if any(not path.is_dir() or path.is_symlink() for path in entries[:4]):
+        raise ValueError('target sysroot directory inventory changed')
+    actual = list(view.rglob('*'))
+    if set(actual) != set(entries) or any(path.is_symlink() for path in actual):
+        raise ValueError('target sysroot inventory changed')
+    for entry in expected:
+        path = Path(entry['copy']['path'])
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or artifact(path) != entry['copy']:
+            raise ValueError('target sysroot copied runtime changed')
+
+
 def validate_consumer_cache(source, cargo_home):
     packages = tomllib.loads((source / 'Cargo.lock').read_text())['package']
     selected = {}
@@ -911,7 +993,7 @@ def consumer_arguments(cargo, source, jobs):
                    '-Zhost-config', '-Ztarget-applies-to-host', '--config', 'target-applies-to-host=false']
 
 
-def consumer_units(units, pairs):
+def consumer_units(units, pairs, target_sysroot=None):
     if set(pairs) != {'std', 'core', 'alloc'}:
         raise ValueError('consumer runtime identities are incomplete')
     selected = {}
@@ -922,6 +1004,10 @@ def consumer_units(units, pairs):
         if len(matches) != 1 or matches[0]['exit_code'] != 0 or matches[0]['reaped_exit'] != 0:
             raise ValueError('consumer lacks one successful target compiler unit: ' + name)
         unit = matches[0]
+        if target_sysroot is not None:
+            roots = [unit['argv'][i + 1] for i, x in enumerate(unit['argv'][:-1]) if x == '--sysroot']
+            if roots != [str(target_sysroot)] or any(x.startswith('--sysroot=') for x in unit['argv']):
+                raise ValueError('consumer target sysroot owner changed: ' + name)
         externs = [unit['argv'][i + 1] for i, x in enumerate(unit['argv'][:-1]) if x == '--extern']
         for runtime, pair in pairs.items():
             if len(pair) != 2 or any(runtime + '=' + raw not in externs for raw in pair):
@@ -968,7 +1054,7 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     source, build = source.resolve(), build.resolve()
     root = build / 'source-std338'
     receipt = json.loads((root / 'receipt.json').read_text())
-    if receipt['schema_version'] != 7 or receipt['status'] != 'complete' or receipt['target'] != target:
+    if receipt['schema_version'] != 8 or receipt['status'] != 'complete' or receipt['target'] != target:
         raise ValueError('incomplete CSV source std receipt')
     identity = receipt['source']
     if identity['path'] != str(source) or receipt['build'] != str(build):
@@ -1007,7 +1093,9 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     if json.loads(owner.read_text()) != {'build': str(build)}:
         raise ValueError('build provider mirror owner changed')
     verify_compiler_units(receipt['units'], identity['input_files'], root / 'consumer-target')
-    selected = consumer_units(receipt['units'], receipt['runtime_pairs'])
+    verify_target_sysroot(root, receipt['target_sysroot'], receipt['runtime_pairs'],
+                          select_std_unit(receipt['units']), receipt['units'])
+    selected = consumer_units(receipt['units'], receipt['runtime_pairs'], root / 'target-sysroot')
     for name, record in receipt['consumers'].items():
         if record['unit_receipt'] != selected[name]:
             raise ValueError('consumer output lacks its successful compiler unit: ' + name)
@@ -1164,7 +1252,7 @@ def build_recipe(source, build, target, profile, jobs):
     check_fresh_consumer_outputs(build, target)
     root.mkdir()
     commands, units = [], []
-    status = {'schema_version': 7, 'status': 'building', 'commands': commands}
+    status = {'schema_version': 8, 'status': 'building', 'commands': commands}
     (root / 'logs').mkdir()
     (root / 'tmp').mkdir()
     inherited = dict(os.environ)
@@ -1276,8 +1364,10 @@ def build_recipe(source, build, target, profile, jobs):
                 pairs[name] = [str(code), str(full)]
         if set(pairs) != {'std', 'core', 'alloc'}:
             raise ValueError('missing source runtime pair')
+        target_view = create_target_sysroot(root, pairs, std_unit, units)
         config.update(target_directory=str(root / 'consumer-target'), receipts=str(root / 'consumer-units'),
-                      runtime_pairs=pairs, runtime_directories=list(dict.fromkeys(directories)))
+                      runtime_pairs=pairs, runtime_directories=list(dict.fromkeys(directories)),
+                      target_sysroot=target_view['path'])
         config_path.write_text(json.dumps(config, indent=2) + '\n')
         consumer_env = dict(env, CARGO_TARGET_DIR=config['target_directory'], CARGO_NET_OFFLINE='true',
                             RUSTC=str(logger), CSV_SOURCE_STD_RUSTC_CONFIG=str(config_path))
@@ -1294,7 +1384,8 @@ def build_recipe(source, build, target, profile, jobs):
         sys.stderr.flush()
         target_units = [json.loads(p.read_text()) for p in (root / 'consumer-units').glob('*.json')]
         verify_compiler_units(target_units, files, root / 'consumer-target')
-        selected = consumer_units(target_units, pairs)
+        verify_target_sysroot(root, target_view, pairs, std_unit, units)
+        selected = consumer_units(target_units, pairs, root / 'target-sysroot')
         consumers = {name: root / 'consumer-target' / target / ('release/lib' + name + '.dylib') for name in CONSUMERS}
         # Consumers compile once against the unrestricted code/full-metadata
         # pair. Keep that compiler output immutable even after final publication.
@@ -1373,7 +1464,7 @@ def build_recipe(source, build, target, profile, jobs):
         bindings = [unit['generated_c_api_before_compile'] for unit in target_units if 'generated_c_api_before_compile' in unit]
         if len(bindings) != 1:
             raise ValueError('expected one fresh target C API generation')
-        receipt = {'schema_version': 7, 'status': 'complete', 'build': str(build), 'target': target,
+        receipt = {'schema_version': 8, 'status': 'complete', 'build': str(build), 'target': target,
                    'recipe_environment': recipe_environment(build, inherited),
                    'profile': profile, 'panic': 'abort', 'allocator': 'System', 'compiler': compiler,
                    'source': {'path': str(source), 'workspace_lock_sha256': digest(source / 'Cargo.lock'),
@@ -1381,6 +1472,7 @@ def build_recipe(source, build, target, profile, jobs):
                               'std_revision': REVISION, 'std_lock_sha256': STD_LOCK_SHA256, 'input_files': files,
                               'input_receipt': artifact(input_receipt)},
                    'registry_archives': registry, 'std_registry_packages': std_registry, 'runtime_pairs': pairs, 'runtime_files': runtime_files,
+                   'target_sysroot': target_view,
                    'provider': {**artifact(provider), 'install_id': install_id, 'dependencies': dependencies['provider'],
                                 'raw_artifact': raw_provider, 'build_mirror_path': mirror['path'],
                                 'build_mirror_sha256': mirror['sha256']},

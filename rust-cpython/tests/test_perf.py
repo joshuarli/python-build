@@ -1206,7 +1206,7 @@ class CsvSourceStdInstallTests(unittest.TestCase):
             receipt_path = build / "source-std338/receipt.json"
             receipt_path.write_text('{"fixture": true}')
             install_id = "@rpath/" + provider.name
-            receipt = {"schema_version": 7, "status": "complete", "target": perf.lb.TARGET,
+            receipt = {"schema_version": 8, "status": "complete", "target": perf.lb.TARGET,
                        "profile": "release", "panic": "abort", "allocator": "System",
                        "provider": {"path": str(provider), "sha256": perf._sha256_file(provider),
                                     "size": provider.stat().st_size, "install_id": install_id,
@@ -1233,6 +1233,8 @@ class CsvSourceStdInstallTests(unittest.TestCase):
                 additional_paths[defect][2].write_bytes(b'changed')
             elif defect in ('missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid'):
                 del receipt['consumers']['_' + defect.removeprefix('missing-') + '_rs']
+            elif defect == 'seven-schema':
+                receipt['schema_version'] = 7
             elif defect == 'five-schema':
                 receipt['schema_version'] = 4
             elif defect == 'six-schema':
@@ -1289,7 +1291,7 @@ class CsvSourceStdInstallTests(unittest.TestCase):
                                                                     {"sha256": "archive"})
 
     def test_new_consumers_require_installed_bytes_and_complete_roster(self):
-        for defect in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'three-schema', 'five-schema', 'six-schema', 'eight-schema'):
+        for defect in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'three-schema', 'five-schema', 'seven-schema', 'six-schema', 'eight-schema'):
             with self.subTest(defect=defect):
                 self.exercise(defect)
 

@@ -274,6 +274,12 @@ class SourceStdArguments(unittest.TestCase):
         export_guard = patch.object(recipe, 'verify_export_policy')
         export_guard.start()
         self.addCleanup(export_guard.stop)
+        sysroot_guard = patch.object(recipe, 'verify_target_sysroot')
+        sysroot_guard.start()
+        self.addCleanup(sysroot_guard.stop)
+        std_guard = patch.object(recipe, 'select_std_unit', return_value={})
+        std_guard.start()
+        self.addCleanup(std_guard.stop)
         with tempfile.TemporaryDirectory() as raw:
             work = Path(raw).resolve()
             source, build = work / 'source', work / 'build'
@@ -302,7 +308,7 @@ class SourceStdArguments(unittest.TestCase):
                 compiled = write(root / 'consumer-target' / recipe.TARGET / ('release/build/' + name + '/hash/out/lib' + name + '.dylib'), name.encode())
                 owned_source = write(source / 'Modules' / name / 'src/lib.rs', b'original helper')
                 argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET, '--crate-type', 'cdylib',
-                        '--out-dir', str(Path(compiled['path']).parent)]
+                        '--out-dir', str(Path(compiled['path']).parent), '--sysroot', str(root / 'target-sysroot')]
                 for label, pair in pairs.items():
                     for path in pair:
                         argv += ['--extern', label + '=' + path]
@@ -315,11 +321,11 @@ class SourceStdArguments(unittest.TestCase):
                                  'provider_install_id': '@rpath/libstd-test.dylib', 'rpath': '@loader_path/../../rust-cpython'}
             binding = write(root / 'c_api.rs', b'configured C API')
             metadata = {'sha256': 'archive', 'compiler_revision': 'compiler', 'library_cargo_lock_sha256': 'lock'}
-            receipt = {'schema_version': 7, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+            receipt = {'schema_version': 8, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
                        'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                        'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'compiler',
                                   'std_lock_sha256': 'lock', 'input_files': {}},
-                       'runtime_files': runtime_files, 'runtime_pairs': pairs, 'units': rows,
+                       'runtime_files': runtime_files, 'runtime_pairs': pairs, 'target_sysroot': {}, 'units': rows,
                        'provider': {**provider, 'install_id': '@rpath/libstd-test.dylib',
                                     'build_mirror_path': mirror['path'], 'build_mirror_sha256': mirror['sha256']},
                        'consumers': records, 'generated_bindings': [binding]}
@@ -327,12 +333,14 @@ class SourceStdArguments(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
             import copy
-            for kind in ('missing-json', 'extra-pathlib', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'old-five-schema', 'old-six-schema', 'old-eight-schema', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
+            for kind in ('missing-json', 'extra-pathlib', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'old-five-schema', 'old-six-schema', 'old-eight-schema', 'old-seven-schema', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
                 altered = copy.deepcopy(receipt)
                 if kind == 'missing-json':
                     del altered['consumers']['_json_rs']
                 elif kind == 'extra-pathlib':
                     altered['consumers']['_pathlib_rs'] = altered['consumers']['_json_rs']
+                elif kind == 'old-seven-schema':
+                    altered['schema_version'] = 7
                 elif kind == 'old-eight-schema':
                     altered['schema_version'] = 6
                 elif kind == 'missing-typing':
@@ -489,6 +497,10 @@ class SourceStdArguments(unittest.TestCase):
                      'core': [str(x) for x in recipe.runtime_output_paths(core)],
                      'alloc': [str(x) for x in recipe.runtime_output_paths(alloc)]}
             rows = [std, alloc, core, unused]
+            wrong = {**pairs, 'core': pairs['alloc']}
+            with self.assertRaisesRegex(ValueError, 'core/alloc pair'):
+                recipe.create_target_sysroot(root, wrong, std, rows)
+            self.assertFalse((root / 'target-sysroot').exists())
             view = recipe.create_target_sysroot(root, pairs, std, rows)
             sources = {entry['source']['path'] for entry in view['files']}
             self.assertEqual(sources, {x for pair in pairs.values() for x in pair})
@@ -514,7 +526,8 @@ class SourceStdArguments(unittest.TestCase):
             left.mkdir(); right.mkdir()
             for folder in (left, right):
                 (folder / 'libstd.rmeta').write_bytes(b'same bytes')
-            pairs = {'std': [str(left / 'libstd.rmeta'), str(right / 'libstd.rmeta')]}
+            pairs = {'std': [str(left / 'libstd.rmeta'), str(right / 'libstd.rmeta')],
+                     'core': ['/core.rlib', '/core.rmeta'], 'alloc': ['/alloc.rlib', '/alloc.rmeta']}
             from unittest.mock import patch
             with patch.object(recipe, 'runtime_closure', return_value=[]):
                 with self.assertRaisesRegex(ValueError, 'basename'):
@@ -542,8 +555,8 @@ class SourceStdArguments(unittest.TestCase):
         pairs = {'std': ['/provider/libstd.dylib', '/provider/libstd.rmeta'],
                  'core': ['/core/libcore.rlib', '/core/libcore.rmeta'],
                  'alloc': ['/alloc/liballoc.rlib', '/alloc/liballoc.rmeta']}
-        original = ['--crate-name', 'memchr', '--target', recipe.TARGET, '--cfg', 'feature="std"']
-        actual = recipe.target_arguments(original, pairs, ['/core', '/alloc'])
+        original = ['--crate-name', 'memchr', '--target', recipe.TARGET, '--cfg', 'feature="std"', '--sysroot', '/source-view']
+        actual = recipe.target_arguments(original, pairs, ['/core', '/alloc'], '/source-view')
         self.assertEqual(actual[:len(original)], original)
         for name, paths in pairs.items():
             for path in paths:

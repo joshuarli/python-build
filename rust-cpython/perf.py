@@ -487,7 +487,7 @@ def _install_csv_source_std(source: Path, paths: dict[str, Path],
         receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
     except (ValueError, RuntimeError) as error:
         raise LaneError(f"CSV source-Std artifact proof failed: {error}") from error
-    if (receipt["schema_version"] != 7 or receipt["status"] != "complete"
+    if (receipt["schema_version"] != 8 or receipt["status"] != "complete"
             or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
             or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
         raise LaneError("CSV source-Std receipt has an incompatible runtime policy")
