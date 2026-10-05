@@ -5396,8 +5396,9 @@ Cargo initially selects static `std` despite its source declaring a dylib.
 The graph contains an injected unused `panic_unwind` root; graph presence
 alone does not establish final linkage. The subsequent source-built abort
 producer and consumer pass compilation, linkage and runtime transport.
-Complete notices and subinterpreter ownership still need proof before any
-adoption. Recorded48 passing/23 unresolved modules and12 workload RSS
+The source-scope41-notice bundle is frozen; reproducible installation and
+subinterpreter ownership still need proof before adoption. Recorded48
+passing/23 unresolved modules and12 workload RSS
 regressions remain unchanged.
 
 The isolated source-runtime dependency build subsequently passes in16.76s,
@@ -5414,8 +5415,9 @@ The linkage packet proves seven consumer undefined symbols bind to that
 `std` dylib, with no `panic_unwind` or private out-of-line `std` copy. The
 actual runtime fixture passes on the main thread and eight foreign threads,
 including capacity and repeated-handle checks; its child is reaped, temporary
-files removed and accepted stage unchanged. One CSV source recipe remains
-pending. No workload RSS qualification or adoption is established.
+files removed and accepted stage unchanged. An unchanged CSV dependency
+prototype is now under compilation checks. No workload RSS qualification or
+adoption is established.
 
 Diagnostic339 verifies a distinct retained input owner in both accepted and
 rebuilt interpreters: six installed bytecode files retain their original
@@ -5449,8 +5451,20 @@ causality, and the unchanged-source334 diagnostic does not excuse it. No
 adoption, clean/full qualification or unchanged retry follows. Additional
 error fixtures fail on both accepted and candidate interpreters because of
 test-oracle faults involving the public Rust version2 writer and ctypes
-pending exceptions; corrected fixtures are under review, production untouched.
-The isolated338 CSV prototype compile is running with no result yet.
+pending exceptions. The corrected four-case fixture passes on both runtimes
+with private C wire provenance and no ctypes callbacks on error paths;
+production is untouched. Bookkeeping allocator-failure injection remains
+uncovered because the existing global allocation counter cannot isolate it.
+
+The isolated338 CSV prototype first fails before compilation because its
+three-member workspace requires a pruned lock. One offline derivation then
+preserves all36 retained package identities and dependency edges from the
+accepted lock; compilation still uses `--locked --offline`. The second
+compile fails in a `no_std` dependency with duplicate primitive definitions,
+requiring explicit matching source `core`/`alloc` resolution alongside `std`.
+Both failures, child cleanup and unchanged accepted-stage guards are recorded.
+The next source pairing correction does not change dependency versions or
+algorithms. No CSV runtime or RSS improvement has been proved.
 Recorded48 passing/23 unresolved modules and12 workload RSS regressions
 remain unchanged.
 
