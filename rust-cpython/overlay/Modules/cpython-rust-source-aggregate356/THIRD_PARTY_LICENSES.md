@@ -1,13 +1,14 @@
 # Aggregate helper license evidence
 
 The local `cpython-rust-source-aggregate356` crate is licensed under PSF-2.0.
-It adds no registry dependency. Its seven path dependencies reuse the original
-CSV, JSON, typing, tokenize, datetime, threading and UUID helper crates without
+It adds no registry dependency. Its eleven path dependencies reuse the original
+CSV, JSON, typing, tokenize, datetime, threading, UUID, collections, SQLite,
+warnings and socket helper crates without
 copying their source or changing their dependency features.
 
 The existing workspace `Cargo.lock` remains the version/checksum authority for
-all inherited third-party packages. Only the aggregate local package record is
-added. CSV dependency license evidence remains in
+all inherited third-party packages. Only the aggregate local package dependency roster changes; existing
+registry records and checksum identities are unchanged. CSV dependency license evidence remains in
 `../_csv_rs/THIRD_PARTY_LICENSES.md`; JSON dependency evidence remains in
 `../_json_rs/THIRD_PARTY_LICENSES.md`. The inherited UUID dependency is
 `uuid` 1.26.1 (MIT OR Apache-2.0), with its existing `std`, `v3`, `v4`, `v5`
