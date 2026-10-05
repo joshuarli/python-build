@@ -4891,6 +4891,38 @@ The8.6s matched two-run target screen is NEUTRAL: pickle load1.009842x
 No all23/broad/full qualification, adoption or unchanged reroll follows.
 The two representation-unit tests remain UNRUN after this early closure.
 
+## Rigorous absolute clarification285 (2026-10-05)
+
+With accepted overlay e702 restored, compare the same verified control and
+incumbent over the12 previously UNCLEAR modules, two independent runs of ten
+rounds, memory-only and matched visible prefixes/executables. The185.6s
+request completes all12 entities with no output mismatch. Verdict
+`20261005T035823Z-goals-perf-upstream-vs-perf-rust/verdict.json`, SHA
+`27fdf425825ec24971f1bc45312b1ccb2df8a3c0179f09d0bd0b352de88e7da5`.
+
+| Route | Load | Working | Memory status |
+| --- | --- | --- | --- |
+| plistlib | 0.203x BEYOND | 0.946x MET | MET |
+| _strptime | 1.009493x MET | 1.000x MET | MET |
+| html.parser | 1.010000x MET | 1.000x MET | MET |
+| ipaddress | 1.042372x OVER | 1.000x MET | OVER |
+| collections | 1.250x UNCLEAR | 1.000x MET | UNCLEAR |
+| xml.etree.ElementTree | 0.990x MET | 1.190x UNCLEAR | UNCLEAR |
+| sqlite3 | 1.05x UNCLEAR | 1.000x MET | UNCLEAR |
+| csv | 1.04x UNCLEAR | 1.000x MET | UNCLEAR |
+| fractions | 1.03x UNCLEAR | 1.000x MET | UNCLEAR |
+| pickle | 1.02x UNCLEAR | 1.000x MET | UNCLEAR |
+| ssl | 1.02x UNCLEAR | 1.000x MET | UNCLEAR |
+| contextlib | 1.01x UNCLEAR | 1.000x MET | UNCLEAR |
+
+These are the harness's goal classifications; MET does not imply every
+confidence bound is below the ceiling. Three prior uncertainty rows resolve
+to MET and ipaddress becomes OVER. Stitching this with unchanged accepted
+evidence gives15 OVER/8 UNCLEAR/47 MET/1 BEYOND, or23 unresolved and48 passing.
+That stitched picture is not a fresh full71 completion proof. The23 absolute
+workload RSS goals are not remeasured here; their12 recorded regressions
+remain unresolved. No overlay adoption, CPU work or goal-completion claim.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
