@@ -5895,6 +5895,29 @@ This verifies correctness, not a new memory mechanism. Rejected aggregation
 is not adopted or screened unchanged again; interpreter/image crossover
 attribution is the next diagnostic before proposing another memory change.
 
+The four-treatment362 crossover passes matching outputs, trusted image/core
+identities, guarded helper imports and child/temporary cleanup. Only JSON
+and typing helpers are requested. Initial snapshots precede aggregate load.
+After removing differential child-side image-hashing allocations while
+retaining parent hashes, image11 minus7 first-workload growth is+180,224B
+on core357 and-180,224B on core360. Named-image residency remains identical;
+raw RSS differences match malloc-zone resident pages with equal live counts
+and rounded allocated bytes. The opposite effects do not establish a causal
+image regression or a new removable source owner. V2 report SHA256 is
+`a0bfa38d513cf5bbad683e442a95c06f47da606c82608e19a3efadfe04360a23`.
+
+The first exploratory measurements of collections/SQLite/warnings/socket
+on360 complete both runs in27.2s with final NEUTRAL verdict and no improved
+target. Working peaks are1.000x. Collections load is worse/neutral and socket
+neutral/worse across independent runs; SQLite and warnings are neutral in
+both. Verdict SHA256 is
+`e631c468421e670f1930c0cdf3706835a8b490d631fd3aa1e6dd71e6e07ce16a`.
+Together with357's neutral seven-helper result and359's RSS rejection, these
+close the tested aggregation memory mechanism without adoption. The SQLite
+correctness fix remains separately verified. A fresh complete71-module memory
+assessment of the unchanged accepted build now replaces the older stitched
+debt map; no CPU, timing or host-quietness requirement is applied.
+
 The renewed throughput audit finds23 unresolved module goals (21 load,
 zstd working OVER and ElementTree working UNCLEAR) and12 absolute workload
 RSS regressions. Seven recent shared-runtime strategies342/343/345/346/352/
