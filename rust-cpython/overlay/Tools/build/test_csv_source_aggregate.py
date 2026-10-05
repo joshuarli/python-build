@@ -58,8 +58,11 @@ class SourceAggregate(unittest.TestCase):
             with patch.object(recipe.std, 'input_files', return_value={'original': 'unchanged'}):
                 self.assertEqual(recipe.input_files(source, None, None, None), {'original': 'unchanged', **expected})
             self.assertEqual(len(recipe.std.CONSUMERS), 7)
+            (source / 'Modules/_socket_rs/build.rs').unlink()
+            with patch.object(recipe.std, 'input_files', return_value={}), self.assertRaises(FileNotFoundError):
+                recipe.input_files(source, None, None, None)
 
-    def test_exact_root_is_one_joint_cargo_owner_for_seven_unchanged_dependencies(self):
+    def test_exact_root_is_one_joint_cargo_owner_for_eleven_unchanged_dependencies(self):
         args = recipe.consumer_arguments('/cargo', Path('/source'), 2)
         self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'], [recipe.PACKAGE])
         self.assertIn('--locked', args)
@@ -255,7 +258,7 @@ class SourceAggregate(unittest.TestCase):
             native = write(build / 'libpython3.16.dylib', b'input-bound native Python')
             binding = write(root / 'consumer-target/cpython-sys/c_api.rs', b'typed API')
             metadata = {'sha256': 'archive', 'compiler_revision': 'revision', 'library_cargo_lock_sha256': 'lock'}
-            receipt = {'schema_version': 1, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+            receipt = {'schema_version': 2, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
                        'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                        'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'revision',
                                   'std_lock_sha256': 'lock', 'input_files': {}},
@@ -272,7 +275,7 @@ class SourceAggregate(unittest.TestCase):
                 for defect in ('schema', 'runtime', 'metadata', 'native-owner', 'canonical', 'extra-helper'):
                     altered = copy.deepcopy(receipt)
                     if defect == 'schema':
-                        altered['schema_version'] = 8
+                        altered['schema_version'] = 1
                     elif defect == 'runtime':
                         altered['runtime_pairs']['std'] = altered['runtime_pairs']['core']
                     elif defect == 'metadata':

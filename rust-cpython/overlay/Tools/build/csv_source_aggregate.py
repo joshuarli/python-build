@@ -1,8 +1,8 @@
-"""Build seven unchanged helpers and their source-built runtime into one image.
+"""Build eleven unchanged helpers and their source-built runtime into one image.
 
 One original source std archive/full-metadata pair supplies every target crate.
 Host build scripts and feature probes retain the installed runtime. A single
-aggregate cdylib keeps seven separate initializers and module state contracts;
+aggregate cdylib keeps eleven separate initializers and module state contracts;
 publication exposes one physical image through relative helper-name aliases.
 """
 import os
@@ -22,16 +22,55 @@ from csv_source_aggregate_layout import verify_aggregate_layout, INIT_EXPORTS
 if Path(std.__file__).resolve() != Path(__file__).resolve().with_name('csv_source_std.py'):
     raise ValueError('aggregate runtime helper has a different source owner')
 TARGET = std.TARGET
-CONSUMERS = std.CONSUMERS
+CONSUMERS = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs',
+             '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
 PACKAGE = 'cpython-rust-source-aggregate356'
 CRATE = 'cpython_rust_source_aggregate356'
 BASENAME = 'lib' + CRATE + '.dylib'
 INITS = INIT_EXPORTS
-SCHEMA = 1
+SCHEMA = 2
 for _name in ('REVISION', 'STD_LOCK_SHA256', 'STD_ARCHIVE_SHA256', 'digest', 'artifact', 'run',
-              'input_files', 'validate_vendor', 'validate_consumer_cache', 'recipe_environment',
+              'validate_vendor', 'validate_consumer_cache', 'recipe_environment',
               'buildscript_environment', 'select_std_unit', 'verify_files', 'cleanup_compilers', 'CompilerCleanupError'):
     globals()[_name] = getattr(std, _name)
+
+
+def input_files(source, build, library, compiler):
+    files = std.input_files(source, build, library, compiler)
+    for name in CONSUMERS:
+        if name in std.CONSUMERS:
+            continue
+        directory = source / 'Modules' / name
+        for required in ('Cargo.toml', 'build.rs', 'src/lib.rs'):
+            path = directory / required
+            files[str(path.resolve(strict=True))] = digest(path)
+        for path in sorted(directory.rglob('*')):
+            if path.is_file():
+                files[str(path.resolve(strict=True))] = digest(path)
+    return files
+
+
+def consumer_units(units, pairs, target_sysroot=None):
+    if set(pairs) != {'std', 'core', 'alloc'}:
+        raise ValueError('consumer runtime identities are incomplete')
+    selected = {}
+    for name in CONSUMERS:
+        matches = [u for u in units if not u['query'] and '--crate-name' in u['argv']
+                   and u['argv'][u['argv'].index('--crate-name') + 1] == name
+                   and '--target' in u['argv'] and u['argv'][u['argv'].index('--target') + 1] == TARGET]
+        if len(matches) != 1 or matches[0]['exit_code'] != 0 or matches[0]['reaped_exit'] != 0:
+            raise ValueError('consumer lacks one successful target compiler unit: ' + name)
+        unit = matches[0]
+        if target_sysroot is not None:
+            roots = [unit['argv'][i + 1] for i, x in enumerate(unit['argv'][:-1]) if x == '--sysroot']
+            if roots != [str(target_sysroot)] or any(x.startswith('--sysroot=') for x in unit['argv']):
+                raise ValueError('consumer target sysroot owner changed: ' + name)
+        externs = [unit['argv'][i + 1] for i, x in enumerate(unit['argv'][:-1]) if x == '--extern']
+        for runtime, pair in pairs.items():
+            if len(pair) != 2 or any(runtime + '=' + raw not in externs for raw in pair):
+                raise ValueError('consumer compiler runtime pair missing: ' + name + '/' + runtime)
+        selected[name] = unit
+    return selected
 
 
 def prepare_runtime(root, std_unit, std_units):
@@ -143,7 +182,7 @@ def verify_binding_surface(surface, native):
 
 
 def select_graph(units, pairs, view, directories):
-    selected = std.consumer_units(units, pairs, view)
+    selected = consumer_units(units, pairs, view)
     for name, unit in selected.items():
         types = [unit['argv'][i + 1] for i, arg in enumerate(unit['argv'][:-1]) if arg == '--crate-type']
         # Unchanged helper manifests emit both private images and archives.
