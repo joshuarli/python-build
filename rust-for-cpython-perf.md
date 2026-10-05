@@ -4471,8 +4471,40 @@ the native Pattern fallback. Context refusals return NotImplemented before
 conversion and retain the original getter/cache/preloaded-provider path;
 existing getter overrides, module-map entries and interpreter behavior remain
 contracts. Its original accepted borrowed-program fixture passes all12 cases,
-including legacy hooks and own-GIL fallback. Source implementation is underway;
-no candidate runtime, footprint saving, acceptance or goal completion exists.
+including legacy hooks and own-GIL fallback.
+
+Regex 265 is now closed without adoption. Donor commits 602e95e/1866c4a and narrow
+free-threaded refusal aedcdbd were integrated on isolated primary branch
+integrate-regex265 as 4461325. The local borrowed-only rlib preserves the
+standalone helper, its allocator and legacy backend. Independent source review
+caught the missing free-threaded context refusal; the corrected route declines
+before conversions and Rust entry. The flag fixture intentionally changes the
+initial helper-import expectation while preserving native flags and matches.
+
+The clean build passed in 217s with 58 verified release extensions; the compatible
+four-line correction rebuilt incrementally in 33s. All 27 candidate contract
+cases passed (cold 8, unchanged borrowed 12, flags 7), including provider mutation,
+import hooks, native fallback and own-GIL behavior. The complete test_re suite
+passed 169 tests with 4 skips; eight neighboring suites passed 1,881 tests with 102 skips in 28.3s. Candidate stage
+identity is bb2ebb719af91f743d671fb0c1aaf0aa148acd1b400af2e7baefb95de80dba87.
+
+Matched standard two-run target sampling at 20261005T002358Z was NEUTRAL,
+load 0.961 [0.942,0.981], independently better/neutral. The sole predefined
+higher-sample target screen at 002419Z improved in both runs: load 0.946
+[0.924,0.967], working 1.000 neutral. Their verdict SHA256s are
+40abcca942fa9b132928ce0da51e2796e0c8da415c38f8653a26918d41b0f750 and
+5ee28582b0e1e71fcb31f70a991d7c7339a214296624811711f3c2c7a8e5cf0d.
+
+The re/all23 exploratory comparison at 002549Z took 198s; all 23 workload RSS
+guards were neutral, while re standard load was neutral again (pooled 0.942).
+The subsequent all 71 request at 002918Z early-rejected after 294.8s: tarfile load
+regressed in both runs to 1.067 [1.043,1.097]. Fourteen routes completed paired
+sampling; the other 57 are incomplete, not passes. Broad verdict SHA256 is
+91ed1362e813cc58b3358b52de346b01d5d4cbfcf6dbc542aef9724695e4cee8.
+The physical cause of the neighboring regression is unproven. No unchanged
+retry, final clean/full qualification, final gate or adoption follows. The
+accepted overlay and 26 unresolved module goals and 12 absolute workload memory goals
+remain unchanged.
 
 Collections261 subsequently tested the cold helper-module ownership boundary
 through a raw Rust callback in the existing C core. The unchanged standalone
