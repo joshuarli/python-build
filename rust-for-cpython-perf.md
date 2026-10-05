@@ -5731,6 +5731,21 @@ sysroot still fails. Original inputs and accepted-stage identities are preserved
 This establishes compiler feasibility only; the complete consumer graph and
 ordinary candidate build remain unqualified.
 
+Correction355 integrates fixture-first `99c2254` and source `4748a08`.
+Receipt schema8 binds a fresh target sysroot containing the exact reachable
+non-std code/full-metadata pairs plus the replayed full std pair. Original
+Cargo std proof remains separate; installed runtime files cannot enter this
+view. Host, query and admitted capability-probe arguments stay unchanged.
+Integrated54 recipe and108 controller tests pass. Independent changed-source
+review and builder-only calibration reuse pass; export-policy schema2 remains
+unchanged. A replay of the actual complete seven-consumer Cargo command in
+fresh owned outputs passes with80 compiler units, all exit0/reaped0, and all
+seven selected libraries. Production view/consumer checks pass; their exact
+export closure has35 symbols. Original inputs and accepted-stage identities
+remain unchanged. Diagnostic result `std355-consumer-graph-probe-v1/result.json`
+SHA256 is `4e1e2b72fd2ea80294c0760353748c7089b5d249bbf27eebae5e75cecb90336c`.
+This is compiler feasibility, not an installed candidate or memory verdict.
+
 The19:17 UTC sprint inspection finds one running child before three finite
 audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
 disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
