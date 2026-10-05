@@ -5822,6 +5822,36 @@ roster. It removes four further separate image owners while retaining the
 two-page bound; fresh code generation and RSS improvement remain unproved.
 This source-admission calculation does not waive any memory goal.
 
+The eleven-helper358 production graph compiles all90 units successfully,
+then fails the unchanged System-only dependency guard: the aggregate retains
+an active `/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib` load. No clean358
+build, installed stage or RSS measurement follows. Source359 instead gives
+the existing C SQLite extension ownership of a versioned eight-function
+`_sqlite3._RUST_API` capsule. Rust validates and copies its native pointers
+into interpreter-local state; helper signatures and GIL ordering stay fixed.
+The two new capsule tests reproduce the absent API on357. Implementation,
+source inventory, native header dependencies and lifecycle fixtures remain
+subject to fresh graph and native qualification; no memory win is claimed.
+
+The renewed throughput audit finds23 unresolved module goals (21 load,
+zstd working OVER and ElementTree working UNCLEAR) and12 absolute workload
+RSS regressions. Seven recent shared-runtime strategies342/343/345/346/352/
+355/357 yield six rejections and one neutral result, with zero adoptions.
+Nine parallel358 lanes supplied implementation and correctness parts of one
+hypothesis. No second implementation-ready physical owner is established.
+The current host snapshot has10 CPUs,64GiB RAM, about12GiB free memory,
+zero swap traffic and309GiB free disk; it does not establish average load.
+The two-builder/four-job limit is coordinator policy, not a hardware or lease
+ceiling.357 costs238.4s clean compilation,17.9s focused suites and52.5s
+replicated sampling; its lease waits are negligible. Calibration344 costs
+369.7s including169.3s queued, so waits are not universally negligible.
+Exact graph, dependency, layout and publication checks precede clean builds;
+valid builder-only calibration equivalence is reused. Independent source and
+correctness work may use31 children, while RSS comparisons stay exclusive.
+Neutral or rejected screens stop before broad qualification. Final clean
+builds, full correctness, replication and all absolute memory goals remain
+required; CPU, timing and host quietness do not gate this memory phase.
+
 The19:17 UTC sprint inspection finds one running child before three finite
 audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
 disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
