@@ -5833,6 +5833,17 @@ The two new capsule tests reproduce the absent API on357. Implementation,
 source inventory, native header dependencies and lifecycle fixtures remain
 subject to fresh graph and native qualification; no memory win is claimed.
 
+Fresh359 diagnostic code generation passes all90 compiler units, the exact
+eleven-consumer graph, System-only native bindings and the protected16KiB
+CONST/writable16KiB DATA bounds. Result SHA256 is
+`dd7bd2847a29398caf8e0f345558451fa086d39b0d6fba6f725acbdb1653d3e3`.
+This replay does not compile the C capsule owner or establish installed RSS.
+The integrated source additionally pins both native-owner files and adds the
+new header to the native SQLite object's explicit Make prerequisites.
+Independent review verifies the80-byte C/Rust ABI, nullable zero-initialized
+module state, import ordering and unchanged GIL semantics. One sole native
+builder may now use eight jobs; two concurrent builders retain four each.
+
 The renewed throughput audit finds23 unresolved module goals (21 load,
 zstd working OVER and ElementTree working UNCLEAR) and12 absolute workload
 RSS regressions. Seven recent shared-runtime strategies342/343/345/346/352/
