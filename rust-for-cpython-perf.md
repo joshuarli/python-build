@@ -4787,6 +4787,39 @@ No source-supported100KiB owner was found and no edit followed. The separate
 compat-pickle source scout also found required shared tuple/dictionary owners;
 generator-to-comprehension cleanup removes no persistent load owner.
 
+## Socket receive281: duplicate payload removed, memory neutral (2026-10-05)
+
+Donor `f3d1ae0`, primary `a2b46ad`, replaces the Rust receive Vec with the
+existing opaque CPython bytes writer. Rust still performs the syscall and
+releases/restores the GIL; success consumes the writer, and errors/signals
+discard it once. No dependency, ABI, provider or coverage change. The fixed
+input requests8KiB and receives4KiB; removing their old payload overlap is
+a logical allocation improvement, not proof of reduced resident pages.
+
+Independent source review passes. All8 fixture cases pass on accepted and
+candidate interpreters, including exact/short/EOF/error output, captured
+retry providers, returning/raising signal handlers and two own-GIL lifecycles.
+Candidate complete socket passes750 run/262 skips in57.5s. Children are
+reaped, temporary directories removed and stage/fixture guards pass.
+Reusing277's tree incrementally refuses four removed plistlib test files;
+the separate clean socket build then passes214.3s with58 verified extensions.
+
+The8.7s matched standard two-run target screen is NEUTRAL: load1.006944x
+[0.986111,1.041687] and working1.000x, neutral in both runs. No output mismatch.
+Verdict `20261005T033106Z-perf-rust-vs-perf-sock281/verdict.json`, SHA
+`300b82e003c097aca6ff60dbae2dbb124057b11c327a5302448f54f5a2b7b5e0`.
+No all23, broad71, full qualification, adoption or unchanged reroll follows.
+
+Parallel source/artifact follow-ups close operator packing in tokenize: its
+installed/Cargo image `c4514b10` already contains61 spelling bytes with no
+rebases targeting that range, so no560-byte pointer table was established.
+The proposed delimited blob would add34 literal bytes. Threading's distinct
+lazy fallback-class design stops before production because its hidden cache
+would prolong class lifetime after both aliases are deleted. Zstd's separate
+static and dynamic engines are confirmed, but sharing that existing engine
+repeats provider182's measured neutral trial. These closures do not impose
+a minimum savings size or establish global exhaustion.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
