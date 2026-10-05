@@ -73,6 +73,30 @@ the allocator. Rejected aggregation sources/artifacts remain preserved on their
 closed branch; the active candidate returns to accepted compiled Rust inputs
 plus the separately verified SQLite exception repair.
 
+The complete fresh23-workload absolute memory gate on accepted `e702f238`
+takes192.8s:12 RSS regressions,7 neutral and4 improved, with no mismatch or
+unstable entity. Verdict SHA256 is
+`ca218cc8dfc8522e342c1ae9ada0e799e8f25196361188fe369b91fbc4735a04`.
+Those regressions remain unresolved; no goal is waived.
+
+Arena363 at `18b708fb` passes its214s clean build with58 verified release
+Rust extensions, all eight native lifetime/error/recovery cases and14 complete
+affected CPython suites (2,323 run/53 skipped/7.0s). Compiled constants and
+interactive source remain valid after early release; every controlled exec
+and linecache checkpoint observes zero live compiler chunks. The original
+SQLite delegate regressions also pass. The41.4s replicated exploratory memory
+screen completes all five selected modules and three workload guards, with
+ACCEPT and no replicated regression/mismatch/unstable entity. Decimal load
+is0.640x [0.615,0.697]; zstd load0.978x [0.974,0.980] and working0.762x
+[0.762,0.821]; ElementTree load0.908x [0.881,0.922], all improved. Working
+ElementTree is0.834x but neutral; datetime and threading are neutral. RSS
+guards are final neutral, but compileall is neutral/worse and startup
+worse/neutral across independent runs; preserve those adverse observations.
+Exploratory verdict SHA256 is
+`6f08acf4b1d57f81c0a72bdad8c9a4d6e6c13af202c1fd3d87611f0b88b2cc0a`.
+This is a survivor, not acceptance evidence. Full correctness and the broad
+replicated memory gate precede any adoption or updated goal-completion claim.
+
 ### Reuse accepted artifacts without a canonical rebuild (2026-10-04)
 
 After a primary candidate passes complete correctness and the broad memory
