@@ -5342,6 +5342,31 @@ retry, adoption, broad screening or final qualification. The archived
 exploration preserves its report and logs; accepted runtime and goal counts
 remain unchanged.
 
+### Identical-source rebuild control and incremental recipe (2026-10-05)
+
+Diagnostic334 builds the exact accepted351-file overlay hash
+`3677af1a7cbfb61dcad5365f71267b951395d722d0d66eef0f8ed92488b00d80`
+in a fresh named stage. Source archive, lock, compiler/SDK, flags and Rust
+profile match; clean build222s verifies58 helpers and four complete suites
+pass. Its four-workload memory-only control comparison stops at replicated
+zlib streaming RSS1.017315x [1.016304,1.018326]. Startup and compileall read
+neutral; the catalog workload is incomplete. This proves a current rebuilt
+identical source can differ in measured RSS, without assigning a cause,
+correcting ratios, changing floors or reopening rejected candidates.
+All167 crate metadata IDs and section-relative Rust symbol records in all59
+native images match; workspace crate-disambiguator drift is falsified.
+The remaining libpython section difference needs specific attribution.
+
+Harness336 is integrated at `1695ed9`: incremental preparation uses one
+parallel `make install` rather than two build traversals. Current install
+transcript validation replaces stale standalone build evidence; source,
+release/builtin artifact and stage checks remain. Regression-first78
+controller tests and independent source review pass. Native incremental
+verification takes22.9s, verifies58 unchanged Rust artifact hashes and passes
+four complete suites. This is an observed cost, not a paired speedup claim.
+Fresh memory-only calibration is required after this harness change.
+The accepted runtime and absolute memory goal counts remain unchanged.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
