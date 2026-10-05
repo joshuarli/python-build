@@ -192,16 +192,21 @@ def validate_vendor(library):
     return records, files
 
 
-def runtime_artifacts(unit):
+def runtime_output_paths(unit):
     args = unit['argv']
     name = args[args.index('--crate-name') + 1]
-    extra = next(args[i + 1].split('=', 1)[1] for i, arg in enumerate(args[:-1])
-                 if arg == '-C' and args[i + 1].startswith('extra-filename='))
+    extra = next((args[i + 1].split('=', 1)[1] for i, arg in enumerate(args[:-1])
+                  if arg == '-C' and args[i + 1].startswith('extra-filename=')), '')
     folder = Path(args[args.index('--out-dir') + 1])
     code = folder / ('lib' + name + extra + '.rlib')
     full = code.with_suffix('.rmeta')
+    return code, full
+
+
+def runtime_artifacts(unit):
+    code, full = runtime_output_paths(unit)
     if not code.is_file() or not full.is_file():
-        raise ValueError('missing exact runtime code/full metadata pair: ' + name)
+        raise ValueError('missing exact runtime code/full metadata pair: ' + str(code))
     return code, full
 
 
@@ -214,25 +219,27 @@ def runtime_closure(std_unit, units):
     while pending:
         unit = pending.pop()
         name = unit['argv'][unit['argv'].index('--crate-name') + 1]
-        if name in selected:
-            if selected[name] != unit:
+        identity = str(runtime_output_paths(unit)[1].resolve())
+        if identity in selected:
+            if selected[identity] != unit:
                 raise ValueError('ambiguous runtime compiler identity: ' + name)
             continue
         if unit['exit_code'] or unit['reaped_exit']:
             raise ValueError('failed runtime compiler unit')
-        selected[name] = unit
+        selected[identity] = unit
         for i, arg in enumerate(unit['argv'][:-1]):
             if arg != '--extern':
                 continue
-            label, raw = unit['argv'][i + 1].split('=', 1)
-            dependency = label.split(':')[-1]
+            _, raw = unit['argv'][i + 1].split('=', 1)
+            # Cargo's extern name can alias a workspace shim. The exact full
+            # metadata output, not that source-level name, identifies its unit.
             matches = [u for u in candidates
-                       if u['argv'][u['argv'].index('--crate-name') + 1] == dependency
-                       and Path(raw).parent == Path(u['argv'][u['argv'].index('--out-dir') + 1])]
+                       if Path(raw).resolve() in tuple(p.resolve() for p in runtime_output_paths(u))]
             if len(matches) != 1:
                 raise ValueError('runtime dependency lacks unique compiler receipt: ' + raw)
             pending.append(matches[0])
-    if 'panic_unwind' in selected or 'proc_macro' in selected:
+    names = {u['argv'][u['argv'].index('--crate-name') + 1] for u in selected.values()}
+    if names & {'panic_unwind', 'proc_macro'}:
         raise ValueError('unexpected runtime root in abort std dependency closure')
     return list(selected.values())
 

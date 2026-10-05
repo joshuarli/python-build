@@ -162,7 +162,8 @@ class SourceStdArguments(unittest.TestCase):
 
     def test_runtime_closure_excludes_planned_unwind_root_and_rejects_missing_identity(self):
         def unit(name, dependencies=()):
-            argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET, '--out-dir', '/' + name]
+            argv = ['rustc', '--crate-name', name, '--target', recipe.TARGET, '--out-dir', '/' + name,
+                    '-C', 'extra-filename=']
             for dep in dependencies:
                 argv += ['--extern', 'priv:' + dep + '=/' + dep + '/lib' + dep + '.rmeta']
             return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
@@ -170,6 +171,28 @@ class SourceStdArguments(unittest.TestCase):
         self.assertEqual(recipe.runtime_closure(std, [std, core, extra]), [std, core])
         with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
             recipe.runtime_closure(std, [std, extra])
+
+    def test_runtime_alias_resolves_by_exact_metadata_artifact_not_extern_label(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            def unit(name, suffix):
+                for extension in ('.rmeta', '.rlib'):
+                    (root / ('lib' + name + suffix + extension)).write_bytes(b'unit artifact')
+                return {'argv': ['rustc', '--crate-name', name, '--target', recipe.TARGET,
+                                 '--out-dir', str(root), '-C', 'extra-filename=' + suffix],
+                        'query': False, 'exit_code': 0, 'reaped_exit': 0}
+            shim = unit('rustc_std_workspace_core', '-7038bf0a')
+            std = unit('std', '-producer')
+            probe = {'argv': ['rustc', '--crate-name', 'probe', '--target', recipe.TARGET,
+                              '--out-dir', str(root), '--crate-type', 'cdylib'],
+                     'query': False, 'exit_code': 0, 'reaped_exit': 0}
+            metadata = root / 'librustc_std_workspace_core-7038bf0a.rmeta'
+            std['argv'] += ['--extern', 'priv:core=' + str(metadata)]
+            self.assertEqual(recipe.runtime_closure(std, [std, shim, probe]), [std, shim])
+            with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
+                recipe.runtime_closure(std, [std])
+            with self.assertRaisesRegex(ValueError, 'unique compiler receipt'):
+                recipe.runtime_closure(std, [std, shim, dict(shim)])
 
     def test_mirror_reuse_requires_same_build_owner_and_final_bytes(self):
         with tempfile.TemporaryDirectory() as raw:
