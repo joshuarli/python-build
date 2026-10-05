@@ -5216,6 +5216,27 @@ This explains the source hypothesis, but is not RSS acceptance evidence.
 Both314 and317 close without adoption, broad/full qualification or unchanged
 retry. Accepted runtime and memory goal counts remain unchanged.
 
+### CSV borrowing319 and pickle fallback deferral320: rejected guards
+
+CSV319 preserves callback-sensitive rows and borrows exact surrogate-free
+string inputs. Its eleven regression tests and complete CSV suite pass.
+Worktree exploration improves load footprint, but primary combined
+confirmation is neutral; no isolated primary CSV improvement is claimed.
+
+Pickle320 defers the unused pure Python class graph into one real source
+file, preserving original globals, reentry, reload, source/ZIP/bytecode
+loading and caller overrides. Thirteen contracts and the complete pickle,
+picklebuffer and pickletools suites pass (1,283 run,61 skipped). Primary
+rigorous exploration improves load0.947864x in both runs; working is neutral.
+The combined319/320 screen321 rejects small-base64 RSS1.014270x; pickle-only
+isolation322 rejects compileall RSS1.019728x. Both requested all23 workloads
+but stopped early on replicated regressions. Their verdict SHA256 values are
+`ffd3ecd6cf473b414b9837418b89866b6ebb5a5ef505cba5673dffba56835f79`
+and `c8a44d840c231fc2b0597fff49ffc387cd56c8372e28dab0ffbef5bbda8fee59`.
+Neither change is adopted; no full suite, all71 confirmation or unchanged
+retry follows these rejections. Memory goal counts remain48 passing/23
+unresolved, with12 workload RSS regressions against pristine control.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
