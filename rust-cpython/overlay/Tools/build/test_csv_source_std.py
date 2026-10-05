@@ -246,25 +246,25 @@ class SourceStdArguments(unittest.TestCase):
             build, source = root / 'build', root / 'source'
             (build / 'Modules').mkdir(parents=True)
             source.mkdir()
-            published = build / 'target' / recipe.TARGET / 'release/lib_pathlib_rs.dylib'
+            published = build / 'target' / recipe.TARGET / 'release/lib_threading_rs.dylib'
             published.parent.mkdir(parents=True)
-            published.write_bytes(b'signed pathlib')
+            published.write_bytes(b'signed threading')
             record = recipe.artifact(published)
-            receipt = {'consumers': {'_pathlib_rs': record}}
-            output = build / 'Modules/_pathlib_rs.cpython-316-darwin.so'
+            receipt = {'consumers': {'_threading_rs': record}}
+            output = build / 'Modules/_threading_rs.cpython-316-darwin.so'
             with patch.object(recipe, 'verify_build_receipt', return_value=receipt) as verify:
-                recipe.publish_consumer(source, build, recipe.TARGET, '_pathlib_rs', output, {})
+                recipe.publish_consumer(source, build, recipe.TARGET, '_threading_rs', output, {})
                 verify.assert_called_once()
-                self.assertEqual(output.read_bytes(), b'signed pathlib')
-                self.assertEqual(published.read_bytes(), b'signed pathlib')
+                self.assertEqual(output.read_bytes(), b'signed threading')
+                self.assertEqual(published.read_bytes(), b'signed threading')
                 with self.assertRaises(ValueError):
                     recipe.publish_consumer(source, build, recipe.TARGET, '_pickle_rs', output, {})
                 with self.assertRaises(ValueError):
-                    recipe.publish_consumer(source, build, recipe.TARGET, '_pathlib_rs', root / output.name, {})
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_threading_rs', root / output.name, {})
             output.unlink()
-            with patch.object(recipe, 'verify_build_receipt', side_effect=ValueError('changed pathlib')):
+            with patch.object(recipe, 'verify_build_receipt', side_effect=ValueError('changed threading')):
                 with self.assertRaises(ValueError):
-                    recipe.publish_consumer(source, build, recipe.TARGET, '_pathlib_rs', output, {})
+                    recipe.publish_consumer(source, build, recipe.TARGET, '_threading_rs', output, {})
             self.assertFalse(output.exists())
 
     def test_completed_joint_receipt_rejects_missing_json_source_runtime_or_final_bytes(self):
@@ -368,8 +368,8 @@ class SourceStdArguments(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             build = Path(raw).resolve()
             recipe.check_fresh_consumer_outputs(build, recipe.TARGET)
-            for path in (build / 'Modules/_pathlib_rs.cpython-316-darwin.so',
-                         build / 'target' / recipe.TARGET / 'release/lib_pathlib_rs.dylib',
+            for path in (build / 'Modules/_threading_rs.cpython-316-darwin.so',
+                         build / 'target' / recipe.TARGET / 'release/lib_threading_rs.dylib',
                          build / 'target' / recipe.TARGET / 'release/lib_csv_rs.dylib'):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b'old artifact')
@@ -377,6 +377,18 @@ class SourceStdArguments(unittest.TestCase):
                     recipe.check_fresh_consumer_outputs(build, recipe.TARGET)
                 self.assertEqual(path.read_bytes(), b'old artifact')
                 path.unlink()
+
+    def test_fresh_source_runtime_keeps_existing_stock_pathlib_outputs(self):
+        with tempfile.TemporaryDirectory() as raw:
+            build = Path(raw).resolve()
+            paths = [build / 'Modules/_pathlib_rs.cpython-316-darwin.so',
+                     build / 'target' / recipe.TARGET / 'release/lib_pathlib_rs.dylib']
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'unchanged stock artifact')
+            recipe.check_fresh_consumer_outputs(build, recipe.TARGET)
+            for path in paths:
+                self.assertEqual(path.read_bytes(), b'unchanged stock artifact')
 
     def test_bootstrap_imports_owned_modules_without_changing_controller_imports(self):
         from unittest.mock import patch

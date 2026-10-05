@@ -1058,7 +1058,7 @@ class CsvSourceStdMakeTests(unittest.TestCase):
             self.assertNotIn('csv_source_std.py', generated)
             self.assertNotIn('source-std338/receipt.json', generated)
             self.assertIn('--package _pathlib_rs --profile $(CARGO_PROFILE)', generated)
-            self.assertIn('mv target/$(CARGO_TARGET)/$(CARGO_TARGET_DIR)/lib_pathlib_rs.dylib Modules/_pathlib_rs$(EXT_SUFFIX)', generated)
+            self.assertIn('lib_pathlib_rs$(CARGO_DYLIB_SUFFIX) Modules/_pathlib_rs$(EXT_SUFFIX)', generated)
 
     def test_generator_has_one_joint_owner_and_retains_ordinary_fallbacks(self):
         script = LANE / "overlay/Modules/makesetup"
