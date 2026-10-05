@@ -1,10 +1,11 @@
-"""Verify the protected and writable page budget of the seven-helper image."""
+"""Verify the protected and writable page budget of the eleven-helper image."""
 import _struct as struct
 import csv_source_std
 
 PAGE_SIZE = 16384
 INIT_EXPORTS = frozenset('_PyInit__' + name + '_rs' for name in
-                         ('csv', 'json', 'typing', 'tokenize', 'datetime', 'threading', 'uuid'))
+                         ('csv', 'json', 'typing', 'tokenize', 'datetime', 'threading', 'uuid',
+                          'collections', 'sqlite3', 'warnings', 'socket'))
 
 
 def verify_aggregate_layout(data: bytes) -> dict:
@@ -21,7 +22,7 @@ def verify_aggregate_layout(data: bytes) -> dict:
     require(surface['loads'] == ['/usr/lib/libSystem.B.dylib'], 'expected only System dependency')
     initializers = {name for name in surface['exports'] if name.startswith('_PyInit_')}
     require(initializers == INIT_EXPORTS and all(surface['exports'][name] == 0 for name in INIT_EXPORTS),
-            'expected seven strong initializers')
+            'expected eleven strong initializers')
     require(struct.unpack_from('<I', data, 8)[0] == 0, 'expected arm64 subtype')
     count, length = struct.unpack_from('<II', data, 16)
     end, position = 32 + length, 32
@@ -83,4 +84,4 @@ def verify_aggregate_layout(data: bytes) -> dict:
         position += size
     require(position == end and set(segments) == {'__TEXT', '__DATA_CONST', '__DATA', '__LINKEDIT'},
             'required segment inventory')
-    return {'schema': 1, 'page_size': PAGE_SIZE, 'segments': segments, 'link_surface': surface}
+    return {'schema': 2, 'page_size': PAGE_SIZE, 'segments': segments, 'link_surface': surface}
