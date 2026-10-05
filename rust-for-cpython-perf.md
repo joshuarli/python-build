@@ -5355,7 +5355,9 @@ identical source can differ in measured RSS, without assigning a cause,
 correcting ratios, changing floors or reopening rejected candidates.
 All167 crate metadata IDs and section-relative Rust symbol records in all59
 native images match; workspace crate-disambiguator drift is falsified.
-The remaining libpython section difference needs specific attribution.
+The remaining libpython section differences are attributed to embedded
+absolute paths and corresponding link/signature metadata. Mapped segment
+sizes and fixup-page sets match; this does not explain the RSS difference.
 
 Harness336 is integrated at `1695ed9`: incremental preparation uses one
 parallel `make install` rather than two build traversals. Current install
@@ -5368,6 +5370,34 @@ Fresh memory-only calibration `20261005T121321Z` passes: all23 workload
 RSS and both memory metrics on eight representative modules are neutral
 in two independent runs. The accepted runtime and absolute memory goal
 counts remain unchanged.
+
+### Private heap attribution and shared runtime source proof (2026-10-05)
+
+Diagnostic337 compares accepted and identical-source rebuilt interpreters
+with the original zlib streaming function and inputs. The rebuilt process
+has21 extra resident16KiB private `MALLOC_SMALL` pages before workload import,
+37 after import/warmup and37 after repeat. Repeat adds two pages in both.
+Both executions, input hashes, stage guards and child cleanup pass. This is
+a perturbed single-process diagnostic, not original workload qualification;
+no exact allocation/function owner or removable memory is established.
+Summary SHA256 is
+`57d5fb5579b57d6290f36302239a7ef7909314d24e1a22dc74f6af1040333fbc`.
+
+Experiment338 verifies the official matching Rust source archive SHA256
+`dee5c574fab79b4b45aa24f7260613977d820e62013a7923647c066c10bdaec5`
+and all31 vendored registry package checksums. Query-only public source
+selection through an owned sysroot view passes with eight compiler queries,
+31 graph units, unchanged inputs/stage and reaped children. The initial
+public query failed because its host configuration lacked the required
+target-applies-to-host flag; the corrected query preserves that failure.
+No compiler build, registry fetch or installed-toolchain mutation occurred.
+Cargo explicitly selects static `std` despite its source declaring a dylib;
+shared abort-runtime producer/consumer transport remains unproved. The graph
+also contains an injected unused `panic_unwind` root; final linkage must
+retain abort and cannot be inferred from graph presence alone. Source pins,
+complete notices and thread/subinterpreter ownership need proof before any
+adoption. Recorded48 passing/23 unresolved modules and12 workload RSS
+regressions remain unchanged.
 
 ### Sprint audit update (2026-10-05)
 
