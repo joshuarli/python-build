@@ -5109,6 +5109,77 @@ or unchanged retry follows. The local fractions load win remains exploratory.
 Accepted runtimee702f23 and the48 passing/23 unresolved stitched module picture
 remain unchanged. CPU, timing and host quietness are excluded throughout.
 
+### Annotation and arithmetic screens303–313 (2026-10-05)
+
+Annotationlib303 addresses the transitive AST owner missed by inspect299.
+It keeps the stringifier eager, uses builtin AST operators when Python AST
+is cold, and delegates the private name-fixer visitor through a per-instance
+captured base. Its proposed private MRO, class membership, capture timing
+and non-visitor inheritance changes are explicit and remain unadopted.
+Review caught metaclass hooks during descriptor lookup and accidental
+AttributeError when `sys.modules['ast']` is None; regression-first corrections
+use raw type structures and preserve delayed ModuleNotFoundError.
+
+Source462678d passes eight frozen behavior cases, three activation checks,
+four complete suites1457/2 and six shared/own-GIL interpreter cycles. Its
+34.6-second incremental build verifies58 extensions; the matched target
+screen improves inspect load0.963993 in both runs, working1.000. Verdict
+`20261005T064127Z`, SHA256
+`916cd3ebaf48e9917fb3579b13d3c929cae73f9c561e0ed42a47312aeac6c7b3`.
+The clean equal-length `perf-a303` build takes214seconds and passes again.
+Its six-module/all23 screen REJECTS after156.6seconds on compileall RSS
+1.013597 in both runs. Verdict `20261005T064748Z`, SHA256
+`68c6cc17695079c5d3af4a8725b2b8622dffd712bd73de2a03d1f25526f32a5d`.
+Sampling stops early; no other replicated module result is inferred.
+
+Read-only diagnostic304 found that fractions298's longer build tag added
+one16KiB libpython LINKEDIT page through path strings and symbol metadata.
+Future clean comparisons use equal-length build tags. This does not establish
+RSS causality or reopen298. The equal-length303 comparison has identical
+138-image segment extents and section bytes after tag substitution; all58
+Rust helper files match after excluding UUIDs/signatures. Compileall compiles
+23 fixed repository files rather than candidate stdlib sources, and its
+bytecode digests match. No causal fix or unchanged retry follows303.
+
+Independent source inquiries305–309 find no new removable owner in
+ElementTree, SQLite, contextlib or warnings. CSV306's replay-class replacement
+would add iterator callbacks and lose StopIteration identity/value, so it
+closes before implementation without relaxing that protocol.
+
+Decimal310 replaces general BigUint arithmetic with unbounded decimal limbs.
+Five frozen cases pass both accepted and candidate runtimes; complete decimal
+passes. The original fixture wrongly expected Inexact for999+1 at precision2;
+the preserved failure is corrected to999+2, retaining both flag assertions.
+Linked BigUint/radix symbols disappear, TEXT shrinks48KiB and LINKEDIT16KiB.
+The34-second incremental target screen is NEUTRAL: load1.240295 with
+worse/neutral per-run classes, working1.000. Verdict `20261005T065637Z`,
+SHA256 `9506a1a602cc78029d757eaa3534bece9f356146b9473b22b3d870b1bb5e2edb`.
+
+Distinct decimal313 removes the remaining Rust heap buffers from public
+eligible arithmetic using inline limbs and stack ASCII output, preserving
+unbounded heap fallback and the private API. Eight cases and complete decimal
+pass; compatible incremental build takes33seconds with58 verified extensions.
+Its matched target screen is NEUTRAL, load0.964223 CI[0.898,1.042] and
+working1.000. Verdict `20261005T070927Z`, SHA256
+`d5b1500a91e0da74e34830ac18a53836d1abae933c10e258b42219653e7d597c`.
+
+Fractions312 replaces BigRational with normalized BigInt pairs and direct
+cross-cancelled arithmetic, removing the num-rational package. Clean source
+b30cbf1 builds `perf-f312` in213seconds, verifies58 extensions, passes five
+differential cases on both sides and complete fractions50. Linked generic
+ratio symbols disappear. The matched target screen is NEUTRAL: load1.012579,
+working1.000. Verdict `20261005T070554Z`, SHA256
+`5207886d7ccb46878aedd54e55ae3a19777844e20d7aa1410381aea477adddf6`.
+None of these arithmetic screens proceeds to broad/full qualification,
+adoption or unchanged retry. Accepted runtimee702 and all memory goals remain.
+
+Harness311 adds an additive `phase_seconds` receipt field: lock acquisition,
+stage verification, controller preparation, module iteration calibration,
+module sampling and combined workload preparation/sampling. Existing totals,
+pairing, samples, lease modes and verdicts remain unchanged. All74 controller
+tests pass. The changed harness requires fresh memory-only calibration before
+further comparisons; CPU, timing and host quietness remain excluded.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
