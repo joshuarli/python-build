@@ -5187,6 +5187,35 @@ further comparisons; CPU, timing and host quietness remain excluded.
 
 ## Objective after coverage
 
+### CSV engine and native holder screens314–318 (2026-10-05)
+
+CSV314 replaces the high-level writer engine with `csv-core`, preserving the
+Python callback and fallback boundaries. Primary `d9bcfb0` clean build
+`perf-c314` takes211.3seconds and verifies58 Rust extensions. The 3,931-case
+oracle, seven behavior contracts and complete CSV suite134/4 pass. The
+two-run target comparison is NEUTRAL: load0.981160x and working1.000x.
+Verdict `20261005T073054Z-perf-rust-vs-perf-c314` SHA256 is
+`6f2711e9ac9f6c469d953f372a0a275b3b4abdfd00c3ab8b137235d0c4a7e9d2`.
+Smaller native sections do not establish physical memory savings.
+
+CSV317 removes the three Python proxy classes and routes Rust through native
+CSV holders and a replay iterator. Native type, private-alias and instance
+introspection changes were explicit experimental boundaries. Primary
+`b1c7a9a` clean build `perf-c317` takes221.9seconds and verifies58 extensions;
+17 candidate contracts and complete CSV suite134/4 pass. The7.4second
+two-run comparison is NEUTRAL: load0.972223x, pooled interval
+[0.894714,1.056631], and working1.000x. Verdict
+`20261005T083552Z-perf-rust-vs-perf-c317` SHA256 is
+`611c12323ab1a2351c289281a1846054d84a1d75c778dd6b1614a5820e2ab445`.
+
+The separate corrected retained-owner diagnostic318 confirms the three
+accepted CSV proxy classes survive native-reader fallback, with13,120 logical
+bytes in their intrinsic type/function/code/property graph. Packet SHA256 is
+`eb92c79f984638c8cf1cabc8148e26886db3cd145b6d327ea85e5719f841c6e3`.
+This explains the source hypothesis, but is not RSS acceptance evidence.
+Both314 and317 close without adoption, broad/full qualification or unchanged
+retry. Accepted runtime and memory goal counts remain unchanged.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
