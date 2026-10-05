@@ -737,13 +737,17 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     configure = [str(source / "configure"), f"--prefix={paths['stage']}", "--enable-shared",
                  "--enable-experimental-jit=no", "--with-tail-call-interp=no",
                  "--without-ensurepip"]
+    # Only the aggregate workspace requires the pinned source-built runtime.
+    # Locked Cargo fetch has already validated every declared workspace dependency.
+    source_aggregate = (not empty_overlay and lb.TARGET == "aarch64-apple-darwin"
+                        and (source / "Modules/cpython-rust-source-aggregate356/Cargo.toml").is_file())
     std_metadata = None
     if not incremental:
         for path in (paths["build"], paths["stage"]):
             if path.exists():
                 shutil.rmtree(path)
             path.mkdir(parents=True)
-        if not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
+        if source_aggregate:
             std_metadata = _prepare_csv_source_std(paths, env)
         lb._require_command(configure, cwd=paths["build"], env=env,
                             log=paths["configure_log"], sealed=sandbox)
@@ -752,7 +756,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             _copy_file(setup_local, paths["build"] / "Modules" / "Setup.local")
         state["configured"] = True
     if incremental or std_metadata is not None:
-        if incremental and not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
+        if incremental and source_aggregate:
             std_metadata = _prepare_csv_source_std(paths, env)
         # Install depends on the complete build. A single invocation preserves
         # the source runtime's pinned libpython bytes through publication; its
