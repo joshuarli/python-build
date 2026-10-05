@@ -5667,6 +5667,19 @@ children. Original350 inputs and the accepted stage remain unchanged.
 This diagnostic is not runtime or memory acceptance; ordinary clean351
 must still establish an installed candidate and replicated RSS results.
 
+Clean351 at `cc7a19a` compiles all98 units and both producers successfully;
+every recorded command exits zero and is reaped. It publishes the signed
+412,432B provider with exactly29 exports and five consumers, with identical
+full/restricted metadata. Its final receipt verifier stops because the bound
+launch spelling `clang` differs from its canonical symlink target `clang-23`.
+The correction checks the original spelling against recorded `PY_CC` and
+independently checks the canonical target; existing compiler/file hashes stay
+mandatory. All48 recipe tests pass, including retargeted-symlink rejection.
+The corrected verifier passes the entire immutable saved351 receipt, not
+only the linker portion, while all recorded inputs, outputs and the accepted
+stage remain unchanged. Ordinary clean352 is the next installed-candidate
+attempt; no351 runtime suite or RSS verdict is claimed.
+
 A bounded build-cost audit attributes only15.27–17.88s to std Cargo and
 11.34–12.00s to consumer Cargo in the233.6–238.4s successful clean builds.
 The remaining206–209s cover phases without separate timing; this does not
