@@ -365,7 +365,50 @@ def run(argv, cwd, environment, log, commands, timeout=180):
     return log.with_suffix('.stdout').read_text()
 
 
-def normalized_outputs(provider, csv, environment, commands, root):
+def runtime_dependencies(loads_text, commands_text, expected_id, provider_id=None):
+    identities, dependencies = [], []
+    for block in re.split(r'(?m)^\s*Load command \d+\s*$', commands_text):
+        command = re.search(r'(?m)^\s*cmd (LC_\w+)\s*$', block)
+        if command is None:
+            continue
+        kind = command[1]
+        if kind not in {'LC_ID_DYLIB', 'LC_LOAD_DYLIB', 'LC_LOAD_WEAK_DYLIB',
+                        'LC_REEXPORT_DYLIB', 'LC_LOAD_UPWARD_DYLIB', 'LC_LAZY_LOAD_DYLIB'}:
+            continue
+        name = re.search(r'(?m)^\s*name (.+?) \(offset \d+\)\s*$', block)
+        if name is None:
+            raise ValueError('runtime dylib command has no name')
+        (identities if kind == 'LC_ID_DYLIB' else dependencies).append(name[1])
+    # otool -L includes the image's own ID. Prove its command identity and exact
+    # compiler-owned value before treating the remaining entries as loads.
+    if identities != [expected_id]:
+        raise ValueError('runtime install identity changed')
+    listed = [line.strip().split(' (')[0] for line in loads_text.splitlines()[1:]]
+    if listed != [expected_id, *dependencies]:
+        raise ValueError('runtime ID/load command observations disagree')
+    if provider_id is not None and dependencies.count(provider_id) != 1:
+        raise ValueError('CSV must reference exactly one source std provider')
+    if any(not x.startswith(('/usr/lib/', '/System/Library/Frameworks/'))
+           for x in dependencies if x != provider_id):
+        raise ValueError('unexpected non-system runtime dependency')
+    return dependencies
+
+
+def consumer_install_id(unit, library, root):
+    args = unit['argv']
+    if '--crate-type' not in args or args[args.index('--crate-type') + 1] != 'cdylib':
+        raise ValueError('consumer output lacks a cdylib compiler unit')
+    output = runtime_output_paths(unit)[0].with_suffix('.dylib')
+    if (not output.resolve(strict=True).is_relative_to(root.resolve())
+            or output.name != library.name):
+        raise ValueError('consumer install identity lacks its exact owned compiler artifact')
+    return str(output)
+
+
+def normalized_outputs(provider, csv, environment, commands, root, csv_unit):
+    csv_id = consumer_install_id(csv_unit, csv, root)
+    if digest(csv_id) != digest(csv):
+        raise ValueError('consumer release artifact differs from its compiler output before normalization')
     install_id = '@rpath/' + provider.name
     run(['/usr/bin/install_name_tool', '-id', install_id, provider], root, environment, root / 'logs/provider-id', commands)
     loads = run(['/usr/bin/otool', '-L', csv], root, environment, root / 'logs/csv-loads-before', commands)
@@ -383,16 +426,10 @@ def normalized_outputs(provider, csv, environment, commands, root):
     observed = {}
     for label, path in [('provider', provider), ('csv', csv)]:
         text = run(['/usr/bin/otool', '-L', path], root, environment, root / ('logs/' + label + '-loads-final'), commands)
-        dependencies = [line.strip().split(' (')[0] for line in text.splitlines()[1:]]
-        if label == 'provider':
-            if not dependencies or dependencies.pop(0) != install_id:
-                raise ValueError('provider install identity changed')
-        elif dependencies.count(install_id) != 1:
-            raise ValueError('CSV must reference exactly one source std provider')
-        if any(not x.startswith(('/usr/lib/', '/System/Library/Frameworks/'))
-               for x in dependencies if label != 'csv' or x != install_id):
-            raise ValueError('unexpected non-system runtime dependency')
         commands_text = run(['/usr/bin/otool', '-l', path], root, environment, root / ('logs/' + label + '-commands-final'), commands)
+        dependencies = runtime_dependencies(text, commands_text,
+                                            install_id if label == 'provider' else csv_id,
+                                            None if label == 'provider' else install_id)
         paths = re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset', commands_text)
         if paths != ([] if label == 'provider' else [rpath]):
             raise ValueError('unexpected runtime search path')
@@ -462,6 +499,14 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     csv_unit = receipt['csv']['unit_receipt']
     if csv_unit not in receipt['units'] or csv_unit['query']:
         raise ValueError('CSV output lacks its successful compiler unit')
+    if receipt['csv']['install_id'] != consumer_install_id(csv_unit, Path(receipt['csv']['artifact_path']), root):
+        raise ValueError('CSV compiler-owned install identity changed')
+    compiler_artifact = receipt['csv']['compiler_artifact']
+    if (compiler_artifact['path'] != receipt['csv']['install_id']
+            or artifact(compiler_artifact['path']) != compiler_artifact
+            or compiler_artifact['sha256'] != receipt['csv']['raw_artifact']['sha256']
+            or compiler_artifact['size'] != receipt['csv']['raw_artifact']['size']):
+        raise ValueError('CSV raw compiler artifact correspondence changed')
     for name, pair in receipt['runtime_pairs'].items():
         for raw in pair:
             if not any(x == name + '=' + raw for i, x in enumerate(csv_unit['argv'])
@@ -668,8 +713,12 @@ def build_recipe(source, build, target, profile, jobs):
         csv_units = [json.loads(p.read_text()) for p in (root / 'csv-units').glob('*.json')]
         verify_compiler_units(csv_units, files, root / 'csv-target')
         csv = root / 'csv-target' / target / 'release/lib_csv_rs.dylib'
+        csv_unit = next(unit for unit in csv_units if '--crate-name' in unit['argv']
+                        and unit['argv'][unit['argv'].index('--crate-name') + 1] == '_csv_rs')
         raw_provider, raw_csv = artifact(provider), artifact(csv)
-        install_id, rpath, dependencies = normalized_outputs(provider, csv, env, commands, root)
+        csv_id = consumer_install_id(csv_unit, csv, root)
+        compiler_artifact = artifact(csv_id)
+        install_id, rpath, dependencies = normalized_outputs(provider, csv, env, commands, root, csv_unit)
         mirror = publish_build_mirror(provider, build)
         publish = build / 'target' / target / 'release/lib_csv_rs.dylib'
         publish.parent.mkdir(parents=True, exist_ok=True)
@@ -691,10 +740,11 @@ def build_recipe(source, build, target, profile, jobs):
                                 'raw_artifact': raw_provider, 'build_mirror_path': mirror['path'],
                                 'build_mirror_sha256': mirror['sha256']},
                    'csv': {**artifact(publish), 'artifact_path': str(csv), 'artifact_sha256': digest(csv),
+                           'install_id': csv_id,
+                           'compiler_artifact': compiler_artifact,
                            'provider_install_id': install_id, 'rpath': rpath, 'raw_artifact': raw_csv,
                            'source': artifact(source / 'Modules/_csv_rs/src/lib.rs'),
-                           'unit_receipt': next(unit for unit in csv_units if '--crate-name' in unit['argv']
-                                                and unit['argv'][unit['argv'].index('--crate-name') + 1] == '_csv_rs')},
+                           'unit_receipt': csv_unit},
                    'generated_bindings': bindings, 'units': units + csv_units, 'commands': commands}
         (root / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
         return verify_build_receipt(source, build, target, source_metadata)

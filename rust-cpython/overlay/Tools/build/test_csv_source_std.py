@@ -14,6 +14,42 @@ spec.loader.exec_module(recipe)
 
 
 class SourceStdArguments(unittest.TestCase):
+    def test_consumer_self_id_is_verified_separately_from_its_actual_dependencies(self):
+        own = '/owned/target/release/build/_csv_rs/hash/out/lib_csv_rs.dylib'
+        provider = '@rpath/libstd-hash.dylib'
+        loads = 'lib_csv_rs.dylib:\n\t' + own + ' (compatibility version 0.0.0)\n\t' + provider + ' (compatibility version 0.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n'
+        commands = ('Load command 0\n cmd LC_ID_DYLIB\n cmdsize 80\n name ' + own + ' (offset 24)\n'
+                    'Load command 1\n cmd LC_LOAD_DYLIB\n cmdsize 80\n name ' + provider + ' (offset 24)\n'
+                    'Load command 2\n cmd LC_LOAD_DYLIB\n cmdsize 80\n name /usr/lib/libSystem.B.dylib (offset 24)\n')
+        self.assertEqual(recipe.runtime_dependencies(loads, commands, own, provider),
+                         [provider, '/usr/lib/libSystem.B.dylib'])
+        with self.assertRaisesRegex(ValueError, 'install identity'):
+            recipe.runtime_dependencies(loads, commands.replace('LC_ID_DYLIB', 'LC_LOAD_DYLIB'), own, provider)
+        with self.assertRaisesRegex(ValueError, 'install identity'):
+            recipe.runtime_dependencies(loads, commands, '/foreign/lib_csv_rs.dylib', provider)
+        foreign = commands + 'Load command 3\n cmd LC_LOAD_DYLIB\n cmdsize 80\n name /owned/libother.dylib (offset 24)\n'
+        foreign_loads = loads + '\t/owned/libother.dylib (compatibility version 0.0.0)\n'
+        with self.assertRaisesRegex(ValueError, 'non-system'):
+            recipe.runtime_dependencies(foreign_loads, foreign, own, provider)
+
+    def test_consumer_id_remains_compiler_owned_after_release_bytes_are_normalized(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            output = root / 'target/release/build/_csv_rs/hash/out'
+            output.mkdir(parents=True)
+            compiled = output / 'lib_csv_rs.dylib'
+            compiled.write_bytes(b'original compiler output')
+            release = root / 'target/release/lib_csv_rs.dylib'
+            release.write_bytes(compiled.read_bytes())
+            unit = {'argv': ['rustc', '--crate-name', '_csv_rs', '--crate-type', 'cdylib',
+                             '--out-dir', str(output)]}
+            raw_record = recipe.artifact(compiled)
+            self.assertEqual(recipe.consumer_install_id(unit, release, root), str(compiled))
+            release.write_bytes(b'normalized and signed release')
+            self.assertEqual(recipe.consumer_install_id(unit, release, root), str(compiled))
+            self.assertEqual(recipe.artifact(compiled), raw_record)
+            self.assertNotEqual(recipe.artifact(release)['sha256'], raw_record['sha256'])
+
     def test_verified_host_capability_probe_preserves_original_args_and_failure_receipt(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
