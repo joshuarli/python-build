@@ -1008,9 +1008,9 @@ class IncrementalRecipeTests(unittest.TestCase):
 
 
 class CsvSourceStdMakeTests(unittest.TestCase):
-    def test_eight_consumer_endpoint_orders_emit_one_build_owner(self):
+    def test_seven_consumer_endpoint_orders_emit_one_build_owner(self):
         script = LANE / 'overlay/Modules/makesetup'
-        roster = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
+        roster = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
         orders = []
         for first, last in itertools.permutations(roster, 2):
             interior = tuple(name for name in roster if name not in (first, last))
@@ -1027,7 +1027,7 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 generated = (root / 'Makefile').read_text()
                 self.assertEqual(generated.count('csv_source_std.py build'), 1)
-                self.assertEqual(generated.count('csv_source_std.py publish'), 8)
+                self.assertEqual(generated.count('csv_source_std.py publish'), 7)
                 owner = next(line for line in generated.splitlines() if 'csv_source_std.py build' in line)
                 self.assertNotIn('Modules/_json_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_csv_rs$(EXT_SUFFIX)', owner)
@@ -1042,6 +1042,23 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                 for line in generated.splitlines():
                     if 'csv_source_std.py publish' in line:
                         self.assertIn('PYTHON_BUILD_DIR=$(abs_builddir)', line)
+
+    def test_stock_pathlib_uses_ordinary_make_rule_without_source_runtime_dependencies(self):
+        script = LANE / 'overlay/Modules/makesetup'
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            setup = root / 'Setup'
+            setup.write_text('*shared*\n_pathlib_rs _pathlib_rs/Cargo.toml _pathlib_rs/src/lib.rs\n')
+            template = root / 'Makefile.pre'
+            template.write_text('# Definitions added by makesetup\n')
+            result = perf.subprocess.run([str(script), '-s', 'Modules', '-c', '-', '-m', str(template), str(setup)],
+                                         cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            generated = (root / 'Makefile').read_text()
+            self.assertNotIn('csv_source_std.py', generated)
+            self.assertNotIn('source-std338/receipt.json', generated)
+            self.assertIn('--package _pathlib_rs --profile $(CARGO_PROFILE)', generated)
+            self.assertIn('mv target/$(CARGO_TARGET)/$(CARGO_TARGET_DIR)/lib_pathlib_rs.dylib Modules/_pathlib_rs$(EXT_SUFFIX)', generated)
 
     def test_generator_has_one_joint_owner_and_retains_ordinary_fallbacks(self):
         script = LANE / "overlay/Modules/makesetup"
@@ -1075,10 +1092,11 @@ class CsvSourceStdMakeTests(unittest.TestCase):
             for name in ("_posixsubprocess", "math", "select", "_struct", "_sha2", "zlib", "fcntl"):
                 self.assertIn("Modules/" + name + "$(EXT_SUFFIX)", generated)
             self.assertEqual(sum(line.startswith('source-std338/receipt.json:') and '; ' in line for line in generated.splitlines()), 1)
-            for name in ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
+            for name in ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
                 self.assertIn('--consumer ' + name, generated)
                 self.assertIn('$(srcdir)/Modules/' + name + '/build.rs', generated)
                 self.assertIn('$(srcdir)/Modules/' + name + '/src/*.rs', generated)
+            self.assertNotIn('--consumer _pathlib_rs', generated)
             selected = generated.split('ifeq ($(CARGO_TARGET):$(CARGO_PROFILE),aarch64-apple-darwin:release)')
             for block in selected[1:]:
                 branch = block.split('else', 1)[0]
@@ -1188,7 +1206,7 @@ class CsvSourceStdInstallTests(unittest.TestCase):
             receipt_path = build / "source-std338/receipt.json"
             receipt_path.write_text('{"fixture": true}')
             install_id = "@rpath/" + provider.name
-            receipt = {"schema_version": 6, "status": "complete", "target": perf.lb.TARGET,
+            receipt = {"schema_version": 7, "status": "complete", "target": perf.lb.TARGET,
                        "profile": "release", "panic": "abort", "allocator": "System",
                        "provider": {"path": str(provider), "sha256": perf._sha256_file(provider),
                                     "size": provider.stat().st_size, "install_id": install_id,
@@ -1200,9 +1218,6 @@ class CsvSourceStdInstallTests(unittest.TestCase):
                                                   "sha256": perf._sha256_file(json_paths[0]), "size": 4,
                                                   "provider_install_id": install_id,
                                                   "rpath": "@loader_path/../../rust-cpython"}}}
-            receipt['consumers']['_pathlib_rs'] = {
-                'path': str(pathlib_paths[0]), 'sha256': perf._sha256_file(pathlib_paths[0]), 'size': 7,
-                'provider_install_id': install_id, 'rpath': '@loader_path/../../rust-cpython'}
             additional_paths = {}
             for name in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
                 triple = [build / 'target' / perf.lb.TARGET / ('release/lib' + name + '.dylib'),
@@ -1224,10 +1239,10 @@ class CsvSourceStdInstallTests(unittest.TestCase):
                 receipt['schema_version'] = 5
             elif defect == 'three-schema':
                 receipt['schema_version'] = 3
-            if defect == 'pathlib':
-                pathlib_paths[2].write_bytes(b'changed')
-            elif defect == 'missing-pathlib':
-                del receipt['consumers']['_pathlib_rs']
+            if defect == 'extra-pathlib':
+                receipt['consumers']['_pathlib_rs'] = receipt['consumers']['_json_rs']
+            elif defect == 'eight-schema':
+                receipt['schema_version'] = 6
             elif defect == 'old-schema':
                 receipt['schema_version'] = 2
             if defect == "mirror":
@@ -1265,21 +1280,24 @@ class CsvSourceStdInstallTests(unittest.TestCase):
                 result = perf._install_csv_source_std(source, paths, {"sha256": "archive"})
                 staged = stage / "lib/rust-cpython" / provider.name
                 self.assertEqual(staged.read_bytes(), provider.read_bytes())
+                for path in pathlib_paths:
+                    self.assertEqual(path.read_bytes(), b'pathlib')
+                self.assertNotIn('_pathlib_rs', result['receipt']['consumers'])
                 self.assertEqual(result["staged_provider_sha256"], perf._sha256_file(staged))
                 self.assertEqual(result["receipt_sha256"], perf._sha256_file(receipt_path))
                 recipe.verify_build_receipt.assert_called_once_with(source, build, perf.lb.TARGET,
                                                                     {"sha256": "archive"})
 
     def test_new_consumers_require_installed_bytes_and_complete_roster(self):
-        for defect in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'three-schema', 'five-schema', 'six-schema'):
+        for defect in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'three-schema', 'five-schema', 'six-schema', 'eight-schema'):
             with self.subTest(defect=defect):
                 self.exercise(defect)
 
-    def test_rejects_changed_pathlib_installed_bytes(self):
-        self.exercise('pathlib')
+    def test_stock_pathlib_is_outside_source_runtime_publication(self):
+        self.exercise()
 
-    def test_rejects_missing_pathlib_receipt(self):
-        self.exercise('missing-pathlib')
+    def test_rejects_pathlib_in_source_runtime_receipt(self):
+        self.exercise('extra-pathlib')
 
     def test_rejects_old_two_consumer_schema(self):
         self.exercise('old-schema')

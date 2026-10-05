@@ -171,7 +171,7 @@ class SourceStdArguments(unittest.TestCase):
                 self.assertEqual(recipe.artifact(originals[name]['path']), originals[name])
                 self.assertNotEqual(recipe.digest(path), originals[name]['sha256'])
 
-    def test_source_closure_includes_eight_helpers_without_neighbor_source(self):
+    def test_source_closure_includes_seven_helpers_without_stock_pathlib_or_neighbor_source(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
             source, build, library = root / 'source', root / 'build', root / 'library'
@@ -179,9 +179,10 @@ class SourceStdArguments(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b'owned source')
                 return path
-            selected = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
+            selected = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
             helper_sources = [write(source / 'Modules' / name / 'src/lib.rs') for name in selected]
             neighbor = write(source / 'Modules/_socket_rs/src/lib.rs')
+            stock_pathlib = write(source / 'Modules/_pathlib_rs/src/lib.rs')
             for relative in ('Cargo.toml', 'Cargo.lock', 'Python/stdlib_module_names.h',
                              'Modules/cpython-sys/src/lib.rs', 'Modules/cpython-build-helper/src/lib.rs',
                              'Include/Python.h'):
@@ -196,11 +197,24 @@ class SourceStdArguments(unittest.TestCase):
             for path in helper_sources:
                 self.assertEqual(files[str(path)], recipe.digest(path))
             self.assertNotIn(str(neighbor), files)
+            self.assertNotIn(str(stock_pathlib), files)
+
+    def test_stock_pathlib_cannot_be_published_by_the_source_runtime_owner(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as raw:
+            build = Path(raw).resolve()
+            output = build / 'Modules/_pathlib_rs.cpython-316-darwin.so'
+            with patch.object(recipe, 'verify_build_receipt') as verify:
+                with self.assertRaisesRegex(ValueError, 'unexpected owner'):
+                    recipe.publish_consumer(build / 'source', build, recipe.TARGET,
+                                            '_pathlib_rs', output, {})
+                verify.assert_not_called()
+                self.assertFalse(output.exists())
 
     def test_joint_consumer_arguments_select_exact_packages_once(self):
         args = recipe.consumer_arguments('cargo', Path('/source'), 2)
         self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'],
-                         ['_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'])
+                         ['_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'])
         self.assertIn('--locked', args)
         self.assertIn('--offline', args)
         self.assertIn('target-applies-to-host=false', args)
@@ -213,7 +227,7 @@ class SourceStdArguments(unittest.TestCase):
                 for raw in pair:
                     argv += ['--extern', label + '=' + raw]
             return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
-        names = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
+        names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
         units = [unit(name) for name in names]
         self.assertEqual(set(recipe.consumer_units(units, pairs)), set(names))
         for index in range(len(units)):
@@ -301,7 +315,7 @@ class SourceStdArguments(unittest.TestCase):
                                  'provider_install_id': '@rpath/libstd-test.dylib', 'rpath': '@loader_path/../../rust-cpython'}
             binding = write(root / 'c_api.rs', b'configured C API')
             metadata = {'sha256': 'archive', 'compiler_revision': 'compiler', 'library_cargo_lock_sha256': 'lock'}
-            receipt = {'schema_version': 6, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+            receipt = {'schema_version': 7, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
                        'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                        'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'compiler',
                                   'std_lock_sha256': 'lock', 'input_files': {}},
@@ -313,12 +327,14 @@ class SourceStdArguments(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
             import copy
-            for kind in ('missing-json', 'missing-pathlib', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'old-five-schema', 'old-six-schema', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
+            for kind in ('missing-json', 'extra-pathlib', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'old-five-schema', 'old-six-schema', 'old-eight-schema', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
                 altered = copy.deepcopy(receipt)
                 if kind == 'missing-json':
                     del altered['consumers']['_json_rs']
-                elif kind == 'missing-pathlib':
-                    del altered['consumers']['_pathlib_rs']
+                elif kind == 'extra-pathlib':
+                    altered['consumers']['_pathlib_rs'] = altered['consumers']['_json_rs']
+                elif kind == 'old-eight-schema':
+                    altered['schema_version'] = 6
                 elif kind == 'missing-typing':
                     del altered['consumers']['_typing_rs']
                 elif kind == 'missing-tokenize':
