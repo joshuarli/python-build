@@ -1002,9 +1002,9 @@ class IncrementalRecipeTests(unittest.TestCase):
 
 
 class SourceAggregateMakeTests(unittest.TestCase):
-    def test_seven_consumer_endpoint_orders_emit_one_build_owner(self):
+    def test_eleven_consumer_endpoint_orders_emit_one_build_owner(self):
         script = LANE / 'overlay/Modules/makesetup'
-        roster = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
+        roster = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
         orders = []
         for first, last in itertools.permutations(roster, 2):
             interior = tuple(name for name in roster if name not in (first, last))
@@ -1022,14 +1022,14 @@ class SourceAggregateMakeTests(unittest.TestCase):
                 generated = (root / 'Makefile').read_text()
                 self.assertEqual(generated.count('csv_source_aggregate.py build'), 1)
                 self.assertEqual(generated.count('--canonical --output'), 1)
-                self.assertEqual(generated.count('csv_source_aggregate.py publish'), 8)
+                self.assertEqual(generated.count('csv_source_aggregate.py publish'), 12)
                 owner = next(line for line in generated.splitlines() if 'csv_source_aggregate.py build' in line)
                 self.assertNotIn('Modules/_json_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_csv_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_pathlib_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_typing_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_tokenize_rs$(EXT_SUFFIX)', owner)
-                for name in ('_datetime_rs', '_threading_rs', '_uuid_rs'):
+                for name in ('_datetime_rs', '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs'):
                     self.assertNotIn('Modules/' + name + '$(EXT_SUFFIX)', owner)
                 for name in names:
                     self.assertIn('--consumer ' + name, generated)
@@ -1069,6 +1069,9 @@ class SourceAggregateMakeTests(unittest.TestCase):
                              "_datetime_rs _datetime_rs/Cargo.toml _datetime_rs/src/lib.rs\n"
                              "_threading_rs _threading_rs/Cargo.toml _threading_rs/src/lib.rs\n"
                              "_uuid_rs _uuid_rs/Cargo.toml _uuid_rs/src/lib.rs\n"
+                             "_collections_rs _collections_rs/Cargo.toml _collections_rs/src/lib.rs\n"
+                             "_sqlite3_rs _sqlite3_rs/Cargo.toml _sqlite3_rs/src/lib.rs\n"
+                             "_warnings_rs _warnings_rs/Cargo.toml _warnings_rs/src/lib.rs\n"
                              "_base64 _base64/Cargo.toml _base64/src/lib.rs\n"
                              "_socket_rs _socket_rs/Cargo.toml _socket_rs/src/lib.rs\n")
             template = root / "Makefile.pre"
@@ -1090,7 +1093,7 @@ class SourceAggregateMakeTests(unittest.TestCase):
             for name in ("_posixsubprocess", "math", "select", "_struct", "_sha2", "zlib", "fcntl"):
                 self.assertIn("Modules/" + name + "$(EXT_SUFFIX)", generated)
             self.assertEqual(sum(line.startswith('source-aggregate356/receipt.json:') and '; ' in line for line in generated.splitlines()), 1)
-            for name in ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
+            for name in ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs'):
                 self.assertIn('--consumer ' + name, generated)
                 self.assertIn('$(srcdir)/Modules/' + name + '/build.rs', generated)
                 self.assertIn('$(srcdir)/Modules/' + name + '/src/*.rs', generated)
@@ -1128,7 +1131,7 @@ class SourceAggregateInstallTests(unittest.TestCase):
             source = paths['source_parent'] / 'cpython'
             source.mkdir(parents=True)
             names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs',
-                     '_datetime_rs', '_threading_rs', '_uuid_rs')
+                     '_datetime_rs', '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
             basename = 'libcpython_rust_source_aggregate356.dylib'
             release = build / 'target' / perf.lb.TARGET / 'release' / basename
             final = build / 'source-aggregate356/final' / basename
@@ -1159,12 +1162,12 @@ class SourceAggregateInstallTests(unittest.TestCase):
             unrelated.write_bytes(b'unchanged stock pathlib')
             stock_release = release.parent / 'lib_pathlib_rs.dylib'
             stock_release.write_bytes(unrelated.read_bytes())
-            layout = {'schema': 1, 'page_size': 16384, 'segments': {
+            layout = {'schema': 2, 'page_size': 16384, 'segments': {
                 '__DATA_CONST': {'vmsize': 16384, 'maxprot': 3, 'initprot': 3, 'flags': 16},
                 '__DATA': {'vmsize': 16384, 'maxprot': 3, 'initprot': 3, 'flags': 0}},
                 'link_surface': {'loads': ['/usr/lib/libSystem.B.dylib'],
                     'exports': {'_PyInit_' + name: 0 for name in names}}}
-            receipt = {'schema_version': 1, 'status': 'complete', 'target': perf.lb.TARGET,
+            receipt = {'schema_version': 2, 'status': 'complete', 'target': perf.lb.TARGET,
                 'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                 'aggregate': {**record(release), 'final_artifact': record(final),
                     'install_id': '@rpath/' + basename, 'layout': layout}, 'consumers': consumers}
@@ -1181,8 +1184,17 @@ class SourceAggregateInstallTests(unittest.TestCase):
                 receipt['allocator'] = 'custom'
             elif defect == 'schema':
                 receipt['schema_version'] = 8
+            elif defect == 'old-schema':
+                receipt['schema_version'] = 1
+            elif defect == 'old-layout-schema':
+                layout['schema'] = 1
             elif defect == 'roster':
                 del consumers['_uuid_rs']
+            elif defect == 'old-roster':
+                for name in ('_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs'):
+                    del consumers[name]
+            elif defect == 'new-installed':
+                (dynload / '_socket_rs.cpython-316-darwin.so').write_bytes(b'changed last copy')
             elif defect == 'release':
                 release.write_bytes(b'changed')
             elif defect == 'final':
@@ -1244,7 +1256,7 @@ class SourceAggregateInstallTests(unittest.TestCase):
         self.exercise(already_finalized=True)
 
     def test_rejects_invalid_receipt_artifacts_and_aliases_before_publication(self):
-        for defect in ('owner', 'canonical-link', 'canonical-hardlink', 'allocator', 'schema', 'roster', 'release', 'final', 'installed',
+        for defect in ('owner', 'canonical-link', 'canonical-hardlink', 'allocator', 'schema', 'old-schema', 'old-layout-schema', 'roster', 'old-roster', 'new-installed', 'release', 'final', 'installed',
                        'build-alias', 'release-alias', 'stage-escape', 'stage-collision',
                        'layout', 'page-bound', 'initializers', 'signature', 'load'):
             with self.subTest(defect=defect):
