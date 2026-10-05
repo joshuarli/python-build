@@ -611,11 +611,19 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         if setup_local.is_file():
             _copy_file(setup_local, paths["build"] / "Modules" / "Setup.local")
         state["configured"] = True
-    lb._require_command([str(toolchain.make), f"-j{workers}", *MAKE_VARS], cwd=paths["build"],
-                        env=env, log=paths["build_log"], sealed=sandbox)
-    lb._require_command([str(toolchain.make), "install", *MAKE_VARS], cwd=paths["build"],
-                        env=env, log=paths["install_log"], sealed=sandbox)
-    _check_logs(paths["build_log"], paths["install_log"])
+    if incremental:
+        # Install depends on the complete build. One parallel invocation avoids
+        # rebuilding native targets twice; its transcript is the current proof.
+        paths["build_log"].unlink(missing_ok=True)
+        lb._require_command([str(toolchain.make), f"-j{workers}", "install", *MAKE_VARS],
+                            cwd=paths["build"], env=env, log=paths["install_log"], sealed=sandbox)
+        _check_logs(paths["install_log"], paths["install_log"])
+    else:
+        lb._require_command([str(toolchain.make), f"-j{workers}", *MAKE_VARS], cwd=paths["build"],
+                            env=env, log=paths["build_log"], sealed=sandbox)
+        lb._require_command([str(toolchain.make), "install", *MAKE_VARS], cwd=paths["build"],
+                            env=env, log=paths["install_log"], sealed=sandbox)
+        _check_logs(paths["build_log"], paths["install_log"])
     python = paths["stage"] / "bin" / "python3.16"
     if not python.is_file():
         raise LaneError(f"perf install did not produce {python}")

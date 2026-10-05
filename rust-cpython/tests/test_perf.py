@@ -814,6 +814,108 @@ class IncrementalPlanTests(unittest.TestCase):
         self.assertEqual(plan, {"changed": ["Lib/new.py"], "removed": [], "clean_only": []})
 
 
+class IncrementalRecipeTests(unittest.TestCase):
+    def exercise(self, incremental, *, bad_install=False, failed_install=False):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            source = root / "source"
+            source.mkdir()
+            (source / "Cargo.lock").write_text("locked fixture")
+            (source / "Lib").mkdir()
+            (source / "Lib/pickle.py").write_text("old")
+            paths = {name: root / name for name in (
+                "source_parent", "overlay_staging", "overlay_manifest", "build", "stage",
+                "cargo_log", "configure_log", "build_log", "install_log")}
+            paths["build"].mkdir()
+            (paths["build"] / "Makefile").write_text("CARGO_PROFILE=dev\n")
+            paths["overlay_manifest"].write_text('["Lib/pickle.py"]')
+            (paths["overlay_staging"] / "Lib").mkdir(parents=True)
+            (paths["overlay_staging"] / "Lib/pickle.py").write_text("new")
+            paths["build_log"].write_text("stale cargo --profile release")
+            toolchain = mock.Mock(make=Path("/make"), llvm_prefix=root / "llvm")
+            toolchain.identity.return_value = {"fixture": True}
+            sandbox = mock.Mock()
+            sandbox.environment.side_effect = lambda env: env
+            proof = mock.Mock()
+            proof.verify_builtin_artifacts.return_value = {"fixture": "verified"}
+            members = {"_base64", "cpython-sys", "_fixture_rs"}
+            commands = []
+            def command(argv, *, log, **kwargs):
+                commands.append(argv)
+                if "install" in argv and failed_install:
+                    log.write_text("install failed")
+                    raise perf.LaneError("install failed")
+                log.write_text("cargo --profile release\ncargo --profile dev" if "install" in argv and bad_install
+                               else "cargo --profile release")
+                if "install" in argv:
+                    python = paths["stage"] / "bin/python3.16"
+                    python.parent.mkdir(parents=True, exist_ok=True)
+                    python.write_text("installed fixture")
+            fixtures = {
+                "_git_state": lambda: {"commit": "fixture"},
+                "_existing_source": lambda parent: source,
+                "_stage_overlay": lambda paths: ({"sha256": "fixture"}, ["Lib/pickle.py"]),
+                "_builtin_artifact_verifier": lambda: (proof, []),
+                "_perf_flags": lambda *a: {"CPPFLAGS": "", "CFLAGS": "fixture flags"},
+                "_overlay_members": lambda: {"_fixture_rs"},
+                "_built_members": lambda *a: members,
+                "_build_python": lambda build: build / "python.exe",
+            }
+            for name, value in fixtures.items():
+                patches.enter_context(mock.patch.object(perf, name, value))
+            for name, value in {
+                "_toolchain": (toolchain, "fixture"), "_environment": {},
+                "_sealed_sandbox": sandbox, "_workspace_members": members,
+                "_read_lock": ({"commit": "source"}, mock.Mock(sha256="source hash")),
+                "_module_report": {"version": "fixture"}, "_rust_identity": {"fixture": True},
+            }.items():
+                patches.enter_context(mock.patch.object(perf.lb, name, return_value=value))
+            patches.enter_context(mock.patch.object(perf.lb, "_llvm_ready"))
+            patches.enter_context(mock.patch.object(perf.lb, "_extract_fresh", return_value=source))
+            patches.enter_context(mock.patch.object(perf.lb, "_require_command", side_effect=command))
+            patches.enter_context(mock.patch.object(perf.lb, "_make_value", return_value="dev"))
+            extensions = patches.enter_context(mock.patch.object(
+                perf, "verify_release_artifacts", return_value={str(i): "hash" for i in range(58)}))
+            checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
+            if bad_install or failed_install:
+                with self.assertRaisesRegex(perf.LaneError, "profile dev|install failed"):
+                    perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
+                                       incremental=incremental, state={"configured": True})
+                extensions.assert_not_called()
+                proof.verify_builtin_artifacts.assert_not_called()
+            else:
+                report = perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
+                                            incremental=incremental, state={"configured": True})
+                self.assertEqual(len(report["rust_extensions_sha256"]), 58)
+                self.assertEqual(report["rust_builtin_artifacts"], {"fixture": "verified"})
+                self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
+                self.assertEqual(report["incremental"], incremental)
+                self.assertEqual((source / "Lib/pickle.py").read_text(), "new")
+                proof.validate_builtin_source.assert_called_once()
+                proof.verify_builtin_artifacts.assert_called_once()
+                extensions.assert_called_once()
+                checks.assert_called_once_with(paths["install_log"] if incremental else paths["build_log"],
+                                               paths["install_log"])
+            make = [argv for argv in commands if argv[0] == "/make"]
+            self.assertEqual(make, ([["/make", "-j4", "install", *perf.MAKE_VARS]] if incremental else
+                                   [["/make", "-j4", *perf.MAKE_VARS],
+                                    ["/make", "install", *perf.MAKE_VARS]]))
+            if incremental:
+                self.assertFalse(paths["build_log"].exists())
+
+    def test_incremental_builds_and_installs_once_then_verifies_artifacts(self):
+        self.exercise(True)
+
+    def test_clean_build_keeps_separate_build_and_install(self):
+        self.exercise(False)
+
+    def test_incremental_rejects_current_dev_transcript_despite_stale_release_log(self):
+        self.exercise(True, bad_install=True)
+
+    def test_incremental_install_failure_does_not_claim_artifact_proof(self):
+        self.exercise(True, failed_install=True)
+
+
 class BuiltinPreflightTests(unittest.TestCase):
     def source_failure(self, defect, message, *, reaches_fetch=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
