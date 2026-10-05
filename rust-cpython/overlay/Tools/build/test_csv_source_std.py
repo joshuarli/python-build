@@ -787,7 +787,9 @@ class SourceStdExportClosure(unittest.TestCase):
             commands = identity + _struct.pack('<4I', 0x80000033, 16, 32 + size + 16, len(trie))
             return _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 2, len(commands), 0x80, 0) + commands + trie
         self.assertEqual(recipe.macho_link_surface(image(b'\0\1_x\0\6\2\4\0\0'))['exports'], {'_x': 4})
-        for trie in (b'\0\1_x\0\0', b'\0\1_x\0\6\2\10\0\0', b'\0\1_x\0\6\2\0'):
+        self.assertEqual(recipe.macho_link_surface(image(b'\0\1_x\0\6\2\1\0\0'))['exports'], {'_x': 1})
+        for trie in (b'\0\1_x\0\0', b'\0\1_x\0\6\2\10\0\0', b'\0\1_x\0\6\2\0',
+                     *(b'\0\1_x\0\6\2' + bytes([flags]) + b'\0\0' for flags in (2, 5, 8, 16, 32))):
             with self.assertRaises(ValueError):
                 recipe.macho_link_surface(image(trie))
 
