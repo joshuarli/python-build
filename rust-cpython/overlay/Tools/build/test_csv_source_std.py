@@ -171,10 +171,36 @@ class SourceStdArguments(unittest.TestCase):
                 self.assertEqual(recipe.artifact(originals[name]['path']), originals[name])
                 self.assertNotEqual(recipe.digest(path), originals[name]['sha256'])
 
+    def test_source_closure_includes_five_helpers_without_neighbor_source(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            source, build, library = root / 'source', root / 'build', root / 'library'
+            def write(path):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'owned source')
+                return path
+            selected = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs')
+            helper_sources = [write(source / 'Modules' / name / 'src/lib.rs') for name in selected]
+            neighbor = write(source / 'Modules/_socket_rs/src/lib.rs')
+            for relative in ('Cargo.toml', 'Cargo.lock', 'Python/stdlib_module_names.h',
+                             'Modules/cpython-sys/src/lib.rs', 'Modules/cpython-build-helper/src/lib.rs',
+                             'Include/Python.h'):
+                write(source / relative)
+            for relative in ('Makefile', 'pyconfig.h', 'libpython3.16.dylib'):
+                write(build / relative)
+            for name in ('_posixsubprocess', 'math', 'select', '_struct', '_sha2', 'zlib', 'fcntl'):
+                write(build / 'Modules' / (name + '.cpython-316-darwin.so'))
+            write(library / 'std/src/lib.rs')
+            compiler = {'rustc_path': str(write(root / 'rustc')), 'cargo_path': str(write(root / 'cargo'))}
+            files = recipe.input_files(source, build, library, compiler)
+            for path in helper_sources:
+                self.assertEqual(files[str(path)], recipe.digest(path))
+            self.assertNotIn(str(neighbor), files)
+
     def test_joint_consumer_arguments_select_exact_packages_once(self):
         args = recipe.consumer_arguments('cargo', Path('/source'), 2)
         self.assertEqual([args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--package'],
-                         ['_csv_rs', '_json_rs', '_pathlib_rs'])
+                         ['_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs'])
         self.assertIn('--locked', args)
         self.assertIn('--offline', args)
         self.assertIn('target-applies-to-host=false', args)
@@ -187,14 +213,17 @@ class SourceStdArguments(unittest.TestCase):
                 for raw in pair:
                     argv += ['--extern', label + '=' + raw]
             return {'argv': argv, 'query': False, 'exit_code': 0, 'reaped_exit': 0}
-        csv, json, pathlib = (unit(name) for name in ('_csv_rs', '_json_rs', '_pathlib_rs'))
-        self.assertEqual(set(recipe.consumer_units([csv, json, pathlib], pairs)),
-                         {'_csv_rs', '_json_rs', '_pathlib_rs'})
-        for rows in ([csv, json], [csv, json, pathlib, pathlib],
-                     [csv, json, {**pathlib, 'exit_code': 1}],
-                     [csv, json, {**pathlib, 'argv': pathlib['argv'][:-2]}]):
-            with self.assertRaises(ValueError):
-                recipe.consumer_units(rows, pairs)
+        names = ('_csv_rs', '_json_rs', '_pathlib_rs', '_typing_rs', '_tokenize_rs')
+        units = [unit(name) for name in names]
+        self.assertEqual(set(recipe.consumer_units(units, pairs)), set(names))
+        for index in range(len(units)):
+            missing = units[:index] + units[index + 1:]
+            duplicate = units + [units[index]]
+            failed = [*units[:index], {**units[index], 'exit_code': 1}, *units[index + 1:]]
+            wrong_pair = [*units[:index], {**units[index], 'argv': units[index]['argv'][:-2]}, *units[index + 1:]]
+            for rows in (missing, duplicate, failed, wrong_pair):
+                with self.subTest(consumer=names[index]), self.assertRaises(ValueError):
+                    recipe.consumer_units(rows, pairs)
 
     def test_publication_checks_receipt_before_copy_and_keeps_signed_source(self):
         from unittest.mock import patch
@@ -266,7 +295,7 @@ class SourceStdArguments(unittest.TestCase):
                                  'provider_install_id': '@rpath/libstd-test.dylib', 'rpath': '@loader_path/../../rust-cpython'}
             binding = write(root / 'c_api.rs', b'configured C API')
             metadata = {'sha256': 'archive', 'compiler_revision': 'compiler', 'library_cargo_lock_sha256': 'lock'}
-            receipt = {'schema_version': 3, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
+            receipt = {'schema_version': 4, 'status': 'complete', 'target': recipe.TARGET, 'build': str(build),
                        'profile': 'release', 'panic': 'abort', 'allocator': 'System',
                        'source': {'path': str(source), 'std_archive_sha256': 'archive', 'std_revision': 'compiler',
                                   'std_lock_sha256': 'lock', 'input_files': {}},
@@ -278,12 +307,18 @@ class SourceStdArguments(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             self.assertEqual(recipe.verify_build_receipt(source, build, recipe.TARGET, metadata), receipt)
             import copy
-            for kind in ('missing-json', 'missing-pathlib', 'old-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
+            for kind in ('missing-json', 'missing-pathlib', 'missing-typing', 'missing-tokenize', 'old-schema', 'old-three-schema', 'wrong-provider', 'missing-pair', 'wrong-unit'):
                 altered = copy.deepcopy(receipt)
                 if kind == 'missing-json':
                     del altered['consumers']['_json_rs']
                 elif kind == 'missing-pathlib':
                     del altered['consumers']['_pathlib_rs']
+                elif kind == 'missing-typing':
+                    del altered['consumers']['_typing_rs']
+                elif kind == 'missing-tokenize':
+                    del altered['consumers']['_tokenize_rs']
+                elif kind == 'old-three-schema':
+                    altered['schema_version'] = 3
                 elif kind == 'old-schema':
                     altered['schema_version'] = 2
                 elif kind == 'wrong-provider':
