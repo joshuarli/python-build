@@ -1,11 +1,16 @@
 """Record fresh compiler units and select the CSV source runtime for target code."""
+import os
+import sys
+
+if __name__ == '__main__':
+    from csv_source_std_bootstrap import configure_bootstrap_path
+    configure_bootstrap_path()
+
 import hashlib
 import json
-import os
 from pathlib import Path
 import signal
 import subprocess
-import sys
 import time
 
 

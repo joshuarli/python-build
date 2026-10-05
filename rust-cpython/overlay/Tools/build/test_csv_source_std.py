@@ -14,6 +14,47 @@ spec.loader.exec_module(recipe)
 
 
 class SourceStdArguments(unittest.TestCase):
+    def test_bootstrap_imports_owned_modules_without_changing_controller_imports(self):
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location('csv_bootstrap', Path(__file__).with_name('csv_source_std_bootstrap.py'))
+        bootstrap = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bootstrap)
+        with tempfile.TemporaryDirectory() as raw:
+            build = Path(raw).resolve()
+            modules = build / 'Modules'
+            modules.mkdir()
+            (modules / 'csv_bootstrap_marker.py').write_text('OWNER = "configured build"\n')
+            interpreter = build / 'python'
+            interpreter.write_bytes(b'owned interpreter')
+            import sys
+            original = list(sys.path)
+            try:
+                with patch.dict(os.environ, {'PYTHON_BUILD_DIR': str(build)}), \
+                     patch.object(sys, 'executable', str(interpreter)):
+                    self.assertEqual(bootstrap.configure_bootstrap_path(), str(modules))
+                    marker = __import__('csv_bootstrap_marker')
+                    self.assertEqual(marker.OWNER, 'configured build')
+                sys.path[:] = original
+                with patch.dict(os.environ, {'PYTHON_BUILD_DIR': str(build)}):
+                    with self.assertRaisesRegex(ValueError, 'interpreter'):
+                        bootstrap.configure_bootstrap_path()
+                self.assertEqual(sys.path, original)
+            finally:
+                sys.path[:] = original
+                sys.modules.pop('csv_bootstrap_marker', None)
+
+    def test_build_loader_path_never_accepts_external_or_multiple_runtime_owners(self):
+        spec = importlib.util.spec_from_file_location('csv_bootstrap', Path(__file__).with_name('csv_source_std_bootstrap.py'))
+        bootstrap = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bootstrap)
+        with tempfile.TemporaryDirectory() as raw:
+            build = Path(raw).resolve()
+            self.assertEqual(bootstrap.build_library_path(build, {}), str(build))
+            self.assertEqual(bootstrap.build_library_path(build, {'DYLD_LIBRARY_PATH': str(build)}), str(build))
+            for value in ('/foreign', str(build) + ':/foreign'):
+                with self.assertRaisesRegex(ValueError, 'library owner'):
+                    bootstrap.build_library_path(build, {'DYLD_LIBRARY_PATH': value})
+
     def test_target_no_std_uses_code_and_full_metadata_for_all_runtime_crates(self):
         pairs = {'std': ['/provider/libstd.dylib', '/provider/libstd.rmeta'],
                  'core': ['/core/libcore.rlib', '/core/libcore.rmeta'],

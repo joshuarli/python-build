@@ -4,16 +4,21 @@ The ordinary workspace, helper bodies and Cargo lock are unchanged. Host build
 scripts retain their installed host runtime. Target libraries instead receive
 code and full metadata from a single freshly compiled standard-library graph.
 """
+import os
+import sys
+
+if __name__ == '__main__':
+    from csv_source_std_bootstrap import configure_bootstrap_path
+    configure_bootstrap_path()
+
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import shutil
 import signal
 import subprocess
-import sys
 import tarfile
 import tomllib
 
@@ -25,7 +30,14 @@ RECIPE_ENVIRONMENT = ('SDKROOT', 'MACOSX_DEPLOYMENT_TARGET', 'CFLAGS', 'CPPFLAGS
                       'LDFLAGS', 'ARCHFLAGS', 'PY_CC', 'PY_CPPFLAGS', 'PY_CFLAGS',
                       'PYTHON_BUILD_DIR', 'LLVM_TARGET', 'BINDGEN_EXTRA_CLANG_ARGS',
                       'LIBCLANG_PATH', 'RUST_SHARED_BUILD', 'BLDSHARED_EXE',
-                      'BLDSHARED_ARGS', 'LIBPYTHON')
+                      'BLDSHARED_ARGS', 'LIBPYTHON', 'DYLD_LIBRARY_PATH')
+
+
+def recipe_environment(build, environment):
+    from csv_source_std_bootstrap import build_library_path
+    result = {k: environment.get(k) for k in RECIPE_ENVIRONMENT}
+    result['DYLD_LIBRARY_PATH'] = build_library_path(build, environment)
+    return result
 
 
 def digest(path):
@@ -139,8 +151,14 @@ def input_files(source, build, library, compiler):
     for path in (source / 'Cargo.toml', source / 'Cargo.lock',
                  source / 'Python/stdlib_module_names.h', build / 'Makefile', build / 'pyconfig.h',
                  Path(compiler['rustc_path']), Path(compiler['cargo_path']), Path(__file__),
-                 Path(__file__).with_name('csv_source_std_rustc.py')):
+                 Path(__file__).with_name('csv_source_std_rustc.py'),
+                 Path(__file__).with_name('csv_source_std_bootstrap.py'), Path(sys.executable)):
         files[str(path.resolve(strict=True))] = digest(path)
+    for name in ('_posixsubprocess', 'math', 'select', '_struct', '_sha2', 'zlib', 'fcntl'):
+        candidates = list((build / 'Modules').glob(name + '*.so'))
+        if len(candidates) != 1:
+            raise ValueError('missing or ambiguous bootstrap native prerequisite: ' + name)
+        files[str(candidates[0].resolve(strict=True))] = digest(candidates[0])
     return files
 
 
@@ -444,7 +462,7 @@ def build_recipe(source, build, target, profile, jobs):
     root = build / 'source-std338'
     if (root / 'receipt.json').is_file():
         receipt = verify_build_receipt(source, build, target, source_metadata)
-        if receipt['recipe_environment'] != {k: os.environ.get(k) for k in RECIPE_ENVIRONMENT}:
+        if receipt['recipe_environment'] != recipe_environment(build, os.environ):
             raise ValueError('completed CSV recipe compiler environment changed')
         return receipt
     if root.exists():
@@ -461,6 +479,8 @@ def build_recipe(source, build, target, profile, jobs):
         'BINDGEN_EXTRA_CLANG_ARGS', 'LIBCLANG_PATH', 'RUST_SHARED_BUILD', 'BLDSHARED_EXE', 'BLDSHARED_ARGS',
         'LIBPYTHON', 'CARGO_HOME', 'RUSTUP_HOME', 'RUSTUP_TOOLCHAIN'}}
     env['TMPDIR'] = str(root / 'tmp')
+    from csv_source_std_bootstrap import build_library_path
+    env['DYLD_LIBRARY_PATH'] = build_library_path(build, inherited)
     try:
         launcher = inherited.get('RUSTC') or shutil.which('rustc', path=env['PATH'])
         if not launcher:
@@ -504,9 +524,14 @@ def build_recipe(source, build, target, profile, jobs):
         config_path.write_text(json.dumps(config, indent=2) + '\n')
         logger = root / 'rustc-logger.py'
         logger_source = Path(__file__).with_name('csv_source_std_rustc.py')
-        logger.write_text('#!' + sys.executable + '\n' + logger_source.read_text())
+        logger.write_text('#!' + sys.executable + ' -E\n' + logger_source.read_text())
         logger.chmod(0o755)
         shutil.copyfile(Path(__file__), root / 'csv_source_std.py')
+        bootstrap = Path(__file__).with_name('csv_source_std_bootstrap.py')
+        shutil.copyfile(bootstrap, root / bootstrap.name)
+        for copied in (logger, root / 'csv_source_std.py', root / bootstrap.name):
+            files[str(copied)] = digest(copied)
+        config_path.write_text(json.dumps(config, indent=2) + '\n')
         std_env = dict(env, CARGO_HOME=str(root / 'std-cargo-home'), CARGO_TARGET_DIR=config['target_directory'],
                        CARGO_NET_OFFLINE='true', RUSTC=str(logger), CSV_SOURCE_STD_RUSTC_CONFIG=str(config_path))
         flags = ['--sysroot', str(view), '-C', 'linker=' + clang]
@@ -589,7 +614,7 @@ def build_recipe(source, build, target, profile, jobs):
         if len(bindings) != 1:
             raise ValueError('expected one fresh target C API generation')
         receipt = {'schema_version': 1, 'status': 'complete', 'build': str(build), 'target': target,
-                   'recipe_environment': {k: inherited.get(k) for k in RECIPE_ENVIRONMENT},
+                   'recipe_environment': recipe_environment(build, inherited),
                    'profile': profile, 'panic': 'abort', 'allocator': 'System', 'compiler': compiler,
                    'source': {'path': str(source), 'workspace_lock_sha256': digest(source / 'Cargo.lock'),
                               'std_source_path': str(library), 'std_archive_sha256': STD_ARCHIVE_SHA256,
