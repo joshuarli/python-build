@@ -48,13 +48,14 @@ def module(base, cand):
 
 class ExploratoryEarlyRejectionTests(unittest.TestCase):
     def measure(self, classes=("worse", "worse"), *, bad_module=False, mismatch=False,
-                guard_error=None, harness_changed=False, sampling_error=None, **options):
+                guard_error=None, harness_changed=False, sampling_error=None, expected_events=None, **options):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             sides = {ref: {"ref": ref, "name": ref[1:], "stage": root / ref[1:],
                            "python": Path("/python"), "report": {}}
                      for ref in ("@control", "@incumbent")}
             calls = []
+            events = []
             counts = {}
             def observation(name, kind):
                 counts[name] = counts.get(name, 0) + 1
@@ -71,13 +72,15 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
                         "mismatch": mismatch and name == "tail"}
             def workload(baseline, candidate, name, **kwargs):
                 calls.append(("workload", name))
+                events.append(("workload", name))
                 if sampling_error == "workload":
                     raise perf.LaneError("workload failed")
-                return observation(name, "workload")
+                return None if mismatch and name == "tail" else observation(name, "workload")
             def module(baseline, candidate, name, **kwargs):
-                self.assertEqual(kwargs["rounds"], 5)
+                self.assertEqual(kwargs["rounds"], perf.PROFILE_MODULE_ROUNDS[arguments["profile"]])
                 self.assertEqual(kwargs["iterations"], 37)
                 calls.append(("module", name))
+                events.append(("module", name))
                 if sampling_error == "module":
                     raise perf.LaneError("module failed")
                 return observation(name, "module")
@@ -94,9 +97,12 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
             checks = patch("_verify_stage", side_effect=guard_error)
             gates = patch("_gate_checks")
             patch("_host_sample", return_value={"quiet": True})
-            patch("_module_iterations", return_value=37,
-                  side_effect=perf.LaneError("iterations failed")
-                  if sampling_error == "iterations" else None)
+            def calibrate(python, name, scratch, **kwargs):
+                events.append(("calibrate", name))
+                if sampling_error == "iterations":
+                    raise perf.LaneError("iterations failed")
+                return 37
+            calibration = patch("_module_iterations", side_effect=calibrate)
             patch("_run_bench", side_effect=workload)
             patch("_measure_module", side_effect=module)
             patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
@@ -113,12 +119,18 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
             self.assertEqual(gates.call_count, int(arguments["gate"]))
             saved = json.loads((Path(record["directory"]) / "verdict.json").read_text())
             self.assertEqual(saved, record)
+            self.assertEqual(calibration.call_count, len(record["module_iterations"]))
+            if expected_events is not None:
+                self.assertEqual(events, expected_events)
             return record, calls
 
     def test_replicated_workload_regression_stops_remaining_calls_and_retains_raw(self):
-        record, calls = self.measure(mismatch=True)
-        self.assertEqual(calls, [("workload", "first"), ("workload", "tail"),
-                                 ("module", "json"), ("module", "csv"), ("workload", "first")])
+        expected = [("workload", "first"), ("workload", "tail"), ("workload", "first")]
+        record, calls = self.measure(mismatch=True, expected_events=expected)
+        self.assertEqual(calls, expected)
+        self.assertEqual(record["module_iterations"], {})
+        self.assertEqual(record["phase_seconds"]["module_calibration"], 0.0)
+        self.assertEqual(record["phase_seconds"]["module_sampling"], 0.0)
         self.assertEqual(record["decision"]["decision"], pv.REJECT)
         self.assertFalse(record["sampling_complete"])
         self.assertEqual(record["incomplete_entities"], ["tail", "json", "csv"])
@@ -151,6 +163,31 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         self.assertEqual(len(calls), 7)
         self.assertEqual(record["incomplete_entities"], ["csv"])
 
+    def test_survivor_completes_workload_replication_before_module_calibration(self):
+        expected = [("workload", "first"), ("workload", "tail")] * 2
+        expected += [("calibrate", "json"), ("calibrate", "csv")]
+        expected += [("module", "json"), ("module", "csv")] * 2
+        record, calls = self.measure(("neutral", "neutral"), expected_events=expected)
+        self.assertTrue(record["sampling_complete"])
+        self.assertEqual(record["incomplete_entities"], [])
+        self.assertEqual(record["module_iterations"], {"json": 37, "csv": 37})
+        self.assertEqual(record["module_rounds"], 5)
+        self.assertEqual(set(record["entities"]), {"first", "tail", "json", "csv"})
+        for observations in record["raw"].values():
+            self.assertEqual(len(observations), 2)
+        self.assertEqual(record["decision"]["decision"], pv.NEUTRAL)
+
+    def test_rigorous_survivor_preserves_all_selected_rounds_and_replicates(self):
+        record, calls = self.measure(("neutral", "neutral", "neutral"), profile="rigorous")
+        self.assertEqual(len(calls), 12)
+        self.assertEqual(record["module_rounds"], 10)
+        self.assertEqual(record["module_iterations"], {"json": 37, "csv": 37})
+        self.assertEqual(record["workload_profile"], "standard")
+        self.assertTrue(record["sampling_complete"])
+        for observations in record["raw"].values():
+            self.assertEqual(len(observations), 3)
+        self.assertEqual(record["decision"]["decision"], pv.NEUTRAL)
+
     def test_one_worse_then_neutral_keeps_complete_evidence(self):
         record, calls = self.measure(("worse", "neutral"))
         self.assertEqual(len(calls), 8)
@@ -160,7 +197,8 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
 
     def test_three_runs_require_all_three_regressions(self):
         record, calls = self.measure(("worse", "worse", "worse"))
-        self.assertEqual(len(calls), 9)
+        self.assertEqual(len(calls), 5)
+        self.assertEqual(record["module_iterations"], {})
         self.assertEqual(record["stopped_after"]["run"], 3)
         record, calls = self.measure(("worse", "worse", "neutral"))
         self.assertEqual(len(calls), 12)
@@ -178,10 +216,16 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         for options in ({"gate": True}, {"self_compare": True}, {"slug_prefix": "goals-"},
                         {"record_baselines": True}, {"memory_only": False}):
             with self.subTest(options=options):
-                record, calls = self.measure(**options)
+                expected = [("calibrate", "json"), ("calibrate", "csv")]
+                expected += [("workload", "first"), ("workload", "tail"),
+                             ("module", "json"), ("module", "csv")] * 2
+                record, calls = self.measure(expected_events=expected, **options)
                 self.assertEqual(len(calls), 8)
                 self.assertTrue(record["sampling_complete"])
-        record, calls = self.measure(("worse",))
+        expected = [("calibrate", "json"), ("calibrate", "csv"),
+                    ("workload", "first"), ("workload", "tail"),
+                    ("module", "json"), ("module", "csv")]
+        record, calls = self.measure(("worse",), expected_events=expected)
         self.assertEqual(len(calls), 4)
         self.assertTrue(record["sampling_complete"])
 
@@ -189,7 +233,7 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         for operation in ("iterations", "workload", "module"):
             with self.subTest(operation=operation), self.assertRaisesRegex(
                     perf.LaneError, operation + " failed"):
-                self.measure(sampling_error=operation)
+                self.measure(("neutral", "neutral"), sampling_error=operation)
 
     def test_final_stage_and_harness_errors_are_not_hidden_by_early_rejection(self):
         with self.assertRaisesRegex(perf.LaneError, "stage changed"):

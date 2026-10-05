@@ -1155,49 +1155,58 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         if samples and not samples[-1]["quiet"]:
             print(f"WARN  host not quiet before measuring ({samples[-1]['cpu_idle_percent']}% idle)",
                   flush=True)
-        phase_started = time.monotonic()
-        for route in evaluated_modules:
-            options = {"runtime_home": baseline.get("runtime_home")}
-            if baseline.get("runtime_executable") is not None:
-                options["runtime_executable"] = baseline["runtime_executable"]
-            iterations[route] = _module_iterations(baseline["python"], route, scratch, **options)
-        phase_seconds["module_calibration"] = time.monotonic() - phase_started
-        for run in range(1, runs + 1):
-            for workload in evaluated_workloads:
-                print(f"RUN   [{run}/{runs}] workload {workload}", flush=True)
-                record = None
-                if record_baselines and run == runs:
-                    record = REPO / "benchmarks" / "baselines" / f"rust-cp316-perf-{workload}.json"
+        # Finish workload replication before spending on module calibration in
+        # exploratory memory comparisons. Protected modes retain interleaved runs.
+        sampling_passes = ([(evaluated_workloads, []), ([], evaluated_modules)]
+                           if early_rejection else [(evaluated_workloads, evaluated_modules)])
+        phase_seconds["module_calibration"] = 0.0
+        for pass_workloads, pass_modules in sampling_passes:
+            if pass_modules or not early_rejection:
                 phase_started = time.monotonic()
-                summary = _run_bench(baseline, candidate, workload,
-                                     output=directory / f"run-{run}" / workload, profile=profile,
-                                     timing_only=timing_only, self_compare=self_compare,
-                                     record_baseline=record, memory_only=memory_only)
-                phase_seconds["workload_runs"] += time.monotonic() - phase_started
-                observations[workload].append(perf_verdict.mismatch_observation("workload")
-                                              if summary is None else perf_verdict.run_observation(
-                                                  summary, memory_only=memory_only))
-                if replicated_regression(workload):
-                    stopped_after = {"run": run, "entity": workload}
+                for route in pass_modules:
+                    options = {"runtime_home": baseline.get("runtime_home")}
+                    if baseline.get("runtime_executable") is not None:
+                        options["runtime_executable"] = baseline["runtime_executable"]
+                    iterations[route] = _module_iterations(baseline["python"], route, scratch, **options)
+                phase_seconds["module_calibration"] += time.monotonic() - phase_started
+            for run in range(1, runs + 1):
+                for workload in pass_workloads:
+                    print(f"RUN   [{run}/{runs}] workload {workload}", flush=True)
+                    record = None
+                    if record_baselines and run == runs:
+                        record = REPO / "benchmarks" / "baselines" / f"rust-cp316-perf-{workload}.json"
+                    phase_started = time.monotonic()
+                    summary = _run_bench(baseline, candidate, workload,
+                                         output=directory / f"run-{run}" / workload, profile=profile,
+                                         timing_only=timing_only, self_compare=self_compare,
+                                         record_baseline=record, memory_only=memory_only)
+                    phase_seconds["workload_runs"] += time.monotonic() - phase_started
+                    observations[workload].append(perf_verdict.mismatch_observation("workload")
+                                                  if summary is None else perf_verdict.run_observation(
+                                                      summary, memory_only=memory_only))
+                    if replicated_regression(workload):
+                        stopped_after = {"run": run, "entity": workload}
+                        break
+                if stopped_after is not None:
                     break
+                for route in pass_modules:
+                    print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
+                          flush=True)
+                    phase_started = time.monotonic()
+                    observation = _measure_module(baseline, candidate, route,
+                                                  iterations=iterations[route], rounds=rounds,
+                                                  scratch=scratch, memory_only=memory_only)
+                    phase_seconds["module_sampling"] += time.monotonic() - phase_started
+                    observations[route].append(observation)
+                    if replicated_regression(route):
+                        stopped_after = {"run": run, "entity": route}
+                        break
+                if stopped_after is not None:
+                    break
+                if not memory_only:
+                    samples.append(_host_sample(min_idle))
             if stopped_after is not None:
                 break
-            for route in evaluated_modules:
-                print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
-                      flush=True)
-                phase_started = time.monotonic()
-                observation = _measure_module(baseline, candidate, route,
-                                              iterations=iterations[route], rounds=rounds,
-                                              scratch=scratch, memory_only=memory_only)
-                phase_seconds["module_sampling"] += time.monotonic() - phase_started
-                observations[route].append(observation)
-                if replicated_regression(route):
-                    stopped_after = {"run": run, "entity": route}
-                    break
-            if stopped_after is not None:
-                break
-            if not memory_only:
-                samples.append(_host_sample(min_idle))
         try:
             phase_started = time.monotonic()
             for side in {id(baseline): baseline, id(candidate): candidate}.values():
