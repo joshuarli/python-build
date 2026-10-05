@@ -5719,7 +5719,29 @@ entire perf.py AST, and18 other harness files, measurement globals/options
 and the accepted-stage digest remain unchanged. Current full harness SHA256
 is `35a6959b4e74203da16e2de5e7ab271a048b55691674f778c7c9475323187e4e`.
 The old CSV/JSON calibration selection is not an expanded seven-consumer
-runtime or RSS result. Ordinary clean354 and fresh replicated guards are next.
+runtime or RSS result.
+
+Clean354 at `d456ace` fails before restricted-provider publication: the target
+`cfg-if` no-std crate resolves both source-built and installed `core`, producing
+E0152. Of84 recorded compiler units,83 succeed and the failed unit exits1 and
+is reaped. There is no installed candidate or memory verdict. Captured-command
+replay in fresh diagnostic outputs passes with a separate source target sysroot
+and the existing plain extern arguments; forcing extern crates with the old
+sysroot still fails. Original inputs and accepted-stage identities are preserved.
+This establishes compiler feasibility only; the complete consumer graph and
+ordinary candidate build remain unqualified.
+
+The19:17 UTC sprint inspection finds one running child before three finite
+audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
+disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
+The frontier audit confirms one active memory hypothesis and no additional
+ready independent candidate. Old source-ready handoffs are already closed or
+incorporated, so counting them as a queue would overstate available work.
+Coordinator reassignment, stale state and repeated clean builds are avoidable
+friction. Corrected saved compiler/receipt probes, changed-code-only reviews
+and valid calibration reuse precede another clean attempt. Focused correctness
+and replicated affected-memory screens remain cheap early checks; full suites,
+all-workload qualification and final clean builds remain survivor requirements.
 
 A bounded build-cost audit attributes only15.27–17.88s to std Cargo and
 11.34–12.00s to consumer Cargo in the233.6–238.4s successful clean builds.
