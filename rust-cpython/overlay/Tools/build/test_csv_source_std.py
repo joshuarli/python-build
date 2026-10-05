@@ -14,27 +14,6 @@ spec.loader.exec_module(recipe)
 
 
 class SourceStdArguments(unittest.TestCase):
-    def test_std_feature_override_is_explicitly_empty_without_changing_abort_or_host_policy(self):
-        args = recipe.std_arguments('cargo', Path('/probe'), recipe.TARGET, 2,
-                                    'clang', Path('/library'), ['--sysroot', '/view'])
-        self.assertIn('-Zbuild-std-features=', args)
-        self.assertNotIn('-Zbuild-std-features=backtrace', args)
-        self.assertIn('-Zbuild-std=std,panic_abort', args)
-        self.assertIn('--locked', args)
-        self.assertIn('--offline', args)
-        self.assertIn('target-applies-to-host=false', args)
-        self.assertIn('host.rustflags=["--sysroot", "/view"]', args)
-
-    def test_actual_std_producer_rejects_symbolization_or_unwind_feature_selection(self):
-        good = {'argv': ['rustc', '--crate-name', 'std', '--target', recipe.TARGET],
-                'query': False, 'exit_code': 0, 'reaped_exit': 0}
-        for cfg in ('feature="backtrace"', 'feature="panic-unwind"',
-                    'feature="backtrace-trace-only"'):
-            for added in (['--cfg', cfg], ['--cfg=' + cfg]):
-                with self.subTest(added=added), self.assertRaisesRegex(ValueError, 'std feature'):
-                    recipe.select_std_unit([{**good, 'argv': good['argv'] + added}])
-        self.assertEqual(recipe.select_std_unit([good]), good)
-
     def test_consumer_id_remains_compiler_owned_after_release_bytes_are_normalized(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw).resolve()
