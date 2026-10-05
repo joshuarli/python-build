@@ -17,6 +17,12 @@ these controlled cases would need investigation. The fixture uses one GIL-held
 thread, creates no threads, and restores the allocator before finalization.
 Allocator callbacks perform no Python operations or dynamic bookkeeping.
 
+The audit and registration observers first validate their code-object argument
+and match its filename to the controlled case (exact file/string names, prefix
+for generated interactive names). Unrelated traceback-import execs are not
+counted or denied; unrelated registrations delegate to the original callback.
+Filename conversion errors propagate rather than being cleared.
+
 At each controlled exec audit event and interactive linecache registration,
 allocation count must be positive and live tracked chunks must be zero. At API
 return, all recorded chunks must be freed. The table is bounded and overflow

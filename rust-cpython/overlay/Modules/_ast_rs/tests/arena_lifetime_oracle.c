@@ -51,20 +51,24 @@ static void *tracked_realloc(void *ctx, void *p, size_t n) {
 static void tracked_free(void *ctx, void *p) {
     (void)ctx; forget(p); original.free(original.ctx, p);
 }
+/* Traceback rendering can execute unrelated imports while a case is active.
+   Only this case's code object is a checkpoint or an injectable failure. */
+static int controlled_code(PyObject *args, Py_ssize_t count) {
+    if (!PyTuple_Check(args) || PyTuple_GET_SIZE(args) != count
+            || !PyCode_Check(PyTuple_GET_ITEM(args, 0))) return 0;
+    PyObject *name = ((PyCodeObject *)PyTuple_GET_ITEM(args, 0))->co_filename;
+    const char *bytes = PyUnicode_AsUTF8(name);
+    if (!bytes) return -1;
+    return interactive_filename
+        ? strncmp(bytes, expected_filename, strlen(expected_filename)) == 0
+        : strcmp(bytes, expected_filename) == 0;
+}
 static int audit_hook(const char *event, PyObject *args, void *ctx) {
     (void)ctx;
     if (!active || strcmp(event, "exec")) return 0;
+    int matched = controlled_code(args, 1);
+    if (matched <= 0) return matched;
     audits++;
-    if (!PyTuple_Check(args) || PyTuple_GET_SIZE(args) != 1
-            || !PyCode_Check(PyTuple_GET_ITEM(args, 0))) {
-        violations++;
-    } else {
-        PyObject *name = ((PyCodeObject *)PyTuple_GET_ITEM(args, 0))->co_filename;
-        const char *bytes = PyUnicode_AsUTF8(name);
-        if (!bytes || (interactive_filename
-                ? strncmp(bytes, expected_filename, strlen(expected_filename))
-                : strcmp(bytes, expected_filename))) violations++;
-    }
     if (!allocated || live || overflowed) violations++;
     if (deny_audit) {
         PyErr_SetString(PyExc_RuntimeError, "controlled exec audit refusal");
@@ -74,10 +78,11 @@ static int audit_hook(const char *event, PyObject *args, void *ctx) {
 }
 static PyObject *registration_hook(PyObject *self, PyObject *args) {
     (void)self;
-    if (active) {
-        callbacks++;
-        if (!allocated || live || overflowed) violations++;
-    }
+    int matched = active ? controlled_code(args, 3) : 0;
+    if (matched < 0) return NULL;
+    if (!matched) return PyObject_CallObject(register_code, args);
+    callbacks++;
+    if (!allocated || live || overflowed) violations++;
     if (deny_callback) {
         PyObject *error = PyObject_CallFunction(PyExc_SyntaxError, "s(siis)",
             "controlled registration refusal", "arena-interactive.py", 1, 1, "sentinel");
