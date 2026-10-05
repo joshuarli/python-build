@@ -5691,6 +5691,9 @@ SHA256 `b74b9f21a6b99af377be34d18162be39c1265149f1cbad1096b023eb8f00fb35`.
 This candidate is closed without native/moved/full survivor qualification or
 adoption. The reduced provider resolves that guard in this sample; it does
 not establish an accepted memory improvement or absolute goal completion.
+The zlib runs are individually neutral and worse; its final neutral verdict
+does not mean both runs improved or were neutral. Pathlib pooled load grows
+from131,072B to163,840B; the underlying allocation/page cause remains unproved.
 
 Conditional datetime, threading and UUID roster patches and their combined
 eight-consumer source pass bounded tests/review without native execution.
