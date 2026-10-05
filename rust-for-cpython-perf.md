@@ -5804,6 +5804,24 @@ segments. All70 host recipe/layout tests pass. A new ordinary build name,
 `perf-aggregate357`, preserves the failed356 sources, receipts and artifacts.
 Neither source correction nor diagnostic evidence establishes an RSS win.
 
+Ordinary357 at `c0c7a20` subsequently passes its clean238.4s build with58
+verified extensions, eight complete suites (4,158 run/468 skipped/17.9s),
+native function-image ownership, joined workers, shared/own-GIL lifecycle
+contracts and relocation under a path with spaces. Installed stage SHA256 is
+`501128dc6947793e0e853a4eeea44b8375726500bba7fce54843dc3ccabbedfb`.
+The complete replicated eight-module plus zlib-streaming RSS screen is
+NEUTRAL: no improvement, regression, mismatch or unstable entity. JSON load
+is1.012x [0.994,1.024]; zlib RSS1.003x [0.992,1.013]. Verdict
+`20261005T205213Z-perf-rust-vs-perf-aggregate357` SHA256 is
+`a60639c0499dcac427b9a309cc724e07b4b08ce4673cd345405461c77b832bc8`.
+No adoption, full-suite or all23 qualification follows this neutral screen.
+The distinct next source experiment adds collections, SQLite, warnings and
+socket to the aggregate. Conservative retained-section bounds, including
+alignment and TLS/BSS, are16,078B CONST and8,879B DATA for that eleven-helper
+roster. It removes four further separate image owners while retaining the
+two-page bound; fresh code generation and RSS improvement remain unproved.
+This source-admission calculation does not waive any memory goal.
+
 The19:17 UTC sprint inspection finds one running child before three finite
 audits restart, a free host lease,10 CPUs,64GiB RAM, zero swap and314GiB free
 disk. Instantaneous CPU idle is88.32%; average utilization is unmeasured.
