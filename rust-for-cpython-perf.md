@@ -5485,6 +5485,28 @@ remain unchanged.
 
 ### Sprint audit update (2026-10-05)
 
+The latest roster inspection found all31 children completed before six
+independent follow-ups restarted. The10-core,64GiB host had15GiB unused RAM,
+zero swap usage and326GiB free disk; one instantaneous sample was77% idle.
+These snapshots establish spare capacity, not average utilization. Coordinator
+reassignment and integration remain avoidable bottlenecks. Independent source,
+fixture and review work can use more lanes; dependent build corrections and
+exclusive RSS comparisons cannot scale to31 local workers.
+
+Ordinary source-runtime integration has encountered five distinct failures:
+bootstrap native-module visibility, ambiguous native-module filename matching,
+extern aliases mistaken for crate names, host capability probes given the
+consumer runtime, and the consumer's own install name mistaken for a load
+dependency. All failures are preserved. Actual V5 compiles the standard
+library, provider and CSV successfully, with37/52 compiler receipts all zero
+and reaped; normalization then fails before publication. The three original
+host probes also pass with their original arguments. No installed-candidate,
+memory improvement or goal completion is established by these results.
+CSV+JSON joint source implementation passes49 host tests, but inherits the
+normalization defect and still needs native qualification. The next physical
+memory experiment requires two consumers sharing the provider; the single
+CSV stage establishes build transport only.
+
 The14:50 UTC inspection found two running children, no native build or
 measurement,86.44% CPU idle,15GiB unused RAM, no swap traffic and327GiB
 free disk. This is a point-in-time observation, not average utilization.
