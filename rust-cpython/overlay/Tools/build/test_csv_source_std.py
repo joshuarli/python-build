@@ -156,6 +156,41 @@ class SourceStdArguments(unittest.TestCase):
                 kill.assert_called_once_with(123456, logger.signal.SIGKILL)
                 process.wait.assert_called_once()
 
+    def test_malformed_receipt_does_not_prevent_later_compiler_cleanup(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            receipts = root / 'std-units'
+            receipts.mkdir()
+            (receipts / '000.json').write_text('{partial')
+            (receipts / '001.json').write_text(json.dumps({'state': 'running', 'pid': 123456, 'pgid': 123456}))
+            with patch.object(recipe.os, 'killpg') as kill:
+                with self.assertRaises(RuntimeError) as failure:
+                    recipe.cleanup_compilers(root)
+                kill.assert_called_once_with(123456, recipe.signal.SIGKILL)
+                self.assertIn('000.json', str(failure.exception))
+
+    def test_failed_atomic_publication_keeps_previous_running_receipt_visible(self):
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location('csv_logger', Path(__file__).with_name('csv_source_std_rustc.py'))
+        logger = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(logger)
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            receipts = root / 'std-units'
+            receipts.mkdir()
+            path = receipts / 'unit.json'
+            original = {'state': 'running', 'pid': 123456, 'pgid': 123456}
+            logger.publish_receipt(path, original)
+            with patch.object(logger.os, 'replace', side_effect=OSError('publication failed')):
+                with self.assertRaises(OSError):
+                    logger.publish_receipt(path, {**original, 'state': 'reaped'})
+            self.assertEqual(json.loads(path.read_text()), original)
+            with patch.object(recipe.os, 'killpg') as kill:
+                report = recipe.cleanup_compilers(root)
+                kill.assert_called_once_with(123456, recipe.signal.SIGKILL)
+                self.assertEqual(report['faults'], [])
+
 
 
 if __name__ == '__main__':

@@ -390,18 +390,38 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     return receipt
 
 
+class CompilerCleanupError(RuntimeError):
+    def __init__(self, report):
+        self.report = report
+        super().__init__('compiler cleanup faults: ' + json.dumps(report['faults']))
+
+
 def cleanup_compilers(root):
     # Wrapper children have independent process groups so a failed Cargo process
     # cannot leave native compiler descendants running after this recipe exits.
+    report = {'groups': [], 'faults': []}
     for directory in ('std-units', 'csv-units'):
-        for path in (root / directory).glob('*.json'):
-            row = json.loads(path.read_text())
-            if row.get('state') != 'running' or not row.get('pgid'):
-                continue
+        for path in sorted((root / directory).glob('*.json')):
             try:
-                os.killpg(row['pgid'], signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+                row = json.loads(path.read_text())
+                if not isinstance(row, dict):
+                    raise ValueError('compiler receipt is not an object')
+                if row.get('state') != 'running':
+                    continue
+                pgid = row['pgid']
+                if type(pgid) is not int or pgid <= 1 or row.get('pid') != pgid:
+                    raise ValueError('compiler group identity is invalid')
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                    result = 'kill_sent'
+                except ProcessLookupError:
+                    result = 'already_exited'
+                report['groups'].append({'receipt': str(path), 'pgid': pgid, 'result': result})
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                report['faults'].append({'receipt': str(path), 'error': repr(error)})
+    if report['faults']:
+        raise CompilerCleanupError(report)
+    return report
 
 
 def build_recipe(source, build, target, profile, jobs):
@@ -588,9 +608,19 @@ def build_recipe(source, build, target, profile, jobs):
         (root / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
         return verify_build_receipt(source, build, target, source_metadata)
     except BaseException as error:
-        cleanup_compilers(root)
-        status.update(status='failed', error=repr(error), commands=commands, units=units)
-        (root / 'failure.json').write_text(json.dumps(status, indent=2) + '\n')
+        try:
+            cleanup = cleanup_compilers(root)
+        except CompilerCleanupError as cleanup_error:
+            cleanup = cleanup_error.report
+            error.add_note(str(cleanup_error))
+            sys.stderr.write(str(cleanup_error) + '\n')
+        status.update(status='failed', error=repr(error), commands=commands, units=units,
+                      compiler_cleanup=cleanup)
+        try:
+            (root / 'failure.json').write_text(json.dumps(status, indent=2) + '\n')
+        except OSError as receipt_error:
+            error.add_note('failure receipt could not be written: ' + repr(receipt_error))
+            sys.stderr.write('failure receipt could not be written: ' + repr(receipt_error) + '\n')
         raise
 
 

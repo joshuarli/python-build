@@ -9,6 +9,14 @@ import sys
 import time
 
 
+def publish_receipt(path, row):
+    # A killed wrapper must leave either the previous complete state or the new
+    # complete state visible to the recipe's independent compiler cleanup.
+    pending = path.with_suffix('.pending')
+    pending.write_text(json.dumps(row, indent=2) + '\n')
+    os.replace(pending, path)
+
+
 def main():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from csv_source_std import artifact, digest, is_query, jobserver_fds, target_arguments
@@ -50,7 +58,7 @@ def main():
                                pass_fds=jobserver_fds(os.environ.get('CARGO_MAKEFLAGS', '')))
     try:
         row.update(pid=process.pid, pgid=os.getpgid(process.pid), started_ns=time.time_ns())
-        receipt.write_text(json.dumps(row, indent=2) + '\n')
+        publish_receipt(receipt, row)
         row['exit_code'] = process.wait(timeout=180)
     finally:
         if process.poll() is None:
@@ -61,7 +69,7 @@ def main():
         # are observations; the recipe rehashes final dependency inputs after
         # the complete Cargo process exits before using them for producer replay.
         row['output_locations'] = outputs
-        receipt.write_text(json.dumps(row, indent=2) + '\n')
+        publish_receipt(receipt, row)
     return row['exit_code']
 
 
