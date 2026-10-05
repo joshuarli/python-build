@@ -5560,13 +5560,57 @@ exploration stops before module sampling. Verdict
 `fb80f6dfafc6cd688f7834b72e2cf82c90b4b6079a2fdbdcb884bb24fc15005c`.
 The three-consumer candidate is closed without adoption or full qualification.
 
-Five-consumer source work is ready in parallel: CSV, JSON, pathlib, typing
-and tokenize, with exact schema4, one producer/joint Cargo/Make owner/provider,
-unchanged helper bodies and original own-GIL policies. Donor `df95184`
-passes29 recipe and107 controller tests, including all120 roster orderings;
-it is unbuilt and unmeasured. Six of nine workload drivers import typing
-with JSON; historical co-import observations connect typing and tokenize
-to pathlib. These facts justify an expanded sharing experiment, not an RSS win.
+The five-consumer candidate `8ee843a` covers CSV, JSON, pathlib, typing
+and tokenize with exact schema4 and one joint Cargo/Make owner/provider.
+Its clean build passes236.1s,58 extensions and98 zero/reaped compiler/query
+units. Complete affected suites pass2,633/414 in3.2s; installed and moved
+contracts preserve all five helpers, one provider, four threads and the
+original shared/own-GIL policies. The workload-first two-run screen REJECTS
+in5.2s on zlib streaming RSS1.015129x [1.014385,1.015873], worse in both
+runs. Module sampling remains incomplete after early rejection. Verdict
+`20261005T170431Z-perf-rust-vs-perf-std345` SHA256 is
+`4ef4100416f521a9d0bf2770531aeb6be75f1e129db09c1d24a551ae1cd321c5`.
+This expanded sharing candidate is closed without adoption.
+
+The separate no-backtrace-symbolization candidate `6551152` passes a233.6s
+clean build,58 extensions and90 zero/reaped compiler/query units. The exact
+target std unit has no selected features; private panic/backtrace diagnostics
+lose symbol and file/line resolution while raw walking and helper APIs remain.
+The provider shrinks from1,325,440B to947,456B. Complete2,633/414 suites and
+installed/moved thread/interpreter contracts pass, but the two-run screen
+REJECTS in5.4s: zlib streaming RSS1.015487x [1.013699,1.017275], worse in
+both runs. Verdict `20261005T172627Z-perf-rust-vs-perf-std346` SHA256 is
+`64cd4bd879540d13b4bb611ab880dbd22cce8680c4f0d85a95cde7eec30d9261`.
+It is closed without adoption; a smaller file did not establish a resident
+memory benefit. Neither candidate receives full survivor qualification.
+
+A distinct bounded export audit347 finds1,687 provider exports but only25
+distinct provider-bound imports across the five consumers. Source prototype
+348, `4d98f52`, retains the exact consumer/runtime export closure, uses two
+immutable producer outputs and requires byte-identical full metadata. It
+passes42 recipe and107 controller tests, but has no compiler/native/RSS
+result. Its base restores backtrace support. This is a concrete new hypothesis,
+not a claim that every unimported export owns removable resident memory.
+
+The17:40 UTC sprint recheck finds a free host lease,10 cores,64GiB RAM,
+about12GiB unused memory, zero swap and320GiB free disk; the instantaneous
+CPU sample is79.7% idle. Only two children were active before finite cost,
+frontier and fixture follow-ups restarted. There is one distinct unmeasured
+source candidate348, not a queue of31 independent implementations. The
+closed-mechanism index still contains stale343/345 live labels; actual primary
+receipts close both. Reassignment, stale state and coordinator decisions are
+avoidable friction; this sample cannot quantify their cumulative idle time.
+
+The latest cost audit separates calibration344's369.7s into169.3s lease wait
+and about200.4s active work. Recent source-runtime clean builds take233.6–
+238.4s with negligible lease waits, while focused suites take3.0–3.2s. Known
+guard-first rejection takes5.0–5.4s versus342's148.2s workload request.
+Completed source-runtime artifacts are reusable only when every bound input
+matches; changed-consumer/provider partial reuse is not implemented. Ordinary
+32–35s incremental examples do not establish that this topology can use them.
+The largest remaining verification cost per new source-runtime attempt is
+compilation, not focused testing or stage identity checks. Full qualification
+is reserved for memory survivors and calibration is reused when valid.
 
 Calibration reuse for third-consumer builder-only changes is independently
 proven against successful calibration344: only `_install_csv_source_std`
