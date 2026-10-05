@@ -5364,8 +5364,10 @@ release/builtin artifact and stage checks remain. Regression-first78
 controller tests and independent source review pass. Native incremental
 verification takes22.9s, verifies58 unchanged Rust artifact hashes and passes
 four complete suites. This is an observed cost, not a paired speedup claim.
-Fresh memory-only calibration is required after this harness change.
-The accepted runtime and absolute memory goal counts remain unchanged.
+Fresh memory-only calibration `20261005T121321Z` passes: all23 workload
+RSS and both memory metrics on eight representative modules are neutral
+in two independent runs. The accepted runtime and absolute memory goal
+counts remain unchanged.
 
 ### Sprint audit update (2026-10-05)
 
