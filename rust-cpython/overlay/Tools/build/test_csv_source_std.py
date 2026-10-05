@@ -819,7 +819,7 @@ class SourceStdExportClosure(unittest.TestCase):
         with self.assertRaises(ValueError):
             recipe.macho_link_surface(data[:-1])
 
-    def test_macho_surface_keeps_chained_import_ordinals_and_flags(self):
+    def chained_image(self, site_addend=0, table_addend=0, pointer_format=6, next_stride=0, import_index=0):
         import _struct
         def command(tag, name):
             text = name.encode() + b'\0'
@@ -827,10 +827,35 @@ class SourceStdExportClosure(unittest.TestCase):
             return _struct.pack('<6I', tag, size, 24, 0, 0, 0) + text + bytes(size - 24 - len(text))
         load = command(12, '/usr/lib/libSystem.B.dylib')
         identity = command(13, '/owned/libstd.dylib')
-        payload = _struct.pack('<7I', 0, 28, 32, 36, 1, 1, 0) + _struct.pack('<II', 0, 1 | (1 << 8)) + b'_malloc\0'
-        offset = 32 + len(load) + len(identity) + 16
-        commands = load + identity + _struct.pack('<4I', 0x80000034, 16, offset, len(payload))
-        data = _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 3, len(commands), 0x80, 0) + commands + payload
+        site_offset = 32 + 72 + len(load) + len(identity) + 16
+        starts = _struct.pack('<II', 1, 8) + _struct.pack('<IHHQIH', 24, 4096, pointer_format, 0, 0, 1) + _struct.pack('<H', site_offset)
+        payload = (_struct.pack('<7I', 0, 28, 28 + len(starts), 36 + len(starts), 1, 2, 0)
+                   + starts + _struct.pack('<Ii', 1 | (1 << 8), table_addend) + b'_malloc\0')
+        offset = site_offset + 8
+        segment = _struct.pack('<II16s4Q4I', 0x19, 72, b'__DATA', 0x100000000, 4096, 0, offset + len(payload), 3, 3, 0, 0)
+        commands = segment + load + identity + _struct.pack('<4I', 0x80000034, 16, offset, len(payload))
+        pointer = (1 << 63) | (next_stride << 51) | ((site_addend & 255) << 24) | import_index
+        return (_struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 4, len(commands), 0x80, 0)
+                + commands + _struct.pack('<Q', pointer) + payload)
+
+    def test_chained_pointer_site_addends_distinguish_identical_import_tables(self):
+        zero = recipe.macho_link_surface(self.chained_image())['imports']
+        positive = recipe.macho_link_surface(self.chained_image(site_addend=1))['imports']
+        negative = recipe.macho_link_surface(self.chained_image(site_addend=-1, table_addend=-5))['imports']
+        self.assertEqual(zero[0]['addend'], 0)
+        self.assertEqual(positive[0]['addend'], 1)
+        self.assertEqual(negative[0]['addend'], -6)
+        self.assertNotEqual(zero, positive)
+
+    def test_chained_pointer_formats_and_site_bounds_fail_closed(self):
+        for data in (self.chained_image(pointer_format=1), self.chained_image(import_index=1),
+                     self.chained_image(next_stride=4095)):
+            with self.assertRaises(ValueError):
+                recipe.macho_link_surface(data)
+        self.assertEqual(recipe.macho_link_surface(self.chained_image(pointer_format=2, site_addend=-128))['imports'][0]['addend'], -128)
+
+    def test_macho_surface_keeps_chained_import_ordinals_and_flags(self):
+        data = self.chained_image()
         surface = recipe.macho_link_surface(data)
         self.assertEqual(surface['imports'], [{'ordinal': 1, 'weak': True, 'symbol': '_malloc', 'addend': 0}])
         self.assertEqual(surface['install_id'], '/owned/libstd.dylib')
