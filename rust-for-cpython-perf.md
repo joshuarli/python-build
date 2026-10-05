@@ -4953,6 +4953,65 @@ superseded instructions. Preserve historical evidence, but use the current
 memory-first contract and corrected survivor-only verification order.
 No CPU, timing or host-quietness requirement delays memory work.
 
+### Four new implementation screens286–291 (2026-10-05)
+
+Source work runs in parallel on gpt-6.1-sol at medium effort. Four distinct
+implementations reach native execution; all are closed without adoption.
+The primary overlay is restored to accepted e702. No CPU, timing or host
+quietness gate applies, and no all23/full qualification follows these closures.
+
+| Source | Mechanism | Native correctness | Target memory result |
+| --- | --- | --- | --- |
+| 286 `816036a` | Direct fixed-array ASCII address parser replaces std::net parsing; existing APIs unchanged | Six frozen cases pass on accepted/candidate; complete ipaddress215/0 passes; clean223.3s,58 artifacts verified | 8.8s; load1.000x and working1.000x, neutral in both runs |
+| 287 `71acaf5` | Borrowed FASTCALL classification fields replace typing's per-call classinfo tuples | Six frozen cases pass accepted/candidate; two candidate-only cases pass; typing plus restored ipaddress954/0; incremental33.7s,58 verified | 8.5s; load0.968266x [0.953126,0.992312], both runs neutral; working1.000x |
+| 288 `2e9c4e2` | Count a complete unknown-size immutable frame into16KiB scratch, then exact-size replay in the same DCtx | Frozen frame/state/error cases pass accepted/candidate; complete zstd119/0; clean223.2s,58 verified | Standard10.1s working0.927381x; one rigorous16.2s check working0.952381x; both checks neutral/better across independent runs |
+| 291 `104c241` | Metadata upper bound caps the existing one-pass output growth; no count, replay or context reset | Expanded boundary/state/error cases pass accepted/candidate, plus288's frozen cases; complete zstd119/0; incremental34.8s,58 verified | 9.4s; load1.001985x neutral; working0.976190x [0.928571,1.026316], neutral in both runs |
+
+Typing287 extends only the private helper forms from6/7 arguments to also
+accept9/11; original forms remain supported. Public output ownership,
+global lookup/callback order, nested classinfo and recursion behavior are
+checked. The3600 eliminated classifier tuples are sequential allocation
+traffic, not a retained-memory claim. No private extension is adopted.
+
+The actual fixed Zstandard input is29885 compressed bytes decoding to262144
+bytes. Its original seed119540 doubles to modeled capacity478160. This
+logical capacity delta does not establish a resident reduction. Counting288
+shows a pooled working benefit but fails independent-run replication even
+with ten rounds; metadata291 remains neutral. The latter's exact C ABI
+matches the pinned header, and the built image contains ZSTD_decompressBound.
+The metadata bounds allocations, never decoded length or the public limit.
+
+Saved target verdicts and SHA256:
+
+- 286 `20261005T042919Z-perf-rust-vs-perf-ip286`: `fbf20f6dc1e7ed121dd26b989c249e33fe1e46a436914f6cf5b62308f2b746c2`.
+- 287 `20261005T043155Z-perf-rust-vs-perf-ip286`: `a7b96bf0ba09d284e0d72d4cfcbf2c2ec60921766d29dfa3689cb0c8f4717728`.
+- 288 standard `20261005T043859Z-perf-rust-vs-perf-zstd288`: `623100edd08d73aebada6aabd6c31230fdaab2fb03bb20e6b79a7328465ee9b2`.
+- 288 rigorous `20261005T044014Z-perf-rust-vs-perf-zstd288`: `f3601e99569483272f6fe4f893deec93720072ddfc70f93bcdeea6c5cb5795a3`.
+- 291 `20261005T045031Z-perf-rust-vs-perf-zstd288`: `5333eb92f7ad56d3ed64d46e2f8033a2ddf2e7d17c71c07ec4bae660c7e58a96`.
+
+The exploration names are reused after preserving original reports/logs in
+results/ip286-original and results/zstd288-original. Each verdict retains
+its source/stage identity; the old source branches remain unmerged. Accepted
+perf-rust and control stages are unchanged. Ordinary fixture children are
+reaped, owned temporary directories removed, and pre/post stage and fixture
+hash guards pass. An initial over-scrubbed build environment fails doctor
+before compiling; the normal environment verifies the locked prerequisites
+and succeeds. No toolchain substitution occurs.
+
+Two parallel source inquiries stop before implementation. Threading289's
+fixture confirms accepted fallback-alias lookup succeeds under a class-build
+hook installed after import; a deferred constructor can recursively enter
+that hook before its class exists. A boolean-only publication cannot preserve
+that behavior. Core-bindings290 finds an exact previous typed bridge
+fe69c04 plus collections d786dcc, including its C-abort handler and fixtures;
+combined cd43345/core-batch168 already measured collections neutral and
+compileall/catalog RSS regressions. This is prior combined-trial evidence,
+not a newly measured isolated collections verdict.
+
+The recorded memory picture remains48 passing/23 unresolved modules and12
+absolute workload RSS regressions. No fresh full71 proof, debt waiver,
+accepted runtime change or memory-completion claim follows this wave.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
