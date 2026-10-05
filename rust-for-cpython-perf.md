@@ -5059,6 +5059,56 @@ These inquiries do not establish impossibility or waive any goal. Fractions
 297's independent seven-case fixture passes on accepted; its distinct Rust
 text-grammar implementation remains unqualified in its isolated source lane.
 
+### Fractions dependency screens297–302 (2026-10-05)
+
+Native rational-text parser297 passed eighteen differential, Unicode,
+digit-limit, hook-order and lifetime contracts plus complete fractions50.
+Its compatible incremental build took36.5seconds with58 verified release
+extensions. Three review defects were fixed: a hidden strong backend owner,
+used matcher deletion, and invalid-input errors after backend-hook deletion.
+The matched two-run memory screen was NEUTRAL: load1.000
+CI[0.981259,1.012345], working1.000. Verdict
+`20261005T054740Z-perf-rust-vs-perf-se79`, SHA256
+`299e32e9532052d7be205a238614680a18a5c34ebdcb7682033660f2f68177f1`,
+closes that one-pattern mechanism without an unchanged retry or adoption.
+
+Distinct298 also defers both formatting-pattern owners and the otherwise
+unused regex import graph during ordinary integer/slash construction. It
+resets all matcher aliases on reload, correcting297's retained replacement
+behavior. The private aliases are initially absent from the module dictionary;
+explicit access or formatting publishes the required live alias. Regex import,
+audit and allocation move to formatting, uncertain input or private lookup.
+Published deletion and replacement lifetime remain covered. These boundaries
+are explicit proposed changes, not an accepted runtime contract yet.
+
+Four format/reload cases passed accepted; candidate298 passed all24 frozen
+contracts and complete fractions50. Its first matched target screen improved
+load to0.415 CI[0.400,0.427] in both runs, with working peak neutral. Adding
+inspect299's AST import deferral and pickle301's Python-fallback struct deferral
+formed source302 (`2f3c55c`). Seven pickle contracts passed candidate; accepted
+passed six and failed only the expected retained struct-owner assertion. Six
+complete suites passed1885/49 in2.8seconds, and six shared/own-GIL interpreter
+cycles passed. Matched target screen `20261005T060059Z` retained fractions
+load0.413 improvement, but inspect1.000 and pickle0.978 were neutral in both
+runs. Those two target mechanisms are closed from the combined source screen,
+without claiming individual isolation or adopting their deferral boundaries.
+Source inspection explains inspect299's missing exclusive owner: annotationlib
+imports AST before inspect reaches its own AST import.
+
+The fractions-only survivor56db7b0 clean-built as
+`perf-fractions298-qualified` in214seconds with58 verified release extensions.
+All24 contracts, six interpreter cycles and complete fractions50 passed again.
+Its broader eight-module/all23-workload matched memory screen REJECTED in
+196.1seconds: catalog request RSS1.011361, CI[1.011047,1.011675], regressed
+in both runs. Verdict `20261005T061144Z`, SHA256
+`c9573c7bc32c86117e7c8c85b1129283f856b048c1aa41b41dd423dd4ebc40ac`,
+stopped after the replicated workload rejection. The remaining second-run
+workloads and module draws are incomplete; no replicated module verdict is
+inferred from that partial screen. No full-suite/all71 qualification, adoption
+or unchanged retry follows. The local fractions load win remains exploratory.
+Accepted runtimee702f23 and the48 passing/23 unresolved stitched module picture
+remain unchanged. CPU, timing and host quietness are excluded throughout.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
