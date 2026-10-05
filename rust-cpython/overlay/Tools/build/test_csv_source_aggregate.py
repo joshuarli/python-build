@@ -79,7 +79,7 @@ class SourceAggregate(unittest.TestCase):
         self.assertTrue(next(keyword.value.value for keyword in calls[0].keywords if keyword.arg == 'start_new_session'))
         self.assertIn("if config['runtime_pairs'] and not probe and not query:", changed)
 
-    def test_root_inputs_are_exact_successful_rlib_units_not_separate_helper_images(self):
+    def test_root_binds_archive_and_metadata_from_original_dual_type_helper_units(self):
         import copy
         with tempfile.TemporaryDirectory() as raw:
             folder = Path(raw).resolve()
@@ -93,7 +93,7 @@ class SourceAggregate(unittest.TestCase):
                 output.mkdir()
                 for suffix in ('rlib', 'rmeta'):
                     (output / ('lib' + name + '.' + suffix)).write_bytes((name + suffix).encode())
-                args = ['rustc', '--crate-name', name, '--crate-type', 'rlib', '--target', recipe.TARGET,
+                args = ['rustc', '--crate-name', name, '--crate-type', 'cdylib', '--crate-type', 'rlib', '--target', recipe.TARGET,
                         '--sysroot', '/owned', '--out-dir', str(output)]
                 for runtime, paths in pairs.items():
                     for path in paths:
@@ -104,12 +104,18 @@ class SourceAggregate(unittest.TestCase):
             root = {'original_argv': original, 'argv': actual, 'query': False, 'exit_code': 0,
                     'reaped_exit': 0, 'aggregate_dependencies': recipe.helper_dependencies(actual)}
             recipe.select_graph([*rows, root], pairs, '/owned', [])
-            for defect in ('missing', 'helper-image', 'wrong-input', 'root-arg', 'root-fail'):
+            for defect in ('missing', 'missing-rlib', 'archive-only', 'extra-type', 'wrong-input', 'root-arg', 'root-fail'):
                 altered, newroot = copy.deepcopy(rows), copy.deepcopy(root)
                 if defect == 'missing':
                     altered.pop()
-                elif defect == 'helper-image':
-                    altered[0]['argv'][altered[0]['argv'].index('--crate-type') + 1] = 'cdylib'
+                elif defect == 'missing-rlib':
+                    index = altered[0]['argv'].index('rlib')
+                    del altered[0]['argv'][index - 1:index + 1]
+                elif defect == 'archive-only':
+                    index = altered[0]['argv'].index('cdylib')
+                    del altered[0]['argv'][index - 1:index + 1]
+                elif defect == 'extra-type':
+                    altered[0]['argv'] += ['--crate-type', 'dylib']
                 elif defect == 'wrong-input':
                     newroot['aggregate_dependencies']['_csv_rs'][0]['sha256'] = 'different'
                 elif defect == 'root-arg':
@@ -170,7 +176,7 @@ class SourceAggregate(unittest.TestCase):
                 output = root / 'consumer-target' / name
                 for suffix in ('rlib', 'rmeta'):
                     write(output / ('lib' + name + '.' + suffix), (name + suffix).encode())
-                argv = ['rustc', '--crate-name', name, '--crate-type', 'rlib', '--target', recipe.TARGET,
+                argv = ['rustc', '--crate-name', name, '--crate-type', 'cdylib', '--crate-type', 'rlib', '--target', recipe.TARGET,
                         '--out-dir', str(output), '--sysroot', runtime['target_sysroot']['path']]
                 for label, pair in runtime['pairs'].items():
                     for path in pair:
