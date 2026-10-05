@@ -5612,6 +5612,20 @@ The largest remaining verification cost per new source-runtime attempt is
 compilation, not focused testing or stage identity checks. Full qualification
 is reserved for memory survivors and calibration is reused when valid.
 
+Corrected348 source `8bedbbc` passes44 recipe tests and bounded independent
+review after two regression-first chained-pointer addend fixes. Primary
+`d67bf8b` restores backtrace support and starts its ordinary clean build.
+All98 recorded compiler/query units finish zero/reaped (37 std and61 consumer),
+including the full provider and five consumers. Installation stops before
+the restricted replay because the export reader admits regular and weak
+terminals but rejects six valid thread-local exports in the actual provider.
+Independent saved-byte inspection finds1,679 regular, six thread-local and
+two weak exports. This is an export-encoding verifier defect, not a measured
+memory rejection. The failed epoch and compiler outputs remain unchanged;
+the narrow correction must preserve exact TLS kind flags and prove the saved
+full-provider/consumer/native-core closure before another build. No candidate
+stage, restricted metadata equality, RSS win or goal-count change is established.
+
 Calibration reuse for third-consumer builder-only changes is independently
 proven against successful calibration344: only `_install_csv_source_std`
 changes in the entire perf.py AST, every other node and18 other harness
