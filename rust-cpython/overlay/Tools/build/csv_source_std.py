@@ -1071,7 +1071,12 @@ def verify_export_policy(receipt, root):
     std_unit = select_std_unit(receipt['units'])
     expected_full = producer_arguments(std_unit['argv'], full.parent)
     config = json.loads(Path(policy['linker_config']['path']).read_text())
-    producer_linker_positions(std_unit['argv'], config['clang'])
+    launch_clang = receipt['recipe_environment']['PY_CC']
+    producer_linker_positions(std_unit['argv'], launch_clang)
+    # Cargo records the bound launch spelling; the adapter pins its canonical target.
+    if (not Path(launch_clang).is_absolute()
+            or config['clang'] != str(Path(launch_clang).resolve(strict=True))):
+        raise ValueError('producer canonical clang identity changed')
     expected_restricted = restricted_producer_arguments(std_unit['argv'], root / 'restricted-provider', root / 'provider-linker.py')
     if policy['full_argv'] != expected_full or policy['restricted_argv'] != expected_restricted:
         raise ValueError('provider replay arguments changed')
