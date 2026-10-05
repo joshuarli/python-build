@@ -933,6 +933,11 @@ _pysqlite_query_execute(pysqlite_Cursor* self, int multiple, PyObject* operation
         }
 
         rc = stmt_step(self->statement->st);
+        /* A negative result with a Python error comes from the Rust delegate,
+         * before SQLite could set a database error. Preserve that exception. */
+        if (rc < 0 && PyErr_Occurred()) {
+            goto error;
+        }
         if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
             if (PyErr_Occurred()) {
                 /* there was an error that occurred in a user-defined callback */
