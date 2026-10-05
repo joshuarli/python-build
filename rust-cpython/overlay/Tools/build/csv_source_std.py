@@ -5,6 +5,12 @@ scripts retain their installed host runtime. Target libraries instead receive
 code and full metadata from a single freshly compiled standard-library graph.
 The completed receipt binds exactly five named consumer artifacts to that provider;
 module publication copies signed bytes only after the entire receipt verifies.
+
+An unrestricted provider supplies consumer code/full metadata first. A second
+link uses only those consumers' actual provider-bound imports and explicit
+runtime roots; publication requires identical full metadata and a proved export
+closure. Original compiler outputs remain immutable. This intentionally narrows
+the private Rust provider ABI while preserving the native Python API boundary.
 """
 import os
 import sys
@@ -169,6 +175,275 @@ def producer_arguments(original, output):
             args.append(value)
             index += 1
     return args
+
+
+# These unmangled entry points are a runtime boundary even when a particular
+# consumer does not emit a reference. Allocation roots below are selected by
+# their exact Rust v0 namespace and identifier, never a substring match.
+EXPORT_SAFETY_ROOTS = ('_rust_eh_personality',)
+DARWIN_WEAK_EXPORTS = ('___isOSVersionAtLeast', '___isPlatformVersionAtLeast')
+ALLOCATOR_EXPORT_ROOTS = ('__rust_alloc', '__rust_dealloc', '__rust_realloc',
+                          '__rust_alloc_zeroed', '__rust_no_alloc_shim_is_unstable_v2')
+
+
+def macho_link_surface(data):
+    """Read the frozen arm64 dylib link surface; unsupported encodings fail closed."""
+    import _struct as struct
+    def require(condition, message):
+        if not condition:
+            raise ValueError('source std Mach-O: ' + message)
+    def unpack(fmt, offset, end=None):
+        end = len(data) if end is None else end
+        require(0 <= offset <= end - struct.calcsize(fmt) <= len(data), 'truncated field')
+        return struct.unpack_from(fmt, data, offset)
+    def string(blob, offset):
+        require(0 <= offset < len(blob), 'string offset')
+        end = blob.find(b'\0', offset)
+        require(end >= offset, 'unterminated string')
+        try:
+            value = blob[offset:end].decode('ascii')
+        except UnicodeDecodeError as error:
+            raise ValueError('source std Mach-O: non-ASCII link symbol') from error
+        require(bool(value) and '\n' not in value and '\r' not in value, 'invalid link name')
+        return value, end + 1
+    def leb(blob, offset, signed=False):
+        value, shift = 0, 0
+        while True:
+            require(offset < len(blob) and shift < 64, 'invalid LEB')
+            byte = blob[offset]
+            offset += 1
+            value |= (byte & 127) << shift
+            shift += 7
+            if not byte & 128:
+                if signed and byte & 64:
+                    value -= 1 << shift
+                require(signed or value < 1 << 64, 'LEB overflow')
+                return value, offset
+    magic, cpu, _, kind, count, length, flags, reserved = unpack('<8I', 0)
+    require(magic == 0xfeedfacf and cpu == 0x100000c and kind == 6
+            and reserved == 0 and flags & 0x80, 'expected two-level arm64 dylib')
+    end, position = 32 + length, 32
+    require(end <= len(data) and count <= length // 8, 'command extent')
+    loads, segments, binds, tries, chained = [], [], [], [], []
+    identity = None
+    for _ in range(count):
+        tag, size = unpack('<II', position, end)
+        require(size >= 8 and size % 8 == 0 and position + size <= end, 'command alignment/extent')
+        if tag == 0x19:
+            require(size >= 72, 'segment command')
+            vmaddr, vmsize, fileoff, filesize, _, _, sections, _ = unpack('<4Q4I', position + 24, position + size)
+            require(size == 72 + sections * 80 and vmaddr + vmsize <= 1 << 64
+                    and fileoff + filesize <= len(data), 'segment extent')
+            segments.append(vmsize)
+        elif tag in (12, 13, 0x20, 0x80000018, 0x8000001f, 0x80000023):
+            require(size >= 24, 'dylib command')
+            offset, = unpack('<I', position + 8, position + size)
+            require(24 <= offset < size, 'dylib name')
+            name, _ = string(data[position:position + size], offset)
+            if tag == 13:
+                require(identity is None, 'duplicate install identity')
+                identity = name
+            else:
+                require(tag == 12, 'weak/reexport/upward/lazy dependency')
+                loads.append(name)
+        elif tag in (0x22, 0x80000022):
+            require(size == 48, 'dyld info extent')
+            values = unpack('<10I', position + 8, position + size)
+            require(values[5] == 0, 'weak lookup stream unsupported')
+            binds.extend((values[index], values[index + 1], lazy)
+                         for index, lazy in ((2, False), (6, True)))
+            tries.append((values[8], values[9]))
+        elif tag in (0x80000033, 0x80000034):
+            require(size == 16, 'linkedit command extent')
+            pair = unpack('<II', position + 8, position + size)
+            (tries if tag == 0x80000033 else chained).append(pair)
+        position += size
+    require(position == end and identity is not None and len(chained) <= 1, 'incomplete dylib layout')
+    def payload(offset, length):
+        require(offset >= end and offset + length <= len(data), 'linkedit bounds')
+        return data[offset:offset + length]
+    imports = []
+    for offset, length, lazy in binds:
+        if not length:
+            continue
+        stream = payload(offset, length)
+        cursor, ordinal, symbol, weak, segment, address, bind_kind, addend = 0, 0, None, False, None, 0, 1, 0
+        def emit():
+            require(bind_kind == 1 and symbol is not None and segment is not None
+                    and address + 8 <= segments[segment], 'binding address/type')
+            imports.append({'ordinal': ordinal, 'weak': weak, 'symbol': symbol, 'addend': addend})
+        while cursor < len(stream):
+            byte = stream[cursor]
+            cursor += 1
+            opcode, immediate = byte & 0xf0, byte & 15
+            if opcode == 0:
+                if not lazy:
+                    require(not any(stream[cursor:]), 'bind trailing data')
+                    break
+                ordinal, symbol, weak, segment, address, bind_kind, addend = 0, None, False, None, 0, 1, 0
+            elif opcode == 0x10:
+                ordinal = immediate
+            elif opcode == 0x20:
+                ordinal, cursor = leb(stream, cursor)
+            elif opcode == 0x30:
+                ordinal = immediate - 16 if immediate else 0
+            elif opcode == 0x40:
+                require(immediate in (0, 1), 'symbol flags')
+                symbol, cursor = string(stream, cursor)
+                weak = bool(immediate)
+            elif opcode == 0x50:
+                bind_kind = immediate
+            elif opcode == 0x60:
+                addend, cursor = leb(stream, cursor, True)
+            elif opcode == 0x70:
+                segment = immediate
+                require(segment < len(segments), 'bind segment')
+                address, cursor = leb(stream, cursor)
+            elif opcode == 0x80:
+                advance, cursor = leb(stream, cursor)
+                address = (address + advance) & ((1 << 64) - 1)
+            elif opcode in (0x90, 0xa0, 0xb0):
+                emit()
+                advance = 0
+                if opcode == 0xa0:
+                    advance, cursor = leb(stream, cursor)
+                elif opcode == 0xb0:
+                    advance = immediate * 8
+                address = (address + 8 + advance) & ((1 << 64) - 1)
+            elif opcode == 0xc0:
+                repetitions, cursor = leb(stream, cursor)
+                skip, cursor = leb(stream, cursor)
+                require(repetitions <= len(data) // 8, 'bind repetition bounds')
+                for _ in range(repetitions):
+                    emit()
+                    address = (address + 8 + skip) & ((1 << 64) - 1)
+            else:
+                raise ValueError('source std Mach-O: unsupported bind opcode')
+    for offset, length in chained:
+        blob = payload(offset, length)
+        require(len(blob) >= 28, 'fixups header')
+        version, starts, table, strings, count, encoding, symbol_format = struct.unpack_from('<7I', blob)
+        require(version == 0 and symbol_format == 0 and encoding in (1, 2, 3), 'fixups encoding')
+        width = {1: 4, 2: 8, 3: 16}[encoding]
+        require(28 <= starts < len(blob) and 28 <= table <= strings < len(blob)
+                and table + width * count <= strings, 'fixups table extent')
+        for index in range(count):
+            bits, = struct.unpack_from('<Q' if encoding == 3 else '<I', blob, table + index * width)
+            if encoding == 3:
+                require((bits >> 17) & 0x7fff == 0, 'fixups reserved bits')
+                ordinal, weak, name = bits & 65535, bool((bits >> 16) & 1), bits >> 32
+                ordinal = ordinal - 65536 if ordinal >= 32768 else ordinal
+            else:
+                ordinal, weak, name = bits & 255, bool((bits >> 8) & 1), bits >> 9
+                ordinal = ordinal - 256 if ordinal >= 128 else ordinal
+            addend = 0
+            if encoding == 2:
+                addend, = struct.unpack_from('<i', blob, table + index * width + 4)
+            elif encoding == 3:
+                addend, = struct.unpack_from('<q', blob, table + index * width + 8)
+            symbol, _ = string(blob, strings + name)
+            imports.append({'ordinal': ordinal, 'weak': weak, 'symbol': symbol, 'addend': addend})
+    exports = {}
+    nonempty_tries = [(offset, length) for offset, length in tries if length]
+    require(len(nonempty_tries) <= 1, 'duplicate exports trie')
+    for offset, length in nonempty_tries:
+        blob = payload(offset, length)
+        stack, visited = [(0, '')], set()
+        while stack:
+            node, name = stack.pop()
+            require(node not in visited and node < len(blob), 'trie cycle/shared node')
+            visited.add(node)
+            terminal, cursor = leb(blob, node)
+            terminal_end = cursor + terminal
+            require(terminal_end < len(blob), 'trie terminal extent')
+            if terminal:
+                export_flags, value_cursor = leb(blob, cursor)
+                require(export_flags in (0, 4) and name and name not in exports, 'unsupported/duplicate export')
+                _, value_cursor = leb(blob, value_cursor)
+                require(value_cursor == terminal_end, 'export terminal data')
+                exports[name] = export_flags
+            children = blob[terminal_end]
+            cursor = terminal_end + 1
+            for _ in range(children):
+                edge, cursor = string(blob, cursor)
+                child, cursor = leb(blob, cursor)
+                require(len(name) + len(edge) <= len(blob), 'trie name bounds')
+                stack.append((child, name + edge))
+    for row in imports:
+        require(row['ordinal'] <= len(loads), 'import ordinal bounds')
+    return {'install_id': identity, 'loads': loads, 'imports': imports, 'exports': exports}
+
+
+def provider_export_closure(provider, consumers, native_api=None):
+    if set(consumers) != set(CONSUMERS):
+        raise ValueError('export closure consumer roster changed')
+    exports = provider['exports']
+    safety = set(EXPORT_SAFETY_ROOTS) | set(DARWIN_WEAK_EXPORTS)
+    for name in ALLOCATOR_EXPORT_ROOTS:
+        matches = [s for s in exports if re.fullmatch(r'__RNvCs[0-9A-Za-z]+_7___rustc'
+                   + str(len(name)) + '_' + re.escape(name), s)]
+        if len(matches) != 1:
+            raise ValueError('missing or ambiguous allocator safety root: ' + name)
+        safety.add(matches[0])
+    metadata = [s for s in exports if re.fullmatch(r'_rust_metadata_std_[0-9a-f]{16}', s)]
+    if len(metadata) != 1:
+        raise ValueError('missing or ambiguous metadata safety root')
+    safety.add(metadata[0])
+    if not safety <= exports.keys():
+        raise ValueError('missing provider safety root')
+    if {s for s, flags in exports.items() if flags & 4} != set(DARWIN_WEAK_EXPORTS):
+        raise ValueError('unexpected provider weak definition')
+    # Runtime dlsym names in the pinned Darwin source are platform C names.
+    # Keep every unmangled provider entry; newly introduced ones require review.
+    if any(not s.startswith('__R') and s not in safety for s in exports):
+        raise ValueError('unreviewed unmangled provider export')
+    if provider['loads'] != ['/usr/lib/libSystem.B.dylib']:
+        raise ValueError('provider dependency identity is not the reviewed System closure')
+    for row in provider['imports']:
+        ordinal = row['ordinal']
+        if ordinal != 1 or row['weak']:
+            raise ValueError('unexpected provider import/self/weak lookup')
+    symbols, observations = set(safety), {}
+    for name, consumer in consumers.items():
+        if consumer['loads'].count(provider['install_id']) != 1:
+            raise ValueError('consumer lacks exact original provider install identity: ' + name)
+        ordinal = consumer['loads'].index(provider['install_id']) + 1
+        observations[name] = []
+        for row in consumer['imports']:
+            if row['weak']:
+                raise ValueError('unsupported weak consumer binding')
+            if row['ordinal'] == -2:
+                symbol = row['symbol']
+                if (native_api is None or not symbol.startswith(('_Py', '__Py'))
+                        or native_api['exports'].get(symbol) != 0):
+                    raise ValueError('flat consumer binding lacks its exact strong native Python definition')
+                continue
+            if not 1 <= row['ordinal'] <= len(consumer['loads']):
+                raise ValueError('unsupported self/flat consumer binding')
+            if row['ordinal'] == ordinal:
+                if row['symbol'] not in exports:
+                    raise ValueError('consumer import lacks provider definition: ' + row['symbol'])
+                symbols.add(row['symbol'])
+                observations[name].append(row['symbol'])
+    return {'symbols': sorted(symbols), 'safety_roots': sorted(safety),
+            'consumer_imports': observations, 'provider_surface': provider,
+            'consumer_surfaces': consumers, 'native_api_surface': native_api}
+
+
+def restricted_producer_arguments(original, output, exports_path):
+    return producer_arguments(original, output) + ['-C', 'link-arg=-Wl,-exported_symbols_list,' + str(exports_path)]
+
+
+def verify_restricted_provider(full, restricted, closure, full_metadata, restricted_metadata):
+    if full_metadata != restricted_metadata:
+        raise ValueError('restricted producer full metadata identity changed; no consumer replay is admitted')
+    if restricted['exports'] != {s: full['exports'][s] for s in closure['symbols']}:
+        raise ValueError('restricted producer export surface differs from exact closure')
+    if (restricted['loads'] != full['loads']
+            or any(row not in full['imports'] for row in restricted['imports'])):
+        raise ValueError('restricted producer introduced an import/dependency outside the full closure')
+    if Path(restricted['install_id']).name != Path(full['install_id']).name:
+        raise ValueError('restricted producer install basename changed')
 
 
 def buildscript_environment(text):
@@ -529,6 +804,7 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
         path = Path(record['path'])
         if not path.resolve().is_relative_to(build) or artifact(path) != {k: record[k] for k in ('path', 'sha256', 'size')}:
             raise ValueError('CSV final artifact changed: ' + label)
+    verify_export_policy(receipt, root)
     provider = Path(receipt['provider']['path'])
     if provider.parent != root / 'provider' or receipt['provider']['install_id'] != '@rpath/' + provider.name:
         raise ValueError('provider output placement or identity changed')
@@ -570,6 +846,60 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
         if artifact(record['path']) != record:
             raise ValueError('generated C API source changed')
     return receipt
+
+
+def verify_export_policy(receipt, root):
+    if 'export_policy' not in receipt:
+        raise ValueError('missing provider export policy')
+    policy = receipt['export_policy']
+    if policy['schema_version'] != 1:
+        raise ValueError('unsupported provider export policy')
+    for key in ('full_provider', 'full_metadata', 'restricted_metadata',
+                'exports_file', 'restricted_compiler_artifact', 'native_api'):
+        if artifact(policy[key]['path']) != policy[key]:
+            raise ValueError('provider export policy artifact changed: ' + key)
+    full = Path(policy['full_provider']['path'])
+    final = Path(receipt['provider']['path'])
+    if (full.parent != root / 'full-provider' or full.name != final.name
+            or receipt['runtime_pairs']['std'] != [str(full), policy['full_metadata']['path']]
+            or Path(policy['restricted_metadata']['path']) != root / 'restricted-provider' / final.with_suffix('.rmeta').name
+            or Path(policy['exports_file']['path']) != root / 'provider-exports.txt'
+            or Path(policy['restricted_compiler_artifact']['path']) != root / 'restricted-provider' / final.name):
+        raise ValueError('provider export policy output owner changed')
+    full_surface = macho_link_surface(full.read_bytes())
+    consumers = {name: macho_link_surface(Path(record['compiler_artifact']['path']).read_bytes())
+                 for name, record in receipt['consumers'].items()}
+    native_path = Path(policy['native_api']['path'])
+    if native_path != Path(receipt['build']) / 'libpython3.16.dylib':
+        raise ValueError('native Python export owner changed')
+    closure = provider_export_closure(full_surface, consumers, macho_link_surface(native_path.read_bytes()))
+    if closure != policy['closure'] or Path(policy['exports_file']['path']).read_text() != ''.join(s + '\n' for s in closure['symbols']):
+        raise ValueError('provider export policy closure changed')
+    restricted = macho_link_surface(Path(policy['restricted_compiler_artifact']['path']).read_bytes())
+    if restricted != policy['restricted_surface']:
+        raise ValueError('restricted compiler surface changed')
+    verify_restricted_provider(full_surface, restricted, closure,
+                               policy['full_metadata']['sha256'], policy['restricted_metadata']['sha256'])
+    published = macho_link_surface(final.read_bytes())
+    if (published['exports'] != restricted['exports'] or published['imports'] != restricted['imports']
+            or published['loads'] != restricted['loads']
+            or published['install_id'] != '@rpath/' + final.name):
+        raise ValueError('normalized provider changed its restricted link surface')
+    std_unit = select_std_unit(receipt['units'])
+    expected_full = producer_arguments(std_unit['argv'], full.parent)
+    expected_restricted = restricted_producer_arguments(std_unit['argv'], root / 'restricted-provider', Path(policy['exports_file']['path']))
+    if policy['full_argv'] != expected_full or policy['restricted_argv'] != expected_restricted:
+        raise ValueError('provider replay arguments changed')
+    for argv in (expected_full, expected_restricted):
+        matches = [command for command in receipt['commands'] if command['argv'] == argv]
+        if (len(matches) != 1 or matches[0]['exit_code'] != 0 or matches[0]['reaped_exit'] != 0
+                or type(matches[0].get('pid')) is not int or matches[0]['pid'] <= 1
+                or matches[0].get('pgid') != matches[0]['pid']):
+            raise ValueError('provider replay lacks exact successful owned compiler command')
+    raw = receipt['provider']['raw_artifact']
+    compiled = policy['restricted_compiler_artifact']
+    if (raw['path'] != str(final) or raw['sha256'] != compiled['sha256'] or raw['size'] != compiled['size']):
+        raise ValueError('restricted compiler/raw final correspondence changed')
 
 
 class CompilerCleanupError(RuntimeError):
@@ -727,7 +1057,7 @@ def build_recipe(source, build, target, profile, jobs):
         if len(script_outputs) != 1:
             raise ValueError('expected one std buildscript output')
         source_env.update(buildscript_environment(script_outputs[0].read_text()))
-        provider_dir = root / 'provider'
+        provider_dir = root / 'full-provider'
         provider_dir.mkdir()
         replay = producer_arguments(original, provider_dir)
         run(replay, Path(std_unit['cwd']), source_env, root / 'logs/std-provider', commands)
@@ -737,7 +1067,7 @@ def build_recipe(source, build, target, profile, jobs):
         metadata = provider.with_suffix('.rmeta')
         pairs = {'std': [str(provider), str(metadata)]}
         directories = []
-        runtime_files = {str(metadata): digest(metadata)}
+        runtime_files = {str(metadata): digest(metadata), str(provider): digest(provider)}
         for unit in runtime_closure(std_unit, units):
             args = unit['argv']
             if unit['query'] or '--target' not in args or '--crate-name' not in args or '--out-dir' not in args:
@@ -775,6 +1105,38 @@ def build_recipe(source, build, target, profile, jobs):
         verify_compiler_units(target_units, files, root / 'consumer-target')
         selected = consumer_units(target_units, pairs)
         consumers = {name: root / 'consumer-target' / target / ('release/lib' + name + '.dylib') for name in CONSUMERS}
+        # Consumers compile once against the unrestricted code/full-metadata
+        # pair. Keep that compiler output immutable even after final publication.
+        full_provider = artifact(provider)
+        full_surface = macho_link_surface(provider.read_bytes())
+        consumer_surfaces = {name: macho_link_surface(path.read_bytes()) for name, path in consumers.items()}
+        native_api = artifact(build / 'libpython3.16.dylib')
+        native_surface = macho_link_surface(Path(native_api['path']).read_bytes())
+        closure = provider_export_closure(full_surface, consumer_surfaces, native_surface)
+        exports_path = root / 'provider-exports.txt'
+        exports_path.write_text(''.join(symbol + '\n' for symbol in closure['symbols']))
+        files[str(exports_path)] = digest(exports_path)
+        restricted_directory = root / 'restricted-provider'
+        restricted_directory.mkdir()
+        restricted_argv = restricted_producer_arguments(original, restricted_directory, exports_path)
+        run(restricted_argv, Path(std_unit['cwd']), source_env, root / 'logs/std-provider-restricted', commands)
+        restricted_compiler = restricted_directory / provider.name
+        restricted_metadata = restricted_compiler.with_suffix('.rmeta')
+        runtime_files[str(restricted_metadata)] = digest(restricted_metadata)
+        restricted_surface = macho_link_surface(restricted_compiler.read_bytes())
+        verify_restricted_provider(full_surface, restricted_surface, closure,
+                                   digest(metadata), digest(restricted_metadata))
+        export_policy = {'schema_version': 1, 'closure': closure, 'full_provider': full_provider,
+                         'full_metadata': artifact(metadata), 'restricted_metadata': artifact(restricted_metadata),
+                         'full_argv': replay, 'restricted_argv': restricted_argv,
+                         'exports_file': artifact(exports_path), 'restricted_surface': restricted_surface,
+                         'native_api': native_api}
+        # Normalization edits only the final copy. Both replay output directories
+        # retain their original compiler bytes and metadata indefinitely.
+        export_policy['restricted_compiler_artifact'] = artifact(restricted_compiler)
+        (root / 'provider').mkdir()
+        provider = root / 'provider' / restricted_compiler.name
+        shutil.copyfile(restricted_compiler, provider)
         raw_provider = artifact(provider)
         raw_consumers = {name: artifact(path) for name, path in consumers.items()}
         consumer_ids = {name: consumer_install_id(selected[name], path, root) for name, path in consumers.items()}
@@ -807,7 +1169,7 @@ def build_recipe(source, build, target, profile, jobs):
                    'provider': {**artifact(provider), 'install_id': install_id, 'dependencies': dependencies['provider'],
                                 'raw_artifact': raw_provider, 'build_mirror_path': mirror['path'],
                                 'build_mirror_sha256': mirror['sha256']},
-                   'consumers': records,
+                   'consumers': records, 'export_policy': export_policy,
                    'generated_bindings': bindings, 'units': units + target_units, 'commands': commands}
         (root / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
         return verify_build_receipt(source, build, target, source_metadata)

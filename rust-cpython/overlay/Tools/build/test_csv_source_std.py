@@ -254,6 +254,12 @@ class SourceStdArguments(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_completed_joint_receipt_rejects_missing_json_source_runtime_or_final_bytes(self):
+        from unittest.mock import patch
+        # This fixture isolates the pre-existing joint publication/unit guards;
+        # export-policy replay and raw-byte correspondence are checked separately.
+        export_guard = patch.object(recipe, 'verify_export_policy')
+        export_guard.start()
+        self.addCleanup(export_guard.stop)
         with tempfile.TemporaryDirectory() as raw:
             work = Path(raw).resolve()
             source, build = work / 'source', work / 'build'
@@ -607,25 +613,26 @@ class SourceStdArguments(unittest.TestCase):
 class SourceStdExportClosure(unittest.TestCase):
     def provider(self):
         exports = {name: 0 for name in recipe.EXPORT_SAFETY_ROOTS}
-        exports.update({'_needed': 0, '_unused': 0,
+        exports.update({'__RNvneeded': 0, '__RNvunused': 0, '_rust_metadata_std_0123456789abcdef': 0,
+                        **{'__RNvCsTest_7___rustc' + str(len(n)) + '_' + n: 0 for n in recipe.ALLOCATOR_EXPORT_ROOTS},
                         '___isOSVersionAtLeast': 4, '___isPlatformVersionAtLeast': 4})
         return {'install_id': '/owned/full/libstd-hash.dylib',
                 'loads': ['/usr/lib/libSystem.B.dylib'], 'exports': exports,
-                'imports': [{'ordinal': 1, 'weak': False, 'symbol': '_malloc'}]}
+                'imports': [{'ordinal': 1, 'weak': False, 'symbol': '_malloc', 'addend': 0}]}
 
     def consumers(self):
         result = {name: {'loads': ['/owned/full/libstd-hash.dylib'], 'imports': []}
                   for name in recipe.CONSUMERS}
-        result['_csv_rs']['imports'] = [{'ordinal': 1, 'weak': False, 'symbol': '_needed'}]
+        result['_csv_rs']['imports'] = [{'ordinal': 1, 'weak': False, 'symbol': '__RNvneeded', 'addend': 0}]
         return result
 
     def test_export_closure_uses_exact_provider_ordinal_and_accepts_empty_consumer(self):
         consumers = self.consumers()
         consumers['_json_rs']['loads'].append('/usr/lib/libSystem.B.dylib')
-        consumers['_json_rs']['imports'].append({'ordinal': 2, 'weak': False, 'symbol': '_unused'})
+        consumers['_json_rs']['imports'].append({'ordinal': 2, 'weak': False, 'symbol': '__RNvunused', 'addend': 0})
         closure = recipe.provider_export_closure(self.provider(), consumers)
-        self.assertIn('_needed', closure['symbols'])
-        self.assertNotIn('_unused', closure['symbols'])
+        self.assertIn('__RNvneeded', closure['symbols'])
+        self.assertNotIn('__RNvunused', closure['symbols'])
         self.assertEqual(closure['consumer_imports']['_typing_rs'], [])
         self.assertTrue(set(recipe.EXPORT_SAFETY_ROOTS) <= set(closure['symbols']))
         self.assertIn('___isOSVersionAtLeast', closure['symbols'])
@@ -669,7 +676,7 @@ class SourceStdExportClosure(unittest.TestCase):
         recipe.verify_restricted_provider(full, restricted, closure, 'same', 'same')
         with self.assertRaisesRegex(ValueError, 'metadata'):
             recipe.verify_restricted_provider(full, restricted, closure, 'first', 'second')
-        for symbol in ('_needed', '_unused'):
+        for symbol in ('__RNvneeded', '__RNvunused'):
             changed = {**restricted, 'exports': dict(restricted['exports'])}
             if symbol in changed['exports']:
                 del changed['exports'][symbol]
@@ -692,14 +699,125 @@ class SourceStdExportClosure(unittest.TestCase):
             self.assertEqual(restricted[-2:], ['-C', 'link-arg=-Wl,-exported_symbols_list,' + str(root / 'exports.txt')])
             self.assertIn('metadata=identity', full)
 
+    def test_replay_receipt_authenticates_two_raw_outputs_and_owned_compiler_commands(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            def write(path, data):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                return recipe.artifact(path)
+            full = write(root / 'full-provider/libstd-hash.dylib', b'full')
+            final = write(root / 'provider/libstd-hash.dylib', b'normalized')
+            compiled = write(root / 'restricted-provider/libstd-hash.dylib', b'restricted')
+            full_metadata = write(Path(full['path']).with_suffix('.rmeta'), b'exact metadata')
+            restricted_metadata = write(Path(compiled['path']).with_suffix('.rmeta'), b'exact metadata')
+            full_surface = self.provider()
+            full_surface['install_id'] = full['path']
+            consumers = self.consumers()
+            for surface in consumers.values():
+                surface['loads'] = [full['path']]
+            closure = recipe.provider_export_closure(full_surface, consumers)
+            restricted_surface = {**full_surface, 'install_id': compiled['path'],
+                                  'exports': {s: full_surface['exports'][s] for s in closure['symbols']}}
+            final_surface = {**restricted_surface, 'install_id': '@rpath/libstd-hash.dylib'}
+            core = write(root.parent / 'libpython3.16.dylib', b'native Python')
+            native_surface = {'install_id': '@rpath/libpython3.16.dylib', 'loads': [], 'exports': {'_PyList_New': 0}, 'imports': []}
+            closure = recipe.provider_export_closure(full_surface, consumers, native_surface)
+            export_file = write(root / 'provider-exports.txt', ''.join(s + '\n' for s in closure['symbols']).encode())
+            original = ['rustc', '--crate-name', 'std', '--target', recipe.TARGET,
+                        '--crate-type', 'rlib', '--out-dir', '/original', '-C', 'metadata=unchanged']
+            full_argv = recipe.producer_arguments(original, Path(full['path']).parent)
+            restricted_argv = recipe.restricted_producer_arguments(original, Path(compiled['path']).parent, Path(export_file['path']))
+            policy = {'schema_version': 1, 'closure': closure, 'full_provider': full,
+                      'full_metadata': full_metadata, 'restricted_metadata': restricted_metadata,
+                      'exports_file': export_file, 'restricted_compiler_artifact': compiled,
+                      'restricted_surface': restricted_surface, 'full_argv': full_argv,
+                      'restricted_argv': restricted_argv, 'native_api': core}
+            records = {name: {'compiler_artifact': write(root / ('lib' + name + '.dylib'), name.encode())}
+                       for name in recipe.CONSUMERS}
+            receipt = {'build': str(root.parent), 'export_policy': policy, 'provider': {**final, 'raw_artifact': {**compiled, 'path': final['path']}},
+                       'runtime_pairs': {'std': [full['path'], full_metadata['path']]},
+                       'consumers': records, 'units': [{'argv': original, 'query': False, 'exit_code': 0, 'reaped_exit': 0}],
+                       'commands': [{'argv': argv, 'pid': 12345, 'pgid': 12345, 'exit_code': 0, 'reaped_exit': 0}
+                                    for argv in (full_argv, restricted_argv)]}
+            surfaces = {b'full': full_surface, b'restricted': restricted_surface, b'normalized': final_surface, b'native Python': native_surface,
+                        **{name.encode(): surface for name, surface in consumers.items()}}
+            with patch.object(recipe, 'macho_link_surface', side_effect=lambda data: surfaces[data]):
+                recipe.verify_export_policy(receipt, root)
+                receipt['commands'][1]['reaped_exit'] = 1
+                with self.assertRaisesRegex(ValueError, 'compiler command'):
+                    recipe.verify_export_policy(receipt, root)
+                receipt['commands'][1]['reaped_exit'] = 0
+                Path(compiled['path']).write_bytes(b'changed compiler output')
+                with self.assertRaisesRegex(ValueError, 'artifact changed'):
+                    recipe.verify_export_policy(receipt, root)
+
+    def test_dynamic_python_lookup_requires_exact_bound_core_definition_not_name_prefix(self):
+        consumers = self.consumers()
+        consumers['_csv_rs']['imports'].append({'ordinal': -2, 'weak': False, 'symbol': '_PyList_New', 'addend': 0})
+        core = {'install_id': '@rpath/libpython3.16.dylib', 'exports': {'_PyList_New': 0}}
+        closure = recipe.provider_export_closure(self.provider(), consumers, core)
+        self.assertNotIn('_PyList_New', closure['symbols'])
+        for native in (None, {'exports': {}}, {'exports': {'_PyList_New': 4}}):
+            with self.assertRaisesRegex(ValueError, 'native Python definition'):
+                recipe.provider_export_closure(self.provider(), consumers, native)
+        consumers['_csv_rs']['imports'][-1]['symbol'] = '__RNvneeded'
+        with self.assertRaisesRegex(ValueError, 'native Python definition'):
+            recipe.provider_export_closure(self.provider(), consumers, {'exports': {'__RNvneeded': 0}})
+
+    def test_restricted_system_import_subset_preserves_addends_and_original_identity(self):
+        full = self.provider()
+        closure = recipe.provider_export_closure(full, self.consumers())
+        restricted = {**full, 'exports': {s: full['exports'][s] for s in closure['symbols']}, 'imports': []}
+        recipe.verify_restricted_provider(full, restricted, closure, 'same', 'same')
+        for change in ({'symbol': '_free'}, {'addend': 1}, {'weak': True}, {'ordinal': 0}):
+            candidate = {**restricted, 'imports': [{**full['imports'][0], **change}]}
+            with self.assertRaisesRegex(ValueError, 'import/dependency'):
+                recipe.verify_restricted_provider(full, candidate, closure, 'same', 'same')
+        with self.assertRaisesRegex(ValueError, 'import/dependency'):
+            recipe.verify_restricted_provider(full, {**restricted, 'loads': ['/usr/lib/other.dylib']}, closure, 'same', 'same')
+
+    def test_export_trie_flags_and_cycles_are_bounded(self):
+        import _struct
+        def image(trie):
+            text = b'/owned/std.dylib\0'
+            size = (24 + len(text) + 7) & ~7
+            identity = _struct.pack('<6I', 13, size, 24, 0, 0, 0) + text + bytes(size - 24 - len(text))
+            commands = identity + _struct.pack('<4I', 0x80000033, 16, 32 + size + 16, len(trie))
+            return _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 2, len(commands), 0x80, 0) + commands + trie
+        self.assertEqual(recipe.macho_link_surface(image(b'\0\1_x\0\6\2\4\0\0'))['exports'], {'_x': 4})
+        for trie in (b'\0\1_x\0\0', b'\0\1_x\0\6\2\10\0\0', b'\0\1_x\0\6\2\0'):
+            with self.assertRaises(ValueError):
+                recipe.macho_link_surface(image(trie))
+
     def test_macho_surface_rejects_truncated_unaligned_and_wrong_image_headers(self):
         import _struct
         def image(commands, count=1, kind=6):
-            return _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, kind, count, len(commands), 0, 0) + commands
+            return _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, kind, count, len(commands), 0x80, 0) + commands
         for data in (b'', image(_struct.pack('<II', 2, 9) + b'x'),
                      image(_struct.pack('<II', 2, 24)), image(b'', 0, 8)):
             with self.assertRaises(ValueError):
                 recipe.macho_link_surface(data)
+
+    def test_classic_bindings_keep_provider_and_dynamic_python_ordinals_separate(self):
+        import _struct
+        def dylib(tag, name):
+            text = name.encode() + b'\0'
+            size = (24 + len(text) + 7) & ~7
+            return _struct.pack('<6I', tag, size, 24, 0, 0, 0) + text + bytes(size - 24 - len(text))
+        segment = _struct.pack('<II16s4Q4I', 0x19, 72, b'__DATA', 0x100000000, 4096, 0, 0, 3, 3, 0, 0)
+        identity = dylib(13, '/owned/consumer.dylib')
+        load = dylib(12, '/owned/full/libstd-hash.dylib')
+        stream = b'\x11\x40__RNvneeded\0\x51\x70\0\x60\x7f\x90\x3e\x40_PyList_New\0\x60\0\x90\0'
+        offset = 32 + len(segment + identity + load) + 48
+        commands = segment + identity + load + _struct.pack('<12I', 0x80000022, 48, 0, 0, offset, len(stream), 0, 0, 0, 0, 0, 0)
+        data = _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 4, len(commands), 0x80, 0) + commands + stream
+        rows = recipe.macho_link_surface(data)['imports']
+        self.assertEqual(rows, [{'ordinal': 1, 'weak': False, 'symbol': '__RNvneeded', 'addend': -1},
+                                {'ordinal': -2, 'weak': False, 'symbol': '_PyList_New', 'addend': 0}])
+        with self.assertRaises(ValueError):
+            recipe.macho_link_surface(data[:-1])
 
     def test_macho_surface_keeps_chained_import_ordinals_and_flags(self):
         import _struct
@@ -712,9 +830,9 @@ class SourceStdExportClosure(unittest.TestCase):
         payload = _struct.pack('<7I', 0, 28, 32, 36, 1, 1, 0) + _struct.pack('<II', 0, 1 | (1 << 8)) + b'_malloc\0'
         offset = 32 + len(load) + len(identity) + 16
         commands = load + identity + _struct.pack('<4I', 0x80000034, 16, offset, len(payload))
-        data = _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 3, len(commands), 0, 0) + commands + payload
+        data = _struct.pack('<8I', 0xfeedfacf, 0x100000c, 0, 6, 3, len(commands), 0x80, 0) + commands + payload
         surface = recipe.macho_link_surface(data)
-        self.assertEqual(surface['imports'], [{'ordinal': 1, 'weak': True, 'symbol': '_malloc'}])
+        self.assertEqual(surface['imports'], [{'ordinal': 1, 'weak': True, 'symbol': '_malloc', 'addend': 0}])
         self.assertEqual(surface['install_id'], '/owned/libstd.dylib')
         with self.assertRaises(ValueError):
             recipe.macho_link_surface(data[:-1])
