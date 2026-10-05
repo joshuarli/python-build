@@ -1024,6 +1024,9 @@ class SourceAggregateMakeTests(unittest.TestCase):
                 self.assertEqual(generated.count('--canonical --output'), 1)
                 self.assertEqual(generated.count('csv_source_aggregate.py publish'), 12)
                 owner = next(line for line in generated.splitlines() if 'csv_source_aggregate.py build' in line)
+                self.assertEqual(generated.count('Modules/_sqlite/module.o: $(srcdir)/Modules/_sqlite/rust_api.h'), 1)
+                for path in ('module.c', 'rust_api.h'):
+                    self.assertIn('$(srcdir)/Modules/_sqlite/' + path, owner.split(';', 1)[0])
                 self.assertNotIn('Modules/_json_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_csv_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_pathlib_rs$(EXT_SUFFIX)', owner)
@@ -1081,6 +1084,10 @@ class SourceAggregateMakeTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             generated = (root / "Makefile").read_text()
             self.assertEqual(generated.count("csv_source_aggregate.py build"), 1)
+            owner = next(line for line in generated.splitlines() if 'csv_source_aggregate.py build' in line)
+            self.assertEqual(generated.count('Modules/_sqlite/module.o: $(srcdir)/Modules/_sqlite/rust_api.h'), 1)
+            for path in ('module.c', 'rust_api.h'):
+                self.assertIn('$(srcdir)/Modules/_sqlite/' + path, owner.split(';', 1)[0])
             self.assertIn("ifeq ($(CARGO_TARGET):$(CARGO_PROFILE),aarch64-apple-darwin:release)", generated)
             self.assertIn("--source $(abs_srcdir) --build $(abs_builddir)", generated)
             self.assertIn("--target $(CARGO_TARGET) --profile $(CARGO_PROFILE) --jobs $(CARGO_BUILD_JOBS)", generated)
