@@ -29,6 +29,8 @@ class SourceStdArguments(unittest.TestCase):
             import sys
             original = list(sys.path)
             try:
+                with self.assertRaises(ModuleNotFoundError):
+                    __import__('csv_bootstrap_marker')
                 with patch.dict(os.environ, {'PYTHON_BUILD_DIR': str(build)}), \
                      patch.object(sys, 'executable', str(interpreter)):
                     self.assertEqual(bootstrap.configure_bootstrap_path(), str(modules))
@@ -42,6 +44,37 @@ class SourceStdArguments(unittest.TestCase):
             finally:
                 sys.path[:] = original
                 sys.modules.pop('csv_bootstrap_marker', None)
+
+    def test_both_cli_preludes_configure_modules_before_heavy_imports(self):
+        import ast
+        import sys
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location('csv_bootstrap', Path(__file__).with_name('csv_source_std_bootstrap.py'))
+        bootstrap = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bootstrap)
+        with tempfile.TemporaryDirectory() as raw:
+            build = Path(raw).resolve()
+            (build / 'Modules').mkdir()
+            interpreter = build / 'python'
+            interpreter.write_bytes(b'owned interpreter')
+            for name in ('csv_source_std.py', 'csv_source_std_rustc.py'):
+                nodes = []
+                for node in ast.parse(Path(__file__).with_name(name).read_text()).body:
+                    if isinstance(node, ast.Import) and any(a.name not in ('os', 'sys') for a in node.names):
+                        break
+                    nodes.append(node)
+                prelude = compile(ast.Module(body=nodes, type_ignores=[]), name, 'exec')
+                original = list(sys.path)
+                try:
+                    with patch.dict(os.environ, {'PYTHON_BUILD_DIR': str(build)}), \
+                         patch.dict(sys.modules, {'csv_source_std_bootstrap': bootstrap}), \
+                         patch.object(sys, 'executable', str(interpreter)):
+                        exec(prelude, {'__name__': 'controller_import'})
+                        self.assertEqual(sys.path, original)
+                        exec(prelude, {'__name__': '__main__'})
+                        self.assertEqual(sys.path[0], str(build / 'Modules'))
+                finally:
+                    sys.path[:] = original
 
     def test_build_loader_path_never_accepts_external_or_multiple_runtime_owners(self):
         spec = importlib.util.spec_from_file_location('csv_bootstrap', Path(__file__).with_name('csv_source_std_bootstrap.py'))

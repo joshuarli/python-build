@@ -150,6 +150,7 @@ def input_files(source, build, library, compiler):
                 files[str(path.resolve())] = digest(path)
     for path in (source / 'Cargo.toml', source / 'Cargo.lock',
                  source / 'Python/stdlib_module_names.h', build / 'Makefile', build / 'pyconfig.h',
+                 build / 'libpython3.16.dylib',
                  Path(compiler['rustc_path']), Path(compiler['cargo_path']), Path(__file__),
                  Path(__file__).with_name('csv_source_std_rustc.py'),
                  Path(__file__).with_name('csv_source_std_bootstrap.py'), Path(sys.executable)):
