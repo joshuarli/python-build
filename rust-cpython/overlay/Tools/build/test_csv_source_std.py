@@ -751,8 +751,12 @@ class SourceStdExportClosure(unittest.TestCase):
             native_surface = {'install_id': '@rpath/libpython3.16.dylib', 'loads': [], 'exports': {'_PyList_New': 0}, 'imports': []}
             closure = recipe.provider_export_closure(full_surface, consumers, native_surface)
             export_file = write(root / 'provider-exports.txt', ''.join(s + '\n' for s in closure['symbols']).encode())
+            canonical_clang = root / 'bin/clang-23'
+            write(canonical_clang, b'pinned compiler')
+            launch_clang = canonical_clang.with_name('clang')
+            launch_clang.symlink_to(canonical_clang.name)
             original = ['rustc', '--crate-name', 'std', '--target', recipe.TARGET,
-                        '--crate-type', 'rlib', '--out-dir', '/original', '-C', 'metadata=unchanged', '-C', 'linker=/pinned/clang']
+                        '--crate-type', 'rlib', '--out-dir', '/original', '-C', 'metadata=unchanged', '-C', 'linker=' + str(launch_clang)]
             full_argv = recipe.producer_arguments(original, Path(full['path']).parent)
             restricted_argv = recipe.restricted_producer_arguments(original, Path(compiled['path']).parent, root / 'provider-linker.py')
             policy = {'schema_version': 2, 'closure': closure, 'full_provider': full,
@@ -760,10 +764,11 @@ class SourceStdExportClosure(unittest.TestCase):
                       'exports_file': export_file, 'restricted_compiler_artifact': compiled,
                       'restricted_surface': restricted_surface, 'full_argv': full_argv,
                       'restricted_argv': restricted_argv, 'native_api': core,
-                      'linker_config': write(root / 'provider-linker-config.json', b'{"clang":"/pinned/clang"}')}
+                      'linker_config': write(root / 'provider-linker-config.json', json.dumps({'clang': str(canonical_clang)}).encode())}
             records = {name: {'compiler_artifact': write(root / ('lib' + name + '.dylib'), name.encode())}
                        for name in recipe.CONSUMERS}
             receipt = {'build': str(root.parent), 'export_policy': policy, 'provider': {**final, 'raw_artifact': {**compiled, 'path': final['path']}},
+                       'recipe_environment': {'PY_CC': str(launch_clang)},
                        'runtime_pairs': {'std': [full['path'], full_metadata['path']]},
                        'consumers': records, 'units': [{'argv': original, 'query': False, 'exit_code': 0, 'reaped_exit': 0}],
                        'commands': [{'argv': argv, 'pid': 12345, 'pgid': 12345, 'exit_code': 0, 'reaped_exit': 0}
@@ -772,6 +777,21 @@ class SourceStdExportClosure(unittest.TestCase):
                         **{name.encode(): surface for name, surface in consumers.items()}}
             with patch.object(recipe, 'macho_link_surface', side_effect=lambda data: surfaces[data]), patch.object(recipe, 'verify_provider_linker'):
                 recipe.verify_export_policy(receipt, root)
+                alternate = root / 'bin/another-clang'
+                write(alternate, b'pinned compiler')
+                launch_clang.unlink()
+                launch_clang.symlink_to(alternate.name)
+                with self.assertRaisesRegex(ValueError, 'canonical clang'):
+                    recipe.verify_export_policy(receipt, root)
+                launch_clang.unlink()
+                launch_clang.symlink_to(canonical_clang.name)
+                receipt['units'][0]['argv'] = original + ['-C', 'linker=' + str(canonical_clang)]
+                with self.assertRaisesRegex(ValueError, 'linker identity'):
+                    recipe.verify_export_policy(receipt, root)
+                receipt['units'][0]['argv'] = original[:-1] + ['linker=' + str(canonical_clang)]
+                with self.assertRaisesRegex(ValueError, 'pinned clang'):
+                    recipe.verify_export_policy(receipt, root)
+                receipt['units'][0]['argv'] = original
                 receipt['commands'][1]['reaped_exit'] = 1
                 with self.assertRaisesRegex(ValueError, 'compiler command'):
                     recipe.verify_export_policy(receipt, root)
