@@ -184,12 +184,28 @@ def buildscript_environment(text):
     return result
 
 
+def std_arguments(cargo, probe, target, jobs, clang, library, flags):
+    # Explicitly empty features override Cargo defaults while retaining abort runtime selection.
+    return [cargo, 'build', '-vv', '--manifest-path', probe / 'Cargo.toml', '--release', '--locked', '--offline',
+            '--target', target, '-j' + str(jobs), '-Zbuild-std=std,panic_abort', '-Zbuild-std-features=',
+            '-Zhost-config', '-Ztarget-applies-to-host', '--config', 'target-applies-to-host=false',
+            '--config', 'host.linker=' + json.dumps(clang), '--config', 'target.' + target + '.linker=' + json.dumps(clang),
+            '--config', 'host.rustflags=' + json.dumps(flags), '--config', 'target.' + target + '.rustflags=' + json.dumps(flags),
+            '--config', 'source.crates-io.replace-with="csv-std-vendor"',
+            '--config', 'source.csv-std-vendor.directory=' + json.dumps(str(library / 'vendor'))]
+
+
 def select_std_unit(rows):
     candidates = [row for row in rows if '--crate-name' in row['argv']
                   and row['argv'][row['argv'].index('--crate-name') + 1] == 'std'
                   and '--target' in row['argv'] and not row['query']]
     if len(candidates) != 1 or candidates[0]['exit_code'] != 0 or candidates[0]['reaped_exit'] != 0:
         raise ValueError('expected one successful source std producer')
+    args = candidates[0]['argv']
+    configs = [args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--cfg']
+    configs.extend(arg[len('--cfg='):] for arg in args if arg.startswith('--cfg='))
+    if any(cfg.startswith('feature=') for cfg in configs):
+        raise ValueError('unexpected source std feature selection')
     return candidates[0]
 
 
@@ -709,13 +725,7 @@ def build_recipe(source, build, target, profile, jobs):
         std_env = dict(env, CARGO_HOME=str(root / 'std-cargo-home'), CARGO_TARGET_DIR=config['target_directory'],
                        CARGO_NET_OFFLINE='true', RUSTC=str(logger), CSV_SOURCE_STD_RUSTC_CONFIG=str(config_path))
         flags = ['--sysroot', str(view), '-C', 'linker=' + clang]
-        std_args = [cargo, 'build', '-vv', '--manifest-path', probe / 'Cargo.toml', '--release', '--locked', '--offline',
-                    '--target', target, '-j' + str(jobs), '-Zbuild-std=std,panic_abort', '-Zbuild-std-features=backtrace',
-                    '-Zhost-config', '-Ztarget-applies-to-host', '--config', 'target-applies-to-host=false',
-                    '--config', 'host.linker=' + json.dumps(clang), '--config', 'target.' + target + '.linker=' + json.dumps(clang),
-                    '--config', 'host.rustflags=' + json.dumps(flags), '--config', 'target.' + target + '.rustflags=' + json.dumps(flags),
-                    '--config', 'source.crates-io.replace-with="csv-std-vendor"',
-                    '--config', 'source.csv-std-vendor.directory=' + json.dumps(str(library / 'vendor'))]
+        std_args = std_arguments(cargo, probe, target, jobs, clang, library, flags)
         run(std_args, probe, std_env, root / 'logs/std-build', commands, 900)
         units = [json.loads(p.read_text()) for p in (root / 'std-units').glob('*.json')]
         std_unit = select_std_unit(units)
