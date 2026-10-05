@@ -5237,6 +5237,39 @@ Neither change is adopted; no full suite, all71 confirmation or unchanged
 retry follows these rejections. Memory goal counts remain48 passing/23
 unresolved, with12 workload RSS regressions against pristine control.
 
+### Incremental memory screens and native allocation attribution (2026-10-05)
+
+No runtime change is adopted from these screens. Single-file pickle deferral
+keeps the original definitions in a59,079-byte literal and supports source,
+ZIP and bytecode-only loading; a fixture-first fix preserves the file's
+optimization level during deferred compilation. Checked128-bit rational
+pairs avoid temporary BigInt owners for bounded inputs while retaining the
+original arbitrary-precision path. Their measured results remain neutral.
+
+| Source | Verification | Target memory against accepted e702 |
+| --- | --- | --- |
+| Pickle325 `459dc68` | Incremental35s,58 verified Rust extensions;16 activation/optimization and9 wire/callback contracts pass; complete pickle/picklebuffer/pickletools1,283run/61skip | Standard load0.970683 neutral both; one rigorous confirmation load0.984 neutral both; working1.000 neutral both |
+| Fractions326 `3a28d1c` | Incremental34s,58 verified;6 independent integer-oracle contracts pass accepted/candidate; complete fractions/numeric-tower/math148run/3skip | Load1.019059 [1.000000,1.037993] neutral both; working1.000 neutral both |
+
+The rigorous325 verdict SHA is
+`cc69165f2e2bfd9738ac96e11b9ffd53adfde57d943f7da10be96b6881c4d9b1`;
+326's target verdict SHA is
+`0d9fbdad342f74930f4f9b6ff68b6d130496ad38e9877af47cda022cd573db54`.
+Neither proceeds to a clean build, broader qualification or an unchanged retry.
+Both tuple writers in326 also correct stolen-reference failure cleanup;
+that correction is preserved on the unadopted branch.
+
+Native allocation diagnostic324 completed14 guarded children with matching
+outputs and cleanup. Fixed live malloc differences, accepted minus control,
+were pickle+9,360B,CSV+10,384B,threading+288B,typing+4,256B,
+inspect−2,272B,ElementTree+7,472B andzstd+272B. These single-sample,
+observer-perturbed endpoint totals do not identify a dominant owner or prove
+physical-memory savings. Zstd's nonlinear4MiB reservation steps cannot be
+interpreted as payload savings. Packet SHA:
+`d6ea389cc7d4a3306f3f340b8ead3d102305c6d3627a6a8cc3e82f70ba19b6a7`.
+The accepted source and stitched48passing/23unresolved module counts and
+12workload RSS regressions remain unchanged.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
