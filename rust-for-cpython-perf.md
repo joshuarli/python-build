@@ -4820,6 +4820,33 @@ static and dynamic engines are confirmed, but sharing that existing engine
 repeats provider182's measured neutral trial. These closures do not impose
 a minimum savings size or establish global exhaustion.
 
+## Inspect positional-only range282: allocation removed, memory neutral
+
+Fixture-first donor `9a0c2ba` plus corrected fixture `6fa5b09`, primary
+`35f2cbd`, removes an unnecessary parameter-count pointer reservation.
+Collected keyword names are a contiguous range into existing strongly owned
+parsed parameters; getter, dictionary callback and error ordering are retained.
+The fixed seven-parameter input avoids56 requested bytes per bind, not56
+bytes of persistent memory. Independent source review passes.
+
+All7 fixtures pass on accepted and candidate interpreters, including native
+dispatch, independent Python diagnostics, partial binding, keyword collection,
+dynamic getters, reentry and exception identity. Complete inspect passes381
+tests in911ms. Native children are reaped and temporary/stage/source guards
+pass. A source-plan search identifies compatible configured tree185: exactly
+two changed files, no removals or build-system changes. Its incremental build
+passes34.2s with58 verified extensions, avoiding another clean build.
+
+The9.3s matched two-run target screen is NEUTRAL: load0.994471x
+[0.991705,1.002789], working1.000x, both neutral in both runs. Raw working
+medians32KiB versus16KiB are below the256KiB normalization floor; they do
+not qualify an improvement. Verdict
+`20261005T033713Z-perf-rust-vs-perf-regex-primary185/verdict.json`, SHA
+`047ce644136d853f6ae021e119c71031b716460d8a1ee25e43359e3717f920af`.
+No all23/broad/full qualification, adoption or unchanged reroll follows.
+A distinct parsed-parameter representation owner is being investigated;
+the existing neutral result remains binding for this exact source.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
