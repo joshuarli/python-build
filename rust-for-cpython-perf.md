@@ -4847,6 +4847,23 @@ No all23/broad/full qualification, adoption or unchanged reroll follows.
 A distinct parsed-parameter representation owner is being investigated;
 the existing neutral result remains binding for this exact source.
 
+## Inspect compact parameter283: distinct layout, memory neutral
+
+Donor `177ffe04`, primary `62d405b`, adds a private repr-u8 kind enum to the
+unaccepted range282 variant. Full signed-long conversion and exception/getter
+ordering stay unchanged; only values0/2/3/4 have special binding semantics,
+and every other value retains ordinary behavior. A compile-time assertion
+requires16-byte parameters instead of24; seven parsed slots save another56
+requested bytes. No exported ABI or API changes. Independent review passes.
+
+All12 fixture cases pass on accepted and candidate stages, including signed
+bounds, high-bit aliases, conversion callbacks/errors and prior range cases.
+Complete inspect passes381. Compatible two-file incremental build passes
+with58 verified extensions. The matched two-run target screen is NEUTRAL:
+load1.000x and working1.000x, neutral in both runs. No mismatch, all23/broad/full
+qualification, adoption or unchanged retry follows. The exact new verdict is
+`20261005T034802Z-perf-rust-vs-perf-regex-primary185/verdict.json`.
+
 ## Objective after coverage
 
 ### Sprint audit update (2026-10-05)
