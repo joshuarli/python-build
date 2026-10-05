@@ -44,8 +44,13 @@ comparison.
 After a primary candidate passes complete correctness and the broad memory
 gate, retain its original named stage, build report, source commit and stage
 digest as the accepted runtime. Do not rebuild and repeat the same suites
-solely to rename it `perf-rust`. Source workers prepare isolated changes;
-subsequent builds and comparisons run from the primary checkout with explicit
+solely to rename it `perf-rust`. Source workers prepare isolated changes and
+may drive dedicated exploration builds and focused correctness checks after
+the coordinator reserves a builder slot. Use at most two native builders on
+this ten-core host, with jobs divided between them, and keep operations on the
+same stage sequential. Independent preparation can overlap under the shared
+perf lease; queue RSS draws after that preparation finishes. Final memory
+comparisons and qualification run from the primary checkout with explicit
 accepted and candidate build names. Existing stage verification and host
 leases remain mandatory.
 
