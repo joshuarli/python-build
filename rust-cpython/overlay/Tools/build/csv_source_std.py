@@ -217,7 +217,7 @@ def macho_link_surface(data):
             if not byte & 128:
                 if signed and byte & 64:
                     value -= 1 << shift
-                require(signed or value < 1 << 64, 'LEB overflow')
+                require(-(1 << 63) <= value < (1 << 63) if signed else value < 1 << 64, 'LEB overflow')
                 return value, offset
     magic, cpu, _, kind, count, length, flags, reserved = unpack('<8I', 0)
     require(magic == 0xfeedfacf and cpu == 0x100000c and kind == 6
@@ -234,7 +234,7 @@ def macho_link_surface(data):
             vmaddr, vmsize, fileoff, filesize, _, _, sections, _ = unpack('<4Q4I', position + 24, position + size)
             require(size == 72 + sections * 80 and vmaddr + vmsize <= 1 << 64
                     and fileoff + filesize <= len(data), 'segment extent')
-            segments.append(vmsize)
+            segments.append({'vmaddr': vmaddr, 'vmsize': vmsize, 'fileoff': fileoff, 'filesize': filesize})
         elif tag in (12, 13, 0x20, 0x80000018, 0x8000001f, 0x80000023):
             require(size >= 24, 'dylib command')
             offset, = unpack('<I', position + 8, position + size)
@@ -270,7 +270,7 @@ def macho_link_surface(data):
         cursor, ordinal, symbol, weak, segment, address, bind_kind, addend = 0, 0, None, False, None, 0, 1, 0
         def emit():
             require(bind_kind == 1 and symbol is not None and segment is not None
-                    and address + 8 <= segments[segment], 'binding address/type')
+                    and address + 8 <= segments[segment]['vmsize'], 'binding address/type')
             imports.append({'ordinal': ordinal, 'weak': weak, 'symbol': symbol, 'addend': addend})
         while cursor < len(stream):
             byte = stream[cursor]
@@ -327,6 +327,7 @@ def macho_link_surface(data):
         width = {1: 4, 2: 8, 3: 16}[encoding]
         require(28 <= starts < len(blob) and 28 <= table <= strings < len(blob)
                 and table + width * count <= strings, 'fixups table extent')
+        import_table = []
         for index in range(count):
             bits, = struct.unpack_from('<Q' if encoding == 3 else '<I', blob, table + index * width)
             if encoding == 3:
@@ -342,7 +343,67 @@ def macho_link_surface(data):
             elif encoding == 3:
                 addend, = struct.unpack_from('<q', blob, table + index * width + 8)
             symbol, _ = string(blob, strings + name)
-            imports.append({'ordinal': ordinal, 'weak': weak, 'symbol': symbol, 'addend': addend})
+            import_table.append({'ordinal': ordinal, 'weak': weak, 'symbol': symbol, 'addend': addend})
+        # Import-table addends alone do not describe a binding: each supported
+        # 64-bit pointer carries its own signed eight-bit addend as well.
+        require(starts + 4 <= len(blob), 'fixups starts header')
+        segment_count, = struct.unpack_from('<I', blob, starts)
+        require(segment_count == len(segments) and starts + 4 + segment_count * 4 <= table,
+                'fixups starts segment roster')
+        base = min((segment['vmaddr'] for segment in segments if segment['filesize']), default=0)
+        visited_sites = set()
+        for segment_index, segment in enumerate(segments):
+            relative, = struct.unpack_from('<I', blob, starts + 4 + segment_index * 4)
+            if relative == 0:
+                continue
+            begin = starts + relative
+            require(starts + 4 + segment_count * 4 <= begin <= table - 22, 'fixups segment header')
+            total, page_size, pointer_format, segment_offset, maximum, pages = struct.unpack_from('<IHHQIH', blob, begin)
+            require(total >= 22 + pages * 2 and total % 2 == 0 and begin + total <= table
+                    and page_size in (4096, 16384) and pointer_format in (2, 6) and maximum == 0
+                    and segment_offset == segment['vmaddr'] - base
+                    and pages * page_size <= segment['vmsize'] + page_size - 1,
+                    'fixups segment layout/format')
+            for page in range(pages):
+                page_start, = struct.unpack_from('<H', blob, begin + 22 + page * 2)
+                if page_start == 65535:
+                    continue
+                chain_starts = [page_start]
+                if page_start & 0x8000:
+                    extra_index = page_start & 0x7fff
+                    require(extra_index >= pages, 'fixups multi-start index')
+                    chain_starts = []
+                    while True:
+                        require(22 + 2 * extra_index + 2 <= total, 'fixups multi-start extent')
+                        entry, = struct.unpack_from('<H', blob, begin + 22 + 2 * extra_index)
+                        chain_starts.append(entry & 0x7fff)
+                        extra_index += 1
+                        if entry & 0x8000:
+                            break
+                for within in chain_starts:
+                    while True:
+                        site = page * page_size + within
+                        require(within % 4 == 0 and within + 8 <= page_size
+                                and site + 8 <= segment['filesize'] and site + 8 <= segment['vmsize']
+                                and (segment_index, site) not in visited_sites,
+                                'fixups pointer site bounds/overlap')
+                        visited_sites.add((segment_index, site))
+                        bits, = unpack('<Q', segment['fileoff'] + site)
+                        if bits >> 63:
+                            require((bits >> 32) & 0x7ffff == 0, 'fixups pointer reserved bits')
+                            index = bits & 0xffffff
+                            require(index < len(import_table), 'fixups pointer import index')
+                            addend = (bits >> 24) & 255
+                            if addend >= 128:
+                                addend -= 256
+                            entry = import_table[index]
+                            combined = entry['addend'] + addend
+                            require(-(1 << 63) <= combined < 1 << 63, 'fixups combined addend overflow')
+                            imports.append({**entry, 'addend': combined})
+                        advance = (bits >> 51) & 0xfff
+                        if advance == 0:
+                            break
+                        within += advance * 4
     exports = {}
     nonempty_tries = [(offset, length) for offset, length in tries if length]
     require(len(nonempty_tries) <= 1, 'duplicate exports trie')
