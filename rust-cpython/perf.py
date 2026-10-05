@@ -450,7 +450,7 @@ def _prepare_csv_source_std(paths: dict[str, Path], env: dict[str, str]) -> dict
 
 
 # CPython installation follows helper aliases. Validate those copies first,
-# then restore one real image and seven relative names in the installed directory.
+# then restore one real image and eleven relative names in the installed directory.
 # The public extension paths remain distinct while dyld owns one image per namespace.
 def _install_source_aggregate(source: Path, paths: dict[str, Path],
                               source_metadata: dict[str, str]) -> dict[str, Any]:
@@ -466,14 +466,15 @@ def _install_source_aggregate(source: Path, paths: dict[str, Path],
         receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
     except (ValueError, RuntimeError) as error:
         raise LaneError(f"source aggregate artifact proof failed: {error}") from error
-    if (receipt["schema_version"] != 1 or receipt["status"] != "complete"
+    if (receipt["schema_version"] != 2 or receipt["status"] != "complete"
             or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
             or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
         raise LaneError("source aggregate receipt has an incompatible runtime policy")
     names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs',
-             '_datetime_rs', '_threading_rs', '_uuid_rs')
+             '_datetime_rs', '_threading_rs', '_uuid_rs',
+             '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
     if set(receipt["consumers"]) != set(names):
-        raise LaneError("source aggregate requires exactly seven consumer receipts")
+        raise LaneError("source aggregate requires exactly eleven consumer receipts")
     aggregate = receipt["aggregate"]
     basename = "libcpython_rust_source_aggregate356.dylib"
     release = build / "target" / lb.TARGET / "release" / basename
@@ -489,7 +490,7 @@ def _install_source_aggregate(source: Path, paths: dict[str, Path],
                 or path.stat().st_size != aggregate["size"] or _sha256_file(path) != aggregate["sha256"]):
             raise LaneError(f"source aggregate finalized bytes differ: {path}")
     layout = aggregate["layout"]
-    if layout["schema"] != 1 or layout["page_size"] != 16384:
+    if layout["schema"] != 2 or layout["page_size"] != 16384:
         raise LaneError("source aggregate layout policy changed")
     for name, flags, initial in (("__DATA_CONST", 16, (1, 3)), ("__DATA", 0, (3,))):
         segment = layout["segments"][name]
