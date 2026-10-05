@@ -220,12 +220,14 @@ def _flock(handle, operation: int) -> None:
 
 
 @contextlib.contextmanager
-def host_lease(kind: str, what: str) -> Iterator[None]:
+def host_lease(kind: str, what: str, *, timings: dict[str, float] | None = None) -> Iterator[None]:
     """Hold the repository-wide host lease.
 
     `build` and `test` share the host; `measure` is exclusive. Every caller
     passes through a turnstile first, and a measurement keeps it closed while
     it runs, so waiting measurements are not starved by new builds.
+    Optional timing records only the two lock-acquisition calls, excluding
+    holder publication and the protected operation.
     """
     if kind not in {"build", "test", "measure"}:
         raise ValueError(f"unknown lease kind {kind!r}")
@@ -234,8 +236,12 @@ def host_lease(kind: str, what: str) -> Iterator[None]:
     holder = directory / "holders" / f"{os.getpid()}.json"
     with (directory / "turnstile.lock").open("a+") as turnstile, \
             (directory / "host.lock").open("a+") as host:
+        if timings is not None:
+            wait_started = time.monotonic()
         _flock(turnstile, fcntl.LOCK_EX)
         _flock(host, fcntl.LOCK_EX if kind == "measure" else fcntl.LOCK_SH)
+        if timings is not None:
+            timings["lease_wait"] = time.monotonic() - wait_started
         if kind != "measure":
             fcntl.flock(turnstile, fcntl.LOCK_UN)
         holder.write_text(json.dumps({
@@ -503,7 +509,8 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
         raise LaneError("doctor found prerequisites missing; run `build.py doctor` for details")
     paths = _paths(name)
     started = time.monotonic()
-    with host_lease("build", f"build {_tag(name)}"):
+    phase_seconds: dict[str, float] = {}
+    with host_lease("build", f"build {_tag(name)}", timings=phase_seconds):
         # The report is the stage's identity. It never describes a stage
         # that is being rebuilt, so `bench` cannot pair new bytes with an
         # old report. A failed incremental build keeps its configured tree.
@@ -525,6 +532,7 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
                                           "error": str(error)})
             raise
         report["build_seconds"] = round(time.monotonic() - started, 1)
+        report["phase_seconds"] = phase_seconds
         _write_json(paths["report"], report)
     kind = "incremental" if incremental else "clean"
     print(f"OK    perf CPython {report['interpreter']['version'].split()[0]} ({kind}, "
@@ -971,7 +979,11 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
     started = time.monotonic()
     label = f"calibrate {baseline_ref}" if self_compare else f"{baseline_ref} vs {candidate_ref}"
     harness_identity = _harness_identity()
-    with host_lease("measure", f"bench {label}"), contextlib.ExitStack() as contexts:
+    # These intervals are disjoint. Workload subprocess durations include their
+    # internal preparation and sampling, which this controller cannot separate.
+    # Existing total seconds also cover host checks, receipt work and cleanup.
+    phase_seconds: dict[str, float] = {"workload_runs": 0.0, "module_sampling": 0.0}
+    with host_lease("measure", f"bench {label}", timings=phase_seconds), contextlib.ExitStack() as contexts:
         if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
             raise LaneError("measurement harness changed while waiting for the host lease")
         # Resolve and verify only under the exclusive lease: no build can
@@ -982,8 +994,11 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
             raise LaneError("baseline and candidate are the same stage; use `perf.py calibrate`")
         if gate:
             _gate_checks(baseline, candidate)
+        phase_started = time.monotonic()
         for side in {id(baseline): baseline, id(candidate): candidate}.values():
             _verify_stage(side)
+        phase_seconds["stage_verification_before"] = time.monotonic() - phase_started
+        phase_started = time.monotonic()
         prefix_context: dict[str, Any] = {"kind": "natural"}
         if matched_prefix:
             homes = contexts.enter_context(_runtime_prefix_aliases(baseline["stage"], candidate["stage"]))
@@ -1011,6 +1026,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         scratch = directory / "tmp"
         scratch.mkdir(parents=True)
         contexts.callback(shutil.rmtree, scratch, ignore_errors=True)
+        phase_seconds["controller_preparation"] = time.monotonic() - phase_started
         # Memory-only acceptance retains the same kernels and iteration
         # calibration, but host CPU idle and power state cannot delay it.
         if not memory_only:
@@ -1018,21 +1034,25 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         if samples and not samples[-1]["quiet"]:
             print(f"WARN  host not quiet before measuring ({samples[-1]['cpu_idle_percent']}% idle)",
                   flush=True)
+        phase_started = time.monotonic()
         for route in evaluated_modules:
             options = {"runtime_home": baseline.get("runtime_home")}
             if baseline.get("runtime_executable") is not None:
                 options["runtime_executable"] = baseline["runtime_executable"]
             iterations[route] = _module_iterations(baseline["python"], route, scratch, **options)
+        phase_seconds["module_calibration"] = time.monotonic() - phase_started
         for run in range(1, runs + 1):
             for workload in evaluated_workloads:
                 print(f"RUN   [{run}/{runs}] workload {workload}", flush=True)
                 record = None
                 if record_baselines and run == runs:
                     record = REPO / "benchmarks" / "baselines" / f"rust-cp316-perf-{workload}.json"
+                phase_started = time.monotonic()
                 summary = _run_bench(baseline, candidate, workload,
                                      output=directory / f"run-{run}" / workload, profile=profile,
                                      timing_only=timing_only, self_compare=self_compare,
                                      record_baseline=record, memory_only=memory_only)
+                phase_seconds["workload_runs"] += time.monotonic() - phase_started
                 observations[workload].append(perf_verdict.mismatch_observation("workload")
                                               if summary is None else perf_verdict.run_observation(
                                                   summary, memory_only=memory_only))
@@ -1044,9 +1064,12 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
             for route in evaluated_modules:
                 print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
                       flush=True)
-                observations[route].append(_measure_module(baseline, candidate, route,
-                                                            iterations=iterations[route], rounds=rounds,
-                                                            scratch=scratch, memory_only=memory_only))
+                phase_started = time.monotonic()
+                observation = _measure_module(baseline, candidate, route,
+                                              iterations=iterations[route], rounds=rounds,
+                                              scratch=scratch, memory_only=memory_only)
+                phase_seconds["module_sampling"] += time.monotonic() - phase_started
+                observations[route].append(observation)
                 if replicated_regression(route):
                     stopped_after = {"run": run, "entity": route}
                     break
@@ -1055,8 +1078,10 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
             if not memory_only:
                 samples.append(_host_sample(min_idle))
         try:
+            phase_started = time.monotonic()
             for side in {id(baseline): baseline, id(candidate): candidate}.values():
                 _verify_stage(side)
+            phase_seconds["stage_verification_after"] = time.monotonic() - phase_started
             if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
                 raise LaneError("measurement harness changed during sampling")
         finally:
@@ -1102,6 +1127,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         "decision": decision,
         "goals": goals,
         "seconds": round(time.monotonic() - started, 1),
+        "phase_seconds": phase_seconds,
         "directory": str(directory),
     }
     _write_json(directory / "verdict.json", record)

@@ -198,6 +198,84 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
             self.measure(harness_changed=True)
 
 
+class ReceiptTimingTests(unittest.TestCase):
+    def test_build_receipt_keeps_total_and_records_lock_wait(self):
+        clock = [0.0]
+        @perf.contextlib.contextmanager
+        def lease(kind, what, *, timings):
+            clock[0] += 7
+            timings["lease_wait"] = 7.0
+            yield
+        def build(*args, **kwargs):
+            clock[0] += 23
+            return {"interpreter": {"version": "3.16 fixture"}, "rust_extensions_sha256": {}}
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            report = Path(temp) / "report.json"
+            fixtures = {"host_lease": lease, "_build_locked": build,
+                        "_paths": lambda name: {"report": report, "stage": Path(temp)},
+                        "_check_name": lambda name: name}
+            for name, value in fixtures.items():
+                patches.enter_context(mock.patch.object(perf, name, value))
+            patches.enter_context(mock.patch.object(perf.lb, "IS_LINUX", False))
+            patches.enter_context(mock.patch.object(perf.lb, "doctor_report", return_value={"ok": True}))
+            patches.enter_context(mock.patch.object(perf.time, "monotonic", side_effect=lambda: clock[0]))
+            self.assertEqual(perf.build(name="fixture", empty_overlay=False), 0)
+            saved = json.loads(report.read_text())
+            self.assertEqual(saved["build_seconds"], 30.0)
+            self.assertEqual(saved["phase_seconds"], {"lease_wait": 7.0})
+
+    def test_phase_receipt_uses_operation_boundaries_and_preserves_sampling(self):
+        clock = [0.0]
+        calls = []
+        def advance(seconds, result=None):
+            clock[0] += seconds
+            return result
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            sides = {ref: {"ref": ref, "name": ref[1:], "stage": root / ref[1:],
+                           "python": Path("/python"), "report": {}}
+                     for ref in ("@control", "@incumbent")}
+            @perf.contextlib.contextmanager
+            def lease(kind, what, *, timings):
+                advance(7)
+                timings["lease_wait"] = 7.0
+                yield
+            def workload(*args, **kwargs):
+                calls.append("workload")
+                return advance(11, {"kind": "workload", "metrics": {}, "mismatch": False})
+            def module(*args, **kwargs):
+                calls.append("module")
+                return advance(13, {"kind": "module", "metrics": {}, "mismatch": False})
+            fixtures = {
+                "LANE": root, "host_lease": lease,
+                "_harness_identity": lambda: {"source_sha256": "fixture"},
+                "selection": lambda **kw: (["workload", "json"], ["workload"], ["json"]),
+                "resolve": sides.__getitem__,
+                "_verify_stage": lambda side: advance(2),
+                "_module_iterations": lambda *a, **kw: advance(3, 37),
+                "_run_bench": workload, "_measure_module": module,
+                "_host_sample": lambda *a, **kw: advance(17, {"quiet": True}),
+            }
+            for name, value in fixtures.items():
+                patches.enter_context(mock.patch.object(perf, name, value))
+            patches.enter_context(mock.patch.object(perf.time, "monotonic", side_effect=lambda: clock[0]))
+            patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
+            record = perf._measure(
+                baseline_ref="@incumbent", candidate_ref="@control", workloads=["workload"],
+                modules=["json"], gate=False, runs=2, profile="standard", timing_only=False,
+                min_idle=0, self_compare=False, record_baselines=False)
+            self.assertEqual(calls, ["workload", "module", "workload", "module"])
+            self.assertEqual(record["phase_seconds"], {
+                "lease_wait": 7.0, "stage_verification_before": 4.0,
+                "controller_preparation": 0.0, "module_calibration": 3.0,
+                "workload_runs": 22.0, "module_sampling": 26.0,
+                "stage_verification_after": 4.0,
+            })
+            self.assertEqual(record["seconds"], 117.0)
+            self.assertEqual(record["phase_seconds"], json.loads(
+                (Path(record["directory"]) / "verdict.json").read_text())["phase_seconds"])
+
+
 class WorkloadProfileTests(unittest.TestCase):
     def test_matched_executable_requires_matched_homes_before_resolving(self):
         with mock.patch.object(perf, "resolve") as resolve, self.assertRaisesRegex(
@@ -908,6 +986,15 @@ class LeaseTests(unittest.TestCase):
                 return False
             fcntl.flock(handle, fcntl.LOCK_UN)
             return True
+
+    def test_wait_timing_covers_only_lock_acquisition(self):
+        timings = {}
+        with mock.patch.object(perf.time, "monotonic", side_effect=[10.0, 16.5]):
+            with perf.host_lease("measure", "bench", timings=timings):
+                self.assertEqual(timings, {"lease_wait": 6.5})
+                self.assertFalse(self._try("host.lock", fcntl.LOCK_SH))
+                self.assertFalse(self._try("turnstile.lock", fcntl.LOCK_EX))
+        self.assertTrue(self._try("host.lock", fcntl.LOCK_EX))
 
     def test_builds_share_and_block_measurement(self):
         with perf.host_lease("build", "build a"):
