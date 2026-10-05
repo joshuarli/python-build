@@ -5441,9 +5441,18 @@ passes10 semantics cases and fails the frozen retention check as expected
 1,567 tests and24 skips in4.6s after the23s incremental build. The47.5s
 target screen returns ACCEPT-explore: typing load ratio0.959797 improves in
 both runs, while collections, inspect and four workloads remain neutral.
-The all71-module/all23-workload broad screen is running; this exploration
-result is not adoption. Recorded48 passing/23 unresolved modules and12
-workload RSS regressions remain unchanged.
+The all71-module/all23-workload broad screen subsequently rejects in395.1s,
+stopping on the second zlib_decode_1m run: peak RSS ratio1.013 worsens in
+both runs with pooled CI[1.010,1.015];83 entities remain incomplete. The
+typing gain remains target-only. This rejection does not establish source
+causality, and the unchanged-source334 diagnostic does not excuse it. No
+adoption, clean/full qualification or unchanged retry follows. Additional
+error fixtures fail on both accepted and candidate interpreters because of
+test-oracle faults involving the public Rust version2 writer and ctypes
+pending exceptions; corrected fixtures are under review, production untouched.
+The isolated338 CSV prototype compile is running with no result yet.
+Recorded48 passing/23 unresolved modules and12 workload RSS regressions
+remain unchanged.
 
 ### Sprint audit update (2026-10-05)
 
