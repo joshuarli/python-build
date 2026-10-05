@@ -5521,6 +5521,62 @@ The clean source-runtime path must use one parallel install invocation and
 derive its compilation proof from that same transcript; pristine control
 keeps its existing recipe. Neither memory goal counts nor adoption change.
 
+The one-pass correction `7cf2c51` subsequently passes the ordinary clean
+CSV+JSON build in238.4s, with58 verified extensions and all91 compiler/query
+units zero/reaped. Complete CSV/JSON suites pass364/7; installed and
+corrected moved-tree contracts pass. The moved fixture correction changes
+only `contract` to `CONTRACT`; its original newline escaping was correct.
+The first replicated matched target screen takes14.7s and is NEUTRAL:
+CSV load1.027x, JSON load1.076x, both working metrics1.000x. The all23
+workload request REJECTS after148.2s on zlib streaming RSS1.014367x
+[1.013875,1.014859], worse in both runs. Twelve workloads finish and eleven
+remain incomplete after early rejection. Verdicts are
+`20261005T163437Z-perf-rust-vs-perf-std342` and
+`20261005T163643Z-perf-rust-vs-perf-std342`; the latter SHA256 is
+`f238748f94e07b0480b51864582e7060a144eb841237f116ef03dd0dd1bc8b29`.
+This two-consumer candidate is closed without adoption or full qualification.
+
+The distinct third-consumer delta `018135c` adds pathlib to that same
+provider and uses an exact schema3 roster. Its clean build passes237.4s,
+58 extensions and94 zero/reaped compiler/query units; complete CSV, JSON
+and pathlib suites pass1,757/414 in3.2s. Its installed fixture then fails
+while attempting an invalid-UTF8 filename which Darwin rejects with EILSEQ;
+a minimal controller reproducer confirms errno92 and false filesystem-status
+oracles. The versioned fixture correction preserves the original failed
+packet, compares real filesystem-status answers and proves positive surrogate
+fallback with a controlled stat result and exactly three fallback calls;
+the same focused proof passes on the accepted runtime. Corrected installed
+and moved-tree contracts pass on the unchanged candidate: all three helpers
+map one provider, four threads join, three shared-GIL cycles pass, pathlib
+retains three own-GIL success cycles and CSV/JSON retain refusal/fallback.
+Children are reaped and temporary trees removed. No rebuild follows this
+fixture-only correction; replicated memory screening remains required.
+
+The first matched two-run third-consumer screen then REJECTS in5.0s on
+the known zlib-streaming guard: RSS1.019015x [1.011753,1.026277], worse
+in both runs. CSV, JSON and pathlib are incomplete because workload-first
+exploration stops before module sampling. Verdict
+`20261005T165103Z-perf-rust-vs-perf-std343` SHA256 is
+`fb80f6dfafc6cd688f7834b72e2cf82c90b4b6079a2fdbdcb884bb24fc15005c`.
+The three-consumer candidate is closed without adoption or full qualification.
+
+Five-consumer source work is ready in parallel: CSV, JSON, pathlib, typing
+and tokenize, with exact schema4, one producer/joint Cargo/Make owner/provider,
+unchanged helper bodies and original own-GIL policies. Donor `df95184`
+passes29 recipe and107 controller tests, including all120 roster orderings;
+it is unbuilt and unmeasured. Six of nine workload drivers import typing
+with JSON; historical co-import observations connect typing and tokenize
+to pathlib. These facts justify an expanded sharing experiment, not an RSS win.
+
+Calibration reuse for third-consumer builder-only changes is independently
+proven against successful calibration344: only `_install_csv_source_std`
+changes in the entire perf.py AST, every other node and18 other harness
+files match exactly, and the verified baseline stage is unchanged. The
+current full harness identity remains checked before/after every sample.
+Reuse does not claim that pathlib was included in the old calibration's
+module selection. Measurement, globals, options, tools or host changes still
+require appropriate fresh calibration; receipt-map changes alone do not.
+
 The14:50 UTC inspection found two running children, no native build or
 measurement,86.44% CPU idle,15GiB unused RAM, no swap traffic and327GiB
 free disk. This is a point-in-time observation, not average utilization.
