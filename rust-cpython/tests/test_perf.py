@@ -10,6 +10,7 @@ import fcntl
 import itertools
 from contextlib import ExitStack, nullcontext
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -913,7 +914,7 @@ class IncrementalRecipeTests(unittest.TestCase):
                 return {"sha256": "fixture"}
             fixtures = {
                 "_prepare_csv_source_std": prepare_std,
-                "_install_csv_source_std": lambda *a: {"fixture": "verified"},
+                "_install_source_aggregate": lambda *a: {"fixture": "verified"},
                 "_git_state": lambda: {"commit": "fixture"},
                 "_existing_source": lambda parent: source,
                 "_stage_overlay": lambda paths: ({"sha256": "fixture"}, ["Lib/pickle.py"]),
@@ -939,12 +940,6 @@ class IncrementalRecipeTests(unittest.TestCase):
                 perf, "verify_release_artifacts", return_value={str(i): "hash" for i in range(58)}))
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
             compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
-            clear_mirror = perf._clear_csv_source_std_mirror
-            def cleanup_mirror(prepared_paths):
-                self.assertTrue((prepared_paths["build"] / "Makefile").exists(),
-                                "mirror ownership must be checked before deleting the old build")
-                clear_mirror(prepared_paths)
-            cleanup = patches.enter_context(mock.patch.object(perf, "_clear_csv_source_std_mirror", side_effect=cleanup_mirror))
             single_install = incremental or (source_std and not empty_overlay)
             if bad_install or failed_install or missing_current_member:
                 with self.assertRaisesRegex(perf.LaneError, "profile dev|install failed|did not compile Rust members"):
@@ -961,7 +956,7 @@ class IncrementalRecipeTests(unittest.TestCase):
                 self.assertEqual(report["rust_builtin_artifacts"], {} if empty_overlay else {"fixture": "verified"})
                 self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
                 self.assertEqual(report["incremental"], incremental)
-                self.assertEqual(report["rust_source_std"], {"fixture": "verified"} if source_std and not empty_overlay else None)
+                self.assertEqual(report["rust_source_aggregate"], {"fixture": "verified"} if source_std and not empty_overlay else None)
                 self.assertEqual((source / "Lib/pickle.py").read_text(), "old" if empty_overlay else "new")
                 self.assertEqual(proof.validate_builtin_source.call_count, int(not empty_overlay))
                 self.assertEqual(proof.verify_builtin_artifacts.call_count, int(not empty_overlay))
@@ -970,7 +965,6 @@ class IncrementalRecipeTests(unittest.TestCase):
                                                paths["install_log"])
             if not incremental and not bad_install and not failed_install:
                 compiled.assert_called_once_with(paths["install_log"] if single_install else paths["build_log"], members)
-            self.assertEqual(cleanup.call_count, int(not incremental and source_std and not empty_overlay))
             self.assertEqual(len(preparations), int(source_std and not empty_overlay))
             make = [argv for argv in commands if argv[0] == "/make"]
             self.assertEqual(make, ([["/make", "-j4", "install", *perf.MAKE_VARS]] if single_install else
@@ -1007,7 +1001,7 @@ class IncrementalRecipeTests(unittest.TestCase):
         self.exercise(True, failed_install=True)
 
 
-class CsvSourceStdMakeTests(unittest.TestCase):
+class SourceAggregateMakeTests(unittest.TestCase):
     def test_seven_consumer_endpoint_orders_emit_one_build_owner(self):
         script = LANE / 'overlay/Modules/makesetup'
         roster = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs')
@@ -1026,9 +1020,10 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                                              cwd=root, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 generated = (root / 'Makefile').read_text()
-                self.assertEqual(generated.count('csv_source_std.py build'), 1)
-                self.assertEqual(generated.count('csv_source_std.py publish'), 7)
-                owner = next(line for line in generated.splitlines() if 'csv_source_std.py build' in line)
+                self.assertEqual(generated.count('csv_source_aggregate.py build'), 1)
+                self.assertEqual(generated.count('--canonical --output'), 1)
+                self.assertEqual(generated.count('csv_source_aggregate.py publish'), 8)
+                owner = next(line for line in generated.splitlines() if 'csv_source_aggregate.py build' in line)
                 self.assertNotIn('Modules/_json_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_csv_rs$(EXT_SUFFIX)', owner)
                 self.assertNotIn('Modules/_pathlib_rs$(EXT_SUFFIX)', owner)
@@ -1038,9 +1033,9 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                     self.assertNotIn('Modules/' + name + '$(EXT_SUFFIX)', owner)
                 for name in names:
                     self.assertIn('--consumer ' + name, generated)
-                    self.assertIn('Modules/' + name + '$(EXT_SUFFIX): source-std338/receipt.json;', generated)
+                    self.assertIn('Modules/' + name + '$(EXT_SUFFIX): Modules/libcpython_rust_source_aggregate356.dylib;', generated)
                 for line in generated.splitlines():
-                    if 'csv_source_std.py publish' in line:
+                    if 'csv_source_aggregate.py publish' in line:
                         self.assertIn('PYTHON_BUILD_DIR=$(abs_builddir)', line)
 
     def test_stock_pathlib_uses_ordinary_make_rule_without_source_runtime_dependencies(self):
@@ -1055,8 +1050,8 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                                          cwd=root, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             generated = (root / 'Makefile').read_text()
-            self.assertNotIn('csv_source_std.py', generated)
-            self.assertNotIn('source-std338/receipt.json', generated)
+            self.assertNotIn('csv_source_aggregate.py', generated)
+            self.assertNotIn('source-aggregate356/receipt.json', generated)
             self.assertIn('--package _pathlib_rs --profile $(CARGO_PROFILE)', generated)
             self.assertIn('lib_pathlib_rs$(CARGO_DYLIB_SUFFIX) Modules/_pathlib_rs$(EXT_SUFFIX)', generated)
 
@@ -1082,16 +1077,19 @@ class CsvSourceStdMakeTests(unittest.TestCase):
                                          cwd=root, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             generated = (root / "Makefile").read_text()
-            self.assertEqual(generated.count("csv_source_std.py build"), 1)
+            self.assertEqual(generated.count("csv_source_aggregate.py build"), 1)
             self.assertIn("ifeq ($(CARGO_TARGET):$(CARGO_PROFILE),aarch64-apple-darwin:release)", generated)
             self.assertIn("--source $(abs_srcdir) --build $(abs_builddir)", generated)
             self.assertIn("--target $(CARGO_TARGET) --profile $(CARGO_PROFILE) --jobs $(CARGO_BUILD_JOBS)", generated)
             for name in ("_base64", "_socket_rs", "_csv_rs", "_json_rs", "_pathlib_rs", "_typing_rs", "_tokenize_rs", "_datetime_rs", "_threading_rs", "_uuid_rs"):
                 self.assertIn("--package " + name + " --profile $(CARGO_PROFILE)", generated)
             self.assertIn("$(PYTHON_FOR_BUILD_DEPS) pybuilddir.txt", generated)
+            self.assertIn("Modules/cpython-rust-source-aggregate356/Cargo.toml", generated)
+            self.assertIn("Modules/cpython-rust-source-aggregate356/build.rs", generated)
+            self.assertEqual(generated.count("--canonical --output"), 1)
             for name in ("_posixsubprocess", "math", "select", "_struct", "_sha2", "zlib", "fcntl"):
                 self.assertIn("Modules/" + name + "$(EXT_SUFFIX)", generated)
-            self.assertEqual(sum(line.startswith('source-std338/receipt.json:') and '; ' in line for line in generated.splitlines()), 1)
+            self.assertEqual(sum(line.startswith('source-aggregate356/receipt.json:') and '; ' in line for line in generated.splitlines()), 1)
             for name in ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
                 self.assertIn('--consumer ' + name, generated)
                 self.assertIn('$(srcdir)/Modules/' + name + '/build.rs', generated)
@@ -1172,7 +1170,14 @@ class SourceAggregateInstallTests(unittest.TestCase):
                     'install_id': '@rpath/' + basename, 'layout': layout}, 'consumers': consumers}
             receipt_path = build / 'source-aggregate356/receipt.json'
             receipt_path.write_text('{"fixture": true}')
-            if defect == 'allocator':
+            if defect == 'owner':
+                paths['source_parent'] = lane / 'foreign-source'
+            elif defect == 'canonical-link':
+                canonical.unlink()
+                canonical.symlink_to(release)
+            elif defect == 'canonical-hardlink':
+                os.link(canonical, build / 'linked-copy')
+            elif defect == 'allocator':
                 receipt['allocator'] = 'custom'
             elif defect == 'schema':
                 receipt['schema_version'] = 8
@@ -1239,7 +1244,7 @@ class SourceAggregateInstallTests(unittest.TestCase):
         self.exercise(already_finalized=True)
 
     def test_rejects_invalid_receipt_artifacts_and_aliases_before_publication(self):
-        for defect in ('allocator', 'schema', 'roster', 'release', 'final', 'installed',
+        for defect in ('owner', 'canonical-link', 'canonical-hardlink', 'allocator', 'schema', 'roster', 'release', 'final', 'installed',
                        'build-alias', 'release-alias', 'stage-escape', 'stage-collision',
                        'layout', 'page-bound', 'initializers', 'signature', 'load'):
             with self.subTest(defect=defect):

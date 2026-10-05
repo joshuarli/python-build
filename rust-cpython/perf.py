@@ -427,40 +427,18 @@ def verify_release_artifacts(build: Path, stage: Path, members: set[str]) -> dic
     return installed
 
 
-def _csv_source_std_recipe(source: Path):
-    path = source / "Tools/build/csv_source_std.py"
-    overlay = LANE / "overlay/Tools/build/csv_source_std.py"
-    if path.is_symlink() or not path.is_file() or path.read_bytes() != overlay.read_bytes():
-        raise LaneError("CSV source-Std verifier is not the current owned overlay source")
-    spec = importlib.util.spec_from_file_location("csv_source_std", path)
+def _source_aggregate_recipe(source: Path):
+    path = source / "Tools/build/csv_source_aggregate.py"
+    overlay = LANE / "overlay/Tools/build/csv_source_aggregate.py"
+    if path.resolve() != path or not path.is_file() or path.read_bytes() != overlay.read_bytes():
+        raise LaneError("source aggregate verifier is not the current owned overlay source")
+    spec = importlib.util.spec_from_file_location("csv_source_aggregate", path)
     if spec is None or spec.loader is None:
-        raise LaneError("cannot load CSV source-Std artifact verifier")
+        raise LaneError("cannot load source aggregate artifact verifier")
     recipe = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = recipe
     spec.loader.exec_module(recipe)
     return recipe
-
-
-# The build mirror is outside the build directory because the helper's relative
-# loader path resolves there. A clean build may clear only its declared owner.
-def _clear_csv_source_std_mirror(paths: dict[str, Path]) -> None:
-    build = paths["build"]
-    work = build.parent
-    mirror = work / "rust-cpython"
-    if not mirror.exists() and not mirror.is_symlink():
-        return
-    if (build != work / "build" or work.parent != LANE / "work/perf"
-            or not work.name.startswith("perf-") or build.resolve() != build
-            or paths["source_parent"] != work / "source"):
-        raise LaneError("CSV source-Std mirror has no isolated candidate work owner")
-    if not mirror.is_dir() or mirror.resolve() != mirror:
-        raise LaneError("CSV source-Std mirror directory is not canonical")
-    marker = mirror / ".csv-source-std-owner.json"
-    if not marker.is_file() or marker.is_symlink() or marker.stat().st_nlink != 1:
-        raise LaneError("CSV source-Std mirror owner marker is missing or aliased")
-    if json.loads(marker.read_text()) != {"build": str(build)}:
-        raise LaneError("CSV source-Std mirror belongs to a different build")
-    shutil.rmtree(mirror)
 
 
 def _prepare_csv_source_std(paths: dict[str, Path], env: dict[str, str]) -> dict[str, str]:
@@ -471,86 +449,118 @@ def _prepare_csv_source_std(paths: dict[str, Path], env: dict[str, str]) -> dict
             "library_cargo_lock_sha256": metadata["library_cargo_lock_sha256"]}
 
 
-# The build imports its Modules helper before installation. Its relative rpath
-# resolves to a mirror in this candidate's work directory, while the identical
-# staged helper resolves to lib/rust-cpython. Only finalized signed bytes move.
-def _install_csv_source_std(source: Path, paths: dict[str, Path],
-                            source_metadata: dict[str, str]) -> dict[str, Any]:
+# CPython installation follows helper aliases. Validate those copies first,
+# then restore one real image and seven relative names in the installed directory.
+# The public extension paths remain distinct while dyld owns one image per namespace.
+def _install_source_aggregate(source: Path, paths: dict[str, Path],
+                              source_metadata: dict[str, str]) -> dict[str, Any]:
     build, stage = paths["build"], paths["stage"]
     work = build.parent
     if (build != work / "build" or work.parent != LANE / "work/perf"
             or not work.name.startswith("perf-") or work.resolve() != work
-            or paths["source_parent"] != work / "source"):
-        raise LaneError("CSV source-Std mirror has no isolated candidate work owner")
-    recipe = _csv_source_std_recipe(source)
+            or paths["source_parent"] != work / "source"
+            or stage != LANE / ("stage-" + work.name) or stage.resolve() != stage):
+        raise LaneError("source aggregate has no isolated candidate owner")
+    recipe = _source_aggregate_recipe(source)
     try:
         receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
     except (ValueError, RuntimeError) as error:
-        raise LaneError(f"CSV source-Std artifact proof failed: {error}") from error
-    if (receipt["schema_version"] != 8 or receipt["status"] != "complete"
+        raise LaneError(f"source aggregate artifact proof failed: {error}") from error
+    if (receipt["schema_version"] != 1 or receipt["status"] != "complete"
             or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
             or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
-        raise LaneError("CSV source-Std receipt has an incompatible runtime policy")
-    provider = receipt["provider"]
-    consumers = receipt["consumers"]
-    if set(consumers) != {"_csv_rs", "_json_rs", "_typing_rs", "_tokenize_rs", "_datetime_rs", "_threading_rs", "_uuid_rs"}:
-        raise LaneError("Source-Std requires exactly CSV, JSON, typing, tokenize, datetime, threading and UUID consumer receipts")
-    provider_path = Path(provider["path"])
-    basename = provider_path.name
-    mirror = work / "rust-cpython" / basename
-    install_id = "@rpath/" + basename
-    if (not basename.startswith("libstd-") or not basename.endswith(".dylib")
-            or provider_path != build / "source-std338/provider" / basename
-            or Path(provider["build_mirror_path"]) != mirror
-            or provider["build_mirror_sha256"] != provider["sha256"]
-            or provider["install_id"] != install_id):
-        raise LaneError("Source-Std provider paths or loader contract differ")
-    artifacts = [(provider_path, provider["sha256"], provider["size"]),
-                 (mirror, provider["sha256"], provider["size"])]
-    for name, record in consumers.items():
-        published = build / "target" / lb.TARGET / ("release/lib" + name + ".dylib")
-        if (Path(record["path"]) != published or record["provider_install_id"] != install_id
-                or record["rpath"] != "@loader_path/../../rust-cpython"):
-            raise LaneError("Source-Std consumer owner or loader contract differs: " + name)
-        installed = list(stage.glob("lib/python3.*/lib-dynload/" + name + ".*.so"))
-        helpers = list((build / "Modules").glob(name + ".*.so"))
-        if len(installed) != 1 or len(helpers) != 1:
-            raise LaneError("Source-Std requires one installed and built consumer: " + name)
-        artifacts.extend((path, record["sha256"], record["size"])
-                         for path in (published, helpers[0], installed[0]))
-    for path, digest, size in artifacts:
-        if (not path.is_file() or path.resolve() != path or path.stat().st_size != size
-                or _sha256_file(path) != digest):
-            raise LaneError(f"CSV source-Std finalized bytes differ: {path}")
-        if lb.macho.read_header(path).arch != "arm64":
-            raise LaneError(f"CSV source-Std artifact is not arm64: {path}")
+        raise LaneError("source aggregate receipt has an incompatible runtime policy")
+    names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs',
+             '_datetime_rs', '_threading_rs', '_uuid_rs')
+    if set(receipt["consumers"]) != set(names):
+        raise LaneError("source aggregate requires exactly seven consumer receipts")
+    aggregate = receipt["aggregate"]
+    basename = "libcpython_rust_source_aggregate356.dylib"
+    release = build / "target" / lb.TARGET / "release" / basename
+    final = build / "source-aggregate356/final" / basename
+    canonical = build / "Modules" / basename
+    if (Path(aggregate["path"]) != release or aggregate["install_id"] != "@rpath/" + basename
+            or Path(aggregate["final_artifact"]["path"]) != final
+            or aggregate["final_artifact"]["sha256"] != aggregate["sha256"]
+            or aggregate["final_artifact"]["size"] != aggregate["size"]):
+        raise LaneError("source aggregate canonical artifact owner changed")
+    for path in (release, final, canonical):
+        if (not path.is_file() or path.resolve() != path or path.stat().st_nlink != 1
+                or path.stat().st_size != aggregate["size"] or _sha256_file(path) != aggregate["sha256"]):
+            raise LaneError(f"source aggregate finalized bytes differ: {path}")
+    layout = aggregate["layout"]
+    if layout["schema"] != 1 or layout["page_size"] != 16384:
+        raise LaneError("source aggregate layout policy changed")
+    for name, flags, initial in (("__DATA_CONST", 16, (1, 3)), ("__DATA", 0, (3,))):
+        segment = layout["segments"][name]
+        if (segment["vmsize"] != 16384 or segment["maxprot"] != 3
+                or segment["initprot"] not in initial or segment["flags"] != flags):
+            raise LaneError("source aggregate data extent or protection changed: " + name)
+    surface = layout["link_surface"]
+    initializers = {name: flags for name, flags in surface["exports"].items() if name.startswith('_PyInit_')}
+    if (initializers != {'_PyInit_' + name: 0 for name in names}
+            or surface["loads"] != ["/usr/lib/libSystem.B.dylib"]):
+        raise LaneError("source aggregate initializer or dependency surface changed")
+    directories = list(stage.glob("lib/python3.*/lib-dynload"))
+    if len(directories) != 1 or directories[0].resolve() != directories[0]:
+        raise LaneError("source aggregate requires one canonical installed extension directory")
+    dynload = directories[0]
+    staged = dynload / basename
+    if staged.is_symlink() or (staged.exists() and (not staged.is_file()
+            or staged.stat().st_nlink != 1 or _sha256_file(staged) != aggregate["sha256"])):
+        raise LaneError("source aggregate installed canonical image collides with different bytes")
+    installed_paths = {}
+    for name, record in receipt["consumers"].items():
+        published = release.parent / ('lib' + name + '.dylib')
+        helpers = list((build / 'Modules').glob(name + '.*.so'))
+        installed = list(dynload.glob(name + '.*.so'))
+        if (Path(record['path']) != published or record['sha256'] != aggregate['sha256']
+                or record['size'] != aggregate['size'] or len(helpers) != 1 or len(installed) != 1
+                or helpers[0].name != installed[0].name):
+            raise LaneError("source aggregate consumer owner or bytes changed: " + name)
+        for alias, target in ((published, release), (helpers[0], canonical)):
+            if not alias.is_symlink() or os.readlink(alias) != basename or alias.resolve() != target:
+                raise LaneError("source aggregate build alias is not the canonical relative name: " + name)
+        path = installed[0]
+        if (not path.is_file() or _sha256_file(path) != aggregate['sha256']
+                or path.stat().st_size != aggregate['size']):
+            raise LaneError("source aggregate installed consumer bytes changed: " + name)
+        if path.is_symlink():
+            if os.readlink(path) != basename or path.resolve() != staged:
+                raise LaneError("source aggregate installed alias escapes its namespace: " + name)
+        elif path.resolve() != path or path.stat().st_nlink != 1:
+            raise LaneError("source aggregate installed copy is aliased: " + name)
+        temporary = path.with_name('.' + path.name + '.aggregate-pending')
+        if temporary.exists() or temporary.is_symlink():
+            raise LaneError("source aggregate alias publication has an existing temporary file")
+        installed_paths[name] = path
+    def verify_image(path):
+        if lb.macho.read_header(path).arch != 'arm64':
+            raise LaneError("source aggregate is not arm64")
         signed, detail = lb.macho.signature_status(path)
         if not signed:
-            raise LaneError(f"CSV source-Std artifact signature is invalid: {path}: {detail}")
-        dependencies = lb.macho.dependencies(path)
-        is_provider = path.name == basename
-        if any(not dep.startswith(("/usr/lib/", "/System/Library/Frameworks/"))
-               and not (not is_provider and dep == install_id) for dep in dependencies):
-            raise LaneError(f"CSV source-Std artifact has an unowned dependency: {path}")
-        if is_provider:
-            if lb.macho.dylib_id(path) != install_id or lb.macho.rpaths(path):
-                raise LaneError(f"CSV source-Std provider is not relocatable: {path}")
-        elif (dependencies.count(install_id) != 1
-              or lb.macho.rpaths(path) != ["@loader_path/../../rust-cpython"]):
-            raise LaneError(f"CSV source-Std helper loader contract differs: {path}")
-    staged = stage / "lib/rust-cpython" / basename
-    if staged.parent.resolve() != staged.parent:
-        raise LaneError("CSV source-Std installed provider directory is aliased")
-    if staged.is_symlink() or (staged.exists() and _sha256_file(staged) != provider["sha256"]):
-        raise LaneError("CSV source-Std installed provider collides with different bytes")
-    _copy_file(provider_path, staged)
-    if _sha256_file(staged) != provider["sha256"]:
-        raise LaneError("CSV source-Std provider changed during installation")
-    signed, detail = lb.macho.signature_status(staged)
-    if not signed:
-        raise LaneError(f"CSV source-Std staged provider signature is invalid: {detail}")
-    return {"receipt": receipt, "receipt_sha256": _sha256_file(build / "source-std338/receipt.json"),
-            "staged_provider": str(staged), "staged_provider_sha256": provider["sha256"]}
+            raise LaneError(f"source aggregate signature is invalid: {detail}")
+        if (lb.macho.dylib_id(path) != aggregate['install_id'] or lb.macho.rpaths(path)
+                or lb.macho.dependencies(path) != ['/usr/lib/libSystem.B.dylib']):
+            raise LaneError("source aggregate runtime loader contract changed")
+    verify_image(release)
+    _copy_file(release, staged)
+    if _sha256_file(staged) != aggregate['sha256'] or staged.stat().st_nlink != 1:
+        raise LaneError("source aggregate bytes changed during installation")
+    verify_image(staged)
+    for path in installed_paths.values():
+        temporary = path.with_name('.' + path.name + '.aggregate-pending')
+        try:
+            temporary.symlink_to(basename)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        if (os.readlink(path) != basename or path.resolve() != staged
+                or (path.stat().st_dev, path.stat().st_ino) != (staged.stat().st_dev, staged.stat().st_ino)):
+            raise LaneError("source aggregate installed alias does not share its canonical image")
+    return {"receipt": receipt, "receipt_sha256": _sha256_file(build / 'source-aggregate356/receipt.json'),
+            "staged_aggregate": str(staged), "staged_aggregate_sha256": aggregate['sha256'],
+            "installed_aliases": {name: str(path) for name, path in installed_paths.items()}}
 
 
 def _builtin_artifact_verifier():
@@ -728,8 +738,6 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
                  "--without-ensurepip"]
     std_metadata = None
     if not incremental:
-        if not empty_overlay and lb.TARGET == "aarch64-apple-darwin":
-            _clear_csv_source_std_mirror(paths)
         for path in (paths["build"], paths["stage"]):
             if path.exists():
                 shutil.rmtree(path)
@@ -781,7 +789,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         missing = required - set(_built_members(compile_log, members))
         if missing:
             raise LaneError("perf build did not compile Rust members: " + ", ".join(sorted(missing)))
-    rust_source_std = (_install_csv_source_std(source, paths, std_metadata)
+    rust_source_aggregate = (_install_source_aggregate(source, paths, std_metadata)
                        if std_metadata is not None else None)
     rust_extensions = verify_release_artifacts(paths["build"], paths["stage"], members)
     rust_builtins = {}
@@ -815,7 +823,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             "(configure defaults to dev without its PGO flag)",
         "rust_extensions_sha256": rust_extensions,
         "rust_builtin_artifacts": rust_builtins,
-        "rust_source_std": rust_source_std,
+        "rust_source_aggregate": rust_source_aggregate,
         "pgo": False,
         "lto": False,
         "interpreter": lb._module_report(paths["stage"], python, toolchain),
