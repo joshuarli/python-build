@@ -5485,6 +5485,35 @@ remain unchanged.
 
 ### Sprint audit update (2026-10-05)
 
+The14:50 UTC inspection found two running children, no native build or
+measurement,86.44% CPU idle,15GiB unused RAM, no swap traffic and327GiB
+free disk. This is a point-in-time observation, not average utilization.
+Independent recipe, review, fixture and input-verification work is now
+delegated directly; completed agents require an explicit follow-up task.
+
+A bounded receipt audit of334/336/340 records lease waits below0.02ms
+and benchmark controller preparation below3ms. Broad340 spends243.0s
+sampling modules before workload replication rejects zlib RSS; it ends
+after395.1s with83 incomplete entities. Completing exploratory workload
+replication before module sampling can avoid that work on a rejected
+candidate; no counterfactual runtime has been measured. Survivor and final
+qualification still require their complete selections. Calibration336
+takes237.4s, of which186.7s is workload execution and48.7s is module
+sampling. Identity checks cost1.4–3.0s and remain mandatory. The evidence
+packet is `results/import-owner295/friction-evidence.json` in the imports
+lane; the bounded audit does not establish historical experiment yield.
+
+The ordinary source-built standard-library route now has integrated input,
+installation and corrected recipe commits, with105 controller tests and12
+recipe tests passing. The recipe uses31 registry packages already vendored
+in the verified source archive, selects artifacts by exact compiler-unit
+identity and protects compiler cleanup when initial receipt publication
+fails. The independent archive audit verifies all1,231 listed file hashes.
+Primary `e611d39` implements workload-first exploratory rejection; final
+gates, calibration, goals and timing comparisons retain their original
+ordering. Native qualification remains pending. No extra registry download,
+new memory adoption or goal-count change follows from this work.
+
 The live recheck found one running child among31 available child slots before
 restarting independent verification, source-admission and route scouts. This
 is coordinator underuse. The host snapshot has10 logical CPUs,64GiB RAM,
