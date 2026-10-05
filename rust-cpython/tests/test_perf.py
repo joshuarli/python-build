@@ -1106,60 +1106,7 @@ class CsvSourceStdMakeTests(unittest.TestCase):
 
 
 
-class CsvSourceStdMirrorCleanupTests(unittest.TestCase):
-    def exercise(self, defect=None):
-        with tempfile.TemporaryDirectory() as temp:
-            lane = Path(temp).resolve()
-            paths = perf._paths("fixture", lane)
-            work = paths["build"].parent
-            mirror = work / "rust-cpython"
-            mirror.mkdir(parents=True)
-            marker = mirror / ".csv-source-std-owner.json"
-            marker.write_text(json.dumps({"build": str(paths["build"])}))
-            provider = mirror / "libstd-owned.dylib"
-            provider.write_bytes(b"previous finalized provider")
-            sibling = work / "unrelated"
-            sibling.write_bytes(b"retain")
-            if defect == "foreign":
-                marker.write_text(json.dumps({"build": str(lane / "foreign-build")}))
-            elif defect == "marker-link":
-                owner = work / "owner.json"
-                marker.rename(owner)
-                marker.symlink_to(owner)
-            elif defect == "mirror-link":
-                original = work / "original"
-                mirror.rename(original)
-                mirror.symlink_to(original, target_is_directory=True)
-                provider = original / provider.name
-            elif defect == "candidate":
-                lane = lane / "different-lane"
-            with mock.patch.object(perf, "LANE", lane):
-                if defect:
-                    with self.assertRaises(perf.LaneError):
-                        perf._clear_csv_source_std_mirror(paths)
-                    self.assertTrue(provider.is_file())
-                else:
-                    perf._clear_csv_source_std_mirror(paths)
-                    self.assertFalse(mirror.exists())
-            self.assertEqual(sibling.read_bytes(), b"retain")
-
-    def test_removes_only_previous_owned_candidate_mirror(self):
-        self.exercise()
-
-    def test_rejects_foreign_build_owner(self):
-        self.exercise("foreign")
-
-    def test_rejects_symlinked_owner_marker(self):
-        self.exercise("marker-link")
-
-    def test_rejects_symlinked_mirror(self):
-        self.exercise("mirror-link")
-
-    def test_rejects_mirror_outside_candidate_work_tree(self):
-        self.exercise("candidate")
-
-
-class CsvSourceStdInstallTests(unittest.TestCase):
+class SourceAggregateInstallTests(unittest.TestCase):
     def test_preparation_uses_named_input_owner_and_lock_metadata(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -1175,164 +1122,128 @@ class CsvSourceStdInstallTests(unittest.TestCase):
             self.assertEqual(result, {"sha256": "archive", **metadata})
             self.assertEqual(env, {"CPPFLAGS": "existing", "PYTHON_BUILD_RUST_STD_SOURCE": "verified"})
 
-    def exercise(self, defect=None):
-        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
-            lane = Path(temp).resolve()
-            paths = perf._paths("fixture", lane)
-            build, stage = paths["build"], paths["stage"]
-            source = paths["source_parent"] / "cpython"
+    def exercise(self, defect=None, *, already_finalized=False):
+        with tempfile.TemporaryDirectory() as raw, ExitStack() as patches:
+            lane = Path(raw).resolve()
+            paths = perf._paths('fixture', lane)
+            build, stage = paths['build'], paths['stage']
+            source = paths['source_parent'] / 'cpython'
             source.mkdir(parents=True)
-            provider = build / "source-std338/provider/libstd-source.dylib"
-            mirror = build.parent / "rust-cpython" / provider.name
-            csv = build / "target" / perf.lb.TARGET / "release/lib_csv_rs.dylib"
-            helper = build / "Modules/_csv_rs.cpython-316-darwin.so"
-            installed = stage / "lib/python3.16/lib-dynload/_csv_rs.cpython-316-darwin.so"
-            for path, data in [(provider, b"provider"), (mirror, b"provider"),
-                               (csv, b"csv"), (helper, b"csv"), (installed, b"csv")]:
+            names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs',
+                     '_datetime_rs', '_threading_rs', '_uuid_rs')
+            basename = 'libcpython_rust_source_aggregate356.dylib'
+            release = build / 'target' / perf.lb.TARGET / 'release' / basename
+            final = build / 'source-aggregate356/final' / basename
+            canonical = build / 'Modules' / basename
+            dynload = stage / 'lib/python3.16/lib-dynload'
+            staged = dynload / basename
+            def record(path):
+                return {'path': str(path), 'sha256': perf._sha256_file(path), 'size': path.stat().st_size}
+            for path in (release, final, canonical):
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(data)
-            json_paths = [build / 'target' / perf.lb.TARGET / 'release/lib_json_rs.dylib',
-                          build / 'Modules/_json_rs.cpython-316-darwin.so',
-                          stage / 'lib/python3.16/lib-dynload/_json_rs.cpython-316-darwin.so']
-            for path in json_paths:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b'json')
-            pathlib_paths = [build / 'target' / perf.lb.TARGET / 'release/lib_pathlib_rs.dylib',
-                             build / 'Modules/_pathlib_rs.cpython-316-darwin.so',
-                             stage / 'lib/python3.16/lib-dynload/_pathlib_rs.cpython-316-darwin.so']
-            for path in pathlib_paths:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b'pathlib')
-            receipt_path = build / "source-std338/receipt.json"
+                path.write_bytes(b'final signed aggregate')
+            dynload.mkdir(parents=True)
+            if already_finalized:
+                staged.write_bytes(release.read_bytes())
+            consumers = {}
+            for name in names:
+                published = release.parent / ('lib' + name + '.dylib')
+                published.symlink_to(basename)
+                helper = canonical.parent / (name + '.cpython-316-darwin.so')
+                helper.symlink_to(basename)
+                installed = dynload / helper.name
+                if already_finalized:
+                    installed.symlink_to(basename)
+                else:
+                    installed.write_bytes(release.read_bytes())
+                consumers[name] = {**record(published)}
+            unrelated = dynload / '_pathlib_rs.cpython-316-darwin.so'
+            unrelated.write_bytes(b'unchanged stock pathlib')
+            stock_release = release.parent / 'lib_pathlib_rs.dylib'
+            stock_release.write_bytes(unrelated.read_bytes())
+            layout = {'schema': 1, 'page_size': 16384, 'segments': {
+                '__DATA_CONST': {'vmsize': 16384, 'maxprot': 3, 'initprot': 3, 'flags': 16},
+                '__DATA': {'vmsize': 16384, 'maxprot': 3, 'initprot': 3, 'flags': 0}},
+                'link_surface': {'loads': ['/usr/lib/libSystem.B.dylib'],
+                    'exports': {'_PyInit_' + name: 0 for name in names}}}
+            receipt = {'schema_version': 1, 'status': 'complete', 'target': perf.lb.TARGET,
+                'profile': 'release', 'panic': 'abort', 'allocator': 'System',
+                'aggregate': {**record(release), 'final_artifact': record(final),
+                    'install_id': '@rpath/' + basename, 'layout': layout}, 'consumers': consumers}
+            receipt_path = build / 'source-aggregate356/receipt.json'
             receipt_path.write_text('{"fixture": true}')
-            install_id = "@rpath/" + provider.name
-            receipt = {"schema_version": 8, "status": "complete", "target": perf.lb.TARGET,
-                       "profile": "release", "panic": "abort", "allocator": "System",
-                       "provider": {"path": str(provider), "sha256": perf._sha256_file(provider),
-                                    "size": provider.stat().st_size, "install_id": install_id,
-                                    "build_mirror_path": str(mirror), "build_mirror_sha256": perf._sha256_file(mirror)},
-                       "consumers": {"_csv_rs": {"path": str(csv), "sha256": perf._sha256_file(csv), "size": csv.stat().st_size,
-                               "provider_install_id": install_id,
-                               "rpath": "@loader_path/../../rust-cpython"},
-                                     "_json_rs": {"path": str(json_paths[0]),
-                                                  "sha256": perf._sha256_file(json_paths[0]), "size": 4,
-                                                  "provider_install_id": install_id,
-                                                  "rpath": "@loader_path/../../rust-cpython"}}}
-            additional_paths = {}
-            for name in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
-                triple = [build / 'target' / perf.lb.TARGET / ('release/lib' + name + '.dylib'),
-                          build / 'Modules' / (name + '.cpython-316-darwin.so'),
-                          stage / 'lib/python3.16/lib-dynload' / (name + '.cpython-316-darwin.so')]
-                for path in triple:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_bytes(name.encode())
-                additional_paths[name] = triple
-                receipt['consumers'][name] = {'path': str(triple[0]), 'sha256': perf._sha256_file(triple[0]),
-                    'size': len(name), 'provider_install_id': install_id, 'rpath': '@loader_path/../../rust-cpython'}
-            if defect in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs'):
-                additional_paths[defect][2].write_bytes(b'changed')
-            elif defect in ('missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid'):
-                del receipt['consumers']['_' + defect.removeprefix('missing-') + '_rs']
-            elif defect == 'seven-schema':
-                receipt['schema_version'] = 7
-            elif defect == 'five-schema':
-                receipt['schema_version'] = 4
-            elif defect == 'six-schema':
-                receipt['schema_version'] = 5
-            elif defect == 'three-schema':
-                receipt['schema_version'] = 3
-            if defect == 'extra-pathlib':
-                receipt['consumers']['_pathlib_rs'] = receipt['consumers']['_json_rs']
-            elif defect == 'eight-schema':
-                receipt['schema_version'] = 6
-            elif defect == 'old-schema':
-                receipt['schema_version'] = 2
-            if defect == "mirror":
-                mirror.write_bytes(b"wrong")
-            elif defect == "owner":
-                receipt["provider"]["build_mirror_path"] = str(lane / "rust-cpython" / provider.name)
-            elif defect == "policy":
-                receipt["allocator"] = "custom"
-            elif defect == "csv":
-                installed.write_bytes(b"wrong")
-            if defect == 'json':
-                json_paths[2].write_bytes(b'changed')
-            elif defect == 'missing-json':
-                del receipt['consumers']['_json_rs']
-            elif defect == 'json-provider':
-                receipt['consumers']['_json_rs']['provider_install_id'] = '@rpath/another-std.dylib'
+            if defect == 'allocator':
+                receipt['allocator'] = 'custom'
+            elif defect == 'schema':
+                receipt['schema_version'] = 8
+            elif defect == 'roster':
+                del consumers['_uuid_rs']
+            elif defect == 'release':
+                release.write_bytes(b'changed')
+            elif defect == 'final':
+                final.write_bytes(b'changed')
+            elif defect == 'installed':
+                (dynload / '_csv_rs.cpython-316-darwin.so').write_bytes(b'changed')
+            elif defect in ('build-alias', 'release-alias'):
+                alias = (canonical.parent / '_csv_rs.cpython-316-darwin.so' if defect == 'build-alias'
+                         else release.parent / 'lib_csv_rs.dylib')
+                alias.unlink()
+                alias.symlink_to(str(canonical if defect == 'build-alias' else release))
+            elif defect == 'stage-escape':
+                alias = dynload / '_csv_rs.cpython-316-darwin.so'
+                alias.unlink()
+                alias.symlink_to(release)
+            elif defect == 'stage-collision':
+                staged.write_bytes(b'foreign')
+            elif defect == 'layout':
+                layout['segments']['__DATA_CONST']['flags'] = 0
+            elif defect == 'page-bound':
+                layout['segments']['__DATA']['vmsize'] = 32768
+            elif defect == 'initializers':
+                del layout['link_surface']['exports']['_PyInit__uuid_rs']
             recipe = mock.Mock()
             recipe.verify_build_receipt.return_value = receipt
-            patches.enter_context(mock.patch.object(perf, "LANE", lane))
-            patches.enter_context(mock.patch.object(perf, "_csv_source_std_recipe", return_value=recipe))
-            patches.enter_context(mock.patch.object(perf.lb.macho, "read_header", return_value=mock.Mock(arch="arm64")))
-            patches.enter_context(mock.patch.object(perf.lb.macho, "signature_status", return_value=(defect != "signature", "fixture")))
-            patches.enter_context(mock.patch.object(perf.lb.macho, "dylib_id", return_value=install_id))
-            patches.enter_context(mock.patch.object(perf.lb.macho, "rpaths", side_effect=lambda path: [] if path.name == provider.name else [receipt["consumers"]["_csv_rs"]["rpath"]]))
-            def dependencies(path):
-                if path.name == provider.name:
-                    return ["/usr/lib/libSystem.B.dylib"]
-                return [install_id, "/unowned/lib.dylib" if defect == "dependency" else "/usr/lib/libSystem.B.dylib"]
-            patches.enter_context(mock.patch.object(perf.lb.macho, "dependencies", side_effect=dependencies))
+            patches.enter_context(mock.patch.object(perf, 'LANE', lane))
+            patches.enter_context(mock.patch.object(perf, '_source_aggregate_recipe', return_value=recipe, create=True))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'read_header', return_value=mock.Mock(arch='arm64')))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'signature_status', return_value=(defect != 'signature', 'fixture')))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'dylib_id', return_value=receipt['aggregate']['install_id']))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'rpaths', return_value=[]))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'dependencies', return_value=[
+                '/unowned/lib.dylib' if defect == 'load' else '/usr/lib/libSystem.B.dylib']))
             if defect:
                 with self.assertRaises(perf.LaneError):
-                    perf._install_csv_source_std(source, paths, {"sha256": "archive"})
-                self.assertFalse((stage / "lib/rust-cpython" / provider.name).exists())
+                    perf._install_source_aggregate(source, paths, {'sha256': 'archive'})
+                if defect != 'stage-collision':
+                    self.assertFalse(staged.exists())
             else:
-                result = perf._install_csv_source_std(source, paths, {"sha256": "archive"})
-                staged = stage / "lib/rust-cpython" / provider.name
-                self.assertEqual(staged.read_bytes(), provider.read_bytes())
-                for path in pathlib_paths:
-                    self.assertEqual(path.read_bytes(), b'pathlib')
-                self.assertNotIn('_pathlib_rs', result['receipt']['consumers'])
-                self.assertEqual(result["staged_provider_sha256"], perf._sha256_file(staged))
-                self.assertEqual(result["receipt_sha256"], perf._sha256_file(receipt_path))
-                recipe.verify_build_receipt.assert_called_once_with(source, build, perf.lb.TARGET,
-                                                                    {"sha256": "archive"})
+                result = perf._install_source_aggregate(source, paths, {'sha256': 'archive'})
+                self.assertFalse(staged.is_symlink())
+                self.assertEqual(staged.read_bytes(), release.read_bytes())
+                for name in names:
+                    installed = dynload / (name + '.cpython-316-darwin.so')
+                    self.assertTrue(installed.is_symlink())
+                    self.assertEqual(os.readlink(installed), basename)
+                    self.assertEqual(installed.stat().st_ino, staged.stat().st_ino)
+                self.assertEqual(unrelated.read_bytes(), b'unchanged stock pathlib')
+                self.assertEqual(result['staged_aggregate_sha256'], record(staged)['sha256'])
+                self.assertEqual(result['receipt_sha256'], perf._sha256_file(receipt_path))
+                recipe.verify_build_receipt.assert_called_once_with(source, build, perf.lb.TARGET, {'sha256': 'archive'})
+                found = perf.verify_release_artifacts(build, stage, {*names, '_pathlib_rs'})
+                self.assertEqual({found[name] for name in names}, {record(release)['sha256']})
 
-    def test_new_consumers_require_installed_bytes_and_complete_roster(self):
-        for defect in ('_typing_rs', '_tokenize_rs', '_datetime_rs', '_threading_rs', '_uuid_rs', 'missing-typing', 'missing-tokenize', 'missing-datetime', 'missing-threading', 'missing-uuid', 'three-schema', 'five-schema', 'seven-schema', 'six-schema', 'eight-schema'):
+    def test_restores_one_real_stage_image_after_install_dereferences_aliases(self):
+        self.exercise()
+
+    def test_exact_existing_alias_graph_can_be_verified_again(self):
+        self.exercise(already_finalized=True)
+
+    def test_rejects_invalid_receipt_artifacts_and_aliases_before_publication(self):
+        for defect in ('allocator', 'schema', 'roster', 'release', 'final', 'installed',
+                       'build-alias', 'release-alias', 'stage-escape', 'stage-collision',
+                       'layout', 'page-bound', 'initializers', 'signature', 'load'):
             with self.subTest(defect=defect):
                 self.exercise(defect)
-
-    def test_stock_pathlib_is_outside_source_runtime_publication(self):
-        self.exercise()
-
-    def test_rejects_pathlib_in_source_runtime_receipt(self):
-        self.exercise('extra-pathlib')
-
-    def test_rejects_old_two_consumer_schema(self):
-        self.exercise('old-schema')
-
-    def test_rejects_changed_allocator_policy(self):
-        self.exercise("policy")
-
-    def test_rejects_unowned_dependency(self):
-        self.exercise("dependency")
-
-    def test_installs_verified_signed_provider_bytes(self):
-        self.exercise()
-
-    def test_rejects_changed_build_mirror(self):
-        self.exercise("mirror")
-
-    def test_rejects_mirror_outside_candidate_owner(self):
-        self.exercise("owner")
-
-    def test_rejects_changed_installed_csv(self):
-        self.exercise("csv")
-
-    def test_rejects_changed_json_before_installing_provider(self):
-        self.exercise('json')
-
-    def test_rejects_missing_json_consumer(self):
-        self.exercise('missing-json')
-
-    def test_rejects_separate_json_provider(self):
-        self.exercise('json-provider')
-
-    def test_rejects_invalid_signature_before_installing_provider(self):
-        self.exercise("signature")
 
 
 class BuiltinPreflightTests(unittest.TestCase):
