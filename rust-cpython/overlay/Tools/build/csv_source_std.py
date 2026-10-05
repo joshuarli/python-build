@@ -417,7 +417,10 @@ def macho_link_surface(data):
             require(terminal_end < len(blob), 'trie terminal extent')
             if terminal:
                 export_flags, value_cursor = leb(blob, cursor)
-                require(export_flags in (0, 4) and name and name not in exports, 'unsupported/duplicate export')
+                # Regular, thread-local and weak-regular exports share one
+                # address ULEB. Preserve the exact kind for replay comparison.
+                require(export_flags in (0, 1, 4) and name and name not in exports,
+                        'unsupported/duplicate export name=' + repr(name) + ' flags=' + str(export_flags))
                 _, value_cursor = leb(blob, value_cursor)
                 require(value_cursor == terminal_end, 'export terminal data')
                 exports[name] = export_flags

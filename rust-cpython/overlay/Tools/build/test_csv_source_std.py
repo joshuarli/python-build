@@ -778,6 +778,16 @@ class SourceStdExportClosure(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'import/dependency'):
             recipe.verify_restricted_provider(full, {**restricted, 'loads': ['/usr/lib/other.dylib']}, closure, 'same', 'same')
 
+    def test_imported_tls_export_preserves_its_kind_through_replay_comparison(self):
+        full = self.provider()
+        full['exports']['__RNvneeded'] = 1
+        closure = recipe.provider_export_closure(full, self.consumers())
+        restricted = {**full, 'exports': {s: full['exports'][s] for s in closure['symbols']}}
+        recipe.verify_restricted_provider(full, restricted, closure, 'same', 'same')
+        restricted['exports']['__RNvneeded'] = 0
+        with self.assertRaisesRegex(ValueError, 'export surface'):
+            recipe.verify_restricted_provider(full, restricted, closure, 'same', 'same')
+
     def test_export_trie_flags_and_cycles_are_bounded(self):
         import _struct
         def image(trie):
