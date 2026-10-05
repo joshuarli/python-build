@@ -69,6 +69,61 @@ def is_query(args):
     return args in (['-vV'], ['--version']) or any(x == '--print' or x.startswith('--print=') for x in args)
 
 
+def host_capability_probe(args, environment, cwd, source_files, target_directory):
+    if '--cfg=procmacro2_build_probe' not in args:
+        return False
+    package = Path(cwd).resolve()
+    if (environment.get('CARGO_PKG_NAME') != 'proc-macro2'
+            or environment.get('CARGO_PKG_VERSION') != '1.0.107'
+            or environment.get('CARGO_MANIFEST_DIR') != str(package)
+            or environment.get('HOST') != TARGET or environment.get('TARGET') != TARGET):
+        raise ValueError('host capability probe package/host identity changed')
+    sources = [x for x in args if x.endswith('.rs')]
+    if len(sources) != 1 or sources[0] not in {
+        'src/probe/proc_macro_span.rs', 'src/probe/proc_macro_span_location.rs',
+        'src/probe/proc_macro_span_file.rs'}:
+        raise ValueError('host capability probe source is not admitted')
+    for path in (package / 'build.rs', package / 'Cargo.toml', package / sources[0]):
+        if str(path) not in source_files or digest(path) != source_files[str(path)]:
+            raise ValueError('host capability probe source is not frozen')
+    out = Path(environment['OUT_DIR']).resolve()
+    parent = Path(target_directory).resolve() / 'release/build/proc-macro2'
+    if not out.is_relative_to(parent) or len(out.relative_to(parent).parts) != 2 or out.name != 'out':
+        raise ValueError('host capability probe output owner changed')
+    if environment.get('RUSTC') != str(Path(target_directory).resolve().parent / 'rustc-logger.py'):
+        raise ValueError('host capability probe compiler wrapper changed')
+    expected = ['--cfg=procmacro2_build_probe', '--edition=2021', '--crate-name=proc_macro2',
+                '--crate-type=lib', '--cap-lints=allow', '--emit=dep-info,metadata',
+                '--out-dir', str(out / 'probe'), sources[0], '--target', TARGET]
+    encoded = environment.get('CARGO_ENCODED_RUSTFLAGS', '')
+    if encoded:
+        expected.extend(encoded.split('\x1f'))
+    if list(args) != expected:
+        raise ValueError('host capability probe invocation changed')
+    return True
+
+
+def verify_compiler_units(units, source_files, target_directory):
+    for unit in units:
+        probe = host_capability_probe(unit['original_argv'][1:], unit['environment'],
+                                      unit['cwd'], source_files, target_directory)
+        if probe:
+            # Build-script probes intentionally turn ordinary compiler rejection
+            # into feature availability. They must use their unchanged host
+            # runtime; injecting target std changes that feature detection.
+            if unit['argv'] != unit['original_argv']:
+                raise ValueError('host capability probe arguments changed')
+            source = next(x for x in unit['original_argv'] if x.endswith('.rs'))
+            path = str((Path(unit['cwd']) / source).resolve())
+            if unit['source_files'] != {path: source_files[path]}:
+                raise ValueError('host capability probe source receipt changed')
+            if unit['exit_code'] not in (0, 1) or unit['reaped_exit'] != unit['exit_code']:
+                raise ValueError('host capability probe did not complete normally')
+        elif unit['exit_code'] != 0 or unit['reaped_exit'] != 0:
+            raise ValueError('failed compiler unit in completed receipt')
+        verify_files(unit['source_files'])
+
+
 def target_arguments(original, pairs, directories):
     args = list(original)
     if is_query(args) or '--target' not in args or args[args.index('--target') + 1] != TARGET:
@@ -403,10 +458,7 @@ def verify_build_receipt(source: Path, build: Path, target: str, source_metadata
     owner = mirror.parent / '.csv-source-std-owner.json'
     if json.loads(owner.read_text()) != {'build': str(build)}:
         raise ValueError('build provider mirror owner changed')
-    for unit in receipt['units']:
-        if unit['exit_code'] != 0 or unit['reaped_exit'] != 0:
-            raise ValueError('failed compiler unit in completed receipt')
-        verify_files(unit['source_files'])
+    verify_compiler_units(receipt['units'], identity['input_files'], root / 'csv-target')
     csv_unit = receipt['csv']['unit_receipt']
     if csv_unit not in receipt['units'] or csv_unit['query']:
         raise ValueError('CSV output lacks its successful compiler unit')
@@ -614,8 +666,7 @@ def build_recipe(source, build, target, profile, jobs):
         sys.stdout.flush()
         sys.stderr.flush()
         csv_units = [json.loads(p.read_text()) for p in (root / 'csv-units').glob('*.json')]
-        if any(unit['exit_code'] != 0 or unit['reaped_exit'] != 0 for unit in csv_units):
-            raise ValueError('failed CSV compiler unit')
+        verify_compiler_units(csv_units, files, root / 'csv-target')
         csv = root / 'csv-target' / target / 'release/lib_csv_rs.dylib'
         raw_provider, raw_csv = artifact(provider), artifact(csv)
         install_id, rpath, dependencies = normalized_outputs(provider, csv, env, commands, root)

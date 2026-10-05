@@ -14,6 +14,37 @@ spec.loader.exec_module(recipe)
 
 
 class SourceStdArguments(unittest.TestCase):
+    def test_verified_host_capability_probe_preserves_original_args_and_failure_receipt(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            package = root / 'proc-macro2-1.0.107'
+            source = package / 'src/probe/proc_macro_span.rs'
+            source.parent.mkdir(parents=True)
+            source.write_text('extern crate proc_macro;')
+            (package / 'build.rs').write_text('verified build script')
+            (package / 'Cargo.toml').write_text('[package]\nname="proc-macro2"\nversion="1.0.107"\n')
+            target = root / 'target'
+            output = target / 'release/build/proc-macro2/abc/out'
+            output.mkdir(parents=True)
+            args = ['--cfg=procmacro2_build_probe', '--edition=2021', '--crate-name=proc_macro2',
+                    '--crate-type=lib', '--cap-lints=allow', '--emit=dep-info,metadata',
+                    '--out-dir', str(output / 'probe'), 'src/probe/proc_macro_span.rs', '--target', recipe.TARGET]
+            environment = {'CARGO_PKG_NAME': 'proc-macro2', 'CARGO_PKG_VERSION': '1.0.107',
+                           'CARGO_MANIFEST_DIR': str(package), 'HOST': recipe.TARGET, 'TARGET': recipe.TARGET,
+                           'OUT_DIR': str(output), 'RUSTC': str(root / 'rustc-logger.py')}
+            files = {str(p): recipe.digest(p) for p in package.rglob('*') if p.is_file()}
+            self.assertTrue(recipe.host_capability_probe(args, environment, str(package), files, target))
+            row = {'original_argv': ['rustc', *args], 'argv': ['rustc', *args], 'environment': environment,
+                   'cwd': str(package), 'query': False, 'exit_code': 1, 'reaped_exit': 1,
+                   'source_files': {str(source): recipe.digest(source)}}
+            recipe.verify_compiler_units([row], files, target)
+            with self.assertRaisesRegex(ValueError, 'probe arguments changed'):
+                recipe.verify_compiler_units([{**row, 'argv': [*row['argv'], '--extern', 'std=other.rmeta']}], files, target)
+            with self.assertRaisesRegex(ValueError, 'failed compiler unit'):
+                recipe.verify_compiler_units([{**row, 'original_argv': ['rustc', '--crate-name', 'real']}], files, target)
+            with self.assertRaises(ValueError):
+                recipe.host_capability_probe(args, {**environment, 'OUT_DIR': str(root / 'foreign')}, str(package), files, target)
+
     def test_native_prerequisite_ignores_neighbor_rust_helper_and_rejects_missing_or_duplicate(self):
         with tempfile.TemporaryDirectory() as raw:
             modules = Path(raw).resolve()

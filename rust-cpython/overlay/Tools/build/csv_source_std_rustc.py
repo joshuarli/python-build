@@ -24,7 +24,7 @@ def publish_receipt(path, row):
 
 def main():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from csv_source_std import artifact, digest, is_query, jobserver_fds, target_arguments
+    from csv_source_std import artifact, digest, host_capability_probe, is_query, jobserver_fds, target_arguments
     config_path = Path(os.environ['CSV_SOURCE_STD_RUSTC_CONFIG'])
     config = json.loads(config_path.read_text())
     compiler = Path(config['rustc'])
@@ -46,11 +46,13 @@ def main():
                 raise ValueError('compiler source changed')
         elif not source.is_relative_to(target):
             raise ValueError('compiler source outside frozen inputs/generated target')
-    if config['runtime_pairs']:
+    probe = host_capability_probe(args, os.environ, os.getcwd(), config['source_files'], target)
+    if config['runtime_pairs'] and not probe:
         args = target_arguments(args, config['runtime_pairs'], config['runtime_directories'])
     row = {'argv': [str(compiler), *args], 'original_argv': [str(compiler), *original],
            'cwd': os.getcwd(), 'environment': dict(os.environ), 'query': query,
-           'source_files': {str(p): digest(p) for p in sources}, 'state': 'running'}
+           'source_files': {str(p): digest(p) for p in sources}, 'state': 'running',
+           'role': 'host_capability_probe' if probe else ('compiler_query' if query else 'compiler_unit')}
     if '--crate-name' in args and args[args.index('--crate-name') + 1] == 'cpython_sys' and not query:
         generated = Path(os.environ['OUT_DIR']).resolve() / 'c_api.rs'
         if not generated.is_relative_to(target):
