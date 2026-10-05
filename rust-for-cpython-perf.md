@@ -5270,6 +5270,41 @@ interpreted as payload savings. Packet SHA:
 The accepted source and stitched48passing/23unresolved module counts and
 12workload RSS regressions remain unchanged.
 
+### Packed pickle source and VM ownership evidence (2026-10-05)
+
+Packed-source candidate328 reconstructs the exact original 59,079-byte
+fallback from a 47,862-byte immutable string. Regression-first source
+`0cd52f6` exposes a new callback through a caller's `pickle.str` override;
+`c0d74ce` fixes it with an activation-local builtin lookup. ROOT reproduces
+the pre-fix error and fixed behavior on the accepted interpreter, then
+verifies all 18 installed candidate contracts and nine wire contracts.
+The incremental primary build takes 34 seconds with 58 verified helpers;
+complete pickle, picklebuffer and pickletools suites pass 1,283 tests with
+61 skips. The two-run target screen takes 8.6 seconds and reads NEUTRAL:
+load 0.986933x, interval [0.962,1.028], and working 1.000x, interval
+[1.000,1.062]. Verdict `20261005T110748Z` SHA256 is
+`d4396a3d94e08275aec04e28adc0d61ea9ed27eb22138be5fba6e778163b1c4b`.
+The logical 11,217-byte saving establishes no physical memory win. No
+rigorous retry, broader qualification or adoption follows.
+
+Diagnostic329 completes one pinned native observer build and four verified
+children, preserving kernel lifetimes, outputs, inputs and stage bytes.
+VM query brackets change neither sampled physical footprint nor resident
+size. Pickle's fixed physical footprint is 32,792 bytes above control;
+Zstandard's is 1,523,688 bytes below control, associated with 98 fewer
+best-effort resident pages in private `MALLOC_SMALL` objects. These counters
+identify a page category, not an allocation or function owner. Object-wide
+counters and observer-region growth prevent exclusive physical accounting;
+this diagnostic cannot qualify a runtime change. Summary SHA256 is
+`5a1083817ddea054d74e34d3ab69cd1324ef6cf6a6f50f588cc319e5af92aefe`.
+
+The installed-toolchain sharing probe327 fails on the existing unwind/abort
+panic-runtime mismatch; installed `rust-src` is absent. Source inquiry330
+finds no duplicate C/Rust Zstandard context: the remaining ended-frame and
+EOF contexts repeat previously closed lifetime candidates. Accepted runtime
+and the 48 passing/23 unresolved module picture, with 12 workload RSS
+regressions, remain unchanged. No CPU, timing or quiet-host gate applies.
+
 ### Sprint audit update (2026-10-05)
 
 The live recheck found one running child among31 available child slots before
