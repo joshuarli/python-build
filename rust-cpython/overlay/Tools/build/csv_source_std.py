@@ -141,6 +141,15 @@ def verify_files(files):
             raise ValueError('source std build input changed: ' + raw)
 
 
+def native_prerequisite(modules, name):
+    # The extension suffix follows a dot after the complete native module name;
+    # a Rust helper with the same prefix is a different compiler input.
+    candidates = list(modules.glob(name + '.*.so'))
+    if len(candidates) != 1:
+        raise ValueError('missing or ambiguous bootstrap native prerequisite: ' + name)
+    return candidates[0]
+
+
 def input_files(source, build, library, compiler):
     files = {}
     for directory in (source / 'Modules/_csv_rs', source / 'Modules/cpython-sys',
@@ -156,10 +165,8 @@ def input_files(source, build, library, compiler):
                  Path(__file__).with_name('csv_source_std_bootstrap.py'), Path(sys.executable)):
         files[str(path.resolve(strict=True))] = digest(path)
     for name in ('_posixsubprocess', 'math', 'select', '_struct', '_sha2', 'zlib', 'fcntl'):
-        candidates = list((build / 'Modules').glob(name + '*.so'))
-        if len(candidates) != 1:
-            raise ValueError('missing or ambiguous bootstrap native prerequisite: ' + name)
-        files[str(candidates[0].resolve(strict=True))] = digest(candidates[0])
+        prerequisite = native_prerequisite(build / 'Modules', name)
+        files[str(prerequisite.resolve(strict=True))] = digest(prerequisite)
     return files
 
 

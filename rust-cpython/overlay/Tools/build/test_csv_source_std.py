@@ -14,6 +14,21 @@ spec.loader.exec_module(recipe)
 
 
 class SourceStdArguments(unittest.TestCase):
+    def test_native_prerequisite_ignores_neighbor_rust_helper_and_rejects_missing_or_duplicate(self):
+        with tempfile.TemporaryDirectory() as raw:
+            modules = Path(raw).resolve()
+            native = modules / '_struct.cpython-316-darwin.so'
+            native.write_bytes(b'native prerequisite')
+            (modules / '_struct_rs.cpython-316-darwin.so').write_bytes(b'Rust helper')
+            self.assertEqual(recipe.native_prerequisite(modules, '_struct'), native)
+            (modules / '_struct.other.so').write_bytes(b'duplicate native')
+            with self.assertRaisesRegex(ValueError, 'ambiguous'):
+                recipe.native_prerequisite(modules, '_struct')
+            native.unlink()
+            (modules / '_struct.other.so').unlink()
+            with self.assertRaisesRegex(ValueError, 'missing'):
+                recipe.native_prerequisite(modules, '_struct')
+
     def test_bootstrap_imports_owned_modules_without_changing_controller_imports(self):
         from unittest.mock import patch
         spec = importlib.util.spec_from_file_location('csv_bootstrap', Path(__file__).with_name('csv_source_std_bootstrap.py'))
