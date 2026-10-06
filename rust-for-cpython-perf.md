@@ -462,9 +462,18 @@ independent semantic-cap fixture003e045 passes source review. Baseline42284
 passes semantics with2000 on each side. Candidate source9dfd171, with no390,
 difflib or I/O runtime changes, builds in66.4s with58 extensions; native64859
 passes512-cap, semantic, OOM and own-GIL checks, and focused21384 passes
-4449/411. The exclusive first RSS screen7754 is running against six targets
-and five guards; no verdict or benefit is established. Django-page389 source
-d2548b3 is under review.391 prepares an existing-intern cache-key proposal,
+4449/411. First screen7754 completes11 entities in80.9s and REJECTS pickle
+load1.718023x [1.677625,1.766253], compileall RSS1.018076x and gzip
+RSS1.014697x in both runs. Typing load0.935985x [0.920594,0.951216]
+improves in both runs. Logging working1.308862x is final neutral with
+worse/neutral runs; serialization RSS1.012474x and ZIP RSS1.019996x are
+neutral/worse and remain recorded. No mismatch or unstable metric occurs.
+Verdict SHA256 is
+`169bbc9693a93936ef95a4ca980a3ed6d3db7e0365bf65bbd4169df38c56580a`.
+The measured512-GIL tuple cap is closed: its verified common logical-owner
+reduction does not establish a physical improvement. No other cap repeat,
+full qualification or adoption follows. Django-page389's fixed source remains
+under review by56.391 prepares an existing-intern cache-key proposal,
 without changing caller arguments or performing new interning; it is source-only.
 Accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
