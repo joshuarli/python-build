@@ -39,7 +39,23 @@ builds, correctness and RSS measurements use the perf host lease. A change
 to the performance harness requires fresh memory-only calibration before
 comparison.
 
-### Current memory measurements (2026-10-05)
+### Current memory measurements (2026-10-06)
+
+Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
+unresolved module goals and12 workload RSS regressions. All363–396 measured
+variants are closed:29 exact-receipt variants,24 REJECT and5 NEUTRAL, with no
+memory adoption. Five are explicit compositions and368 combines arena scopes;
+these are not29 independent owners.393/394 are source-only duplicates, while
+387/389 and396's discriminator are diagnostics, not candidate memory trials.
+The final-verdict durations sum to50.2 minutes, not sprint elapsed time, and
+exclude builds, correctness, earlier exploratory screens and diagnostics.
+Current397 is prepared from accepted e702 in py-memory-base64-doc397:50 owns
+source,296 reviews and61 is the reserved executor. No build or memory result is
+claimed. Other scouts are exhausted except68's source-only C-UUID builtin
+viability check. No ROOT native handle is active. The10-core/64GiB host has
+zero swap and282GiB free disk; this is a snapshot, not utilization evidence.
+The short ignored coordinator-state frontier is authoritative for live work;
+the ledger below retains historical results without making them a ready queue.
 
 The unchanged accepted runtime remains `perf-rust` at `e702f238`. A fresh
 complete71-module memory-only assessment takes565.0s with matched home and
