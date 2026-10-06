@@ -512,10 +512,25 @@ rebases, with91 rebases/92 bindings on DATA. The864KiB category is not exclusive
 RSS or a reclaimable-page claim. No safe unclosed small metadata/fusion change
 is established. Conclusion SHA256 is
 `a57d1fbf4e80e4bc4376647b49d78d7e58057787af8bae0d0281ec30f07f5037`.
-Source inquiry392 checks removing regex std while retaining the already locked
-regex-automata no_std+alloc engine, scratch behavior and System allocation.
-No code, build, native result or memory gain is established. Accepted47/24
-and12 RSS regressions remain unchanged.
+Regex392 retains the locked regex-automata no_std+alloc engine, scratch behavior
+and System allocation while removing std. The first clean24420 fails on a
+missing ToOwned import; the minimal correctiondda56173 receives final source
+review PASS. Incremental91279 then passes in60s with58 verified extensions;
+five runtime and27 native cases plus11 suites (3500/35) pass. First8936
+completes12 entities in71.7s and REJECTS warnings load1.069243x
+[1.038462,1.089821], logging working1.660714x [1.091270,1.857143]
+and catalog-search-form RSS1.013529x in both runs. Regex load0.980601x
+[0.955688,1.000039] and working1.000x are neutral in both runs, with no
+replicated target gain. Other final-neutral rows retain contextlib load and
+difflib/serialization/ZIP RSS neutral/worse runs; compileall is neutral in both
+runs with pooled CI[1.005006,1.016031]. No mismatch or unstable metric occurs.
+Verdict SHA256 is
+`d23aab48526a905d355a844691686590afde37324656cc1f3d29b3e3747775c7`.
+The measured no_std scope is closed without unchanged retry, full qualification
+or adoption; no source-causal attribution is established. The next actual
+candidate-versus-accepted Mach-O private fixup extent comparison is read-only,
+not a new baseline or RSS draw. Accepted47/24 and12 RSS regressions remain
+unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
