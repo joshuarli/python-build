@@ -862,7 +862,7 @@ class IncrementalPlanTests(unittest.TestCase):
 
 class CPlacementIncrementalTests(unittest.TestCase):
     original = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@_json _json.c\n'
-    builtin = b'*@MODULE_BUILDTYPE@*\n*static*\n@MODULE__JSON_TRUE@_json _json.c\n*@MODULE_BUILDTYPE@*\n'
+    builtin = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@*static*\n@MODULE__JSON_TRUE@_json _json.c\n@MODULE__JSON_TRUE@*@MODULE_BUILDTYPE@*\n'
 
     def test_both_directions_invalidate_same_object_and_obsolete_extension(self):
         for before, after, static in ((self.original, self.builtin, True),
@@ -893,9 +893,44 @@ class CPlacementIncrementalTests(unittest.TestCase):
                         self.builtin.replace(b'_json.c', b'_json.c -DNEW'),
                         self.builtin.replace(b'_json.c', b'_json/Cargo.toml'),
                         self.builtin.replace(b'*@MODULE_BUILDTYPE@*\n', b'*shared*\n'),
-                        self.builtin + b'# changed\n'):
+                        self.builtin.replace(b'@MODULE__JSON_TRUE@*static*', b'@MODULE_ARRAY_TRUE@*static*'),
+                        self.builtin.replace(b'@MODULE__JSON_TRUE@*@MODULE_BUILDTYPE@*',
+                                             b'@MODULE_ARRAY_TRUE@*@MODULE_BUILDTYPE@*')):
             with self.subTest(invalid=invalid), self.assertRaises(perf.LaneError):
                 perf.c_placement_plan(self.original, invalid, self.original)
+
+    def test_real_guarded_wrappers_preserve_disabled_and_following_mode(self):
+        for guard, name, source, comment in (
+                ('@MODULE__STRUCT_TRUE@', '_struct', '_struct.c',
+                 '# Keep the original C module in the interpreter and restore the configured mode.\n'),
+                ('@MODULE_BINASCII_TRUE@', 'binascii', 'binascii.c',
+                 '# Keep the original C module in the interpreter while preserving its optional\n'
+                 '# configuration and restoring the configured mode for subsequent modules.\n')):
+            row = f'{guard}{name} {source}\n'
+            original = ('*@MODULE_BUILDTYPE@*\n' + row + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
+            wrapped = ('*@MODULE_BUILDTYPE@*\n' + comment + guard + '*static*\n' + row +
+                       guard + '*@MODULE_BUILDTYPE@*\n' + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
+            plan = perf.c_placement_plan(original, wrapped, original)
+            self.assertEqual(set(plan), {name})
+            self.assertEqual(perf.c_placement_plan(wrapped, original, original), plan)
+            for substitution in ('', '#'):
+                configured = wrapped.decode().replace(guard, substitution).replace('@MODULE_BUILDTYPE@', 'shared')
+                effective = [line for line in configured.splitlines() if line and not line.startswith('#')]
+                mode = 'static'
+                modes = {}
+                for line in effective:
+                    if line.startswith('*'):
+                        mode = line.strip('*')
+                    elif not line.startswith('@'):
+                        modes[line.split()[0]] = mode
+                self.assertEqual(modes.get(name), 'static' if not substitution else None)
+                self.assertEqual(mode, 'shared')
+
+    def test_object_shared_with_unmoved_row_is_rejected(self):
+        original = self.original + b'@MODULE_ALIAS_TRUE@alias _json.c\n'
+        wrapped = self.builtin + b'@MODULE_ALIAS_TRUE@alias _json.c\n'
+        with self.assertRaises(perf.LaneError):
+            perf.c_placement_plan(original, wrapped, original)
 
     def test_generated_registration_and_compile_rule_must_agree(self):
         for static in (True, False):
