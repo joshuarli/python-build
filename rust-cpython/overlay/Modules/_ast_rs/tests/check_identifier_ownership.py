@@ -35,10 +35,10 @@ class IdentifierContracts(unittest.TestCase):
         source = '\u212a = 3\n\u00e9 = 4\n'
         with patch.object(unicodedata, 'normalize', normalize):
             code = compile(source, '<normalized identifiers>', 'exec')
-            self.assertEqual(calls, [('NFKC', '\u212a'), ('NFKC', '\u00e9')])
+            self.assertEqual(calls, [('NFKC', '\u212a')] * 3 + [('NFKC', '\u00e9')] * 3)
             self.assertEqual(later, [])
             compile('\u00f1 = 5', '<next parser>', 'exec')
-            self.assertEqual(later, [('NFKC', '\u00f1')])
+            self.assertEqual(later, [('NFKC', '\u00f1')] * 3)
         namespace = {}
         exec(code, namespace)
         self.assertEqual(namespace['K'], 3)
@@ -58,12 +58,15 @@ class IdentifierContracts(unittest.TestCase):
             references.append(weakref.ref(result))
             return result
         with patch.object(unicodedata, 'normalize', normalize):
-            code = compile('\u00e9 = 10\n\u00f1 = 20\n', '<subclass identifiers>', 'exec')
+            with self.assertRaises(SystemError) as caught:
+                compile('\u00e9 = 10\n\u00f1 = 20\n', '<subclass identifiers>', 'exec')
+            self.assertIs(type(caught.exception), SystemError)
+            self.assertEqual(str(caught.exception), 'non-string found in code slot')
+        self.assertEqual(len(references), 6)
         gc.collect()
         namespace = {}
-        exec(code, namespace)
-        self.assertEqual(namespace['owned_0'], 10)
-        self.assertEqual(namespace['owned_1'], 20)
+        exec(compile('\u212a = 10', '<subclass error recovery>', 'exec'), namespace)
+        self.assertEqual(namespace['K'], 10)
 
     def test_already_interned_normalized_name_is_valid(self):
         name = sys.intern('normalized_identifier_custom_368')
@@ -108,7 +111,7 @@ class IdentifierContracts(unittest.TestCase):
         with patch.object(unicodedata, 'normalize', normalize):
             tree = ast.parse(source)
             code = compile(tree, '<outer compilation>', 'exec')
-        self.assertEqual(nested_results, [42])
+        self.assertEqual(nested_results, [42, 42, 42])
         self.assertEqual(tree.body[0].targets[0].id, 'K')
         namespace = {}
         exec(code, namespace)
