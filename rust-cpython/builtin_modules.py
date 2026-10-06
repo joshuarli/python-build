@@ -169,8 +169,9 @@ def selected_builtin_helpers(setup: str, declaration: dict | None) -> list[str]:
     return helpers
 
 
-def verify_builtin_artifacts(source: Path, build: Path, stage: Path, target: str,
-                             object_stores: tuple[Path, ...]) -> dict:
+def validate_builtin_source(source: Path, target: str,
+                            object_stores: tuple[Path, ...]) -> list[str]:
+    """Reject invalid builtin source contracts before starting external builds."""
     files = SourceArtifacts(object_stores)
     carrier = source / "Modules/cpython-rust-staticlib"
     declaration_path = files.owned(carrier / "builtin-helpers.json", source, missing=True)
@@ -179,14 +180,35 @@ def verify_builtin_artifacts(source: Path, build: Path, stage: Path, target: str
     setup = files.read(source / "Modules/Setup.local", source).decode()
     helpers = selected_builtin_helpers(setup, declaration)
     if not helpers:
-        return {}
+        return []
     if target != "aarch64-apple-darwin":
         raise BuiltinArtifactError("built-in artifact proof target is not implemented")
     manifest = tomllib.loads(files.read(carrier / "Cargo.toml", source).decode())
-    config = files.read(build / "Modules/config.c", build).decode()
     workspace = tomllib.loads(files.read(source / "Cargo.toml", source).decode())
     if workspace["profile"]["release"].get("panic") != "abort":
         raise BuiltinArtifactError("built-in carrier requires abort panic")
+    for helper in helpers:
+        if manifest["dependencies"].get(helper) != {"path": "../" + helper}:
+            raise BuiltinArtifactError(f"helper is outside the declared static carrier: {helper}")
+    makefile = files.read(source / "Makefile.pre.in", source).decode()
+    recipes = re.findall(r"^cpython-rust-staticlib:[^\n]*\n(\t[^\n]+)", makefile, re.M)
+    if (len(recipes) != 1
+            or "$(CARGO_HOME)/bin/cargo build " not in recipes[0]
+            or not re.search(r"--message-format=(json|json-render-diagnostics)\s", recipes[0])
+            or not recipes[0].endswith(" >$(abs_builddir)/rust-staticlib-artifacts.jsonl")
+            or any(token in recipes[0] for token in ("|", ";", "&&", "2>"))):
+        raise BuiltinArtifactError("built-in carrier requires direct Cargo JSON receipt capture")
+    return helpers
+
+
+def verify_builtin_artifacts(source: Path, build: Path, stage: Path, target: str,
+                             object_stores: tuple[Path, ...]) -> dict:
+    helpers = validate_builtin_source(source, target, object_stores)
+    if not helpers:
+        return {}
+    files = SourceArtifacts(object_stores)
+    carrier = source / "Modules/cpython-rust-staticlib"
+    config = files.read(build / "Modules/config.c", build).decode()
     receipt_path = build / "rust-staticlib-artifacts.jsonl"
     receipt = files.read(receipt_path, build)
     records = [json.loads(line) for line in receipt.decode().splitlines()]
@@ -206,9 +228,6 @@ def verify_builtin_artifacts(source: Path, build: Path, stage: Path, target: str
               "carrier_archive_sha256": digest(archive), "core_image_sha256": digest(core), "helpers": {}}
     for helper in helpers:
         initializer = "_PyInit_" + helper
-        dependency = manifest["dependencies"].get(helper)
-        if dependency != {"path": "../" + helper}:
-            raise BuiltinArtifactError(f"helper is outside the declared static carrier: {helper}")
         registration = r'\{\s*"' + re.escape(helper) + r'"\s*,\s*PyInit_' + re.escape(helper) + r'\s*\}'
         if len(re.findall(registration, config)) != 1:
             raise BuiltinArtifactError(f"missing or duplicate generated built-in registration: {helper}")
