@@ -500,10 +500,22 @@ accepted stdout SHA256 is
 After response and GC,54 eligible private image pages are stored without
 capacity/query/alias/unknown errors. Regex has constant-page offsets e0000,
 e4000,e8000 and data ec000; typing has constant4000 and data8000. These
-addresses are under read-only symbol/page attribution. The earlier positive
-private-image category estimate is not exclusive RSS or a removable owner;
-no production or memory acceptance follows. Accepted47/24 and12 RSS
-regressions remain unchanged.
+Mapping host toolbc0326 exits0 after correcting the initial unsigned ADD64
+mapper failure read-only; neither native child is rerun. All28 image hashes
+match before/after mapping and all54 private pages are classified. App-ready
+has24 CONST/26 DATA pages, rising to26 CONST/28 DATA after response and unchanged
+by GC; sqlite3/hashlib each add two pages. Every page contains pointer bindings,
+rebases or module/static state; no TEXT, LINKEDIT or scratch bulk arena is
+implicated. Typing's CONST page contains96 method bytes plus24 GOT bytes and its
+DATA page lazy slots/ModuleDef. Regex's three CONST pages contain863/741/693
+rebases, with91 rebases/92 bindings on DATA. The864KiB category is not exclusive
+RSS or a reclaimable-page claim. No safe unclosed small metadata/fusion change
+is established. Conclusion SHA256 is
+`a57d1fbf4e80e4bc4376647b49d78d7e58057787af8bae0d0281ec30f07f5037`.
+Source inquiry392 checks removing regex std while retaining the already locked
+regex-automata no_std+alloc engine, scratch behavior and System allocation.
+No code, build, native result or memory gain is established. Accepted47/24
+and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
