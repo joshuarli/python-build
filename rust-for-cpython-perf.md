@@ -97,6 +97,29 @@ Exploratory verdict SHA256 is
 This is a survivor, not acceptance evidence. Full correctness and the broad
 replicated memory gate precede any adoption or updated goal-completion claim.
 
+Full default-resource correctness subsequently passes50,158 run/2,748 skipped
+in142s, matching baseline counts. The684.9s broad71-module/all23-workload
+memory-only gate completes all94 entities and REJECTS eight replicated memory
+regressions despite49 improved metrics. Asyncio working is4.0625x (baseline
+64KiB/candidate1040KiB; the working floor applies), logging working1.093x,
+and shutil load1.116x. RSS regressions are compilation1.017x, process pool
+1.012x, serialization1.022x, cold ZIP import1.014x and zlib decoding1.014x.
+No mismatch or unstable entity occurs. Gate SHA256 is
+`18712c84c38f69a82b0cac844ecda311112fb47e619300711dd8543678beb4aa`.
+No adoption follows; preserve both its broad load improvements and failures.
+
+Saved asyncio counters show loop-start footprint roughly0.84–0.97MiB lower
+on the candidate, with similar/slightly higher loop-end footprint. Its first
+warmup peak/current gap is exactly1MiB, compatible with allocation commitment
+but not proof of a new retained payload or allocator identity. Logging peaks
+equal retained loop-end growth, and shutil's excess primarily occurs during
+first import/setup rather than repeated input creation. Absolute proximity
+does not waive the working-peak rejection. Larger compiler chunks are not
+admitted from size-only guidance: they would increase small-compile capacity,
+and region placement/free retention remain unproved. The next source inquiry
+separates raw AST blocks from arena-owned Python references, preserving the
+latter's original execution lifetime while testing early block release.
+
 ### Reuse accepted artifacts without a canonical rebuild (2026-10-04)
 
 After a primary candidate passes complete correctness and the broad memory
