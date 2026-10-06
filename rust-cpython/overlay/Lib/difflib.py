@@ -34,12 +34,29 @@ __all__ = ['get_close_matches', 'ndiff', 'restore', 'SequenceMatcher',
 # private binding on its first use so sequence matching need not load it.
 lazy from heapq import nlargest as _nlargest
 from collections import namedtuple as _namedtuple
-from types import GenericAlias
+from types import (GenericAlias, ModuleType as _ModuleType,
+                   BuiltinFunctionType as _BuiltinFunctionType)
+from _weakref import ref as _rust_module_ref
 lazy from _colorize import can_colorize, get_theme
 try:
     import _difflib_rs
 except ImportError:
     _difflib_rs = None
+
+# Native method ownership distinguishes the actual extension from an initial
+# custom module with the older matching-only interface. Read the exact module
+# dictionary without invoking its dynamic attribute getter. Keep neither a
+# bound method nor a strong module reference after this initialization.
+def _rust_snapshot_backend(module):
+    if type(module) is not _ModuleType:
+        return None
+    method = module.__dict__.get('find_longest_match_index')
+    if type(method) is _BuiltinFunctionType and method.__self__ is module:
+        return _rust_module_ref(module)
+    return None
+
+_RUST_SNAPSHOT_BACKEND = _rust_snapshot_backend(_difflib_rs)
+del _rust_snapshot_backend
 
 Match = _namedtuple('Match', 'a b size')
 
@@ -467,8 +484,15 @@ class SequenceMatcher:
         if (self.b is not sequence or self.bpopular != popular
                 or self.bjunk or self.b2j is not positions):
             return None
-        if type(self.b) is list and tuple(self.b) != values:
-            return None
+        if type(self.b) is list:
+            same = (_difflib_rs.snapshot_matches(self.b, values, tuple)
+                    if (_RUST_SNAPSHOT_BACKEND is not None
+                        and _difflib_rs is _RUST_SNAPSHOT_BACKEND()) else -1)
+            if same < 0:
+                if tuple(self.b) != values:
+                    return None
+            elif not same:
+                return None
 
         a_values = _rust_sequence_values(self.a)
         if a_values is None:
