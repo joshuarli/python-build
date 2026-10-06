@@ -95,13 +95,30 @@ Corrected33641/78977d exits0: accepted placement has exactly11 expected assertio
 failures/zero errors and candidate placement passes, totaling13 meaningful
 candidate units. Complete12 suites69264/98dcfd pass4454/81 in8.4s. Final stage
 SHA256 is `4e16db63bad208f2ff1ea3f881d536de8c68ee461ec99451c6df8ba751a65fbc`;
-all stage/source/child-cleanup guards pass. First memory71574 is actually live:
-six modules and five workload guards, two standard memory-only runs with matched
-aliases. No outcome, adoption or goal change is established yet. Harness402
-supports only a narrow original-C template incremental path with stale-object
-cleanup; it is source/controller-test work, with no runtime build/measurement
-and final clean qualification still required. Read-only401 artifact budgeting
-is pending. Its11 original-C
+all stage/source/child-cleanup guards pass. First71574 completes11 entities in
+67.9s with ACCEPT-explore, statistics load0.849587x improved in both runs and
+five RSS rows neutral; SHA256 is
+`06edbf78d24a7799d1c4b72251a8589274af97bbe54ab706a95fe1bcc955d621`.
+Broader64523 completes all23 workloads plus three modules in207.9s with
+ACCEPT-explore, statistics load0.862017x improved in both runs and every RSS
+row final neutral; mostly-equal difflib remains worse/neutral. SHA256 is
+`7663ed91acad0f3761b2bf8ed649f7d06b0b7e3cdc421cae17b701d486ee45e6`.
+Primary integrate-c-core401 at9c69648f restores rejected386 runtime difflib,
+I/O and typeobject paths to accepted e702, retains the five-line SQLite repair
+and copies exact401 source/corrected fixtures. The old branch retains all work.
+Primary clean72495 passes in215.1s with58 extensions; native86745/929087
+passes16 cases (7+5+placement+SQL3). Full85711/de95ea passes50158/2748,
+496/505 files in143s, matching baseline. Stage SHA256 is
+`e4765faf4db332c9160c5713c58374921ed6550b093697f38e2e4a7ba1f1c2d5`.
+Final primary98933 all71/all23 memory-only gate is actually live with matched
+prefix/executable and unchanged-harness calibration101316 reused. No adoption
+or goal-counter change is established. Harness402 sourcea1f4ca passes review296
+and101 controller tests, including late-report/abrupt-loss configuredFalse
+repairs; it remains separate.403 atsourcee089b0b copies that harness over accepted
+e702 plus pristine Setup in an isolated validation worktree, with forward/reverse
+C-struct mode proof preparing under71; native builds wait behind98933. Final clean
+qualification is still required. Read-only expanded roster budgeting continues.
+Its11 original-C
 libSystem builtin batch (_struct,_heapq,
 _math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) has
 surfaced placement metadata changes. The saved389 category352KiB/slack
