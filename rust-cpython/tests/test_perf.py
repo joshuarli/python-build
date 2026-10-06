@@ -972,7 +972,8 @@ class CPlacementIncrementalTests(unittest.TestCase):
 
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
-                 empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False):
+                 empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False,
+                 late_placement_failure=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             if not source_std:
@@ -1062,6 +1063,56 @@ class IncrementalRecipeTests(unittest.TestCase):
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
             compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
             single_install = incremental or (source_std and aggregate and not empty_overlay)
+            if late_placement_failure:
+                original = CPlacementIncrementalTests.original
+                template = 'Modules/Setup.stdlib.in'
+                (source / 'Modules').mkdir(exist_ok=True)
+                (source / template).write_bytes(original)
+                (paths['overlay_staging'] / 'Modules').mkdir()
+                (paths['overlay_staging'] / template).write_bytes(CPlacementIncrementalTests.builtin)
+                paths['overlay_manifest'].write_text(json.dumps([template]))
+                (paths['build'] / 'config.status').write_text('S["MODULE_BUILDTYPE"]="shared"')
+                paths['report'] = root / 'report.json'
+                paths['report'].write_text(json.dumps({
+                    'configured': True, 'pristine': False, 'source_commit': 'source',
+                    'source_archive_sha256': 'source hash', 'target': perf.lb.TARGET,
+                    'cargo_lock_sha256': perf._sha256_file(source / 'Cargo.lock')}))
+                patches.enter_context(mock.patch.object(perf, '_stage_overlay',
+                    return_value=({'sha256': 'fixture'}, [template])))
+                patches.enter_context(mock.patch.object(perf, '_original_setup_template', return_value=original))
+                patches.enter_context(mock.patch.object(perf, '_perf_flags', return_value={
+                    'CPPFLAGS': '', 'CFLAGS': 'fixture flags', 'LDFLAGS': ''}))
+                def value(path, name):
+                    return {'CC': str(toolchain.llvm_prefix / 'bin/clang'),
+                            'CONFIGURE_CFLAGS': 'fixture flags', 'CONFIGURE_CPPFLAGS': '',
+                            'CONFIGURE_LDFLAGS': '', 'CARGO_PROFILE': 'dev'}[name]
+                patches.enter_context(mock.patch.object(perf.lb, '_make_value', side_effect=value))
+                def placement_command(argv, **kwargs):
+                    command(argv, **kwargs)
+                    if 'Makefile' in argv:
+                        (paths['build'] / 'Modules').mkdir(exist_ok=True)
+                        (paths['build'] / 'Modules/config.c').write_text('generated')
+                    if 'install' in argv:
+                        with kwargs['log'].open('a') as stream:
+                            stream.write('clang -DPy_BUILD_CORE_BUILTIN -c source -o Modules/_json.o\n')
+                patches.enter_context(mock.patch.object(perf.lb, '_require_command', side_effect=placement_command))
+                patches.enter_context(mock.patch.object(perf, '_verify_c_placement_rules'))
+                patches.enter_context(mock.patch.object(perf.lb, '_module_report',
+                                                       side_effect=RuntimeError('late metadata failure')))
+                patches.enter_context(mock.patch.object(perf.lb, 'doctor_report', return_value={'ok': True}))
+                patches.enter_context(mock.patch.object(perf, '_paths', return_value=paths))
+                patches.enter_context(mock.patch.object(perf, 'host_lease', return_value=nullcontext()))
+                with self.assertRaisesRegex(RuntimeError, 'late metadata failure'):
+                    perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                failure = json.loads(paths['report'].read_text())
+                self.assertEqual(failure['status'], 'failed')
+                self.assertEqual(failure['error'], 'late metadata failure')
+                self.assertFalse(failure['configured'])
+                count = len(commands)
+                with self.assertRaisesRegex(perf.LaneError, 'no configured candidate'):
+                    perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                self.assertEqual(len(commands), count)
+                return
             if missing_aggregate:
                 with self.assertRaisesRegex(perf.LaneError, "Cargo declared aggregate dependency is missing"):
                     perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
@@ -1101,6 +1152,9 @@ class IncrementalRecipeTests(unittest.TestCase):
                                     ["/make", "install", *perf.MAKE_VARS]]))
             if single_install:
                 self.assertFalse(paths["build_log"].exists())
+
+    def test_late_placement_report_failure_keeps_failed_state_and_refuses_retry(self):
+        self.exercise(True, aggregate=False, late_placement_failure=True)
 
     def test_incremental_builds_and_installs_once_then_verifies_artifacts(self):
         self.exercise(True)
