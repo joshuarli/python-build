@@ -381,9 +381,15 @@ unstable metric occurs. Verdict SHA256 is
 No unchanged retry, full qualification or adoption follows.
 Candidate384 investigates GIL type-cache content hashing/exact Unicode equality
 instead of pointer keys, retaining caller name objects without global interning.
-It is source-only, not implemented or qualified. The intern-dictionary observer
-is released after382's screen to compare logical capacities; those observations
-cannot replace RSS qualification.
+Source87d515c follows five passing accepted-baseline behavior fixtures and
+independent review of version invalidation, negative lookups, ownership and the
+unchanged free-threaded path. Its clean build is running; no candidate memory
+qualification is established. The exact intern-dictionary observer completes
+one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
+before warnings import to207600 bytes/16384 slots after the first call. Live,
+mortal and immortal counts match; one extra candidate hole adds no capacity.
+The extra-capacity hypothesis is unsupported. These logical sizes do not
+replace physical-footprint or RSS qualification.
 Accepted e702 and47 passing/24 unresolved modules plus12 RSS regressions
 remain unchanged.
 
