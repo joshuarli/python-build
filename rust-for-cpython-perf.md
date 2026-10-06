@@ -84,8 +84,14 @@ with neutral/better runs. Verdict SHA256 is
 `4c5b5d7b7d79648e28e353ea5142e36a0dfd1560fd0117588a913518e0db2d8d`.
 Preserve400's first ACCEPT-explore;399/400 are closed without full qualification,
 adoption or unchanged retry. No ROOT native/RSS handle remains live.
-401 sourceef9ebe47/fixtures8042bae is clean, with61 preparing baseline/build
-and296 reviewing. Its11 original-C libSystem builtin batch (_struct,_heapq,
+401 sourceef9ebe47/fixtures8042bae is clean and review296 passes. Seven new
+baseline cases pass (36889/313262) with placement failing as expected; five
+original399 struct cases are reused. Setup93479/c9cb9d and doctor pass. Executor61's
+sole eight-job clean build69310 (perf-c401) is actually live, confirmed by its
+building report. Native13, nearest suites and memory screening remain pending;
+this is a verified build wait, not an external blocker. All ROOT measurements
+are terminal, and no adoption or goal change is established. Its11 original-C
+libSystem builtin batch (_struct,_heapq,
 _math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) has
 surfaced placement metadata changes. The saved389 category352KiB/slack
 hypothesis is not an RSS prediction or acceptance claim.294's original Django cProfile93358 passes
