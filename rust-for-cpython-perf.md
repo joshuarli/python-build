@@ -295,8 +295,42 @@ load1.026x and working1.031x are neutral; zstd, warnings and the other three
 RSS rows are final neutral, with adverse individual runs preserved. Verdict
 SHA256 is `84a1f7564edded70e1140f5c539bbfdd9e564dd2e71b43a3c832e24afe329d46`.
 No unchanged retry, full qualification or adoption follows.
-Candidate378 separately investigates native TreeBuilder lazy empty attributes;
-source and fixtures are being prepared, with no predicted memory gain.
+TreeBuilder378 at1002c5d passes its214s clean build with58 extensions. Seven
+semantic and three provider cases pass, including1001 NULL and500 non-NULL
+attribute counts; final fixture9d0b651d and eight complete suites pass
+(3624 run/363 skipped,14.9s). Its38.9s first screen REJECTS ElementTree
+load1.046x in both runs; working1.054x is neutral. Zstd, warnings and all four
+RSS rows are final neutral. Verdict SHA256 is
+`02f0af363dc193e63a5bd08d420b7d21de772533053c74ab019633473a9daa8d`.
+No unchanged retry, full qualification or adoption follows.
+
+Typing379 uses a local owned interned name for each lookup, without module
+state. This targets the same type-cache name owner as the closed cached-name
+trials0306/core33 through a distinct stateless implementation. Original source
+367b5292 is transported as3bbeaaf2 into the reused configured regex stage.
+Accepted semantics pass five cases and canonical identity fails as expected;
+one legacy C case passes. Candidate six modern plus one legacy case pass.
+The35s incremental build verifies58 extensions; six complete suites pass1171
+run/1 skipped. The44.8s first screen improves typing load0.858x in both runs,
+with working1.000x neutral, but REJECTS warnings load1.049x, compileall
+RSS1.018x and reordered difflib RSS1.014x in both runs. Inspect, logging and
+the other two RSS rows are final neutral. Verdict SHA256 is
+`a610d92932e40bc42d4a9ee1ef18a72163c11013a19b99c26952caa468a85079`.
+Preserve the target improvement; no unchanged retry, full qualification or
+adoption follows.
+
+Public type-cache clearing releases1809 excess64-byte typing names (115776B)
+without releasing physical footprint. The same clear falsifies type-cache
+ownership of ElementTree's net256 native blocks/16KiB; a bounded address/size
+observer subsequently compiles and passes its known-allocation fixture and
+one guarded parser pair. Its live addresses/sizes stay unchanged through99
+calls; the earlier increase is not reproduced, so no owner or leak conclusion
+follows. The observer's warmup/layout differs from the earlier zone-counter
+probe. Candidate381 prepares global C attribute-name interning for cacheable
+names on the GIL path, preserving legacy getter priority and the original
+free-threaded path. Modern hooks would receive canonical name objects; UTF-8,
+error, reentry, long-name and high-cardinality behavior require unchanged
+boundary tests. Source and fixtures are being prepared, with no memory claim.
 Accepted e702 and47 passing/24 unresolved modules plus12 RSS regressions
 remain unchanged.
 
