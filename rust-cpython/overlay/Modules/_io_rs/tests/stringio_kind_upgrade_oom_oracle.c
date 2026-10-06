@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -18,7 +19,8 @@ static void *fault_malloc(void *ctx, size_t n) {
 }
 static void *fault_calloc(void *ctx, size_t n, size_t size) {
     (void)ctx;
-    if (size && n >= INPUT_CHARS / size) other_large++;
+    if (size && n > SIZE_MAX / size) other_large++;
+    else if (n * size >= INPUT_CHARS) other_large++;
     return original.calloc(original.ctx, n, size);
 }
 static void *fault_realloc(void *ctx, void *p, size_t n) {
