@@ -220,12 +220,14 @@ def _flock(handle, operation: int) -> None:
 
 
 @contextlib.contextmanager
-def host_lease(kind: str, what: str) -> Iterator[None]:
+def host_lease(kind: str, what: str, *, timings: dict[str, float] | None = None) -> Iterator[None]:
     """Hold the repository-wide host lease.
 
     `build` and `test` share the host; `measure` is exclusive. Every caller
     passes through a turnstile first, and a measurement keeps it closed while
     it runs, so waiting measurements are not starved by new builds.
+    Optional timing records only the two lock-acquisition calls, excluding
+    holder publication and the protected operation.
     """
     if kind not in {"build", "test", "measure"}:
         raise ValueError(f"unknown lease kind {kind!r}")
@@ -234,8 +236,12 @@ def host_lease(kind: str, what: str) -> Iterator[None]:
     holder = directory / "holders" / f"{os.getpid()}.json"
     with (directory / "turnstile.lock").open("a+") as turnstile, \
             (directory / "host.lock").open("a+") as host:
+        if timings is not None:
+            wait_started = time.monotonic()
         _flock(turnstile, fcntl.LOCK_EX)
         _flock(host, fcntl.LOCK_EX if kind == "measure" else fcntl.LOCK_SH)
+        if timings is not None:
+            timings["lease_wait"] = time.monotonic() - wait_started
         if kind != "measure":
             fcntl.flock(turnstile, fcntl.LOCK_UN)
         holder.write_text(json.dumps({
@@ -421,6 +427,171 @@ def verify_release_artifacts(build: Path, stage: Path, members: set[str]) -> dic
     return installed
 
 
+def _source_aggregate_recipe(source: Path):
+    path = source / "Tools/build/csv_source_aggregate.py"
+    overlay = LANE / "overlay/Tools/build/csv_source_aggregate.py"
+    if path.resolve() != path or not path.is_file() or path.read_bytes() != overlay.read_bytes():
+        raise LaneError("source aggregate verifier is not the current owned overlay source")
+    spec = importlib.util.spec_from_file_location("csv_source_aggregate", path)
+    if spec is None or spec.loader is None:
+        raise LaneError("cannot load source aggregate artifact verifier")
+    recipe = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = recipe
+    spec.loader.exec_module(recipe)
+    return recipe
+
+
+def _prepare_csv_source_std(paths: dict[str, Path], env: dict[str, str]) -> dict[str, str]:
+    env.update(lb._rust_std_source_environment(paths["source_parent"].parent / "rust-std-source"))
+    metadata, source_input = lb._read_rust_std_lock()
+    return {"sha256": source_input.sha256,
+            "compiler_revision": metadata["compiler_revision"],
+            "library_cargo_lock_sha256": metadata["library_cargo_lock_sha256"]}
+
+
+# CPython installation follows helper aliases. Validate those copies first,
+# then restore one real image and eleven relative names in the installed directory.
+# The public extension paths remain distinct while dyld owns one image per namespace.
+def _install_source_aggregate(source: Path, paths: dict[str, Path],
+                              source_metadata: dict[str, str]) -> dict[str, Any]:
+    build, stage = paths["build"], paths["stage"]
+    work = build.parent
+    if (build != work / "build" or work.parent != LANE / "work/perf"
+            or not work.name.startswith("perf-") or work.resolve() != work
+            or paths["source_parent"] != work / "source"
+            or stage != LANE / ("stage-" + work.name) or stage.resolve() != stage):
+        raise LaneError("source aggregate has no isolated candidate owner")
+    recipe = _source_aggregate_recipe(source)
+    try:
+        receipt = recipe.verify_build_receipt(source, build, lb.TARGET, source_metadata)
+    except (ValueError, RuntimeError) as error:
+        raise LaneError(f"source aggregate artifact proof failed: {error}") from error
+    if (receipt["schema_version"] != 2 or receipt["status"] != "complete"
+            or receipt["target"] != lb.TARGET or receipt["profile"] != "release"
+            or receipt["panic"] != "abort" or receipt["allocator"] != "System"):
+        raise LaneError("source aggregate receipt has an incompatible runtime policy")
+    names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs',
+             '_datetime_rs', '_threading_rs', '_uuid_rs',
+             '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
+    if set(receipt["consumers"]) != set(names):
+        raise LaneError("source aggregate requires exactly eleven consumer receipts")
+    aggregate = receipt["aggregate"]
+    basename = "libcpython_rust_source_aggregate356.dylib"
+    release = build / "target" / lb.TARGET / "release" / basename
+    final = build / "source-aggregate356/final" / basename
+    canonical = build / "Modules" / basename
+    if (Path(aggregate["path"]) != release or aggregate["install_id"] != "@rpath/" + basename
+            or Path(aggregate["final_artifact"]["path"]) != final
+            or aggregate["final_artifact"]["sha256"] != aggregate["sha256"]
+            or aggregate["final_artifact"]["size"] != aggregate["size"]):
+        raise LaneError("source aggregate canonical artifact owner changed")
+    for path in (release, final, canonical):
+        if (not path.is_file() or path.resolve() != path or path.stat().st_nlink != 1
+                or path.stat().st_size != aggregate["size"] or _sha256_file(path) != aggregate["sha256"]):
+            raise LaneError(f"source aggregate finalized bytes differ: {path}")
+    layout = aggregate["layout"]
+    if layout["schema"] != 2 or layout["page_size"] != 16384:
+        raise LaneError("source aggregate layout policy changed")
+    for name, flags, initial in (("__DATA_CONST", 16, (1, 3)), ("__DATA", 0, (3,))):
+        segment = layout["segments"][name]
+        if (segment["vmsize"] != 16384 or segment["maxprot"] != 3
+                or segment["initprot"] not in initial or segment["flags"] != flags):
+            raise LaneError("source aggregate data extent or protection changed: " + name)
+    surface = layout["link_surface"]
+    initializers = {name: flags for name, flags in surface["exports"].items() if name.startswith('_PyInit_')}
+    if (initializers != {'_PyInit_' + name: 0 for name in names}
+            or surface["loads"] != ["/usr/lib/libSystem.B.dylib"]):
+        raise LaneError("source aggregate initializer or dependency surface changed")
+    directories = list(stage.glob("lib/python3.*/lib-dynload"))
+    if len(directories) != 1 or directories[0].resolve() != directories[0]:
+        raise LaneError("source aggregate requires one canonical installed extension directory")
+    dynload = directories[0]
+    staged = dynload / basename
+    if staged.is_symlink() or (staged.exists() and (not staged.is_file()
+            or staged.stat().st_nlink != 1 or _sha256_file(staged) != aggregate["sha256"])):
+        raise LaneError("source aggregate installed canonical image collides with different bytes")
+    installed_paths = {}
+    for name, record in receipt["consumers"].items():
+        published = release.parent / ('lib' + name + '.dylib')
+        helpers = list((build / 'Modules').glob(name + '.*.so'))
+        installed = list(dynload.glob(name + '.*.so'))
+        if (Path(record['path']) != published or record['sha256'] != aggregate['sha256']
+                or record['size'] != aggregate['size'] or len(helpers) != 1 or len(installed) != 1
+                or helpers[0].name != installed[0].name):
+            raise LaneError("source aggregate consumer owner or bytes changed: " + name)
+        for alias, target in ((published, release), (helpers[0], canonical)):
+            if not alias.is_symlink() or os.readlink(alias) != basename or alias.resolve() != target:
+                raise LaneError("source aggregate build alias is not the canonical relative name: " + name)
+        path = installed[0]
+        if (not path.is_file() or _sha256_file(path) != aggregate['sha256']
+                or path.stat().st_size != aggregate['size']):
+            raise LaneError("source aggregate installed consumer bytes changed: " + name)
+        if path.is_symlink():
+            if os.readlink(path) != basename or path.resolve() != staged:
+                raise LaneError("source aggregate installed alias escapes its namespace: " + name)
+        elif path.resolve() != path or path.stat().st_nlink != 1:
+            raise LaneError("source aggregate installed copy is aliased: " + name)
+        temporary = path.with_name('.' + path.name + '.aggregate-pending')
+        if temporary.exists() or temporary.is_symlink():
+            raise LaneError("source aggregate alias publication has an existing temporary file")
+        installed_paths[name] = path
+    def verify_image(path):
+        if lb.macho.read_header(path).arch != 'arm64':
+            raise LaneError("source aggregate is not arm64")
+        signed, detail = lb.macho.signature_status(path)
+        if not signed:
+            raise LaneError(f"source aggregate signature is invalid: {detail}")
+        if (lb.macho.dylib_id(path) != aggregate['install_id'] or lb.macho.rpaths(path)
+                or lb.macho.dependencies(path) != ['/usr/lib/libSystem.B.dylib']):
+            raise LaneError("source aggregate runtime loader contract changed")
+    verify_image(release)
+    _copy_file(release, staged)
+    if _sha256_file(staged) != aggregate['sha256'] or staged.stat().st_nlink != 1:
+        raise LaneError("source aggregate bytes changed during installation")
+    verify_image(staged)
+    for path in installed_paths.values():
+        temporary = path.with_name('.' + path.name + '.aggregate-pending')
+        try:
+            temporary.symlink_to(basename)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        if (os.readlink(path) != basename or path.resolve() != staged
+                or (path.stat().st_dev, path.stat().st_ino) != (staged.stat().st_dev, staged.stat().st_ino)):
+            raise LaneError("source aggregate installed alias does not share its canonical image")
+    return {"receipt": receipt, "receipt_sha256": _sha256_file(build / 'source-aggregate356/receipt.json'),
+            "staged_aggregate": str(staged), "staged_aggregate_sha256": aggregate['sha256'],
+            "installed_aliases": {name: str(path) for name, path in installed_paths.items()}}
+
+
+def _builtin_artifact_verifier():
+    proof_path = LANE / "builtin_modules.py"
+    common_dir = _common_dir()
+    if common_dir.name != ".git":
+        raise LaneError(f"cannot locate primary Git storage from common dir {common_dir}")
+    git_dir = Path(_git("rev-parse", "--absolute-git-dir"))
+    object_stores = (REPO / ".cache/objects", common_dir.parent / ".cache/objects",
+                     REPO / ".git/objects", git_dir / "objects", common_dir / "objects")
+    identities = {(info.st_dev, info.st_ino) for path in object_stores
+                  if path.exists() for info in [path.stat()]}
+    for path in (proof_path,):
+        if ("objects" in path.parts or ".cache" in path.parts or ".git" in path.parts
+                or path.resolve() != path):
+            raise LaneError(f"unowned built-in proof source: {path}")
+        for part in (path, *path.parents):
+            info = part.stat()
+            if part.is_symlink() or (info.st_dev, info.st_ino) in identities:
+                raise LaneError(f"aliased built-in proof source: {path}")
+        if path.stat().st_nlink != 1:
+            raise LaneError(f"hard-linked built-in proof source: {path}")
+    spec = importlib.util.spec_from_file_location("builtin_artifacts", proof_path)
+    if spec is None or spec.loader is None:
+        raise LaneError("cannot load built-in artifact proof")
+    proof = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(proof)
+    return proof, object_stores
+
+
 def _stage_overlay(paths: dict[str, Path]) -> tuple[dict[str, Any], list[str]]:
     # Copy the overlay into a scratch tree with the coverage builder's own
     # validation (no Lib/test edits, no symlinks), then diff from there.
@@ -452,6 +623,143 @@ def _existing_source(parent: Path) -> Path:
     return matches[0]
 
 
+def _c_template_modes(template: bytes, original: bytes) -> tuple[bytes, set[str]]:
+    """Remove same-guard original-C wrappers; ignore only inert full-line comments."""
+    # The generator removes full-line comments and empty lines before interpreting
+    # mode switches. All noncomment row bytes remain exact source-input bytes.
+    def semantic(data):
+        return b''.join(line for line in data.splitlines(keepends=True)
+                        if line.strip() and not line.lstrip().startswith(b'#'))
+    template, original = semantic(template), semantic(original)
+    rows = {}
+    for line in original.splitlines(keepends=True):
+        match = re.fullmatch(rb'@MODULE_[A-Z0-9_]+_TRUE@([a-zA-Z0-9_]+) ([^\n]+)\n', line)
+        if match:
+            name = match[1].decode('ascii')
+            tokens = match[2].decode('ascii').split()
+            sources = [token for token in tokens if token.endswith('.c')]
+            if sources and not any(token.endswith(('.toml', '.rs')) for token in tokens) and all(re.fullmatch(r'[a-zA-Z0-9_./-]+\.c', src)
+                               and not Path(src).is_absolute() and '..' not in Path(src).parts for src in sources):
+                rows[line] = name
+    wrapped = set()
+    pattern = (rb'(?P<guard>@MODULE_[A-Z0-9_]+_TRUE@)\*static\*\n'
+               rb'(?P<row>(?P=guard)[^\n]+\n)(?P=guard)\*@MODULE_BUILDTYPE@\*\n')
+    def unwrap(match):
+        row = match['row']
+        if row not in rows or rows[row] in wrapped:
+            raise LaneError('placement wrapper is not a unique original C row')
+        wrapped.add(rows[row])
+        return row
+    normalized = re.sub(pattern, unwrap, template)
+    if normalized != original:
+        raise LaneError('placement template changes more than original C row wrappers')
+    return normalized, wrapped
+
+
+def c_placement_plan(before: bytes, after: bytes, original: bytes) -> dict[str, tuple[str, ...]]:
+    """Admit only static/configured-mode transitions of unchanged original C rows."""
+    _, old = _c_template_modes(before, original)
+    _, new = _c_template_modes(after, original)
+    moved = old ^ new
+    if not moved:
+        raise LaneError('no original C placement transition')
+    result = {}
+    owners: dict[str, set[str]] = {}
+    for line in original.decode('ascii').splitlines():
+        match = re.fullmatch(r'@MODULE_[A-Z0-9_]+_TRUE@([a-zA-Z0-9_]+) (.+)', line)
+        if match:
+            sources = [token for token in match[2].split() if token.endswith('.c')]
+            objects = tuple('Modules/' + str(Path(src).with_suffix('.o')) for src in sources)
+            for obj in objects:
+                owners.setdefault(obj, set()).add(match[1])
+            if match[1] in moved:
+                result[match[1]] = objects
+    if any(len(owners[obj]) != 1 for objects in result.values() for obj in objects):
+        raise LaneError('placement object is shared with another original module row')
+    if set(result) != moved or any(not objects for objects in result.values()):
+        raise LaneError('placement object owners are incomplete')
+    return result
+
+
+def _original_setup_template() -> bytes:
+    # Read the template from the checksum-verified source input rather than
+    # treating a previously overlaid configured tree as the original owner.
+    import tarfile
+    _, entry = lb._read_lock()
+    blob = lb.Cache(lb.CACHE_ROOT).require(entry)
+    with tarfile.open(blob, 'r:*') as archive:
+        matches = [member for member in archive.getmembers()
+                   if member.name.endswith('/Modules/Setup.stdlib.in') and member.isfile()]
+        if len(matches) != 1:
+            raise LaneError('pinned source has no unique standard-module template')
+        stream = archive.extractfile(matches[0])
+        if stream is None:
+            raise LaneError('cannot read pinned standard-module template')
+        return stream.read()
+
+
+def invalidate_c_placement(build: Path, stage: Path, plan: dict[str, tuple[str, ...]]) -> None:
+    # Make does not track compiler command changes, and install only adds
+    # current shared modules. Both the old object and old shared owner must go.
+    aliases = None
+    marker = build / 'pybuilddir.txt'
+    if marker.is_file():
+        relative = Path(marker.read_text().strip())
+        if relative.is_absolute() or '..' in relative.parts:
+            raise LaneError('unowned extension alias directory')
+        aliases = build / relative
+        if aliases.exists() and (aliases.is_symlink() or aliases.resolve() != build.resolve() / relative):
+            raise LaneError('aliased extension alias directory')
+    for objects in plan.values():
+        for relative in objects:
+            (build / relative).unlink(missing_ok=True)
+    (build / 'Modules/config.o').unlink(missing_ok=True)
+    for name in plan:
+        for directory in (build / 'Modules', aliases):
+            if directory is not None:
+                for path in (*directory.glob(name + '.*.so'), directory / (name + '.so')):
+                    path.unlink(missing_ok=True)
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+
+
+def verify_c_placement_compilation(log: Path, plan: dict[str, tuple[str, ...]],
+                                   modes: dict[str, bool]) -> None:
+    import shlex
+    commands = {}
+    for line in log.read_text(errors='replace').splitlines():
+        try:
+            tokens = shlex.split(line)
+        except ValueError:
+            continue
+        if '-c' in tokens and '-o' in tokens:
+            index = tokens.index('-o') + 1
+            if index < len(tokens):
+                commands[tokens[index]] = tokens
+    for name, objects in plan.items():
+        for obj in objects:
+            tokens = commands.get(obj)
+            if tokens is None or ('-DPy_BUILD_CORE_BUILTIN' in tokens) != modes[name]:
+                raise LaneError(f'current compiler transcript does not prove C placement: {obj}')
+
+
+def _verify_c_placement_rules(build: Path, plan: dict[str, tuple[str, ...]],
+                             modes: dict[str, bool]) -> None:
+    makefile = (build / 'Makefile').read_text()
+    shared = set(lb._make_value(build / 'Makefile', 'MODSHARED_NAMES').split())
+    config = (build / 'Modules/config.c').read_text()
+    for name, objects in plan.items():
+        initialized = re.search(r'\{\s*"' + re.escape(name) + r'"\s*,\s*PyInit_', config) is not None
+        if initialized != modes[name] or (name in shared) == modes[name]:
+            raise LaneError(f'generated C placement differs: {name}')
+        for obj in objects:
+            rules = [line for line in makefile.splitlines() if line.startswith(obj + ':')]
+            flag = '$(PY_BUILTIN_MODULE_CFLAGS)' if modes[name] else '$(PY_STDMODULE_CFLAGS)'
+            if len(rules) != 1 or flag not in rules[0]:
+                raise LaneError(f'generated C compiler rule differs: {obj}')
+
+
 def incremental_plan(staged: dict[str, bytes], current: dict[str, bytes | None],
                      previous_files: list[str]) -> dict[str, list[str]]:
     """Classify overlay changes against the source tree of the last build."""
@@ -475,7 +783,8 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
         raise LaneError("doctor found prerequisites missing; run `build.py doctor` for details")
     paths = _paths(name)
     started = time.monotonic()
-    with host_lease("build", f"build {_tag(name)}"):
+    phase_seconds: dict[str, float] = {}
+    with host_lease("build", f"build {_tag(name)}", timings=phase_seconds):
         # The report is the stage's identity. It never describes a stage
         # that is being rebuilt, so `bench` cannot pair new bytes with an
         # old report. A failed incremental build keeps its configured tree.
@@ -488,6 +797,8 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
         _write_json(paths["report"], {"status": "building", "name": _tag(name),
                                       "pristine": empty_overlay, "configured": configured})
         state = {"configured": configured}
+        if incremental:
+            state["previous"] = previous
         try:
             report = _build_locked(name, paths, empty_overlay=empty_overlay, jobs=jobs,
                                    incremental=incremental, state=state)
@@ -497,6 +808,7 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
                                           "error": str(error)})
             raise
         report["build_seconds"] = round(time.monotonic() - started, 1)
+        report["phase_seconds"] = phase_seconds
         _write_json(paths["report"], report)
     kind = "incremental" if incremental else "clean"
     print(f"OK    perf CPython {report['interpreter']['version'].split()[0]} ({kind}, "
@@ -506,11 +818,14 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
 
 
 def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, jobs: int | None,
-                  incremental: bool, state: dict[str, bool]) -> dict[str, Any]:
+                  incremental: bool, state: dict[str, Any]) -> dict[str, Any]:
     toolchain, target = lb._toolchain()
     lb._llvm_ready(toolchain)
     git_state = _git_state()
     changes: dict[str, list[str]] | None = None
+    placement: dict[str, tuple[str, ...]] = {}
+    placement_modes: dict[str, bool] = {}
+    placement_original: bytes | None = None
     if incremental:
         source = _existing_source(paths["source_parent"])
         if not (paths["build"] / "Makefile").is_file() or not paths["overlay_manifest"].is_file():
@@ -520,10 +835,57 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         current = {item: ((source / item).read_bytes() if (source / item).is_file() else None)
                    for item in files}
         changes = incremental_plan(staged, current, json.loads(paths["overlay_manifest"].read_text()))
+        setup = "Modules/Setup.stdlib.in"
+        if changes["changed"] == [setup] and not changes["removed"]:
+            placement_original = _original_setup_template()
+            before = current[setup]
+            if before is None:
+                raise LaneError("previous standard-module template is missing")
+            placement = c_placement_plan(before, staged[setup], placement_original)
+            _, wrapped = _c_template_modes(staged[setup], placement_original)
+            status = (paths["build"] / "config.status").read_text()
+            if re.search(r'S\["MODULE_BUILDTYPE"\]="shared"', status) is None:
+                raise LaneError("C placement requires the original configured shared mode")
+            for owner in (source / 'Modules/Setup', paths['build'] / 'Modules/Setup.local',
+                          paths['build'] / 'Modules/Setup.bootstrap'):
+                if owner.is_file():
+                    moved_objects = {obj for objects in placement.values() for obj in objects}
+                    for line in owner.read_text().splitlines():
+                        tokens = line.split('#', 1)[0].split()
+                        if tokens and tokens[0] in placement:
+                            raise LaneError("C placement row is shadowed by another Setup owner")
+                        objects = {'Modules/' + str(Path(token).with_suffix('.o'))
+                                   for token in tokens[1:] if token.endswith('.c')}
+                        if objects & moved_objects:
+                            raise LaneError("C placement object is shared with another Setup owner")
+            previous = state.get("previous", {})
+            metadata, entry = lb._read_lock()
+            if (previous.get("source_commit") != metadata["commit"]
+                    or previous.get("source_archive_sha256") != entry.sha256
+                    or previous.get("target") != lb.TARGET
+                    or previous.get("cargo_lock_sha256") != _sha256_file(source / 'Cargo.lock')):
+                raise LaneError("C placement requires unchanged prior source, target and Cargo lock")
+            flags = _perf_flags(toolchain, target)
+            for flag in ('CFLAGS', 'CPPFLAGS', 'LDFLAGS'):
+                if lb._make_value(paths['build'] / 'Makefile', 'CONFIGURE_' + flag) != flags[flag]:
+                    raise LaneError("C placement requires unchanged configured compiler flags")
+            if lb._make_value(paths['build'] / 'Makefile', 'CC') != str(toolchain.llvm_prefix / 'bin/clang'):
+                raise LaneError("C placement requires unchanged compiler owner")
+            placement_modes = {name: name in wrapped for name in placement}
+            changes["clean_only"] = []
         if changes["removed"] or changes["clean_only"]:
             raise LaneError("incremental build refused; run a clean build. Removed: "
                             f"{changes['removed'] or 'none'}; build-system changes: "
                             f"{changes['clean_only'] or 'none'}")
+        if placement:
+            # A failed placement migration must not be retried as an ordinary
+            # source-only sync after its template has already been copied.
+            state["configured"] = False
+            # Process loss can bypass the exception handler. Persist the refusal
+            # before copying the template, while validated prior inputs remain
+            # available only to this already-running migration.
+            _write_json(paths["report"], {"status": "building", "name": _tag(name),
+                                          "pristine": False, "configured": False})
         for item in changes["changed"]:
             _copy_file(paths["overlay_staging"] / item, source / item)
         print(f"OK    incremental overlay sync: {len(changes['changed'])} changed file(s)")
@@ -536,6 +898,12 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             for item in files:
                 _copy_file(paths["overlay_staging"] / item, source / item)
     _write_json(paths["overlay_manifest"], files)
+    if not empty_overlay:
+        proof, object_stores = _builtin_artifact_verifier()
+        try:
+            proof.validate_builtin_source(source, lb.TARGET, object_stores)
+        except proof.BuiltinArtifactError as error:
+            raise LaneError(f"built-in Rust source preflight failed: {error}") from error
     env = lb._environment(toolchain, offline=True, build_dir=paths["build"])
     lb._require_command(
         [str(lb.CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
@@ -558,22 +926,53 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     configure = [str(source / "configure"), f"--prefix={paths['stage']}", "--enable-shared",
                  "--enable-experimental-jit=no", "--with-tail-call-interp=no",
                  "--without-ensurepip"]
+    # Only the aggregate workspace requires the pinned source-built runtime.
+    # Locked Cargo fetch has already validated every declared workspace dependency.
+    source_aggregate = (not empty_overlay and lb.TARGET == "aarch64-apple-darwin"
+                        and (source / "Modules/cpython-rust-source-aggregate356/Cargo.toml").is_file())
+    std_metadata = None
     if not incremental:
         for path in (paths["build"], paths["stage"]):
             if path.exists():
                 shutil.rmtree(path)
             path.mkdir(parents=True)
+        if source_aggregate:
+            std_metadata = _prepare_csv_source_std(paths, env)
         lb._require_command(configure, cwd=paths["build"], env=env,
                             log=paths["configure_log"], sealed=sandbox)
         setup_local = source / "Modules" / "Setup.local"
         if setup_local.is_file():
             _copy_file(setup_local, paths["build"] / "Modules" / "Setup.local")
         state["configured"] = True
-    lb._require_command([str(toolchain.make), f"-j{workers}", *MAKE_VARS], cwd=paths["build"],
-                        env=env, log=paths["build_log"], sealed=sandbox)
-    lb._require_command([str(toolchain.make), "install", *MAKE_VARS], cwd=paths["build"],
-                        env=env, log=paths["install_log"], sealed=sandbox)
-    _check_logs(paths["build_log"], paths["install_log"])
+    if placement:
+        # The existing generators own module registration and linker recipes.
+        # Explicit regeneration happens before deleting any compiled owner.
+        lb._require_command(['./config.status', 'Modules/Setup.stdlib'],
+                            cwd=paths['build'], env=env, log=paths['configure_log'], sealed=sandbox)
+        lb._require_command([str(toolchain.make), 'Makefile', *MAKE_VARS],
+                            cwd=paths['build'], env=env, log=paths['build_log'], sealed=sandbox)
+        _verify_c_placement_rules(paths['build'], placement, placement_modes)
+        invalidate_c_placement(paths['build'], paths['stage'], placement)
+    if incremental or std_metadata is not None:
+        if incremental and source_aggregate:
+            std_metadata = _prepare_csv_source_std(paths, env)
+        # Install depends on the complete build. A single invocation preserves
+        # the source runtime's pinned libpython bytes through publication; its
+        # current transcript proves both compilation and installation.
+        paths["build_log"].unlink(missing_ok=True)
+        lb._require_command([str(toolchain.make), f"-j{workers}", "install", *MAKE_VARS],
+                            cwd=paths["build"], env=env, log=paths["install_log"], sealed=sandbox)
+        _check_logs(paths["install_log"], paths["install_log"])
+    else:
+        # Pristine and non-source-runtime clean builds keep their two-step recipe.
+        lb._require_command([str(toolchain.make), f"-j{workers}", *MAKE_VARS], cwd=paths["build"],
+                            env=env, log=paths["build_log"], sealed=sandbox)
+        lb._require_command([str(toolchain.make), "install", *MAKE_VARS], cwd=paths["build"],
+                            env=env, log=paths["install_log"], sealed=sandbox)
+        _check_logs(paths["build_log"], paths["install_log"])
+    if placement:
+        verify_c_placement_compilation(paths['install_log'], placement, placement_modes)
+        _verify_c_placement_rules(paths['build'], placement, placement_modes)
     python = paths["stage"] / "bin" / "python3.16"
     if not python.is_file():
         raise LaneError(f"perf install did not produce {python}")
@@ -592,43 +991,23 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         raise LaneError("perf workspace is missing members: "
                         + ", ".join(sorted(required - members)))
     if not incremental:
-        missing = required - set(_built_members(paths["build_log"], members))
+        compile_log = paths["install_log"] if std_metadata is not None else paths["build_log"]
+        missing = required - set(_built_members(compile_log, members))
         if missing:
             raise LaneError("perf build did not compile Rust members: " + ", ".join(sorted(missing)))
+    rust_source_aggregate = (_install_source_aggregate(source, paths, std_metadata)
+                       if std_metadata is not None else None)
     rust_extensions = verify_release_artifacts(paths["build"], paths["stage"], members)
     rust_builtins = {}
     if not empty_overlay:
-        proof_path = LANE / "builtin_modules.py"
-        common_dir = _common_dir()
-        if common_dir.name != ".git":
-            raise LaneError(f"cannot locate primary Git storage from common dir {common_dir}")
-        git_dir = Path(_git("rev-parse", "--absolute-git-dir"))
-        object_stores = (REPO / ".cache/objects", common_dir.parent / ".cache/objects",
-                         REPO / ".git/objects", git_dir / "objects", common_dir / "objects")
-        identities = {(info.st_dev, info.st_ino) for path in object_stores
-                      if path.exists() for info in [path.stat()]}
-        for path in (proof_path,):
-            if ("objects" in path.parts or ".cache" in path.parts or ".git" in path.parts
-                    or path.resolve() != path):
-                raise LaneError(f"unowned built-in proof source: {path}")
-            for part in (path, *path.parents):
-                info = part.stat()
-                if part.is_symlink() or (info.st_dev, info.st_ino) in identities:
-                    raise LaneError(f"aliased built-in proof source: {path}")
-            if path.stat().st_nlink != 1:
-                raise LaneError(f"hard-linked built-in proof source: {path}")
-        spec = importlib.util.spec_from_file_location("builtin_artifacts", proof_path)
-        if spec is None or spec.loader is None:
-            raise LaneError("cannot load built-in artifact proof")
-        proof = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(proof)
+        proof, object_stores = _builtin_artifact_verifier()
         try:
             rust_builtins = proof.verify_builtin_artifacts(
                 source, paths["build"], paths["stage"], lb.TARGET, object_stores)
         except proof.BuiltinArtifactError as error:
             raise LaneError(f"built-in Rust artifact proof failed: {error}") from error
     metadata, source_input = lb._read_lock()
-    return {
+    report = {
         "status": "built",
         "configured": True,
         "build_mode": "perf-no-pgo-no-lto",
@@ -636,6 +1015,11 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "pristine": empty_overlay,
         "incremental": incremental,
         "incremental_changes": changes["changed"] if changes else None,
+        "c_placement": ({"objects": placement, "builtin": placement_modes,
+                         "original_template_sha256": hashlib.sha256(placement_original).hexdigest(),
+                         "generated_makefile_sha256": _sha256_file(paths['build'] / 'Makefile'),
+                         "generated_config_sha256": _sha256_file(paths['build'] / 'Modules/config.c')}
+                        if placement else None),
         "git": git_state,
         "target": lb.TARGET,
         "source_commit": metadata["commit"],
@@ -650,6 +1034,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             "(configure defaults to dev without its PGO flag)",
         "rust_extensions_sha256": rust_extensions,
         "rust_builtin_artifacts": rust_builtins,
+        "rust_source_aggregate": rust_source_aggregate,
         "pgo": False,
         "lto": False,
         "interpreter": lb._module_report(paths["stage"], python, toolchain),
@@ -659,6 +1044,10 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "stage": str(paths["stage"]),
         "stage_identity": tree_digest(paths["stage"]),
     }
+    # Metadata and stage verification can still fail after installation. Only
+    # the fully constructed report permits reuse of a migrated configured tree.
+    state["configured"] = True
+    return report
 
 
 # -------------------------------------------------------------------- test
@@ -943,10 +1332,28 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         name: [] for name in [*evaluated_workloads, *evaluated_modules]}
     iterations: dict[str, int] = {}
     rounds = PROFILE_MODULE_ROUNDS[profile]
+    early_rejection = (memory_only and not gate and not self_compare and not record_baselines
+                       and not slug_prefix and runs >= 2)
+    stopped_after: dict[str, Any] | None = None
+
+    def replicated_regression(name: str) -> bool:
+        # Only completed replication can make the remaining samples unnecessary.
+        # All survivor and acceptance paths still collect their entire selection.
+        if not early_rejection or len(observations[name]) != runs:
+            return False
+        entity = perf_verdict.entity_verdict(observations[name])
+        decision = perf_verdict.decide({name: entity}, targets=[name], runs=runs,
+                                       quiet=None, gate=False, memory_only=True)
+        return bool(decision["regressions"])
+
     started = time.monotonic()
     label = f"calibrate {baseline_ref}" if self_compare else f"{baseline_ref} vs {candidate_ref}"
     harness_identity = _harness_identity()
-    with host_lease("measure", f"bench {label}"), contextlib.ExitStack() as contexts:
+    # These intervals are disjoint. Workload subprocess durations include their
+    # internal preparation and sampling, which this controller cannot separate.
+    # Existing total seconds also cover host checks, receipt work and cleanup.
+    phase_seconds: dict[str, float] = {"workload_runs": 0.0, "module_sampling": 0.0}
+    with host_lease("measure", f"bench {label}", timings=phase_seconds), contextlib.ExitStack() as contexts:
         if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
             raise LaneError("measurement harness changed while waiting for the host lease")
         # Resolve and verify only under the exclusive lease: no build can
@@ -957,8 +1364,11 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
             raise LaneError("baseline and candidate are the same stage; use `perf.py calibrate`")
         if gate:
             _gate_checks(baseline, candidate)
+        phase_started = time.monotonic()
         for side in {id(baseline): baseline, id(candidate): candidate}.values():
             _verify_stage(side)
+        phase_seconds["stage_verification_before"] = time.monotonic() - phase_started
+        phase_started = time.monotonic()
         prefix_context: dict[str, Any] = {"kind": "natural"}
         if matched_prefix:
             homes = contexts.enter_context(_runtime_prefix_aliases(baseline["stage"], candidate["stage"]))
@@ -985,6 +1395,8 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         directory = LANE / "results" / "perf-bench" / f"{stamp}-{slug}"
         scratch = directory / "tmp"
         scratch.mkdir(parents=True)
+        contexts.callback(shutil.rmtree, scratch, ignore_errors=True)
+        phase_seconds["controller_preparation"] = time.monotonic() - phase_started
         # Memory-only acceptance retains the same kernels and iteration
         # calibration, but host CPU idle and power state cannot delay it.
         if not memory_only:
@@ -992,47 +1404,87 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         if samples and not samples[-1]["quiet"]:
             print(f"WARN  host not quiet before measuring ({samples[-1]['cpu_idle_percent']}% idle)",
                   flush=True)
-        for route in evaluated_modules:
-            options = {"runtime_home": baseline.get("runtime_home")}
-            if baseline.get("runtime_executable") is not None:
-                options["runtime_executable"] = baseline["runtime_executable"]
-            iterations[route] = _module_iterations(baseline["python"], route, scratch, **options)
-        for run in range(1, runs + 1):
-            for workload in evaluated_workloads:
-                print(f"RUN   [{run}/{runs}] workload {workload}", flush=True)
-                record = None
-                if record_baselines and run == runs:
-                    record = REPO / "benchmarks" / "baselines" / f"rust-cp316-perf-{workload}.json"
-                summary = _run_bench(baseline, candidate, workload,
-                                     output=directory / f"run-{run}" / workload, profile=profile,
-                                     timing_only=timing_only, self_compare=self_compare,
-                                     record_baseline=record, memory_only=memory_only)
-                observations[workload].append(perf_verdict.mismatch_observation("workload")
-                                              if summary is None else perf_verdict.run_observation(
-                                                  summary, memory_only=memory_only))
-            for route in evaluated_modules:
-                print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
-                      flush=True)
-                observations[route].append(_measure_module(baseline, candidate, route,
-                                                            iterations=iterations[route], rounds=rounds,
-                                                            scratch=scratch, memory_only=memory_only))
-            if not memory_only:
-                samples.append(_host_sample(min_idle))
-        for side in {id(baseline): baseline, id(candidate): candidate}.values():
-            _verify_stage(side)
-        shutil.rmtree(scratch, ignore_errors=True)
-        if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
-            raise LaneError("measurement harness changed during sampling")
+        # Finish workload replication before spending on module calibration in
+        # exploratory memory comparisons. Protected modes retain interleaved runs.
+        sampling_passes = ([(evaluated_workloads, []), ([], evaluated_modules)]
+                           if early_rejection else [(evaluated_workloads, evaluated_modules)])
+        phase_seconds["module_calibration"] = 0.0
+        for pass_workloads, pass_modules in sampling_passes:
+            if pass_modules or not early_rejection:
+                phase_started = time.monotonic()
+                for route in pass_modules:
+                    options = {"runtime_home": baseline.get("runtime_home")}
+                    if baseline.get("runtime_executable") is not None:
+                        options["runtime_executable"] = baseline["runtime_executable"]
+                    iterations[route] = _module_iterations(baseline["python"], route, scratch, **options)
+                phase_seconds["module_calibration"] += time.monotonic() - phase_started
+            for run in range(1, runs + 1):
+                for workload in pass_workloads:
+                    print(f"RUN   [{run}/{runs}] workload {workload}", flush=True)
+                    record = None
+                    if record_baselines and run == runs:
+                        record = REPO / "benchmarks" / "baselines" / f"rust-cp316-perf-{workload}.json"
+                    phase_started = time.monotonic()
+                    summary = _run_bench(baseline, candidate, workload,
+                                         output=directory / f"run-{run}" / workload, profile=profile,
+                                         timing_only=timing_only, self_compare=self_compare,
+                                         record_baseline=record, memory_only=memory_only)
+                    phase_seconds["workload_runs"] += time.monotonic() - phase_started
+                    observations[workload].append(perf_verdict.mismatch_observation("workload")
+                                                  if summary is None else perf_verdict.run_observation(
+                                                      summary, memory_only=memory_only))
+                    if replicated_regression(workload):
+                        stopped_after = {"run": run, "entity": workload}
+                        break
+                if stopped_after is not None:
+                    break
+                for route in pass_modules:
+                    print(f"RUN   [{run}/{runs}] module {route} ({iterations[route]} iterations x {rounds} rounds)",
+                          flush=True)
+                    phase_started = time.monotonic()
+                    observation = _measure_module(baseline, candidate, route,
+                                                  iterations=iterations[route], rounds=rounds,
+                                                  scratch=scratch, memory_only=memory_only)
+                    phase_seconds["module_sampling"] += time.monotonic() - phase_started
+                    observations[route].append(observation)
+                    if replicated_regression(route):
+                        stopped_after = {"run": run, "entity": route}
+                        break
+                if stopped_after is not None:
+                    break
+                if not memory_only:
+                    samples.append(_host_sample(min_idle))
+            if stopped_after is not None:
+                break
+        try:
+            phase_started = time.monotonic()
+            for side in {id(baseline): baseline, id(candidate): candidate}.values():
+                _verify_stage(side)
+            phase_seconds["stage_verification_after"] = time.monotonic() - phase_started
+            if _harness_identity()["source_sha256"] != harness_identity["source_sha256"]:
+                raise LaneError("measurement harness changed during sampling")
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
     quiet = all(sample["quiet"] for sample in samples) if samples else None
-    entities = {name: perf_verdict.entity_verdict(runs_) for name, runs_ in observations.items()}
+    incomplete_entities = [name for name, records in observations.items() if len(records) != runs]
+    entities = {name: perf_verdict.entity_verdict(records)
+                for name, records in observations.items() if name not in incomplete_entities}
+    # A single output mismatch remains decisive even when that entity's memory
+    # sampling is incomplete. Do not turn its partial metrics into replicated claims.
+    decision_entities = dict(entities)
+    for name in incomplete_entities:
+        if any(record["mismatch"] for record in observations[name]):
+            decision_entities[name] = perf_verdict.entity_verdict(
+                [perf_verdict.mismatch_observation(observations[name][0]["kind"])])
     known = sorted(KNOWN_CONTROL_MISMATCHES) if baseline["ref"] == "@control" else []
     if self_compare:
         decision = perf_verdict.calibration(entities, runs=runs, quiet=quiet, gate=gate,
                                             memory_only=memory_only)
     else:
-        decision = perf_verdict.decide(entities, targets=targets, runs=runs, quiet=quiet, gate=gate,
+        decision = perf_verdict.decide(decision_entities, targets=targets, runs=runs, quiet=quiet, gate=gate,
                                        known_mismatches=known, memory_only=memory_only)
-    goals = ({name: perf_verdict.goal_status(entities[name], memory_only=memory_only) for name in evaluated_modules}
+    goals = ({name: perf_verdict.goal_status(entities[name], memory_only=memory_only)
+              for name in evaluated_modules if name in entities}
              if baseline["ref"] == "@control" and not self_compare else {})
     record = {
         "baseline": {"ref": baseline["ref"], "label": _label(baseline), "stage": str(baseline["stage"])},
@@ -1048,9 +1500,13 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
         "host_samples": samples,
         "entities": entities,
         "raw": observations,
+        "sampling_complete": not incomplete_entities,
+        "incomplete_entities": incomplete_entities,
+        "stopped_after": stopped_after,
         "decision": decision,
         "goals": goals,
         "seconds": round(time.monotonic() - started, 1),
+        "phase_seconds": phase_seconds,
         "directory": str(directory),
     }
     _write_json(directory / "verdict.json", record)

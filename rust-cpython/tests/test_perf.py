@@ -7,8 +7,10 @@ run no benchmarks, and never touch the real host lease.
 from __future__ import annotations
 
 import fcntl
-from contextlib import nullcontext
+import itertools
+from contextlib import ExitStack, nullcontext
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -20,6 +22,7 @@ sys.path.insert(0, str(LANE))
 
 import perf  # noqa: E402
 import perf_verdict as pv  # noqa: E402
+import builtin_modules  # noqa: E402
 
 
 def summary(wall_ci, *, wall_ratios=(1.0, 1.0, 1.0), cpu=None, status="pass", memory=None):
@@ -43,6 +46,280 @@ def sample(cpu, load=0, peak=0, digest="d"):
 
 def module(base, cand):
     return pv.module_observation(base, cand)
+
+
+class ExploratoryEarlyRejectionTests(unittest.TestCase):
+    def measure(self, classes=("worse", "worse"), *, bad_module=False, mismatch=False,
+                guard_error=None, harness_changed=False, sampling_error=None, expected_events=None, **options):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            sides = {ref: {"ref": ref, "name": ref[1:], "stage": root / ref[1:],
+                           "python": Path("/python"), "report": {}}
+                     for ref in ("@control", "@incumbent")}
+            calls = []
+            events = []
+            counts = {}
+            def observation(name, kind):
+                counts[name] = counts.get(name, 0) + 1
+                bad = name == ("json" if bad_module else "first")
+                cls = classes[counts[name] - 1] if bad else "neutral"
+                ratio = {"worse": 1.2, "better": 0.8, "neutral": 1.0}[cls]
+                metrics = {metric: {"class": cls, "ratios": [ratio] * 3,
+                                    "ci95": [ratio, ratio]}
+                           for metric in (("load_footprint", "working_peak")
+                                          if kind == "module" else ("peak_rss",))}
+                metrics["cpu"] = {"class": "worse", "ratios": [2.0] * 3,
+                                  "ci95": [2.0, 2.0]}
+                return {"kind": kind, "metrics": metrics,
+                        "mismatch": mismatch and name == "tail"}
+            def workload(baseline, candidate, name, **kwargs):
+                calls.append(("workload", name))
+                events.append(("workload", name))
+                if sampling_error == "workload":
+                    raise perf.LaneError("workload failed")
+                return None if mismatch and name == "tail" else observation(name, "workload")
+            def module(baseline, candidate, name, **kwargs):
+                self.assertEqual(kwargs["rounds"], perf.PROFILE_MODULE_ROUNDS[arguments["profile"]])
+                self.assertEqual(kwargs["iterations"], 37)
+                calls.append(("module", name))
+                events.append(("module", name))
+                if sampling_error == "module":
+                    raise perf.LaneError("module failed")
+                return observation(name, "module")
+            def patch(name, **kwargs):
+                return patches.enter_context(mock.patch.object(perf, name, **kwargs))
+            patch("LANE", new=root)
+            identity = {"source_sha256": "fixture"}
+            patch("_harness_identity", side_effect=[identity, identity,
+                  {"source_sha256": "changed"} if harness_changed else identity])
+            patch("selection", return_value=(["first", "tail", "json", "csv"],
+                                              ["first", "tail"], ["json", "csv"]))
+            patch("host_lease", return_value=nullcontext())
+            patch("resolve", side_effect=sides.__getitem__)
+            checks = patch("_verify_stage", side_effect=guard_error)
+            gates = patch("_gate_checks")
+            patch("_host_sample", return_value={"quiet": True})
+            def calibrate(python, name, scratch, **kwargs):
+                events.append(("calibrate", name))
+                if sampling_error == "iterations":
+                    raise perf.LaneError("iterations failed")
+                return 37
+            calibration = patch("_module_iterations", side_effect=calibrate)
+            patch("_run_bench", side_effect=workload)
+            patch("_measure_module", side_effect=module)
+            patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
+            arguments = dict(baseline_ref="@incumbent", candidate_ref="@control",
+                             workloads=["first", "tail"], modules=["json", "csv"], gate=False,
+                             runs=len(classes), profile="standard", timing_only=False, min_idle=0,
+                             self_compare=False, record_baselines=False, memory_only=True)
+            arguments.update(options)
+            try:
+                record = perf._measure(**arguments)
+            finally:
+                self.assertFalse(list(root.glob("results/perf-bench/*/tmp")))
+            self.assertEqual(checks.call_count, 2 if arguments["self_compare"] else 4)
+            self.assertEqual(gates.call_count, int(arguments["gate"]))
+            saved = json.loads((Path(record["directory"]) / "verdict.json").read_text())
+            self.assertEqual(saved, record)
+            self.assertEqual(calibration.call_count, len(record["module_iterations"]))
+            if expected_events is not None:
+                self.assertEqual(events, expected_events)
+            return record, calls
+
+    def test_replicated_workload_regression_stops_remaining_calls_and_retains_raw(self):
+        expected = [("workload", "first"), ("workload", "tail"), ("workload", "first")]
+        record, calls = self.measure(mismatch=True, expected_events=expected)
+        self.assertEqual(calls, expected)
+        self.assertEqual(record["module_iterations"], {})
+        self.assertEqual(record["phase_seconds"]["module_calibration"], 0.0)
+        self.assertEqual(record["phase_seconds"]["module_sampling"], 0.0)
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertFalse(record["sampling_complete"])
+        self.assertEqual(record["incomplete_entities"], ["tail", "json", "csv"])
+        self.assertEqual(record["stopped_after"], {"run": 2, "entity": "first"})
+        self.assertEqual(list(record["entities"]), ["first"])
+        self.assertEqual(len(record["raw"]["first"]), 2)
+        self.assertTrue(record["raw"]["tail"][0]["mismatch"])
+        self.assertEqual(record["decision"]["mismatches"], ["tail"])
+
+    def test_control_comparison_omits_incomplete_absolute_goals(self):
+        record, calls = self.measure(baseline_ref="@control", candidate_ref="@incumbent")
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertEqual(record["goals"], {})
+        self.assertEqual(record["incomplete_entities"], ["tail", "json", "csv"])
+        record, calls = self.measure(bad_module=True, baseline_ref="@control",
+                                     candidate_ref="@incumbent")
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertEqual(set(record["goals"]), {"json"})
+
+    def test_output_mismatch_without_regression_retains_complete_checks(self):
+        record, calls = self.measure(("neutral", "neutral"), mismatch=True)
+        self.assertEqual(len(calls), 8)
+        self.assertTrue(record["sampling_complete"])
+        self.assertEqual(record["decision"]["decision"], pv.REJECT)
+        self.assertEqual(record["decision"]["mismatches"], ["tail"])
+
+    def test_replicated_module_regression_stops_module_tail(self):
+        record, calls = self.measure(bad_module=True)
+        self.assertEqual(calls[-1], ("module", "json"))
+        self.assertEqual(len(calls), 7)
+        self.assertEqual(record["incomplete_entities"], ["csv"])
+
+    def test_survivor_completes_workload_replication_before_module_calibration(self):
+        expected = [("workload", "first"), ("workload", "tail")] * 2
+        expected += [("calibrate", "json"), ("calibrate", "csv")]
+        expected += [("module", "json"), ("module", "csv")] * 2
+        record, calls = self.measure(("neutral", "neutral"), expected_events=expected)
+        self.assertTrue(record["sampling_complete"])
+        self.assertEqual(record["incomplete_entities"], [])
+        self.assertEqual(record["module_iterations"], {"json": 37, "csv": 37})
+        self.assertEqual(record["module_rounds"], 5)
+        self.assertEqual(set(record["entities"]), {"first", "tail", "json", "csv"})
+        for observations in record["raw"].values():
+            self.assertEqual(len(observations), 2)
+        self.assertEqual(record["decision"]["decision"], pv.NEUTRAL)
+
+    def test_rigorous_survivor_preserves_all_selected_rounds_and_replicates(self):
+        record, calls = self.measure(("neutral", "neutral", "neutral"), profile="rigorous")
+        self.assertEqual(len(calls), 12)
+        self.assertEqual(record["module_rounds"], 10)
+        self.assertEqual(record["module_iterations"], {"json": 37, "csv": 37})
+        self.assertEqual(record["workload_profile"], "standard")
+        self.assertTrue(record["sampling_complete"])
+        for observations in record["raw"].values():
+            self.assertEqual(len(observations), 3)
+        self.assertEqual(record["decision"]["decision"], pv.NEUTRAL)
+
+    def test_one_worse_then_neutral_keeps_complete_evidence(self):
+        record, calls = self.measure(("worse", "neutral"))
+        self.assertEqual(len(calls), 8)
+        self.assertTrue(record["sampling_complete"])
+        self.assertEqual(record["decision"]["regressions"], [])
+        self.assertIsNone(record["stopped_after"])
+
+    def test_three_runs_require_all_three_regressions(self):
+        record, calls = self.measure(("worse", "worse", "worse"))
+        self.assertEqual(len(calls), 5)
+        self.assertEqual(record["module_iterations"], {})
+        self.assertEqual(record["stopped_after"]["run"], 3)
+        record, calls = self.measure(("worse", "worse", "neutral"))
+        self.assertEqual(len(calls), 12)
+        self.assertTrue(record["sampling_complete"])
+
+    def test_timing_regression_does_not_stop_memory_survivors(self):
+        for classes in (("neutral", "neutral"), ("better", "better")):
+            with self.subTest(classes=classes):
+                record, calls = self.measure(classes)
+                self.assertEqual(len(calls), 8)
+                self.assertTrue(record["sampling_complete"])
+                self.assertEqual(record["decision"]["regressions"], [])
+
+    def test_nonexploratory_modes_and_single_run_keep_full_sampling(self):
+        for options in ({"gate": True}, {"self_compare": True}, {"slug_prefix": "goals-"},
+                        {"record_baselines": True}, {"memory_only": False}):
+            with self.subTest(options=options):
+                expected = [("calibrate", "json"), ("calibrate", "csv")]
+                expected += [("workload", "first"), ("workload", "tail"),
+                             ("module", "json"), ("module", "csv")] * 2
+                record, calls = self.measure(expected_events=expected, **options)
+                self.assertEqual(len(calls), 8)
+                self.assertTrue(record["sampling_complete"])
+        expected = [("calibrate", "json"), ("calibrate", "csv"),
+                    ("workload", "first"), ("workload", "tail"),
+                    ("module", "json"), ("module", "csv")]
+        record, calls = self.measure(("worse",), expected_events=expected)
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(record["sampling_complete"])
+
+    def test_iteration_and_sampling_errors_remove_scratch(self):
+        for operation in ("iterations", "workload", "module"):
+            with self.subTest(operation=operation), self.assertRaisesRegex(
+                    perf.LaneError, operation + " failed"):
+                self.measure(("neutral", "neutral"), sampling_error=operation)
+
+    def test_final_stage_and_harness_errors_are_not_hidden_by_early_rejection(self):
+        with self.assertRaisesRegex(perf.LaneError, "stage changed"):
+            self.measure(guard_error=[None, None, perf.LaneError("stage changed")])
+        with self.assertRaisesRegex(perf.LaneError, "harness changed"):
+            self.measure(harness_changed=True)
+
+
+class ReceiptTimingTests(unittest.TestCase):
+    def test_build_receipt_keeps_total_and_records_lock_wait(self):
+        clock = [0.0]
+        @perf.contextlib.contextmanager
+        def lease(kind, what, *, timings):
+            clock[0] += 7
+            timings["lease_wait"] = 7.0
+            yield
+        def build(*args, **kwargs):
+            clock[0] += 23
+            return {"interpreter": {"version": "3.16 fixture"}, "rust_extensions_sha256": {}}
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            report = Path(temp) / "report.json"
+            fixtures = {"host_lease": lease, "_build_locked": build,
+                        "_paths": lambda name: {"report": report, "stage": Path(temp)},
+                        "_check_name": lambda name: name}
+            for name, value in fixtures.items():
+                patches.enter_context(mock.patch.object(perf, name, value))
+            patches.enter_context(mock.patch.object(perf.lb, "IS_LINUX", False))
+            patches.enter_context(mock.patch.object(perf.lb, "doctor_report", return_value={"ok": True}))
+            patches.enter_context(mock.patch.object(perf.time, "monotonic", side_effect=lambda: clock[0]))
+            self.assertEqual(perf.build(name="fixture", empty_overlay=False), 0)
+            saved = json.loads(report.read_text())
+            self.assertEqual(saved["build_seconds"], 30.0)
+            self.assertEqual(saved["phase_seconds"], {"lease_wait": 7.0})
+
+    def test_phase_receipt_uses_operation_boundaries_and_preserves_sampling(self):
+        clock = [0.0]
+        calls = []
+        def advance(seconds, result=None):
+            clock[0] += seconds
+            return result
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            sides = {ref: {"ref": ref, "name": ref[1:], "stage": root / ref[1:],
+                           "python": Path("/python"), "report": {}}
+                     for ref in ("@control", "@incumbent")}
+            @perf.contextlib.contextmanager
+            def lease(kind, what, *, timings):
+                advance(7)
+                timings["lease_wait"] = 7.0
+                yield
+            def workload(*args, **kwargs):
+                calls.append("workload")
+                return advance(11, {"kind": "workload", "metrics": {}, "mismatch": False})
+            def module(*args, **kwargs):
+                calls.append("module")
+                return advance(13, {"kind": "module", "metrics": {}, "mismatch": False})
+            fixtures = {
+                "LANE": root, "host_lease": lease,
+                "_harness_identity": lambda: {"source_sha256": "fixture"},
+                "selection": lambda **kw: (["workload", "json"], ["workload"], ["json"]),
+                "resolve": sides.__getitem__,
+                "_verify_stage": lambda side: advance(2),
+                "_module_iterations": lambda *a, **kw: advance(3, 37),
+                "_run_bench": workload, "_measure_module": module,
+                "_host_sample": lambda *a, **kw: advance(17, {"quiet": True}),
+            }
+            for name, value in fixtures.items():
+                patches.enter_context(mock.patch.object(perf, name, value))
+            patches.enter_context(mock.patch.object(perf.time, "monotonic", side_effect=lambda: clock[0]))
+            patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
+            record = perf._measure(
+                baseline_ref="@incumbent", candidate_ref="@control", workloads=["workload"],
+                modules=["json"], gate=False, runs=2, profile="standard", timing_only=False,
+                min_idle=0, self_compare=False, record_baselines=False)
+            self.assertEqual(calls, ["workload", "module", "workload", "module"])
+            self.assertEqual(record["phase_seconds"], {
+                "lease_wait": 7.0, "stage_verification_before": 4.0,
+                "controller_preparation": 0.0, "module_calibration": 3.0,
+                "workload_runs": 22.0, "module_sampling": 26.0,
+                "stage_verification_after": 4.0,
+            })
+            self.assertEqual(record["seconds"], 117.0)
+            self.assertEqual(record["phase_seconds"], json.loads(
+                (Path(record["directory"]) / "verdict.json").read_text())["phase_seconds"])
 
 
 class WorkloadProfileTests(unittest.TestCase):
@@ -583,6 +860,615 @@ class IncrementalPlanTests(unittest.TestCase):
         self.assertEqual(plan, {"changed": ["Lib/new.py"], "removed": [], "clean_only": []})
 
 
+class CPlacementIncrementalTests(unittest.TestCase):
+    original = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@_json _json.c\n'
+    builtin = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@*static*\n@MODULE__JSON_TRUE@_json _json.c\n@MODULE__JSON_TRUE@*@MODULE_BUILDTYPE@*\n'
+
+    def test_both_directions_invalidate_same_object_and_obsolete_extension(self):
+        for before, after, static in ((self.original, self.builtin, True),
+                                      (self.builtin, self.original, False)):
+            with self.subTest(static=static), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                build, stage = root / 'build', root / 'stage'
+                (build / 'Modules').mkdir(parents=True)
+                (build / 'lib.fixture').mkdir()
+                stage.mkdir()
+                (build / 'pybuilddir.txt').write_text('lib.fixture')
+                for relative in ('Modules/_json.o', 'Modules/config.o',
+                                 'Modules/_json.fixture.so'):
+                    (build / relative).write_text('stale')
+                (build / 'lib.fixture/_json.fixture.so').symlink_to('../Modules/_json.fixture.so')
+                (stage / 'obsolete.so').write_text('old stage')
+                plan = perf.c_placement_plan(before, after, self.original)
+                self.assertEqual(plan, {'_json': ('Modules/_json.o',)})
+                perf.invalidate_c_placement(build, stage, plan)
+                self.assertFalse((build / 'Modules/_json.o').exists())
+                self.assertFalse((build / 'Modules/config.o').exists())
+                self.assertFalse((build / 'lib.fixture/_json.fixture.so').is_symlink())
+                self.assertFalse((build / 'Modules/_json.fixture.so').exists())
+                self.assertEqual(list(stage.iterdir()), [])
+
+    def test_changed_sources_flags_rust_rows_or_restore_are_rejected(self):
+        for invalid in (self.builtin.replace(b'_json.c', b'other.c'),
+                        self.builtin.replace(b'_json.c', b'_json.c -DNEW'),
+                        self.builtin.replace(b'_json.c', b'_json/Cargo.toml'),
+                        self.builtin.replace(b'*@MODULE_BUILDTYPE@*\n', b'*shared*\n'),
+                        self.builtin.replace(b'@MODULE__JSON_TRUE@*static*', b'@MODULE_ARRAY_TRUE@*static*'),
+                        self.builtin.replace(b'@MODULE__JSON_TRUE@*@MODULE_BUILDTYPE@*',
+                                             b'@MODULE_ARRAY_TRUE@*@MODULE_BUILDTYPE@*')):
+            with self.subTest(invalid=invalid), self.assertRaises(perf.LaneError):
+                perf.c_placement_plan(self.original, invalid, self.original)
+
+    def test_real_guarded_wrappers_preserve_disabled_and_following_mode(self):
+        for guard, name, source, comment in (
+                ('@MODULE__STRUCT_TRUE@', '_struct', '_struct.c',
+                 '# Keep the original C module in the interpreter and restore the configured mode.\n'),
+                ('@MODULE_BINASCII_TRUE@', 'binascii', 'binascii.c',
+                 '# Keep the original C module in the interpreter while preserving its optional\n'
+                 '# configuration and restoring the configured mode for subsequent modules.\n')):
+            row = f'{guard}{name} {source}\n'
+            original = ('*@MODULE_BUILDTYPE@*\n' + row + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
+            wrapped = ('*@MODULE_BUILDTYPE@*\n' + comment + guard + '*static*\n' + row +
+                       guard + '*@MODULE_BUILDTYPE@*\n' + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
+            plan = perf.c_placement_plan(original, wrapped, original)
+            self.assertEqual(set(plan), {name})
+            self.assertEqual(perf.c_placement_plan(wrapped, original, original), plan)
+            for substitution in ('', '#'):
+                configured = wrapped.decode().replace(guard, substitution).replace('@MODULE_BUILDTYPE@', 'shared')
+                effective = [line for line in configured.splitlines() if line and not line.startswith('#')]
+                mode = 'static'
+                modes = {}
+                for line in effective:
+                    if line.startswith('*'):
+                        mode = line.strip('*')
+                    elif not line.startswith('@'):
+                        modes[line.split()[0]] = mode
+                self.assertEqual(modes.get(name), 'static' if not substitution else None)
+                self.assertEqual(mode, 'shared')
+
+    def test_object_shared_with_unmoved_row_is_rejected(self):
+        original = self.original + b'@MODULE_ALIAS_TRUE@alias _json.c\n'
+        wrapped = self.builtin + b'@MODULE_ALIAS_TRUE@alias _json.c\n'
+        with self.assertRaises(perf.LaneError):
+            perf.c_placement_plan(original, wrapped, original)
+
+    def test_generated_registration_and_compile_rule_must_agree(self):
+        for static in (True, False):
+            with tempfile.TemporaryDirectory() as tmp:
+                build = Path(tmp)
+                (build / 'Modules').mkdir()
+                flag = 'PY_BUILTIN_MODULE_CFLAGS' if static else 'PY_STDMODULE_CFLAGS'
+                shared = '' if static else '_json'
+                (build / 'Makefile').write_text(
+                    f'MODSHARED_NAMES= {shared}\nModules/_json.o: source; clang $({flag}) -c source -o Modules/_json.o\n')
+                (build / 'Modules/config.c').write_text('{"_json", PyInit__json},' if static else '')
+                perf._verify_c_placement_rules(build, {'_json': ('Modules/_json.o',)}, {'_json': static})
+                (build / 'Modules/config.c').write_text('' if static else '{"_json", PyInit__json},')
+                with self.assertRaises(perf.LaneError):
+                    perf._verify_c_placement_rules(build, {'_json': ('Modules/_json.o',)}, {'_json': static})
+
+    def test_mixed_build_system_or_rust_changes_stay_clean_only(self):
+        for name in ('Modules/makesetup', 'Modules/Setup.local', 'Modules/_json_rs/src/lib.rs'):
+            plan = perf.incremental_plan(
+                {'Modules/Setup.stdlib.in': self.builtin, name: b'new'},
+                {'Modules/Setup.stdlib.in': self.original, name: b'old'},
+                ['Modules/Setup.stdlib.in', name])
+            self.assertIn('Modules/Setup.stdlib.in', plan['clean_only'])
+            self.assertNotEqual(plan['changed'], ['Modules/Setup.stdlib.in'])
+
+    def test_actual_compiler_flags_required_in_both_directions(self):
+        for static in (True, False):
+            with tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / 'install.log'
+                plan = {'_json': ('Modules/_json.o',)}
+                correct = '-DPy_BUILD_CORE_BUILTIN ' if static else ''
+                log.write_text(f'clang {correct}-c /source/Modules/_json.c -o Modules/_json.o\n')
+                perf.verify_c_placement_compilation(log, plan, {'_json': static})
+                wrong = '' if static else '-DPy_BUILD_CORE_BUILTIN '
+                log.write_text(f'clang {wrong}-c /source/Modules/_json.c -o Modules/_json.o\n')
+                with self.assertRaises(perf.LaneError):
+                    perf.verify_c_placement_compilation(log, plan, {'_json': static})
+
+
+class IncrementalRecipeTests(unittest.TestCase):
+    def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
+                 empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False,
+                 late_placement_failure=False, abrupt_placement_failure=False):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            if not source_std:
+                patches.enter_context(mock.patch.object(perf.lb, "TARGET", "x86_64-unknown-linux-gnu"))
+            source = root / "source"
+            source.mkdir()
+            (source / "Cargo.lock").write_text("locked fixture")
+            aggregate_manifest = source / 'Modules/cpython-rust-source-aggregate356/Cargo.toml'
+            (source / 'Cargo.toml').write_text('[workspace]\nmembers = ' +
+                ('["Modules/cpython-rust-source-aggregate356"]\n' if aggregate else '[]\n'))
+            if aggregate and not missing_aggregate:
+                aggregate_manifest.parent.mkdir(parents=True)
+                aggregate_manifest.write_text('[package]\nname = "cpython-rust-source-aggregate356"\n')
+            (source / "Lib").mkdir()
+            (source / "Lib/pickle.py").write_text("old")
+            paths = {name: root / name for name in (
+                "source_parent", "overlay_staging", "overlay_manifest", "build", "stage",
+                "cargo_log", "configure_log", "build_log", "install_log")}
+            paths["build"].mkdir()
+            (paths["build"] / "Makefile").write_text("CARGO_PROFILE=dev\n")
+            paths["overlay_manifest"].write_text('["Lib/pickle.py"]')
+            (paths["overlay_staging"] / "Lib").mkdir(parents=True)
+            (paths["overlay_staging"] / "Lib/pickle.py").write_text("new")
+            paths["build_log"].write_text("stale cargo --profile release")
+            toolchain = mock.Mock(make=Path("/make"), llvm_prefix=root / "llvm")
+            toolchain.identity.return_value = {"fixture": True}
+            sandbox = mock.Mock()
+            sandbox.environment.side_effect = lambda env: env
+            proof = mock.Mock()
+            proof.verify_builtin_artifacts.return_value = {"fixture": "verified"}
+            members = {"_base64", "cpython-sys", "_fixture_rs"}
+            commands = []
+            preparations = []
+            def command(argv, *, log, **kwargs):
+                commands.append(argv)
+                if "fetch" in argv and missing_aggregate:
+                    self.assertIn('--locked', argv)
+                    self.assertIn('--manifest-path', argv)
+                    self.assertIn('cpython-rust-source-aggregate356', (source / 'Cargo.toml').read_text())
+                    raise perf.LaneError('Cargo declared aggregate dependency is missing')
+                if "install" in argv and failed_install:
+                    log.write_text("install failed")
+                    raise perf.LaneError("install failed")
+                compiled = members - ({"_fixture_rs"} if "install" in argv and missing_current_member else set())
+                transcript = "cargo --profile release\n" + "".join(
+                    "Compiling " + member + " v0.1.0\n" for member in sorted(compiled))
+                log.write_text(transcript + ("cargo --profile dev" if "install" in argv and bad_install else ""))
+                if "install" in argv:
+                    python = paths["stage"] / "bin/python3.16"
+                    python.parent.mkdir(parents=True, exist_ok=True)
+                    python.write_text("installed fixture")
+            def prepare_std(prepared_paths, env):
+                preparations.append(prepared_paths)
+                self.assertTrue(source_std and aggregate, "ordinary workspace must not prepare source Std")
+                self.assertTrue(prepared_paths["build"].is_dir())
+                if not incremental:
+                    self.assertTrue(prepared_paths["stage"].is_dir())
+                    self.assertFalse((prepared_paths["build"] / "Makefile").exists())
+                env["PYTHON_BUILD_RUST_STD_SOURCE"] = "verified source"
+                return {"sha256": "fixture"}
+            fixtures = {
+                "_prepare_csv_source_std": prepare_std,
+                "_install_source_aggregate": lambda *a: {"fixture": "verified"},
+                "_git_state": lambda: {"commit": "fixture"},
+                "_existing_source": lambda parent: source,
+                "_stage_overlay": lambda paths: ({"sha256": "fixture"}, ["Lib/pickle.py"]),
+                "_builtin_artifact_verifier": lambda: (proof, []),
+                "_perf_flags": lambda *a: {"CPPFLAGS": "", "CFLAGS": "fixture flags"},
+                "_overlay_members": lambda: {"_fixture_rs"},
+                "_build_python": lambda build: build / "python.exe",
+            }
+            for name, value in fixtures.items():
+                patches.enter_context(mock.patch.object(perf, name, value))
+            for name, value in {
+                "_toolchain": (toolchain, "fixture"), "_environment": {},
+                "_sealed_sandbox": sandbox, "_workspace_members": members,
+                "_read_lock": ({"commit": "source"}, mock.Mock(sha256="source hash")),
+                "_module_report": {"version": "fixture"}, "_rust_identity": {"fixture": True},
+            }.items():
+                patches.enter_context(mock.patch.object(perf.lb, name, return_value=value))
+            patches.enter_context(mock.patch.object(perf.lb, "_llvm_ready"))
+            patches.enter_context(mock.patch.object(perf.lb, "_extract_fresh", return_value=source))
+            patches.enter_context(mock.patch.object(perf.lb, "_require_command", side_effect=command))
+            patches.enter_context(mock.patch.object(perf.lb, "_make_value", return_value="dev"))
+            extensions = patches.enter_context(mock.patch.object(
+                perf, "verify_release_artifacts", return_value={str(i): "hash" for i in range(58)}))
+            checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
+            compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
+            single_install = incremental or (source_std and aggregate and not empty_overlay)
+            if late_placement_failure or abrupt_placement_failure:
+                original = CPlacementIncrementalTests.original
+                template = 'Modules/Setup.stdlib.in'
+                (source / 'Modules').mkdir(exist_ok=True)
+                (source / template).write_bytes(original)
+                (paths['overlay_staging'] / 'Modules').mkdir()
+                (paths['overlay_staging'] / template).write_bytes(CPlacementIncrementalTests.builtin)
+                paths['overlay_manifest'].write_text(json.dumps([template]))
+                (paths['build'] / 'config.status').write_text('S["MODULE_BUILDTYPE"]="shared"')
+                paths['report'] = root / 'report.json'
+                paths['report'].write_text(json.dumps({
+                    'configured': True, 'pristine': False, 'source_commit': 'source',
+                    'source_archive_sha256': 'source hash', 'target': perf.lb.TARGET,
+                    'cargo_lock_sha256': perf._sha256_file(source / 'Cargo.lock')}))
+                patches.enter_context(mock.patch.object(perf, '_stage_overlay',
+                    return_value=({'sha256': 'fixture'}, [template])))
+                patches.enter_context(mock.patch.object(perf, '_original_setup_template', return_value=original))
+                patches.enter_context(mock.patch.object(perf, '_perf_flags', return_value={
+                    'CPPFLAGS': '', 'CFLAGS': 'fixture flags', 'LDFLAGS': ''}))
+                def value(path, name):
+                    return {'CC': str(toolchain.llvm_prefix / 'bin/clang'),
+                            'CONFIGURE_CFLAGS': 'fixture flags', 'CONFIGURE_CPPFLAGS': '',
+                            'CONFIGURE_LDFLAGS': '', 'CARGO_PROFILE': 'dev'}[name]
+                patches.enter_context(mock.patch.object(perf.lb, '_make_value', side_effect=value))
+                def placement_command(argv, **kwargs):
+                    command(argv, **kwargs)
+                    if 'Makefile' in argv:
+                        (paths['build'] / 'Modules').mkdir(exist_ok=True)
+                        (paths['build'] / 'Modules/config.c').write_text('generated')
+                    if 'install' in argv:
+                        with kwargs['log'].open('a') as stream:
+                            stream.write('clang -DPy_BUILD_CORE_BUILTIN -c source -o Modules/_json.o\n')
+                patches.enter_context(mock.patch.object(perf.lb, '_require_command', side_effect=placement_command))
+                patches.enter_context(mock.patch.object(perf, '_verify_c_placement_rules'))
+                patches.enter_context(mock.patch.object(perf.lb, '_module_report',
+                                                       side_effect=RuntimeError('late metadata failure')))
+                patches.enter_context(mock.patch.object(perf.lb, 'doctor_report', return_value={'ok': True}))
+                patches.enter_context(mock.patch.object(perf, '_paths', return_value=paths))
+                patches.enter_context(mock.patch.object(perf, 'host_lease', return_value=nullcontext()))
+                if abrupt_placement_failure:
+                    previous = json.loads(paths['report'].read_text())
+                    perf._write_json(paths['report'], {'status': 'building', 'configured': True})
+                    copy_file = perf._copy_file
+                    persisted = []
+                    def interrupted_copy(source_file, target_file):
+                        persisted.append(json.loads(paths['report'].read_text()))
+                        copy_file(source_file, target_file)
+                        raise SystemExit('abrupt placement interruption')
+                    patches.enter_context(mock.patch.object(perf, '_copy_file', side_effect=interrupted_copy))
+                    # Call the inner builder directly: no outer failure handler can
+                    # repair the durable state after this simulated process loss.
+                    with self.assertRaisesRegex(SystemExit, 'abrupt placement interruption'):
+                        perf._build_locked('fixture', paths, empty_overlay=False, incremental=True,
+                                           jobs=4, state={'configured': True, 'previous': previous})
+                    self.assertFalse(persisted[0]['configured'])
+                    self.assertEqual((source / template).read_bytes(), CPlacementIncrementalTests.builtin)
+                    self.assertFalse(json.loads(paths['report'].read_text())['configured'])
+                    with self.assertRaisesRegex(perf.LaneError, 'no configured candidate'):
+                        perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                    self.assertEqual(commands, [])
+                    return
+                with self.assertRaisesRegex(RuntimeError, 'late metadata failure'):
+                    perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                failure = json.loads(paths['report'].read_text())
+                self.assertEqual(failure['status'], 'failed')
+                self.assertEqual(failure['error'], 'late metadata failure')
+                self.assertFalse(failure['configured'])
+                count = len(commands)
+                with self.assertRaisesRegex(perf.LaneError, 'no configured candidate'):
+                    perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                self.assertEqual(len(commands), count)
+                return
+            if missing_aggregate:
+                with self.assertRaisesRegex(perf.LaneError, "Cargo declared aggregate dependency is missing"):
+                    perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
+                                       incremental=incremental, state={"configured": True})
+                self.assertEqual(preparations, [])
+                self.assertFalse(any(argv[0] == "/make" for argv in commands))
+                extensions.assert_not_called()
+                return
+            if bad_install or failed_install or missing_current_member:
+                with self.assertRaisesRegex(perf.LaneError, "profile dev|install failed|did not compile Rust members"):
+                    perf._build_locked("fixture", paths, empty_overlay=empty_overlay, jobs=4,
+                                       incremental=incremental, state={"configured": True})
+                extensions.assert_not_called()
+                proof.verify_builtin_artifacts.assert_not_called()
+                if not missing_current_member:
+                    compiled.assert_not_called()
+            else:
+                report = perf._build_locked("fixture", paths, empty_overlay=empty_overlay, jobs=4,
+                                            incremental=incremental, state={"configured": True})
+                self.assertEqual(len(report["rust_extensions_sha256"]), 58)
+                self.assertEqual(report["rust_builtin_artifacts"], {} if empty_overlay else {"fixture": "verified"})
+                self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
+                self.assertEqual(report["incremental"], incremental)
+                self.assertEqual(report["rust_source_aggregate"], {"fixture": "verified"} if source_std and aggregate and not empty_overlay else None)
+                self.assertEqual((source / "Lib/pickle.py").read_text(), "old" if empty_overlay else "new")
+                self.assertEqual(proof.validate_builtin_source.call_count, int(not empty_overlay))
+                self.assertEqual(proof.verify_builtin_artifacts.call_count, int(not empty_overlay))
+                extensions.assert_called_once()
+                checks.assert_called_once_with(paths["install_log"] if single_install else paths["build_log"],
+                                               paths["install_log"])
+            if not incremental and not bad_install and not failed_install:
+                compiled.assert_called_once_with(paths["install_log"] if single_install else paths["build_log"], members)
+            self.assertEqual(len(preparations), int(source_std and aggregate and not empty_overlay))
+            make = [argv for argv in commands if argv[0] == "/make"]
+            self.assertEqual(make, ([["/make", "-j4", "install", *perf.MAKE_VARS]] if single_install else
+                                   [["/make", "-j4", *perf.MAKE_VARS],
+                                    ["/make", "install", *perf.MAKE_VARS]]))
+            if single_install:
+                self.assertFalse(paths["build_log"].exists())
+
+    def test_abrupt_placement_mutation_persists_nonresumable_state_before_copy(self):
+        self.exercise(True, aggregate=False, abrupt_placement_failure=True)
+
+    def test_late_placement_report_failure_keeps_failed_state_and_refuses_retry(self):
+        self.exercise(True, aggregate=False, late_placement_failure=True)
+
+    def test_incremental_builds_and_installs_once_then_verifies_artifacts(self):
+        self.exercise(True)
+
+    def test_clean_source_std_builds_and_installs_once_then_verifies_current_members(self):
+        self.exercise(False)
+
+    def test_clean_pristine_control_keeps_separate_build_and_install(self):
+        self.exercise(False, empty_overlay=True)
+
+    def test_clean_rejects_missing_current_member_despite_stale_release_transcript(self):
+        self.exercise(False, missing_current_member=True)
+
+    def test_clean_rejects_current_dev_transcript(self):
+        self.exercise(False, bad_install=True)
+
+    def test_clean_install_failure_does_not_claim_artifact_proof(self):
+        self.exercise(False, failed_install=True)
+
+    def test_linux_keeps_existing_release_route_without_source_std_preparation(self):
+        self.exercise(False, source_std=False)
+
+    def test_incremental_rejects_current_dev_transcript_despite_stale_release_log(self):
+        self.exercise(True, bad_install=True)
+
+    def test_incremental_install_failure_does_not_claim_artifact_proof(self):
+        self.exercise(True, failed_install=True)
+
+
+    def test_accepted_nonaggregate_clean_uses_ordinary_release_build(self):
+        self.exercise(False, aggregate=False)
+
+    def test_accepted_nonaggregate_incremental_skips_source_std_preparation(self):
+        self.exercise(True, aggregate=False)
+
+    def test_declared_missing_aggregate_dependency_fails_locked_fetch(self):
+        self.exercise(False, missing_aggregate=True)
+
+
+class SourceAggregateInstallTests(unittest.TestCase):
+    def test_preparation_uses_named_input_owner_and_lock_metadata(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = {"source_parent": root / "source"}
+            env = {"CPPFLAGS": "existing"}
+            metadata = {"compiler_revision": "revision", "library_cargo_lock_sha256": "lock"}
+            with mock.patch.object(perf.lb, "_rust_std_source_environment", create=True,
+                                   return_value={"PYTHON_BUILD_RUST_STD_SOURCE": "verified"}) as prepare, \
+                 mock.patch.object(perf.lb, "_read_rust_std_lock", create=True,
+                                   return_value=(metadata, mock.Mock(sha256="archive"))):
+                result = perf._prepare_csv_source_std(paths, env)
+            prepare.assert_called_once_with(root / "rust-std-source")
+            self.assertEqual(result, {"sha256": "archive", **metadata})
+            self.assertEqual(env, {"CPPFLAGS": "existing", "PYTHON_BUILD_RUST_STD_SOURCE": "verified"})
+
+    def exercise(self, defect=None, *, already_finalized=False):
+        with tempfile.TemporaryDirectory() as raw, ExitStack() as patches:
+            lane = Path(raw).resolve()
+            paths = perf._paths('fixture', lane)
+            build, stage = paths['build'], paths['stage']
+            source = paths['source_parent'] / 'cpython'
+            source.mkdir(parents=True)
+            names = ('_csv_rs', '_json_rs', '_typing_rs', '_tokenize_rs',
+                     '_datetime_rs', '_threading_rs', '_uuid_rs', '_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs')
+            basename = 'libcpython_rust_source_aggregate356.dylib'
+            release = build / 'target' / perf.lb.TARGET / 'release' / basename
+            final = build / 'source-aggregate356/final' / basename
+            canonical = build / 'Modules' / basename
+            dynload = stage / 'lib/python3.16/lib-dynload'
+            staged = dynload / basename
+            def record(path):
+                return {'path': str(path), 'sha256': perf._sha256_file(path), 'size': path.stat().st_size}
+            for path in (release, final, canonical):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'final signed aggregate')
+            dynload.mkdir(parents=True)
+            if already_finalized:
+                staged.write_bytes(release.read_bytes())
+            consumers = {}
+            for name in names:
+                published = release.parent / ('lib' + name + '.dylib')
+                published.symlink_to(basename)
+                helper = canonical.parent / (name + '.cpython-316-darwin.so')
+                helper.symlink_to(basename)
+                installed = dynload / helper.name
+                if already_finalized:
+                    installed.symlink_to(basename)
+                else:
+                    installed.write_bytes(release.read_bytes())
+                consumers[name] = {**record(published)}
+            unrelated = dynload / '_pathlib_rs.cpython-316-darwin.so'
+            unrelated.write_bytes(b'unchanged stock pathlib')
+            stock_release = release.parent / 'lib_pathlib_rs.dylib'
+            stock_release.write_bytes(unrelated.read_bytes())
+            layout = {'schema': 2, 'page_size': 16384, 'segments': {
+                '__DATA_CONST': {'vmsize': 16384, 'maxprot': 3, 'initprot': 3, 'flags': 16},
+                '__DATA': {'vmsize': 16384, 'maxprot': 3, 'initprot': 3, 'flags': 0}},
+                'link_surface': {'loads': ['/usr/lib/libSystem.B.dylib'],
+                    'exports': {'_PyInit_' + name: 0 for name in names}}}
+            receipt = {'schema_version': 2, 'status': 'complete', 'target': perf.lb.TARGET,
+                'profile': 'release', 'panic': 'abort', 'allocator': 'System',
+                'aggregate': {**record(release), 'final_artifact': record(final),
+                    'install_id': '@rpath/' + basename, 'layout': layout}, 'consumers': consumers}
+            receipt_path = build / 'source-aggregate356/receipt.json'
+            receipt_path.write_text('{"fixture": true}')
+            if defect == 'owner':
+                paths['source_parent'] = lane / 'foreign-source'
+            elif defect == 'canonical-link':
+                canonical.unlink()
+                canonical.symlink_to(release)
+            elif defect == 'canonical-hardlink':
+                os.link(canonical, build / 'linked-copy')
+            elif defect == 'allocator':
+                receipt['allocator'] = 'custom'
+            elif defect == 'schema':
+                receipt['schema_version'] = 8
+            elif defect == 'old-schema':
+                receipt['schema_version'] = 1
+            elif defect == 'old-layout-schema':
+                layout['schema'] = 1
+            elif defect == 'roster':
+                del consumers['_uuid_rs']
+            elif defect == 'old-roster':
+                for name in ('_collections_rs', '_sqlite3_rs', '_warnings_rs', '_socket_rs'):
+                    del consumers[name]
+            elif defect == 'new-installed':
+                (dynload / '_socket_rs.cpython-316-darwin.so').write_bytes(b'changed last copy')
+            elif defect == 'release':
+                release.write_bytes(b'changed')
+            elif defect == 'final':
+                final.write_bytes(b'changed')
+            elif defect == 'installed':
+                (dynload / '_csv_rs.cpython-316-darwin.so').write_bytes(b'changed')
+            elif defect in ('build-alias', 'release-alias'):
+                alias = (canonical.parent / '_csv_rs.cpython-316-darwin.so' if defect == 'build-alias'
+                         else release.parent / 'lib_csv_rs.dylib')
+                alias.unlink()
+                alias.symlink_to(str(canonical if defect == 'build-alias' else release))
+            elif defect == 'stage-escape':
+                alias = dynload / '_csv_rs.cpython-316-darwin.so'
+                alias.unlink()
+                alias.symlink_to(release)
+            elif defect == 'stage-collision':
+                staged.write_bytes(b'foreign')
+            elif defect == 'layout':
+                layout['segments']['__DATA_CONST']['flags'] = 0
+            elif defect == 'page-bound':
+                layout['segments']['__DATA']['vmsize'] = 32768
+            elif defect == 'initializers':
+                del layout['link_surface']['exports']['_PyInit__uuid_rs']
+            recipe = mock.Mock()
+            recipe.verify_build_receipt.return_value = receipt
+            patches.enter_context(mock.patch.object(perf, 'LANE', lane))
+            patches.enter_context(mock.patch.object(perf, '_source_aggregate_recipe', return_value=recipe, create=True))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'read_header', return_value=mock.Mock(arch='arm64')))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'signature_status', return_value=(defect != 'signature', 'fixture')))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'dylib_id', return_value=receipt['aggregate']['install_id']))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'rpaths', return_value=[]))
+            patches.enter_context(mock.patch.object(perf.lb.macho, 'dependencies', return_value=[
+                '/unowned/lib.dylib' if defect == 'load' else '/usr/lib/libSystem.B.dylib']))
+            if defect:
+                with self.assertRaises(perf.LaneError):
+                    perf._install_source_aggregate(source, paths, {'sha256': 'archive'})
+                if defect != 'stage-collision':
+                    self.assertFalse(staged.exists())
+            else:
+                result = perf._install_source_aggregate(source, paths, {'sha256': 'archive'})
+                self.assertFalse(staged.is_symlink())
+                self.assertEqual(staged.read_bytes(), release.read_bytes())
+                for name in names:
+                    installed = dynload / (name + '.cpython-316-darwin.so')
+                    self.assertTrue(installed.is_symlink())
+                    self.assertEqual(os.readlink(installed), basename)
+                    self.assertEqual(installed.stat().st_ino, staged.stat().st_ino)
+                self.assertEqual(unrelated.read_bytes(), b'unchanged stock pathlib')
+                self.assertEqual(result['staged_aggregate_sha256'], record(staged)['sha256'])
+                self.assertEqual(result['receipt_sha256'], perf._sha256_file(receipt_path))
+                recipe.verify_build_receipt.assert_called_once_with(source, build, perf.lb.TARGET, {'sha256': 'archive'})
+                found = perf.verify_release_artifacts(build, stage, {*names, '_pathlib_rs'})
+                self.assertEqual({found[name] for name in names}, {record(release)['sha256']})
+
+    def test_restores_one_real_stage_image_after_install_dereferences_aliases(self):
+        self.exercise()
+
+    def test_exact_existing_alias_graph_can_be_verified_again(self):
+        self.exercise(already_finalized=True)
+
+    def test_rejects_invalid_receipt_artifacts_and_aliases_before_publication(self):
+        for defect in ('owner', 'canonical-link', 'canonical-hardlink', 'allocator', 'schema', 'old-schema', 'old-layout-schema', 'roster', 'old-roster', 'new-installed', 'release', 'final', 'installed',
+                       'build-alias', 'release-alias', 'stage-escape', 'stage-collision',
+                       'layout', 'page-bound', 'initializers', 'signature', 'load'):
+            with self.subTest(defect=defect):
+                self.exercise(defect)
+
+
+class BuiltinPreflightTests(unittest.TestCase):
+    def source_failure(self, defect, message, *, reaches_fetch=False):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp).resolve()
+            source = root / 'source'
+            carrier = source / 'Modules/cpython-rust-staticlib'
+            carrier.mkdir(parents=True)
+            (source / 'Modules/Setup.local').write_text('*static*\n_collections_rs\n')
+            declaration = carrier / 'builtin-helpers.json'
+            declaration.write_text(json.dumps({'schema': 1, 'helpers': ['_collections_rs']}))
+            manifest = carrier / 'Cargo.toml'
+            manifest.write_text('[dependencies]\n_collections_rs = { path = "../_collections_rs" }\n')
+            (source / 'Cargo.toml').write_text('[profile.release]\npanic = "abort"\n')
+            recipe = ('cpython-rust-staticlib: cpython-sys\n'
+                      '\t$(CARGO_HOME)/bin/cargo build --lib --locked '
+                      '--package cpython-rust-staticlib --profile $(CARGO_PROFILE) '
+                      '--message-format=json >$(abs_builddir)/rust-staticlib-artifacts.jsonl\n')
+            if defect == 'declaration':
+                declaration.unlink()
+            elif defect == 'dependency':
+                manifest.write_text('[dependencies]\n_collections_rs = { path = "../wrong" }\n')
+            elif defect == 'receipt':
+                recipe = recipe.split(' --message-format=')[0] + '\n'
+            elif defect == 'panic':
+                (source / 'Cargo.toml').write_text('[profile.release]\npanic = "unwind"\n')
+            elif defect == 'masked-status':
+                recipe = recipe.rstrip() + ' || true\n'
+            (source / 'Makefile.pre.in').write_text(recipe)
+            paths = {'source_parent': root / 'parent', 'overlay_manifest': root / 'manifest.json',
+                     'build': root / 'build', 'cargo_log': root / 'cargo.log'}
+            patches.enter_context(mock.patch.object(perf.lb, '_toolchain', return_value=(None, None)))
+            patches.enter_context(mock.patch.object(perf.lb, '_llvm_ready'))
+            patches.enter_context(mock.patch.object(perf, '_git_state', return_value={}))
+            patches.enter_context(mock.patch.object(perf, '_common_dir', return_value=root / '.git'))
+            patches.enter_context(mock.patch.object(perf, '_git', return_value=str(root / '.git')))
+            patches.enter_context(mock.patch.object(perf.lb, '_extract_fresh', return_value=source))
+            patches.enter_context(mock.patch.object(perf, '_stage_overlay', return_value=({}, [])))
+            patches.enter_context(mock.patch.object(perf.lb, '_environment', return_value={}))
+            command = patches.enter_context(mock.patch.object(
+                perf.lb, '_require_command', side_effect=AssertionError('external command reached')))
+            error = AssertionError if reaches_fetch else perf.LaneError
+            with self.assertRaisesRegex(error, message):
+                perf._build_locked('fixture', paths, empty_overlay=False, jobs=1,
+                                   incremental=False, state={'configured': False})
+            if reaches_fetch:
+                command.assert_called_once()
+                self.assertIn('fetch', command.call_args.args[0])
+            else:
+                command.assert_not_called()
+
+    def test_missing_declaration_fails_before_fetch(self):
+        self.source_failure('declaration', 'no explicit declaration')
+
+    def test_wrong_carrier_dependency_fails_before_fetch(self):
+        self.source_failure('dependency', 'outside the declared static carrier')
+
+    def test_missing_genuine_receipt_recipe_fails_before_fetch(self):
+        self.source_failure('receipt', 'Cargo JSON receipt')
+
+    def test_non_abort_carrier_fails_before_fetch(self):
+        self.source_failure('panic', 'requires abort panic')
+
+    def test_masked_cargo_failure_is_rejected_before_fetch(self):
+        self.source_failure('masked-status', 'Cargo JSON receipt')
+
+    def test_valid_source_reaches_fetch_without_claiming_artifact_proof(self):
+        self.source_failure(None, 'external command reached', reaches_fetch=True)
+
+    def test_postbuild_verification_still_requires_actual_cargo_receipt(self):
+        def read(path, owner):
+            if path.name == 'config.c':
+                return b''
+            self.assertEqual(path.name, 'rust-staticlib-artifacts.jsonl')
+            raise builtin_modules.BuiltinArtifactError('actual Cargo receipt missing')
+        with mock.patch.object(builtin_modules, 'validate_builtin_source',
+                               return_value=['_collections_rs']) as preflight, \
+                mock.patch.object(builtin_modules.SourceArtifacts, 'read', side_effect=read):
+            with self.assertRaisesRegex(builtin_modules.BuiltinArtifactError,
+                                        'actual Cargo receipt missing'):
+                builtin_modules.verify_builtin_artifacts(Path('/source'), Path('/build'),
+                    Path('/stage'), 'aarch64-apple-darwin', ())
+            preflight.assert_called_once()
+
+    def test_routes_outside_existing_declaration_contract_need_no_new_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp).resolve()
+            (source / 'Modules').mkdir()
+            (source / 'Modules/Setup.local').write_text('*static*\n_typing_rs\n')
+            self.assertEqual(builtin_modules.validate_builtin_source(
+                source, 'aarch64-apple-darwin', ()), [])
+            self.assertEqual(builtin_modules.verify_builtin_artifacts(
+                source, source / 'build', source / 'stage', 'aarch64-apple-darwin', ()), {})
+
+
 class TreeAndArtifactTests(unittest.TestCase):
     def test_built_members_survive_interleaved_cargo_progress(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -661,6 +1547,15 @@ class LeaseTests(unittest.TestCase):
                 return False
             fcntl.flock(handle, fcntl.LOCK_UN)
             return True
+
+    def test_wait_timing_covers_only_lock_acquisition(self):
+        timings = {}
+        with mock.patch.object(perf.time, "monotonic", side_effect=[10.0, 16.5]):
+            with perf.host_lease("measure", "bench", timings=timings):
+                self.assertEqual(timings, {"lease_wait": 6.5})
+                self.assertFalse(self._try("host.lock", fcntl.LOCK_SH))
+                self.assertFalse(self._try("turnstile.lock", fcntl.LOCK_EX))
+        self.assertTrue(self._try("host.lock", fcntl.LOCK_EX))
 
     def test_builds_share_and_block_measurement(self):
         with perf.host_lease("build", "build a"):
