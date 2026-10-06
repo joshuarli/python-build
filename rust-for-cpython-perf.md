@@ -577,10 +577,24 @@ is neutral/better. All guards are coded neutral. Verdict SHA256 is
 `e74128288a3aae8ecb8dfc7c2ed198d079b6539af54e6a15bc93832c85ac4202`.
 The lower potential page layout is artifact proof, not a qualified physical
 memory gain or a MET goal. Preserve stage, reports and sources; no adoption,
-full qualification or unchanged reroll follows. All test/build/RSS handles are
-terminal. The frontier needs a new actual owner, not duplicate closed engine
-tuning. CPU phase has not started; accepted47/24 and12 RSS regressions remain
-unchanged.
+full qualification or unchanged reroll follows.
+One actual accepted-versus-qualified396 physical discriminator10755 completes
+with terminal exit0, using byte-exact389 V2 native code without compilation or
+a new collector. Both children, response identity, source/stage/process and
+temporary guards pass. Paired receipt SHA256 is
+`f100f9ba1425ed712f962f546f0bc0c3aeb7b7d64887949435b8a0ac288372b4`.
+Regex's actual private candidates fall four to two pages at app-ready, response
+and GC, with flags0x2d/reference count1; total Rust candidates fall54 to52.
+At post-GC, private-image classification falls32768 bytes, anonymous malloc
+dirty rises49152 bytes and tag0 dirty is unchanged. Live zone bytes rise6752
+and reserved capacity4MiB; kernel physical footprint differs by-24 bytes and
+resident size by-16384. App-ready footprint instead rises81896 bytes. Initial
+query cost is16KiB on both sides and later zero; capacities, aliases and unknown
+errors are zero. These one-pair diagnostic categories are not exclusive RSS,
+causal allocation/allocator attribution or a target-MET result.396 remains
+closed neutral, with no further probe/retest. No native handles remain live;
+a new allocation discriminator requires a concrete distinct owner. CPU phase
+has not started; accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
