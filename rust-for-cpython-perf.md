@@ -487,10 +487,22 @@ bounds2.964286/1.629630 retained; other rows are final neutral. Outputs match
 and no unstable metric occurs. Verdict SHA256 is
 `663007883711ee1d7815557699f90f4218f107e0411d7e113c29d5c4f61659a2`.
 The measured existing-intern variant is closed: no unchanged retry, primary
-reroll, full qualification or adoption.389's V2 source bounds128 Rust private
-page addresses across four phases; after review passes, its compile/pair may
-proceed now that93364 is released. Symbol/page attribution follows the new raw
-capture and remains source-only until observed. Accepted47/24 and12 RSS
+reroll, full qualification or adoption.
+Django-page389 V2 atf30e0f5/fixturec22f155 passes the known-page fixture and
+both actual children (control8154/accepted8155), with matching response digest,
+reaping, temporary cleanup, category guards and stage posthash checks. Outer
+session96285 exits1 only on a late Path-versus-bytes hashing typo. Corrected
+saved-pin/final-stage checks pass read-only, without rerunning either child;
+this is not an outer-exit0 claim. Paired receipt SHA256 is
+`dd72e0fb85fa45d30b9c21b22cdde6d79c89f662e316e056c20b1cec37c1e8d4`;
+accepted stdout SHA256 is
+`4c56fd2e13e118fd3fdbcc84884ce104fd0803583d05cf9bafff18be0dedbded`.
+After response and GC,54 eligible private image pages are stored without
+capacity/query/alias/unknown errors. Regex has constant-page offsets e0000,
+e4000,e8000 and data ec000; typing has constant4000 and data8000. These
+addresses are under read-only symbol/page attribution. The earlier positive
+private-image category estimate is not exclusive RSS or a removable owner;
+no production or memory acceptance follows. Accepted47/24 and12 RSS
 regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
