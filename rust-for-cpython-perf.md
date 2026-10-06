@@ -120,6 +120,45 @@ and region placement/free retention remain unproved. The next source inquiry
 separates raw AST blocks from arena-owned Python references, preserving the
 latter's original execution lifetime while testing early block release.
 
+### Sprint throughput audit (2026-10-05)
+
+At the audit's initial snapshot all31 children were idle, with no native
+build or measurement running. The host has10 physical/logical cores,64GiB
+RAM, zero swap activity and304GiB free disk; the second CPU sample was97%
+idle. These are instantaneous observations, not an average utilization claim.
+Scheduling and useful lane admission remain coordinator responsibilities.
+Old completed source packets are not an implementation queue: several were
+already tested, rejected, incorporated into rejected aggregates, or closed.
+
+Arena363's measured survivor path takes213.9s clean build,7.0s focused suites,
+41.4s exploratory comparison,142s complete correctness and684.9s broad gate:
+18.15 minutes before source work and native fixtures. The broad gate spends
+488.01s sampling modules and187.90s sampling workloads, with2.74s identity
+checks and negligible lease wait. Measurement sampling, rather than repeated
+stage scans, dominates this command. The complete accepted-baseline refresh
+(71 modules,15 uncertain follow-ups,23 workloads) takes16.27 minutes; it
+should not be repeated on unchanged source without a concrete unresolved need.
+Valid rejected trials establish constraints; they are not all wasted work.
+
+For the next candidate, run the meaningful changed-code regression and nearest
+primary suites before exploratory sampling. Screen the eight known363
+regressions first, then affected goals and all23 workload RSS guards. Reserve
+the full71-module gate and complete correctness for survivors. Keep independent
+baseline fixtures, source implementation and source review concurrent; keep
+operations on the same stage sequential. Delegate exploration build/focused
+test execution when a reserved builder slot and an independent stage are ready.
+Reuse verified calibration for unchanged measurement code and inherited source
+evidence; review the delta. No extra wrapper approval or repeated source packet
+is a prerequisite for ordinary execution. Final acceptance still requires a
+clean committed build, full correctness, replicated memory guards and intact
+Rust coverage. No CPU, wall-time or quiet-host requirement applies.
+
+The364 object-lifetime fixture at80c2267 compiles against both existing stages:
+all eight cases pass on the accepted runtime; seven lifetime checkpoints fail
+on363 as expected and parser cleanup passes. Source implementation and its
+independent review are restarted without another coordinator approval step.
+No364 memory benefit or goal completion is established yet.
+
 ### Reuse accepted artifacts without a canonical rebuild (2026-10-04)
 
 After a primary candidate passes complete correctness and the broad memory
