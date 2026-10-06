@@ -473,9 +473,25 @@ Verdict SHA256 is
 The measured512-GIL tuple cap is closed: its verified common logical-owner
 reduction does not establish a physical improvement. No other cap repeat,
 full qualification or adoption follows. Django-page389's fixed source remains
-under review by56.391 prepares an existing-intern cache-key proposal,
-without changing caller arguments or performing new interning; it is source-only.
-Accepted47/24 and12 RSS regressions remain unchanged.
+under review by56.
+Existing-intern cache-key391 atf2020e13 leaves caller arguments unchanged and
+performs no new interning. Its observer's initial82235 failure after seven
+semantic passes exposed hidden TLS; repaired92fe7a6 uses the public interpreter
+and typed DK_SIZE, with fresh62159 passing all three cases. The66s incremental
+build verifies58 extensions, native86728 passes11 cases, and14 focused suites
+pass6801/376 in26.6s. First93364 completes12 entities in87.9s and REJECTS
+catalog-search-form RSS1.015066x and gzip RSS1.016646x in both runs. Typing
+load0.873016x [0.825397,0.881944] improves in both runs. Logging working1.000x
+is neutral in both runs, with pooled CI[0.964286,1.657407] and individual upper
+bounds2.964286/1.629630 retained; other rows are final neutral. Outputs match
+and no unstable metric occurs. Verdict SHA256 is
+`663007883711ee1d7815557699f90f4218f107e0411d7e113c29d5c4f61659a2`.
+The measured existing-intern variant is closed: no unchanged retry, primary
+reroll, full qualification or adoption.389's V2 source bounds128 Rust private
+page addresses across four phases; after review passes, its compile/pair may
+proceed now that93364 is released. Symbol/page attribution follows the new raw
+capture and remains source-only until observed. Accepted47/24 and12 RSS
+regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
