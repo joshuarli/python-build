@@ -71,9 +71,10 @@ static int growth_cases(void) {
     memset(full, 0x51, 8192);
     attempts = 0;
     void *big = _PyArena_Malloc(control, 9000);
+    int allocated = big != NULL;
     size_t count = attempts;
     _PyArena_Free(control);
-    if (!big || live || overflowed || !count || count > 8) return 0;
+    if (!allocated || live || overflowed || !count || count > 8) return 0;
     int okay = 1;
     for (size_t n = 1; n <= count; n++) {
         PyArena *arena = _PyArena_New();
