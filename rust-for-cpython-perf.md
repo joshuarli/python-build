@@ -411,11 +411,38 @@ reordered-difflib allocation-path investigation is source-only, not a measured
 candidate. Actual guard medians rise294912 bytes in each run, with one measured
 PID per draw and no sampling error. The fixed input leaves single-position
 anchors after autojunk filtering, so Rust's two matching rows use about32 bytes;
-there is no large cloned string graph to remove. Candidate386 tests removal of
-the repeated3208-byte comparison tuple only for exact builtin inputs, retaining
-generic callbacks and matcher snapshots. This small transient owner does not
-explain the RSS gap or establish a physical saving; fixtures and source precede
-measurement. Accepted47/24 module goals and12 RSS regressions remain unchanged.
+there is no large cloned string graph to remove. Candidate386 removes the
+repeated3208-byte comparison tuple only for exact builtin inputs while retaining
+generic callbacks and matcher snapshots, on the385 cache/StringIO composition.
+Its57.2s first screen is ACCEPT-explore for CSV/typing load; compileall and
+reordered difflib RSS are neutral/worse and serialization worse/neutral, all
+final neutral. Exploratory SHA256 is
+`8e92d05088e55854d7a1f0ba5aaafeb57425ab5e662068cb80aca5ebeb92ea1a`.
+The original full suite55482 exits1 on test_pyclbr.test_easy after145s; that
+failure is preserved. Source fix01629d yields repaired primarye3be5a1e. The
+fixed clean perf-m386b build89087 passes in214.4s with58 verified extensions;
+native2771 and focused10732 pass all32 native cases and66 pyclbr/difflib tests
+with no skips. Fixed full98809 passes50158/2748 in141s, matching baseline.
+Stage SHA256 is
+`f0e6d95fe3f607a467ad1c6d0b638dda7d206ed810af4d8273dbdb2a3985ea98`.
+Calibration1815 is CALIBRATION-OK in53.7s at20261006T101316Z; SHA256 is
+`56d7bc735d96df3bf4e2b201becf747ac548ee59449f6716a86b489a5d513a76`.
+Final relative gate9799 completes all94 entities in682.3s with two standard
+memory-only runs and matched aliases, returning REJECT. Replicated regressions
+are argparse load1.043284x, configparser load1.069765x, importlib.resources
+load1.022181x, catalog-search-form RSS1.012679x, mostly-equal difflib
+RSS1.013186x, gzip RSS1.019156x, process-pool RSS1.015160x, ZIP-read
+RSS1.015385x and zlib-stream RSS1.016087x. Four metrics improve: AST
+load0.958061x, CSV load0.613271x, typing load0.855981x and logging
+working0.592593x. No mismatch or unstable metric occurs. Verdict SHA256 is
+`f84fc7b928cb257f1ba037b380b7990cca9c188c396d5146ff47bd9842611afe`.
+The measured e3be5a1e composite is closed without adoption or unchanged retry;
+this does not attribute its failures to individual components or close new
+unmeasured component mechanisms. The exploratory result and genuine correctness
+repair remain preserved. Datastack387 and tuple388 are released for bounded
+parallel baseline diagnostics; Django-page389 and hybrid-cache390 continue
+source-only from accepted source, with no implementation or memory claim.
+Accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
