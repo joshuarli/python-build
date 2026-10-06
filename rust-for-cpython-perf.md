@@ -58,7 +58,7 @@ unchanged source do not establish new source improvements. Workload absolute
 RSS completion remains separately required; its last complete picture has
 12 regressions. No CPU, timing or host quietness requirement applies.
 
-Current candidate368 omits redundant compiler-arena slots only for static
+Arena368 omits redundant compiler-arena slots only for static
 immortals and verified ASCII identifiers owned by the active interpreter's
 intern table. Normalized callback results, heap immortals and failed interning
 retain the original ownership path. Its corrected clean build at404617b7 takes
@@ -228,8 +228,13 @@ verdicts are neutral; output checks pass. Guard verdict SHA256 is
 No primary clean build, full qualification or adoption follows. The prepared
 primary source is restored to standalone socket modules; rejected source,
 fresh-stage results and historical evidence remain preserved. A bounded source
-inquiry checks whether C-only guard imports now load previously-unused Rust
-pages; no causal memory conclusion or unchanged retry follows from that inquiry.
+inquiry finds no required socket import in the three regressed guard paths.
+Saved helper presence does not prove C-module absence or RSS causality, so
+no activation/layout correction or unchanged retry follows. Two bounded
+historical audits recover no further correctness-verified unmeasured candidate.
+An82-verdict pre-override audit finds one genuine CPU-only rejection, but its
+remaining typing-builtin difference was subsequently memory-rejected; already
+accepted and later-confirmed quiet-only results provide no pending donor.
 
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
