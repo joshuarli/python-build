@@ -276,15 +276,3 @@ static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
 pub extern "C" fn PyInit__socket_rs() -> *mut PyObject {
     unsafe { PyModuleDef_Init(MODULE.0.get()) }
 }
-
-#[cfg(socket_c_image)]
-unsafe extern "C" {
-    fn _PySocket_CImage_Init() -> *mut PyObject;
-}
-
-#[cfg(socket_c_image)]
-#[unsafe(no_mangle)]
-pub extern "C" fn PyInit__socket() -> *mut PyObject {
-    // Preserve the C definition and execute it through the normal importer.
-    unsafe { _PySocket_CImage_Init() }
-}
