@@ -973,7 +973,7 @@ class CPlacementIncrementalTests(unittest.TestCase):
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
                  empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False,
-                 late_placement_failure=False):
+                 late_placement_failure=False, abrupt_placement_failure=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             if not source_std:
@@ -1063,7 +1063,7 @@ class IncrementalRecipeTests(unittest.TestCase):
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
             compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
             single_install = incremental or (source_std and aggregate and not empty_overlay)
-            if late_placement_failure:
+            if late_placement_failure or abrupt_placement_failure:
                 original = CPlacementIncrementalTests.original
                 template = 'Modules/Setup.stdlib.in'
                 (source / 'Modules').mkdir(exist_ok=True)
@@ -1102,6 +1102,28 @@ class IncrementalRecipeTests(unittest.TestCase):
                 patches.enter_context(mock.patch.object(perf.lb, 'doctor_report', return_value={'ok': True}))
                 patches.enter_context(mock.patch.object(perf, '_paths', return_value=paths))
                 patches.enter_context(mock.patch.object(perf, 'host_lease', return_value=nullcontext()))
+                if abrupt_placement_failure:
+                    previous = json.loads(paths['report'].read_text())
+                    perf._write_json(paths['report'], {'status': 'building', 'configured': True})
+                    copy_file = perf._copy_file
+                    persisted = []
+                    def interrupted_copy(source_file, target_file):
+                        persisted.append(json.loads(paths['report'].read_text()))
+                        copy_file(source_file, target_file)
+                        raise SystemExit('abrupt placement interruption')
+                    patches.enter_context(mock.patch.object(perf, '_copy_file', side_effect=interrupted_copy))
+                    # Call the inner builder directly: no outer failure handler can
+                    # repair the durable state after this simulated process loss.
+                    with self.assertRaisesRegex(SystemExit, 'abrupt placement interruption'):
+                        perf._build_locked('fixture', paths, empty_overlay=False, incremental=True,
+                                           jobs=4, state={'configured': True, 'previous': previous})
+                    self.assertFalse(persisted[0]['configured'])
+                    self.assertEqual((source / template).read_bytes(), CPlacementIncrementalTests.builtin)
+                    self.assertFalse(json.loads(paths['report'].read_text())['configured'])
+                    with self.assertRaisesRegex(perf.LaneError, 'no configured candidate'):
+                        perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                    self.assertEqual(commands, [])
+                    return
                 with self.assertRaisesRegex(RuntimeError, 'late metadata failure'):
                     perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
                 failure = json.loads(paths['report'].read_text())
@@ -1152,6 +1174,9 @@ class IncrementalRecipeTests(unittest.TestCase):
                                     ["/make", "install", *perf.MAKE_VARS]]))
             if single_install:
                 self.assertFalse(paths["build_log"].exists())
+
+    def test_abrupt_placement_mutation_persists_nonresumable_state_before_copy(self):
+        self.exercise(True, aggregate=False, abrupt_placement_failure=True)
 
     def test_late_placement_report_failure_keeps_failed_state_and_refuses_retry(self):
         self.exercise(True, aggregate=False, late_placement_failure=True)
