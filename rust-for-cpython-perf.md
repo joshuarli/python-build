@@ -182,10 +182,29 @@ generic arena registration returns to the exact original source. Its incremental
 build takes33s with58 extensions verified. A separate baseline observer sees
 24576 repeated identifier slots for8192 assignments while a normalization
 callback runs; two semantic checks pass and the no-redundant-slot assertion
-fails as expected. Candidate owner proof and memory results remain pending.
+fails as expected. The unchanged candidate observer then passes all three
+checks with zero repeated slots, and its seven identifier contracts plus458
+focused tests/3 skips pass. Its22.7s first memory screen nevertheless REJECTS:
+ElementTree load1.058x [1.046,1.062] and compilation RSS1.012x [1.010,1.014]
+regress in both runs. Zstd working0.976x is neutral, as is ZIP RSS. Verdict
+SHA256 is
+`bf43d39d5048973aa7b9c2d1e5789637c23b9857e425844c42f7bfadcde58def`.
+No broader/full qualification or adoption follows; redundant-slot removal is
+proved independently of resident-memory benefit.
 Original370 source/report/receipts remain preserved, while its stage is reused
 for exploration. Pristine no-op overlay copies retained for incremental rollback
 must be removed before a surviving candidate's final clean qualification.
+Regex feature experiment372 rebuilds incrementally in38s with58 extensions
+verified, passes22 existing/new helper cases and complete test_re (169/4),
+and proves target regex/automata features exclude optional DFA/backtracker/
+literal-prefilter engines. Installed helper bytes match Cargo's actual output.
+Its native image extent falls from1343488 to901120 bytes, including one16KiB
+constant-data page; this is artifact evidence only. Its16.7s first screen is
+NEUTRAL: re load0.994x [0.962,1.014] and working1.0x are neutral in both runs;
+compilation and ZIP RSS are final neutral. Verdict SHA256 is
+`82d6853e21890dcca3c27f9bc6833ff8790e0c4d4c90ed1e852a2485e14588d9`.
+No broader/full qualification or adoption follows. The accepted runtime stays
+unchanged; a smaller optional engine bundle does not establish an RSS saving.
 
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
