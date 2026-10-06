@@ -527,10 +527,22 @@ runs with pooled CI[1.005006,1.016031]. No mismatch or unstable metric occurs.
 Verdict SHA256 is
 `d23aab48526a905d355a844691686590afde37324656cc1f3d29b3e3747775c7`.
 The measured no_std scope is closed without unchanged retry, full qualification
-or adoption; no source-causal attribution is established. The next actual
-candidate-versus-accepted Mach-O private fixup extent comparison is read-only,
-not a new baseline or RSS draw. Accepted47/24 and12 RSS regressions remain
-unchanged.
+or adoption; no source-causal attribution is established.
+The actual392 artifact comparison completes read-only with unchanged hashes.
+File size falls1273600 to918224 bytes; CONST payload falls46064 to39248
+bytes, but its segment remains49152 bytes/three pages. Potential fixup sets
+remain three CONST pages plus one DATA page. TLS/std cache is gone, while374
+core/alloc formatting symbol sites remain and CONST rebases fall2297 to1901.
+This establishes no page-count threshold crossing, not the cause of warnings,
+logging or catalog regressions; no candidate private-page/RSS capture occurs.
+Artifact comparison SHA256 is
+`9165992715aa66fb33101bc23090f4b95bc9a64aa0d5c5fad24c402c6db62ebb`.
+Conditional inquiry393 starts from rejected392/dda56173, not the incumbent. It
+checks direct locked regex-automata meta use instead of top RegexError formatted
+String/Arc-pattern adapters while preserving features, UTF-8, clone, caller,
+scratch and System allocator semantics. It is source feasibility only, not an
+unchanged rerun or a measured gain. No CPU flags, LTO, assembly or dependency
+change is proposed. Accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
