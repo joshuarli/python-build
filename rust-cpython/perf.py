@@ -1002,8 +1002,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         except proof.BuiltinArtifactError as error:
             raise LaneError(f"built-in Rust artifact proof failed: {error}") from error
     metadata, source_input = lb._read_lock()
-    state["configured"] = True
-    return {
+    report = {
         "status": "built",
         "configured": True,
         "build_mode": "perf-no-pgo-no-lto",
@@ -1040,6 +1039,10 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "stage": str(paths["stage"]),
         "stage_identity": tree_digest(paths["stage"]),
     }
+    # Metadata and stage verification can still fail after installation. Only
+    # the fully constructed report permits reuse of a migrated configured tree.
+    state["configured"] = True
+    return report
 
 
 # -------------------------------------------------------------------- test
