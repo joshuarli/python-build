@@ -63,10 +63,21 @@ suites1339/27 pass. First65871 completes six entities in36.9s and REJECTS
 gzip RSS1.019444x in both runs; UUID load is neutral. Verdict SHA256 is
 `9f2c42ee1556fa9a6f6b053be401f3d7b65f35eb36b4d5dafbeb4bbd2431609c`.
 Both measured variants are closed without adoption, full qualification or retry.
-399's C-struct source is draft/untracked after fixture commit1eb50779;400's
-C-binascii source194ea6c8 is committed and awaiting review51. Both leave Rust
-shared routes unchanged; loader/origin/file/builtin_names changes are surfaced.
-No ROOT native/RSS handle is active.294's original Django cProfile93358 passes
+399 source1cadedb0 passes review51, a225s clean build with58 extensions, six
+native cases and struct/importlib/pickle suites2336/58. No ROOT memory result
+is established.400 source194ea6c8 preserves Rust shared routes while making
+original C binascii builtin; loader/origin/file/builtin_names changes are surfaced.
+Its first92995 screen completes six entities in118.3s with ACCEPT-explore:
+base64 load0.933351x [0.911111,0.965942] and binascii load0.962278x
+[0.944446,0.980783] improve in both runs; CSV is neutral. RSS is final neutral,
+but gzip neutral/worse1.016574x and serialization worse/neutral1.011745x
+remain recorded. Verdict SHA256 is
+`0ed478fec965f02ee08f2f77685e889e41e8fd0130e1b3582b663558b62240d4`.
+Broad all23-workload plus two-target screen75136 is live; this is a survivor,
+not adoption.401's11 original-C libSystem builtin batch (_struct,_heapq,
+_math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) is
+source preparation only. The saved389 category352KiB is not an RSS prediction;
+placement metadata changes are surfaced.294's original Django cProfile93358 passes
 with matching b609 response:74 prepare_compiled,3 search_compiled and77
 legacy_hooks_intact calls, zero legacy prepare/search. This rules out a legacy
 regex operation-cache/scratch owner for that diagnostic, not all workloads or
