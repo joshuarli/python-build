@@ -547,9 +547,25 @@ also repeats59c2aa8 direct PikeVM plus ASCII-whitespace field guards; no394
 implementation occurred. Both clean unused branches/worktrees are preserved as
 source-only closures, not new failed builds or memory draws. Combining rejected
 392 with either old mechanism establishes no new owner or threshold cause.
-The frontier needs a distinct lower-engine strategy/debug-format owner or an
-owner in another module. No builder or RSS handle remains live; CPU phase has
-not started. Accepted47/24 and12 RSS regressions remain unchanged.
+Those closures required a distinct lower-engine strategy/debug-format owner or
+an owner in another module, rather than relabeling old adapters.
+Bounded-regex395 atb9ba7566 uses concrete bounded searches with an unbounded
+PikeVM fallback, on accepted e702 with existing std/System behavior unchanged.
+Fourteen baseline cases pass; its207s clean build verifies58 extensions and31
+native cases pass. Forced real VisitedError/Pike fallback checks pass all14
+unchanged filtered Rust tests. Eleven complete suites pass3500/35 in37.4s.
+First94174 completes12 entities in71.7s and is NEUTRAL: regex
+load0.972873x [0.947807,1.013336] and working1.000x are neutral in both runs,
+with no replicated target win. All memory guards are coded neutral in both
+runs; retain elevated ZIP RSS1.010288x [1.009727,1.010849] and serialization
+RSS1.008915x [1.008155,1.009674] without relabeling them as regressions.
+Verdict SHA256 is
+`9d9c65ed44aa7c646a18eab1d80a1fd35a093cd387ca60c9d4a884465ff640a6`.
+The measured variant is closed without unchanged reroll, full qualification or
+adoption. A read-only artifact comparison checks a potential CONST-page
+threshold only; any future composition must establish a distinct mechanism.
+No private-header runtime policy or new baseline/RSS draw is inferred. CPU
+phase has not started; accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
