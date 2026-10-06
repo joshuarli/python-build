@@ -362,12 +362,28 @@ Verdict SHA256 is
 Both target gains remain preserved; no unchanged retry, full qualification
 or adoption follows.381/383 branches, reports, manifests and logs are preserved;
 the configured stage is reused and does not retain its original381 bytes.
-Candidate382 atfb4f30dd extends381 to Optional/Has APIs, covering the same
-name-cache owner through additional APIs. Six baseline semantic cases and one
-legacy case pass, with canonical identity failing as expected. Its executor is
-preparing an isolated rollback of383's StringIO source; the pristine e702 no-op
-is retained only for incremental compatibility. No candidate or memory result
-is established, and no benefit is predicted.
+Optional-API382 atfb4f30dd extends381 to Optional/Has APIs, covering the same
+name-cache owner through additional APIs. It is transported asc3dee40d into the
+configured381 stage with accepted pristine StringIO988927 retained only for
+incremental compatibility and three test-only copies;383 width changes are
+absent. The33s incremental build verifies58 extensions. Corrected native
+selection81245 passes eight new optional cases plus one fresh legacy case.
+The earlier67352 run of seven old381 fixtures is preserved, not382 proof.
+All28 available top-level suites pass7317 tests/466 skips in30.6s.
+The50.7s first screen improves typing load0.866195x [0.851553,0.895264] in
+both runs, but REJECTS warnings load1.049392x [1.036886,1.056355], compileall
+RSS1.022544x [1.022247,1.022841] and reordered difflib RSS1.012463x
+[1.012075,1.012850] in both runs. CSV load0.970979x, inspect load1.005525x,
+logging load0.981322x/working1.055556x and other rows are final neutral;
+logging's adverse individual working run is retained. Outputs match and no
+unstable metric occurs. Verdict SHA256 is
+`67dfe3cdefa990aaea3b5f6d97ad6dd9ca19ce3f422c6f7dc208e67a78dc209f`.
+No unchanged retry, full qualification or adoption follows.
+Candidate384 investigates GIL type-cache content hashing/exact Unicode equality
+instead of pointer keys, retaining caller name objects without global interning.
+It is source-only, not implemented or qualified. The intern-dictionary observer
+is released after382's screen to compare logical capacities; those observations
+cannot replace RSS qualification.
 Accepted e702 and47 passing/24 unresolved modules plus12 RSS regressions
 remain unchanged.
 
