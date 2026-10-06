@@ -326,11 +326,29 @@ observer subsequently compiles and passes its known-allocation fixture and
 one guarded parser pair. Its live addresses/sizes stay unchanged through99
 calls; the earlier increase is not reproduced, so no owner or leak conclusion
 follows. The observer's warmup/layout differs from the earlier zone-counter
-probe. Candidate381 prepares global C attribute-name interning for cacheable
-names on the GIL path, preserving legacy getter priority and the original
-free-threaded path. Modern hooks would receive canonical name objects; UTF-8,
-error, reentry, long-name and high-cardinality behavior require unchanged
-boundary tests. Source and fixtures are being prepared, with no memory claim.
+probe.
+
+Global C-API381 atfb4c2ae8 interns cacheable attribute names mortally on the
+modern GIL path, retaining legacy getter priority and the original free-threaded
+path. Modern hooks receive canonical name objects. Its214s clean build verifies
+58 extensions; six modern UTF-8/actual intern-OOM fallback checks plus one fresh
+legacy C check pass. The27 valid complete affected suites pass6911 tests with456
+skips. Invalid test_unicode/test_abstractclass collector selections are preserved
+separately; their actual replacements (92 run/2 skipped) are included.
+The44.7s first screen improves typing load0.850448x [0.820324,0.865079] in
+both runs (1040384 to884736 bytes), with working1.000x neutral, but REJECTS
+logging working1.074074x [1.035714,1.518519] in both runs (458752 to491520
+bytes). Other module memory rows and four RSS rows are final neutral; retain
+difflib's adverse individual run. Outputs match and no unstable metric occurs.
+Verdict SHA256 is
+`fdff56f83c7ea74e15efc111b231ce4e2c228f4622f1261a4e15bd224a470dd2`.
+The target gain remains preserved; no unchanged retry, full qualification or
+adoption follows.
+Candidate382 extends381 to global Optional/Has APIs: new API coverage of the
+same name-cache owner, with source/fixtures only. Candidate383 separately
+composes381 with verified width-aware StringIO366 to address logging. This is
+not the earlier367 arena/StringIO composition; interaction and all memory
+guards remain unproved. Neither proposal predicts a memory gain.
 Accepted e702 and47 passing/24 unresolved modules plus12 RSS regressions
 remain unchanged.
 
