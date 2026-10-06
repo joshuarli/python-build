@@ -537,12 +537,19 @@ This establishes no page-count threshold crossing, not the cause of warnings,
 logging or catalog regressions; no candidate private-page/RSS capture occurs.
 Artifact comparison SHA256 is
 `9165992715aa66fb33101bc23090f4b95bc9a64aa0d5c5fad24c402c6db62ebb`.
-Conditional inquiry393 starts from rejected392/dda56173, not the incumbent. It
-checks direct locked regex-automata meta use instead of top RegexError formatted
-String/Arc-pattern adapters while preserving features, UTF-8, clone, caller,
-scratch and System allocator semantics. It is source feasibility only, not an
-unchanged rerun or a measured gain. No CPU flags, LTO, assembly or dependency
-change is proposed. Accepted47/24 and12 RSS regressions remain unchanged.
+Source inquiry393 is closed as an exact duplicate: removing the same meta
+wrapper's Arc-pattern/formatted-error adapter repeats3f977b2. Its prior
+20261003T135537Z screen has neutral regex targets and replicated warnings-load
+rejection; SHA256 is
+`1636a388ed9f6150d6071353b67e8cd1324193097f8c20c83a3da7ace095efe6`.
+Source feasibility is not distinctness. The pristine394 PikeVM placeholder
+also repeats59c2aa8 direct PikeVM plus ASCII-whitespace field guards; no394
+implementation occurred. Both clean unused branches/worktrees are preserved as
+source-only closures, not new failed builds or memory draws. Combining rejected
+392 with either old mechanism establishes no new owner or threshold cause.
+The frontier needs a distinct lower-engine strategy/debug-format owner or an
+owner in another module. No builder or RSS handle remains live; CPU phase has
+not started. Accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
