@@ -122,6 +122,26 @@ latter's original execution lifetime while testing early block release.
 
 ### Sprint throughput audit (2026-10-05)
 
+Arena364 atba6b5544 passes its214.2s clean build (58 release Rust extensions),
+all19 native raw/object/GC/OOM/compile-error cases, and458 focused CPython
+tests with3 skipped. The59.7s known-regression screen REJECTS logging working
+peak1.889x (432KiB baseline/816KiB candidate), replicated in both runs.
+Asyncio working is neutral and the five completed workload RSS rows are neutral;
+the screen stops at logging before finishing shutil replication. Preserve the
+incomplete selection rather than treating it as a complete eight-entity gate.
+Verdict SHA256 is
+`778c5a18a2762cecb2f0c60aae1113d33100d57c2bbd0fefc24088176c93a23c`.
+No full correctness rerun, broad gate or adoption follows this rejection.
+
+The next allocator-class admission check finds actual System
+`malloc_good_size(8192)=8192` and`malloc_good_size(8224)=10240` on this host.
+The current compiler block combines its32-byte header with8192-byte payload;
+separating metadata from payload could avoid that size-class increase while
+preserving payload capacity. This is a different layout mechanism from earlier
+arena lifetime changes and larger-block proposals. Sizing proves no resident
+memory benefit. Original compiler lifetimes and independent native allocation,
+capacity, OOM and cleanup fixtures precede any implementation or qualification.
+
 At the audit's initial snapshot all31 children were idle, with no native
 build or measurement running. The host has10 physical/logical cores,64GiB
 RAM, zero swap activity and304GiB free disk; the second CPU sample was97%
