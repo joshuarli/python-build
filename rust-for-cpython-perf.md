@@ -110,14 +110,28 @@ Primary clean72495 passes in215.1s with58 extensions; native86745/929087
 passes16 cases (7+5+placement+SQL3). Full85711/de95ea passes50158/2748,
 496/505 files in143s, matching baseline. Stage SHA256 is
 `e4765faf4db332c9160c5713c58374921ed6550b093697f38e2e4a7ba1f1c2d5`.
-Final primary98933 all71/all23 memory-only gate is actually live with matched
-prefix/executable and unchanged-harness calibration101316 reused. No adoption
-or goal-counter change is established. Harness402 sourcea1f4ca passes review296
+Final primary98933 completes all94 entities in684.6s and REJECTS four
+replicated module regressions: _strptime load1.051879x, tarfile load1.062584x,
+warnings load1.056259x and logging working1.611111x. Five load metrics improve:
+multiprocessing, statistics, subprocess, tempfile and urllib.request. All23 RSS
+rows are final neutral; catalog-URL and large-base64 neutral/worse plus both
+difflib and startup worse/neutral observations remain preserved. Verdict SHA256
+is `bf6d415058b3603e0cbcb406f26a7b33e4def1252ea003d5ab2fe2c29ffe8458`.
+Preserve both exploratory passes,16 native checks and full50158/2748 correctness;
+the measured401 placement batch is closed without adoption, retry or goal change.
+Primary integrate-c-core401 remains an unaccepted candidate branch; accepted
+perf-rust e702 is unchanged.404 source64c7e0f adds seven conditional C modules
+for an18-module roster on rejected401/e022, with review296 underway and61
+preparing seven accepted-baseline cases; no candidate memory result is claimed.
+Harness402 sourcea1f4ca passes review296
 and101 controller tests, including late-report/abrupt-loss configuredFalse
 repairs; it remains separate.403 atsourcee089b0b copies that harness over accepted
 e702 plus pristine Setup in an isolated validation worktree, with forward/reverse
-C-struct mode proof preparing under71; native builds wait behind98933. Final clean
-qualification is still required. Read-only expanded roster budgeting continues.
+C-struct mode proof under71. Its first clean fails before compilation because
+the older builtin_modules helper lacks validate_builtin_source; that raw failure
+is preserved. Matching helper copy9ecb68f now has clean1121 actually live with
+eight jobs.402's real native proof remains pending and final clean qualification
+is required. Read-only expanded roster budgeting continues.
 Its11 original-C
 libSystem builtin batch (_struct,_heapq,
 _math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) has
