@@ -344,11 +344,30 @@ Verdict SHA256 is
 `fdff56f83c7ea74e15efc111b231ce4e2c228f4622f1261a4e15bd224a470dd2`.
 The target gain remains preserved; no unchanged retry, full qualification or
 adoption follows.
-Candidate382 extends381 to global Optional/Has APIs: new API coverage of the
-same name-cache owner, with source/fixtures only. Candidate383 separately
-composes381 with verified width-aware StringIO366 to address logging. This is
-not the earlier367 arena/StringIO composition; interaction and all memory
-guards remain unproved. Neither proposal predicts a memory gain.
+Composition383 combines381 with width-aware StringIO366, distinct from the
+older367 arena/StringIO composition. Original89a907b is transported asb64ae65e
+into the configured381 stage. Its33s incremental build verifies58 extensions.
+Fresh ASCII allocation observes131074 bytes within the262144 bound; width-upgrade
+OOM requests262148 and524296 preserve content and recover. Seven public cases
+pass. Six valid top-level selections expand to14 files (2679 run/94 skipped).
+The stale bare test_memoryio and dotted-subpackage preflight failures are
+preserved; the corrected test_io nine-file rerun passes1031/27 separately and
+is not added as unique coverage. The51.2s first screen improves typing
+load0.856555x [0.837210,0.873016] and logging working0.593103x
+[0.571429,0.862069] in both runs, but REJECTS warnings load1.051219x
+[1.043986,1.070866] and compileall RSS1.021232x [1.0211,1.0214] in both
+runs. Other rows are neutral; outputs match and no unstable metric occurs.
+Verdict SHA256 is
+`803665eb30e5a0ab35d003c4af52414bf1490f765f9c16fa1fadae35a910edaa`.
+Both target gains remain preserved; no unchanged retry, full qualification
+or adoption follows.381/383 branches, reports, manifests and logs are preserved;
+the configured stage is reused and does not retain its original381 bytes.
+Candidate382 atfb4f30dd extends381 to Optional/Has APIs, covering the same
+name-cache owner through additional APIs. Six baseline semantic cases and one
+legacy case pass, with canonical identity failing as expected. Its executor is
+preparing an isolated rollback of383's StringIO source; the pristine e702 no-op
+is retained only for incremental compatibility. No candidate or memory result
+is established, and no benefit is predicted.
 Accepted e702 and47 passing/24 unresolved modules plus12 RSS regressions
 remain unchanged.
 
