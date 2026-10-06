@@ -860,6 +860,81 @@ class IncrementalPlanTests(unittest.TestCase):
         self.assertEqual(plan, {"changed": ["Lib/new.py"], "removed": [], "clean_only": []})
 
 
+class CPlacementIncrementalTests(unittest.TestCase):
+    original = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@_json _json.c\n'
+    builtin = b'*@MODULE_BUILDTYPE@*\n*static*\n@MODULE__JSON_TRUE@_json _json.c\n*@MODULE_BUILDTYPE@*\n'
+
+    def test_both_directions_invalidate_same_object_and_obsolete_extension(self):
+        for before, after, static in ((self.original, self.builtin, True),
+                                      (self.builtin, self.original, False)):
+            with self.subTest(static=static), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                build, stage = root / 'build', root / 'stage'
+                (build / 'Modules').mkdir(parents=True)
+                (build / 'lib.fixture').mkdir()
+                stage.mkdir()
+                (build / 'pybuilddir.txt').write_text('lib.fixture')
+                for relative in ('Modules/_json.o', 'Modules/config.o',
+                                 'Modules/_json.fixture.so'):
+                    (build / relative).write_text('stale')
+                (build / 'lib.fixture/_json.fixture.so').symlink_to('../Modules/_json.fixture.so')
+                (stage / 'obsolete.so').write_text('old stage')
+                plan = perf.c_placement_plan(before, after, self.original)
+                self.assertEqual(plan, {'_json': ('Modules/_json.o',)})
+                perf.invalidate_c_placement(build, stage, plan)
+                self.assertFalse((build / 'Modules/_json.o').exists())
+                self.assertFalse((build / 'Modules/config.o').exists())
+                self.assertFalse((build / 'lib.fixture/_json.fixture.so').is_symlink())
+                self.assertFalse((build / 'Modules/_json.fixture.so').exists())
+                self.assertEqual(list(stage.iterdir()), [])
+
+    def test_changed_sources_flags_rust_rows_or_restore_are_rejected(self):
+        for invalid in (self.builtin.replace(b'_json.c', b'other.c'),
+                        self.builtin.replace(b'_json.c', b'_json.c -DNEW'),
+                        self.builtin.replace(b'_json.c', b'_json/Cargo.toml'),
+                        self.builtin.replace(b'*@MODULE_BUILDTYPE@*\n', b'*shared*\n'),
+                        self.builtin + b'# changed\n'):
+            with self.subTest(invalid=invalid), self.assertRaises(perf.LaneError):
+                perf.c_placement_plan(self.original, invalid, self.original)
+
+    def test_generated_registration_and_compile_rule_must_agree(self):
+        for static in (True, False):
+            with tempfile.TemporaryDirectory() as tmp:
+                build = Path(tmp)
+                (build / 'Modules').mkdir()
+                flag = 'PY_BUILTIN_MODULE_CFLAGS' if static else 'PY_STDMODULE_CFLAGS'
+                shared = '' if static else '_json'
+                (build / 'Makefile').write_text(
+                    f'MODSHARED_NAMES= {shared}\nModules/_json.o: source; clang $({flag}) -c source -o Modules/_json.o\n')
+                (build / 'Modules/config.c').write_text('{"_json", PyInit__json},' if static else '')
+                perf._verify_c_placement_rules(build, {'_json': ('Modules/_json.o',)}, {'_json': static})
+                (build / 'Modules/config.c').write_text('' if static else '{"_json", PyInit__json},')
+                with self.assertRaises(perf.LaneError):
+                    perf._verify_c_placement_rules(build, {'_json': ('Modules/_json.o',)}, {'_json': static})
+
+    def test_mixed_build_system_or_rust_changes_stay_clean_only(self):
+        for name in ('Modules/makesetup', 'Modules/Setup.local', 'Modules/_json_rs/src/lib.rs'):
+            plan = perf.incremental_plan(
+                {'Modules/Setup.stdlib.in': self.builtin, name: b'new'},
+                {'Modules/Setup.stdlib.in': self.original, name: b'old'},
+                ['Modules/Setup.stdlib.in', name])
+            self.assertIn('Modules/Setup.stdlib.in', plan['clean_only'])
+            self.assertNotEqual(plan['changed'], ['Modules/Setup.stdlib.in'])
+
+    def test_actual_compiler_flags_required_in_both_directions(self):
+        for static in (True, False):
+            with tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / 'install.log'
+                plan = {'_json': ('Modules/_json.o',)}
+                correct = '-DPy_BUILD_CORE_BUILTIN ' if static else ''
+                log.write_text(f'clang {correct}-c /source/Modules/_json.c -o Modules/_json.o\n')
+                perf.verify_c_placement_compilation(log, plan, {'_json': static})
+                wrong = '' if static else '-DPy_BUILD_CORE_BUILTIN '
+                log.write_text(f'clang {wrong}-c /source/Modules/_json.c -o Modules/_json.o\n')
+                with self.assertRaises(perf.LaneError):
+                    perf.verify_c_placement_compilation(log, plan, {'_json': static})
+
+
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
                  empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False):
