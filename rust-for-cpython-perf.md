@@ -392,10 +392,30 @@ logging load is worse/neutral across runs and remains recorded. Outputs match
 and no unstable metric occurs. Verdict SHA256 is
 `d8af5bb784333b00a58f5e3f1983b697d29fbe5ff0154cca86dbf21817c40c6a`.
 No unchanged retry, full qualification or adoption follows.
-Candidate385 separately composes384 with width-aware StringIO366, excluding
-381/382 global-intern API changes. The executor is preparing the archive and
-incremental source; existing383 source-fixture oracles are reused, but this
-composition's correctness and memory outcome remain unproved.
+Composition385 atc4b64074 contains384 content-key caching plus StringIO366
+across four I/O paths, excluding381/382 intern getters. The configured384
+stage is reused after18 original records are archived under typecache384-pre385.
+Its33s incremental build verifies58 extensions. All15 meaningful native judges
+pass: public7/core5/own-GIL1/ASCII1 and one binary covering both OOM upgrades.
+The24 valid top-level selections expand to32 files (8035 run/468 skipped,
+27.9s). The57.3s first screen REJECTS only reordered difflib RSS1.013605x
+[1.013595,1.013616] in both runs. CSV load0.660932x [0.624984,0.672736]
+and typing load0.857154x [0.843750,0.881038] improve in both runs. Logging
+working0.892857x [0.582011,0.964947] is neutral in both runs, not an
+improvement. Other rows are final neutral; compileall neutral/worse1.009656x,
+serialization worse/neutral1.011175x and ZIP neutral/neutral1.011714x remain
+recorded. Outputs match and no unstable metric occurs. Verdict SHA256 is
+`f3e064f27dcb3072d688132fdf55eaad52fa72fcecafd0323b08c505353c9be9`.
+No unchanged retry, full qualification or adoption follows. The next bounded
+reordered-difflib allocation-path investigation is source-only, not a measured
+candidate. Actual guard medians rise294912 bytes in each run, with one measured
+PID per draw and no sampling error. The fixed input leaves single-position
+anchors after autojunk filtering, so Rust's two matching rows use about32 bytes;
+there is no large cloned string graph to remove. Candidate386 tests removal of
+the repeated3208-byte comparison tuple only for exact builtin inputs, retaining
+generic callbacks and matcher snapshots. This small transient owner does not
+explain the RSS gap or establish a physical saving; fixtures and source precede
+measurement. Accepted47/24 module goals and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
