@@ -231,10 +231,44 @@ fresh-stage results and historical evidence remain preserved. A bounded source
 inquiry finds no required socket import in the three regressed guard paths.
 Saved helper presence does not prove C-module absence or RSS causality, so
 no activation/layout correction or unchanged retry follows. Two bounded
-historical audits recover no further correctness-verified unmeasured candidate.
+historical audits initially recover no further correctness-verified unmeasured candidate.
 An82-verdict pre-override audit finds one genuine CPU-only rejection, but its
 remaining typing-builtin difference was subsequently memory-rejected; already
 accepted and later-confirmed quiet-only results provide no pending donor.
+
+Metadata374 atbd29d628 removes linked debug records with macOS linker `-S`,
+while preserving ordinary symbols, runtime exports, compile policy and allocator.
+Its214s clean build verifies58 Rust helpers;3952 nearest-suite tests pass with416
+skips. Fresh memory-only calibration passes all seven RSS guards. The48.7s first
+screen nevertheless REJECTS warnings load1.044x in both runs; reordered difflib
+RSS improves0.983x, and the remaining selected verdicts are neutral. Verdict
+SHA256 is `1e0f91f19aba50d666537c32ac75ff1b13517ed13190268d5144a68d029cf201`.
+Raw warnings fixed-load medians rise65536 bytes in each run; its absolute
+footprints are higher, so lower initial-footprint redistribution does not explain
+this rejection. No unchanged retry, full qualification or adoption follows.
+Candidate375 isolates debug-record removal to C extensions while preserving
+core/interpreter metadata. This changes post-link source-debug reconstruction
+for those extension images; ordinary runtime symbols remain required.
+
+Separate phase observations on unchanged accepted/control stages reuse existing
+VM and malloc observers. All children pass, outputs match and stage identities
+remain unchanged. Zstd working growth occurs in existing anonymous malloc pages
+without increased live or reserved malloc totals. ElementTree's accepted loop
+adds320KiB of resident/dirty pages with a net16KiB increase in live malloc totals;
+the aggregate observer cannot identify allocation sizes or sites. Datetime and
+decimal each add32KiB of private dirty helper-image pages, with only272/288 bytes
+of fixed live malloc excess and additional anonymous page commitment. These
+instrumented observations locate categories, not acceptance ratios or causal
+allocation sites. Parse/serialize separation and allocation-stack observations
+are the next bounded diagnostics; no allocator replacement is resumed.
+
+A subsequent targeted pairing audit recovers pickle source47 atdb3e5b3b,
+whose saved worktree and primary correctness qualifications have zero memory
+draws. Candidate376 rebases that isolated C/Rust image pairing onto accepted
+e702f238, preserving both module definitions, fallback and interpreter ownership.
+Potential page coalescence is a hypothesis, not measured RSS improvement.
+The historical decimal48 pairing has an actual memory rejection and remains
+closed. The accepted runtime and47-pass/24-unresolved module picture are unchanged.
 
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped

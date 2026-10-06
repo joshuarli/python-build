@@ -15,8 +15,11 @@ push, or edit `main`.
 
 All commands run from your worktree root through
 `python3 rust-cpython/perf.py`. `@incumbent` is the coordinator's
-`perf-rust` build and `@control` its pristine `perf-upstream`; a bare name
-is a build in your worktree. Use your `LANE` value as your build name.
+accepted runtime and `@control` its pristine `perf-upstream`; the brief gives
+an explicit verified `<ACCEPTED_REF>` when the accepted stage has another name.
+Use that ref instead of `@incumbent` in the examples below; never rebuild or
+rename a qualified accepted stage just to create the default alias. A bare
+name is a build in your worktree. Use `LANE` as your candidate build name.
 
 ## Current memory-only override (2026-09-30)
 
@@ -60,9 +63,10 @@ The separate Claude skills and CPU-phase policy remain unchanged.
   exact commands you used the first time so the coordinator can document
   them. A non-crate dependency (a C library, a system tool) is still a
   BLOCKED finding.
-- In the memory phase (the brief says MEMORY ONLY), the goals are load
-  footprint and working peak. Kernel CPU is not a target but must not
-  regress: the gate REJECTs a replicated CPU regression.
+- In the memory phase (the brief says MEMORY ONLY), use `--memory-only`.
+  Judge module load footprint, working peak and workload RSS; CPU/wall and
+  host quietness cannot block setup or reject a memory candidate. All memory
+  guards, output checks, replication, floors and Rust coverage remain binding.
 - Use only `perf.py` for builds, suites, profiles, and measurements. Do not
   run `bench.py`, the coverage `build.py build`/`test`, or anything that
   loads the host during someone else's measurement. Never modify a
@@ -75,6 +79,8 @@ The separate Claude skills and CPU-phase policy remain unchanged.
 - Keep commands that use the same stage sequential. Inspect a pending test,
   profile, goals, or bench command's completion before starting a build that
   replaces its stage, even when both commands would wait on the host lease.
+  Build/test work on independently owned stages may overlap through shared
+  leases; memory sampling remains exclusive.
 - Commit only overlay source. Never commit `rust-cpython/results/`, logs,
   or stage trees.
 
@@ -86,32 +92,35 @@ The separate Claude skills and CPU-phase policy remain unchanged.
    the primary `perf-rust` at `INCUMBENT` with `verified=True`. Otherwise
    stop with `RESULT: BLOCKED`. For an explicitly assigned recovery branch,
    source differences are allowed only within OWNED PATHS and the permitted
-   shared overlay files. Treat its WIP as unverified; establish correctness
-   with the clean build and every assigned suite before measuring it.
-2. `python3 rust-cpython/perf.py setup-worktree`.
-3. `python3 rust-cpython/perf.py build --name <LANE> --jobs <JOBS>`.
-4. `perf.py bench --baseline @incumbent --candidate <LANE> --module
-   <ROUTE> [--workload <W>]`. An unchanged lane build must read NEUTRAL. If
-   it reads anything else, rerun once; if it still differs, stop with
-   `RESULT: BLOCKED` and the verdict table. In a MEMORY ONLY lane,
-   INCONCLUSIVE solely for `quiet=no` also permits setup when outputs match
-   and no metric is regressed or unstable; report this limitation. A recovery
-   branch already contains changes, so skip the unchanged-build NEUTRAL
-   expectation and judge its measured targets after the clean suites pass.
+   shared overlay files. Treat its WIP as unverified; pass native invariants
+   and complete affected suites before exploratory measurement. Final
+   acceptance still requires a clean committed build and every assigned suite.
+2. `python3 rust-cpython/perf.py setup-worktree`. Reuse a coordinator-verified
+   accepted baseline and valid calibration; do not rebuild unchanged baseline
+   artifacts or refresh calibration solely because docs or fixtures changed.
+3. Build a missing lane stage with `perf.py build --name <LANE> --jobs <JOBS>`.
+   Reuse an existing compatible verified stage for incremental exploration.
+4. When a new unchanged baseline comparison is needed, run `perf.py bench
+   --baseline <ACCEPTED_REF> --candidate <LANE> --module <ROUTE> [--workload <W>]`,
+   adding `--memory-only` in the memory phase. It must read NEUTRAL; preserve
+   any setup discrepancy and investigate verified inputs rather than changing
+   floors. A recovery branch already contains changes, so judge its targets
+   after native invariants and complete affected suites pass; final clean/full
+   qualification is reserved for survivors.
 
    A coordinator may explicitly authorize continued memory exploration after
    two unchanged comparisons regress only load footprint, when the source,
-   compiler flags, and release artifacts are verified, outputs match, and CPU
-   and working peak remain neutral. Record the failed setup comparisons and
+   compiler flags, and release artifacts are verified, outputs match, and
+   working peak remains neutral. Record the failed setup comparisons and
    their paths; do not call them neutral. This permits exploration only: final
    acceptance requires the coordinator's batch gate built at the primary path,
    with complete suites and all regression guards. Never subtract the offset
    from a ratio or change a measurement threshold to obtain acceptance.
-   The coordinator may also authorize this recovery for repeated unchanged
+   In the CPU phase, the coordinator may also authorize this recovery for repeated unchanged
    startup-bound wall/CPU regressions of 1% to 3%, when all other rows and
    outputs match. The same source, policy, artifact, and primary-path gate
    requirements apply; retain the real setup verdicts.
-   The coordinator may also resolve unchanged-route CPU setup drift using a
+   In the CPU phase, the coordinator may also resolve unchanged-route CPU setup drift using a
    fresh primary-path paired guard comparison with unchanged route sources
    and policy, matching outputs, and all route metrics neutral in both runs.
    Preserve both worktree rejections and that primary evidence. This permits
@@ -147,7 +156,10 @@ hypothesis within your route and say so in the handoff.
 
 ## Explore (at most `ATTEMPTS` rounds)
 
-Each round tests one change:
+Each round tests one change. Prepare new observable regression fixtures first
+and run them on the verified accepted stage before implementation; reuse
+unchanged baseline evidence. No blanket packet or extra wrapper approval is a
+prerequisite for ordinary authorized execution.
 
 1. Edit.
 2. `perf.py build --name <LANE> --incremental --jobs <JOBS>`. It refuses
@@ -155,33 +167,43 @@ Each round tests one change:
    overlay files; run a clean build for those.
 3. Run the route's primary suite: `perf.py test --name <LANE> --suite
    test_X`. A failure means fix or discard, never measure.
-4. `perf.py bench --baseline @incumbent --candidate <LANE> --module
-   <ROUTE> [--workload <W>] --timing-only` (`--timing-only` skips the
-   workloads' memory pass; module kernels always measure memory).
+4. `perf.py bench --baseline <ACCEPTED_REF> --candidate <LANE> --module
+   <ROUTE> [--workload <W>] --memory-only` in the memory phase; include affected
+   workload RSS and known regression guards before broader sampling. CPU-phase
+   timing exploration may use `--timing-only`; it is not a memory screen.
 5. ACCEPT: commit the change on your branch and continue from it.
    NEUTRAL or REJECT: discard only this attempt's edits on your owned paths;
    preserve prior commits and inherited WIP. INCONCLUSIVE: rerun once.
    CPU lanes wait for a quiet host; memory lanes follow the rule below.
 
-### Memory exploration and provisional qualification
+### Memory exploration and qualification
 
-In a MEMORY ONLY lane, use `goals --min-idle 0` and read memory rows even
-when `quiet=no`; never wait for quiet during exploration. An unquiet gate
-may qualify provisionally only when its sole inconclusive reason is host
-quietness, target memory metrics improve in both runs, no row of any kind
-regresses in either run, outputs match, and clean-build suites pass. A
-neutral target memory row is allowed if its point ratio is below 1.0 in
-both runs and the other memory target improves. Report the actual
-INCONCLUSIVE result and table; the coordinator makes the provisional
-integration decision after its full-suite batch check. Quietness is still
-required for CPU acceptance, calibration, and baseline recording.
+Use `--memory-only` for memory benches, calibration and goals. Do not wait for
+quietness or judge CPU/wall rows. Preserve paired replication, memory floors,
+outputs, Rust coverage and every memory regression guard. Record adverse
+individual runs even when a final metric is neutral. No provisional quiet-host
+confirmation is needed for a memory-only ACCEPT.
 
-Check progress against the goal with `perf.py goals --candidate <LANE>
---module <ROUTE>` (two runs against `@control`). Stop exploring when every
-metric reads MET (keep going toward 0.9x only while attempts remain and
-changes keep reading ACCEPT), or when the attempts are spent.
+Compatible incremental builds, native invariants and complete affected suites
+precede exploration. Only survivors receive final clean/full qualification;
+Cargo/build-system changes refused by incremental builds still require clean
+builds. Fixture-only edits do not require rebuilding an unchanged stage. Keep
+same-stage commands sequential; independent source/review and build/test work
+on separate stages may overlap under the host lease.
+
+Check progress with memory-only `perf.py goals --candidate <LANE> --module
+<ROUTE>` (two runs against `@control`). Finish the lane when its assigned memory
+goals are MET/BEYOND or attempts are spent. A failed lane or debt entry does not
+complete an unresolved memory goal. CPU-phase goals and quiet-host policy remain
+unchanged.
 
 ## Qualify (once, on your final commit)
+
+Build names resolve within the invoking worktree. If the accepted named stage
+exists only in the primary checkout, the coordinator owns that comparison;
+do not substitute the legacy `@incumbent` stage or copy a build report into
+the lane to make its name resolve. Use the verified accepted runtime identity
+in every comparison.
 
 1. `git status --short rust-cpython/overlay` is empty.
 2. Clean build: `perf.py build --name <LANE> --jobs <JOBS>`.
@@ -193,19 +215,20 @@ changes keep reading ACCEPT), or when the attempts are spent.
    `rust-cpython/stage-perf-<LANE>/bin/python3.16`, and assert
    `_interpreters.run_string()` returns `None`.
 5. Incumbent check, right before the gate: `perf.py status` shows the primary
-   `perf-rust` commit (the coordinator rebuilds it after every integration
-   and may not message you). If `git merge-base --is-ancestor <that commit>
+   accepted named ref and source commit. If `git merge-base --is-ancestor <that commit>
    HEAD` fails, `git merge main`, then redo the clean build and the suites
    before gating, since the gate needs a challenger that contains it. Lane
    gates run from long worktree paths and can bias startup-bound guards
    (`import_django`, `python_startup`) by 1% to 3% against the primary-path
    incumbent; if that is the only regressed row, say so in FINDINGS and
    report the gate as is.
-6. Gate: `perf.py bench --baseline @incumbent --candidate <LANE> --module
-   <ROUTE> [--workload <W>] --gate`. Report its DECISION as your RESULT. A
-   NEUTRAL or REJECT gate after an ACCEPT explore is a real outcome: report
+6. Gate: `perf.py bench --baseline <ACCEPTED_REF> --candidate <LANE> --module
+   <ROUTE> [--workload <W>] --gate`, adding `--memory-only` in the memory phase.
+   Report its DECISION as your RESULT. A NEUTRAL or REJECT gate after an
+   ACCEPT explore is a real outcome: report
    it; do not rerun the gate hoping for a different draw.
-7. Goal: `perf.py goals --candidate <LANE> --module <ROUTE>`; report the row.
+7. Goal: `perf.py goals --candidate <LANE> --module <ROUTE>`, adding
+   `--memory-only` in the memory phase; report the row.
 
 When you change code, a real check must exercise it before you report it
 done: the incremental build, the suite, and the bench above. A command
@@ -222,7 +245,7 @@ and why instead of reporting success.
 Route: <checklist item> (<crate>); public behavior still reaches Rust.
 Crates: <added crate@version (license)> or none.
 Suites: python3 rust-cpython/perf.py test --name <LANE> --suite ... -> <run>/<skipped>, 0 failures
-Gate: python3 rust-cpython/perf.py bench --baseline @incumbent --candidate <LANE> --module <ROUTE> --gate
+Gate: python3 rust-cpython/perf.py bench --baseline <ACCEPTED_REF> --candidate <LANE> --module <ROUTE> --gate
 <the DECISION line and the verdict table rows for targets and any non-neutral guard>
 Goal: <the goals row for the route against @control>
 ```

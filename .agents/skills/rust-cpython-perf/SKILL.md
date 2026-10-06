@@ -76,16 +76,15 @@ and license rules. The separate Claude skills remain unchanged.
 
 The climb runs in two phases, in order; never start the second early.
 
-1. **Memory phase.** Targets are only load footprint and working peak. Every
-   lane and every ACCEPT is judged on those; kernel CPU is not a target, but
-   the gate still REJECTs a replicated CPU regression, so a memory win may
-   not cost CPU. The phase ends when a full `perf.py goals` reads every
-   module's load footprint and working peak MET or BEYOND, or the module is
-   on the debt list for memory (two consecutive lanes on it integrated
-   nothing), and, on a quiet `@control` versus `@incumbent` gate over all
-   workloads, every workload's `peak_rss` reads `neutral` or `improved`. Workload
-   memory debt does not waive this completion gate without the user's
-   explicit decision. Workload peak RSS is interpreter-wide memory (imports of
+1. **Memory phase.** Targets are module load footprint, working peak and
+   eligible workload peak RSS. Every
+   lane and every ACCEPT is judged on memory rows with `--memory-only`; CPU,
+   wall time and host quietness cannot reject or delay memory work. The phase
+   ends only when every module's load footprint and working peak are MET or
+   BEYOND and a complete `@control` versus `@incumbent` comparison reads every
+   workload's `peak_rss` neutral or improved. Module and workload debt remain
+   unresolved goals; the debt list does not waive completion. Workload peak
+   RSS is interpreter-wide memory (imports of
    Rust routes at startup and first use); brief workload memory lanes from
    `perf.py profile --workload W --tool importtime` and sample stacks,
    comparing `@control`. Brief `GOAL NOW` and `HYPOTHESIS` with memory rows only.
@@ -128,8 +127,8 @@ load footprint, and working peak; workload wall, CPU, and peak memory) is
 `improved` or `regressed` only when the
 95% interval of the paired median clears a 1% floor in every independent
 run; runs that disagree read `unstable`. The decision is REJECT on any
-replicated regression, INCONCLUSIVE on an unquiet host (below 80% CPU idle or
-on battery), unstable metrics, or a gate with one run, ACCEPT on a
+replicated regression in the active phase's metrics, INCONCLUSIVE on unstable
+metrics or a gate with one run, ACCEPT on a
 replicated target improvement, and NEUTRAL otherwise; a module or
 workload whose outputs differ from the baseline is REJECT (except
 `compileall_source` against `@control`, the documented marshal byte
@@ -137,7 +136,8 @@ difference). `--gate` requires
 clean builds of committed overlays, a challenger that contains the
 incumbent commit, the seven workloads in `GATE_WORKLOADS` as guards, the
 memory pass, and two runs. Explore runs (no `--gate`) steer; they are
-never acceptance evidence.
+never acceptance evidence. CPU-phase comparisons also require a quiet host
+(below 80% CPU idle or on battery is unquiet); memory-only comparisons do not.
 
 Start long commands with `exec_command` using a short `yield_time_ms`.
 When it returns a `session_id`, resume with `write_stdin` and inspect the
@@ -164,7 +164,7 @@ do not change pins, substitute a compiler, or install new system tools.
 When no verified builds remain, rebuild the control and incumbent before
 calibration. A historical handoff is evidence, not proof of local stages.
 
-For outstanding provisional integrations, run quiet `goals` on every
+For outstanding provisional integrations, run memory-only `goals` on every
 provisional module as well as the full workload gate against `@control`.
 Check the original per-batch gate evidence to distinguish target improvements
 against the previous incumbent from absolute goals against control. A
@@ -179,22 +179,26 @@ fresh acceptance from an absolute control comparison.
    missing, run `python3 rust-cpython/build.py fetch` first.
 2. `perf.py status`. Rebuild `perf-upstream` with `--empty-overlay` only
    when it is missing, unverified, or the source pin or toolchain changed.
-   Rebuild `perf-rust` whenever its commit is not `main` HEAD; commit or
-   stash any overlay edits first so the report is clean.
-3. `perf.py test --name perf-rust --all`, unless `status` already shows
-   `perf-rust` as `all-passed` at `main` HEAD. It must pass with the
-   recorded macOS baseline counts from `rust-for-cpython.md` (resource
-   denials and platform skips only).
-4. `perf.py calibrate --ref @control --gate`. Continue only on
-   `CALIBRATION-OK`. On `CALIBRATION-FAILED`, the host cannot resolve the
-   floor: tell the user which workloads read different and wait for a
-   quieter host rather than raising the floor.
-5. `perf.py goals`. Its table is the debt map: OVER modules are targets,
-   largest ratio first; rerun `goals --module M` for UNCLEAR modules before
-   briefing a lane. MISMATCH is a correctness finding for the user, not a
+   Verify the accepted named `<ACCEPTED_REF>` against its recorded runtime
+   source, overlay and toolchain. Rebuild only if missing, unverified or changed;
+   docs-only commits do not invalidate it. Keep candidates on their own branch.
+3. `perf.py test --name <ACCEPTED_REF> --all`, unless `status` already records
+   `all-passed` for that same accepted runtime identity. It must match the
+   macOS baseline counts from `rust-for-cpython.md` (resource denials and
+   platform skips only).
+4. Require `CALIBRATION-OK`; reuse its saved receipt when measurement code,
+   options and verified baseline identity are unchanged. Otherwise run
+   `perf.py calibrate --ref @control --gate --memory-only` in the memory phase.
+   On failure, report the differing rows and investigate inputs or sampling;
+   do not raise the floor or wait for quietness as a memory prerequisite.
+5. `perf.py goals --candidate <ACCEPTED_REF> --memory-only` in the memory
+   phase. Its table is the debt map: OVER modules are targets, largest ratio
+   first; rerun `goals --candidate <ACCEPTED_REF> --module M --memory-only`
+   for UNCLEAR modules before briefing a lane. MISMATCH is a correctness finding for the user, not a
    lane.
-6. `perf.py bench --baseline @control --candidate @incumbent --gate
-   --all-workloads` for the application picture the guards protect.
+6. `perf.py bench --baseline @control --candidate <ACCEPTED_REF> --gate
+   --all-workloads --memory-only` for the memory-phase application picture.
+   CPU-phase setup retains its calibration and quiet-host requirements.
 
 Tell the user in two or three lines what the debt map shows before the
 first batch.
@@ -208,22 +212,23 @@ first batch.
   `cprofile` for Python wrappers) so the brief names a measured cost, not a
   guess. Include an application workload target as well when one exercises
   the route.
-- A lane's work on a module ends when every metric is MET; it continues
+- A lane's work on a module ends when its assigned phase metrics are MET or
+  BEYOND; it continues
   toward 0.9x only when no OVER module is waiting for a lane.
 - If two unchanged memory-lane comparisons regress only load footprint while
-  verified source/flags match and CPU, working peak, and outputs remain neutral,
+  verified source/flags match and working peak and outputs remain neutral,
   you may authorize exploration despite the setup failure. Record both verdicts
   as measured; do not correct ratios or relax acceptance guards. Such a lane
   needs a primary-path batch gate to establish acceptance. The setup failure
   alone does not count as a failed optimization hypothesis while this recovery
   is active.
-- The same recovery applies after two unchanged comparisons whose only
+- In the CPU phase, the same recovery applies after two unchanged comparisons whose only
   regressions are startup-bound workload wall/CPU rows within the documented
   1% to 3% worktree-path bias, with neutral module memory/CPU, other guards,
   and matching outputs. Verify identical source and compiler policy and each
   installed library against its own Cargo artifact. Preserve both REJECTs;
   acceptance still requires an actual primary-path batch gate.
-- A replicated CPU setup difference on an unchanged route may be resolved by
+- In the CPU phase, a replicated CPU setup difference on an unchanged route may be resolved by
   a fresh primary-path paired guard comparison. Verify unchanged route sources
   and compiler policy, matching outputs, and every route metric neutral in
   both primary runs. Preserve the worktree REJECTs and the primary evidence;
@@ -240,12 +245,14 @@ first batch.
 - Reserve owned overlay paths per lane before spawning. Two lanes never
   edit the same route. Shared `overlay/Cargo.toml`, `overlay/Cargo.lock`,
   and `overlay/Modules/Setup.local` edits are allowed; you reconcile them.
-- Run at most **8** climbers at once in the memory phase and **4** in the
-  CPU phase (the repository cap is 16). Measurements serialize through the
-  host lease, so extra lanes add queue time, not throughput; memory lanes
-  spend most of their time in builds and suites, which is why they can run
-  wider. Give each lane `--jobs` of `max(2, 9 // lanes)`. Each worktree costs
-  about 3 GB; keep the disk rule in Integration step 6.
+- The current memory run permits up to **31 child agents plus the root
+  coordinator**. The CPU-phase limit remains **4** climbers; the separate
+  coverage cap and Claude policy are unchanged. Use independent source,
+  baseline-fixture and review work to fill useful lanes, not repeated closed
+  mechanisms. Build/test commands on separate stages may overlap through
+  their shared leases; RSS measurements remain exclusive. Allocate `--jobs`
+  against concurrent builders and host CPUs, not the number of reasoning
+  agents. Each worktree costs about 3 GB; retain the disk rule.
 - Climbers never edit `benchmarks/` or `rust-cpython/perf_modules.py`: they
   are the measuring stick. If a kernel misses part of its route's
   checklist behavior, fix the kernel yourself in a separate commit before
@@ -277,30 +284,29 @@ JOBS: <N>
 ATTEMPTS: <explore attempts before qualifying or giving up; default 6>
 ```
 
-## Unquiet host (memory phase)
+## Memory exploration and acceptance
 
-Memory metrics (load footprint, working peak) do not depend on host load the
-way CPU does, so the memory phase does not wait for a quiet host, and a memory
-lane may integrate on an unquiet host (the user's decision). Tell each
-climber in `HYPOTHESIS`: read the memory rows even when the decision line says
-`quiet=no`; use `goals --min-idle 0` and read memory rows only; never wait for
-quiet during explore.
+Use `--memory-only` for memory exploration, calibration, goals and gates.
+CPU/wall rows and host quietness cannot block setup, qualification or completion.
+Keep the memory floors, paired replication, output checks and coverage guards.
+Acceptance requires a replicated target memory improvement with no replicated
+memory regression, mismatch or unstable metric, a clean committed build and
+complete correctness. Record adverse individual runs even when the final
+replicated verdict is neutral. Exploration alone is not adoption.
 
-A memory lane or batch integrates on an unquiet host when all of these hold in
-the gate's own table (a gate that reads INCONCLUSIVE only for `quiet=no`
-qualifies):
-- every target memory metric reads `improved` in both runs (a wide interval
-  that reads `neutral` on one target metric is fine when the other target
-  improved and the metric's point ratio is below 1.0 in both runs);
-- no row of any kind (CPU, memory, workload wall, CPU, or peak) reads
-  `regressed` in either run, and no output mismatch;
-- the lane's clean-build suites and the `perf-merge` full suite pass.
+Prepare observable regression fixtures and run them on a verified accepted
+stage before implementation. Reuse unchanged baseline evidence. Explore with
+compatible incremental builds, native invariants and complete affected suites;
+screen known memory regressions before broader targets and workloads. Only
+survivors proceed to final clean/full qualification. Cargo/build-system changes
+that incremental builds refuse still require a clean build.
 
-Record such an integration as provisional in the ledger. Still require a
-`quiet=yes` verdict for calibration, for `--record-baselines`, and for every
-CPU-phase lane. When the memory phase ends, rerun one full `goals` and the
-`@control` versus `@incumbent` gate on a quiet host (wait for it) to confirm
-the provisional rows, and treat any that fail as new memory lanes.
+No blanket packet, materializer or separate wrapper approval is required for
+ordinary authorized execution. Preserve exact source, stage, artifact and
+receipt identity; resolve a concrete missing check rather than regenerating
+unchanged evidence. Keep same-stage commands sequential. Independent source,
+review, fixtures and build/test work on separate stages may overlap while the
+host lease protects exclusive memory sampling.
 
 ## Unattended operation
 
@@ -325,9 +331,9 @@ Never, without a person: push; remove a Rust route or weaken a suite; edit
 gap, Lanes rule); touch `main` history other than adding commits. Record the
 blocked step under the debt list or a finding and continue with other work.
 
-**Quiet host.** In the CPU phase, and for calibration and baselines, only
-verdicts with `quiet=yes` count. (Memory-phase integrations follow the Unquiet
-host rule instead.) Before each such run, wait:
+**Quiet host (CPU phase only).** CPU-phase acceptance, calibration and
+baseline recording require `quiet=yes`. Memory work follows Memory exploration
+and acceptance above and never waits for quietness. Before each CPU-phase run, wait:
 `python3 .agents/skills/rust-cpython-perf/scripts/wait_quiet.py 180` as an
 exec session (exit 0 = quiet, 1 = 180 minutes without a quiet sample);
 resume it with bounded `write_stdin` calls. Recalibrate
@@ -336,9 +342,8 @@ after every 6 hours of wall time, and after any host change; `CALIBRATION-OK`
 with `quiet=yes` is required first. A verdict that reads INCONCLUSIVE only
 for `quiet=no` is neither a failure nor an empty batch: keep the branch and
 its worktree and re-gate later. If four consecutive waits time out, stop and
-report `host never quiet` with the branches waiting for a gate. Memory
-metrics steer explore runs and, under the Unquiet host rule, memory
-integrations; a CPU result on an unquiet host never counts.
+report `host never quiet` with the CPU branches waiting for a gate. A CPU
+result on an unquiet host never counts.
 
 **State and recovery.** After every change to lanes, branches, worktrees, or
 counts, rewrite `rust-cpython/results/coordinator-state.json` (ignored by Git):
@@ -361,7 +366,8 @@ or BLOCKED, or its gate is INCONCLUSIVE for a reason other than `quiet=no`
 (unstable metrics after a quiet re-gate); a climber that dies without a
 handoff is relaunched once, then counted. A module goes on the debt list after
 two consecutive failed lanes that integrated nothing. A lane that integrates
-resets that module's count, even when the module is still OVER.
+resets that module's count, even when the module is still OVER. Debt is a
+scheduling record, not a completed memory goal.
 
 **UNCLEAR rows.** Rerun `goals --module M --profile rigorous` once. Still
 UNCLEAR: treat it as OVER when the pooled median exceeds 1.01x and brief a
@@ -379,9 +385,9 @@ affected modules.
 ## Integration
 
 Each climber returns a handoff block. Integrate only `RESULT: ACCEPT` lanes
-whose gate verdict you have read in the `GATE:` file. In the memory phase, a
-lane that returns `INCONCLUSIVE` only for `quiet=no` also qualifies when its
-table meets the Unquiet host criteria. A lane with explicitly authorized
+whose gate verdict you have read in the `GATE:` file. Memory acceptance uses
+`--memory-only` and the Memory exploration and acceptance criteria; it has no
+quiet-host or CPU/wall prerequisite. A lane with explicitly authorized
 load-only setup recovery may also be evaluated in a primary-path batch when
 its completed suites pass and its worktree gate has no regression outside
 load footprint. Preserve the actual worktree decision. This is permission to
@@ -395,7 +401,7 @@ can establish an improvement and permit integration of that lane.
    batch gate ACCEPTs); when crates changed, run `python3
    rust-cpython/build.py fetch` there to populate its cargo home, and after
    integrating copy that cargo home's new crates to the primary checkout the
-   same way before rebuilding `perf-rust`.
+   same way before building the next candidate.
    **Where to integrate.** Lane builds sit at long worktree paths, and gates of
    lane builds against the primary-path `@incumbent` showed a 1% to 3%
    `import_django` wall/CPU bias (a `zstd-glue` REJECT on that guard vanished
@@ -405,7 +411,9 @@ can establish an improvement and permit integration of that lane.
    merge --ff-only integrate-N`. A lane REJECT whose only regressed rows are
    1% to 3% `import_django` (or other startup-bound guards) with no
    plausible mechanism is re-decided by that primary-path batch gate.
-2. `perf.py build --name perf-merge`; check that it printed `OK` (never chain
+2. Use a unique candidate build name; `perf-merge` below is a placeholder,
+   never the name of a retained accepted stage. Run `perf.py build --name
+   perf-merge`; check that it printed `OK` (never chain
    a gate or suite behind an unchecked build; both refuse a failed one).
    Lanes hand-edit `overlay/Cargo.lock`, and two edits in different places
    merge textually but can leave a lock that `cargo fetch --locked` rejects
@@ -416,29 +424,32 @@ can establish an improvement and permit integration of that lane.
    `perf.py test --name perf-merge
    --all`. On failure, bisect the batch at `medium`, drop or repair the
    interacting lane, and repeat.
-3. `perf.py bench --baseline @incumbent --candidate perf-merge --gate
+3. `perf.py bench --baseline <ACCEPTED_REF> --candidate perf-merge --gate
    --module <each lane module> [--workload <lane workloads>]`. The batch
-   integrates only on ACCEPT (memory phase: or an INCONCLUSIVE for `quiet=no`
-   alone whose table meets the Unquiet host criteria, recorded as provisional).
+   integrates only on ACCEPT; memory gates use `--memory-only` without
+   CPU/wall or quiet-host prerequisites.
    On REJECT, bisect by lane; a lane that regresses a guard when combined
    goes back to its owner or is dropped.
-4. Commit the integration on `main` (message below). Rebuild `perf-rust`
-   clean at the new HEAD; `perf.py clean --name perf-merge`.
-5. `perf.py goals --min-idle 0 --module <each lane module>` (memory phase; add
-   `--min-idle` default in the CPU phase) and, when the host is quiet,
-   `perf.py bench --baseline @control --candidate @incumbent --gate
-   --all-workloads --record-baselines` (in the memory phase, defer this to the
-   end-of-phase quiet confirmation), then update the ledger and the goal table in
+4. Commit the integration on `main` (message below). Retain the already
+   qualified primary candidate's named stage, report, source commit and
+   verification receipts as `<ACCEPTED_REF>`. Check source ancestry and the
+   verified runtime identity; do not rebuild, rename or retest solely to
+   materialize a canonical `perf-rust`, and do not clean the accepted candidate.
+5. `perf.py goals --candidate <ACCEPTED_REF> --memory-only --min-idle 0
+   --module <each lane module>` in the memory phase; CPU-phase goals use the
+   normal idle default without `--memory-only`. At memory completion, run the
+   complete module goals and absolute workload memory comparison with
+   `--memory-only`; no debt row or quiet-host wait waives that proof. CPU
+   baseline recording retains its quiet-host requirement. Update the ledger and goal table in
    `rust-for-cpython-perf.md`. Commit the refreshed
    `benchmarks/baselines/rust-cp316-perf-*.json`, ledger, and goal table
-   together. Run a full `perf.py goals` every third integration to catch
-   cross-module drift.
-   Lanes still running when `main` advances (continuous lanes): right after
-   the commit, rebuild `perf-rust` and message every running climber with the
-   new `INCUMBENT`, telling it to `git merge main` before Qualify (its gate
-   requires a challenger that contains the incumbent commit). New lanes use
-   the new `INCUMBENT`; the climber setup check accepts any `main` whose
-   overlay diff against `INCUMBENT` is empty.
+   together. Run complete `perf.py goals --candidate <ACCEPTED_REF>
+   --memory-only` every third memory integration to catch cross-module drift;
+   CPU-phase goals omit `--memory-only`.
+   Lanes still running when `main` advances: message each with the retained
+   accepted named ref and source `INCUMBENT`, telling it to merge the source
+   before Qualify if the ancestry check fails. New lanes use that same verified
+   ref and source identity; docs-only commits do not require rebuilding it.
 6. Clean up every lane's worktree as soon as its branch is merged (or
    abandoned), in the same integration, before spawning the next batch. Each
    worktree carries its own APFS-cloned caches, Cargo home, build trees
@@ -446,7 +457,8 @@ can establish an improvement and permit integration of that lane.
    For each lane: `git worktree remove --force <path>` (this deletes its
    builds), `git branch -d <lane-branch>` (merged branches only), then
    `git worktree prune` and confirm with `git worktree list`. Also
-   `perf.py clean --name perf-merge` in the primary checkout. Keep a
+   clean only superseded candidate builds in the primary checkout. Never
+   remove the retained accepted stage/report. Keep a
    rejected branch (not its worktree) only when its finding changes the next
    decision. Check `df -h .` at session start and after each integration; if
    free space is under 50 GB, clean stale worktrees and perf builds before
@@ -475,19 +487,18 @@ accepted, the gate ratios, and what the next batch targets.
 A memory-only goal stops at the end of the memory phase. The full goal ends
 after the CPU phase. Stop and report when any of these holds:
 
-- Every module reads MET or BEYOND on the phase's metrics in a full
-  `perf.py goals` run (memory: load footprint and working peak; CPU phase:
-  all three), or is on the module debt list, and the phase's workload
-  condition also passes: memory requires a quiet full-workload gate with
-  every `peak_rss` neutral or improved against `@control`; CPU requires
-  every gate workload neutral or improved against `@control` or two failed
-  workload lanes. Provisional memory rows require quiet confirmation
-  before memory completion. Only then end or advance the phase; or
-- Two consecutive batches integrate nothing, not counting a batch whose only
-  outcome was INCONCLUSIVE for `quiet=no` (those branches wait for a gate);
-  or
-- `host never quiet`, the lane budget, or the disk floor from Unattended
-  operation.
+- Memory completion: a complete memory-only `perf.py goals` reads every
+  module's load footprint and working peak MET/BEYOND, and a complete
+  `@control` workload comparison reads every peak RSS neutral or improved.
+  Debt and unresolved UNCLEAR rows do not satisfy completion. No quiet-host
+  confirmation is required. Only then end or advance the memory phase.
+- CPU completion: every module reads MET/BEYOND on all three metrics or is on
+  the CPU debt list, and every gate workload is neutral/improved against
+  `@control` or has two failed workload lanes. CPU quiet-host policy remains.
+- In the CPU phase, two consecutive batches integrate nothing, excluding an
+  INCONCLUSIVE result solely for `quiet=no`; or `host never quiet` is reported.
+- The lane budget or disk floor from Unattended operation is reached. Report
+  these operational limits separately; they do not complete unresolved goals.
 
 A workload that reads above `@control` in the CPU phase gets its own lane
 (for example `zlib_decode_1m` through the zlib and gzip routes); a module win
