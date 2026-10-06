@@ -156,6 +156,37 @@ do not repeat baseline refreshes, rebuild for fixture-only changes or require
 additional source packets without a concrete unresolved check. These workflow
 changes add no CPU, timing or quiet-host acceptance requirement.
 
+Regex369 at03d28ca passes its231s clean build with58 verified extensions,
+all seven new behavior/owner checks and complete test_re (169 run/4 skipped).
+The16.7s first exploratory memory screen is NEUTRAL: re load0.987x
+[0.974,1.027] is neutral in both runs, working1.0x, and the two workload
+guards are final neutral. No memory improvement, full qualification or adoption
+is established. Verdict SHA256 is
+`32acb8386b4551d77e91270c2cad12511ad1fe66c69aaa9ce390f32990946ba5`.
+Its source branch and original clean report/receipts remain preserved; the
+configured stage is reused for incremental experiment372, which retains the
+existing regex API/cache while disabling its optional performance-engine bundle.
+The original compiler import is restored during that exploration, isolating
+the dependency-feature change. Actual target features and complete behavior
+checks must pass before RSS screening.
+
+Static-only370 atb05e6bc passes its228s clean build with58 verified extensions,
+both original C fixtures, seven identifier checks and458 focused tests/3 skips.
+Its22.6s first screen is NEUTRAL: zstd load1.003x/working1.0x, ElementTree
+load1.050x (neutral/worse across runs) and working0.911x (neutral/neutral),
+and two final-neutral workload guards. No replicated memory improvement or
+adoption follows. Verdict SHA256 is
+`c893da599042466158ffd898b509a3bb2af242c7ff768f3a1c2ecd1712f3d82e`.
+Experiment371 now isolates the complementary ASCII-identifier optimization;
+generic arena registration returns to the exact original source. Its incremental
+build takes33s with58 extensions verified. A separate baseline observer sees
+24576 repeated identifier slots for8192 assignments while a normalization
+callback runs; two semantic checks pass and the no-redundant-slot assertion
+fails as expected. Candidate owner proof and memory results remain pending.
+Original370 source/report/receipts remain preserved, while its stage is reused
+for exploration. Pristine no-op overlay copies retained for incremental rollback
+must be removed before a surviving candidate's final clean qualification.
+
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
 in29.1s. The26.3s first memory screen REJECTS compileall_source RSS1.017x
