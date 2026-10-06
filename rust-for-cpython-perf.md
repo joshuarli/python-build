@@ -562,10 +562,25 @@ RSS1.008915x [1.008155,1.009674] without relabeling them as regressions.
 Verdict SHA256 is
 `9d9c65ed44aa7c646a18eab1d80a1fd35a093cd387ca60c9d4a884465ff640a6`.
 The measured variant is closed without unchanged reroll, full qualification or
-adoption. A read-only artifact comparison checks a potential CONST-page
-threshold only; any future composition must establish a distinct mechanism.
-No private-header runtime policy or new baseline/RSS draw is inferred. CPU
-phase has not started; accepted47/24 and12 RSS regressions remain unchanged.
+adoption.
+Composition396 atceaec253 combines the byte-exact392/395 donors. Its actual
+artifact has12952 bytes of CONST+GOT and two potential private fixup pages,
+versus four accepted pages. Source reviews pass; a208s clean build verifies58
+extensions,31 native/five runtime cases and two panic-abort Rust tests pass.
+The initial Rust libtest flag error runs zero bodies and is preserved; the
+corrected retry passes both tests. Eleven suites pass3500/35. First21780
+completes12 entities in72.0s and is NEUTRAL: regex load0.993478x
+[0.961197,1.027197], working1.000x, logging load0.962434x and tokenize
+load0.983692x are final neutral. Logging working1.726190x
+[1.617725,1.872354] is coded neutral with worse/neutral runs; tokenize load
+is neutral/better. All guards are coded neutral. Verdict SHA256 is
+`e74128288a3aae8ecb8dfc7c2ed198d079b6539af54e6a15bc93832c85ac4202`.
+The lower potential page layout is artifact proof, not a qualified physical
+memory gain or a MET goal. Preserve stage, reports and sources; no adoption,
+full qualification or unchanged reroll follows. All test/build/RSS handles are
+terminal. The frontier needs a new actual owner, not duplicate closed engine
+tuning. CPU phase has not started; accepted47/24 and12 RSS regressions remain
+unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
