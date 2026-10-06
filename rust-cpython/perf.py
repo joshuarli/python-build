@@ -881,6 +881,11 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             # A failed placement migration must not be retried as an ordinary
             # source-only sync after its template has already been copied.
             state["configured"] = False
+            # Process loss can bypass the exception handler. Persist the refusal
+            # before copying the template, while validated prior inputs remain
+            # available only to this already-running migration.
+            _write_json(paths["report"], {"status": "building", "name": _tag(name),
+                                          "pristine": False, "configured": False})
         for item in changes["changed"]:
             _copy_file(paths["overlay_staging"] / item, source / item)
         print(f"OK    incremental overlay sync: {len(changes['changed'])} changed file(s)")
