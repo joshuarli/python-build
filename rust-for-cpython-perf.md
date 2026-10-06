@@ -122,6 +122,28 @@ latter's original execution lifetime while testing early block release.
 
 ### Sprint throughput audit (2026-10-05)
 
+Arena365 at83accbad passes its213.4s clean build with58 Rust extensions.
+The unchanged allocation fixture now observes8192 rather than8224 bytes;
+full capacity, one-off9000-byte storage, alignment, object lifetime and cleanup
+pass. All three constructor and two growth OOM paths pass, and458 focused
+CPython tests pass with3 skipped. Accepted-stage OOM checks pass concurrently
+with candidate construction. The56.8s first memory screen REJECTS asyncio load
+1.01483x [1.01109,1.01859], replicated in both runs; working is neutral.
+Five workload RSS rows are neutral, while logging and shutil replication is
+incomplete after early rejection. Verdict SHA256 is
+`2b4834cf5220479c6c425148269543d5612fe63d35a34df5f14a369990a5e613`.
+No full-suite rerun, broad gate or adoption follows. The allocator request-size
+saving does not establish a resident-memory saving.
+
+The next source inquiry concerns width-aware realized StringIO storage.
+The pinned implementation uses a UCS4 buffer after realization, including for
+ASCII. The logging kernel seeks/truncates before writing, so this buffer is an
+actual owner in the fixed workload. This inquiry preserves truncation and
+realization semantics and changes character representation; it does not repeat
+the closed zero-truncation/state-reset proposals. Duplicate checking, complete
+operation/error/serialization review and a baseline native allocation fixture
+precede implementation. No source or memory benefit is yet established.
+
 Arena364 atba6b5544 passes its214.2s clean build (58 release Rust extensions),
 all19 native raw/object/GC/OOM/compile-error cases, and458 focused CPython
 tests with3 skipped. The59.7s known-regression screen REJECTS logging working
