@@ -15,8 +15,8 @@ so eviction and backend replacement do not extend that module's lifetime.
 The method is looked up live. An initial custom backend, including an exact
 module with only the original matching interface, remains on the legacy path.
 Native identity requires its own builtin matching method bound to that module,
-read directly from the module dictionary. The temporary initializer and method
-reference are discarded; custom attribute getters are not consulted. A replaced backend keeps the earlier matching-only interface; it does
+read directly from the module dictionary. Initialization is inline and its temporary method
+reference is discarded; custom attribute getters are not consulted. A replaced backend keeps the earlier matching-only interface; it does
 not need to implement this new entry. Deleting the entry from the actual
 native module is an error rather than an implicit provider fallback.
 

@@ -198,6 +198,11 @@ class SnapshotBehaviorTests(unittest.TestCase):
 
 class SnapshotOptimizationTests(unittest.TestCase):
     def test_precise_callback_free_comparison(self):
+        import pyclbr
+        for name, description in pyclbr.readmodule_ex('difflib').items():
+            if isinstance(description, pyclbr.Function) and description.module == 'difflib':
+                self.assertTrue(hasattr(difflib, name), name)
+        self.assertNotIn('_rust_snapshot_method', difflib.__dict__)
         compare = difflib._difflib_rs.snapshot_matches
         self.assertEqual(compare(['a', 2], ('a', 2), tuple), 1)
         self.assertEqual(compare(['a', 3], ('a', 2), tuple), 0)

@@ -45,18 +45,15 @@ except ImportError:
 
 # Native method ownership distinguishes the actual extension from an initial
 # custom module with the older matching-only interface. Read the exact module
-# dictionary without invoking its dynamic attribute getter. Keep neither a
-# bound method nor a strong module reference after this initialization.
-def _rust_snapshot_backend(module):
-    if type(module) is not _ModuleType:
-        return None
-    method = module.__dict__.get('find_longest_match_index')
-    if type(method) is _BuiltinFunctionType and method.__self__ is module:
-        return _rust_module_ref(module)
-    return None
-
-_RUST_SNAPSHOT_BACKEND = _rust_snapshot_backend(_difflib_rs)
-del _rust_snapshot_backend
+# dictionary without invoking its dynamic attribute getter. The temporary
+# method reference is discarded; only a weak module identity remains.
+_RUST_SNAPSHOT_BACKEND = None
+if type(_difflib_rs) is _ModuleType:
+    _rust_snapshot_method = _difflib_rs.__dict__.get('find_longest_match_index')
+    if (type(_rust_snapshot_method) is _BuiltinFunctionType
+            and _rust_snapshot_method.__self__ is _difflib_rs):
+        _RUST_SNAPSHOT_BACKEND = _rust_module_ref(_difflib_rs)
+    del _rust_snapshot_method
 
 Match = _namedtuple('Match', 'a b size')
 
