@@ -100,7 +100,7 @@ class StringIOContracts(unittest.TestCase):
         self.assertEqual(stream.getvalue(), 'ascii\n')
         stream.__init__('\xe9\u6f22\U0001f642', newline='\n')
         self.assertEqual(stream.read(), '\xe9\u6f22\U0001f642')
-        self.assertEqual(snapshot, '\U0001f642\u6f22ail')
+        self.assertEqual(snapshot, '\U0001f642\u6f22tail')
 
     def test_subclass_unicode_data_and_method_dispatch(self):
         class Text(str):
@@ -108,7 +108,8 @@ class StringIOContracts(unittest.TestCase):
                 raise AssertionError('write must use Unicode data')
         class Stream(io.StringIO):
             def readline(self, *args):
-                return 'override:' + super().readline(*args)
+                line = super().readline(*args)
+                return 'override:' + line if line else line
         stream = Stream()
         stream.write(Text('ascii\n'))
         stream.seek(0)
