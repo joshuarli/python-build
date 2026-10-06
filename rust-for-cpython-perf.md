@@ -122,6 +122,31 @@ latter's original execution lifetime while testing early block release.
 
 ### Sprint throughput audit (2026-10-05)
 
+StringIO366 at1cd4cd92 passes a214s clean build with58 Rust extensions.
+Its immutable native fixture observes131074 versus524296 bytes for131072
+ASCII characters; output, cursor, close, object death and cleanup all pass.
+Both realized width-upgrade OOM/recovery cases and seven public semantic cases
+pass. The initial semantic fixture wrongly expected pickle protocols0/1 to
+work; its correction explicitly checks their existing TypeError and retains
+all supported-protocol round-trips. Complete I/O/logging suites pass1316 tests
+with33 skipped in27.7s. The41.6s first screen REJECTS cold ZIP-import RSS
+1.01403x in both runs, leaving zlib/logging/io/asyncio/shutil incomplete.
+Verdict SHA256 is
+`bbcc02524497c27f5b52a8d480ec1780410ddf7f9d619ab1a5ccb17889733cc5`.
+A first target-only diagnostic subsequently finds logging working0.582x
+[0.571,0.593] improved in both runs, with io neutral. It does not waive the
+RSS rejection or establish adoption. No full qualification follows.
+
+ZIP's successful path has no concrete StringIO owner in the checked import
+closure. Saved two-process peaks increase786432 and442368 bytes across runs;
+the summary does not separate parent, child or allocation ownership. No causal
+allocator conclusion or unchanged retry follows. Source review and the closed
+index admit367 as a distinct composition of364 compiler RAW/object lifetime
+separation and366 compact realized StringIO. Their buffers and ownership are
+independent, and all existing native oracles remain unchanged. Logging's measured
+payload improvement supplies a lead for the earlier compiler logging guard;
+composition gains and every RSS guard still require fresh measurements.
+
 Arena365 at83accbad passes its213.4s clean build with58 Rust extensions.
 The unchanged allocation fixture now observes8192 rather than8224 bytes;
 full capacity, one-off9000-byte storage, alignment, object lifetime and cleanup
