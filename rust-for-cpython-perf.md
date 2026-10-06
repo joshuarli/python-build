@@ -246,9 +246,19 @@ SHA256 is `1e0f91f19aba50d666537c32ac75ff1b13517ed13190268d5144a68d029cf201`.
 Raw warnings fixed-load medians rise65536 bytes in each run; its absolute
 footprints are higher, so lower initial-footprint redistribution does not explain
 this rejection. No unchanged retry, full qualification or adoption follows.
-Candidate375 isolates debug-record removal to C extensions while preserving
-core/interpreter metadata. This changes post-link source-debug reconstruction
-for those extension images; ordinary runtime symbols remain required.
+Metadata375 at24e3950a isolates debug-record removal to C extensions while
+preserving core/interpreter metadata. Its219s clean build verifies58 Rust
+extensions;3952 nearest-suite tests/416 skips and the smoke check pass. All135
+extension images have zero STABS records, while core/interpreter retain43892/9.
+Ordinary symbols and fixups remain unchanged. Core LINKEDIT occupies108 pages
+versus107, with the known embedded-path-string difference disclosed; this does
+not establish an RSS cause. Extension source-debug reconstruction changes.
+The48.2s first screen REJECTS warnings load1.056x, ElementTree load1.038x,
+compileall RSS1.016x and reordered difflib RSS1.016x in both runs. Remaining
+final verdicts are neutral; outputs match and no unstable metric occurs.
+Verdict SHA256 is
+`629706a314727518f0c429d7270184079d603410282570b521818c65469c446e`.
+No unchanged retry, full qualification or adoption follows.
 
 Separate phase observations on unchanged accepted/control stages reuse existing
 VM and malloc observers. All children pass, outputs match and stage identities
@@ -266,9 +276,29 @@ A subsequent targeted pairing audit recovers pickle source47 atdb3e5b3b,
 whose saved worktree and primary correctness qualifications have zero memory
 draws. Candidate376 rebases that isolated C/Rust image pairing onto accepted
 e702f238, preserving both module definitions, fallback and interpreter ownership.
-Potential page coalescence is a hypothesis, not measured RSS improvement.
-The historical decimal48 pairing has an actual memory rejection and remains
-closed. The accepted runtime and47-pass/24-unresolved module picture are unchanged.
+Its214s clean build atb942ec25 verifies58 extensions. All15 candidate checks
+and21 complete affected suites pass (7464 run/630 skipped,38.5s). The23.8s
+first screen REJECTS compileall and serialization RSS1.016x in both runs;
+pickle load1.000x and working1.000x are neutral. Reordered difflib1.013x and
+zlib decoding1.010x are final neutral. Verdict SHA256 is
+`1e91214216f82fe8f63a45174ee460d42d2d8b1f5f61cb5a8f4fbab775861260`.
+Source47 is now measured and closed: no unchanged retry, full qualification
+or adoption. Historical decimal48 remains separately rejected.
+
+ElementTree377 atb5ed7aef borrows immutable parser events while retaining
+mutable current-event copies. Its accepted-e702 descendant reuses the configured
+regex stage; the original372 stage is overwritten, with branch/report/archive
+preserved. The35s incremental build verifies58 extensions; seven accepted and
+seven candidate semantic cases plus complete regex/XML suites pass (649/16).
+The38.8s first screen REJECTS compileall RSS1.017x in both runs. ElementTree
+load1.026x and working1.031x are neutral; zstd, warnings and the other three
+RSS rows are final neutral, with adverse individual runs preserved. Verdict
+SHA256 is `84a1f7564edded70e1140f5c539bbfdd9e564dd2e71b43a3c832e24afe329d46`.
+No unchanged retry, full qualification or adoption follows.
+Candidate378 separately investigates native TreeBuilder lazy empty attributes;
+source and fixtures are being prepared, with no predicted memory gain.
+Accepted e702 and47 passing/24 unresolved modules plus12 RSS regressions
+remain unchanged.
 
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
