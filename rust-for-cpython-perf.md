@@ -86,11 +86,22 @@ Preserve400's first ACCEPT-explore;399/400 are closed without full qualification
 adoption or unchanged retry. No ROOT native/RSS handle remains live.
 401 sourceef9ebe47/fixtures8042bae is clean and review296 passes. Seven new
 baseline cases pass (36889/313262) with placement failing as expected; five
-original399 struct cases are reused. Setup93479/c9cb9d and doctor pass. Executor61's
-sole eight-job clean build69310 (perf-c401) is actually live, confirmed by its
-building report. Native13, nearest suites and memory screening remain pending;
-this is a verified build wait, not an external blocker. All ROOT measurements
-are terminal, and no adoption or goal change is established. Its11 original-C
+original399 struct cases are reused. Setup93479/c9cb9d and doctor pass. Clean
+69310/dc8ca8 exits0 in213.9s with58 extensions at sourceef9ebe47. Initial native
+53877 errors on nonexistent _math_rs after batch7/struct5 pass; the malformed
+accepted-negative oracle also masked that error. Both failures are preserved.
+Fixture-only e02242e passes review296 without a runtime change or rebuild.
+Corrected33641/78977d exits0: accepted placement has exactly11 expected assertion
+failures/zero errors and candidate placement passes, totaling13 meaningful
+candidate units. Complete12 suites69264/98dcfd pass4454/81 in8.4s. Final stage
+SHA256 is `4e16db63bad208f2ff1ea3f881d536de8c68ee461ec99451c6df8ba751a65fbc`;
+all stage/source/child-cleanup guards pass. First memory71574 is actually live:
+six modules and five workload guards, two standard memory-only runs with matched
+aliases. No outcome, adoption or goal change is established yet. Harness402
+supports only a narrow original-C template incremental path with stale-object
+cleanup; it is source/controller-test work, with no runtime build/measurement
+and final clean qualification still required. Read-only401 artifact budgeting
+is pending. Its11 original-C
 libSystem builtin batch (_struct,_heapq,
 _math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) has
 surfaced placement metadata changes. The saved389 category352KiB/slack
