@@ -1,6 +1,6 @@
 # Rust-for-CPython performance phase
 
-**Memory goals first, then performance goals; CPU phase not started. Read the [current objective](#current-memory-first-objective-2026-10-01).** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+**Paused at the user’s request. Read the [current handoff](#paused-handoff-2026-10-06) before resuming. Memory goals remain first; CPU work has not started.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
 are complete under its strict Python-suite coverage rule, and those rules
 still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
@@ -38,6 +38,104 @@ this resumed run, superseding the earlier eight-memory-lane cap. Shared-host
 builds, correctness and RSS measurements use the perf host lease. A change
 to the performance harness requires fresh memory-only calibration before
 comparison.
+
+## Paused handoff (2026-10-06)
+
+The user requested winding down, settling existing lanes, merging completed
+work and stopping. No new optimization, qualification or measurement should
+start until the user resumes. The memory-first objective remains incomplete;
+CPU work has not started. No native/build/test/measurement handle remains live.
+
+### Merged source versus accepted runtime
+
+Completed402 harness work,403 native validation ancestry and404 prepared source
+are consolidated on `main` through source integration `cf0f554b`. The current
+source contains the **unqualified eighteen-original-C-module builtin experiment**
+and the existing SQLite delegate exception-preservation repair. This source is
+not a newly accepted memory runtime. Builtin placement changes module
+loader/origin metadata, removes the extension-file attribute and adds names to
+`sys.builtin_module_names`; public C behavior and Rust routes remain required.
+Rejected older runtime experiments remain recoverable from their branches and
+Git history. No branches, evidence worktrees or accepted stages were deleted;
+nothing was pushed.
+
+The accepted benchmark runtime remains `perf-rust` at
+`e702f23829bd889a4922a90367be6c4f9f9ec874`, stage
+`/Users/josh/d/python-build/rust-cpython/stage-perf-rust`, tree SHA256
+`b6f0b2068c4919f034acb248063ca80245fc1c3f66107549d2f3726171e0ecec`.
+Use that verified stage as the incumbent, not the current `main` source or
+`perf-c401primary`. The pristine control remains `perf-upstream`.
+
+The authoritative unchanged accepted-runtime assessment is **47 passing and24
+unresolved modules, plus12 absolute workload RSS regressions**. The complete71
+receipt is `20261005T224455Z-goals-perf-upstream-vs-perf-rust/verdict.json`
+(SHA256 `a7ac78979c8b3201ce8afe68e1d9d68b535a60cffa05c0a9ec12654561cfef96`);
+its15-route uncertainty follow-up is
+`20261005T225542Z-goals-perf-upstream-vs-perf-rust/verdict.json`
+(SHA256 `0ecd5d8351ff6586d7877868c24e0278fe2195b22e84746cd4f88f4a11249504`).
+The absolute23-workload receipt is
+`20261005T232802Z-perf-upstream-vs-perf-rust/verdict.json`
+(SHA256 `ca218cc8dfc8522e342c1ae9ada0e799e8f25196361188fe369b91fbc4735a04`).
+These paths are under primary `rust-cpython/results/perf-bench/`.
+Debt does not waive completion; CPU, timing and quiet-host requirements do not
+gate the memory phase. Mimalloc remains canceled; do not revive it.
+
+### Settled results and pending qualification
+
+- **401 is CLOSED/REJECTED.** Eleven C placements passed a215s primary clean
+  build,58 Rust artifact checks,16 fresh native cases and full default-resource
+  correctness:50,158 tests/2,748 skips. Final684.6s all71-module/all23-workload
+  gate completed94 entities and rejected `_strptime`, tarfile and warnings load,
+  plus logging working peak. All23 workload RSS rows were final neutral; five
+  load improvements remain preserved. No adoption or unchanged retry follows.
+  Primary verdict:
+  `rust-cpython/results/perf-bench/20261006T153301Z-perf-rust-vs-perf-c401primary/verdict.json`,
+  SHA256 `bf6d415058b3603e0cbcb406f26a7b33e4def1252ea003d5ab2fe2c29ffe8458`.
+- **402/403 builder support is merged and verified.** Source402
+  `a1f4ca237fad1453ca3920d6f0e12ff70b3b3e0b` passed source review and101
+  controller tests, repeated successfully after merge. Original C placement
+  exploration now explicitly regenerates registration, invalidates stale object
+  owners/shared artifacts, recreates the candidate stage and verifies actual
+  compiler flags. Matching configure guards, original row bytes/flags and object
+  ownership are enforced. Late metadata failure and abrupt process loss leave
+  durable `configured=False`. Final clean survivor qualification still applies.
+  Real403 shared→builtin→shared proof passed:214s clean,56s forward and57s
+  reverse,58 verified Rust artifacts each, fresh struct contracts/placement checks,
+  stale-file removal and source/stage/cleanup guards. An initial old-helper
+  AttributeError before compilation is preserved; matching verifier closure was
+  supplied in `9ecb68f`. Final403 runtime template is pristine, not a candidate.
+  Evidence:
+  `/Users/josh/d/py-memory-c-placement-native403/rust-cpython/results/c-placement403-native/native-two-direction-handoff.json`,
+  SHA256 `888a40958c1e7d56ded1875abbb7186e370315daa6620ffaed65a7a05639d97b`.
+- **404 is merged source, UNQUALIFIED.** Its source worktree is
+  `/Users/josh/d/py-memory-c-core-extended404`, frozen source
+  `64c7e0f398fabf36fd8ffd0ab9e21f1a8905eae1` based on rejected401.
+  Eighteen C placements comprise the original eleven plus `_socket`,
+  `_posixsubprocess`, termios, `_zoneinfo`, `_interpreters`, unicodedata and
+  `_blake2`. Original C/Rust bodies, flags, HACL linkage and lifecycle/capsule
+  ownership remain unchanged. Source review passed; its seven new accepted-stage
+  semantic cases passed with no skips/errors, and the twelve unchanged401 cases
+  retain their baseline evidence. **No404 candidate build, native suite, RSS
+  comparison or full qualification ran.** Baseline evidence:
+  `/Users/josh/d/py-memory-c-core-extended404/rust-cpython/results/coreextended404-baseline/actual.json`,
+  SHA256 `85f8cd56dd7e3dfd32171c6ebe60ca03b961ad16e41f73b5bf44ebfee45cc308`.
+  The additional224KiB private-image category and apparent table-space margins
+  are layout evidence, not predicted RSS savings.
+
+### Resume only when requested
+
+Check branch cleanliness and saved stage/report identities first. The merged
+harness changed since primary calibration `20261006T101316Z`; run fresh
+`perf.py calibrate --ref @control --gate --memory-only` before new comparisons.
+Do not rebuild the unchanged accepted runtime or rerun its full suites merely
+because documentation advanced. If pursuing404, use a distinct candidate name,
+retain Rust routes, run its19 semantic cases plus the separate18-placement check
+and complete affected suites, then screen the known401 regressions early.
+Compatible incremental exploration is now supported; final clean/full correctness
+and replicated module/workload memory qualification remain mandatory. Preserve
+all failed fixtures and their corrections. Use only `gpt-6.1-sol` at medium for
+new/resumed lanes, up to31 children; measurements stay exclusive. No new work
+was authorized by this wind-down request.
 
 ### Current memory measurements (2026-10-06)
 
