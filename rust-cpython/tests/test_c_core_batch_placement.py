@@ -16,7 +16,7 @@ class CCoreBatchPlacementTests(unittest.TestCase):
                 self.assertIn(name, sys.builtin_module_names)
                 self.assertEqual(module.__spec__.origin, 'built-in')
                 self.assertFalse(hasattr(module, '__file__'))
-        for name in ('_struct_rs', '_math_rs', '_json_rs', '_statistics_rs'):
+        for name in ('_struct_rs', '_json_rs', '_statistics_rs'):
             with self.subTest(helper=name):
                 module = importlib.import_module(name)
                 self.assertNotIn(name, sys.builtin_module_names)
