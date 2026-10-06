@@ -379,12 +379,24 @@ logging's adverse individual working run is retained. Outputs match and no
 unstable metric occurs. Verdict SHA256 is
 `67dfe3cdefa990aaea3b5f6d97ad6dd9ca19ce3f422c6f7dc208e67a78dc209f`.
 No unchanged retry, full qualification or adoption follows.
-Candidate384 investigates GIL type-cache content hashing/exact Unicode equality
-instead of pointer keys, retaining caller name objects without global interning.
-Source87d515c follows five passing accepted-baseline behavior fixtures and
-independent review of version invalidation, negative lookups, ownership and the
-unchanged free-threaded path. Its clean build is running; no candidate memory
-qualification is established. The exact intern-dictionary observer completes
+Content-key type-cache384 at87d515c changes only GIL name hashing/equality and
+recomputes the retained-version destination slot; caller getter identities,
+free-threaded behavior and cache ABI remain unchanged. Its214s clean build
+verifies58 extensions. Five native cases and one own-GIL companion with three
+cycles pass;28 complete affected suites pass7045 tests/460 skips in30.9s.
+The50.9s first screen improves typing load0.850448x [0.837260,0.865091]
+in both runs (1040384 to884736 bytes), with working1.000x neutral, but
+REJECTS logging working1.417328x [1.232143,1.546296] in both runs (450560
+to638976 bytes). Other module memory and four RSS rows are final neutral;
+logging load is worse/neutral across runs and remains recorded. Outputs match
+and no unstable metric occurs. Verdict SHA256 is
+`d8af5bb784333b00a58f5e3f1983b697d29fbe5ff0154cca86dbf21817c40c6a`.
+No unchanged retry, full qualification or adoption follows.
+Candidate385 separately composes384 with width-aware StringIO366, excluding
+381/382 global-intern API changes. The executor is preparing the archive and
+incremental source; existing383 source-fixture oracles are reused, but this
+composition's correctness and memory outcome remain unproved.
+The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
 before warnings import to207600 bytes/16384 slots after the first call. Live,
 mortal and immortal counts match; one extra candidate hole adds no capacity.
