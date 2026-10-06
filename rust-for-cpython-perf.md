@@ -49,11 +49,29 @@ these are not29 independent owners.393/394 are source-only duplicates, while
 387/389 and396's discriminator are diagnostics, not candidate memory trials.
 The final-verdict durations sum to50.2 minutes, not sprint elapsed time, and
 exclude builds, correctness, earlier exploratory screens and diagnostics.
-Current397 is prepared from accepted e702 in py-memory-base64-doc397:50 owns
-source,296 reviews and61 is the reserved executor. No build or memory result is
-claimed. Other scouts are exhausted except68's source-only C-UUID builtin
-viability check. No ROOT native handle is active. The10-core/64GiB host has
-zero swap and282GiB free disk; this is a snapshot, not utilization evidence.
+397 donor068e8a3e/fixtures83acfbf5 pass source review and are transported as
+81f19c0d by61. Baseline seven cases pass with the owner check failing as expected;
+its37.3s incremental build verifies58 extensions, candidate eight cases and
+base64/binascii suites304/17 pass. First48339 completes five entities in27.3s,
+NEUTRAL without a target gain; gzip RSS neutral/worse1.009420x and startup
+worse/neutral1.011066x are retained. Verdict SHA256 is
+`979a701545c9cfe811d92b58335c2fba9eefaff37e16bee5c429b1e2c35b8ad0`.
+398 source5d318b1c/fixtures9d63210d preserves optional C-UUID missing/disabled
+configuration while registering the available C module as builtin. Baseline
+seven cases, clean226s/58 extensions, candidate eight cases and UUID/importlib
+suites1339/27 pass. First65871 completes six entities in36.9s and REJECTS
+gzip RSS1.019444x in both runs; UUID load is neutral. Verdict SHA256 is
+`9f2c42ee1556fa9a6f6b053be401f3d7b65f35eb36b4d5dafbeb4bbd2431609c`.
+Both measured variants are closed without adoption, full qualification or retry.
+399's C-struct source is draft/untracked after fixture commit1eb50779;400's
+C-binascii source194ea6c8 is committed and awaiting review51. Both leave Rust
+shared routes unchanged; loader/origin/file/builtin_names changes are surfaced.
+No ROOT native/RSS handle is active.294's original Django cProfile93358 passes
+with matching b609 response:74 prepare_compiled,3 search_compiled and77
+legacy_hooks_intact calls, zero legacy prepare/search. This rules out a legacy
+regex operation-cache/scratch owner for that diagnostic, not all workloads or
+memory savings. The10-core/64GiB host has zero swap and282GiB free disk;
+this is a snapshot, not utilization evidence.
 The short ignored coordinator-state frontier is authoritative for live work;
 the ledger below retains historical results without making them a ready queue.
 
