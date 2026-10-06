@@ -439,9 +439,33 @@ working0.592593x. No mismatch or unstable metric occurs. Verdict SHA256 is
 The measured e3be5a1e composite is closed without adoption or unchanged retry;
 this does not attribute its failures to individual components or close new
 unmeasured component mechanisms. The exploratory result and genuine correctness
-repair remain preserved. Datastack387 and tuple388 are released for bounded
-parallel baseline diagnostics; Django-page389 and hybrid-cache390 continue
-source-only from accepted source, with no implementation or memory claim.
+repair remain preserved.
+
+Hybrid-cache390 completes12 entities in88.0s and REJECTS logging
+working1.214286x [1.210591,1.571429], catalog-search-form RSS1.014735x
+and gzip RSS1.015512x in both runs. Typing load0.858261x
+[0.830769,0.888889] improves in both runs, with working1.000x neutral.
+Verdict SHA256 is
+`e1491aff825980b12baba253fb5d3ac03a4b126a8806aea302ee07617590c931`.
+No unchanged retry, full qualification or adoption follows.
+Datastack387's actual diagnostic5362 passes: all five selected kernels have
+NULL cached chunks on both sides and one current16KiB page; forced depth200
+also leaves one16KiB cached page on each side. Actual SHA256 is
+`06d0bf588475cf037b4a444e17f6bd4da7b5b72738f10503e88348ae1aceaa30`.
+This closes that five-kernel lead, not every workload or stack owner.
+
+Tuple388's typed270KiB estimate is mostly a common CPython owner; that does
+not rule out offsetting Rust overhead. Its five-pair observer source uses a
+5.28MiB maximum, correcting the earlier4.96MiB description. The candidate
+changes only the header cap to512 under the GIL, retaining2000 free-threaded;
+independent semantic-cap fixture003e045 passes source review. Baseline42284
+passes semantics with2000 on each side. Candidate source9dfd171, with no390,
+difflib or I/O runtime changes, builds in66.4s with58 extensions; native64859
+passes512-cap, semantic, OOM and own-GIL checks, and focused21384 passes
+4449/411. The exclusive first RSS screen7754 is running against six targets
+and five guards; no verdict or benefit is established. Django-page389 source
+d2548b3 is under review.391 prepares an existing-intern cache-key proposal,
+without changing caller arguments or performing new interning; it is source-only.
 Accepted47/24 and12 RSS regressions remain unchanged.
 The exact intern-dictionary observer completes
 one guarded accepted/candidate382 pair: both grow from103840 bytes/8192 slots
