@@ -624,7 +624,13 @@ def _existing_source(parent: Path) -> Path:
 
 
 def _c_template_modes(template: bytes, original: bytes) -> tuple[bytes, set[str]]:
-    """Remove only single original-C-row static wrappers, preserving every byte."""
+    """Remove same-guard original-C wrappers; ignore only inert full-line comments."""
+    # The generator removes full-line comments and empty lines before interpreting
+    # mode switches. All noncomment row bytes remain exact source-input bytes.
+    def semantic(data):
+        return b''.join(line for line in data.splitlines(keepends=True)
+                        if line.strip() and not line.lstrip().startswith(b'#'))
+    template, original = semantic(template), semantic(original)
     rows = {}
     for line in original.splitlines(keepends=True):
         match = re.fullmatch(rb'@MODULE_[A-Z0-9_]+_TRUE@([a-zA-Z0-9_]+) ([^\n]+)\n', line)
@@ -632,13 +638,14 @@ def _c_template_modes(template: bytes, original: bytes) -> tuple[bytes, set[str]
             name = match[1].decode('ascii')
             tokens = match[2].decode('ascii').split()
             sources = [token for token in tokens if token.endswith('.c')]
-            if sources and all(re.fullmatch(r'[a-zA-Z0-9_./-]+\.c', src)
+            if sources and not any(token.endswith(('.toml', '.rs')) for token in tokens) and all(re.fullmatch(r'[a-zA-Z0-9_./-]+\.c', src)
                                and not Path(src).is_absolute() and '..' not in Path(src).parts for src in sources):
                 rows[line] = name
     wrapped = set()
-    pattern = rb'\*static\*\n(@MODULE_[A-Z0-9_]+_TRUE@[^\n]+\n)\*@MODULE_BUILDTYPE@\*\n'
+    pattern = (rb'(?P<guard>@MODULE_[A-Z0-9_]+_TRUE@)\*static\*\n'
+               rb'(?P<row>(?P=guard)[^\n]+\n)(?P=guard)\*@MODULE_BUILDTYPE@\*\n')
     def unwrap(match):
-        row = match[1]
+        row = match['row']
         if row not in rows or rows[row] in wrapped:
             raise LaneError('placement wrapper is not a unique original C row')
         wrapped.add(rows[row])
@@ -657,11 +664,18 @@ def c_placement_plan(before: bytes, after: bytes, original: bytes) -> dict[str, 
     if not moved:
         raise LaneError('no original C placement transition')
     result = {}
+    owners: dict[str, set[str]] = {}
     for line in original.decode('ascii').splitlines():
         match = re.fullmatch(r'@MODULE_[A-Z0-9_]+_TRUE@([a-zA-Z0-9_]+) (.+)', line)
-        if match and match[1] in moved:
+        if match:
             sources = [token for token in match[2].split() if token.endswith('.c')]
-            result[match[1]] = tuple('Modules/' + str(Path(src).with_suffix('.o')) for src in sources)
+            objects = tuple('Modules/' + str(Path(src).with_suffix('.o')) for src in sources)
+            for obj in objects:
+                owners.setdefault(obj, set()).add(match[1])
+            if match[1] in moved:
+                result[match[1]] = objects
+    if any(len(owners[obj]) != 1 for objects in result.values() for obj in objects):
+        raise LaneError('placement object is shared with another original module row')
     if set(result) != moved or any(not objects for objects in result.values()):
         raise LaneError('placement object owners are incomplete')
     return result
@@ -835,9 +849,15 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             for owner in (source / 'Modules/Setup', paths['build'] / 'Modules/Setup.local',
                           paths['build'] / 'Modules/Setup.bootstrap'):
                 if owner.is_file():
+                    moved_objects = {obj for objects in placement.values() for obj in objects}
                     for line in owner.read_text().splitlines():
-                        if line.split() and line.split()[0] in placement:
+                        tokens = line.split('#', 1)[0].split()
+                        if tokens and tokens[0] in placement:
                             raise LaneError("C placement row is shadowed by another Setup owner")
+                        objects = {'Modules/' + str(Path(token).with_suffix('.o'))
+                                   for token in tokens[1:] if token.endswith('.c')}
+                        if objects & moved_objects:
+                            raise LaneError("C placement object is shared with another Setup owner")
             previous = state.get("previous", {})
             metadata, entry = lb._read_lock()
             if (previous.get("source_commit") != metadata["commit"]
