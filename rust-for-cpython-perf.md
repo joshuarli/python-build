@@ -206,6 +206,31 @@ compilation and ZIP RSS are final neutral. Verdict SHA256 is
 No broader/full qualification or adoption follows. The accepted runtime stays
 unchanged; a smaller optional engine bundle does not establish an RSS saving.
 
+Socket373 recovers the existing socket C/Rust image-pairing implementation49,
+whose historical correctness passed but whose saved memory-draw count was zero.
+It rebases only socket-owned source/fixtures onto accepted e702f238. A fresh
+215s clean build verifies58 Rust extensions. Fourteen baseline and fifteen
+candidate behavior/ownership cases pass, including fresh typed C observers,
+exact public Rust-call counts, both module definitions/initializers, import
+order, own-GIL cycles, held SSL generations, fork/thread cleanup and one actual
+loaded native image. Six generator and five cleanup checks pass. The55 affected
+suite union passes16139 tests/1049 skips in104s.
+
+The16.0s first paired screen is NEUTRAL: socket load0.965x has a pooled
+interval below0.99 but each independent run remains neutral. One justified
+higher-sample follow-up takes14.5s and improves socket load0.959x
+[0.958,0.979] in both runs, with working memory neutral. Verdict SHA256 is
+`5b184797708ca5544b471f68a9d4404de610865e9236ead4c664e143ffbf8c6e`.
+The subsequent191.3s complete23-workload RSS screen REJECTS compilation1.015x,
+reordered difflib1.014x and zlib decoding1.013x in both runs. Other workload
+verdicts are neutral; output checks pass. Guard verdict SHA256 is
+`8b495cc2e519a15af75b9d5ec03828bf8f14564c5932e6d19ec2d37f73f25a1c`.
+No primary clean build, full qualification or adoption follows. The prepared
+primary source is restored to standalone socket modules; rejected source,
+fresh-stage results and historical evidence remain preserved. A bounded source
+inquiry checks whether C-only guard imports now load previously-unused Rust
+pages; no causal memory conclusion or unchanged retry follows from that inquiry.
+
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
 in29.1s. The26.3s first memory screen REJECTS compileall_source RSS1.017x
