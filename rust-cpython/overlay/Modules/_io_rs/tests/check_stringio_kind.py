@@ -81,6 +81,11 @@ class StringIOContracts(unittest.TestCase):
                 self.assertEqual(stream.tag, 'restored')
                 self.assertEqual(stream.__getstate__(), (raw, newline, 2, {'tag': 'restored'}))
                 for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
+                    if protocol < 2:
+                        with self.assertRaises(TypeError) as caught:
+                            pickle.dumps(stream, protocol)
+                        self.assertIs(type(caught.exception), TypeError)
+                        continue
                     restored = pickle.loads(pickle.dumps(stream, protocol))
                     self.assertEqual(restored.getvalue(), raw)
                     self.assertEqual(restored.tell(), 2)
