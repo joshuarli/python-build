@@ -44,7 +44,7 @@
 /* Forward declarations */
 static void flush_io(void);
 static PyObject *run_mod(mod_ty, PyObject *, PyObject *, PyObject *,
-                          PyCompilerFlags *, PyArena *, PyObject*, int);
+                          PyCompilerFlags *, PyArena *, PyObject*, int, PyObject **);
 static PyObject *run_pyc_file(FILE *, PyObject *, PyObject *,
                               PyCompilerFlags *);
 static PyObject *
@@ -341,7 +341,9 @@ _PyRun_InteractiveOne(FILE *fp, PyObject *filename, PyCompilerFlags *flags)
 
     /* The parser registered this source with the arena; retain it across compilation. */
     Py_INCREF(interactive_src);
-    PyObject *res = run_mod(mod, filename, main_dict, main_dict, flags, arena, interactive_src, 1);
+    PyObject *kept_objects = NULL;
+    PyObject *res = run_mod(mod, filename, main_dict, main_dict, flags, arena, interactive_src, 1, &kept_objects);
+    Py_XDECREF(kept_objects);
     Py_DECREF(main_module);
     if (res == NULL) {
         PyThreadState *tstate = _PyThreadState_GET();
@@ -1269,6 +1271,7 @@ _PyRun_String(const char *str, PyObject* name, int start,
     if (arena == NULL)
         return NULL;
 
+    PyObject *kept_objects = NULL;
     PyObject* source = NULL;
     _Py_DECLARE_STR(anon_string, "<string>");
 
@@ -1289,12 +1292,13 @@ _PyRun_String(const char *str, PyObject* name, int start,
     Py_XDECREF(module);
 
     if (mod != NULL) {
-        ret = run_mod(mod, name, globals, locals, flags, arena, source, generate_new_source);
+        ret = run_mod(mod, name, globals, locals, flags, arena, source, generate_new_source, &kept_objects);
         arena = NULL;
     }
 
 done:
     Py_XDECREF(source);
+    Py_XDECREF(kept_objects);
     if (arena != NULL) {
         _PyArena_Free(arena);
     }
@@ -1331,14 +1335,16 @@ _PyRun_File(FILE *fp, PyObject *filename, int start, PyObject *globals,
     }
 
     PyObject *ret;
+    PyObject *kept_objects = NULL;
     if (mod != NULL) {
-        ret = run_mod(mod, filename, globals, locals, flags, arena, NULL, 0);
+        ret = run_mod(mod, filename, globals, locals, flags, arena, NULL, 0, &kept_objects);
     }
     else {
         ret = NULL;
         _PyArena_Free(arena);
     }
 
+    Py_XDECREF(kept_objects);
     return ret;
 }
 
@@ -1432,13 +1438,15 @@ get_interactive_filename(PyObject *filename, Py_ssize_t count)
 
 }
 
-/* Consumes the arena on every return. Compiled code owns its constants and
-   metadata independently, so callbacks and evaluation need no AST storage. */
+/* Consume the arena on every return, transferring its registered-object list
+   to the caller. Compiled code needs no raw AST storage, while object references
+   retain their original lifetime until the caller drops the returned list. */
 static PyObject *
 run_mod(mod_ty mod, PyObject *filename, PyObject *globals, PyObject *locals,
             PyCompilerFlags *flags, PyArena *arena, PyObject* interactive_src,
-            int generate_new_source)
+            int generate_new_source, PyObject **kept_objects)
 {
+    *kept_objects = NULL;
     PyThreadState *tstate = _PyThreadState_GET();
     PyObject* interactive_filename = filename;
     if (interactive_src) {
@@ -1450,7 +1458,7 @@ run_mod(mod_ty mod, PyObject *filename, PyObject *globals, PyObject *locals,
             Py_INCREF(interactive_filename);
         }
         if (interactive_filename == NULL) {
-            _PyArena_Free(arena);
+            *kept_objects = _PyArena_FreeAndKeepObjects(arena);
             return NULL;
         }
     }
@@ -1459,14 +1467,14 @@ run_mod(mod_ty mod, PyObject *filename, PyObject *globals, PyObject *locals,
         if (interactive_src) {
             Py_DECREF(interactive_filename);
         }
-        _PyArena_Free(arena);
+        *kept_objects = _PyArena_FreeAndKeepObjects(arena);
         return NULL;
     }
 
     PyCodeObject *co = _PyAST_Compile(mod, interactive_filename, flags, -1,
                                       arena, module);
     Py_XDECREF(module);
-    _PyArena_Free(arena);
+    *kept_objects = _PyArena_FreeAndKeepObjects(arena);
     if (co == NULL) {
         if (interactive_src) {
             Py_DECREF(interactive_filename);
