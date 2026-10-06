@@ -122,6 +122,19 @@ latter's original execution lifetime while testing early block release.
 
 ### Sprint throughput audit (2026-10-05)
 
+Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
+unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
+in29.1s. The26.3s first memory screen REJECTS compileall_source RSS1.017x
+in both runs. ZIP's final replicated verdict is neutral; the remaining seven
+selected entities are incomplete. Verdict SHA256 is
+`7a8dcdbc90dd6459be1084ef6f9f899eb87eca4f625e6ed33bd44b051b316fd0`.
+No full qualification or adoption follows. Individual component wins do not
+establish an accepted combined runtime, and source/stages remain preserved.
+The next bounded source inquiry checks whether already-immortal objects need
+entries in the compiler arena's owned-object list. Actual parser reachability,
+immortality lifetime guarantees, prior duplicates and observable contracts
+must be established before any implementation or memory claim.
+
 StringIO366 at1cd4cd92 passes a214s clean build with58 Rust extensions.
 Its immutable native fixture observes131074 versus524296 bytes for131072
 ASCII characters; output, cursor, close, object death and cleanup all pass.
