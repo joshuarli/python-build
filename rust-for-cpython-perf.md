@@ -64,8 +64,11 @@ gzip RSS1.019444x in both runs; UUID load is neutral. Verdict SHA256 is
 `9f2c42ee1556fa9a6f6b053be401f3d7b65f35eb36b4d5dafbeb4bbd2431609c`.
 Both measured variants are closed without adoption, full qualification or retry.
 399 source1cadedb0 passes review51, a225s clean build with58 extensions, six
-native cases and struct/importlib/pickle suites2336/58. No ROOT memory result
-is established.400 source194ea6c8 preserves Rust shared routes while making
+native cases and struct/importlib/pickle suites2336/58. First59899 completes
+six entities in93.7s and REJECTS catalog-search-form RSS1.012372x and gzip
+RSS1.017204x in both runs; struct load0.984790x is neutral. Verdict SHA256 is
+`17359dc25948e98fb73902fb7380d9d643cca7e1f09b54b4840e6cf6ab5bba77`.
+400 source194ea6c8 preserves Rust shared routes while making
 original C binascii builtin; loader/origin/file/builtin_names changes are surfaced.
 Its first92995 screen completes six entities in118.3s with ACCEPT-explore:
 base64 load0.933351x [0.911111,0.965942] and binascii load0.962278x
@@ -73,11 +76,19 @@ base64 load0.933351x [0.911111,0.965942] and binascii load0.962278x
 but gzip neutral/worse1.016574x and serialization worse/neutral1.011745x
 remain recorded. Verdict SHA256 is
 `0ed478fec965f02ee08f2f77685e889e41e8fd0130e1b3582b663558b62240d4`.
-Broad all23-workload plus two-target screen75136 is live; this is a survivor,
-not adoption.401's11 original-C libSystem builtin batch (_struct,_heapq,
-_math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) is
-source preparation only. The saved389 category352KiB is not an RSS prediction;
-placement metadata changes are surfaced.294's original Django cProfile93358 passes
+Broad75136 completes all23 workloads plus two targets in203.1s and REJECTS
+eight replicated RSS regressions: catalog JSON export/URL normalization,
+mostly-equal/reordered difflib, gzip, startup, wheel read and zlib streaming.
+Base64 load0.933319x remains improved in both runs; binascii is final neutral
+with neutral/better runs. Verdict SHA256 is
+`4c5b5d7b7d79648e28e353ea5142e36a0dfd1560fd0117588a913518e0db2d8d`.
+Preserve400's first ACCEPT-explore;399/400 are closed without full qualification,
+adoption or unchanged retry. No ROOT native/RSS handle remains live.
+401 sourceef9ebe47/fixtures8042bae is clean, with61 preparing baseline/build
+and296 reviewing. Its11 original-C libSystem builtin batch (_struct,_heapq,
+_math_integer,math,fcntl,select,_json,_queue,_random,_statistics,array) has
+surfaced placement metadata changes. The saved389 category352KiB/slack
+hypothesis is not an RSS prediction or acceptance claim.294's original Django cProfile93358 passes
 with matching b609 response:74 prepare_compiled,3 search_compiled and77
 legacy_hooks_intact calls, zero legacy prepare/search. This rules out a legacy
 regex operation-cache/scratch owner for that diagnostic, not all workloads or
