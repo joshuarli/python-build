@@ -79,7 +79,6 @@ pub(super) const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
 
 #[cfg_attr(target_vendor = "apple", link(name = "System"))]
 unsafe extern "C" {
-    pub(super) static PyList_Type: PyTypeObject;
     pub(super) static PyLong_Type: PyTypeObject;
     pub(super) static PyUnicode_Type: PyTypeObject;
     pub(super) static PyTuple_Type: PyTypeObject;

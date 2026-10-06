@@ -220,62 +220,6 @@ unsafe extern "C" fn find_longest_match(
     unsafe { new_result(result) }
 }
 
-// Exact built-in values cannot invoke Python equality callbacks. Validate the
-// whole pair before comparing anything: a changed list may contain a custom
-// value whose comparison or finalizer must remain on the original tuple path.
-// The live tuple factory must also be the built-in type; replacing it is an
-// observable facade hook. GIL ownership and strong arguments keep both input
-// containers and their immutable members alive without a copied list snapshot.
-unsafe extern "C" fn snapshot_matches(
-    _module: *mut PyObject, args: *mut *mut PyObject, nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 3 {
-        set_type_error(c"snapshot_matches() takes exactly three arguments");
-        return ptr::null_mut();
-    }
-    let list = unsafe { *args };
-    let snapshot = unsafe { *args.add(1) };
-    let factory = unsafe { *args.add(2) };
-    if unsafe { (*list).ob_type } != ptr::addr_of!(PyList_Type).cast_mut().cast()
-        || unsafe { (*snapshot).ob_type } != ptr::addr_of!(PyTuple_Type).cast_mut().cast()
-        || factory != ptr::addr_of!(PyTuple_Type).cast_mut().cast()
-    {
-        return unsafe { PyLong_FromLongLong(-1) };
-    }
-    let length = unsafe { PyList_Size(list) };
-    let stored_length = unsafe { PyTuple_Size(snapshot) };
-    for (container, count, is_list) in [(list, length, true), (snapshot, stored_length, false)] {
-        for index in 0..count {
-            let value = if is_list {
-                unsafe { PyList_GetItem(container, index) }
-            } else {
-                unsafe { PyTuple_GetItem(container, index) }
-            };
-            let kind = unsafe { (*value).ob_type };
-            if kind != ptr::addr_of!(PyLong_Type).cast_mut().cast()
-                && kind != ptr::addr_of!(PyUnicode_Type).cast_mut().cast()
-            {
-                return unsafe { PyLong_FromLongLong(-1) };
-            }
-        }
-    }
-    if length != stored_length {
-        return unsafe { PyLong_FromLongLong(0) };
-    }
-    for index in 0..length {
-        let left = unsafe { PyList_GetItem(list, index) };
-        let right = unsafe { PyTuple_GetItem(snapshot, index) };
-        let equal = unsafe { PyObject_RichCompareBool(left, right, 2) };
-        if equal < 0 {
-            return ptr::null_mut();
-        }
-        if equal == 0 {
-            return unsafe { PyLong_FromLongLong(0) };
-        }
-    }
-    unsafe { PyLong_FromLongLong(1) }
-}
-
 unsafe fn read_builtin_tuple(arg: *mut PyObject) -> Option<usize> {
     if unsafe { (*arg).ob_type } != ptr::addr_of!(PyTuple_Type).cast_mut().cast() {
         set_type_error(c"matching values must be exact tuples");
@@ -444,7 +388,7 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 4] = [
+pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 3] = [
     PyMethodDef {
         ml_name: c"find_longest_match".as_ptr() as *mut c_char,
         ml_meth: PyMethodDefFuncPointer {
@@ -459,12 +403,6 @@ pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 4] = [
         ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: find_longest_match_index },
         ml_flags: METH_FASTCALL,
         ml_doc: c"Find a longest block of builtin values through ascending position lists.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"snapshot_matches".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: snapshot_matches },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Compare an exact builtin list and tuple without callbacks; -1 declines.".as_ptr() as *mut c_char,
     },
     PyMethodDef::zeroed(),
 ];
