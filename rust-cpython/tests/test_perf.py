@@ -860,9 +860,120 @@ class IncrementalPlanTests(unittest.TestCase):
         self.assertEqual(plan, {"changed": ["Lib/new.py"], "removed": [], "clean_only": []})
 
 
+class CPlacementIncrementalTests(unittest.TestCase):
+    original = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@_json _json.c\n'
+    builtin = b'*@MODULE_BUILDTYPE@*\n@MODULE__JSON_TRUE@*static*\n@MODULE__JSON_TRUE@_json _json.c\n@MODULE__JSON_TRUE@*@MODULE_BUILDTYPE@*\n'
+
+    def test_both_directions_invalidate_same_object_and_obsolete_extension(self):
+        for before, after, static in ((self.original, self.builtin, True),
+                                      (self.builtin, self.original, False)):
+            with self.subTest(static=static), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                build, stage = root / 'build', root / 'stage'
+                (build / 'Modules').mkdir(parents=True)
+                (build / 'lib.fixture').mkdir()
+                stage.mkdir()
+                (build / 'pybuilddir.txt').write_text('lib.fixture')
+                for relative in ('Modules/_json.o', 'Modules/config.o',
+                                 'Modules/_json.fixture.so'):
+                    (build / relative).write_text('stale')
+                (build / 'lib.fixture/_json.fixture.so').symlink_to('../Modules/_json.fixture.so')
+                (stage / 'obsolete.so').write_text('old stage')
+                plan = perf.c_placement_plan(before, after, self.original)
+                self.assertEqual(plan, {'_json': ('Modules/_json.o',)})
+                perf.invalidate_c_placement(build, stage, plan)
+                self.assertFalse((build / 'Modules/_json.o').exists())
+                self.assertFalse((build / 'Modules/config.o').exists())
+                self.assertFalse((build / 'lib.fixture/_json.fixture.so').is_symlink())
+                self.assertFalse((build / 'Modules/_json.fixture.so').exists())
+                self.assertEqual(list(stage.iterdir()), [])
+
+    def test_changed_sources_flags_rust_rows_or_restore_are_rejected(self):
+        for invalid in (self.builtin.replace(b'_json.c', b'other.c'),
+                        self.builtin.replace(b'_json.c', b'_json.c -DNEW'),
+                        self.builtin.replace(b'_json.c', b'_json/Cargo.toml'),
+                        self.builtin.replace(b'*@MODULE_BUILDTYPE@*\n', b'*shared*\n'),
+                        self.builtin.replace(b'@MODULE__JSON_TRUE@*static*', b'@MODULE_ARRAY_TRUE@*static*'),
+                        self.builtin.replace(b'@MODULE__JSON_TRUE@*@MODULE_BUILDTYPE@*',
+                                             b'@MODULE_ARRAY_TRUE@*@MODULE_BUILDTYPE@*')):
+            with self.subTest(invalid=invalid), self.assertRaises(perf.LaneError):
+                perf.c_placement_plan(self.original, invalid, self.original)
+
+    def test_real_guarded_wrappers_preserve_disabled_and_following_mode(self):
+        for guard, name, source, comment in (
+                ('@MODULE__STRUCT_TRUE@', '_struct', '_struct.c',
+                 '# Keep the original C module in the interpreter and restore the configured mode.\n'),
+                ('@MODULE_BINASCII_TRUE@', 'binascii', 'binascii.c',
+                 '# Keep the original C module in the interpreter while preserving its optional\n'
+                 '# configuration and restoring the configured mode for subsequent modules.\n')):
+            row = f'{guard}{name} {source}\n'
+            original = ('*@MODULE_BUILDTYPE@*\n' + row + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
+            wrapped = ('*@MODULE_BUILDTYPE@*\n' + comment + guard + '*static*\n' + row +
+                       guard + '*@MODULE_BUILDTYPE@*\n' + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
+            plan = perf.c_placement_plan(original, wrapped, original)
+            self.assertEqual(set(plan), {name})
+            self.assertEqual(perf.c_placement_plan(wrapped, original, original), plan)
+            for substitution in ('', '#'):
+                configured = wrapped.decode().replace(guard, substitution).replace('@MODULE_BUILDTYPE@', 'shared')
+                effective = [line for line in configured.splitlines() if line and not line.startswith('#')]
+                mode = 'static'
+                modes = {}
+                for line in effective:
+                    if line.startswith('*'):
+                        mode = line.strip('*')
+                    elif not line.startswith('@'):
+                        modes[line.split()[0]] = mode
+                self.assertEqual(modes.get(name), 'static' if not substitution else None)
+                self.assertEqual(mode, 'shared')
+
+    def test_object_shared_with_unmoved_row_is_rejected(self):
+        original = self.original + b'@MODULE_ALIAS_TRUE@alias _json.c\n'
+        wrapped = self.builtin + b'@MODULE_ALIAS_TRUE@alias _json.c\n'
+        with self.assertRaises(perf.LaneError):
+            perf.c_placement_plan(original, wrapped, original)
+
+    def test_generated_registration_and_compile_rule_must_agree(self):
+        for static in (True, False):
+            with tempfile.TemporaryDirectory() as tmp:
+                build = Path(tmp)
+                (build / 'Modules').mkdir()
+                flag = 'PY_BUILTIN_MODULE_CFLAGS' if static else 'PY_STDMODULE_CFLAGS'
+                shared = '' if static else '_json'
+                (build / 'Makefile').write_text(
+                    f'MODSHARED_NAMES= {shared}\nModules/_json.o: source; clang $({flag}) -c source -o Modules/_json.o\n')
+                (build / 'Modules/config.c').write_text('{"_json", PyInit__json},' if static else '')
+                perf._verify_c_placement_rules(build, {'_json': ('Modules/_json.o',)}, {'_json': static})
+                (build / 'Modules/config.c').write_text('' if static else '{"_json", PyInit__json},')
+                with self.assertRaises(perf.LaneError):
+                    perf._verify_c_placement_rules(build, {'_json': ('Modules/_json.o',)}, {'_json': static})
+
+    def test_mixed_build_system_or_rust_changes_stay_clean_only(self):
+        for name in ('Modules/makesetup', 'Modules/Setup.local', 'Modules/_json_rs/src/lib.rs'):
+            plan = perf.incremental_plan(
+                {'Modules/Setup.stdlib.in': self.builtin, name: b'new'},
+                {'Modules/Setup.stdlib.in': self.original, name: b'old'},
+                ['Modules/Setup.stdlib.in', name])
+            self.assertIn('Modules/Setup.stdlib.in', plan['clean_only'])
+            self.assertNotEqual(plan['changed'], ['Modules/Setup.stdlib.in'])
+
+    def test_actual_compiler_flags_required_in_both_directions(self):
+        for static in (True, False):
+            with tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / 'install.log'
+                plan = {'_json': ('Modules/_json.o',)}
+                correct = '-DPy_BUILD_CORE_BUILTIN ' if static else ''
+                log.write_text(f'clang {correct}-c /source/Modules/_json.c -o Modules/_json.o\n')
+                perf.verify_c_placement_compilation(log, plan, {'_json': static})
+                wrong = '' if static else '-DPy_BUILD_CORE_BUILTIN '
+                log.write_text(f'clang {wrong}-c /source/Modules/_json.c -o Modules/_json.o\n')
+                with self.assertRaises(perf.LaneError):
+                    perf.verify_c_placement_compilation(log, plan, {'_json': static})
+
+
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
-                 empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False):
+                 empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False,
+                 late_placement_failure=False, abrupt_placement_failure=False):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             if not source_std:
@@ -952,6 +1063,78 @@ class IncrementalRecipeTests(unittest.TestCase):
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
             compiled = patches.enter_context(mock.patch.object(perf, "_built_members", wraps=perf._built_members))
             single_install = incremental or (source_std and aggregate and not empty_overlay)
+            if late_placement_failure or abrupt_placement_failure:
+                original = CPlacementIncrementalTests.original
+                template = 'Modules/Setup.stdlib.in'
+                (source / 'Modules').mkdir(exist_ok=True)
+                (source / template).write_bytes(original)
+                (paths['overlay_staging'] / 'Modules').mkdir()
+                (paths['overlay_staging'] / template).write_bytes(CPlacementIncrementalTests.builtin)
+                paths['overlay_manifest'].write_text(json.dumps([template]))
+                (paths['build'] / 'config.status').write_text('S["MODULE_BUILDTYPE"]="shared"')
+                paths['report'] = root / 'report.json'
+                paths['report'].write_text(json.dumps({
+                    'configured': True, 'pristine': False, 'source_commit': 'source',
+                    'source_archive_sha256': 'source hash', 'target': perf.lb.TARGET,
+                    'cargo_lock_sha256': perf._sha256_file(source / 'Cargo.lock')}))
+                patches.enter_context(mock.patch.object(perf, '_stage_overlay',
+                    return_value=({'sha256': 'fixture'}, [template])))
+                patches.enter_context(mock.patch.object(perf, '_original_setup_template', return_value=original))
+                patches.enter_context(mock.patch.object(perf, '_perf_flags', return_value={
+                    'CPPFLAGS': '', 'CFLAGS': 'fixture flags', 'LDFLAGS': ''}))
+                def value(path, name):
+                    return {'CC': str(toolchain.llvm_prefix / 'bin/clang'),
+                            'CONFIGURE_CFLAGS': 'fixture flags', 'CONFIGURE_CPPFLAGS': '',
+                            'CONFIGURE_LDFLAGS': '', 'CARGO_PROFILE': 'dev'}[name]
+                patches.enter_context(mock.patch.object(perf.lb, '_make_value', side_effect=value))
+                def placement_command(argv, **kwargs):
+                    command(argv, **kwargs)
+                    if 'Makefile' in argv:
+                        (paths['build'] / 'Modules').mkdir(exist_ok=True)
+                        (paths['build'] / 'Modules/config.c').write_text('generated')
+                    if 'install' in argv:
+                        with kwargs['log'].open('a') as stream:
+                            stream.write('clang -DPy_BUILD_CORE_BUILTIN -c source -o Modules/_json.o\n')
+                patches.enter_context(mock.patch.object(perf.lb, '_require_command', side_effect=placement_command))
+                patches.enter_context(mock.patch.object(perf, '_verify_c_placement_rules'))
+                patches.enter_context(mock.patch.object(perf.lb, '_module_report',
+                                                       side_effect=RuntimeError('late metadata failure')))
+                patches.enter_context(mock.patch.object(perf.lb, 'doctor_report', return_value={'ok': True}))
+                patches.enter_context(mock.patch.object(perf, '_paths', return_value=paths))
+                patches.enter_context(mock.patch.object(perf, 'host_lease', return_value=nullcontext()))
+                if abrupt_placement_failure:
+                    previous = json.loads(paths['report'].read_text())
+                    perf._write_json(paths['report'], {'status': 'building', 'configured': True})
+                    copy_file = perf._copy_file
+                    persisted = []
+                    def interrupted_copy(source_file, target_file):
+                        persisted.append(json.loads(paths['report'].read_text()))
+                        copy_file(source_file, target_file)
+                        raise SystemExit('abrupt placement interruption')
+                    patches.enter_context(mock.patch.object(perf, '_copy_file', side_effect=interrupted_copy))
+                    # Call the inner builder directly: no outer failure handler can
+                    # repair the durable state after this simulated process loss.
+                    with self.assertRaisesRegex(SystemExit, 'abrupt placement interruption'):
+                        perf._build_locked('fixture', paths, empty_overlay=False, incremental=True,
+                                           jobs=4, state={'configured': True, 'previous': previous})
+                    self.assertFalse(persisted[0]['configured'])
+                    self.assertEqual((source / template).read_bytes(), CPlacementIncrementalTests.builtin)
+                    self.assertFalse(json.loads(paths['report'].read_text())['configured'])
+                    with self.assertRaisesRegex(perf.LaneError, 'no configured candidate'):
+                        perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                    self.assertEqual(commands, [])
+                    return
+                with self.assertRaisesRegex(RuntimeError, 'late metadata failure'):
+                    perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                failure = json.loads(paths['report'].read_text())
+                self.assertEqual(failure['status'], 'failed')
+                self.assertEqual(failure['error'], 'late metadata failure')
+                self.assertFalse(failure['configured'])
+                count = len(commands)
+                with self.assertRaisesRegex(perf.LaneError, 'no configured candidate'):
+                    perf.build(name='fixture', empty_overlay=False, incremental=True, jobs=4)
+                self.assertEqual(len(commands), count)
+                return
             if missing_aggregate:
                 with self.assertRaisesRegex(perf.LaneError, "Cargo declared aggregate dependency is missing"):
                     perf._build_locked("fixture", paths, empty_overlay=False, jobs=4,
@@ -991,6 +1174,12 @@ class IncrementalRecipeTests(unittest.TestCase):
                                     ["/make", "install", *perf.MAKE_VARS]]))
             if single_install:
                 self.assertFalse(paths["build_log"].exists())
+
+    def test_abrupt_placement_mutation_persists_nonresumable_state_before_copy(self):
+        self.exercise(True, aggregate=False, abrupt_placement_failure=True)
+
+    def test_late_placement_report_failure_keeps_failed_state_and_refuses_retry(self):
+        self.exercise(True, aggregate=False, late_placement_failure=True)
 
     def test_incremental_builds_and_installs_once_then_verifies_artifacts(self):
         self.exercise(True)

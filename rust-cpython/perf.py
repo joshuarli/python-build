@@ -623,6 +623,143 @@ def _existing_source(parent: Path) -> Path:
     return matches[0]
 
 
+def _c_template_modes(template: bytes, original: bytes) -> tuple[bytes, set[str]]:
+    """Remove same-guard original-C wrappers; ignore only inert full-line comments."""
+    # The generator removes full-line comments and empty lines before interpreting
+    # mode switches. All noncomment row bytes remain exact source-input bytes.
+    def semantic(data):
+        return b''.join(line for line in data.splitlines(keepends=True)
+                        if line.strip() and not line.lstrip().startswith(b'#'))
+    template, original = semantic(template), semantic(original)
+    rows = {}
+    for line in original.splitlines(keepends=True):
+        match = re.fullmatch(rb'@MODULE_[A-Z0-9_]+_TRUE@([a-zA-Z0-9_]+) ([^\n]+)\n', line)
+        if match:
+            name = match[1].decode('ascii')
+            tokens = match[2].decode('ascii').split()
+            sources = [token for token in tokens if token.endswith('.c')]
+            if sources and not any(token.endswith(('.toml', '.rs')) for token in tokens) and all(re.fullmatch(r'[a-zA-Z0-9_./-]+\.c', src)
+                               and not Path(src).is_absolute() and '..' not in Path(src).parts for src in sources):
+                rows[line] = name
+    wrapped = set()
+    pattern = (rb'(?P<guard>@MODULE_[A-Z0-9_]+_TRUE@)\*static\*\n'
+               rb'(?P<row>(?P=guard)[^\n]+\n)(?P=guard)\*@MODULE_BUILDTYPE@\*\n')
+    def unwrap(match):
+        row = match['row']
+        if row not in rows or rows[row] in wrapped:
+            raise LaneError('placement wrapper is not a unique original C row')
+        wrapped.add(rows[row])
+        return row
+    normalized = re.sub(pattern, unwrap, template)
+    if normalized != original:
+        raise LaneError('placement template changes more than original C row wrappers')
+    return normalized, wrapped
+
+
+def c_placement_plan(before: bytes, after: bytes, original: bytes) -> dict[str, tuple[str, ...]]:
+    """Admit only static/configured-mode transitions of unchanged original C rows."""
+    _, old = _c_template_modes(before, original)
+    _, new = _c_template_modes(after, original)
+    moved = old ^ new
+    if not moved:
+        raise LaneError('no original C placement transition')
+    result = {}
+    owners: dict[str, set[str]] = {}
+    for line in original.decode('ascii').splitlines():
+        match = re.fullmatch(r'@MODULE_[A-Z0-9_]+_TRUE@([a-zA-Z0-9_]+) (.+)', line)
+        if match:
+            sources = [token for token in match[2].split() if token.endswith('.c')]
+            objects = tuple('Modules/' + str(Path(src).with_suffix('.o')) for src in sources)
+            for obj in objects:
+                owners.setdefault(obj, set()).add(match[1])
+            if match[1] in moved:
+                result[match[1]] = objects
+    if any(len(owners[obj]) != 1 for objects in result.values() for obj in objects):
+        raise LaneError('placement object is shared with another original module row')
+    if set(result) != moved or any(not objects for objects in result.values()):
+        raise LaneError('placement object owners are incomplete')
+    return result
+
+
+def _original_setup_template() -> bytes:
+    # Read the template from the checksum-verified source input rather than
+    # treating a previously overlaid configured tree as the original owner.
+    import tarfile
+    _, entry = lb._read_lock()
+    blob = lb.Cache(lb.CACHE_ROOT).require(entry)
+    with tarfile.open(blob, 'r:*') as archive:
+        matches = [member for member in archive.getmembers()
+                   if member.name.endswith('/Modules/Setup.stdlib.in') and member.isfile()]
+        if len(matches) != 1:
+            raise LaneError('pinned source has no unique standard-module template')
+        stream = archive.extractfile(matches[0])
+        if stream is None:
+            raise LaneError('cannot read pinned standard-module template')
+        return stream.read()
+
+
+def invalidate_c_placement(build: Path, stage: Path, plan: dict[str, tuple[str, ...]]) -> None:
+    # Make does not track compiler command changes, and install only adds
+    # current shared modules. Both the old object and old shared owner must go.
+    aliases = None
+    marker = build / 'pybuilddir.txt'
+    if marker.is_file():
+        relative = Path(marker.read_text().strip())
+        if relative.is_absolute() or '..' in relative.parts:
+            raise LaneError('unowned extension alias directory')
+        aliases = build / relative
+        if aliases.exists() and (aliases.is_symlink() or aliases.resolve() != build.resolve() / relative):
+            raise LaneError('aliased extension alias directory')
+    for objects in plan.values():
+        for relative in objects:
+            (build / relative).unlink(missing_ok=True)
+    (build / 'Modules/config.o').unlink(missing_ok=True)
+    for name in plan:
+        for directory in (build / 'Modules', aliases):
+            if directory is not None:
+                for path in (*directory.glob(name + '.*.so'), directory / (name + '.so')):
+                    path.unlink(missing_ok=True)
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+
+
+def verify_c_placement_compilation(log: Path, plan: dict[str, tuple[str, ...]],
+                                   modes: dict[str, bool]) -> None:
+    import shlex
+    commands = {}
+    for line in log.read_text(errors='replace').splitlines():
+        try:
+            tokens = shlex.split(line)
+        except ValueError:
+            continue
+        if '-c' in tokens and '-o' in tokens:
+            index = tokens.index('-o') + 1
+            if index < len(tokens):
+                commands[tokens[index]] = tokens
+    for name, objects in plan.items():
+        for obj in objects:
+            tokens = commands.get(obj)
+            if tokens is None or ('-DPy_BUILD_CORE_BUILTIN' in tokens) != modes[name]:
+                raise LaneError(f'current compiler transcript does not prove C placement: {obj}')
+
+
+def _verify_c_placement_rules(build: Path, plan: dict[str, tuple[str, ...]],
+                             modes: dict[str, bool]) -> None:
+    makefile = (build / 'Makefile').read_text()
+    shared = set(lb._make_value(build / 'Makefile', 'MODSHARED_NAMES').split())
+    config = (build / 'Modules/config.c').read_text()
+    for name, objects in plan.items():
+        initialized = re.search(r'\{\s*"' + re.escape(name) + r'"\s*,\s*PyInit_', config) is not None
+        if initialized != modes[name] or (name in shared) == modes[name]:
+            raise LaneError(f'generated C placement differs: {name}')
+        for obj in objects:
+            rules = [line for line in makefile.splitlines() if line.startswith(obj + ':')]
+            flag = '$(PY_BUILTIN_MODULE_CFLAGS)' if modes[name] else '$(PY_STDMODULE_CFLAGS)'
+            if len(rules) != 1 or flag not in rules[0]:
+                raise LaneError(f'generated C compiler rule differs: {obj}')
+
+
 def incremental_plan(staged: dict[str, bytes], current: dict[str, bytes | None],
                      previous_files: list[str]) -> dict[str, list[str]]:
     """Classify overlay changes against the source tree of the last build."""
@@ -660,6 +797,8 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
         _write_json(paths["report"], {"status": "building", "name": _tag(name),
                                       "pristine": empty_overlay, "configured": configured})
         state = {"configured": configured}
+        if incremental:
+            state["previous"] = previous
         try:
             report = _build_locked(name, paths, empty_overlay=empty_overlay, jobs=jobs,
                                    incremental=incremental, state=state)
@@ -679,11 +818,14 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
 
 
 def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, jobs: int | None,
-                  incremental: bool, state: dict[str, bool]) -> dict[str, Any]:
+                  incremental: bool, state: dict[str, Any]) -> dict[str, Any]:
     toolchain, target = lb._toolchain()
     lb._llvm_ready(toolchain)
     git_state = _git_state()
     changes: dict[str, list[str]] | None = None
+    placement: dict[str, tuple[str, ...]] = {}
+    placement_modes: dict[str, bool] = {}
+    placement_original: bytes | None = None
     if incremental:
         source = _existing_source(paths["source_parent"])
         if not (paths["build"] / "Makefile").is_file() or not paths["overlay_manifest"].is_file():
@@ -693,10 +835,57 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         current = {item: ((source / item).read_bytes() if (source / item).is_file() else None)
                    for item in files}
         changes = incremental_plan(staged, current, json.loads(paths["overlay_manifest"].read_text()))
+        setup = "Modules/Setup.stdlib.in"
+        if changes["changed"] == [setup] and not changes["removed"]:
+            placement_original = _original_setup_template()
+            before = current[setup]
+            if before is None:
+                raise LaneError("previous standard-module template is missing")
+            placement = c_placement_plan(before, staged[setup], placement_original)
+            _, wrapped = _c_template_modes(staged[setup], placement_original)
+            status = (paths["build"] / "config.status").read_text()
+            if re.search(r'S\["MODULE_BUILDTYPE"\]="shared"', status) is None:
+                raise LaneError("C placement requires the original configured shared mode")
+            for owner in (source / 'Modules/Setup', paths['build'] / 'Modules/Setup.local',
+                          paths['build'] / 'Modules/Setup.bootstrap'):
+                if owner.is_file():
+                    moved_objects = {obj for objects in placement.values() for obj in objects}
+                    for line in owner.read_text().splitlines():
+                        tokens = line.split('#', 1)[0].split()
+                        if tokens and tokens[0] in placement:
+                            raise LaneError("C placement row is shadowed by another Setup owner")
+                        objects = {'Modules/' + str(Path(token).with_suffix('.o'))
+                                   for token in tokens[1:] if token.endswith('.c')}
+                        if objects & moved_objects:
+                            raise LaneError("C placement object is shared with another Setup owner")
+            previous = state.get("previous", {})
+            metadata, entry = lb._read_lock()
+            if (previous.get("source_commit") != metadata["commit"]
+                    or previous.get("source_archive_sha256") != entry.sha256
+                    or previous.get("target") != lb.TARGET
+                    or previous.get("cargo_lock_sha256") != _sha256_file(source / 'Cargo.lock')):
+                raise LaneError("C placement requires unchanged prior source, target and Cargo lock")
+            flags = _perf_flags(toolchain, target)
+            for flag in ('CFLAGS', 'CPPFLAGS', 'LDFLAGS'):
+                if lb._make_value(paths['build'] / 'Makefile', 'CONFIGURE_' + flag) != flags[flag]:
+                    raise LaneError("C placement requires unchanged configured compiler flags")
+            if lb._make_value(paths['build'] / 'Makefile', 'CC') != str(toolchain.llvm_prefix / 'bin/clang'):
+                raise LaneError("C placement requires unchanged compiler owner")
+            placement_modes = {name: name in wrapped for name in placement}
+            changes["clean_only"] = []
         if changes["removed"] or changes["clean_only"]:
             raise LaneError("incremental build refused; run a clean build. Removed: "
                             f"{changes['removed'] or 'none'}; build-system changes: "
                             f"{changes['clean_only'] or 'none'}")
+        if placement:
+            # A failed placement migration must not be retried as an ordinary
+            # source-only sync after its template has already been copied.
+            state["configured"] = False
+            # Process loss can bypass the exception handler. Persist the refusal
+            # before copying the template, while validated prior inputs remain
+            # available only to this already-running migration.
+            _write_json(paths["report"], {"status": "building", "name": _tag(name),
+                                          "pristine": False, "configured": False})
         for item in changes["changed"]:
             _copy_file(paths["overlay_staging"] / item, source / item)
         print(f"OK    incremental overlay sync: {len(changes['changed'])} changed file(s)")
@@ -755,6 +944,15 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         if setup_local.is_file():
             _copy_file(setup_local, paths["build"] / "Modules" / "Setup.local")
         state["configured"] = True
+    if placement:
+        # The existing generators own module registration and linker recipes.
+        # Explicit regeneration happens before deleting any compiled owner.
+        lb._require_command(['./config.status', 'Modules/Setup.stdlib'],
+                            cwd=paths['build'], env=env, log=paths['configure_log'], sealed=sandbox)
+        lb._require_command([str(toolchain.make), 'Makefile', *MAKE_VARS],
+                            cwd=paths['build'], env=env, log=paths['build_log'], sealed=sandbox)
+        _verify_c_placement_rules(paths['build'], placement, placement_modes)
+        invalidate_c_placement(paths['build'], paths['stage'], placement)
     if incremental or std_metadata is not None:
         if incremental and source_aggregate:
             std_metadata = _prepare_csv_source_std(paths, env)
@@ -772,6 +970,9 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         lb._require_command([str(toolchain.make), "install", *MAKE_VARS], cwd=paths["build"],
                             env=env, log=paths["install_log"], sealed=sandbox)
         _check_logs(paths["build_log"], paths["install_log"])
+    if placement:
+        verify_c_placement_compilation(paths['install_log'], placement, placement_modes)
+        _verify_c_placement_rules(paths['build'], placement, placement_modes)
     python = paths["stage"] / "bin" / "python3.16"
     if not python.is_file():
         raise LaneError(f"perf install did not produce {python}")
@@ -806,7 +1007,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         except proof.BuiltinArtifactError as error:
             raise LaneError(f"built-in Rust artifact proof failed: {error}") from error
     metadata, source_input = lb._read_lock()
-    return {
+    report = {
         "status": "built",
         "configured": True,
         "build_mode": "perf-no-pgo-no-lto",
@@ -814,6 +1015,11 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "pristine": empty_overlay,
         "incremental": incremental,
         "incremental_changes": changes["changed"] if changes else None,
+        "c_placement": ({"objects": placement, "builtin": placement_modes,
+                         "original_template_sha256": hashlib.sha256(placement_original).hexdigest(),
+                         "generated_makefile_sha256": _sha256_file(paths['build'] / 'Makefile'),
+                         "generated_config_sha256": _sha256_file(paths['build'] / 'Modules/config.c')}
+                        if placement else None),
         "git": git_state,
         "target": lb.TARGET,
         "source_commit": metadata["commit"],
@@ -838,6 +1044,10 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "stage": str(paths["stage"]),
         "stage_identity": tree_digest(paths["stage"]),
     }
+    # Metadata and stage verification can still fail after installation. Only
+    # the fully constructed report permits reuse of a migrated configured tree.
+    state["configured"] = True
+    return report
 
 
 # -------------------------------------------------------------------- test
