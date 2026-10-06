@@ -58,20 +58,30 @@ unchanged source do not establish new source improvements. Workload absolute
 RSS completion remains separately required; its last complete picture has
 12 regressions. No CPU, timing or host quietness requirement applies.
 
-The next distinct source experiment releases compiler arenas before code
-execution. Pinned CPython currently retains the main file/string/interactive
-AST arena through evaluation; compiled code owns its references independently,
-and the existing compile-string path already frees its arena before execution.
-A recursion-free C allocator observer reproduces retained8224-byte compiler
-chunks during controlled exec/linecache callbacks on the accepted runtime.
-Seven lifetime cases fail as expected and parser-error cleanup passes; all
-chunks are freed at API return. An initial observer incorrectly included
-unrelated traceback imports; the corrected filename-scoped oracle preserves
-the original allocation bookkeeping and all eight judges. Implementation and
-memory qualification remain pending. This changes arena lifetime rather than
-the allocator. Rejected aggregation sources/artifacts remain preserved on their
-closed branch; the active candidate returns to accepted compiled Rust inputs
-plus the separately verified SQLite exception repair.
+Current candidate368 omits redundant compiler-arena slots only for static
+immortals and verified ASCII identifiers owned by the active interpreter's
+intern table. Normalized callback results, heap immortals and failed interning
+retain the original ownership path. Its corrected clean build at404617b7 takes
+213s with58 Rust extensions verified. Native checks reduce the8192-static-object
+registration request from67168 to32 bytes while preserving mortal/OOM ownership,
+heap-immortal bookkeeping, cleanup and the original NULL/SystemError boundary.
+Review found the missing NULL guard in the first source; the unfixed build's
+SIGSEGV reproduction remains preserved. Seven corrected public identifier
+contracts pass on both accepted and candidate stages, and458 focused CPython
+tests pass with3 skips. Original fixture failures on unchanged baseline exposed
+parser retries and the existing subclass code-slot SystemError; both original
+fixtures and corrections remain in history. The first two independent workload
+screens classify compilation and cold ZIP RSS neutral. The220.4s broader screen
+completes all23 workload RSS comparisons and three module comparisons, then
+REJECTS ElementTree load1.064x [1.045,1.080], replicated in both runs. Zstd
+working improves0.762x [0.762,0.781], decimal is neutral and all23 RSS verdicts
+are neutral. Logging/asyncio/shutil remain incomplete after early rejection.
+Verdict SHA256 is
+`f1a1d24b71316ab9e84ea1a8b636dc0ee81e3afe3a30a244c521da060edaf429`.
+No full qualification, candidate adoption or goal change follows. Independent
+experiment370 isolates generic static-immortal bookkeeping removal while
+preserving the original parser's identifier registration; this tests a separate
+component rather than rerunning unchanged368.
 
 The complete fresh23-workload absolute memory gate on accepted `e702f238`
 takes192.8s:12 RSS regressions,7 neutral and4 improved, with no mismatch or
@@ -121,6 +131,30 @@ separates raw AST blocks from arena-owned Python references, preserving the
 latter's original execution lifetime while testing early block release.
 
 ### Sprint throughput audit (2026-10-05)
+
+Seven recent clean builds consume24.9 minutes combined; each takes213–214s.
+Focused suites take3–29s, complete correctness142s, and the broad memory gate
+684.9s. Recorded host-lease waits are negligible and stage checks take about3s
+per screen. The latest host snapshot has10 cores,64GiB RAM, no swap use and
+298GiB free disk; it does not establish average utilization. An initial agent
+snapshot again finds all31 children idle, so coordinator scheduling remains
+avoidable friction. Eight bounded scouts cover all24 unresolved modules; most
+find required or already-closed owners. A distinct regex experiment369 defers
+the private Unicode case-folding table until IGNORECASE compilation or explicit
+access. It changes private import timing and requires unchanged matching,
+canonical table identity and live binding overrides. Source and fixtures are
+prepared independently of368; no memory benefit is yet established.
+
+Use compatible incremental builds for exploration, with a clean committed
+build for surviving qualification. Run new observable fixtures on the accepted
+stage before implementation, overlap independent source/review and correctness
+on separate stages, and screen known regressions before target/all23-workload
+checks. Only survivors receive full71-module and default-resource qualification.
+Keep RSS measurements exclusive, all output checks, independent runs and memory
+floors intact. Reuse unchanged calibration and authoritative baseline evidence;
+do not repeat baseline refreshes, rebuild for fixture-only changes or require
+additional source packets without a concrete unresolved check. These workflow
+changes add no CPU, timing or quiet-host acceptance requirement.
 
 Joint367 at078d859d passes its213s clean build with58 Rust extensions, all29
 unchanged native/supplemental cases and1774 focused CPython tests with36 skipped
