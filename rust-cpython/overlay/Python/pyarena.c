@@ -201,7 +201,7 @@ _PyArena_AddPyObject(PyArena *arena, PyObject *obj)
 {
     /* Statically allocated immortals need no arena reference. Heap immortals
        retain normal registration because their owner may have a shorter life. */
-    if (_Py_IsImmortal(obj) && _Py_IsStaticImmortal(obj)) {
+    if (obj != NULL && _Py_IsImmortal(obj) && _Py_IsStaticImmortal(obj)) {
         Py_DECREF(obj);
         return 0;
     }
