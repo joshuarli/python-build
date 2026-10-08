@@ -152,6 +152,27 @@ beyond the interval and practical floor, so the candidate was not qualified
 or promoted. The full verdict and run evidence are retained at
 `rust-cpython/results/perf-bench/20261008T202945Z-perf-rust-vs-perf-tokenize-deferred-memory/verdict.json`.
 
+### `_strptime` Chrono removal screen (2026-10-08)
+
+Branch `memory-strptime-chrono-20261008` tested replacing Chrono's parsed-date
+validation and enrichment in `_strptime_rs` with local calendar-field
+conversion. The incumbent sample reaches `Parsed::to_naive_date`; the earlier
+calendar-module deferral is a separate, closed mechanism and was left intact.
+A route-local fixture for H=24 fallback, explicit weekday consistency, leap
+dates, invalid dates and `%S=61` passed on both incumbent and candidate. The
+clean candidate build verified 58 Rust extensions, and `test_datetime`,
+`test_time` and `test_strptime` passed 1,285 tests with 83 skips.
+
+The two-run memory-only screen was NEUTRAL: `_strptime` load footprint was
+1.058x `[1.047, 1.071]` pooled (one run neutral, one worse), and working peak
+was 1.000x `[1.000, 1.000]`. The extension image shrank 896 bytes and its
+`__text` section shrank 3,456 bytes, but mapped segment sizes did not change;
+no resident page was released. The attempt was reverted without adoption or
+an unchanged retry. Its verdict is
+`rust-cpython/results/perf-bench/20261008T205657Z-perf-rust-vs-perf-strptime-chrono-memory/verdict.json`;
+the incumbent sample is
+`rust-cpython/results/perf-profile/20261008T204740Z-perf-rust-module-_strptime-sample/report.txt`.
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
