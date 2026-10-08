@@ -194,6 +194,18 @@ target did not improve. The source edit was reverted; the branch remains at
 documentation sync commit `9374da4c`. Receipts and build/test logs are
 archived under `rust-cpython/results/perf-bench/` and `rust-cpython/logs/`.
 
+### `importlib.metadata` lazy helper import screen (2026-10-08)
+
+On the accepted-source worktree, a two-run memory-only screen deferred loading
+`_metadata_rs` until metadata parsing or path discovery first needed it. The
+route itself remained MET: load footprint was 1.007x `[1.003, 1.020]` and
+working peak was 1.000x versus the incumbent. The assigned workload,
+`compileall_source`, regressed to 1.020x `[1.019, 1.020]` peak RSS in both
+runs, so the candidate was rejected and the edit reverted. The affected
+`test_importlib` and `test_zoneinfo` suites passed 1,486 tests with 39 skips.
+The worktree-local ignored verdict was removed during cleanup; this handoff
+summary is the retained record, not a qualification receipt.
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
