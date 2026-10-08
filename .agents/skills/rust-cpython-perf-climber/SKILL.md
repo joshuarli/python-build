@@ -39,8 +39,9 @@ The separate Claude skills and CPU-phase policy remain unchanged.
 
 ## Rules
 
-- Use only `gpt-6.1-sol` at `medium` effort. Do not spawn subagents or switch
-  model or effort. Read the repository instructions in your assigned
+- Use only `gpt-6-luna` at `xhigh` effort, following the user's 2026-10-08
+  model-policy change. Do not spawn subagents or switch model or effort. Read
+  the repository instructions in your assigned
   worktree. Set `workdir` to that absolute path on every shell command;
   other agents share the initial directory but own different worktrees.
 - Coverage stays intact. The public behavior named in your route's

@@ -1,6 +1,6 @@
 # Rust-for-CPython performance phase
 
-**Paused at the user’s request. Read the [current handoff](#paused-handoff-2026-10-06) before resuming. Memory goals remain first; CPU work has not started.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
+**Resumed by the user on 2026-10-08. Read the [current handoff](#paused-handoff-2026-10-06) before scheduling work. Memory goals remain first; CPU work has not started.** All 71 targets in [rust-for-cpython.md](rust-for-cpython.md)
 are complete under its strict Python-suite coverage rule, and those rules
 still bind every performance change. The old experiment archive was
 removed from the active tree; its detailed reports and raw data remain
@@ -122,7 +122,7 @@ gate the memory phase. Mimalloc remains canceled; do not revive it.
   The additional224KiB private-image category and apparent table-space margins
   are layout evidence, not predicted RSS savings.
 
-### Resume only when requested
+### Resumption status (2026-10-08)
 
 Check branch cleanliness and saved stage/report identities first. The merged
 harness changed since primary calibration `20261006T101316Z`; run fresh
@@ -133,9 +133,11 @@ retain Rust routes, run its19 semantic cases plus the separate18-placement check
 and complete affected suites, then screen the known401 regressions early.
 Compatible incremental exploration is now supported; final clean/full correctness
 and replicated module/workload memory qualification remain mandatory. Preserve
-all failed fixtures and their corrections. Use only `gpt-6.1-sol` at medium for
-new/resumed lanes, up to31 children; measurements stay exclusive. No new work
-was authorized by this wind-down request.
+all failed fixtures and their corrections. The user resumed this workflow on
+2026-10-08. Use only `gpt-6-luna` at `xhigh` for the coordinator and all new or
+resumed lanes, up to31 children; measurements stay exclusive. The accepted
+runtime remains `perf-rust` at e702f238; the October 8 C-core candidate was
+rejected and is not the incumbent.
 
 ### Current memory measurements (2026-10-06)
 
@@ -4488,8 +4490,9 @@ baselines. Earlier results below describe historical builds.
 ## Codex resumption (2026-09-29)
 
 The separate Codex coordinator and climber skills live under `.agents/skills/`;
-the Claude skills remain intact. Every Codex lane uses `gpt-6.1-sol` at
-`medium` effort. The coordinator keeps eight memory climber slots filled as
+the Claude skills remain intact. At this 2026-09-29 resumption, every Codex
+lane used `gpt-6.1-sol` at `medium` effort; that policy was replaced on
+2026-10-08. The coordinator kept eight memory climber slots filled as
 lanes finish. New worktrees branch explicitly from verified `main`, including
 while an integration branch is being judged; they never inherit unaccepted
 changes. Memory exploration does not wait for host quietness. CPU remains a
@@ -7074,7 +7077,8 @@ judge each workload separately.
 Codex sessions use the separate
 [Codex coordinator](.agents/skills/rust-cpython-perf/SKILL.md) and
 [Codex climber](.agents/skills/rust-cpython-perf-climber/SKILL.md), with
-`gpt-6.1-sol` at `medium` effort for every agent. The Codex quiet-host helper
+`gpt-6-luna` at `xhigh` effort for every agent, per the user's 2026-10-08
+model-policy change. The Codex quiet-host helper
 is `.agents/skills/rust-cpython-perf/scripts/wait_quiet.py`. The current objective's
 pending quiet confirmation and memory-first order apply to both workflows.
 The Claude workflow below remains available with its own model policy.

@@ -31,8 +31,10 @@ Codex performance sessions use the separate repo-local
 `.agents/skills/rust-cpython-perf/SKILL.md` coordinator and
 `.agents/skills/rust-cpython-perf-climber/SKILL.md` lane skill instead of
 Claude's coordinator and agent definitions. For Codex, only `gpt-6.1-sol`
-at `medium` effort is authorized for the coordinator and every subagent,
-including reviews and difficult lanes; never use `gpt-6-sol` or Luna.
+at `medium` effort was authorized through 2026-10-07. By the user's
+2026-10-08 instruction, use only `gpt-6-luna` at `xhigh` effort for the
+Codex performance coordinator and every subagent, including reviews and
+difficult lanes. Do not use another model or effort for this workflow.
 The Claude workflow and its model policy above remain intact.
 For this isolated coverage and perf lane, any Rust crate may be added for
 experiments without per-crate approval (the user's decision, 2026-09-29) when

@@ -1,6 +1,6 @@
 ---
 name: rust-cpython-perf
-description: Coordinate the Rust-for-CPython performance hill climb in rust-for-cpython-perf.md with Codex GPT-6.1 Sol climber subagents at medium effort, the perf.py host lease, and replicated paired verdicts. Use for Codex performance work under rust-cpython/; coverage uses rust-cpython-coordinator.
+description: Coordinate the Rust-for-CPython performance hill climb in rust-for-cpython-perf.md with Codex GPT-6 Luna climber subagents at xhigh effort, the perf.py host lease, and replicated paired verdicts. Use for Codex performance work under rust-cpython/; coverage uses rust-cpython-coordinator.
 ---
 
 # Rust-for-CPython performance hill climb (coordinator)
@@ -51,15 +51,16 @@ and license rules. The separate Claude skills remain unchanged.
 
 ## Codex models and delegation
 
-- The coordinator and every subagent use only `gpt-6.1-sol` at `medium`
-  reasoning effort. Never use `gpt-6-sol`, Luna, or another model or effort,
-  including for reviews, scouts, recovery, or difficult lanes. Split difficult
-  changes into smaller hypotheses while keeping the same model and effort.
+- The coordinator and every subagent use only `gpt-6-luna` at `xhigh`
+  reasoning effort, following the user's 2026-10-08 model-policy change.
+  Never use another model or effort for performance work, including reviews,
+  scouts, recovery, or difficult lanes. Split difficult changes into smaller
+  hypotheses while keeping the same model and effort.
 - This skill explicitly authorizes lane delegation. Use Codex collaboration
   tools; Claude agent definitions and hooks do not configure Codex agents.
   Create the lane branch and isolated worktree yourself before spawning.
-- Call `collaboration.spawn_agent` with `model: "gpt-6.1-sol"`,
-  `reasoning_effort: "medium"`, and `fork_turns: "none"` on every spawn.
+- Call `collaboration.spawn_agent` with `model: "gpt-6-luna"`,
+  `reasoning_effort: "xhigh"`, and `fork_turns: "none"` on every spawn.
   Give the child a self-contained brief, absolute primary/worktree paths,
   and the absolute path to the Codex
   [climber skill](../rust-cpython-perf-climber/SKILL.md). Tell it to read that
