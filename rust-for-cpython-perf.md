@@ -139,6 +139,19 @@ resumed lanes, up to31 children; measurements stay exclusive. The accepted
 runtime remains `perf-rust` at e702f238; the October 8 C-core candidate was
 rejected and is not the incumbent.
 
+### Tokenizer deferred grammar screen (2026-10-08)
+
+Source commit `70976785` deferred the legacy tokenize grammar until its
+compatibility attributes are used. A clean build verified all 58 Rust
+extensions; the deferred-pattern fixtures, own-GIL subinterpreter check, and
+`test_tokenize` plus `test_inspect` passed. Its two-run memory-only screen
+against `@incumbent` was NEUTRAL: `tokenize` load footprint was 1.000x
+`[0.992, 1.011]`, working peak was 1.000x `[1.000, 1.000]`, and
+`compileall_source` peak RSS was 1.011x `[1.007, 1.016]`. No target improved
+beyond the interval and practical floor, so the candidate was not qualified
+or promoted. The full verdict and run evidence are retained at
+`rust-cpython/results/perf-bench/20261008T202945Z-perf-rust-vs-perf-tokenize-deferred-memory/verdict.json`.
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
