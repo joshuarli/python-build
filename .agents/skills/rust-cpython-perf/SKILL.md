@@ -380,7 +380,8 @@ report if the sweep cannot recover space.
 
 **Shared costs.** When a lane's FINDINGS name another route's import or
 first-call cost that shows up in three or more modules (for example `_re_rs`
-loading at import), brief one GPT-6.1 Sol / medium climber lane owning that route, ahead of the per-module lanes it would help, then rerun `goals` for the
+loading at import), brief one `gpt-6-luna` / `xhigh` climber lane owning that
+route, ahead of the per-module lanes it would help, then rerun `goals` for the
 affected modules.
 
 ## Integration
