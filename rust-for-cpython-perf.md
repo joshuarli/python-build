@@ -231,6 +231,22 @@ receipt and raw runs are retained at
 SHA256 `3ae9995dee27c61a6e134a350721f61bfe4112e49671a1c4941e00f52c709696`.
 Build and suite logs are under `rust-cpython/logs/`.
 
+### `threading` exact-source memory check (2026-10-08)
+
+The old-harness worktree at `9374da4c` passed the accepted-source check and a
+fresh memory-only calibration. Its exact module goal classified load footprint
+as UNCLEAR at 1.47x (128/80 KiB), with working peak MET at 1.00x; the newer
+main-harness snapshot's OVER result did not carry over. The accepted-stage
+profile confirms the kernel repeatedly exercises `Barrier(1).wait()`, but
+replacing its eight private string tags with integer opcodes has no plausible
+path to reclaim the measured 48 KiB. No edit, candidate build, suite or
+comparison followed. The calibration receipt is
+`rust-cpython/results/perf-bench/20261008T220355Z-calibrate-perf-upstream/verdict.json`
+(SHA256 `ef70be3d8259df40a63ba05b8aab587963c59155a688911d3681d851fea94266`);
+the exact goal receipt is
+`rust-cpython/results/perf-bench/20261008T220456Z-goals-perf-upstream-vs-perf-rust/verdict.json`
+(SHA256 `a19e121d33c5e8fb10b2f7a6c063eb75dfa8b67f8cb7fadf292ed5e3d34d0fc2`).
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
