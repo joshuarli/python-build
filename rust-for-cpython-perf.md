@@ -139,6 +139,15 @@ resumed lanes, up to31 children; measurements stay exclusive. The accepted
 runtime remains `perf-rust` at e702f238; the October 8 C-core candidate was
 rejected and is not the incumbent.
 
+Fresh memory-only calibration `20261008T183837Z-calibrate-perf-upstream`
+passed all seven workload guards. The following full snapshots use that
+controller epoch and the unchanged accepted runtime: all 71 module goals at
+`20261008T183947Z` read 45 MET, 1 BEYOND, 7 OVER and 18 UNCLEAR; all 23
+workload RSS rows at `20261008T184849Z` read 5 improved, 7 neutral and 11
+regressed. Both receipts are under `rust-cpython/results/perf-bench/`. The
+memory phase remains open; CPU, timing and quiet-host requirements are not
+part of this objective.
+
 ### Tokenizer deferred grammar screen (2026-10-08)
 
 Source commit `70976785` deferred the legacy tokenize grammar until its
