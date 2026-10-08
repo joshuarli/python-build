@@ -173,6 +173,27 @@ an unchanged retry. Its verdict is
 the incumbent sample is
 `rust-cpython/results/perf-profile/20261008T204740Z-perf-rust-module-_strptime-sample/report.txt`.
 
+### `ipaddress` lazy helper import screen (2026-10-08)
+
+Branch `memory-ipaddress-lazy-20261008` tested deferring `_ipaddress_rs`
+until the first Rust-backed IP operation. The incumbent imported the helper
+while `ipaddress` initialized its module-level network constants. The
+candidate kept those initialization calls on the existing Python fallback,
+then loaded the same helper for later parsing and network-bound calls. Bare
+import, first-use parsing and network-bound probes passed, as did the
+`ImportError` fallback probes for IPv4, IPv6 and network bounds. The complete
+`test_ipaddress` suite passed 215 tests with no skips or failures.
+
+The pre-edit clean build verified 58 Rust extensions. The untouched-source
+comparison was NEUTRAL at load 1.017x and working peak 1.000x versus the
+incumbent. After an incremental verified rebuild, the changed-source screen
+was also NEUTRAL: load 1.000x `[0.984, 1.033]` and working peak 1.000x.
+Against control, the module remained OVER at load 1.07x (1000/944 KiB) with
+working peak 1.00x MET. No workload guard or final gate was run because the
+target did not improve. The source edit was reverted; the branch remains at
+documentation sync commit `9374da4c`. Receipts and build/test logs are
+archived under `rust-cpython/results/perf-bench/` and `rust-cpython/logs/`.
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
