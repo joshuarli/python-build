@@ -148,6 +148,15 @@ regressed. Both receipts are under `rust-cpython/results/perf-bench/`. The
 memory phase remains open; CPU, timing and quiet-host requirements are not
 part of this objective.
 
+Focused follow-up `20261008T220824Z` rechecked the original 18 UNCLEAR modules
+under the same current harness and accepted stage. Four now read OVER:
+`decimal` load 1.37x, `ipaddress` 1.03x, `socket` 1.06x and `uuid` 1.09x;
+`bisect` and `sqlite3` read MET, while 12 remain UNCLEAR. Combined with the
+untouched rows from the full snapshot, the current map is 47 MET, 1 BEYOND,
+11 OVER and 12 UNCLEAR; this is a focused update, not a new all-71 run. The
+receipt is `rust-cpython/results/perf-bench/20261008T220824Z-goals-perf-upstream-vs-perf-rust/verdict.json`,
+SHA256 `bf594d9d653c3e4151d282e5a4939102e69f53822c64cabc58e28105b7f3996e`.
+
 ### Tokenizer deferred grammar screen (2026-10-08)
 
 Source commit `70976785` deferred the legacy tokenize grammar until its
