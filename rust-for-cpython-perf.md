@@ -167,6 +167,51 @@ UNCLEAR rows (50 passing,21 unresolved). The rigorous receipt is
 (SHA256 `1448e1fbe0bd2863a73072794c84d29838efae6f90178f3daf47571f191715af`).
 The11 absolute workload RSS regressions remain open.
 
+### CSV direct serializer memory screen (2026-10-08)
+
+Branch `memory-csv-serialize-memory-20261008` replaced the default Excel
+writer's `csv::WriterBuilder` buffer with a directly sized Rust `String`,
+keeping delimiter/quote/newline quoting, doubled quote marks and CRLF output.
+The clean candidate build verified all 58 Rust extensions. `test_csv` passed
+134 run with four skips; those are the `TestLeaks` cases guarded by
+`sys.gettotalrefcount`, and the pre-edit release build reported the same
+skips. The full exact-source candidate suite passed 50,158 tests across 464
+files, with 2,748 skips and no failures.
+
+The two-run worktree gate ACCEPTed CSV load footprint at 0.909x
+`[0.896, 0.972]`, with a neutral working peak and all seven workload guards
+neutral. Its worktree goal run read CSV MET. The coordinator's primary-path
+gate on the exact accepted source plus this change was NEUTRAL: load footprint
+1.000x `[0.982, 1.019]`, working peak 1.000x, and all seven guards neutral.
+The primary-path goal check read load UNCLEAR at 1.04x (864/840 KiB) and
+working peak MET; under the 1.01 pooled-median rule, CSV load remains
+scheduled OVER. The authoritative map therefore stays at 49 MET, 1 BEYOND and
+21 OVER, and all 11 absolute workload RSS regressions remain open. The change
+was not integrated.
+
+The primary-path exact-source gate receipt is
+`rust-cpython/results/perf-bench/20261008T232035Z-perf-rust-vs-perf-merge11/verdict.json`
+(SHA256 `c1acedcfa34e20b409a5828d3a342223b3f5806d14ad17a3464e592fb088e37b`);
+the goal receipt is
+`rust-cpython/results/perf-bench/20261008T232348Z-goals-perf-upstream-vs-perf-merge11/verdict.json`
+(SHA256 `9fc851f70d6b7be1c10b00f84b88dfab86511f9e4e67a60e15223e974f2d789a`).
+The lane gate is archived at
+`rust-cpython/results/perf-bench/20261008T230144Z-perf-rust-vs-perf-csvserialize-memory/verdict.json`
+(SHA256 `73ddf2574cd5a39678f6d6b09f78d46fbacd93d24b2c0919c333f8d193b8e68d`).
+Receipts and logs were copied from the lane worktree and hash-verified before
+removing its 3.5 GiB worktree; its source branch remains for review.
+
+An earlier integration attempt on current `main` also ran the complete suite;
+it failed only in `test_hashlib`, `test_hmac` and `test_support` with SIGSEGVs.
+Those three suites passed on both the e702 incumbent and the exact-source CSV
+candidate. This main-tree attempt was not gated; its source includes separate
+unqualified C-core changes. Its failed suite log is
+`rust-cpython/results/perf-bench/20261008T232035Z-csv-main-tree-test-diagnostic/perf-merge10-all.log`
+(SHA256 `83637741f57367b81bd0dfb1c50506bdcf137cafb4320f4dc1fc38bcfde92ba9`);
+the successful exact-source full suite log is
+`rust-cpython/results/perf-bench/20261008T232035Z-csv-primary-qualification-logs/perf-merge11-all.log`
+(SHA256 `b19acd86811312dc9c07c9c03835a7674a30f10817d3c02fd6e2a121d48c40e1`).
+
 ### Tokenizer deferred grammar screen (2026-10-08)
 
 Source commit `70976785` deferred the legacy tokenize grammar until its
