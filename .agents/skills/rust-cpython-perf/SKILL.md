@@ -424,8 +424,9 @@ can establish an improvement and permit integration of that lane.
    metadata --offline --format-version 1` (no `--locked`), copy that
    `Cargo.lock` to `overlay/Cargo.lock`, commit it, and rebuild. Then
    `perf.py test --name perf-merge
-   --all`. On failure, bisect the batch at `medium`, drop or repair the
-   interacting lane, and repeat.
+   --all`. On failure, split the batch into smaller lane groups, drop or repair
+   the interacting lane, and repeat. Keep the coordinator and lane agents at
+   `gpt-6-luna` / `xhigh` throughout.
 3. `perf.py bench --baseline <ACCEPTED_REF> --candidate perf-merge --gate
    --module <each lane module> [--workload <lane workloads>]`. The batch
    integrates only on ACCEPT; memory gates use `--memory-only` without
