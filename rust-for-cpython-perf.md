@@ -157,6 +157,16 @@ untouched rows from the full snapshot, the current map is 47 MET, 1 BEYOND,
 receipt is `rust-cpython/results/perf-bench/20261008T220824Z-goals-perf-upstream-vs-perf-rust/verdict.json`,
 SHA256 `bf594d9d653c3e4151d282e5a4939102e69f53822c64cabc58e28105b7f3996e`.
 
+The required rigorous memory-only rerun of those12 uncertain routes completed
+at `20261008T224215Z`. Its raw goals were1 OVER,9 UNCLEAR and2 MET. Each of
+the9 raw UNCLEAR rows had a pooled median above1.01x, so the scheduling rule
+classifies them as OVER; fractions and plistlib are MET. Combining this with
+the focused update gives the current map:49 MET,1 BEYOND,21 OVER and no
+UNCLEAR rows (50 passing,21 unresolved). The rigorous receipt is
+`rust-cpython/results/perf-bench/20261008T224215Z-goals-perf-upstream-vs-perf-rust/verdict.json`
+(SHA256 `1448e1fbe0bd2863a73072794c84d29838efae6f90178f3daf47571f191715af`).
+The11 absolute workload RSS regressions remain open.
+
 ### Tokenizer deferred grammar screen (2026-10-08)
 
 Source commit `70976785` deferred the legacy tokenize grammar until its
@@ -255,6 +265,42 @@ comparison followed. The calibration receipt is
 the exact goal receipt is
 `rust-cpython/results/perf-bench/20261008T220456Z-goals-perf-upstream-vs-perf-rust/verdict.json`
 (SHA256 `a19e121d33c5e8fb10b2f7a6c063eb75dfa8b67f8cb7fadf292ed5e3d34d0fc2`).
+
+### `ipaddress` no_std parser screen (2026-10-08)
+
+Branch `memory-ipaddress-nostd-20261008` tried the fixed-array parser from
+`816036a` with `#![no_std]` and `core` imports to remove the helper's std
+runtime footprint. The incremental build verified all 58 Rust extensions;
+native parser/public-route probes and `test_ipaddress` passed 215 tests with
+no skips or failures. The two-run memory-only screen was NEUTRAL: load
+footprint 1.008x `[0.992, 1.016]`, working peak 1.000x `[1.000, 1.000]`.
+The candidate's absolute goal was not measured; the separate lazy-import
+trial's goal receipt is not evidence for this change. The edit was reverted
+without a full gate. Screen receipt:
+`rust-cpython/results/perf-bench/20261008T223103Z-perf-rust-vs-perf-ipaddress-nostd-memory/verdict.json`
+(SHA256 `129f2a8b25951e14628d1f2daf8546d548aea288f51717cca0b9ed53e43da17f`).
+Calibration and build/test logs are archived alongside it. Together with the
+neutral lazy-helper screen above, this is ipaddress's second failed memory
+lane; it remains unresolved and is now on debt.
+
+### Fractions format-matcher laziness screen (2026-10-08)
+
+Branch `memory-fractions-lazy-regex-20261008` deferred only
+`_GENERAL_FORMAT_SPECIFICATION_MATCHER` and
+`_FLOAT_FORMAT_SPECIFICATION_MATCHER`; `re` and `_RATIONAL_FORMAT` stayed
+eager because the measured route parses strings. Focused parse/format probes
+passed, the clean build verified all 58 Rust extensions, and six complete
+suites passed 830 tests with 16 skips. Its two-run memory-only screen was
+NEUTRAL: load footprint 1.006x `[0.988, 1.025]`, working peak 1.000x
+`[1.000, 1.000]`. The latest lane goal check against control was UNCLEAR for
+load (1.013x `[1.000, 1.026]`) and MET for working peak; it does not change
+the focused accepted-runtime debt map above. The matcher edit was reverted
+without a full gate. Screen receipt:
+`rust-cpython/results/perf-bench/20261008T223208Z-perf-rust-vs-perf-fractions-lazy-regex/verdict.json`
+(SHA256 `00216bf9d8d824d29632b5769e4ec7944a7e50267cc9f7cc20673483f5ea9862`).
+Both lanes' receipts, calibration runs and build/test logs were archived in
+the primary ignored results tree before their worktrees were removed; their
+branches remain available.
 
 ### Current memory measurements (2026-10-06)
 
