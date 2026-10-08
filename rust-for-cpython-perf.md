@@ -215,6 +215,22 @@ runs, so the candidate was rejected and the edit reverted. The affected
 The worktree-local ignored verdict was removed during cleanup; this handoff
 summary is the retained record, not a qualification receipt.
 
+### `base64` lazy helper import screen (2026-10-08)
+
+The candidate deferred `_binascii_rs` until the first eligible encode/decode
+call. The baseline goal was OVER for `base64` load footprint at 1.07x
+(720/664 KiB), with working peak MET at 1.00x. The two-run candidate screen
+was REJECTED: load footprint regressed to 1.044x `[1.022, 1.068]` (770,072 B
+versus 737,280 B), while working peak stayed neutral at 1.000x. Both base64
+workload RSS rows were pooled neutral (`rust_base64_small` 1.012x
+`[1.008, 1.015]`, `rust_base64_large` 1.008x `[1.008, 1.009]`); the small
+workload's second run was individually worse. `test_base64` passed all 67
+tests. The edit was reverted without a full gate or adoption. The screen
+receipt and raw runs are retained at
+`rust-cpython/results/perf-bench/20261008T215538Z-perf-rust-vs-perf-base64-lazy/verdict.json`;
+SHA256 `3ae9995dee27c61a6e134a350721f61bfe4112e49671a1c4941e00f52c709696`.
+Build and suite logs are under `rust-cpython/logs/`.
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
