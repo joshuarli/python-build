@@ -347,6 +347,57 @@ Both lanes' receipts, calibration runs and build/test logs were archived in
 the primary ignored results tree before their worktrees were removed; their
 branches remain available.
 
+### Datetime no_std memory screen (2026-10-09)
+
+Branch `memory-datetime-nostd-memory-20261009` at `ac2682b` converted
+`_datetime_rs` to `#![no_std]`, borrowed the call-scoped UTF-8 input, and
+formatted into a fixed stack buffer. The clean build and all seven assigned
+suites passed (2,776 run, 235 skipped); the subinterpreter import/call check
+also passed. The replicated target screen improved datetime load footprint to
+0.598x while keeping working peak neutral and `import_django` peak RSS neutral.
+The clean committed gate rejected the candidate because `gzip_extract_1m`
+peak RSS was 1.020x and `zlib_decode_1m` was 1.013x, both regressed in each
+run. The candidate's control-relative datetime goal reads MET, but the source
+was not integrated and does not alter the accepted goal map. The gate was not
+rerun. Its worktree was removed after archiving receipts and logs; the branch
+is retained for the unrelated workload-regression finding. Gate receipt
+`rust-cpython/results/perf-bench/20261009T002815Z-perf-rust-vs-perf-datetime-nostd-memory-20261009/verdict.json`
+(SHA256 `925dbc3f83da03f95e8133eed3b0774e3951689deca91a8794e26e57c0920e19`),
+candidate goals receipt
+`rust-cpython/results/perf-bench/20261009T002928Z-goals-perf-upstream-vs-perf-datetime-nostd-memory-20261009/verdict.json`
+(SHA256 `fddc5dfe44aaf0de786de58d831b8031b1491fe82b9c7c91d4603188825ec094`).
+
+### Warnings no_std memory screen (2026-10-09)
+
+The `_warnings_rs` no_std trial removed its runtime `cpython-sys` dependency
+and declared the narrow CPython ABI locally. Two unchanged e702 setup
+comparisons rejected only warnings load footprint (1.081x and 1.087x); outputs
+matched and working peak was neutral. After checking source, toolchain, flags,
+and clean-stage receipts, the coordinator authorized memory-only exploration
+under the repeated setup-drift exception. The clean candidate build verified
+all 58 Rust extensions. All five assigned suites passed (1,803 run, 23 skipped;
+two more skips than the lane checklist, with no per-suite reasons in the log),
+and the subinterpreter import/call check passed. The replicated candidate
+screen rejected warnings load footprint at 1.081x [1.074, 1.113], with neutral
+working peak; `zlib_decode_1m` regressed at 1.013x, while the other six
+workload guards were neutral and outputs matched. `_warnings_rs` remained
+51,792 bytes with four 16 KiB VM segments. No candidate commit, gate, or goals
+run was made; the source diff, build report, receipts, and logs were archived
+before removing the worktree. Source diff:
+`rust-cpython/results/perf-bench/warnings-nostd-memory-20261009-source.patch`
+(SHA256 `b4cdb7c87ec79285b2b6a8927ec9f1d211e8fd15710bfabf20f059441ec5cb5f`).
+Setup receipts:
+`rust-cpython/results/perf-bench/20261009T004849Z-perf-rust-vs-perf-warnings-nostd-memory-20261009/verdict.json`
+(SHA256 `e333ce7b9be546331c58511280dc10e61fca80ac0f58e1324a411ccd2f386718`)
+and
+`rust-cpython/results/perf-bench/20261009T005124Z-perf-rust-vs-perf-warnings-nostd-memory-20261009/verdict.json`
+(SHA256 `6883abefc31d2217c5e90ba2834da8d93f34fdfa3539db0122ef4c431dc34258`).
+Candidate screen:
+`rust-cpython/results/perf-bench/20261009T005815Z-perf-rust-vs-perf-warnings-nostd-memory-20261009/verdict.json`
+(SHA256 `670674ee38f2363c01be01c63d1f24a65e0bf62440f9f166df38a8f556ef685c`).
+This reproduces the zlib RSS regression from the datetime no_std trial; it
+does not establish a cause.
+
 ### Current memory measurements (2026-10-06)
 
 Authoritative frontier: accepted runtime remains e702f238 with47 passing/24
