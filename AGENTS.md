@@ -1,286 +1,166 @@
 # python-build
 
-Independent build system that compiles **CPython 3.14.6** plus its in-scope
-native dependencies from locked sources and produces a relocatable,
-dynamically linked installation. Astral's python-build-standalone (PBS) is a
-technical reference and comparison target only: never fork, vendor, import,
-or execute its build engine, and never copy its binaries into the product.
+Independent build system for the locked CPython 3.15.1 source and its native
+dependencies. It produces relocatable, dynamically linked installations for
+macOS arm64 and Linux x86-64/arm64. Windows, Intel macOS, other Linux
+architectures, and every other target are unsupported.
 
-`rust-cpython/` is an isolated CPython 3.16 Rust-for-CPython coverage lane
-(native Apple Silicon macOS and x86_64 glibc Linux hosts);
-its source pin is scoped there and does not change the product's exact 3.14.6
-contract or participate in production targets and packaging.
-The only in-scope platform families are macOS arm64 and Linux x86-64/arm64.
-Windows, Intel macOS, other Linux architectures, and every other platform
-are unsupported. The Rust lane has not yet implemented Linux arm64; do not
-describe that experimental target as built until it is qualified.
+`rust-cpython/` is a separate CPython 3.16 Rust-for-CPython coverage lane. Its
+source pin does not affect this product or its production targets. Linux arm64
+is not implemented in that experimental lane and must not be described as
+qualified.
 
-For delegated work on that lane, use the repo-local
+For delegated work on that lane, use
 `.agents/skills/rust-cpython-coordinator/SKILL.md` in place of the general
 `orchestrate` skill. The root agent coordinates isolated worktrees and
-integration; no more than 16 coverage subagents run concurrently. The
-active loop uses debug builds and complete Python-level module suites;
-the coordinator also runs all default-resource CPython test modules on
-integrated work.
+integration; no more than 16 coverage subagents run concurrently. The active
+loop uses debug builds and complete Python-level module suites; integrated
+work also runs all default-resource CPython test modules.
 Coverage is complete; performance work follows `rust-for-cpython-perf.md`
-through the repo-local `.claude/skills/rust-cpython-perf/SKILL.md`
-coordinator skill and the `rust-perf-climber` agents. Sonnet 5.5
-(`claude-sonnet-5-5`) is the only authorized model for that work, at
-`high` effort, or `xhigh` for the difficult lanes the skill names.
-Codex performance sessions use the separate repo-local
+through `.claude/skills/rust-cpython-perf/SKILL.md` and `rust-perf-climber`
+agents. Claude sessions use Sonnet 5.5 (`claude-sonnet-5-5`) at `high` effort,
+or `xhigh` for lanes named by that skill. Codex sessions use the separate
 `.agents/skills/rust-cpython-perf/SKILL.md` coordinator and
-`.agents/skills/rust-cpython-perf-climber/SKILL.md` lane skill instead of
-Claude's coordinator and agent definitions. For Codex performance sessions,
-use only `gpt-6-luna` at `xhigh` effort for the coordinator and every
-subagent, including reviews and difficult lanes, per the user's 2026-10-09
-instruction. Do not use another model or effort for this workflow.
-The Claude workflow and its model policy above remain intact.
-For this isolated coverage and perf lane, any Rust crate may be added for
-experiments without per-crate approval (the user's decision, 2026-09-29) when
-its version and checksum are pinned in the committed overlay `Cargo.lock`, its
-license is recorded in the route's `THIRD_PARTY_LICENSES.md`, and it adds no
-production dependency or platform. Other new dependencies (C libraries,
-system tools) still require consultation. The perf phase runs memory-first:
-no CPU-targeted lane starts until every module's load footprint and working
-peak are MET or BEYOND and all eligible workload absolute RSS goals pass.
-Debt entries remain unresolved goals. For this resumed run, the user
-authorizes up to 31 Codex subagents plus the root coordinator, overriding
-the earlier eight-memory-lane cap. The root schedules shared-host work
-through the perf host lease. Memory qualification has no CPU, timing or
-quiet-host prerequisite; memory samples, floors, output checks, replication,
-Rust coverage and complete correctness checks still bind.
+`.agents/skills/rust-cpython-perf-climber/SKILL.md` lane skill, with only
+`gpt-6-luna` at `xhigh` effort for the coordinator and every subagent. The
+Claude model policy remains intact.
+For this isolated coverage and performance lane, Rust crates may be added for
+experiments without per-crate approval when version and checksum are pinned
+in the committed overlay `Cargo.lock`, license is recorded in the route's
+`THIRD_PARTY_LICENSES.md`, and no production dependency or platform is added.
+Other new dependencies require consultation. Performance work runs
+memory-first: no CPU-targeted lane starts until every module's load footprint
+and working peak are MET or BEYOND and all eligible workload absolute RSS
+goals pass. Debt entries remain unresolved goals. The root schedules shared
+host work through the performance host lease. Memory qualification has no
+CPU, timing, or quiet-host prerequisite; memory samples, floors, output
+checks, replication, Rust coverage, and complete correctness checks still
+bind.
 
-## Product targets (`buildsys/targets.py` owns production target branching)
+## Product targets
 
-| Triple | Family | Toolchain | Notes |
-| --- | --- | --- | --- |
-| `aarch64-apple-darwin` | macos | Official LLVM 23.1.2 Apple Silicon archive (`bootstrap.lock.json`) + Xcode 27.0 SDK | arm64 only, `-mcpu=apple-m1`, `-mmacosx-version-min=26.0`; host must run macOS 26.0+ |
-| `x86_64-unknown-linux-musl` | linux-musl | Alpine 3.24.1 container (`Dockerfile`), clang22/lld22 | `-march=x86-64`, loader `/lib/ld-musl-x86_64.so.1`; frozen, completed |
-| `aarch64-unknown-linux-musl` | linux-musl | Same, via `docker build --platform linux/arm64` | `-march=armv8-a`, loader `/lib/ld-musl-aarch64.so.1`; frozen, completed |
+`buildsys/product.py` derives product paths, ABI, archive names, and metadata
+from the CPython source-lock entry. `buildsys/targets.py` owns production
+target descriptions and target branching.
 
-Linux build recipes remain frozen. Packaging validates every final ELF after
-stripping and distribution pruning: each must carry a non-executable
-`PT_GNU_STACK`; CPython's configured stack-protector/fortify flags and the
-post-strip libpython stack-guard reference are checked with musl-compatible
-evidence.
+| Triple | Platform/compiler | Baseline and deployment |
+| --- | --- | --- |
+| `aarch64-apple-darwin` | Apple Silicon macOS 27 host; official LLVM 23.1.4 and Xcode 27 SDK | `-mcpu=apple-m1`; artifact minimum macOS 26.0 |
+| `x86_64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=x86-64`; loader `/lib/ld-musl-x86_64.so.1` |
+| `aarch64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=armv8-a`; loader `/lib/ld-musl-aarch64.so.1` |
 
-Policy everywhere: ThinLTO (`--with-lto=thin`), PGO enabled on macOS using
-CPython's `-m test --pgo -j <jobs>` profile task and the locked LLVM
-`llvm-profdata`, no PGO on Linux, no BOLT/JIT/tail-call interpreter,
-GIL-enabled release ABI, `-O3`. CPython's macOS PGO build omits frame
-pointers because retaining them makes CPython's deep recursion regression
-tests abort; other native builds keep them. Unknown
-targets fail closed with `target not implemented`; build/test/package
-commands require the requested target to match the running machine (no
-cross-compiling).
+The macOS host floor and deployment minimum are separate constraints. Do not
+claim macOS 26 runtime qualification from a macOS 27 run. Linux qualification
+uses the locked Alpine image and complete APK closure in `bootstrap.lock.json`;
+package acquisition is verified before the network-disabled build.
 
-## Product scope (enforced by `buildsys/scope.py`, asserted by validation)
+The product keeps the GIL, shared libpython, private native dependencies,
+ThinLTO, macOS PGO, `-O3`, and useful headers, sysconfig, pkg-config metadata,
+and `python3.15-config`. Linux PGO is disabled. JIT, BOLT, free-threaded ABI,
+and the tail-call interpreter are disabled. Preserve the platform CPU
+baselines and the declared dependency closure.
 
-Ships: exact 3.14.6 interpreter (`bin/python3.14`), shared libpython,
-useful stdlib inventory, private statically-linked native deps, headers plus
-`python3.14-config`/sysconfig/pkg-config metadata sufficient to build and
-load a native extension with no installer present.
+Ships: CPython 3.15.1, shared libpython, useful standard library, extension
+build metadata, and private static native dependencies.
 
-Deliberately absent (tested absences, not omissions): `pip`, `ensurepip`
-(with its bundled wheel), `venv`; `_tkinter`, `tkinter`, `idlelib`,
-`turtle`, `lib/python3.14/test` (retained through regression validation only),
-generated `.pyc`/`__pycache__`, and the Tcl/Tk+X11 closure; `_gdbm` (dbm
-backend is `ndbm` on macOS, Berkeley DB on Linux). macOS additionally takes
-zlib, libedit, ncurses/panel from the platform (`/usr/lib`) and bundles
-OpenSSL, SQLite, Expat, libffi, bzip2, xz, zstd, mpdecimal from source; it
-builds no libuuid or Berkeley DB (`_uuid`/dbm use platform facilities). Linux
-bundles all thirteen.
+Deliberately absent: pip, ensurepip and its wheel, venv, Tcl/Tk/X11,
+`_tkinter`, tkinter, idlelib, turtle, `_gdbm`, release-tree regression tests,
+and generated bytecode caches. SQLite keeps FTS3/4/5, enhanced FTS3 query
+syntax, geopoly, rtree, dbstat, and loadable extensions. Applications must
+explicitly enable SQLite extension loading. `compression.zstd` uses a
+multithread-capable static zstd library.
 
-SQLite enables FTS3/4/5 (including the enhanced FTS3 query syntax), geopoly,
-rtree, dbstat, and CPython's loadable-extension API; applications must still
-explicitly enable extension loading on each connection. `compression.zstd`
-uses the zstd multithread-capable static library on all targets.
-
-Default TLS trust: `ssl.create_default_context()` keeps OpenSSL's configured
-default paths. If they load no CA roots, and neither `SSL_CERT_FILE` nor
-`SSL_CERT_DIR` is set, it loads the locked Mozilla bundle at
-`lib/python3.14/python-build-cacert.pem`. Set
-`PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE=1` to disable that fallback. The bundle
-and its MPL-2.0 license are installed from the `certifi-ca` lock entry at
-package time; no runtime download or update occurs. Refresh the pinned
-certifi data for every python-build release, and sooner for relevant trust
-changes. The bundled roots do not provide online revocation checking.
+Default TLS trust tries OpenSSL's configured sources first. The locked
+Mozilla bundle is installed from `certifi-ca` at package time and is used only
+when no explicit override or available default source exists. Set
+`PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE=1` to disable fallback. Trust data does not
+provide online revocation checking; refresh its lock entry for each release
+and relevant trust changes.
 
 ## Commands
 
 ```text
-python3 build.py doctor                                  # host/SDK/toolchain report, no side effects
-python3 build.py fetch --target <triple>                 # verify + populate .cache (online; skips reference-only)
-python3 build.py build --target <triple> --dev [--pgo-jobs N] # deps + CPython, non-hermetic iteration
-python3 build/sealed.py [--pgo-jobs N]                    # sealed macOS qualification (sandbox-exec, offline)
-docker build --platform <plat> --target sealed .         # sealed Linux qualification (BuildKit --network=none)
-python3 build.py test --target <triple>                  # controller + distribution tests
-python3 build.py compare-reference --target <triple>     # parity report only
-python3 build.py package --target <triple>               # strip, validate, archive, write dist/ reports
-python3 build.py reproduce --target aarch64-apple-darwin [--pgo-jobs N] # two clean sealed builds
-python3 build/uvmirror.py --tag <tag> --repo <o/n>       # rename dist/ archives to Astral layout + uv metadata
+python3 build.py doctor
+python3 build.py fetch --target <triple>
+python3 build.py build --target <triple> [--pgo-jobs N]
+python3 build.py qualify --target <triple> [--pgo-jobs N]
+python3 build.py controller-test
+python3 build.py compare-reference --target <triple>
+python3 build.py reproduce --target aarch64-apple-darwin [--pgo-jobs N]
+python3 build/uvmirror.py --tag <tag> --repo <owner/repo>
 ```
 
-`build.py` is CLI only; logic lives in `buildsys/` (shared) and `build/`
-(phase drivers). `--sealed` via `build.py` is rejected with directions: the
-sealed paths above own offline qualification. Keep packaging separate from
-compilation so a validated tree can be repackaged without rebuilding.
+`build` is the development build. `qualify` uses sandbox-exec on the native
+macOS host and the locked, network-disabled BuildKit path for Linux. Linux
+targets build and run in native-architecture containers; do not treat
+emulated timing as performance evidence. `package` validates and publishes
+the completed staged build. Reference comparison and reproduction are
+separate optional operations and cannot change an accepted package.
 
-## Layout
+## Inputs and build records
 
-`build.py`, `buildsys/` (controller, recipes, `macho.py`, `sandbox.py`,
-`relocate.py`, validation, `uvmirror.py`), `build/` (phase drivers only),
-`sources.lock.json`, `bootstrap.lock.json`, `Dockerfile` (Linux; macOS never
-builds in it), `patches/cpython/` (source-tree patches),
-`patches/package/` (installed-tree patches; each with provenance + regression
-link),
-`tests/`, `dist/<triple>/`, `.github/` (CI + smoke toy). No `docs/` tree:
-evidence lives in `dist/*.json`/`parity.md`, produced by the controller.
+`sources.lock.json` pins build, trust, and comparison inputs with URL,
+version, SHA-256, size, role, license, and purpose. Reference-only entries
+are never build inputs. `bootstrap.lock.json` pins the macOS compiler archive
+and attestation, host requirements, Linux image, and complete APK closure.
+`buildsys/inputs.py` verifies cached bytes and safe extraction; invalid
+objects are replaced only after the downloaded bytes pass verification.
 
-## Inputs, locks, cache
+The common build record binds source and patch identities, target and CPU
+baseline, dependency inputs, compiler policy and effective flags, bootstrap
+identity, commands, build mode, and isolation evidence. Locked identity and
+observed host paths are separate. Sealed builds must identify the enforced
+network boundary; macOS sandbox containment is weaker than a container and
+must be reported as such.
 
-- `sources.lock.json`: every source with URL, version, sha256, size, role
-  (`source`/`reference`/`test`), license, purpose. Digests verified before
-  extraction; reference-only entries are comparison inputs, never build
-  inputs. `pip` is not an input (nothing unshipped gets locked).
-- `bootstrap.lock.json`: Alpine image digest + resolved apk set (Linux);
-  official LLVM archive digest, size, license, release provenance and make,
-  pkgconf, Xcode/SDK identity, deployment floor, CPU baseline (macOS). The
-  macOS linker is recorded, not pinned: clang's driver supplies matching
-  `libLTO` from the verified LLVM prefix.
-- `buildsys/inputs.py`: content-addressed `.cache/objects/<sha256>.blob`,
-  atomic publication, tamper/size checks on every read, `safe_extract`
-  rejecting traversal/absolute/symlink-escape/device entries.
-- `buildsys/deporder.py`: per-family dependency sets and order; macOS order
-  is fast-failure (cheap first, OpenSSL last).
-- `buildsys/patches.py`: patches apply against verified trees, fail on
-  rejects; every patch needs origin, license/attribution, explanation,
-  applicability check, reproducer. Do not import PBS module machinery,
-  BOLT/JIT, GUI, or older-platform patches. macOS PGO is CPython's native
-  `--enable-optimizations` flow with the profile task below; do not import or
-  execute PBS build code.
+Recipes compose baseline, optimization, PIC, hardening, frame-pointer, and
+ThinLTO policy in one place. Use the selected toolchain's actual tools and
+run the LTO compile/archive/link/run fixture before expensive builds. Do not
+silently drop a required compiler flag or accept stale staged output for a
+different source, patch set, target, or recipe.
 
-## macOS specifics
+## Qualification and packaging
 
-- `buildsys/bootstrap.py`: lock loading, host verification (`problems()`),
-  `lto_smoke_test` gate before any large build (ThinLTO bitcode + minos +
-  arm64 checked, not just exit status). `buildsys/llvm.py` verifies the
-  hash-pinned Sigstore statement metadata and streams the official `.tar.xz`
-  archive into an allowlisted prefix under `.cache`; it extracts only clang,
-  llvm-profdata, LLVM binutils, matching `libLTO`, and compiler resources.
-  Apple `ld` is used via the clang driver; never silently fall back to Apple
-  clang. Run `python3 build.py fetch --target aarch64-apple-darwin` before
-  local builds or sealed qualification to populate the prefix; sealed builds
-  consume only the cached verified files.
-- `buildsys/cpython.py`: configure policy derived from 3.14.6's
-  `configure --help`; private-prefix selection vars; `PKG_CONFIG_LIBDIR`
-  narrowed so Homebrew packages cannot satisfy probes; `ndbm` dbm order;
-  platform libedit; `--enable-optimizations` with
-  `PROFILE_TASK="-m test --pgo -j <jobs>"`; and
-  no frame pointers for the PGO interpreter, matching the pinned PBS build.
-  The deep recursion suite remains a required runtime check. `build/cpython.py`
-  selects locked `llvm-profdata` and writes the exact recipe, including the
-  merged profile-data hash and fixed `PYTHONHASHSEED`, to
-  `build/logs/cpython-build.json`;
-  `--pgo-jobs N` pins the test worker count for a replay, with CPython's
-  compile parallelism (one fewer than host CPUs) as the default.
-  `python3 build.py reproduce --target aarch64-apple-darwin` repeats the
-  sealed build from cleared work/stage trees and compares the recipe,
-  profile data, and compiled Mach-O content separately. A matching locked
-  recipe proves the build can be recreated from its inputs; varying PGO
-  counters can still change profile bytes and machine code, so only an
-  identical profile and compiled content count as byte reproducibility.
-- `buildsys/sandbox.py`: `(deny network*)` profile, writes restricted to
-  declared outputs (+ Darwin linker scratch), reads unrestricted, allowlist
-  environment. `network_boundary_selftest` proves the denial against a
-  loopback listener before/after the build. The profile permits
-  `ipc-posix-sem`: denying it silently removes `SemLock` from
-  `_multiprocessing` with no build error. Containment is weaker than a
-  container; reports must say so.
-- `buildsys/macho.py`: header/load-command parsing (arch, `LC_BUILD_VERSION`
-  minos, install names, `@rpath`), `install_name_tool` edits that always
-  re-sign (unsigned Mach-O does not launch on Apple Silicon).
-- No `DYLD_*` in the product or its tests; system dylibs may exist only in
-  the dyld shared cache, so classify load commands by name, not by file
-  presence. `buildsys/relocate.py` resolves the configured install prefix
-  from the installed `_sysconfigdata` location, removes builder-only source,
-  dependency, SDK, profile, and compiler-cache paths from sysconfig/Makefile,
-  and shell-quotes `python3.14-config` flags so a moved prefix may contain
-  spaces. Validate by moving the complete tree and rebuilding/loading an
-  extension from it. The installation tree is relocatable; an out-of-tree C
-  embedder still has to tell CPython where its tree is with `PYTHONHOME` or
-  `PyConfig.home`, because CPython otherwise infers paths from the embedder's
-  executable location.
+One controlled product-process runner supplies a scrubbed environment,
+working directory, import policy, and timeout for product checks. Regression
+qualification uses process status and complete CPython test accounting;
+crashes, timeouts, interruption, missing results, zero executed tests, and
+incomplete runs fail. Retries are bounded diagnostics and cannot erase the
+initial failure.
 
-## Validation and packaging (`build/package.py`, `buildsys/validate_macos.py`, `buildsys/testsuite.py`)
+The mandatory aggregate verdict checks the final extracted archive. It
+includes exact interpreter and ABI identity, module inventory and exclusions,
+required native accelerators, binary architecture and dependency closure,
+relocation, extension and ABI3 loading, shared-library embedding, TLS,
+SQLite, compression, dbm, multiprocessing, ctypes, launchers, and removal of
+builder paths. Broad regression tests run on disposable pre-prune copies for
+all three targets.
 
-Package operates on the staged tree: strip (preserving exported symbols;
-re-sign on macOS), validate the packaged bytes, deterministic `tar.gz`
-with top-level `python/` (`SOURCE_DATE_EPOCH=1704067200`, sorted entries,
-fixed owners/modes), refuse to overwrite an existing archive. `dist/`
-gets the archive, `SHA256SUMS`, `inputs.json`, `components.json`,
-`provenance.json` (`build_mode` sealed vs development, including the exact
-macOS PGO recipe and locked `llvm-profdata` identity), `validation.json`,
-`parity.json`/`parity.md`, `benchmarks.json` (+ `reproducibility.json` on
-macOS).
+Packaging applies installed-tree fixes, runs regressions on a disposable copy,
+strips and prunes the release tree, validates it, creates a deterministic
+archive, extracts it under a path containing spaces, and validates those
+exact bytes before transactional publication. `artifact.json` is the
+canonical artifact and qualification record; `SHA256SUMS` covers published
+release assets. Failed work must not replace an accepted artifact or leave a
+partial release.
 
-Checks, against the installed tree with build-prefix/Homebrew scrubbed:
-Mach-O arch/minos/allowlisted load commands/signatures; version 3.14.6 +
-GIL/ABI/tags; module inventory with required-vs-excluded split; real
-round-trips (TLS both directions, sqlite, ndbm, compression incl.
-`compression.zstd`, decimal, uuid, Expat); multiprocessing queue+pool
-(`SemLock` present); curses/panel/readline; ctypes both directions +
-callbacks + private dylib; extension build/load and ABI3 fixture with no
-installer present; C embedding via shipped shared libpython (both placement
-recipes); relocation under a path with spaces, including sysconfig path
-metadata and extension compilation from the moved macOS tree; launcher
-scripts; broad CPython regression suite on a disposable pre-prune install copy with narrow,
-justified exclusions only; PBS-adapted distribution checks run on the final
-post-prune bytes for SQLite's feature/security profile, locked OpenSSL/SQLite
-versions, zstd multithreading, libc ABI tags, interpreter startup through
-symlinks and unusual `argv[0]`, moved-tree sysconfig on every target, and
-Linux MDWE behavior. The
-Windows-only SSL key-log check, GUI, `venv` path-resolution path, and glibc
-Linux syscall checks are reported as out of scope. Final validation asserts
-the regression package, `.pyc`, and `__pycache__` caches are absent from the
-release tree. Parity rows are `match`/`intentional_difference`/`gap`/
-`untested`; macOS benchmarks must record the profile task, worker count, LTO
-mode, and a paired noise interval against the reference.
+Comparison reads completed artifacts and writes its own results. It requires
+successful, complete probes for a match. Benchmarks use the shared harness
+only when explicitly requested. Reproduction is opt-in and compares two
+independent clean builds, including payload entry types, modes, symlink
+targets, content, archives, PGO identity, and normalized Mach-O identity.
 
-## Reference baseline (comparison only)
+## CI and releases
 
-PBS release `20260610`, commit `f1d7b92`, fixed per-target
-`install_only`/`install_only_stripped` archives (fingerprints were in the
-retired plan appendices; current pins live in `sources.lock.json` as
-`reference-pbs*`). Run reference binaries only in the isolated comparison
-root, never on the bare host, and never let their bytes become inputs.
+CI is manually dispatched. macOS build and smoke use `xcode-27`; Linux
+qualification uses native `ubuntu-24.04` amd64 and `ubuntu-24.04-arm` runners.
+Fast controller tests run before builds. Assembly validates the exact three
+target set, product version, built revision, LLVM policy, qualification
+verdicts, and archive digests before producing uv metadata. Smoke installs
+the assembled archive bytes through a local mirror into fresh uv directories.
+Release tags must resolve to the revision recorded in every artifact.
 
-## CI and releases (`.github/workflows/build.yml`)
-
-`workflow_dispatch` only. Matrix: `macos-26` native; `ubuntu-latest` +
-`ubuntu-24.04-arm` through `Dockerfile --target sealed`, then package
-inside the image with `--network none`. Caches: `.cache/objects` (keyed on
-`sources.lock.json`) and BuildKit `type=gha` layers per arch; never cache
-compiled outputs. `assemble` runs the scope and mirror regression tests, and
-`buildsys/uvmirror.py` rejects any asset over 1.2x the corresponding pinned
-Astral `20260610` `install_only_stripped` archive size. It then renames to
-`cpython-3.14.6+<tag>-<triple>-install_only_stripped.tar.gz` and emits
-`SHA256SUMS`, `download-metadata.json` (own release URLs), and
-`smoke-metadata.json` (canonical prefix for the mirror rewrite).
-Smoke (before release): `uv python install <exact key>
---python-downloads-json-url …/smoke-metadata.json` with
-`UV_PYTHON_INSTALL_MIRROR=file://…`, then `.github/scripts/toy.py`
-(stdlib-only) — natively on macOS, inside `alpine:3.24` for Linux.
-`release` (needs all smokes) creates the GitHub **prerelease** with those
-assets. CI builds are dev-mode; sealed qualification stays local.
-
-## Working rules
-
-- Keep the frozen Linux code and its unit tests green; macOS changes that
-  alter shared behavior (recipe flags, shebangs, prefix ownership,
-  component claims) must be recorded, not silent.
-- Small typed Python, stdlib where practical; one dependency-order model,
-  one cache, one target description. No new production platforms, versions,
-  or dependencies without an explicit scope decision. The isolated Rust
-  coverage crate exception above applies only to that lane.
-- Do not run formatters/linters/pre-commit hooks; do not push unless told.
+Do not add platforms, production dependencies, product versions, or change
+public package/API contracts without an explicit scope decision. Do not run
+formatters, linters, pre-commit hooks, or CI-only changes for unrelated work.
+Do not push unless asked. Commits use Conventional Commit format.
