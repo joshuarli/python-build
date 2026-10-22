@@ -132,7 +132,11 @@ class Toolchain:
         else:
             # macOS has no equivalent of these; they are ELF loader
             # hardening and ELF build-id, not portable flags.
-            parts += ["-Wl,-z,noexecstack", "-Wl,--build-id=sha1"]
+            parts += [
+                "-fuse-ld=lld",
+                "-Wl,-z,noexecstack",
+                "-Wl,--build-id=sha1",
+            ]
         if extra:
             parts.append(extra)
         return " ".join(p for p in parts if p)

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from buildsys.recipes import RECIPE_LAYOUTS, Recipe, build_recipe
+from buildsys.recipes import RECIPE_LAYOUTS, Recipe, Toolchain, build_recipe
 
 
 def _resolved(path: Path) -> Path:
@@ -21,6 +21,11 @@ def _resolved(path: Path) -> Path:
 
 
 class RecipeTests(unittest.TestCase):
+    def test_linux_thinlto_uses_the_pinned_lld_driver(self):
+        flags = Toolchain().ldflags(Path('/private'))
+        self.assertIn('-fuse-ld=lld', flags)
+        self.assertIn('-flto=thin', flags)
+
     def test_sqlite_build_enables_the_standalone_feature_profile(self):
         import runpy
 

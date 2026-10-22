@@ -115,7 +115,11 @@ def _interpreter_flags(prefix: Path, target: Target) -> tuple[str, str]:
         ))
     else:
         cflags.extend(("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2"))
-        ldflags.extend(("-Wl,-z,noexecstack", "-Wl,--build-id=sha1"))
+        ldflags.extend((
+            "-fuse-ld=lld",
+            "-Wl,-z,noexecstack",
+            "-Wl,--build-id=sha1",
+        ))
     return " ".join(cflags), " ".join(ldflags)
 
 

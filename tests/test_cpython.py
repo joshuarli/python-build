@@ -33,6 +33,7 @@ class CPythonTests(unittest.TestCase):
         self.assertNotIn('-flto', env.get('CFLAGS', ''))
         self.assertIn('-fstack-protector-strong', env['CFLAGS'])
         self.assertIn('-D_FORTIFY_SOURCE=2', env['CFLAGS'])
+        self.assertIn('-fuse-ld=lld', env['LDFLAGS'])
         # $ORIGIN rpaths are applied by a post-install ELF edit, not baked
         # into configure-time LDFLAGS (see buildsys/cpython.py for why).
         self.assertNotIn('ORIGIN', env['LDFLAGS'])
