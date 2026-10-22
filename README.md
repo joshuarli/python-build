@@ -54,6 +54,12 @@ or usable default source exists, Python's default TLS context loads the
 packaged Mozilla bundle. `PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE=1` disables this
 fallback. The bundle is pinned at package time and is not updated at runtime.
 
+## TLS backend research
+
+Production TLS remains backed by OpenSSL. The pinned RTLS and Graviola
+prototype, its current results, limitations, and replay procedure are in
+[`research/rtls-graviola`](research/rtls-graviola/README.md).
+
 ## Release assembly
 
 `build/uvmirror.py` validates the three target artifacts and their manifests,

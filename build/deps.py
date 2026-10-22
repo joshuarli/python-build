@@ -39,7 +39,7 @@ def configure_args(name: str, prefix: Path | None = None, target: Target | None 
     # Static PIC libraries keep downstream linkage simple on both families
     # Neither family has a use for shared dependency libraries.
     if name == "openssl":
-        return ()  # the Configure target string carries the platform choice
+        return ("no-apps", "no-tests")
     if target.is_macos:
         # The macOS set has no package needing a bespoke argument: bzip2 and
         # zstd are plain-make recipes, and the rest take the generic pair.

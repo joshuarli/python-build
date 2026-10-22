@@ -40,6 +40,8 @@ assert installed == expected, {'missing': sorted(expected - installed), 'extra':
     && mkdir -p /work/.work/tmp \
     && chown -R builder:builder /work
 
+COPY buildsys/targets.py /opt/bootstrap/targets.py
+
 ENV PATH="/usr/lib/llvm23/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     CC=clang CXX=clang++ AR=llvm-ar RANLIB=llvm-ranlib \
     LD=ld.lld NM=llvm-nm STRIP=llvm-strip \
@@ -51,11 +53,7 @@ ENV PATH="/usr/lib/llvm23/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:
 USER builder
 WORKDIR /work
 
-RUN case "$(uname -m)" in \
-        x86_64) MARCH="-march=x86-64" ;; \
-        aarch64) MARCH="-march=armv8-a" ;; \
-        *) echo "unsupported build machine: $(uname -m)" >&2; exit 1 ;; \
-    esac \
+RUN MARCH="$(PYTHONPATH=/opt/bootstrap python3 -c 'from targets import native_target; print(native_target().cpu_baseline_cflag)')" \
     && printf '%s\n' 'int answer(void) { return 42; }' > "$TMPDIR/lto-library.c" \
     && printf '%s\n' 'extern int answer(void); int main(void) { return answer() != 42; }' > "$TMPDIR/lto-main.c" \
     && clang -O3 $MARCH -fno-omit-frame-pointer -flto=thin -c "$TMPDIR/lto-library.c" -o "$TMPDIR/lto-library.o" \

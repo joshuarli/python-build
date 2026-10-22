@@ -72,14 +72,33 @@ class RecipeTests(unittest.TestCase):
                 script = tarfile.TarInfo("openssl-3.5.7/Configure")
                 script.size = 1
                 output.addfile(script, io.BytesIO(b"1"))
-            recipe = Recipe("openssl", RECIPE_LAYOUTS["openssl"], log_path=root / "logs")
+            recipe = Recipe(
+                "openssl",
+                RECIPE_LAYOUTS["openssl"],
+                configure_args=("no-apps", "no-tests"),
+                log_path=root / "logs",
+            )
             with patch("buildsys.recipes.run") as runner:
                 build_recipe(recipe, archive, root / "work", root / "prefix")
             calls = runner.call_args_list
             self.assertEqual(calls[0].args[0][:2],
                              ["perl", str(_resolved(root / "work/openssl/openssl-3.5.7/Configure"))])
             self.assertIn("no-shared", calls[0].args[0])
+            self.assertIn("no-apps", calls[0].args[0])
+            self.assertIn("no-tests", calls[0].args[0])
+            self.assertEqual(calls[1].args[0][-1], "build_sw")
             self.assertEqual(calls[-1].args[0], ["make", "install_sw"])
+
+    def test_openssl_disables_products_that_are_not_shipped(self):
+        import runpy
+
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        self.assertEqual(
+            driver["configure_args"]("openssl", target=TARGETS["aarch64-unknown-linux-musl"]),
+            ("no-apps", "no-tests"),
+        )
 
     def test_separate_build_directory_uses_absolute_configure(self):
         with tempfile.TemporaryDirectory() as temporary:

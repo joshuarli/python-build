@@ -1,0 +1,19 @@
+# Third-party licenses
+
+The prototype patch does not vendor third-party source or add production
+dependencies. Its `rust/Cargo.lock` delta adds or changes these packages:
+
+| Package | Version | License expression |
+| --- | --- | --- |
+| RTLS source | 2026.10.3 | MIT |
+| `rustls-graviola` | 0.4.0 | Apache-2.0 OR ISC OR MIT-0 |
+| `graviola` | 0.4.1 | Apache-2.0 OR ISC OR MIT-0 |
+| `getrandom` | 0.3.4 | MIT OR Apache-2.0 |
+| `r-efi` | 5.3.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
+| `wasip2` | 1.0.4+wasi-0.2.12 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `wit-bindgen` | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+
+The `getrandom`, `r-efi`, `wasip2`, and `wit-bindgen` entries are target
+support dependencies recorded by Cargo. The lockfile also removes the AWS-LC
+native build dependencies. Exact registry checksums remain in
+[`rtls-graviola.patch`](rtls-graviola.patch).

@@ -60,6 +60,18 @@ and `python3.15-config`. Linux PGO is disabled. JIT, BOLT, free-threaded ABI,
 and the tail-call interpreter are disabled. Preserve the platform CPU
 baselines and the declared dependency closure.
 
+The OpenSSL dependency recipe passes `no-apps no-tests` and keeps
+`build_sw`/`install_sw`; the shipped product links the static libraries and
+does not use the command-line applications or test programs. Do not claim a
+build-time gain without a clean before-and-after measurement.
+
+`research/rtls-graviola/` keeps an experimental RTLS provider patch and its
+replay procedure. Treat it as research. Keep its Rust dependencies out of the
+production locks and bootstrap. Do not change production TLS, hashing, or CPU
+policy based on the prototype alone. Use its documented adoption gates before
+proposing a product change. Keep its source pin, lockfile, and license record
+together when refreshing the prototype.
+
 Ships: CPython 3.15.1, shared libpython, useful standard library, extension
 build metadata, and private static native dependencies.
 

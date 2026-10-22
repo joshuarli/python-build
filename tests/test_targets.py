@@ -19,6 +19,14 @@ class TargetRegistryTests(unittest.TestCase):
     def test_both_linux_triples_are_described(self) -> None:
         self.assertIn("x86_64-unknown-linux-musl", TARGETS)
         self.assertIn("aarch64-unknown-linux-musl", TARGETS)
+        self.assertEqual(
+            target_for_triple("x86_64-unknown-linux-musl").cpu_baseline_cflag,
+            "-march=x86-64",
+        )
+        self.assertEqual(
+            target_for_triple("aarch64-unknown-linux-musl").cpu_baseline_cflag,
+            "-march=armv8-a",
+        )
 
     def test_macos_arm64_is_described(self) -> None:
         target = target_for_triple(MACOS_TRIPLE)

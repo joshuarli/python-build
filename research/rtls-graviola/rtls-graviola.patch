@@ -1,0 +1,515 @@
+diff --git a/rust/Cargo.lock b/rust/Cargo.lock
+index 11272fb..fe63dac 100644
+--- a/rust/Cargo.lock
++++ b/rust/Cargo.lock
+@@ -58,29 +58,6 @@ version = "1.5.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+ 
+-[[package]]
+-name = "aws-lc-rs"
+-version = "1.18.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b281d307588d634de920874890732659e2e7672f72b5e10e81badc1a8a83621e"
+-dependencies = [
+- "aws-lc-sys",
+- "zeroize",
+-]
+-
+-[[package]]
+-name = "aws-lc-sys"
+-version = "0.45.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9bff6c3b54fad79a2e60b8102caf565819711497c1f5f092f49508e2f5c31b27"
+-dependencies = [
+- "cc",
+- "cmake",
+- "dunce",
+- "fs_extra",
+- "pkg-config",
+-]
+-
+ [[package]]
+ name = "base64ct"
+ version = "1.8.3"
+@@ -121,8 +98,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f74872d07caf508b30a21f6836e7d7016a2eaf7d9ff4f48deaa58cd8a0407630"
+ dependencies = [
+  "find-msvc-tools",
+- "jobserver",
+- "libc",
+  "shlex",
+ ]
+ 
+@@ -142,15 +117,6 @@ dependencies = [
+  "inout",
+ ]
+ 
+-[[package]]
+-name = "cmake"
+-version = "0.1.58"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+-dependencies = [
+- "cc",
+-]
+-
+ [[package]]
+ name = "const-oid"
+ version = "0.9.6"
+@@ -244,24 +210,12 @@ dependencies = [
+  "syn 3.0.6",
+ ]
+ 
+-[[package]]
+-name = "dunce"
+-version = "1.0.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+-
+ [[package]]
+ name = "find-msvc-tools"
+ version = "0.1.14"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
+ 
+-[[package]]
+-name = "fs_extra"
+-version = "1.3.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
+-
+ [[package]]
+ name = "generic-array"
+ version = "0.14.7"
+@@ -285,13 +239,24 @@ dependencies = [
+ 
+ [[package]]
+ name = "getrandom"
+-version = "0.4.3"
++version = "0.3.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
++checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
+ dependencies = [
+  "cfg-if",
+  "libc",
+  "r-efi",
++ "wasip2",
++]
++
++[[package]]
++name = "graviola"
++version = "0.4.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e8596c4fa98466aae2fcf4c72a665bc0e021c0aaab1e47d82044d3dc3e309a76"
++dependencies = [
++ "cfg-if",
++ "getrandom 0.3.4",
+ ]
+ 
+ [[package]]
+@@ -319,16 +284,6 @@ dependencies = [
+  "generic-array",
+ ]
+ 
+-[[package]]
+-name = "jobserver"
+-version = "0.1.35"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
+-dependencies = [
+- "getrandom 0.4.3",
+- "libc",
+-]
+-
+ [[package]]
+ name = "lazy_static"
+ version = "1.5.1"
+@@ -469,12 +424,6 @@ dependencies = [
+  "spki",
+ ]
+ 
+-[[package]]
+-name = "pkg-config"
+-version = "0.3.34"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
+-
+ [[package]]
+ name = "portable-atomic"
+ version = "1.15.0"
+@@ -565,9 +514,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "r-efi"
+-version = "6.0.0"
++version = "5.3.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
++checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+ 
+ [[package]]
+ name = "rand_core"
+@@ -603,6 +552,7 @@ dependencies = [
+  "pkcs8",
+  "pyo3",
+  "rustls",
++ "rustls-graviola",
+  "rustls-pemfile",
+  "rustls-pki-types",
+  "x509-parser",
+@@ -623,7 +573,6 @@ version = "0.23.45"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
+ dependencies = [
+- "aws-lc-rs",
+  "once_cell",
+  "ring",
+  "rustls-pki-types",
+@@ -632,6 +581,16 @@ dependencies = [
+  "zeroize",
+ ]
+ 
++[[package]]
++name = "rustls-graviola"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bf5d0a370be690f7f1aa4e1b912fde3f5f9a5c53285062fd2d6ac1a52ab3e883"
++dependencies = [
++ "graviola",
++ "rustls",
++]
++
+ [[package]]
+ name = "rustls-pemfile"
+ version = "2.2.0"
+@@ -656,7 +615,6 @@ version = "0.103.15"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
+ dependencies = [
+- "aws-lc-rs",
+  "ring",
+  "rustls-pki-types",
+  "untrusted",
+@@ -854,6 +812,15 @@ version = "0.11.1+wasi-snapshot-preview1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+ 
++[[package]]
++name = "wasip2"
++version = "1.0.4+wasi-0.2.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b67efb37e106e55ce722a510d6b5f9c17f083e5fc79afc2badeb12cc313d9487"
++dependencies = [
++ "wit-bindgen",
++]
++
+ [[package]]
+ name = "windows-sys"
+ version = "0.52.0"
+@@ -927,6 +894,12 @@ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+ 
++[[package]]
++name = "wit-bindgen"
++version = "0.57.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
++
+ [[package]]
+ name = "x509-parser"
+ version = "0.16.0"
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index 1d1fd73..1c60b59 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -32,7 +32,8 @@ base64ct = { version = "1", features = ["alloc"] }
+ rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
+ 
+ [target.'cfg(not(target_os = "wasi"))'.dependencies]
+-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
++rustls = { version = "0.23", default-features = false, features = ["tls12", "std"] }
++rustls-graviola = "0.4.0"
+ 
+ [package.metadata.maturin]
+ python-source = "rtls"
+diff --git a/rust/build.rs b/rust/build.rs
+index 05f871f..8cd103c 100644
+--- a/rust/build.rs
++++ b/rust/build.rs
+@@ -6,11 +6,11 @@ fn main() {
+     let lock = fs::read_to_string("Cargo.lock").expect("Cannot read Cargo.lock");
+ 
+     let rustls_version = extract_version(&lock, "rustls");
+-    let aws_lc_rs_version = extract_version(&lock, "aws-lc-rs");
++    let graviola_version = extract_version(&lock, "graviola");
+     let ring_version = extract_version(&lock, "ring");
+ 
+     println!("cargo:rustc-env=RUSTLS_VERSION={}", rustls_version);
+-    println!("cargo:rustc-env=AWS_LC_RS_VERSION={}", aws_lc_rs_version);
++    println!("cargo:rustc-env=GRAVIOLA_VERSION={}", graviola_version);
+     println!("cargo:rustc-env=RING_VERSION={}", ring_version);
+     println!("cargo:rerun-if-changed=Cargo.lock");
+ }
+diff --git a/rust/src/config.rs b/rust/src/config.rs
+index e580788..419e7ab 100644
+--- a/rust/src/config.rs
++++ b/rust/src/config.rs
+@@ -1,14 +1,10 @@
+ use pyo3::prelude::*;
+ use rustls::client::EchMode;
+ #[cfg(not(target_os = "wasi"))]
+-use rustls::client::{EchConfig, EchGreaseConfig};
+-#[cfg(not(target_os = "wasi"))]
+-use rustls::crypto::aws_lc_rs as provider;
++use rustls_graviola::suites as cipher_suite;
+ #[cfg(target_os = "wasi")]
+-use rustls::crypto::ring as provider;
++use rustls::crypto::ring::{cipher_suite, kx_group};
+ use rustls::crypto::SupportedKxGroup;
+-#[cfg(not(target_os = "wasi"))]
+-use rustls::pki_types::EchConfigListBytes;
+ use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+ use rustls::{ClientConfig, RootCertStore, ServerConfig, SupportedCipherSuite};
+ use std::io::{BufReader, Write};
+@@ -53,16 +49,16 @@ impl rustls::KeyLog for KeyLogToFile {
+ /// This differs from rustls's default (AES-256 first).
+ static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
+     // TLS 1.3 suites: 128 before 256
+-    provider::cipher_suite::TLS13_AES_128_GCM_SHA256,
+-    provider::cipher_suite::TLS13_AES_256_GCM_SHA384,
+-    provider::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
++    cipher_suite::TLS13_AES_128_GCM_SHA256,
++    cipher_suite::TLS13_AES_256_GCM_SHA384,
++    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
+     // TLS 1.2 suites: grouped by cipher, ECDSA before RSA
+-    provider::cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+-    provider::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+-    provider::cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+-    provider::cipher_suite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+-    provider::cipher_suite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+-    provider::cipher_suite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
++    cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
++    cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
++    cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
++    cipher_suite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
++    cipher_suite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
++    cipher_suite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+ ];
+ 
+ /// Preferred key exchange group order.
+@@ -71,20 +67,37 @@ static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
+ /// NIST curves.  Placing MLKEM first also means rustls will include a
+ /// key share for it in the initial ClientHello.
+ #[cfg(not(target_os = "wasi"))]
+-static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
+-    provider::kx_group::X25519MLKEM768,
+-    provider::kx_group::X25519,
+-    provider::kx_group::SECP256R1,
+-    provider::kx_group::SECP384R1,
+-];
++static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = rustls_graviola::kx::ALL_KX_GROUPS;
+ 
+ #[cfg(target_os = "wasi")]
+ static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
+-    provider::kx_group::X25519,
+-    provider::kx_group::SECP256R1,
+-    provider::kx_group::SECP384R1,
++    kx_group::X25519,
++    kx_group::SECP256R1,
++    kx_group::SECP384R1,
+ ];
+ 
++fn all_cipher_suites() -> &'static [SupportedCipherSuite] {
++    #[cfg(not(target_os = "wasi"))]
++    {
++        rustls_graviola::suites::ALL_CIPHER_SUITES
++    }
++    #[cfg(target_os = "wasi")]
++    {
++        rustls::crypto::ring::ALL_CIPHER_SUITES
++    }
++}
++
++fn default_crypto_provider() -> rustls::crypto::CryptoProvider {
++    #[cfg(not(target_os = "wasi"))]
++    {
++        rustls_graviola::default_provider()
++    }
++    #[cfg(target_os = "wasi")]
++    {
++        rustls::crypto::ring::default_provider()
++    }
++}
++
+ use crate::connection::{RustlsClientConnection, RustlsServerConnection};
+ use crate::error::raise_ssl_error;
+ use crate::verify::{
+@@ -467,7 +480,7 @@ impl RustlsConfigBuilder {
+ 
+     fn get_cipher_suites(&self) -> Vec<SupportedCipherSuite> {
+         if let Some(ref names) = self.cipher_suites {
+-            let all = provider::ALL_CIPHER_SUITES;
++            let all = all_cipher_suites();
+             let mut selected = Vec::new();
+             for name in names {
+                 for suite in all {
+@@ -482,9 +495,9 @@ impl RustlsConfigBuilder {
+                 // suites.  TLS 1.3 suites are always included (unless TLS 1.3
+                 // is explicitly disabled via max_version / OP_NO_TLSv1_3).
+                 let tls13_defaults: &[SupportedCipherSuite] = &[
+-                    provider::cipher_suite::TLS13_AES_128_GCM_SHA256,
+-                    provider::cipher_suite::TLS13_AES_256_GCM_SHA384,
+-                    provider::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
++                    cipher_suite::TLS13_AES_128_GCM_SHA256,
++                    cipher_suite::TLS13_AES_256_GCM_SHA384,
++                    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
+                 ];
+                 let mut with_tls13 = Vec::new();
+                 for &s in tls13_defaults {
+@@ -503,44 +516,12 @@ impl RustlsConfigBuilder {
+         PREFERRED_CIPHER_SUITES.to_vec()
+     }
+ 
+-    /// Resolve ECH mode for the client connection.
+-    ///
+-    /// - If explicit ECH config bytes are set → `EchMode::Enable`
+-    /// - If TLS 1.2 is disabled (i.e. only TLS 1.3) AND no explicit ECH config
+-    ///   --> `EchMode::Grease` (anti-ossification, RFC 8701)
+-    /// - Otherwise (TLS 1.2 is in the version range) → `None` (use protocol_versions path)
+-    ///
+-    /// ECH (both GREASE and Enable) is inherently TLS 1.3 only.  Rather than
+-    /// silently breaking TLS 1.2 servers, we only activate GREASE when TLS 1.2
+-    /// has been explicitly disabled by the caller.
+     #[cfg(not(target_os = "wasi"))]
+     fn resolve_ech_mode(&self) -> Result<Option<EchMode>, String> {
+-        let hpke_suites = provider::hpke::ALL_SUPPORTED_SUITES;
+-
+-        if let Some(ref ech_bytes) = self.ech_config_list {
+-            // Explicit ECH config always uses Enable (implies TLS 1.3).
+-            let ech_config_list = EchConfigListBytes::from(ech_bytes.clone());
+-            let ech_config = EchConfig::new(ech_config_list, hpke_suites)
+-                .map_err(|e| format!("Failed to parse ECH config: {}", e))?;
+-            Ok(Some(EchMode::Enable(ech_config)))
+-        } else {
+-            // GREASE only when TLS 1.2 is NOT in the version range
+-            // (i.e. the caller explicitly restricted to TLS 1.3 only).
+-            let versions = self.get_protocol_versions();
+-            let has_tls12 = versions.contains(&&rustls::version::TLS12);
+-            let has_tls13 = versions.contains(&&rustls::version::TLS13);
+-            if has_tls12 || !has_tls13 {
+-                return Ok(None);
+-            }
+-            let suite = hpke_suites
+-                .first()
+-                .ok_or_else(|| "No HPKE suites available for ECH GREASE".to_string())?;
+-            let (pub_key, _priv_key) = suite
+-                .generate_key_pair()
+-                .map_err(|e| format!("Failed to generate GREASE key pair: {}", e))?;
+-            let grease_config = EchGreaseConfig::new(*suite, pub_key);
+-            Ok(Some(EchMode::Grease(grease_config)))
++        if self.ech_config_list.is_some() {
++            return Err("ECH is unavailable with the Graviola crypto provider".to_string());
+         }
++        Ok(None)
+     }
+ 
+     #[cfg(target_os = "wasi")]
+@@ -562,7 +543,7 @@ impl RustlsConfigBuilder {
+             Arc::new(rustls::crypto::CryptoProvider {
+                 cipher_suites: cipher_suites.clone(),
+                 kx_groups: PREFERRED_KX_GROUPS.to_vec(),
+-                ..provider::default_provider()
++                ..default_crypto_provider()
+             })
+         };
+ 
+@@ -590,12 +571,8 @@ impl RustlsConfigBuilder {
+ 
+         let has_extra_intermediates = !effective_intermediates.is_empty();
+ 
+-        // Resolve ECH mode: Enable (explicit), Grease (TLS 1.3 default), or None (TLS 1.2 only).
+         let ech_mode = self.resolve_ech_mode()?;
+ 
+-        // Helper macro: given a provider, apply ECH or protocol versions, returning
+-        // the builder at the WantsVerifier stage. This avoids duplicating the
+-        // ECH-vs-versions branching across every verify_mode path.
+         macro_rules! apply_versions_or_ech {
+             ($provider:expr) => {
+                 if let Some(mode) = ech_mode.clone() {
+@@ -689,7 +666,7 @@ impl RustlsConfigBuilder {
+ 
+         let provider = rustls::crypto::CryptoProvider {
+             cipher_suites,
+-            ..provider::default_provider()
++            ..default_crypto_provider()
+         };
+ 
+         let certs = self
+diff --git a/rust/src/lib.rs b/rust/src/lib.rs
+index 4ce5712..9096a47 100644
+--- a/rust/src/lib.rs
++++ b/rust/src/lib.rs
+@@ -20,7 +20,7 @@ fn _rustls(m: &Bound<'_, PyModule>) -> PyResult<()> {
+     m.add_class::<RustlsServerConnection>()?;
+     m.add_function(wrap_pyfunction!(parse_certificate_dict, m)?)?;
+     m.add_function(wrap_pyfunction!(rustls_version, m)?)?;
+-    m.add_function(wrap_pyfunction!(aws_lc_rs_version, m)?)?;
++    m.add_function(wrap_pyfunction!(graviola_version, m)?)?;
+     m.add_function(wrap_pyfunction!(crypto_provider, m)?)?;
+     m.add_function(wrap_pyfunction!(crypto_provider_version, m)?)?;
+     m.add_function(wrap_pyfunction!(rand_bytes, m)?)?;
+@@ -36,9 +36,8 @@ fn rustls_version() -> String {
+ 
+ /// Return the aws-lc-rs version string (e.g. "1.16.2").
+ #[pyfunction]
+-fn aws_lc_rs_version() -> String {
+-    // Set by build.rs from the actual aws-lc-rs entry in Cargo.lock
+-    env!("AWS_LC_RS_VERSION").to_string()
++fn graviola_version() -> String {
++    env!("GRAVIOLA_VERSION").to_string()
+ }
+ 
+ #[pyfunction]
+@@ -46,7 +45,7 @@ fn crypto_provider() -> &'static str {
+     if cfg!(target_os = "wasi") {
+         "ring"
+     } else {
+-        "aws-lc-rs"
++        "rustls-graviola"
+     }
+ }
+ 
+@@ -55,7 +54,7 @@ fn crypto_provider_version() -> String {
+     if cfg!(target_os = "wasi") {
+         env!("RING_VERSION").to_string()
+     } else {
+-        env!("AWS_LC_RS_VERSION").to_string()
++        env!("GRAVIOLA_VERSION").to_string()
+     }
+ }
+ 
+@@ -69,7 +68,7 @@ fn rand_bytes(py: Python<'_>, n: usize) -> PyResult<Py<PyAny>> {
+         #[cfg(target_os = "wasi")]
+         let provider = rustls::crypto::ring::default_provider();
+         #[cfg(not(target_os = "wasi"))]
+-        let provider = rustls::crypto::aws_lc_rs::default_provider();
++        let provider = rustls_graviola::default_provider();
+         provider.secure_random.fill(&mut buf).map_err(|_| ())
+     })
+     .map_err(|_| pyo3::exceptions::PyOSError::new_err("Failed to generate random bytes"))?;
+diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
+index 7193a9f..d004720 100644
+--- a/src/rtls/_rustls.pyi
++++ b/src/rtls/_rustls.pyi
+@@ -82,7 +82,7 @@ class RustlsServerConnection:
+ 
+ def parse_certificate_dict(der_bytes: bytes) -> dict[str, object]: ...
+ def rustls_version() -> str: ...
+-def aws_lc_rs_version() -> str: ...
++def graviola_version() -> str: ...
+ def crypto_provider() -> str: ...
+ def crypto_provider_version() -> str: ...
+ def rand_bytes(n: int) -> bytes: ...
