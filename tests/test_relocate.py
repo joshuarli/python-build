@@ -5,10 +5,12 @@ import shutil
 import runpy
 import shlex
 import subprocess
+import sysconfig
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from buildsys.relocate import (
     clean_sysconfig,
@@ -72,6 +74,7 @@ class CleanSysconfigTests(unittest.TestCase):
             sysconfigdata.write_text(
                 "build_time_vars = {\n"
                 "    'prefix': '/install',\n"
+                "    'exec_prefix': '/install',\n"
                 f"    'LIBPL': '/install/{PRODUCT.stdlib_relative_path.as_posix()}/config-example',\n"
                 "    'CC': '/work/llvm/bin/clang',\n"
                 "    'LDSHARED': '/work/llvm/bin/clang -bundle -fprofile-instr-use=/work/build/code.profclangd',\n"
@@ -130,11 +133,18 @@ class CleanSysconfigTests(unittest.TestCase):
             self.assertIn("# python-build relocatable sysconfig values", rewritten)
             values = runpy.run_path(str(sysconfigdata))["build_time_vars"]
             resolved_root = root.resolve()
-            self.assertEqual(values["prefix"], str(resolved_root))
+            self.assertEqual(values["prefix"], "/install")
+            self.assertEqual(values["exec_prefix"], "/install")
             self.assertEqual(
                 values["LIBPL"],
                 str(resolved_root / PRODUCT.stdlib_relative_path / "config-example"),
             )
+            with (
+                patch("sysconfig._get_sysconfigdata", return_value=values),
+                patch.object(sys, "base_prefix", str(resolved_root)),
+                patch.object(sys, "base_exec_prefix", str(resolved_root)),
+            ):
+                self.assertTrue(sysconfig._installation_is_relocated())
             self.assertEqual(values["CC"], "clang")
             self.assertEqual(values["LDSHARED"], "clang -bundle")
             for key in (

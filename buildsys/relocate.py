@@ -190,7 +190,7 @@ def _relocate_sysconfigdata(
         "    _python_build_re.escape(_python_build_prefix) + r'(?=$|[^A-Za-z0-9_.-])'\n"
         ")\n"
         "for _python_build_key, _python_build_value in tuple(build_time_vars.items()):\n"
-        "    if isinstance(_python_build_value, str):\n"
+        "    if isinstance(_python_build_value, str) and _python_build_key not in {'prefix', 'exec_prefix'}:\n"
         "        build_time_vars[_python_build_key] = _python_build_prefix_pattern.sub(\n"
         "            lambda _: _python_build_root, _python_build_value\n"
         "        )\n"
