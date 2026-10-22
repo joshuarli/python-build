@@ -74,42 +74,130 @@ class SuiteError(Exception):
     """The regression suite could not be run or its output not understood."""
 
 
-_SUMMARY = re.compile(r"^Total tests: run=([\d,]+) failures=(\d+)", re.M)
-# Verbose unittest output names each failing method after `FAIL:`/`ERROR:`.
-# Case exclusions are accepted only when every observed failure matches one
-# of those exact methods.
+_SUMMARY = re.compile(
+    r"^Total tests: run=([\d,]+)(?: \(filtered\))?"
+    r"(?: failures=([\d,]+))?(?: skipped=([\d,]+))?$",
+    re.M,
+)
+_TOTAL_FILES = re.compile(
+    r"^Total test files: run=(\d+)(?:/(\d+))?( \(filtered\))?(?: .*)?$",
+    re.M,
+)
+_RESULT_STATE = re.compile(r"^== Tests result: (.+) ==$", re.M)
+_FILE_FAILURE_COUNT = re.compile(
+    r"^Total test files: .*? failed=(\d+)(?: |$)", re.M
+)
+_FAILED_FILE_LIST = re.compile(
+    r"^(\d+) tests? failed:\s*\n((?:[ \t]+\S.*(?:\n|$))+)", re.M
+)
 _FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
-# The failing files are listed space-separated on a single indented line, not
-# one per line — a regex that assumes one-per-line silently finds nothing and
-# makes the whole run look clean.
-_FAILED_FILES = re.compile(r"^\d+ tests failed:\n\s+([\w\s]+)$", re.M)
+_TIMED_OUT_TEST = re.compile(r"\btest[\w.]* timed out \(")
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _output_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
+def _failed_files(output: str) -> list[str]:
+    match = _FAILED_FILE_LIST.search(output)
+    if not match:
+        return []
+    names = match.group(2).split()
+    if len(names) != int(match.group(1)) or len(names) != len(set(names)):
+        raise SuiteError("failed test file list did not match its count")
+    return names
+
+
+def _accounting(output: str) -> dict:
+    output = _ANSI_ESCAPE.sub("", output)
+    summary = _SUMMARY.search(output)
+    total_files = _TOTAL_FILES.search(output)
+    state = _RESULT_STATE.search(output)
+    if not summary or not total_files or not state:
+        raise SuiteError("could not parse complete suite accounting")
+
+    tests_run = int(summary.group(1).replace(",", ""))
+    failures = int((summary.group(2) or "0").replace(",", ""))
+    files_run = int(total_files.group(1))
+    files_expected = int(total_files.group(2) or "0")
+    failed_files = _failed_files(output)
+    failed_file_match = _FILE_FAILURE_COUNT.search(output)
+    failed_file_count = int(failed_file_match.group(1)) if failed_file_match else 0
+    result_state = state.group(1)
+
+    if (
+        tests_run <= 0
+        or files_run <= 0
+        or files_expected <= 0
+        or files_run != files_expected
+        or "(filtered)" in summary.group(0)
+        or total_files.group(3)
+        or failed_file_count != len(failed_files)
+    ):
+        raise SuiteError("suite execution accounting is incomplete or inconsistent")
+
+    if result_state == "SUCCESS":
+        if failures or failed_files:
+            raise SuiteError("successful suite summary contains failures")
+    elif result_state == "FAILURE":
+        if not failed_files:
+            raise SuiteError("failed suite summary has no failed test files")
+    else:
+        raise SuiteError(f"suite ended in non-success state: {result_state}")
+
+    return {
+        "tests_run": summary.group(1),
+        "failure_count": failures,
+        "failed_files": failed_files,
+        "test_files_run": files_run,
+        "test_files_expected": files_expected,
+        "result_state": result_state,
+    }
 
 
 def run_suite(python: Path, *, jobs: int = 6, timeout: int = 600) -> dict:
-    """Run the standard library test suite, excluding the scoped-out modules."""
     command = [str(python), "-m", "test", "-j", str(jobs), f"--timeout={timeout}"]
     for exclusion in FILE_EXCLUSIONS:
         command += ["-x", exclusion.test]
-    result = subprocess.run(command, capture_output=True, text=True)
-    output = result.stdout + result.stderr
-    match = _SUMMARY.search(output)
-    if not match:
-        raise SuiteError(f"could not parse suite summary:\n{output[-2000:]}")
-    ran, failures = match.group(1), int(match.group(2))
-    failed_files: list[str] = []
-    files = _FAILED_FILES.search(output)
-    if files:
-        failed_files = files.group(1).split()
-    if failures and not failed_files:
+    try:
+        result = subprocess.run(command, capture_output=True, text=True)
+    except subprocess.TimeoutExpired as error:
+        output = _output_text(error.stdout) + _output_text(error.stderr)
+        raise SuiteError(f"suite process timed out:\n{output[-2000:]}") from error
+    except OSError as error:
+        raise SuiteError(f"suite process could not start: {error}") from error
+    output = _ANSI_ESCAPE.sub("", result.stdout + result.stderr)
+    if _TIMED_OUT_TEST.search(output):
+        raise SuiteError(f"suite reported a timed-out test:\n{output[-2000:]}")
+    try:
+        accounting = _accounting(output)
+    except SuiteError as error:
+        raise SuiteError(f"{error}:\n{output[-2000:]}") from error
+    if result.returncode == 0 and accounting["result_state"] != "SUCCESS":
         raise SuiteError(
-            f"suite reported {failures} failures but no failing files could be "
-            f"parsed; refusing to report a clean run:\n{output[-2000:]}"
+            f"suite process exited successfully with "
+            f"{accounting['result_state']}:\n{output[-2000:]}"
+        )
+    if result.returncode == 2 and accounting["result_state"] != "FAILURE":
+        raise SuiteError(
+            f"suite process exited with test-failure status but reported "
+            f"{accounting['result_state']}:\n{output[-2000:]}"
+        )
+    if result.returncode not in (0, 2):
+        raise SuiteError(
+            f"suite process exited abnormally with status {result.returncode}:\n"
+            f"{output[-2000:]}"
         )
     return {
         "command": " ".join(command),
-        "tests_run": ran,
-        "failure_count": failures,
-        "failed_files": failed_files,
+        **accounting,
+        "returncode": result.returncode,
+        "complete": True,
         "output_tail": output[-4000:],
     }
 
@@ -121,59 +209,105 @@ def verify_excluded_failures(
     attempts: int = 3,
     fresh_python=None,
 ) -> dict:
-    """Re-run each failing file alone to separate real failures from flakes.
-
-    Retried rather than re-run once: several standard-library tests are
-    timing- or load-sensitive, and a single solo pass/fail is a coin flip for
-    them. Taking the best of a few attempts and recording how many it took
-    keeps a genuine failure visible (it fails every time) while not blaming
-    the product for a test that is merely fragile under a busy machine.
-
-    Deliberately no PYTHONDONTWRITEBYTECODE: suppressing bytecode writes
-    changes what `test_compileall` is testing (it asserts that an import *did*
-    write a .pyc), so setting it turns a passing test into a failing one for
-    reasons that have nothing to do with the product. Tree pollution is
-    handled by running against a disposable copy instead, which keeps
-    generated bytecode out of the source tree.
-
-    `fresh_python` optionally supplies an interpreter from a newly made copy
-    of the tree, tried after the in-tree retries are exhausted. The parallel
-    suite can leave a half-written cache behind when a test is interrupted,
-    and that would make every subsequent run fail for a reason that has
-    nothing to do with the product.
-    """
+    """Collect bounded, visible diagnostics for files that failed the suite."""
     findings: dict[str, dict] = {}
     case_exclusions = {
         exclusion.test.split(":", 1)[0]
         for exclusion in CASE_EXCLUSIONS
     }
+    retry_count = min(max(attempts, 1), 3)
     for name in failed_files:
-        best: dict | None = None
-        attempts_made = 0
-        interpreter = python
-        for attempt in range(max(1, attempts) + 1):
-            if attempt == attempts and fresh_python is not None:
-                interpreter = fresh_python()
-            attempts_made += 1
+        attempt_results: list[dict] = []
+        for attempt in range(retry_count + (fresh_python is not None)):
+            interpreter = (
+                fresh_python()
+                if fresh_python is not None and attempt == retry_count
+                else python
+            )
             command = [str(interpreter), "-m", "test"]
             if name in case_exclusions:
                 command.append("-v")
-            command.append(name)
-            result = subprocess.run(command, capture_output=True, text=True)
-            output = result.stdout + result.stderr
-            match = _SUMMARY.search(output)
-            failed_cases = sorted(set(_FAILED_CASE.findall(output)))
-            best = {
-                "returncode": result.returncode,
-                "failures": int(match.group(2)) if match else None,
-                "failed_cases": failed_cases,
-                "output_tail": output[-1500:],
-                "attempts": attempts_made,
-                "used_fresh_tree": interpreter != python,
-            }
-            if result.returncode == 0:
-                break
-        findings[name] = best
+            command.extend(("--timeout=600", name))
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+                output = _ANSI_ESCAPE.sub("", result.stdout + result.stderr)
+                accounting_error = None
+                if _TIMED_OUT_TEST.search(output):
+                    accounting = None
+                    accounting_error = "suite reported a timed-out test"
+                else:
+                    try:
+                        accounting = _accounting(output)
+                    except SuiteError as error:
+                        accounting = None
+                        accounting_error = str(error)
+                diagnostic_complete = bool(
+                    accounting
+                    and (
+                        result.returncode == 0
+                        and accounting["result_state"] == "SUCCESS"
+                        or result.returncode == 2
+                        and accounting["result_state"] == "FAILURE"
+                    )
+                )
+                attempt_results.append({
+                    "returncode": result.returncode,
+                    "failures": accounting["failure_count"] if accounting else None,
+                    "failed_cases": sorted(set(_FAILED_CASE.findall(output))),
+                    "complete": diagnostic_complete,
+                    "result_state": accounting["result_state"] if accounting else None,
+                    "accounting_error": accounting_error,
+                    "output_tail": output[-1500:],
+                    "used_fresh_tree": interpreter != python,
+                })
+            except subprocess.TimeoutExpired as error:
+                output = _output_text(error.stdout) + _output_text(error.stderr)
+                attempt_results.append({
+                    "returncode": None,
+                    "failures": None,
+                    "failed_cases": [],
+                    "complete": False,
+                    "timed_out": True,
+                    "result_state": None,
+                    "output_tail": output[-1500:],
+                    "used_fresh_tree": interpreter != python,
+                })
+            except OSError as error:
+                attempt_results.append({
+                    "returncode": None,
+                    "failures": None,
+                    "failed_cases": [],
+                    "complete": False,
+                    "process_error": str(error),
+                    "result_state": None,
+                    "output_tail": "",
+                    "used_fresh_tree": interpreter != python,
+                })
+        initial = attempt_results[0]
+        findings[name] = {
+            "initial_suite_failure": True,
+            "returncode": initial["returncode"],
+            "failures": initial["failures"],
+            "failed_cases": sorted({
+                case
+                for attempt_result in attempt_results
+                if attempt_result["complete"]
+                and attempt_result["returncode"] == 2
+                and attempt_result["result_state"] == "FAILURE"
+                for case in attempt_result["failed_cases"]
+            }),
+            "attempts": attempt_results,
+            "attempt_count": len(attempt_results),
+            "used_fresh_tree": any(
+                attempt_result["used_fresh_tree"] for attempt_result in attempt_results
+            ),
+            "output_tail": initial["output_tail"],
+        }
     return findings
 
 
@@ -191,11 +325,13 @@ def classify(solo_findings: dict) -> dict:
         if name in registered_files:
             accepted.append(name)
             continue
-        if finding["returncode"] == 0:
-            continue  # passed alone: it was a load-related flake
         if name in file_cases:
             observed_cases = set(finding.get("failed_cases", []))
-            if observed_cases and observed_cases <= file_cases[name]:
+            attempts = finding.get("attempts", [])
+            complete_attempts = bool(attempts) and all(
+                attempt.get("complete") for attempt in attempts
+            )
+            if observed_cases and observed_cases <= file_cases[name] and complete_attempts:
                 accepted.append(name)
                 continue
         unexpected.append(name)
@@ -208,17 +344,62 @@ def classify(solo_findings: dict) -> dict:
 
 def report_payload(report: dict) -> dict:
     """Shape the suite result for `dist/validation.json`."""
+    classification = report.get("classification")
+    classified = (
+        isinstance(classification, dict)
+        and isinstance(classification.get("unexpected_failures"), list)
+        and isinstance(classification.get("accepted_exclusions"), list)
+    )
+    unexpected = (
+        classification["unexpected_failures"]
+        if classified
+        else ["suite classification missing or incomplete"]
+    )
+    status = report.get("returncode")
+    failures = report.get("failure_count")
+    failed_files = report.get("failed_files")
+    complete = report.get("complete") is True
+    status_ok = (
+        status == 0
+        and report.get("result_state") == "SUCCESS"
+        and failures == 0
+        and failed_files == []
+    ) or (
+        status == 2
+        and report.get("result_state") == "FAILURE"
+        and isinstance(failures, int)
+        and failures >= 0
+        and bool(failed_files)
+    )
+    files_run = report.get("test_files_run")
+    files_expected = report.get("test_files_expected")
+    try:
+        tests_executed = int(str(report.get("tests_run", "0")).replace(",", ""))
+    except ValueError:
+        tests_executed = 0
+    accounting_ok = (
+        tests_executed > 0
+        and isinstance(files_run, int)
+        and isinstance(files_expected, int)
+        and files_run > 0
+        and files_run == files_expected
+    )
     return {
         "tests_run": report["tests_run"],
         "failure_count": report["failure_count"],
         "failed_files": report["failed_files"],
-        "accepted_exclusions": report.get("classification", {}).get(
-            "accepted_exclusions", []
+        "test_files_run": report.get("test_files_run"),
+        "test_files_expected": report.get("test_files_expected"),
+        "returncode": status,
+        "result_state": report.get("result_state"),
+        "complete": complete,
+        "accepted_exclusions": (
+            classification["accepted_exclusions"] if classified else []
         ),
         "exclusions": [
             {"test": e.test, "reason": e.reason, "consequence": e.consequence}
             for e in (*FILE_EXCLUSIONS, *CASE_EXCLUSIONS)
         ],
-        "unexpected_failures": report.get("classification", {}).get("unexpected_failures", []),
-        "ok": not report.get("classification", {}).get("unexpected_failures", []),
+        "unexpected_failures": unexpected,
+        "ok": complete and accounting_ok and status_ok and classified and not unexpected,
     }
