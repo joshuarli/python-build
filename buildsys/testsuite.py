@@ -316,10 +316,15 @@ def verify_excluded_failures(
                         and accounting["result_state"] == "FAILURE"
                     )
                 )
+                failed_cases = _FAILED_CASE.findall(output)
                 attempt_results.append({
                     "returncode": result.returncode,
                     "failures": accounting["failure_count"] if accounting else None,
-                    "failed_cases": sorted(set(_FAILED_CASE.findall(output))),
+                    "failed_cases": failed_cases,
+                    "failure_case_count_matches": bool(
+                        accounting
+                        and len(failed_cases) == accounting["failure_count"]
+                    ),
                     "complete": diagnostic_complete,
                     "result_state": accounting["result_state"] if accounting else None,
                     "accounting_error": accounting_error,
@@ -395,13 +400,27 @@ def classify(solo_findings: dict, target: Target | None = None) -> dict:
             accepted.append(name)
             continue
         if name in file_cases:
-            observed_cases = set(finding.get("failed_cases", []))
             attempts = finding.get("attempts", [])
-            complete_attempts = bool(attempts) and all(
-                attempt.get("complete") for attempt in attempts
+            observed_cases = {
+                case
+                for attempt in attempts
+                for case in attempt.get("failed_cases", [])
+            }
+            verified_exclusion = bool(attempts) and all(
+                attempt.get("complete") is True
+                and attempt.get("returncode") == 2
+                and attempt.get("result_state") == "FAILURE"
+                and isinstance(attempt.get("failures"), int)
+                and attempt["failures"] > 0
+                and attempt.get("failure_case_count_matches") is True
+                and len(attempt.get("failed_cases", [])) == attempt["failures"]
+                and set(attempt["failed_cases"]) <= file_cases[name]
+                for attempt in attempts
             )
-            if observed_cases and observed_cases <= file_cases[name] and complete_attempts:
-                accepted.append(name)
+            if observed_cases and observed_cases <= file_cases[name] and verified_exclusion:
+                accepted.extend(
+                    f"{name}:{case}" for case in sorted(observed_cases)
+                )
                 continue
         unexpected.append(name)
     return {

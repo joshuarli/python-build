@@ -61,20 +61,90 @@ class ClassifyTests(unittest.TestCase):
     def test_registered_case_failure_is_accepted(self) -> None:
         stem, case = CASE_EXCLUSIONS[0].test.split(":", 1)
         finding = self._finding(2, failed_cases=[case])
-        finding["attempts"] = [{"complete": True}]
+        finding["attempts"] = [{
+            "complete": True,
+            "returncode": 2,
+            "result_state": "FAILURE",
+            "failures": 1,
+            "failed_cases": [case],
+            "failure_case_count_matches": True,
+        }]
         result = classify({stem: finding})
-        self.assertIn(stem, result["accepted_exclusions"])
+        self.assertIn(f"{stem}:{case}", result["accepted_exclusions"])
         self.assertEqual(result["unexpected_failures"], [])
+
+    def test_registered_case_accounts_for_every_subtest_failure(self) -> None:
+        stem, case = CASE_EXCLUSIONS[0].test.split(":", 1)
+        failed_cases = [case] * 169
+        finding = self._finding(2, failures=len(failed_cases), failed_cases=failed_cases)
+        finding["attempts"] = [{
+            "complete": True,
+            "returncode": 2,
+            "result_state": "FAILURE",
+            "failures": len(failed_cases),
+            "failed_cases": failed_cases,
+            "failure_case_count_matches": True,
+        }]
+        result = classify({stem: finding})
+        self.assertEqual(result["accepted_exclusions"], [f"{stem}:{case}"])
+        self.assertEqual(result["unexpected_failures"], [])
+
+    def test_registered_case_cannot_hide_unparsed_failures(self) -> None:
+        stem, case = CASE_EXCLUSIONS[0].test.split(":", 1)
+        finding = self._finding(2, failures=169, failed_cases=[case])
+        finding["attempts"] = [{
+            "complete": True,
+            "returncode": 2,
+            "result_state": "FAILURE",
+            "failures": 169,
+            "failed_cases": [case],
+            "failure_case_count_matches": False,
+        }]
+        result = classify({stem: finding})
+        self.assertEqual(result["accepted_exclusions"], [])
+        self.assertEqual(result["unexpected_failures"], [stem])
+
+    def test_registered_case_requires_failure_on_every_diagnostic_attempt(self) -> None:
+        stem, case = CASE_EXCLUSIONS[0].test.split(":", 1)
+        finding = self._finding(2, failed_cases=[case])
+        finding["attempts"] = [
+            {
+                "complete": True,
+                "returncode": 2,
+                "result_state": "FAILURE",
+                "failures": 1,
+                "failed_cases": [case],
+                "failure_case_count_matches": True,
+            },
+            {
+                "complete": True,
+                "returncode": 0,
+                "result_state": "SUCCESS",
+                "failures": 0,
+                "failed_cases": [],
+                "failure_case_count_matches": True,
+            },
+        ]
+        result = classify({stem: finding})
+        self.assertEqual(result["accepted_exclusions"], [])
+        self.assertEqual(result["unexpected_failures"], [stem])
 
     def test_linux_ctypes_system_listing_exclusion_is_target_specific(self) -> None:
         finding = self._finding(2, failed_cases=["test_lists_system"])
-        finding["attempts"] = [{"complete": True}]
+        finding["attempts"] = [{
+            "complete": True,
+            "returncode": 2,
+            "result_state": "FAILURE",
+            "failures": 1,
+            "failed_cases": ["test_lists_system"],
+            "failure_case_count_matches": True,
+        }]
         findings = {"test_ctypes": finding}
         linux = target_for_triple("aarch64-unknown-linux-musl")
         macos = target_for_triple("aarch64-apple-darwin")
         self.assertEqual(
             classify(findings, target=linux)["accepted_exclusions"],
-            ["test_ctypes"],
+            ["test_ctypes:test_lists_system"],
         )
         self.assertEqual(
             classify(findings, target=macos)["unexpected_failures"],
@@ -166,6 +236,37 @@ Total test files: run=1/1
         self.assertEqual(len(finding["attempts"]), 3)
         self.assertEqual(classify({"test_mailbox": finding})["unexpected_failures"], ["test_mailbox"])
         self.assertEqual(run.call_count, 3)
+
+    @patch("buildsys.testsuite.run_product_process")
+    def test_case_diagnostics_count_every_subtest_failure(self, run) -> None:
+        case = "test_makefile_test_folders"
+        output = f"""== Tests result: FAILURE ==
+FAIL: {case} (test.test_tools.test_makefile.TestMakefile.{case})
+AssertionError: missing directory
+FAIL: {case} (test.test_tools.test_makefile.TestMakefile.{case})
+AssertionError: missing directory
+1 test failed:
+    test_tools
+Total tests: run=2 failures=2
+Total test files: run=1/1 failed=1
+Result: FAILURE
+"""
+        run.return_value = subprocess.CompletedProcess([], 2, output, "")
+        target = target_for_triple("aarch64-apple-darwin")
+        finding = verify_excluded_failures(
+            Path("python3.15"), ["test_tools"], target=target
+        )["test_tools"]
+        self.assertTrue(all(
+            attempt["failure_case_count_matches"]
+            for attempt in finding["attempts"]
+        ))
+        self.assertEqual(
+            finding["attempts"][0]["failed_cases"], [case, case]
+        )
+        self.assertEqual(
+            classify({"test_tools": finding}, target=target)["accepted_exclusions"],
+            [f"test_tools:{case}"],
+        )
 
 
 class RunSuiteTests(unittest.TestCase):
