@@ -12,7 +12,18 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from benchmarks.bench import _docker_descriptor, main as bench_main
+from benchmarks.bench import (
+    _docker_descriptor,
+    _required_input_groups,
+    _select_input_lock,
+    main as bench_main,
+)
+from benchmarks.harness.inputs import (
+    LINUX_CP315_LOCK_PATH,
+    LINUX_CP316_LOCK_PATH,
+    MACOS_CP315_LOCK_PATH,
+    MACOS_CP316_LOCK_PATH,
+)
 from benchmarks.harness.memory import (
     SmapsRollup,
     SmapsRollupError,
@@ -43,6 +54,7 @@ class WorkloadRegistryTests(unittest.TestCase):
             names,
             {
                 "django_wsgi_request",
+                "django_wsgi_first_request",
                 "django_asgi_request",
                 "django_orm_10k",
                 "django_template_realistic",
@@ -57,6 +69,17 @@ class WorkloadRegistryTests(unittest.TestCase):
                 "rust_base64_large",
                 "serialization_roundtrip",
                 "multiprocess_pool",
+                "zlib_decode_1m",
+                "zlib_stream_4k",
+                "gzip_extract_1m",
+                "zip_read_wheel",
+                "zipimport_cold",
+                "difflib_unified_mostly_equal",
+                "difflib_unified_reordered",
+                "catalog_url_normalize",
+                "catalog_search_form",
+                "catalog_request_path",
+                "catalog_json_export",
             },
         )
 
@@ -97,7 +120,12 @@ class WorkloadRegistryTests(unittest.TestCase):
         tooling_quick = select_workloads("realworld", "quick", None, "tooling")
         self.assertEqual(
             {item.name for item in tooling_quick},
-            {"pylint_source", "compileall_source"},
+            {
+                "pylint_source",
+                "compileall_source",
+                "difflib_unified_mostly_equal",
+                "difflib_unified_reordered",
+            },
         )
 
     def test_unknown_workload_and_profile_fail_clearly(self):
@@ -105,6 +133,93 @@ class WorkloadRegistryTests(unittest.TestCase):
             select_workloads("realworld", "standard", "not-a-workload", None)
         with self.assertRaisesRegex(ValueError, "unknown profile"):
             select_workloads("realworld", "unrecognized", None, None)
+
+
+class BenchmarkInputDispatchTests(unittest.TestCase):
+    @staticmethod
+    def _identity(
+        version: tuple[int, int], platform_name: str, abi: str, *,
+        libc: str = "", multiarch: str = "", macos_version: str = "",
+    ) -> dict[str, object]:
+        return {
+            "version": [*version, 0],
+            "implementation": "CPython",
+            "platform": platform_name,
+            "abi": abi,
+            "libc": libc,
+            "multiarch": multiarch,
+            "config_args": "",
+            "macos_version": macos_version,
+        }
+
+    def test_cp315_dispatch_uses_version_platform_and_macro_group(self):
+        macos = self._identity(
+            (3, 15), "macosx-27.0-arm64", "cpython-315-darwin",
+            multiarch="arm64-apple-darwin", macos_version="27.0.0",
+        )
+        linux = self._identity(
+            (3, 15), "linux-x86_64", "cpython-315-x86_64-linux-musl",
+            libc="musl", multiarch="x86_64-alpine-linux-musl",
+        )
+
+        self.assertEqual(_select_input_lock((macos, macos), {"macros"}), MACOS_CP315_LOCK_PATH)
+        self.assertEqual(_select_input_lock((linux, linux), {"macros"}), LINUX_CP315_LOCK_PATH)
+
+    def test_experimental_cp316_dispatch_keeps_separate_django_locks(self):
+        macos = self._identity(
+            (3, 16), "macosx-27.0-arm64", "cpython-316-darwin",
+            multiarch="arm64-apple-darwin", macos_version="27.0.0",
+        )
+        linux = self._identity(
+            (3, 16), "linux-x86_64", "cpython-316-x86_64-linux-gnu",
+            libc="glibc", multiarch="x86_64-linux-gnu",
+        )
+
+        self.assertEqual(_select_input_lock((macos, macos), {"macros"}), MACOS_CP316_LOCK_PATH)
+        self.assertEqual(_select_input_lock((linux, linux), {"macros"}), LINUX_CP316_LOCK_PATH)
+
+    def test_production_inputs_fail_for_unsupported_groups_or_mixed_targets(self):
+        macos = self._identity(
+            (3, 15), "macosx-27.0-arm64", "cpython-315-darwin",
+            multiarch="arm64-apple-darwin", macos_version="27.0.0",
+        )
+        linux = self._identity(
+            (3, 15), "linux-x86_64", "cpython-315-x86_64-linux-musl",
+            libc="musl", multiarch="x86_64-alpine-linux-musl",
+        )
+        linux_glibc = self._identity(
+            (3, 15), "linux-x86_64", "cpython-315-x86_64-linux-gnu",
+            libc="glibc", multiarch="x86_64-linux-gnu",
+        )
+
+        with self.assertRaisesRegex(ValueError, "do not support workload groups: pyperformance"):
+            _select_input_lock((linux, linux), {"pyperformance"})
+        with self.assertRaisesRegex(ValueError, "exact Python version and platform"):
+            _select_input_lock((linux_glibc, linux_glibc), {"macros"})
+        with self.assertRaisesRegex(ValueError, "exact Python version and platform"):
+            _select_input_lock((macos, linux), {"macros"})
+        with self.assertRaisesRegex(ValueError, "compatible with one input set"):
+            _select_input_lock((macos, {**macos, "version": [3, 14, 0]}), {"macros"})
+
+    def test_production_inputs_reject_incompatible_native_abis_and_os_floors(self):
+        macos = self._identity(
+            (3, 15), "macosx-27.0-arm64", "cpython-315-darwin",
+            multiarch="arm64-apple-darwin", macos_version="27.0.0",
+        )
+
+        with self.assertRaisesRegex(ValueError, "cannot share this benchmark input set"):
+            _select_input_lock((macos, {**macos, "abi": "cpython-315-alt-darwin"}), {"macros"})
+        with self.assertRaisesRegex(ValueError, "require macOS 26.0 or later"):
+            _select_input_lock((macos, {**macos, "macos_version": "25.0.0"}), {"macros"})
+        with self.assertRaisesRegex(ValueError, "requires CPython"):
+            _select_input_lock((macos, {**macos, "implementation": "PyPy"}), {"macros"})
+
+    def test_workload_groups_match_the_preparation_steps(self):
+        workloads = select_workloads("realworld", "standard", None, None)
+        self.assertEqual(_required_input_groups(workloads, "realworld", "standard"), {"macros"})
+        self.assertEqual(_required_input_groups([], "full", "rigorous"), {
+            "pyperformance", "memray",
+        })
 
 
 class MemoryMetricsTests(unittest.TestCase):
@@ -267,6 +382,11 @@ class DocumentationAndCompatibilityTests(unittest.TestCase):
             "django_asgi_request",
             "pip_install_wheelhouse",
             "provenance.json",
+            "CPython 3.15",
+            "inputs.macos-cp315.lock.json",
+            "inputs.linux-cp315.lock.json",
+            "inputs.macos-cp316.lock.json",
+            "inputs.linux-cp316.lock.json",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, readme)

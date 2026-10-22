@@ -9,7 +9,16 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from benchmarks.harness.inputs import InputError, MACOS_CP316_LOCK_PATH, fetch_inputs, load_lock, prepare_site, resolve_pbs
+from benchmarks.harness.inputs import (
+    InputError,
+    LINUX_CP315_LOCK_PATH,
+    MACOS_CP315_LOCK_PATH,
+    MACOS_CP316_LOCK_PATH,
+    fetch_inputs,
+    load_lock,
+    prepare_site,
+    resolve_pbs,
+)
 
 
 def _make_wheel(path: Path, package: str, version: str, source: str) -> bytes:
@@ -41,6 +50,68 @@ def _lock_record(package: str, version: str, filename: str, data: bytes, groups:
 
 
 class BenchmarkInputTests(unittest.TestCase):
+    def test_cp315_production_locks_pin_native_wheels_for_each_platform(self) -> None:
+        macos = load_lock(MACOS_CP315_LOCK_PATH)
+        linux = load_lock(LINUX_CP315_LOCK_PATH)
+
+        self.assertEqual(macos.target["python"], "CPython 3.15")
+        self.assertEqual(macos.target["wheel_platform"], "macosx_26_0_arm64")
+        self.assertEqual(linux.target["python"], "CPython 3.15")
+        self.assertEqual(linux.target["wheel_platform"], "musllinux_1_2_x86_64")
+        self.assertEqual(len(macos.inputs), 35)
+        self.assertEqual(len(linux.inputs), 35)
+        for lock in (macos, linux):
+            self.assertEqual(set(lock.groups), {"core", "macros"})
+            packages = {
+                item.name.lower().replace("_", "-"): item
+                for item in lock.inputs
+            }
+            self.assertEqual(packages["pydantic"].version, "2.14.1")
+            self.assertEqual(packages["pydantic-core"].version, "2.50.1")
+            self.assertTrue(all(
+                "cp314" not in tag
+                for item in lock.inputs
+                for tag in item.wheel_tags
+            ))
+            self.assertTrue(all(item.kind == "wheel" for item in lock.inputs))
+        macos_packages = {item.name: item for item in macos.inputs}
+        linux_packages = {item.name: item for item in linux.inputs}
+        self.assertEqual(macos_packages["greenlet"].wheel_tags, ("cp315-cp315-macosx_11_0_universal2",))
+        self.assertEqual(macos_packages["isort"].wheel_tags, ("cp315-cp315-macosx_11_0_arm64",))
+        self.assertEqual(macos_packages["psutil"].wheel_tags, ("cp36-abi3-macosx_11_0_arm64",))
+        self.assertEqual(macos_packages["pydantic-core"].wheel_tags,
+                         ("cp315-cp315-macosx_11_0_arm64",))
+        self.assertEqual(linux_packages["greenlet"].wheel_tags,
+                         ("cp315-cp315-musllinux_1_2_x86_64",))
+        self.assertEqual(linux_packages["isort"].wheel_tags,
+                         ("cp315-cp315-musllinux_1_2_x86_64",))
+        self.assertEqual(linux_packages["psutil"].wheel_tags,
+                         ("cp36-abi3-musllinux_1_2_x86_64",))
+        self.assertEqual(linux_packages["pydantic-core"].wheel_tags,
+                         ("cp315-cp315-musllinux_1_1_x86_64",))
+
+    def test_default_linux_lock_keeps_its_cp314_wheels(self) -> None:
+        lock = load_lock()
+        pydantic_core = next(item for item in lock.inputs if item.name == "pydantic-core")
+
+        self.assertEqual(lock.target["python"], "CPython 3.14")
+        self.assertEqual(pydantic_core.version, "2.46.5")
+        self.assertIn("cp314-cp314-musllinux_1_1_x86_64", pydantic_core.wheel_tags)
+
+    def test_cp315_lock_rejects_native_wheels_for_a_different_platform(self) -> None:
+        raw = json.loads(LINUX_CP315_LOCK_PATH.read_text())
+        raw["target"] = {
+            "os": "macos",
+            "architecture": "arm64",
+            "python": "CPython 3.15",
+            "wheel_platform": "macosx_26_0_arm64",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "lock.json"
+            path.write_text(json.dumps(raw))
+            with self.assertRaises(InputError):
+                load_lock(path)
+
     def test_macos_cp316_lock_is_the_approved_pure_django_closure(self) -> None:
         lock = load_lock(MACOS_CP316_LOCK_PATH)
         self.assertEqual(lock.target["python"], "CPython 3.16")
