@@ -23,7 +23,7 @@ import compression.zstd
 
 
 def main() -> int:
-    assert sys.version_info[:3] == (3, 14, 6), sys.version_info
+    assert sys.version_info[:3] == (3, 15, 1), sys.version_info
     assert hashlib.sha256(b"abc").hexdigest() == (
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
     )
