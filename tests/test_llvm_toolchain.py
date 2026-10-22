@@ -83,6 +83,91 @@ class SelectiveExtractionTests(unittest.TestCase):
             self.assertEqual(marker["version"], "23.1.2")
             self.assertEqual(marker["sha256"], hashlib.sha256(raw).hexdigest())
 
+    def test_recreates_prefix_when_selected_file_changes_with_valid_marker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            destination = root / "llvm-prefix"
+            arguments = {
+                "archive_root": ARCHIVE_ROOT,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "version": "23.1.2",
+            }
+            extract_llvm_archive(archive, destination, **arguments)
+            marker = (destination / ".verified.json").read_bytes()
+            tool = destination / "bin/clang-23"
+            tool.write_bytes(b"tampered compiler")
+            self.assertEqual((destination / ".verified.json").read_bytes(), marker)
+
+            result = extract_llvm_archive(archive, destination, **arguments)
+
+            self.assertEqual(result, destination)
+            self.assertEqual(tool.read_bytes(), FILES["bin/clang-23"])
+            self.assertEqual((destination / ".verified.json").read_bytes(), marker)
+
+    def test_recreates_prefix_when_selected_file_mode_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            destination = root / "llvm-prefix"
+            arguments = {
+                "archive_root": ARCHIVE_ROOT,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "version": "23.1.2",
+            }
+            extract_llvm_archive(archive, destination, **arguments)
+            tool = destination / "bin/clang-23"
+            tool.chmod(0o644)
+
+            extract_llvm_archive(archive, destination, **arguments)
+
+            self.assertEqual(tool.stat().st_mode & 0o777, 0o755)
+
+    def test_recreates_prefix_when_selected_symlink_target_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            destination = root / "llvm-prefix"
+            arguments = {
+                "archive_root": ARCHIVE_ROOT,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "version": "23.1.2",
+            }
+            extract_llvm_archive(archive, destination, **arguments)
+            alias = destination / "bin/clang"
+            alias.unlink()
+            alias.symlink_to("llvm-profdata")
+
+            extract_llvm_archive(archive, destination, **arguments)
+
+            self.assertEqual(alias.readlink(), Path("clang-23"))
+
+    def test_recreates_prefix_when_unselected_file_is_added(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            destination = root / "llvm-prefix"
+            arguments = {
+                "archive_root": ARCHIVE_ROOT,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "version": "23.1.2",
+            }
+            extract_llvm_archive(archive, destination, **arguments)
+            extra = destination / "bin/unexpected"
+            extra.write_bytes(b"unexpected")
+
+            extract_llvm_archive(archive, destination, **arguments)
+
+            self.assertFalse(extra.exists())
+
     def test_digest_mismatch_does_not_publish_prefix(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

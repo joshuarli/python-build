@@ -196,6 +196,44 @@ class CacheTests(unittest.TestCase):
             with self.assertRaises(InputError):
                 cache.require(make_input())
 
+    def test_fetch_replaces_tampered_cache_object_after_verification(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache = Cache(root / "cache")
+            incoming = root / "incoming.bin"
+            incoming.write_bytes(b"payload")
+            stored = cache.store(incoming, make_input())
+            stored.write_bytes(b"corrupt")
+
+            with patch(
+                "buildsys.inputs.urllib.request.urlopen",
+                return_value=io.BytesIO(b"payload"),
+            ):
+                repaired = cache.fetch(make_input())
+
+            self.assertEqual(repaired.read_bytes(), b"payload")
+            self.assertEqual(cache.require(make_input()), repaired)
+
+    def test_fetch_does_not_publish_unverified_replacement_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cache = Cache(root / "cache")
+            incoming = root / "incoming.bin"
+            incoming.write_bytes(b"payload")
+            stored = cache.store(incoming, make_input())
+            stored.write_bytes(b"corrupt")
+
+            with patch(
+                "buildsys.inputs.urllib.request.urlopen",
+                return_value=io.BytesIO(b"wrong payload"),
+            ):
+                with self.assertRaises(InputError):
+                    cache.fetch(make_input())
+
+            self.assertEqual(stored.read_bytes(), b"corrupt")
+            with self.assertRaises(InputError):
+                cache.require(make_input())
+
     def test_size_mismatch_detected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

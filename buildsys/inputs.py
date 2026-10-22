@@ -131,7 +131,7 @@ class Cache:
 
     def require(self, input_: Input) -> Path:
         path = self._object(input_)
-        if not path.is_file():
+        if path.is_symlink() or not path.is_file():
             raise InputError(f"{input_.name}: absent from cache ({path})")
         found, size = _digest(path)
         if found != input_.sha256:
@@ -154,17 +154,21 @@ class Cache:
             )
         target = self._object(input_)
         target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.exists():
-            with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".part", delete=False) as handle:
-                temporary = Path(handle.name)
-            try:
-                shutil.copyfile(path, temporary)
-                # Verify the staged bytes too: the caller's file may have changed.
-                if _digest(temporary) != (found, size):
-                    raise InputError(f"{input_.name}: input changed during publication")
-                os.replace(temporary, target)
-            finally:
-                temporary.unlink(missing_ok=True)
+        try:
+            return self.require(input_)
+        except InputError:
+            pass
+        with tempfile.NamedTemporaryFile(
+            dir=target.parent, suffix=".part", delete=False
+        ) as handle:
+            temporary = Path(handle.name)
+        try:
+            shutil.copyfile(path, temporary)
+            if _digest(temporary) != (found, size):
+                raise InputError(f"{input_.name}: input changed during publication")
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
         return self.require(input_)
 
     def fetch(self, input_: Input, timeout: float = 120.0) -> Path:
