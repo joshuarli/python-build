@@ -7,6 +7,7 @@ reported rather than silently used.
 from __future__ import annotations
 
 import json
+import dataclasses
 import sys
 import tempfile
 import unittest
@@ -14,7 +15,8 @@ from unittest.mock import patch
 from pathlib import Path
 
 from buildsys.bootstrap import (
-    BootstrapError, load_macos_toolchain, problems, toolchain_for,
+    BootstrapError, XcodeFacts, _resolve_host_tool, _resolve_xcode_facts,
+    load_linux_bootstrap, load_macos_toolchain, problems, toolchain_for,
 )
 from buildsys.targets import target_for_triple
 
@@ -26,7 +28,7 @@ class LockParsingTests(unittest.TestCase):
     def test_repository_lock_parses(self) -> None:
         toolchain = load_macos_toolchain(LOCK)
         self.assertTrue(toolchain.llvm_version)
-        self.assertEqual(toolchain.llvm_version, "23.1.2")
+        self.assertEqual(toolchain.llvm_version, "23.1.4")
         self.assertEqual(toolchain.llvm_input().target, "aarch64-apple-darwin")
         self.assertEqual(toolchain.llvm_input().role, "build-source")
         self.assertEqual(toolchain.llvm_input().license, "Apache-2.0 WITH LLVM-exception")
@@ -35,12 +37,22 @@ class LockParsingTests(unittest.TestCase):
             toolchain.llvm_attestation_sha256,
         )
         self.assertTrue(toolchain.deployment_target)
+        self.assertEqual(toolchain.host_floor, "27.0")
+        self.assertEqual(toolchain.deployment_target, "26.0")
+        self.assertEqual(toolchain.xcode_major, 27)
         self.assertTrue(toolchain.cpu_baseline)
+        lock = json.loads(LOCK.read_text())
+        crypto = lock["macos_toolchain"]["llvm"]["archive"]["provenance"]
+        self.assertTrue(crypto["cryptographic_verification"]["verified"])
+        self.assertEqual(
+            crypto["cryptographic_verification"]["verifier"],
+            "sigstore verify github",
+        )
 
     def test_missing_section_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "lock.json"
-            path.write_text(json.dumps({"alpine_release": "3.24.1"}))
+            path.write_text(json.dumps({"linux_toolchain": {}}))
             with self.assertRaises(BootstrapError):
                 load_macos_toolchain(path)
 
@@ -61,7 +73,17 @@ class LockParsingTests(unittest.TestCase):
 
 class ToolchainConstructionTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.locked = load_macos_toolchain(LOCK)
+        locked = load_macos_toolchain(LOCK)
+        self.locked = dataclasses.replace(
+            locked,
+            make=Path("/usr/bin/make"),
+            xcode=dataclasses.replace(
+                locked.xcode,
+                developer_dir=Path("/Xcode/Contents/Developer"),
+                sdkroot=Path("/Xcode/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk"),
+                sdk_version="27.0",
+            ),
+        )
 
     def test_recipe_toolchain_addresses_the_locked_llvm(self) -> None:
         toolchain = self.locked.toolchain()
@@ -113,12 +135,62 @@ class ToolchainConstructionTests(unittest.TestCase):
         self.assertNotIn("build-id", flags)
         self.assertNotIn("FORTIFY", flags)
 
+    def test_recipe_identity_excludes_machine_specific_paths(self) -> None:
+        identity = self.locked.identity()
+        serialized = json.dumps(identity)
+        self.assertNotIn("/Xcode/Contents/Developer", serialized)
+        self.assertNotIn("/usr/bin/make", serialized)
+        self.assertNotIn("llvm_prefix", identity)
+        self.assertEqual(
+            identity["host_tools"]["make"]["role"], "parallel build executor"
+        )
+        self.assertEqual(
+            identity["host_tools"]["pkgconf"]["capability"],
+            "pkg-config query interface",
+        )
+        self.assertTrue(
+            identity["llvm_archive"]["cryptographic_verification"]["verified"]
+        )
+        facts = self.locked.observed_facts()
+        self.assertEqual(facts["developer_dir"], "/Xcode/Contents/Developer")
+        self.assertEqual(facts["host_tools"]["make"]["path"], "/usr/bin/make")
+
+
+class HostToolResolutionTests(unittest.TestCase):
+    def test_resolves_candidate_and_observes_its_version(self) -> None:
+        with patch("buildsys.bootstrap.shutil.which", return_value="/tools/gmake"), \
+             patch("buildsys.bootstrap._run_output", return_value=("GNU Make 4.4", None)):
+            path, version = _resolve_host_tool(("gmake", "make"))
+        self.assertEqual(path, Path("/tools/gmake"))
+        self.assertEqual(version, "4.4")
+
+    def test_xcrun_resolves_selected_developer_directory_and_sdk_facts(self) -> None:
+        with patch("buildsys.bootstrap._run_output", side_effect=[
+            ("/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk", None),
+            ("27.0", None),
+            ("/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild", None),
+            ("Xcode 27.1\nBuild version 27B45", None),
+        ]) as run:
+            facts = _resolve_xcode_facts()
+        self.assertEqual(
+            facts.developer_dir,
+            Path("/Applications/Xcode.app/Contents/Developer"),
+        )
+        self.assertEqual(facts.sdk_version, "27.0")
+        self.assertEqual(facts.xcode_version, "27.1")
+        self.assertEqual(facts.xcode_build, "27B45")
+        self.assertEqual(facts.problems, ())
+        self.assertEqual(run.call_args_list[0].args[0][0], "xcrun")
+        self.assertEqual(run.call_args_list[2].args[0], ["xcrun", "--find", "xcodebuild"])
+
 
 class LockAgainstMachineTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "darwin", "locked macOS/Xcode tools are macOS-only")
     def test_repository_lock_matches_this_machine(self) -> None:
         locked = load_macos_toolchain(LOCK)
-        found = problems(locked, host_floor=locked.deployment_target)
+        found = problems(locked, host_floor=locked.host_floor)
+        if found:
+            self.skipTest("locked toolchain prerequisites are unavailable: " + "; ".join(found))
         self.assertEqual(found, [], f"toolchain lock disagrees with host: {found}")
 
     def test_wrong_compiler_version_is_reported(self) -> None:
@@ -135,22 +207,30 @@ class LockAgainstMachineTests(unittest.TestCase):
             sdkroot = root / "MacOSX.sdk"
             sdkroot.mkdir()
             stale = dataclasses.replace(
-                locked, llvm_prefix=llvm_prefix, make=make, sdkroot=sdkroot,
+                locked,
+                llvm_prefix=llvm_prefix,
+                make=make,
+                xcode=dataclasses.replace(locked.xcode, sdkroot=sdkroot),
                 llvm_version="0.0.1-nonexistent",
             )
             with patch("buildsys.bootstrap._tool_output", side_effect=[
                 f"clang version {locked.llvm_version}",
                 str(locked.llvm_resource_dir),
-                f"GNU Make {locked.make_version}",
-            ]), patch("buildsys.bootstrap.sdk_version", return_value=locked.deployment_target):
+                f"GNU Make {locked.make_minimum_version}",
+            ]), patch("buildsys.bootstrap.sdk_version", return_value=locked.sdk_minimum_version):
                 found = problems(stale)
         self.assertTrue(any("0.0.1-nonexistent" in problem for problem in found))
 
     def test_missing_sdk_is_reported(self) -> None:
         import dataclasses
         locked = load_macos_toolchain(LOCK)
-        broken = dataclasses.replace(locked, sdkroot=Path("/nonexistent/SDK"))
-        self.assertTrue(any("SDK not found" in problem for problem in problems(broken)))
+        broken = dataclasses.replace(
+            locked,
+            xcode=dataclasses.replace(
+                locked.xcode, sdkroot=Path("/nonexistent/SDK")
+            ),
+        )
+        self.assertTrue(any("SDK resolved by xcrun is unavailable" in problem for problem in problems(broken)))
 
     def test_missing_llvm_profdata_is_reported(self) -> None:
         import dataclasses
@@ -171,7 +251,7 @@ class LtoSmokeGateTests(unittest.TestCase):
     def test_locked_toolchain_builds_and_runs_thinlto(self) -> None:
         from buildsys.bootstrap import lto_smoke_test
         locked = load_macos_toolchain(LOCK)
-        if problems(locked, host_floor=locked.deployment_target):
+        if problems(locked, host_floor=locked.host_floor):
             self.skipTest("toolchain lock does not match this machine")
         with tempfile.TemporaryDirectory() as temporary:
             report = lto_smoke_test(locked.toolchain(), Path(temporary))
@@ -189,10 +269,63 @@ class ToolchainSelectionTests(unittest.TestCase):
         self.assertEqual(toolchain.env()["LD"], "ld.lld")
 
     def test_macos_target_resolves_from_the_lock(self) -> None:
-        with patch("buildsys.bootstrap.problems", return_value=[]):
+        facts = XcodeFacts(
+            Path("/Xcode/Contents/Developer"),
+            Path("/Xcode/Contents/Developer/SDKs/MacOSX27.0.sdk"),
+            "27.0", "27.1", "27B", (),
+        )
+        with patch("buildsys.bootstrap.problems", return_value=[]), \
+             patch("buildsys.bootstrap._resolve_host_tool", return_value=(Path("/usr/bin/make"), "4.4")), \
+             patch("buildsys.bootstrap._resolve_xcode_facts", return_value=facts):
             toolchain = toolchain_for(target_for_triple("aarch64-apple-darwin"), LOCK)
         self.assertTrue(toolchain.is_macos)
         self.assertTrue(Path(toolchain.cc).is_absolute())
+
+
+class LinuxBootstrapLockTests(unittest.TestCase):
+    def test_repository_lock_has_complete_exact_architecture_closures(self) -> None:
+        locked = load_linux_bootstrap(LOCK)
+        self.assertEqual(locked.release, "3.25.0_alpha20260805")
+        self.assertEqual(len(locked.apk_closure["x86_64"]), 63)
+        self.assertEqual(len(locked.apk_closure["aarch64"]), 63)
+        self.assertEqual(locked.images["amd64"].platform, "linux/amd64")
+        self.assertEqual(locked.images["arm64"].platform, "linux/arm64")
+        for packages in locked.apk_closure.values():
+            versions = {package.name: package.version for package in packages}
+            self.assertEqual(versions["clang23"], "23.1.3-r0")
+            self.assertEqual(versions["lld23"], "23.1.3-r0")
+            self.assertEqual(versions["llvm23"], "23.1.3-r0")
+            for package in packages:
+                self.assertEqual(len(package.sha256), 64)
+                self.assertGreater(package.size, 0)
+                self.assertTrue(package.url.endswith(f"/{package.name}-{package.version}.apk"))
+
+    def test_docker_base_image_digests_match_the_lock(self) -> None:
+        locked = load_linux_bootstrap(LOCK)
+        dockerfile = (ROOT / "Dockerfile").read_text()
+        for docker_arch, image in locked.images.items():
+            stage = "alpine-" + docker_arch
+            self.assertIn(
+                f"FROM --platform={image.platform} alpine@{image.digest} AS {stage}",
+                dockerfile,
+            )
+
+    def test_apk_pin_rejects_architecture_or_url_drift(self) -> None:
+        lock = json.loads(LOCK.read_text())
+        lock["linux_toolchain"]["apk_closure"]["aarch64"][0]["arch"] = "x86_64"
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "lock.json"
+            path.write_text(json.dumps(lock))
+            with self.assertRaises(BootstrapError):
+                load_linux_bootstrap(path)
+
+        lock = json.loads(LOCK.read_text())
+        lock["linux_toolchain"]["apk_closure"]["x86_64"][0]["url"] = "https://example.invalid/other.apk"
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "lock.json"
+            path.write_text(json.dumps(lock))
+            with self.assertRaises(BootstrapError):
+                load_linux_bootstrap(path)
 
 
 if __name__ == "__main__":

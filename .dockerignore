@@ -2,6 +2,7 @@
 **
 !Dockerfile
 !build.py
+!bootstrap.lock.json
 !buildsys/
 buildsys/**
 !buildsys/*.py
@@ -16,6 +17,10 @@ build/**
 !.cache/
 !.cache/objects/
 !.cache/objects/*.blob
+!.cache/bootstrap/
+!.cache/bootstrap/apk/
+!.cache/bootstrap/apk/**/
+!.cache/bootstrap/apk/**/*.apk
 !tests/
 tests/**
 !tests/test_inputs.py
@@ -27,6 +32,8 @@ tests/**
 !tests/test_patches.py
 !tests/test_reproduce.py
 !tests/test_targets.py
+!tests/test_bootstrap.py
+!tests/test_llvm_toolchain.py
 !tests/fixtures/
 !tests/fixtures/localhost.crt
 !tests/fixtures/localhost.key

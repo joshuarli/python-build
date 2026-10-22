@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+import shutil
 import sys
+import tempfile
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
+from buildsys.bootstrap import (  # noqa: E402
+    BootstrapError,
+    load_linux_bootstrap,
+    load_macos_toolchain,
+)
 from buildsys.inputs import Cache, InputError, load_lock  # noqa: E402
 from buildsys.llvm import (  # noqa: E402
     extract_llvm_archive,
@@ -61,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
                 release_tag=locked.llvm_release_tag,
                 source_commit=locked.llvm_source_commit,
                 workflow=locked.llvm_workflow,
+                workflow_path=locked.llvm_workflow_path,
             )
             prefix = extract_llvm_archive(
                 archive,
@@ -71,7 +79,47 @@ def main(argv: list[str] | None = None) -> int:
                 version=locked.llvm_version,
             )
             print(f"ready   llvm-macos-aarch64 -> {prefix}")
-    except (InputError, OSError, ValueError) as error:
+        else:
+            locked = load_linux_bootstrap(REPO / "bootstrap.lock.json")
+            docker_arch = target.docker_platform.rsplit("/", 1)[-1]
+            image = locked.images[docker_arch]
+            if image.alpine_arch != target.alpine_arch:
+                raise InputError(
+                    f"bootstrap image architecture {image.alpine_arch} does not match "
+                    f"target {target.alpine_arch}"
+                )
+            package_cache = Cache(REPO / ".cache" / "bootstrap")
+            view = REPO / ".cache" / "bootstrap" / "apk" / docker_arch
+            view.mkdir(parents=True, exist_ok=True)
+            packages = locked.apk_closure[target.alpine_arch]
+            expected_files = {
+                f"{package.sha256}.apk" for package in packages
+            }
+            for old in view.glob("*.apk"):
+                if old.name not in expected_files:
+                    old.unlink()
+            for package in packages:
+                entry = package.input(target.triple)
+                try:
+                    path = package_cache.require(entry)
+                    print(f"cached  {entry.name}")
+                except InputError:
+                    print(f"fetch   {entry.name} ...", flush=True)
+                    path = package_cache.fetch(entry)
+                    print(f"ok      {entry.name} -> {path}")
+                destination = view / f"{entry.sha256}.apk"
+                with tempfile.NamedTemporaryFile(
+                    dir=view, suffix=".part", delete=False
+                ) as handle:
+                    staged = Path(handle.name)
+                try:
+                    shutil.copyfile(path, staged)
+                    os.chmod(staged, 0o444)
+                    os.replace(staged, destination)
+                finally:
+                    staged.unlink(missing_ok=True)
+            print(f"ready   offline Alpine APK closure -> {view}")
+    except (BootstrapError, InputError, OSError, ValueError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
     return 0

@@ -1,73 +1,74 @@
-# Acquisition stage: package installation is online; compilation is not.
-# Bootstrap Python 3.14.7 is a tool, never the distributed CPython 3.14.6.
-#
-# No --platform is pinned here: `docker build --platform linux/amd64|linux/arm64`
-# selects which verified child image this resolves to out of the single
-# pinned manifest-list digest below — same recipes, same
-# dependency graph, only target/toolchain data changes per architecture).
-# Defaults to the daemon's native platform when --platform is omitted.
-FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS toolchain
+FROM --platform=linux/amd64 alpine@sha256:266f29255458134745f2bf588cb23ed1ed1768b96ff2580a05d70a8aba59e145 AS alpine-amd64
+FROM --platform=linux/arm64 alpine@sha256:42d86a3173522de4786cfba0b5d631dbadb3d03a86d218dafb070dafd9809c7e AS alpine-arm64
 
-RUN apk add --no-cache \
-        clang22=22.1.3-r2 \
-        lld22=22.1.3-r0 \
-        llvm22=22.1.3-r0 \
-        build-base=0.5-r4 \
-        bsd-compat-headers=0.7.2-r6 \
-        linux-headers=7.0.0-r1 \
-        python3=3.14.7-r1 \
-        perl=5.42.2-r0 \
-        pkgconf=2.5.1-r0 \
-        autoconf=2.73-r0 \
-        automake=1.18.1-r1 \
-        libtool=2.6.0-r1 \
-        patch=2.8-r0 \
-        patchelf=0.18.0-r3 \
+ARG TARGETARCH
+FROM alpine-${TARGETARCH} AS toolchain
+ARG TARGETARCH
+COPY .cache/bootstrap/apk/${TARGETARCH}/ /opt/bootstrap/apk/
+COPY bootstrap.lock.json /opt/bootstrap/bootstrap.lock.json
+
+RUN set -eu \
     && mkdir -p /opt/bootstrap \
-    && apk info -v | sort > /opt/bootstrap/packages.txt \
-    && cp /etc/apk/repositories /opt/bootstrap/repositories \
     && cp /etc/alpine-release /opt/bootstrap/alpine-release \
+    && apk info -v | sort > /opt/bootstrap/base-packages.txt \
+    && set -- /opt/bootstrap/apk/*.apk \
+    && [ -f "$1" ] \
+    && for apk in "$@"; do \
+        name="${apk##*/}"; \
+        expected="${name%.apk}"; \
+        actual="$(sha256sum "$apk")"; \
+        actual="${actual%% *}"; \
+        [ "$actual" = "$expected" ] || { echo "APK digest mismatch: $name" >&2; exit 1; }; \
+    done \
+    && apk --no-network --repositories-file /dev/null add /opt/bootstrap/apk/*.apk \
+    && apk info -v | sort > /opt/bootstrap/packages.txt \
+    && python3 -c "\
+import json, pathlib, platform; \
+root = pathlib.Path('/opt/bootstrap'); lock = json.loads((root / 'bootstrap.lock.json').read_text())['linux_toolchain']; \
+arch = platform.machine(); docker_arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}[arch]; \
+assert (root / 'alpine-release').read_text().strip() == lock['release']; \
+assert lock['images'][docker_arch]['release'] == lock['release']; \
+base = dict(value.split('=', 1) for value in lock['base_packages']); \
+assert set((root / 'base-packages.txt').read_text().splitlines()) == {name + '-' + version for name, version in base.items()}; \
+installed = set((root / 'packages.txt').read_text().splitlines()); \
+closure = {item['name']: item['version'] for item in lock['apk_closure'][arch]}; \
+expected = {name + '-' + version for name, version in (base | closure).items()}; \
+assert installed == expected, {'missing': sorted(expected - installed), 'extra': sorted(installed - expected)}" \
     && addgroup -g 1000 builder \
     && adduser -D -u 1000 -G builder builder \
     && mkdir -p /work/.cache \
-    && chown builder:builder /work /work/.cache
+    && mkdir -p /work/.work/tmp \
+    && chown -R builder:builder /work
 
-ENV PATH="/usr/lib/llvm22/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+ENV PATH="/usr/lib/llvm23/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     CC=clang CXX=clang++ AR=llvm-ar RANLIB=llvm-ranlib \
     LD=ld.lld NM=llvm-nm STRIP=llvm-strip \
     HOME=/home/builder LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC \
+    TMPDIR=/work/.work/tmp \
     PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
     PIP_CONFIG_FILE=/dev/null SOURCE_DATE_EPOCH=1704067200
 
 USER builder
 WORKDIR /work
 
-# Executed during image construction, using only image toolchain and musl.
-# The ISA baseline is chosen from `uname -m` (i.e. from the --platform this
-# stage actually resolved to), not assumed: x86_64 gets an explicit -march,
-# aarch64 uses Alpine's own armv8-a baseline.
 RUN case "$(uname -m)" in \
         x86_64) MARCH="-march=x86-64" ;; \
         aarch64) MARCH="-march=armv8-a" ;; \
         *) echo "unsupported build machine: $(uname -m)" >&2; exit 1 ;; \
     esac \
-    && printf '%s\n' 'int answer(void) { return 42; }' > /tmp/lto-library.c \
-    && printf '%s\n' 'extern int answer(void); int main(void) { return answer() != 42; }' > /tmp/lto-main.c \
-    && clang -O3 $MARCH -fno-omit-frame-pointer -flto=thin -c /tmp/lto-library.c -o /tmp/lto-library.o \
-    && llvm-ar cr /tmp/liblto.a /tmp/lto-library.o \
-    && clang -O3 $MARCH -flto=thin -fuse-ld=lld -Wl,-z,noexecstack /tmp/lto-main.c /tmp/liblto.a -o /tmp/lto-smoke \
-    && /tmp/lto-smoke \
-    && readelf -l /tmp/lto-smoke | grep "/lib/ld-musl-$(uname -m).so.1" \
+    && printf '%s\n' 'int answer(void) { return 42; }' > "$TMPDIR/lto-library.c" \
+    && printf '%s\n' 'extern int answer(void); int main(void) { return answer() != 42; }' > "$TMPDIR/lto-main.c" \
+    && clang -O3 $MARCH -fno-omit-frame-pointer -flto=thin -c "$TMPDIR/lto-library.c" -o "$TMPDIR/lto-library.o" \
+    && llvm-ar cr "$TMPDIR/liblto.a" "$TMPDIR/lto-library.o" \
+    && clang -O3 $MARCH -flto=thin -fuse-ld=lld -Wl,-z,noexecstack "$TMPDIR/lto-main.c" "$TMPDIR/liblto.a" -o "$TMPDIR/lto-smoke" \
+    && "$TMPDIR/lto-smoke" \
+    && readelf -l "$TMPDIR/lto-smoke" | grep "/lib/ld-musl-$(uname -m).so.1" \
     && clang --version \
     && clang -print-resource-dir \
     && ld.lld --version \
     && python3 --version \
-    && rm /tmp/lto-library.c /tmp/lto-main.c /tmp/lto-library.o /tmp/liblto.a /tmp/lto-smoke
+    && rm "$TMPDIR/lto-library.c" "$TMPDIR/lto-main.c" "$TMPDIR/lto-library.o" "$TMPDIR/liblto.a" "$TMPDIR/lto-smoke"
 
-# NON-HERMETIC: convenience stage for rapid iteration. It has no
-# network restriction of its own; a `docker run --network none` container
-# from this image is a dev-loop shortcut, not qualification evidence. Only
-# the `sealed` stage below (built entirely inside RUN --network=none) is.
 FROM toolchain AS development
 COPY --chown=builder:builder build.py /work/build.py
 COPY --chown=builder:builder buildsys/ /work/buildsys/
@@ -77,36 +78,53 @@ COPY --chown=builder:builder tests/ /work/tests/
 COPY --chown=builder:builder sources.lock.json /work/sources.lock.json
 CMD ["python3", "-m", "unittest", "discover", "-s", "tests"]
 
-# SEALED qualification: the dependency and interpreter build
-# runs entirely inside one BuildKit RUN with no network access at all,
-# using only inputs already verified against sources.lock.json by a prior
-# `python3 build.py fetch` (acquisition is a separate, online process over
-# the same recipes, not a separate toolchain). If BuildKit's --network=none
-# were not actually enforced, any live network dependency introduced here
-# would surface as a build failure, not a silent pass.
-#
-# The controller unit tests are architecture-independent Python logic (only
-# buildsys/targets.py branches on target, and that's covered by fast,
-# subprocess-free assertions) and are proven once on native x86_64, not
-# re-run here: tests/test_cli.py spawns real `python3 build.py ...`
-# subprocesses, and per-process startup under QEMU user-mode emulation (for
-# an aarch64 build on this x86_64 host) is disproportionately expensive —
-# repeating the whole suite that way cost roughly an hour for zero new
-# coverage before this comment was added.
 FROM development AS sealed
 COPY --chown=builder:builder .cache/objects/ /work/.cache/objects/
+ARG PYTHON_BUILD_SOURCE_REVISION
+ARG PYTHON_BUILD_SOURCE_DIRTY=0
+ENV PYTHON_BUILD_BUILD_MODE=sealed \
+    PYTHON_BUILD_ISOLATION=buildkit-network-none \
+    PYTHON_BUILD_SOURCE_REVISION=${PYTHON_BUILD_SOURCE_REVISION} \
+    PYTHON_BUILD_SOURCE_DIRTY=${PYTHON_BUILD_SOURCE_DIRTY}
 RUN --network=none python3 build/deps.py \
  && python3 build/cpython.py
 
-# Minimal runtime: only the relocated install tree, no compiler
-# or dev packages, so accidental reliance on build-root tooling cannot pass
-# here. The smoke import below runs during the image build itself, so a
-# regression fails `docker build`, not just a separately-remembered test.
-FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS runtime
-COPY --from=sealed /work/build/stage/cpython-staged/install /opt/python
-RUN /opt/python/bin/python3.14 -c "\
-import sys, sysconfig; \
-assert sys.version_info[:3] == (3, 14, 6), sys.version_info; \
+FROM sealed AS packaged
+RUN --network=none python3 build/package.py \
+ && mkdir -p /work/qualification \
+ && set -- /work/dist/*/*.tar.gz \
+ && [ -f "$1" ] \
+ && [ "$#" -eq 1 ] \
+ && [ -f "$(dirname "$1")/artifact.json" ] \
+ && cp "$1" /work/qualification/ \
+ && cp "$(dirname "$1")/artifact.json" /work/qualification/artifact.json
+
+FROM alpine-${TARGETARCH} AS runtime
+ARG TARGETARCH
+COPY --from=packaged /work/qualification/ /qualification/
+RUN set -eu \
+ && set -- /qualification/*.tar.gz \
+ && [ -f "$1" ] \
+ && [ "$#" -eq 1 ] \
+ && mkdir -p /opt \
+ && tar -xzf "$1" -C /opt \
+ && case "$TARGETARCH:$(uname -m)" in amd64:x86_64|arm64:aarch64) ;; *) exit 1 ;; esac \
+ && /opt/python/bin/python3 -c "\
+import hashlib, json, platform, sys, sysconfig; \
+manifest = json.loads(open('/qualification/artifact.json').read()); \
+archive = '/qualification/' + sys.argv[1]; \
+digest = hashlib.file_digest(open(archive, 'rb'), 'sha256').hexdigest(); \
+expected_target = {'amd64': 'x86_64-unknown-linux-musl', 'arm64': 'aarch64-unknown-linux-musl'}['$TARGETARCH']; \
+assert manifest['target']['triple'] == expected_target; \
+assert digest == manifest['archive']['sha256']; \
+expected_version = tuple(int(part) for part in manifest['product']['version'].split('.')); \
+assert sys.version_info[:len(expected_version)] == expected_version; \
+assert platform.machine() == {'amd64': 'x86_64', 'arm64': 'aarch64'}['$TARGETARCH']; \
 import ssl, sqlite3, decimal, uuid, bz2, lzma, zlib, ctypes, readline, dbm, curses; \
 import compression.zstd; \
-assert 'build/prefix' not in sysconfig.get_config_var('LDFLAGS')"
+assert 'build/prefix' not in sysconfig.get_config_var('LDFLAGS'); \
+print(json.dumps({'python': platform.python_version(), 'archive': sys.argv[1], 'archive_sha256': digest, 'target': manifest['target']['triple'], 'ok': True}))" "${1##*/}" > /qualification/runtime-smoke.json
+
+FROM scratch AS checked
+COPY --from=packaged /work/qualification/ /artifacts/
+COPY --from=runtime /qualification/runtime-smoke.json /artifacts/runtime-smoke.json

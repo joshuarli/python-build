@@ -98,22 +98,14 @@ def _qualification_available(target=None) -> bool:
 
 def _macos_report(report: dict) -> None:
     """Host, SDK, and toolchain facts the macOS build depends on."""
-    import plistlib
-
     from buildsys.bootstrap import (
         BootstrapError,
         linker_identity,
         load_macos_toolchain,
         problems,
-        sdk_version,
     )
 
     report["macos"] = {"product_version": platform.mac_ver()[0]}
-    sdk = subprocess.run(
-        ["xcrun", "--show-sdk-path"], capture_output=True, text=True
-    ).stdout.strip()
-    report["macos"]["sdk_path"] = sdk or None
-    report["macos"]["sdk_version"] = sdk_version(Path(sdk)) if sdk else None
     report["macos"]["linker"] = linker_identity()
     report["macos"]["sandbox_exec"] = SANDBOX_EXEC if Path(SANDBOX_EXEC).is_file() else None
     report["macos"]["codesign"] = shutil.which("codesign")
@@ -124,13 +116,24 @@ def _macos_report(report: dict) -> None:
         report["macos"]["toolchain_lock"] = {"ok": False, "error": str(error)}
         return
     found = problems(locked, host_floor=locked.host_floor)
+    report["macos"]["developer_dir"] = (
+        str(locked.xcode.developer_dir) if locked.xcode.developer_dir else None
+    )
+    report["macos"]["sdk_path"] = (
+        str(locked.xcode.sdkroot) if locked.xcode.sdkroot else None
+    )
+    report["macos"]["sdk_version"] = locked.xcode.sdk_version
+    report["macos"]["xcode_version"] = locked.xcode.xcode_version
+    report["macos"]["xcode_build"] = locked.xcode.xcode_build
     report["macos"]["toolchain_lock"] = {
         "ok": not found,
         "llvm_version": locked.llvm_version,
         "llvm_archive_sha256": locked.llvm_archive_sha256,
         "llvm_archive_size": locked.llvm_archive_size,
         "llvm_prefix": str(locked.llvm_prefix),
+        "host_floor": locked.host_floor,
         "deployment_target": locked.deployment_target,
+        "xcode_major": locked.xcode_major,
         "cpu_baseline": locked.cpu_baseline,
         "problems": found,
     }

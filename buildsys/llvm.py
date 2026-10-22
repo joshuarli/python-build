@@ -395,6 +395,7 @@ def extract_llvm_archive(
     sha256: str,
     size: int,
     version: str,
+    force_recreate: bool = False,
     layout: ExtractionLayout = MACOS_AARCH64_LAYOUT,
 ) -> Path:
     """Verify, selectively extract, and repair the locked LLVM prefix."""
@@ -403,14 +404,14 @@ def extract_llvm_archive(
     root = PurePosixPath(archive_root)
     if root.is_absolute() or len(root.parts) != 1 or root.parts[0] in (".", ".."):
         raise InputError(f"invalid LLVM archive root: {archive_root!r}")
+    if destination.is_symlink():
+        raise InputError(f"LLVM prefix destination is a symlink: {destination}")
     _archive_identity(archive, sha256, size)
     archived = _archive_manifest(
         archive, archive_root=archive_root, layout=layout
     )
     expected = _manifest_with_marker(archived, version, sha256)
-    if (destination.exists() or destination.is_symlink()) and _prefix_matches(
-        destination, expected
-    ):
+    if not force_recreate and destination.exists() and _prefix_matches(destination, expected):
         return destination
 
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -450,6 +451,30 @@ def extract_llvm_archive(
     return destination
 
 
+def verify_llvm_prefix_from_archive(
+    archive: Path,
+    destination: Path,
+    *,
+    archive_root: str,
+    sha256: str,
+    size: int,
+    version: str,
+    layout: ExtractionLayout = MACOS_AARCH64_LAYOUT,
+) -> None:
+    """Compare the installed prefix with the selected archive members."""
+    archive = Path(archive)
+    destination = Path(destination)
+    _archive_identity(archive, sha256, size)
+    archived = _archive_manifest(
+        archive, archive_root=archive_root, layout=layout
+    )
+    expected = _manifest_with_marker(archived, version, sha256)
+    if not _prefix_matches(destination, expected):
+        raise InputError(
+            f"LLVM prefix does not match the verified archive manifest: {destination}"
+        )
+
+
 def verify_llvm_attestation_metadata(
     attestation: Path,
     *,
@@ -458,6 +483,7 @@ def verify_llvm_attestation_metadata(
     release_tag: str,
     source_commit: str,
     workflow: str,
+    workflow_path: str,
 ) -> None:
     """Check the hash-pinned Sigstore statement's release and subject fields.
 
@@ -496,6 +522,8 @@ def verify_llvm_attestation_metadata(
         raise InputError("LLVM provenance names an unexpected source repository")
     if workflow_parameters.get("ref") != f"refs/tags/{release_tag}":
         raise InputError("LLVM provenance names an unexpected release tag")
+    if workflow_parameters.get("path") != workflow_path:
+        raise InputError("LLVM provenance names an unexpected workflow path")
     resolved = build.get("resolvedDependencies", [])
     if not any(
         item.get("uri") == f"git+{LLVM_REPOSITORY}@refs/tags/{release_tag}"

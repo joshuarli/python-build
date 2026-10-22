@@ -26,6 +26,11 @@ sys.path.insert(0, str(REPO))
 from buildsys.bootstrap import (  # noqa: E402
     BootstrapError, load_macos_toolchain, problems,
 )
+from buildsys.inputs import Cache, InputError  # noqa: E402
+from buildsys.llvm import (  # noqa: E402
+    extract_llvm_archive,
+    verify_llvm_attestation_metadata,
+)
 from buildsys.sandbox import SealedRun, available, describe, network_boundary_selftest  # noqa: E402
 from buildsys.targets import UnsupportedTargetError, native_target  # noqa: E402
 
@@ -69,6 +74,32 @@ def main(argv: list[str] | None = None) -> int:
     except BootstrapError as error:
         print(f"FAIL sealed: {error}")
         return 1
+    try:
+        cache = Cache(REPO / ".cache" / "llvm")
+        archive = cache.require(locked.llvm_input())
+        provenance = cache.require(locked.llvm_attestation_input())
+        verify_llvm_attestation_metadata(
+            provenance,
+            archive_filename=Path(locked.llvm_archive_url).name,
+            archive_sha256=locked.llvm_archive_sha256,
+            release_tag=locked.llvm_release_tag,
+            source_commit=locked.llvm_source_commit,
+            workflow=locked.llvm_workflow,
+            workflow_path=locked.llvm_workflow_path,
+        )
+        extract_llvm_archive(
+            archive,
+            locked.llvm_prefix,
+            archive_root=locked.llvm_archive_root,
+            sha256=locked.llvm_archive_sha256,
+            size=locked.llvm_archive_size,
+            version=locked.llvm_version,
+            force_recreate=True,
+        )
+    except (InputError, OSError, ValueError) as error:
+        print(f"FAIL sealed: locked LLVM archive is not ready: {error}")
+        return 1
+
     found = problems(locked, host_floor=locked.host_floor)
     if found:
         print("FAIL sealed: toolchain lock does not match this machine: " + "; ".join(found))
@@ -91,11 +122,20 @@ def main(argv: list[str] | None = None) -> int:
         home=workdir / "home",
     )
     (workdir / "home").mkdir(parents=True, exist_ok=True)
+    host_tool_directories = [
+        str(tool.parent)
+        for tool in (locked.make, locked.pkgconf)
+        if tool is not None
+    ]
     env = run.environment({
-        # The declared LLVM prefix plus Homebrew's make/pkgconf and platform
-        # tools. Reads are not restricted by the profile; the containment
-        # boundary that matters here is writes and network.
-        "PATH": f"{locked.llvm_prefix}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "PATH": ":".join([
+            str(locked.llvm_prefix / "bin"),
+            *dict.fromkeys(host_tool_directories),
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ]),
         "PYTHON_BUILD_BUILD_MODE": "sealed",
         "PYTHON_BUILD_ISOLATION": "sandbox-exec-network-selftest",
     })
@@ -146,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         "network_boundary_after_build": after,
         "containment": describe(),
         "toolchain": locked.identity(),
+        "toolchain_observed": locked.observed_facts(),
         "commands": commands,
         "duration_seconds": round(time.time() - started, 1),
         "environment": {k: v for k, v in sorted(env.items())},

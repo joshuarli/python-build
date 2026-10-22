@@ -10,7 +10,11 @@ import unittest
 import base64
 
 from buildsys.inputs import InputError
-from buildsys.llvm import extract_llvm_archive, verify_llvm_attestation_metadata
+from buildsys.llvm import (
+    extract_llvm_archive,
+    verify_llvm_attestation_metadata,
+    verify_llvm_prefix_from_archive,
+)
 
 
 ARCHIVE_ROOT = "LLVM-test-macOS-ARM64"
@@ -65,7 +69,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                 archive_root=ARCHIVE_ROOT,
                 sha256=hashlib.sha256(raw).hexdigest(),
                 size=len(raw),
-                version="23.1.2",
+                version="23.1.4",
             )
 
             self.assertEqual(result, destination)
@@ -80,7 +84,7 @@ class SelectiveExtractionTests(unittest.TestCase):
             self.assertEqual((destination / "bin/llvm-ranlib").readlink(), Path("llvm-ar"))
             self.assertEqual((destination / "bin/llvm-strip").readlink(), Path("llvm-objcopy"))
             marker = json.loads((destination / ".verified.json").read_text())
-            self.assertEqual(marker["version"], "23.1.2")
+            self.assertEqual(marker["version"], "23.1.4")
             self.assertEqual(marker["sha256"], hashlib.sha256(raw).hexdigest())
 
     def test_recreates_prefix_when_selected_file_changes_with_valid_marker(self):
@@ -93,7 +97,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                 "archive_root": ARCHIVE_ROOT,
                 "sha256": hashlib.sha256(raw).hexdigest(),
                 "size": len(raw),
-                "version": "23.1.2",
+                "version": "23.1.4",
             }
             extract_llvm_archive(archive, destination, **arguments)
             marker = (destination / ".verified.json").read_bytes()
@@ -117,7 +121,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                 "archive_root": ARCHIVE_ROOT,
                 "sha256": hashlib.sha256(raw).hexdigest(),
                 "size": len(raw),
-                "version": "23.1.2",
+                "version": "23.1.4",
             }
             extract_llvm_archive(archive, destination, **arguments)
             tool = destination / "bin/clang-23"
@@ -137,7 +141,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                 "archive_root": ARCHIVE_ROOT,
                 "sha256": hashlib.sha256(raw).hexdigest(),
                 "size": len(raw),
-                "version": "23.1.2",
+                "version": "23.1.4",
             }
             extract_llvm_archive(archive, destination, **arguments)
             alias = destination / "bin/clang"
@@ -158,7 +162,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                 "archive_root": ARCHIVE_ROOT,
                 "sha256": hashlib.sha256(raw).hexdigest(),
                 "size": len(raw),
-                "version": "23.1.2",
+                "version": "23.1.4",
             }
             extract_llvm_archive(archive, destination, **arguments)
             extra = destination / "bin/unexpected"
@@ -167,6 +171,70 @@ class SelectiveExtractionTests(unittest.TestCase):
             extract_llvm_archive(archive, destination, **arguments)
 
             self.assertFalse(extra.exists())
+
+    def test_force_recreate_replaces_a_valid_matching_prefix(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            destination = root / "llvm-prefix"
+            arguments = {
+                "archive_root": ARCHIVE_ROOT,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "version": "23.1.4",
+            }
+            extract_llvm_archive(archive, destination, **arguments)
+            compiler = destination / "bin/clang-23"
+            original_inode = compiler.stat().st_ino
+
+            extract_llvm_archive(archive, destination, force_recreate=True, **arguments)
+
+            self.assertNotEqual(compiler.stat().st_ino, original_inode)
+            self.assertEqual(compiler.read_bytes(), FILES["bin/clang-23"])
+
+    def test_symlink_destination_is_rejected_without_replacing_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            target = root / "target"
+            target.mkdir()
+            destination = root / "llvm-prefix"
+            destination.symlink_to(target, target_is_directory=True)
+
+            with self.assertRaises(InputError):
+                extract_llvm_archive(
+                    archive,
+                    destination,
+                    archive_root=ARCHIVE_ROOT,
+                    sha256=hashlib.sha256(raw).hexdigest(),
+                    size=len(raw),
+                    version="23.1.4",
+                    force_recreate=True,
+                )
+
+            self.assertTrue(destination.is_symlink())
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_readiness_compares_extracted_prefix_with_archive_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "llvm.tar.xz"
+            raw = make_archive(archive)
+            destination = root / "llvm-prefix"
+            arguments = {
+                "archive_root": ARCHIVE_ROOT,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "size": len(raw),
+                "version": "23.1.4",
+            }
+            extract_llvm_archive(archive, destination, **arguments)
+
+            verify_llvm_prefix_from_archive(archive, destination, **arguments)
+            (destination / "bin/clang-23").write_bytes(b"tampered")
+            with self.assertRaises(InputError):
+                verify_llvm_prefix_from_archive(archive, destination, **arguments)
 
     def test_digest_mismatch_does_not_publish_prefix(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -182,7 +250,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                     archive_root=ARCHIVE_ROOT,
                     sha256="0" * 64,
                     size=len(raw),
-                    version="23.1.2",
+                    version="23.1.4",
                 )
 
             self.assertFalse(destination.exists())
@@ -201,7 +269,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                     archive_root=ARCHIVE_ROOT,
                     sha256=hashlib.sha256(raw).hexdigest(),
                     size=len(raw) + 1,
-                    version="23.1.2",
+                    version="23.1.4",
                 )
 
             self.assertFalse(destination.exists())
@@ -222,7 +290,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                     archive_root=ARCHIVE_ROOT,
                     sha256=hashlib.sha256(raw).hexdigest(),
                     size=len(raw),
-                    version="23.1.2",
+                    version="23.1.4",
                 )
 
             self.assertFalse(destination.exists())
@@ -247,7 +315,7 @@ class SelectiveExtractionTests(unittest.TestCase):
                     archive_root=ARCHIVE_ROOT,
                     sha256=hashlib.sha256(raw).hexdigest(),
                     size=len(raw),
-                    version="23.1.2",
+                    version="23.1.4",
                 )
 
             self.assertFalse(destination.exists())
@@ -256,13 +324,13 @@ class SelectiveExtractionTests(unittest.TestCase):
 
 class AttestationMetadataTests(unittest.TestCase):
     def test_requires_subject_source_commit_and_builder_to_match(self):
-        archive_name = "LLVM-23.1.2-macOS-ARM64.tar.xz"
+        archive_name = "LLVM-23.1.4-macOS-ARM64.tar.xz"
         archive_sha = "a" * 64
-        release_tag = "llvmorg-23.1.2"
+        release_tag = "llvmorg-23.1.4"
         source_commit = "b" * 40
         workflow = (
             "https://github.com/llvm/llvm-project/.github/workflows/"
-            "release-binaries.yml@refs/tags/llvmorg-23.1.2"
+            "release-binaries.yml@refs/tags/llvmorg-23.1.4"
         )
         statement = {
             "subject": [{"name": archive_name, "digest": {"sha256": archive_sha}}],
@@ -272,6 +340,7 @@ class AttestationMetadataTests(unittest.TestCase):
                         "workflow": {
                             "repository": "https://github.com/llvm/llvm-project",
                             "ref": f"refs/tags/{release_tag}",
+                            "path": ".github/workflows/release-tasks.yml",
                         }
                     },
                     "resolvedDependencies": [{
@@ -303,6 +372,7 @@ class AttestationMetadataTests(unittest.TestCase):
                 release_tag=release_tag,
                 source_commit=source_commit,
                 workflow=workflow,
+                workflow_path=".github/workflows/release-tasks.yml",
             )
             with self.assertRaises(InputError):
                 verify_llvm_attestation_metadata(
@@ -312,6 +382,7 @@ class AttestationMetadataTests(unittest.TestCase):
                     release_tag=release_tag,
                     source_commit=source_commit,
                     workflow=workflow,
+                    workflow_path=".github/workflows/release-tasks.yml",
                 )
 
 
