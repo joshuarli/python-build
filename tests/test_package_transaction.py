@@ -309,6 +309,66 @@ class StagedBuildVerificationTests(unittest.TestCase):
                 ):
                     verifier(Path(temporary), {"effective_flags": {"CFLAGS": "-O3"}})
 
+    def test_relocated_prefix_is_the_only_allowed_configuration_difference(self) -> None:
+        driver = runpy.run_path(str(REPO / "build" / "package.py"))
+        verifier = driver["_verify_install_matches_record"]
+        with tempfile.TemporaryDirectory() as temporary:
+            install = Path(temporary) / "copy"
+            recorded = {
+                "CFLAGS": "-O3",
+                "LDFLAGS": "-flto=thin",
+                "CONFIG_ARGS": "'--prefix=/install' '--with-lto=thin'",
+            }
+            relocated = {
+                **recorded,
+                "CONFIG_ARGS": f"'--prefix={install}' '--with-lto=thin'",
+            }
+            probe = Mock(
+                returncode=0,
+                stdout=json.dumps(relocated) + "\n",
+                stderr="",
+            )
+            with patch.dict(
+                verifier.__globals__,
+                {"run_product_process": Mock(return_value=probe)},
+            ):
+                verifier(install, {"effective_flags": recorded})
+
+    def test_relocated_prefix_does_not_hide_other_configuration_changes(self) -> None:
+        driver = runpy.run_path(str(REPO / "build" / "package.py"))
+        verifier = driver["_verify_install_matches_record"]
+        with tempfile.TemporaryDirectory() as temporary:
+            install = Path(temporary) / "copy"
+            recorded = {
+                "CFLAGS": "-O3",
+                "LDFLAGS": "-flto=thin",
+                "CONFIG_ARGS": "'--prefix=/install' '--with-lto=thin'",
+            }
+            probes = (
+                {
+                    **recorded,
+                    "CONFIG_ARGS": "'--prefix=/unexpected' '--with-lto=thin'",
+                },
+                {
+                    **recorded,
+                    "CFLAGS": "-O2",
+                    "CONFIG_ARGS": f"'--prefix={install}' '--with-lto=thin'",
+                },
+            )
+            for actual in probes:
+                probe = Mock(
+                    returncode=0,
+                    stdout=json.dumps(actual) + "\n",
+                    stderr="",
+                )
+                with self.subTest(actual=actual), patch.dict(
+                    verifier.__globals__,
+                    {"run_product_process": Mock(return_value=probe)},
+                ), self.assertRaisesRegex(
+                    driver["PackagingError"], "configuration does not match"
+                ):
+                    verifier(install, {"effective_flags": recorded})
+
 
 class PublicationTests(unittest.TestCase):
     def test_publication_failure_restores_all_previous_outputs(self) -> None:

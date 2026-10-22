@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -317,6 +318,43 @@ def _source_revision(build_record: dict) -> str:
     return revision
 
 
+def _effective_flags_match_record(
+    actual: object, expected: object, install: Path
+) -> bool:
+    if not isinstance(actual, dict) or not isinstance(expected, dict):
+        return False
+    if actual.keys() != expected.keys():
+        return False
+    actual_config = actual.get("CONFIG_ARGS")
+    expected_config = expected.get("CONFIG_ARGS")
+    if not isinstance(actual_config, str) or not isinstance(expected_config, str):
+        return actual == expected
+    try:
+        actual_arguments = shlex.split(actual_config)
+        expected_arguments = shlex.split(expected_config)
+    except ValueError:
+        return False
+    actual_prefixes = [
+        index for index, argument in enumerate(actual_arguments)
+        if argument.startswith("--prefix=")
+    ]
+    expected_prefixes = [
+        index for index, argument in enumerate(expected_arguments)
+        if argument.startswith("--prefix=")
+    ]
+    if len(actual_prefixes) != 1 or len(expected_prefixes) != 1:
+        return False
+    actual_prefix_index = actual_prefixes[0]
+    if actual_arguments[actual_prefix_index] != f"--prefix={install.resolve()}":
+        return False
+    actual_arguments[actual_prefix_index] = expected_arguments[expected_prefixes[0]]
+    return (
+        actual_arguments == expected_arguments
+        and {key: value for key, value in actual.items() if key != "CONFIG_ARGS"}
+        == {key: value for key, value in expected.items() if key != "CONFIG_ARGS"}
+    )
+
+
 def _llvm_version(record: dict, lock_path: Path, target: Target) -> str:
     try:
         document = json.loads(lock_path.read_text())
@@ -369,7 +407,9 @@ def _verify_install_matches_record(install: Path, record: dict) -> None:
         raise PackagingError(
             f"staged interpreter returned invalid effective configuration: {error}"
         ) from error
-    if actual != record["effective_flags"]:
+    if not _effective_flags_match_record(
+        actual, record["effective_flags"], install
+    ):
         raise PackagingError("staged install configuration does not match its build record")
 
 
