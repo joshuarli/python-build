@@ -5,9 +5,10 @@ import sys
 import unittest
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
 
 from buildsys.sandbox import (
-    SealedRun, available, describe, network_boundary_selftest,
+    SandboxError, SealedRun, available, describe, network_boundary_selftest,
 )
 
 DARWIN = sys.platform == "darwin"
@@ -28,6 +29,17 @@ class ProfileTests(unittest.TestCase):
         profile = run.profile()
         for name in ("a", "b"):
             self.assertIn(f'(subpath "{(self.root / name).resolve()}")', profile)
+
+    def test_write_paths_are_escaped_for_profile_strings(self) -> None:
+        path = self.root / 'space " quote \\ backslash'
+        profile = SealedRun(write_paths=[path]).profile()
+        escaped = str(path.resolve()).replace("\\", "\\\\").replace('"', '\\"')
+        self.assertIn(f'(subpath "{escaped}")', profile)
+
+    def test_unrepresentable_write_path_fails_closed(self) -> None:
+        path = self.root / "line\nbreak"
+        with self.assertRaises(SandboxError):
+            SealedRun(write_paths=[path]).profile()
 
     def test_posix_semaphores_are_permitted(self) -> None:
         # CPython's configure *executes* a sem_open probe. Denying it does not
@@ -98,11 +110,26 @@ class BoundaryTests(unittest.TestCase):
             self.skipTest("sandbox-exec is not present")
         with tempfile.TemporaryDirectory() as temporary:
             report = network_boundary_selftest(Path(sys.executable), Path(temporary))
-        # The unsandboxed run must connect, otherwise the test would pass for
-        # the wrong reason (no network at all) and prove nothing.
-        self.assertTrue(report["unsandboxed_connected"])
-        self.assertFalse(report["sandboxed_connected"])
+        self.assertEqual(report["unsandboxed_returncode"], 0)
+        self.assertEqual(report["unsandboxed_output"], "CONNECTED")
+        self.assertEqual(report["sandboxed_returncode"], 0)
+        self.assertEqual(report["sandboxed_output"], "DENIED:1")
+        self.assertEqual(
+            report["listener_received"], ["python-build-network-probe"]
+        )
+        self.assertTrue(report["worker_stopped"])
         self.assertTrue(report["ok"])
+
+    def test_malformed_profile_cannot_satisfy_boundary_check(self) -> None:
+        if not available():
+            self.skipTest("sandbox-exec is not present")
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(SealedRun, "profile", return_value="(version 1)\n("):
+                report = network_boundary_selftest(
+                    Path(sys.executable), Path(temporary)
+                )
+        self.assertFalse(report["ok"])
+        self.assertNotEqual(report["sandboxed_returncode"], 0)
 
     def test_sandboxed_writes_outside_declared_paths_are_refused(self) -> None:
         if not available():

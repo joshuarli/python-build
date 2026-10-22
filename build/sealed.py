@@ -1,4 +1,4 @@
-"""Sealed offline build for macOS.
+"""Sealed qualification build for macOS.
 
 Qualification evidence has to come from a run whose inputs were declared and
 whose network boundary was enforced. This driver does that: it verifies the
@@ -6,10 +6,8 @@ toolchain against the lock, proves the network denial is real *before*
 trusting it, builds every bundled dependency and CPython inside the profile,
 and records what the containment actually was.
 
-It is deliberately not the same thing as `build --dev`. A development build
-is convenient and non-hermetic; this is the run whose artifacts may be
-called qualified. The distinction is recorded in provenance.json rather than
-left to whoever reads the reports later.
+The host development build remains available for iteration. This run records
+the enforced network boundary and containment used for qualification.
 """
 
 from __future__ import annotations
@@ -44,8 +42,6 @@ def _positive_int(value: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Sealed offline macOS build")
-    parser.add_argument("--offline", action="store_true",
-                        help="accepted for symmetry; the profile denies the network regardless")
     parser.add_argument(
         "--pgo-jobs", type=_positive_int,
         help="number of workers for CPython's --pgo training task "
@@ -73,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     except BootstrapError as error:
         print(f"FAIL sealed: {error}")
         return 1
-    found = problems(locked, host_floor=locked.deployment_target)
+    found = problems(locked, host_floor=locked.host_floor)
     if found:
         print("FAIL sealed: toolchain lock does not match this machine: " + "; ".join(found))
         return 1
@@ -91,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     print("SEAL  network denied (verified against a loopback listener)", flush=True)
 
     run = SealedRun(
-        write_paths=[REPO / "build", REPO / ".cache", REPO / "dist"],
+        write_paths=[REPO / "build", REPO / "dist"],
         home=workdir / "home",
     )
     (workdir / "home").mkdir(parents=True, exist_ok=True)
@@ -100,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
         # tools. Reads are not restricted by the profile; the containment
         # boundary that matters here is writes and network.
         "PATH": f"{locked.llvm_prefix}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "PYTHON_BUILD_BUILD_MODE": "sealed",
+        "PYTHON_BUILD_ISOLATION": "sandbox-exec-network-selftest",
     })
 
     commands = []
@@ -122,14 +120,24 @@ def main(argv: list[str] | None = None) -> int:
         print("FAIL sealed: network boundary no longer holds after the build")
         return 1
 
-    recipe_path = REPO / "build" / "logs" / "cpython-build.json"
+    recipe_path = REPO / "build" / "logs" / "build-record.json"
     try:
         recipe = json.loads(recipe_path.read_text())
     except (OSError, json.JSONDecodeError) as error:
         print(f"FAIL sealed: CPython build recipe is missing or invalid: {error}")
         return 1
-    recipe["build_mode"] = "sealed"
-    recipe_path.write_text(json.dumps(recipe, indent=2, sort_keys=True) + "\n")
+    recipe["isolation"] = {
+        "mechanism": "sandbox-exec",
+        "network": "disabled",
+        "network_boundary_before": boundary,
+        "network_boundary_after": after,
+        "containment": describe(),
+    }
+    record_json = json.dumps(recipe, indent=2, sort_keys=True) + "\n"
+    recipe_path.write_text(record_json)
+    (REPO / "build" / "stage" / "cpython-staged" / "build-record.json").write_text(
+        record_json
+    )
 
     record = {
         "target": target.triple,

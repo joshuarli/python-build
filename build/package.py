@@ -18,7 +18,13 @@ sys.path.insert(0, str(REPO))
 from buildsys import macho
 from buildsys.bootstrap import load_macos_toolchain
 from buildsys.ca_bundle import CABundleError, install_fallback_ca_bundle
-from buildsys.elf import gnu_stack_report, hardening_report
+from buildsys.elf import (
+    dynamic_tags,
+    gnu_stack_report,
+    hardening_report,
+    linkage_report,
+    machine_report,
+)
 from buildsys.inputs import InputError, load_lock
 from buildsys.package import (
     PackageError,
@@ -32,6 +38,7 @@ from buildsys.package import (
 )
 from buildsys.patches import PatchError, apply_patch
 from buildsys.product import PRODUCT
+from buildsys.product_process import run_product_process
 from buildsys.relocate import find_elfs
 from buildsys.scope import ScopeError, prune_distribution_payload
 from buildsys.standalone_compat import CompatibilityError, run_standalone_compatibility
@@ -43,7 +50,7 @@ from buildsys.testsuite import (
     run_suite,
     verify_excluded_failures,
 )
-from buildsys.validate_macos import ValidationError, run_validation
+from buildsys.validate_product import ValidationError, run_validation
 
 TARGET_DESCRIPTION = native_target()
 TARGET = TARGET_DESCRIPTION.triple
@@ -84,7 +91,7 @@ def strip_tree_macos(install: Path) -> list[Path]:
 
 
 def require_macos_pgo_recipe() -> dict:
-    recipe_path = REPO / "build" / "logs" / "cpython-build.json"
+    recipe_path = REPO / "build" / "logs" / "build-record.json"
     try:
         recipe = json.loads(recipe_path.read_text())
     except (OSError, json.JSONDecodeError) as error:
@@ -149,10 +156,9 @@ def install_ca_fallback(install: Path) -> dict[str, object]:
 def _linux_validation(install: Path) -> dict:
     checks: dict[str, dict] = {}
     python = PRODUCT.interpreter(install)
-    imports = subprocess.run(
+    imports = run_product_process(
         [str(python), "-I", "-B", "-c", "import ssl, sqlite3, dbm, compression.zstd"],
-        capture_output=True,
-        text=True,
+        install, install, timeout_seconds=30,
     )
     checks["smoke_import"] = {
         "ok": imports.returncode == 0,
@@ -165,27 +171,66 @@ def _linux_validation(install: Path) -> dict:
     forbidden = []
     stack_violations = []
     elf_report = []
+    machine_violations = []
+    linkage_violations = []
+    loader_violations = []
+    interpreter_paths = {}
+    system_libraries = {
+        f"libc.musl-{TARGET_DESCRIPTION.machine}.so.1",
+        "libgcc_s.so.1",
+        "libatomic.so.1",
+    }
     for elf in elfs:
+        header = _run(["readelf", "-h", str(elf)]).stdout
+        machine = machine_report(header, TARGET_DESCRIPTION.machine)
+        if not machine["ok"]:
+            machine_violations.append(str(elf.relative_to(install)))
         dynamic = _run(["readelf", "-d", str(elf)]).stdout
-        needed = [
-            line.split("[")[1].rstrip("]")
-            for line in dynamic.splitlines()
-            if "NEEDED" in line
-        ]
+        tags = dynamic_tags(dynamic)
+        needed = tags["needed"]
         if any(name.startswith("libc.so.6") or "GLIBC" in name for name in needed):
             forbidden.append(str(elf.relative_to(install)))
-        stack = gnu_stack_report(_run(["readelf", "-lW", str(elf)]).stdout)
+        search_paths = [
+            item
+            for encoded in (*tags["rpath"], *tags["runpath"])
+            for item in encoded.split(":")
+        ]
+        linkage = linkage_report(
+            install, elf, needed=needed, runpaths=search_paths,
+            system_libraries=system_libraries,
+        )
+        if not linkage["ok"]:
+            linkage_violations.append(str(elf.relative_to(install)))
+        program_headers = _run(["readelf", "-lW", str(elf)]).stdout
+        stack = gnu_stack_report(program_headers)
         if not stack["ok"]:
             stack_violations.append(str(elf.relative_to(install)))
+        requested = re.search(
+            r"Requesting program interpreter:\s*([^\]]+)", program_headers
+        )
+        if requested is not None:
+            path = requested.group(1).strip()
+            relative = str(elf.relative_to(install))
+            interpreter_paths[relative] = path
+            if path != TARGET_DESCRIPTION.musl_loader:
+                loader_violations.append(relative)
         elf_report.append({
             "path": str(elf.relative_to(install)),
+            "machine": machine,
             "needed": needed,
+            "linkage": linkage,
             "gnu_stack": stack,
         })
     checks["elf_linkage"] = {
-        "ok": not forbidden,
+        "ok": not forbidden and not linkage_violations,
         "forbidden_needed": forbidden,
+        "unresolved": linkage_violations,
         "elf_report": elf_report,
+    }
+    checks["elf_machine"] = {
+        "ok": not machine_violations,
+        "violations": machine_violations,
+        "expected": TARGET_DESCRIPTION.machine,
     }
     checks["elf_stack"] = {
         "ok": not stack_violations,
@@ -193,37 +238,57 @@ def _linux_validation(install: Path) -> dict:
     }
 
     interpreter = PRODUCT.interpreter(install)
-    interp = _run(["readelf", "-l", str(interpreter)]).stdout
-    interp_line = next((line for line in interp.splitlines() if "interpreter" in line), "")
+    interpreter_relative = str(interpreter.relative_to(install))
+    actual_loader = interpreter_paths.get(interpreter_relative)
+    checks["elf_interpreters"] = {
+        "ok": actual_loader == TARGET_DESCRIPTION.musl_loader and not loader_violations,
+        "actual": actual_loader,
+        "expected": TARGET_DESCRIPTION.musl_loader,
+        "violations": loader_violations,
+        "all_interpreter_paths": interpreter_paths,
+    }
     checks["musl_loader"] = {
-        "ok": TARGET_DESCRIPTION.musl_loader in interp_line,
-        "actual": interp_line.strip(),
+        "ok": actual_loader == TARGET_DESCRIPTION.musl_loader,
+        "actual": actual_loader,
         "expected": TARGET_DESCRIPTION.musl_loader,
     }
-    sysconfig = subprocess.run(
+    sysconfig = run_product_process(
         [str(interpreter), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_config_var('LDFLAGS') or '')"],
-        capture_output=True,
-        text=True,
+        install, install, timeout_seconds=30,
     )
     checks["sysconfig_paths"] = {
         "ok": sysconfig.returncode == 0 and "build/prefix" not in sysconfig.stdout,
         "output": (sysconfig.stdout + sysconfig.stderr).strip(),
     }
-    configured = _run([
+    configured = run_product_process([
         str(interpreter), "-I", "-B", "-c",
         "import json,sysconfig; print(json.dumps({k: sysconfig.get_config_var(k) "
         "for k in ('CFLAGS','CFLAGS_NODIST','PY_CFLAGS','PY_CFLAGS_NODIST','CPPFLAGS')}))",
-    ])
+    ], install, install, timeout_seconds=30)
+    if configured.returncode != 0:
+        raise PackagingError(
+            "product could not report ELF hardening flags: "
+            + (configured.stderr or configured.stdout).strip()
+        )
     flag_values = json.loads(configured.stdout.strip().splitlines()[-1])
+    installed_library = run_product_process([
+        str(interpreter), "-I", "-B", "-c",
+        "import sysconfig; print(sysconfig.get_config_var('INSTSONAME') or '')",
+    ], install, install, timeout_seconds=30)
+    if installed_library.returncode != 0 or not installed_library.stdout.strip():
+        raise PackagingError("product did not identify its shared libpython")
+    library_name = installed_library.stdout.strip()
+    if Path(library_name).name != library_name:
+        raise PackagingError(f"product reported an unsafe shared libpython name: {library_name!r}")
+    libpython = install / "lib" / library_name
+    checks["binary_inventory"] = {
+        "ok": interpreter.is_file() and libpython.is_file(),
+        "interpreter": str(interpreter.relative_to(install)),
+        "shared_library": str(libpython.relative_to(install)),
+    }
     symbols = {
         "interpreter": _run(["readelf", "--dyn-syms", "-W", str(interpreter)]).stdout,
-        "libpython": _run([
-            "readelf", "--dyn-syms", "-W",
-            str(install / "lib" / _run([
-                str(interpreter), "-I", "-B", "-c",
-                "import sysconfig; print(sysconfig.get_config_var('INSTSONAME'))",
-            ]).stdout.strip()),
-        ]).stdout,
+        "libpython": _run(["readelf", "--dyn-syms", "-W", str(libpython)]).stdout,
     }
     hardening = hardening_report(
         " ".join(value for value in flag_values.values() if isinstance(value, str)),
@@ -234,11 +299,21 @@ def _linux_validation(install: Path) -> dict:
     return {"ok": not failed, "failed": failed, "checks": checks}
 
 
-def _source_revision() -> str:
-    result = _run(["git", "rev-parse", "HEAD"], cwd=REPO)
-    revision = result.stdout.strip()
-    if not revision:
-        raise PackagingError("git returned an empty source revision")
+def _source_revision(build_record: dict) -> str:
+    revision = build_record.get("source_revision")
+    if not isinstance(revision, str):
+        raise PackagingError("build record has no source revision")
+    requested_revision = os.environ.get("GITHUB_SHA")
+    if requested_revision and requested_revision != revision:
+        raise PackagingError(
+            f"build record revision {revision} does not match GITHUB_SHA {requested_revision}"
+        )
+    if (REPO / ".git").exists():
+        current = _run(["git", "rev-parse", "HEAD"], cwd=REPO).stdout.strip()
+        if current != revision:
+            raise PackagingError(
+                f"build record revision {revision} does not match checkout {current}"
+            )
     return revision
 
 
@@ -248,33 +323,44 @@ def _llvm_version(record: dict, lock_path: Path, target: Target) -> str:
     except (OSError, json.JSONDecodeError) as error:
         raise PackagingError(f"cannot read bootstrap lock: {error}") from error
     if target.is_macos:
-        llvm_version = record["toolchain"]["llvm_version"]
+        llvm_version = document["macos_toolchain"]["llvm"]["version"]
+        actual = record.get("toolchain", {}).get("llvm_version")
     else:
-        llvm_pins = [
-            pin.split("=", 1)[1].rsplit("-r", 1)[0]
-            for pin in document.get("explicitly_pinned_in_dockerfile", [])
-            if pin.startswith("clang22=")
+        direct_packages = document["linux_toolchain"]["direct_packages"]
+        clang_versions = [
+            package["version"].split("-r", 1)[0]
+            for package in direct_packages
+            if package.get("name") == "clang23"
         ]
-        if len(llvm_pins) != 1:
-            raise PackagingError("bootstrap lock must pin one Linux LLVM toolchain")
-        llvm_version = llvm_pins[0]
+        if len(clang_versions) != 1:
+            raise PackagingError("bootstrap lock has no unique Linux clang23 package")
+        llvm_version = clang_versions[0]
+        version_output = record.get("toolchain", {}).get("commands", {}).get("cc", {}).get("version", "")
+        match = re.search(r"clang version ([0-9]+\.[0-9]+\.[0-9]+)", version_output)
+        if match is None:
+            raise PackagingError("build record has no identifiable Linux LLVM version")
+        actual = match.group(1)
+    if actual != llvm_version:
+        raise PackagingError(
+            f"build record LLVM version {actual!r} does not match bootstrap {llvm_version}"
+        )
     return llvm_version
 
 
 def _verify_install_matches_record(install: Path, record: dict) -> None:
     interpreter = PRODUCT.interpreter(install)
-    probe = _run([
+    probe = run_product_process([
         str(interpreter), "-I", "-B", "-c",
         "import json,sysconfig; keys=('CFLAGS','CFLAGS_NODIST','PY_CFLAGS',"
         "'PY_CFLAGS_NODIST','LDFLAGS','LTOFLAGS','CONFIG_ARGS'); "
         "print(json.dumps({key:sysconfig.get_config_var(key) for key in keys}))",
-    ])
+    ], install, install, timeout_seconds=30)
     actual = json.loads(probe.stdout.strip().splitlines()[-1])
     if actual != record["effective_flags"]:
         raise PackagingError("staged install configuration does not match its build record")
 
 
-def _macos_suite(install: Path, workdir: Path) -> dict:
+def _regression_suite(install: Path, workdir: Path) -> dict:
     suite_tree = workdir / "regression-copy"
     shutil.copytree(install, suite_tree, symlinks=True)
     suite_python = PRODUCT.interpreter(suite_tree)
@@ -305,13 +391,12 @@ def _qualification(
     *,
     trust_store: dict,
     distribution_scope: dict,
-    regression_suite: dict | None,
+    regression_suite: dict,
 ) -> dict:
-    python = PRODUCT.interpreter(install)
-    if target.is_macos:
-        validation = run_validation(install, workdir / "macos-validation", target)
-    else:
-        validation = _linux_validation(install)
+    validation = run_validation(install, workdir / "product-validation", target)
+    if not target.is_macos:
+        linux = _linux_validation(install)
+        validation["checks"].update(linux["checks"])
     validation["checks"].update({
         "trust_store": {
             **trust_store,
@@ -319,12 +404,22 @@ def _qualification(
         },
         "distribution_scope": distribution_scope,
     })
-    if regression_suite is not None:
-        validation["checks"]["regression_suite"] = regression_suite
-        if not regression_suite.get("ok"):
-            validation.setdefault("failed", []).append("regression_suite")
-            validation["ok"] = False
-    compatibility = run_standalone_compatibility(python, install, target)
+    validation["checks"]["regression_suite"] = regression_suite
+    failed = sorted(
+        name for name, check in validation["checks"].items()
+        if check.get("ok") is not True
+    )
+    validation["failed"] = failed
+    validation["aggregate"] = {
+        "check_count": len(validation["checks"]),
+        "required_check_count": len(validation["checks"]),
+        "failed": failed,
+        "ok": not failed,
+    }
+    validation["ok"] = not failed
+    compatibility = run_standalone_compatibility(
+        PRODUCT.interpreter(install), install, target
+    )
     return qualify(validation, compatibility)
 
 
@@ -342,7 +437,7 @@ def _package(*, qualify_only: bool = False) -> Path:
     )
     if TARGET_DESCRIPTION.is_macos:
         require_macos_pgo_recipe()
-    source_revision = _source_revision()
+    source_revision = _source_revision(build_record)
     archive_name = ARCHIVE_NAME
 
     scratch_root = REPO / ".work" / "tmp"
@@ -354,12 +449,11 @@ def _package(*, qualify_only: bool = False) -> Path:
         shutil.copytree(stage, install, symlinks=True)
         _verify_install_matches_record(install, build_record)
         trust_store = install_ca_fallback(install)
+        regression_suite = _regression_suite(install, workdir)
         if TARGET_DESCRIPTION.is_macos:
             strip_tree_macos(install)
-            regression_suite = _macos_suite(install, workdir)
         else:
             strip_tree(install)
-            regression_suite = None
         try:
             distribution_scope = prune_distribution_payload(install)
         except ScopeError as error:
@@ -424,6 +518,8 @@ def _package(*, qualify_only: bool = False) -> Path:
             archive=facts,
             qualification=qualification,
             lock_path=REPO / "sources.lock.json",
+            build_record=build_record,
+            package_patches_directory=REPO / "patches" / "package",
         )
         manifest_temp = workdir / "artifact.json"
         write_manifest(manifest_temp, manifest)

@@ -33,7 +33,9 @@ DEFAULT_TARGET = _NATIVE.triple if _NATIVE else "x86_64-unknown-linux-musl"
 # Commands that run compiled recipes/the interpreter itself: these are never
 # cross-compiled, so the requested --target must be the
 # architecture this process is actually running as right now.
-NATIVE_EXECUTION_COMMANDS = {"build", "test", "compare-reference", "package"}
+NATIVE_EXECUTION_COMMANDS = {
+    "build", "qualify", "package", "compare-reference", "reproduce"
+}
 
 
 def _fail(message: str) -> NoReturn:
@@ -121,7 +123,7 @@ def _macos_report(report: dict) -> None:
     except BootstrapError as error:
         report["macos"]["toolchain_lock"] = {"ok": False, "error": str(error)}
         return
-    found = problems(locked, host_floor=locked.deployment_target)
+    found = problems(locked, host_floor=locked.host_floor)
     report["macos"]["toolchain_lock"] = {
         "ok": not found,
         "llvm_version": locked.llvm_version,
@@ -177,26 +179,6 @@ def build(args: argparse.Namespace) -> int:
     _require_native_target(args.target)
     if args.pgo_jobs is not None and not _NATIVE.is_macos:
         _fail("--pgo-jobs is only supported for the macOS PGO build")
-    if args.sealed and not args.offline:
-        _fail("--sealed requires --offline; qualification runs never touch the network")
-    if args.offline and not args.sealed:
-        print("offline development build is not qualification evidence; "
-              "use --sealed for hermetic runs")
-    if args.sealed:
-        if not _qualification_available():
-            _fail(
-                "sealed qualification requires "
-                + ("the sandbox-exec profile runner"
-                   if _NATIVE and _NATIVE.is_macos
-                   else "the Dockerfile build stages")
-                + "; the isolation mechanism is unavailable"
-            )
-        _fail(
-            "sealed qualification is not implemented as a build.py subcommand; "
-            + ("use the sandbox-exec sealed runner " if _NATIVE and _NATIVE.is_macos
-               else "use `docker build --platform <platform> --target sealed .` ")
-            + "(M1c owns the offline build; see plan Section 7)"
-        )
     result = subprocess.run(
         [sys.executable, "build/deps.py"], cwd=Path(__file__).parent
     )
@@ -216,20 +198,22 @@ def main(argv: list[str] | None = None) -> int:
     fetch.add_argument("--target", default=DEFAULT_TARGET)
     build_parser = commands.add_parser("build")
     build_parser.add_argument("--target", default=DEFAULT_TARGET)
-    build_parser.add_argument("--dev", action="store_true")
-    build_parser.add_argument("--offline", action="store_true")
-    build_parser.add_argument("--sealed", action="store_true")
     build_parser.add_argument(
         "--pgo-jobs", type=_positive_int,
         help="number of workers for macOS CPython's --pgo training task "
              "(default: CPython compile jobs, one fewer than host CPUs)",
     )
-    test = commands.add_parser("test")
-    test.add_argument("--target", default=DEFAULT_TARGET)
-    compare = commands.add_parser("compare-reference")
-    compare.add_argument("--target", default=DEFAULT_TARGET)
+    commands.add_parser("controller-test")
+    qualify = commands.add_parser("qualify")
+    qualify.add_argument("--target", default=DEFAULT_TARGET)
+    qualify.add_argument(
+        "--pgo-jobs", type=_positive_int,
+        help="number of workers for macOS CPython's PGO task",
+    )
     package = commands.add_parser("package")
     package.add_argument("--target", default=DEFAULT_TARGET)
+    compare = commands.add_parser("compare-reference")
+    compare.add_argument("--target", default=DEFAULT_TARGET)
     reproduce = commands.add_parser("reproduce")
     reproduce.add_argument("--target", default=DEFAULT_TARGET)
     reproduce.add_argument(
@@ -250,15 +234,31 @@ def main(argv: list[str] | None = None) -> int:
         return build(args)
     if args.command in NATIVE_EXECUTION_COMMANDS - {"build"}:
         _require_native_target(args.target)
-    if args.command == "test":
+    if args.command == "controller-test":
         result = subprocess.run(
             [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
             cwd=Path(__file__).parent,
         )
         return result.returncode
+    if args.command == "qualify":
+        if args.pgo_jobs is not None and not _NATIVE.is_macos:
+            _fail("--pgo-jobs is only supported for the macOS PGO build")
+        if _NATIVE.is_macos:
+            sealed_command = [sys.executable, "build/sealed.py"]
+            if args.pgo_jobs is not None:
+                sealed_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
+            result = subprocess.run(sealed_command, cwd=Path(__file__).parent)
+            if result.returncode != 0:
+                return result.returncode
+        result = subprocess.run(
+            [sys.executable, "build/package.py", "--qualify-only"],
+            cwd=Path(__file__).parent,
+        )
+        return result.returncode
     if args.command == "compare-reference":
         result = subprocess.run(
-            [sys.executable, "build/package.py", "--compare-only"], cwd=Path(__file__).parent
+            [sys.executable, "build/compare.py", "--target", args.target],
+            cwd=Path(__file__).parent,
         )
         return result.returncode
     if args.command == "package":

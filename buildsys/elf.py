@@ -4,10 +4,101 @@ from __future__ import annotations
 
 import re
 import shlex
+from pathlib import Path, PurePosixPath
 
 _STACK_TYPES = frozenset({"GNU_STACK", "PT_GNU_STACK"})
 _PROGRAM_FLAGS = re.compile(r"[RWE]+")
 _STACK_PROTECTOR_SYMBOL = re.compile(r"__stack_chk_fail(?:_local)?(?:@[^\s]+)?")
+_DYNAMIC_TAG = re.compile(r"\((NEEDED|RPATH|RUNPATH)\).*?\[([^\]]*)\]")
+
+
+class ElfError(Exception):
+    """An ELF record is malformed or cannot be safely resolved."""
+
+
+def machine_report(header: str, expected_machine: str) -> dict[str, object]:
+    expected = {
+        "x86_64": "Advanced Micro Devices X86-64",
+        "aarch64": "AArch64",
+    }.get(expected_machine)
+    fields = {
+        key: next((line.partition(":")[2].strip() for line in header.splitlines()
+                   if line.strip().startswith(f"{key}:")), None)
+        for key in ("Class", "Machine")
+    }
+    ok = expected is not None and fields["Class"] == "ELF64" and fields["Machine"] == expected
+    return {"ok": ok, "expected_machine": expected_machine, **fields}
+
+
+def dynamic_tags(dynamic: str) -> dict[str, list[str]]:
+    result = {"needed": [], "rpath": [], "runpath": []}
+    for line in dynamic.splitlines():
+        match = _DYNAMIC_TAG.search(line)
+        if match is None:
+            continue
+        tag, value = match.groups()
+        result[{"NEEDED": "needed", "RPATH": "rpath", "RUNPATH": "runpath"}[tag]].append(value)
+    return result
+
+
+def linkage_report(
+    root: Path,
+    elf: Path,
+    *,
+    needed: list[str],
+    runpaths: list[str],
+    system_libraries: set[str],
+) -> dict[str, object]:
+    root = Path(root).resolve()
+    elf = Path(elf).resolve()
+    if not elf.is_relative_to(root):
+        raise ElfError(f"ELF path escaped product root: {elf}")
+    relative = PurePosixPath(elf.relative_to(root).as_posix())
+    resolved_paths: list[Path] = []
+    violations: list[str] = []
+    for raw in runpaths:
+        if not raw.startswith("$ORIGIN") or (len(raw) > 7 and raw[7] != "/"):
+            violations.append(f"unsafe runpath {raw!r}")
+            continue
+        stack = list(relative.parent.parts)
+        for part in raw[7:].split("/"):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if not stack:
+                    violations.append(f"runpath escapes product root: {raw!r}")
+                    break
+                stack.pop()
+            elif "$" in part:
+                violations.append(f"unsupported runpath variable in {raw!r}")
+                break
+            else:
+                stack.append(part)
+        else:
+            directory = root.joinpath(*stack).resolve()
+            if not directory.is_relative_to(root) or not directory.is_dir():
+                violations.append(f"unresolved runpath {raw!r}")
+            else:
+                resolved_paths.append(directory)
+
+    missing: list[str] = []
+    for library in needed:
+        if library in system_libraries:
+            continue
+        candidates = [directory / library for directory in resolved_paths]
+        if not any(
+            candidate.is_file() and candidate.resolve().is_relative_to(root)
+            for candidate in candidates
+        ):
+            missing.append(library)
+    return {
+        "ok": not violations and not missing,
+        "needed": needed,
+        "runpaths": runpaths,
+        "resolved_runpaths": [str(path.relative_to(root)) for path in resolved_paths],
+        "missing_product_libraries": missing,
+        "runpath_violations": violations,
+    }
 
 
 def gnu_stack_report(program_headers: str) -> dict[str, str | bool | None]:

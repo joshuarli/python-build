@@ -24,8 +24,10 @@ from buildsys.macho import (
     dependencies, dylib_id, find_machos, format_version, inspect, is_macho,
     read_header, rpaths,
 )
+from buildsys.product import PRODUCT
 
 MH_MAGIC_64 = 0xFEEDFACF
+LIBPYTHON = f"lib{PRODUCT.shared_library_stem}.dylib"
 
 
 def _pad8(raw: bytes) -> bytes:
@@ -146,20 +148,20 @@ class LoadCommandTests(unittest.TestCase):
 
     def test_dependency_names_with_rpath_prefix(self) -> None:
         image = make_macho([
-            dylib_command(LC_LOAD_DYLIB, "@rpath/libpython3.14.dylib"),
+            dylib_command(LC_LOAD_DYLIB, f"@rpath/{LIBPYTHON}"),
             dylib_command(LC_LOAD_DYLIB, "@loader_path/../lib/libz.1.dylib"),
         ])
         with TempImage(image) as path:
             self.assertEqual(
                 dependencies(path),
-                ["@rpath/libpython3.14.dylib", "@loader_path/../lib/libz.1.dylib"],
+                [f"@rpath/{LIBPYTHON}", "@loader_path/../lib/libz.1.dylib"],
             )
 
     def test_install_name_is_read(self) -> None:
-        image = make_macho([dylib_command(LC_ID_DYLIB, "@rpath/libpython3.14.dylib")],
+        image = make_macho([dylib_command(LC_ID_DYLIB, f"@rpath/{LIBPYTHON}")],
                            filetype=MH_DYLIB)
         with TempImage(image) as path:
-            self.assertEqual(dylib_id(path), "@rpath/libpython3.14.dylib")
+            self.assertEqual(dylib_id(path), f"@rpath/{LIBPYTHON}")
 
     def test_executable_has_no_install_name(self) -> None:
         with TempImage(make_macho([build_version_command()])) as path:
@@ -181,7 +183,7 @@ class LoadCommandTests(unittest.TestCase):
     def test_inspect_summarises_one_image(self) -> None:
         image = make_macho([
             build_version_command(1, (26, 0), (26, 5)),
-            dylib_command(LC_ID_DYLIB, "@rpath/libpython3.14.dylib"),
+            dylib_command(LC_ID_DYLIB, f"@rpath/{LIBPYTHON}"),
             dylib_command(LC_LOAD_DYLIB, "/usr/lib/libSystem.B.dylib"),
             rpath_command("@loader_path/../lib"),
         ], filetype=MH_DYLIB)
@@ -189,7 +191,7 @@ class LoadCommandTests(unittest.TestCase):
             summary = inspect(path)
         self.assertEqual(summary["arch"], "arm64")
         self.assertEqual(summary["minos"], "26.0")
-        self.assertEqual(summary["install_name"], "@rpath/libpython3.14.dylib")
+        self.assertEqual(summary["install_name"], f"@rpath/{LIBPYTHON}")
         self.assertEqual(summary["dependencies"], ["/usr/lib/libSystem.B.dylib"])
         self.assertEqual(summary["rpaths"], ["@loader_path/../lib"])
 
@@ -200,14 +202,14 @@ class FindMachosTests(unittest.TestCase):
             root = Path(temporary)
             (root / "bin").mkdir()
             (root / "lib").mkdir()
-            (root / "bin" / "python3.14").write_bytes(make_macho([]))
-            (root / "lib" / "libpython3.14.dylib").write_bytes(
+            (root / "bin" / PRODUCT.interpreter_name).write_bytes(make_macho([]))
+            (root / "lib" / LIBPYTHON).write_bytes(
                 make_macho([], filetype=MH_DYLIB)
             )
-            (root / "lib" / "python3.14").mkdir()
-            (root / "lib" / "python3.14" / "os.py").write_text("pass\n")
+            (root / "lib" / PRODUCT.interpreter_name).mkdir()
+            (root / "lib" / PRODUCT.interpreter_name / "os.py").write_text("pass\n")
             found = {str(p.relative_to(root)) for p in find_machos(root)}
-        self.assertEqual(found, {"bin/python3.14", "lib/libpython3.14.dylib"})
+        self.assertEqual(found, {f"bin/{PRODUCT.interpreter_name}", f"lib/{LIBPYTHON}"})
 
 
 class EditCommandTests(unittest.TestCase):
@@ -234,19 +236,19 @@ class EditCommandTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
 
     def test_set_install_name_edits_then_resigns(self) -> None:
-        self.macho.set_install_name(self.path, "@rpath/libpython3.14.dylib")
+        self.macho.set_install_name(self.path, f"@rpath/{LIBPYTHON}")
         commands = [call.args[0] for call in self.run.call_args_list]
         self.assertEqual(commands[0],
-                         ["install_name_tool", "-id", "@rpath/libpython3.14.dylib", str(self.path)])
+                         ["install_name_tool", "-id", f"@rpath/{LIBPYTHON}", str(self.path)])
         self.assertEqual(commands[1][:3], ["codesign", "--force", "--sign"])
 
     def test_change_dependency_rewrites_then_resigns(self) -> None:
-        self.macho.change_dependency(self.path, "/install/lib/libpython3.14.dylib",
-                                     "@rpath/libpython3.14.dylib")
+        self.macho.change_dependency(self.path, f"/install/lib/{LIBPYTHON}",
+                                     f"@rpath/{LIBPYTHON}")
         commands = [call.args[0] for call in self.run.call_args_list]
         self.assertEqual(commands[0], [
             "install_name_tool", "-change",
-            "/install/lib/libpython3.14.dylib", "@rpath/libpython3.14.dylib", str(self.path),
+            f"/install/lib/{LIBPYTHON}", f"@rpath/{LIBPYTHON}", str(self.path),
         ])
         self.assertEqual(commands[-1][0], "codesign")
 

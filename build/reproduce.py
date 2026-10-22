@@ -84,7 +84,7 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
     if not stage.is_dir():
         print("FAIL reproduce: no staged install; run a build first")
         return 1
-    recipe_path = REPO / "build" / "logs" / "cpython-build.json"
+    recipe_path = REPO / "build" / "logs" / "build-record.json"
     try:
         first_recipe = json.loads(recipe_path.read_text())
     except (OSError, json.JSONDecodeError) as error:
@@ -108,7 +108,7 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
             f"build's recorded {recorded_jobs}"
         )
         return 1
-    work = REPO / "build" / "reproduce-work"
+    work = REPO / ".work" / "tmp" / "reproduce" / target.triple
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
@@ -129,14 +129,9 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
     except (OSError, json.JSONDecodeError) as error:
         print(f"FAIL reproduce: sealed rebuild did not record its recipe: {error}")
         return 1
-    def without_profile_data(recipe: dict) -> dict:
-        comparable = dict(recipe)
-        optimization = dict(recipe.get("optimization", {}))
-        optimization.pop("profile_data", None)
-        comparable["optimization"] = optimization
-        return comparable
-
-    recipe_match = without_profile_data(first_recipe) == without_profile_data(second_recipe)
+    recipe_match = (
+        first_recipe.get("recipe_identity") == second_recipe.get("recipe_identity")
+    )
     first_profile = first_recipe.get("optimization", {}).get("profile_data")
     second_profile = second_recipe.get("optimization", {}).get("profile_data")
     profile_match = (
@@ -279,7 +274,7 @@ def main() -> int:
     tags = (f"python-build-m1:reproduce-a-{target.alpine_arch}",
             f"python-build-m1:reproduce-b-{target.alpine_arch}")
 
-    work = REPO / "build" / "reproduce-work" / target.alpine_arch
+    work = REPO / ".work" / "tmp" / "reproduce" / target.alpine_arch
     if work.exists():
         import shutil
         shutil.rmtree(work)
@@ -298,8 +293,11 @@ def main() -> int:
     dist = REPO / "dist" / target.triple
     dist.mkdir(parents=True, exist_ok=True)
     (dist / "reproducibility.json").write_text(canonical_json(report) + "\n")
-    print(f"OK    reproduce -> byte_identical={report['byte_identical']}")
-    return 0
+    print(
+        f"{'OK' if report['byte_identical'] else 'FAIL'} reproduce -> "
+        f"byte_identical={report['byte_identical']}"
+    )
+    return 0 if report["byte_identical"] else 1
 
 
 if __name__ == "__main__":

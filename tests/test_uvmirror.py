@@ -1,5 +1,3 @@
-"""Release-asset assembly in python-build-standalone layout."""
-
 from __future__ import annotations
 
 import hashlib
@@ -8,153 +6,217 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from buildsys.package import create_archive, write_manifest, build_manifest
+from buildsys.product import PRODUCT
+from buildsys.targets import TARGETS
 from buildsys.uvmirror import (
-    REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES,
-    VERSION,
+    CANONICAL_PREFIX,
+    LLVM_VERSIONS,
     UvMirrorError,
     assemble,
     asset_name,
-    find_local_archive,
     metadata_entry,
     metadata_key,
 )
 
+REPO = Path(__file__).resolve().parents[1]
+REVISION = "a" * 40
+
 
 class NamingTests(unittest.TestCase):
-    def test_asset_name_matches_astral_install_only_stripped_format(self) -> None:
+    def test_asset_name_uses_locked_product_identity(self) -> None:
         self.assertEqual(
-            asset_name("20260923", "aarch64-apple-darwin"),
-            "cpython-3.14.6+20260923-aarch64-apple-darwin-install_only_stripped.tar.gz",
-        )
-        self.assertEqual(
-            asset_name("20260923", "x86_64-unknown-linux-musl"),
-            "cpython-3.14.6+20260923-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
+            asset_name("20261022", "aarch64-apple-darwin"),
+            PRODUCT.mirror_archive_name("20261022", "aarch64-apple-darwin"),
         )
 
-    def test_metadata_keys_match_uv_scheme(self) -> None:
-        self.assertEqual(metadata_key("aarch64-apple-darwin"), "cpython-3.14.6-darwin-aarch64-none")
+    def test_metadata_keys_use_target_table(self) -> None:
         self.assertEqual(
-            metadata_key("x86_64-unknown-linux-musl"), "cpython-3.14.6-linux-x86_64-musl"
+            metadata_key("aarch64-apple-darwin"),
+            f"cpython-{PRODUCT.version_string}-darwin-aarch64-none",
         )
         self.assertEqual(
-            metadata_key("aarch64-unknown-linux-musl"), "cpython-3.14.6-linux-aarch64-musl"
+            metadata_key("x86_64-unknown-linux-musl"),
+            f"cpython-{PRODUCT.version_string}-linux-x86_64-musl",
+        )
+        self.assertEqual(
+            metadata_key("aarch64-unknown-linux-musl"),
+            f"cpython-{PRODUCT.version_string}-linux-aarch64-musl",
         )
 
-    def test_metadata_entry_encodes_plus_like_upstream(self) -> None:
+    def test_metadata_entry_encodes_build_separator(self) -> None:
         entry = metadata_entry(
-            "aarch64-apple-darwin", "20260923", "https://example.invalid/dl", "0" * 64
+            "aarch64-apple-darwin", "20261022", "https://example.invalid/dl", "0" * 64
         )
-        # Upstream percent-encodes the `+` build separator as %2B.
         self.assertEqual(
             entry["url"],
-            "https://example.invalid/dl/20260923/"
-            "cpython-3.14.6%2B20260923-aarch64-apple-darwin-install_only_stripped.tar.gz",
+            "https://example.invalid/dl/20261022/"
+            + asset_name("20261022", "aarch64-apple-darwin").replace("+", "%2B"),
         )
-        self.assertEqual(
-            entry,
-            {
-                "name": "cpython",
-                "arch": {"family": "aarch64", "variant": None},
-                "os": "darwin",
-                "libc": "none",
-                "major": 3,
-                "minor": 14,
-                "patch": 6,
-                "prerelease": "",
-                "url": entry["url"],
-                "sha256": "0" * 64,
-                "variant": None,
-                "build": "20260923",
-            },
-        )
+        self.assertEqual((entry["major"], entry["minor"], entry["patch"]), PRODUCT.version)
 
 
 class AssembleTests(unittest.TestCase):
-    def test_assemble_copies_renamed_assets_and_writes_both_metadata_files(self) -> None:
-        with tempfile.TemporaryDirectory() as work:
-            root = Path(work)
-            payloads = {
-                "aarch64-apple-darwin": b"macos-bytes",
-                "x86_64-unknown-linux-musl": b"linux-x64-bytes",
-                "aarch64-unknown-linux-musl": b"linux-arm64-bytes",
+    def _input_tree(self, root: Path) -> tuple[Path, Path]:
+        dist = root / "dist"
+        for triple, target in TARGETS.items():
+            directory = dist / triple
+            directory.mkdir(parents=True)
+            install = root / f"install-{target.machine}-{target.family}"
+            (install / "bin").mkdir(parents=True)
+            (install / "bin" / PRODUCT.interpreter_name).write_bytes(b"qualified product fixture")
+            archive_path = directory / PRODUCT.local_archive_name(triple, "r2")
+            archive = create_archive(install, archive_path)
+            qualification = {
+                "ok": True,
+                "checks": {
+                    "validation.version_and_abi": {
+                        "status": "passed",
+                        "gil_enabled": True,
+                    }
+                },
             }
-            for triple, blob in payloads.items():
-                triple_dir = root / "dist" / triple
-                triple_dir.mkdir(parents=True)
-                (triple_dir / f"cpython-{VERSION}-{triple}-r1.tar.gz").write_bytes(blob)
-            report = assemble("20260923", "owner/name", root / "dist", root / "release")
-            self.assertEqual(report["tag"], "20260923")
-            self.assertEqual(len(report["assets"]), 3)
+            manifest = build_manifest(
+                product=PRODUCT,
+                target=target,
+                source_revision=REVISION,
+                recipe_identity="b" * 64,
+                bootstrap_identity="c" * 64,
+                llvm_version=LLVM_VERSIONS[triple],
+                archive_filename=archive_path.name,
+                archive=archive,
+                qualification=qualification,
+                lock_path=REPO / "sources.lock.json",
+                build_record={
+                    "source": {"name": "cpython", "version": PRODUCT.version_string, "sha256": "d" * 64},
+                    "patches": [],
+                    "dependencies": [],
+                    "optimization": {"lto": "thin", "pgo": False},
+                    "effective_flags": {"CFLAGS": "-O3"},
+                    "commands": {"configure": ["configure"], "build": ["make"], "install": ["make", "install"]},
+                    "build_mode": "sealed",
+                    "isolation": {"mechanism": "buildkit-network-none", "network": "disabled"},
+                },
+                package_patches_directory=REPO / "patches" / "package",
+            )
+            write_manifest(directory / "artifact.json", manifest)
+        return dist, root / "release-budgets.json"
 
-            sums = (root / "release" / "SHA256SUMS").read_text()
-            for triple, blob in payloads.items():
-                name = asset_name("20260923", triple)
-                self.assertIn(f"{hashlib.sha256(blob).hexdigest()}  {name}", sums)
-                self.assertEqual((root / "release" / name).read_bytes(), blob)
+    def _budgets(self, path: Path, *, compressed: int = 10_000_000) -> None:
+        path.write_text(json.dumps({
+            "schema_version": 1,
+            "targets": {
+                triple: {
+                    "archive_size_bytes": compressed,
+                    "payload_size_bytes": 10_000_000,
+                    "rationale": "Fixture ceiling for an assembly contract test.",
+                }
+                for triple in TARGETS
+            },
+        }))
 
-            release = json.loads((root / "release" / "download-metadata.json").read_text())
-            smoke = json.loads((root / "release" / "smoke-metadata.json").read_text())
+    def test_assemble_validates_manifests_and_writes_artifact_bound_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, budgets = self._input_tree(root)
+            self._budgets(budgets)
+            output = root / "release"
+
+            report = assemble(
+                "20261022", "owner/name", dist, output,
+                expected_revision=REVISION, budgets_path=budgets,
+            )
+
+            self.assertEqual(report["source_revision"], REVISION)
+            self.assertEqual(set(report["assets"]), {
+                *[asset_name("20261022", triple) for triple in TARGETS],
+                *[f"artifact-{triple}.json" for triple in TARGETS],
+            })
+            sums = (output / "SHA256SUMS").read_text()
+            for triple in TARGETS:
+                archive_name = asset_name("20261022", triple)
+                self.assertEqual(
+                    hashlib.sha256((output / archive_name).read_bytes()).hexdigest(),
+                    next(line.split()[0] for line in sums.splitlines() if line.endswith(archive_name)),
+                )
+                artifact = json.loads((output / f"artifact-{triple}.json").read_text())
+                self.assertEqual(artifact["source_revision"], REVISION)
+            release = json.loads((output / "download-metadata.json").read_text())
+            smoke = json.loads((output / "smoke-metadata.json").read_text())
             self.assertEqual(set(release), set(smoke))
-            self.assertIn("cpython-3.14.6-darwin-aarch64-none", release)
-            # The release file points at this repo; the smoke file keeps the
-            # canonical prefix so UV_PYTHON_INSTALL_MIRROR rewrites it.
-            self.assertTrue(
-                release["cpython-3.14.6-darwin-aarch64-none"]["url"].startswith(
-                    "https://github.com/owner/name/releases/download/20260923/"
-                )
-            )
-            self.assertTrue(
-                smoke["cpython-3.14.6-darwin-aarch64-none"]["url"].startswith(
-                    "https://github.com/astral-sh/python-build-standalone/releases/download/"
-                )
-            )
             self.assertEqual(
-                release["cpython-3.14.6-linux-x86_64-musl"]["sha256"],
-                smoke["cpython-3.14.6-linux-x86_64-musl"]["sha256"],
+                release[f"cpython-{PRODUCT.version_string}-darwin-aarch64-none"]["sha256"],
+                smoke[f"cpython-{PRODUCT.version_string}-darwin-aarch64-none"]["sha256"],
+            )
+            self.assertTrue(
+                smoke[f"cpython-{PRODUCT.version_string}-darwin-aarch64-none"]["url"].startswith(
+                    CANONICAL_PREFIX
+                )
             )
 
-    def test_assemble_rejects_archives_over_astral_size_budget(self) -> None:
-        with tempfile.TemporaryDirectory() as work:
-            root = Path(work)
-            for triple in (
-                "aarch64-apple-darwin",
-                "x86_64-unknown-linux-musl",
-                "aarch64-unknown-linux-musl",
-            ):
-                triple_dir = root / "dist" / triple
-                triple_dir.mkdir(parents=True)
-                (triple_dir / f"cpython-{VERSION}-{triple}-r1.tar.gz").touch()
-            mac_archive = (
-                root / "dist" / "aarch64-apple-darwin"
-                / f"cpython-{VERSION}-aarch64-apple-darwin-r1.tar.gz"
-            )
-            maximum_size = (
-                REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES["aarch64-apple-darwin"]
-                * 6 // 5
-            )
-            with mac_archive.open("wb") as handle:
-                handle.truncate(maximum_size + 1)
+    def test_rejects_revision_mismatch_and_preserves_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, budgets = self._input_tree(root)
+            self._budgets(budgets)
+            output = root / "release"
+            output.mkdir()
+            accepted = output / "accepted.txt"
+            accepted.write_text("accepted")
 
-            with self.assertRaisesRegex(UvMirrorError, "1.2x limit"):
-                assemble("20260923-budget", "owner/name", root / "dist", root / "release")
+            with self.assertRaisesRegex(UvMirrorError, "does not match built revision"):
+                assemble(
+                    "20261022", "owner/name", dist, output,
+                    expected_revision="d" * 40, budgets_path=budgets,
+                )
 
-    def test_assemble_refuses_missing_or_ambiguous_archives(self) -> None:
-        with tempfile.TemporaryDirectory() as work:
-            root = Path(work)
-            triple_dir = root / "dist" / "aarch64-apple-darwin"
-            triple_dir.mkdir(parents=True)
-            with self.assertRaises(UvMirrorError):
-                find_local_archive(triple_dir, "aarch64-apple-darwin")
-            (triple_dir / f"cpython-{VERSION}-aarch64-apple-darwin-r1.tar.gz").write_bytes(b"a")
-            (triple_dir / f"cpython-{VERSION}-aarch64-apple-darwin-r2.tar.gz").write_bytes(b"b")
-            with self.assertRaises(UvMirrorError):
-                find_local_archive(triple_dir, "aarch64-apple-darwin")
+            self.assertEqual(accepted.read_text(), "accepted")
 
-    def test_assemble_refuses_unsafe_tag(self) -> None:
-        with tempfile.TemporaryDirectory() as work:
-            root = Path(work)
-            with self.assertRaises(UvMirrorError):
-                assemble("../evil", "owner/name", root / "dist", root / "release")
+    def test_rejects_corrupt_archive_before_assembly(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, budgets = self._input_tree(root)
+            self._budgets(budgets)
+            archive = next((dist / "x86_64-unknown-linux-musl").glob("*.tar.gz"))
+            archive.write_bytes(b"corrupt")
+
+            with self.assertRaisesRegex(UvMirrorError, "digest or size"):
+                assemble(
+                    "20261022", "owner/name", dist, root / "release",
+                    expected_revision=REVISION, budgets_path=budgets,
+                )
+
+            self.assertFalse((root / "release").exists())
+
+    def test_rejects_missing_target_or_unreviewed_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, budgets = self._input_tree(root)
+            self._budgets(budgets)
+            (dist / "aarch64-unknown-linux-musl" / "artifact.json").unlink()
+            with self.assertRaisesRegex(UvMirrorError, "manifest is missing"):
+                assemble(
+                    "20261022", "owner/name", dist, root / "release",
+                    expected_revision=REVISION, budgets_path=budgets,
+                )
+            with self.assertRaisesRegex(UvMirrorError, "size budgets are missing or invalid"):
+                assemble(
+                    "20261022", "owner/name", dist, root / "release",
+                    expected_revision=REVISION, budgets_path=root / "missing.json",
+                )
+
+    def test_budget_overrun_fails_without_creating_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, budgets = self._input_tree(root)
+            self._budgets(budgets, compressed=1)
+            output = root / "release"
+            with self.assertRaisesRegex(UvMirrorError, "compressed archive exceeds"):
+                assemble(
+                    "20261022", "owner/name", dist, output,
+                    expected_revision=REVISION, budgets_path=budgets,
+                )
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from buildsys.reproduce import compare_trees
+from buildsys.product import PRODUCT
 
 
 class CompareTreesTests(unittest.TestCase):
@@ -14,8 +15,8 @@ class CompareTreesTests(unittest.TestCase):
             a, b = Path(tmp) / "a", Path(tmp) / "b"
             (a / "bin").mkdir(parents=True)
             (b / "bin").mkdir(parents=True)
-            (a / "bin" / "python3.14").write_bytes(b"same content")
-            (b / "bin" / "python3.14").write_bytes(b"same content")
+            (a / "bin" / PRODUCT.interpreter_name).write_bytes(b"same content")
+            (b / "bin" / PRODUCT.interpreter_name).write_bytes(b"same content")
 
             report = compare_trees(a, b)
 

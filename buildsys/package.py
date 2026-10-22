@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from .deporder import dependency_order
 from .inputs import canonical_json, load_lock
 from .product import Product
 from .targets import Target
@@ -32,6 +33,7 @@ class ArchiveFacts:
     sha256: str
     size_bytes: int
     payload_sha256: str
+    payload_size_bytes: int
 
 
 def _regular_mode(mode: int) -> int:
@@ -73,12 +75,14 @@ def _sha256(path: Path) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
-def _payload_sha256(path: Path) -> str:
+def _payload_facts(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
+    size = 0
     with gzip.open(path, "rb") as stream:
         for chunk in iter(lambda: stream.read(1 << 20), b""):
             digest.update(chunk)
-    return digest.hexdigest()
+            size += len(chunk)
+    return digest.hexdigest(), size
 
 
 def create_archive(install: Path, archive_path: Path) -> ArchiveFacts:
@@ -111,7 +115,8 @@ def create_archive(install: Path, archive_path: Path) -> ArchiveFacts:
                     else:
                         archive.addfile(info)
     sha256, size_bytes = _sha256(archive_path)
-    return ArchiveFacts(sha256, size_bytes, _payload_sha256(archive_path))
+    payload_sha256, payload_size_bytes = _payload_facts(archive_path)
+    return ArchiveFacts(sha256, size_bytes, payload_sha256, payload_size_bytes)
 
 
 def _tree_inventory(root: Path) -> dict[str, tuple]:
@@ -361,12 +366,24 @@ def build_manifest(
     archive: ArchiveFacts,
     qualification: dict,
     lock_path: Path,
+    build_record: dict,
+    package_patches_directory: Path,
 ) -> dict:
     if not qualification.get("ok"):
         raise PackageError("refusing to manifest an unqualified artifact")
     gil = gil_enabled(qualification)
     if not gil:
         raise PackageError("qualified product does not have the GIL enabled")
+    package_patches = [
+        {"name": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        for path in sorted(Path(package_patches_directory).glob("*.patch"))
+    ]
+    bundle = next(
+        (entry for entry in load_lock(lock_path) if entry.name == "certifi-ca"),
+        None,
+    )
+    if bundle is None:
+        raise PackageError("source lock has no certifi-ca trust bundle")
     return {
         "schema_version": 1,
         "product": {
@@ -381,10 +398,35 @@ def build_manifest(
             "uv": {"arch": target.uv_arch, "os": target.uv_os, "libc": target.uv_libc},
         },
         "source_revision": source_revision,
+        "build": {
+            "source": build_record["source"],
+            "patches": build_record["patches"],
+            "dependencies": build_record["dependencies"],
+            "toolchain_observed": build_record["toolchain_observed"],
+            "optimization": build_record["optimization"],
+            "effective_flags": build_record["effective_flags"],
+            "commands": build_record["commands"],
+            "build_mode": build_record["build_mode"],
+            "isolation": build_record["isolation"],
+        },
+        "packaging": {
+            "patches": package_patches,
+            "trust_bundle": {
+                "name": bundle.name,
+                "version": bundle.version,
+                "sha256": bundle.sha256,
+                "size": bundle.size,
+                "license": bundle.license,
+                "identity": bundle.identity(),
+            },
+        },
         "recipe_identity": recipe_identity,
         "bootstrap_identity": bootstrap_identity,
         "toolchain": {"llvm_version": llvm_version},
-        "payload": {"sha256": archive.payload_sha256},
+        "payload": {
+            "sha256": archive.payload_sha256,
+            "size_bytes": archive.payload_size_bytes,
+        },
         "archive": {
             "filename": archive_filename,
             "sha256": archive.sha256,
@@ -496,11 +538,21 @@ def validate_build_record(
     }:
         raise PackageError("CPython staged build record does not match the locked source")
 
-    expected_dependencies = [
-        {"name": entry.name, "version": entry.version, "sha256": entry.sha256}
-        for entry in load_lock(lock_path)
-        if entry.role == "source" and entry.name not in {"certifi-ca", "cpython"}
-    ]
+    pins_by_name = {entry.name: entry for entry in load_lock(lock_path)}
+    dependency_names = tuple(
+        name for name in dependency_order(target) if name != "pkgconf"
+    )
+    expected_dependencies = []
+    for name in dependency_names:
+        entry = pins_by_name.get(name)
+        if entry is None:
+            raise PackageError(f"source lock has no required dependency pin for {name}")
+        expected_dependencies.append({
+            "name": entry.name,
+            "version": entry.version,
+            "sha256": entry.sha256,
+            "identity": entry.identity(),
+        })
     if record.get("dependencies") != expected_dependencies:
         raise PackageError("CPython staged build record has stale dependency inputs")
 
@@ -521,17 +573,34 @@ def validate_build_record(
         raise PackageError("CPython staged build record has a stale bootstrap identity")
 
     toolchain = record.get("toolchain")
+    observed = record.get("toolchain_observed")
     if not isinstance(toolchain, dict) or toolchain.get("family") != target.family:
         raise PackageError("CPython staged build record has no matching toolchain identity")
+    observed_commands = observed.get("commands") if isinstance(observed, dict) else None
+    if not isinstance(observed_commands, dict):
+        raise PackageError("CPython staged build record has no observed tool commands")
+    for command_name, command in observed_commands.items():
+        if (
+            not isinstance(command, dict)
+            or not isinstance(command.get("path"), str)
+            or not command["path"]
+            or not isinstance(command.get("version"), str)
+            or not command["version"]
+        ):
+            raise PackageError(
+                f"CPython staged build record has incomplete observed tool {command_name}"
+            )
+    if toolchain.get("cpu_baseline") != target.cpu_baseline_cflag:
+        raise PackageError("CPython staged build record has a stale CPU baseline")
     if target.is_macos:
         expected_llvm = bootstrap.get("macos_toolchain", {}).get("llvm", {}).get("version")
         if toolchain.get("llvm_version") != expected_llvm:
             raise PackageError("CPython staged build record has a stale LLVM version")
     else:
         pinned_llvm = [
-            value.split("=", 1)[1].rsplit("-r", 1)[0]
-            for value in bootstrap.get("explicitly_pinned_in_dockerfile", [])
-            if value.startswith("clang22=")
+            package.get("version", "").split("-r", 1)[0]
+            for package in bootstrap.get("linux_toolchain", {}).get("direct_packages", [])
+            if isinstance(package, dict) and package.get("name") == "clang23"
         ]
         commands = toolchain.get("commands")
         compiler = commands.get("cc") if isinstance(commands, dict) else None
@@ -569,6 +638,7 @@ def validate_build_record(
         "environment": environment,
         "effective_flags": effective_flags,
         "toolchain": toolchain,
+        "bootstrap_identity": bootstrap_identity,
     }
     expected_recipe_identity = hashlib.sha256(canonical_json(recipe_material).encode()).hexdigest()
     recipe_identity = record.get("recipe_identity")
@@ -578,9 +648,29 @@ def validate_build_record(
         or recipe_identity != expected_recipe_identity
     ):
         raise PackageError("CPython staged build record has a mismatched recipe identity")
-    if record.get("build_mode") not in {"development", "sealed"}:
-        raise PackageError("CPython staged build record has an invalid build mode")
+    if record.get("build_mode") != "sealed":
+        raise PackageError("packaging requires a sealed CPython build")
+    source_revision = record.get("source_revision")
+    if not isinstance(source_revision, str) or not re.fullmatch(
+        r"[0-9a-f]{40,64}", source_revision
+    ):
+        raise PackageError("CPython staged build record has an invalid source revision")
+    if record.get("source_dirty") is not False:
+        raise PackageError("packaging requires a clean source revision")
     isolation = record.get("isolation")
-    if not isinstance(isolation, dict) or not isinstance(isolation.get("mechanism"), str):
+    if (
+        not isinstance(isolation, dict)
+        or not isinstance(isolation.get("mechanism"), str)
+        or isolation.get("network") != "disabled"
+    ):
         raise PackageError("CPython staged build record has no isolation evidence")
+    if target.is_macos:
+        if isolation.get("mechanism") != "sandbox-exec":
+            raise PackageError("macOS packaging requires sandbox-exec build evidence")
+        for name in ("network_boundary_before", "network_boundary_after"):
+            evidence = isolation.get(name)
+            if not isinstance(evidence, dict) or evidence.get("ok") is not True:
+                raise PackageError(f"macOS build has no successful {name} evidence")
+    elif isolation.get("mechanism") != "buildkit-network-none":
+        raise PackageError("Linux packaging requires BuildKit network-disabled evidence")
     return record

@@ -110,7 +110,7 @@ class ClassifyTests(unittest.TestCase):
         }
         self.assertFalse(report_payload(report)["ok"])
 
-    @patch("buildsys.testsuite.subprocess.run")
+    @patch("buildsys.testsuite.run_product_process")
     def test_retries_are_bounded_and_passing_retries_preserve_initial_failure(
         self,
         run,
@@ -135,7 +135,7 @@ class RunSuiteTests(unittest.TestCase):
     def _completed(self, returncode: int, output: str) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess([], returncode, output, "")
 
-    @patch("buildsys.testsuite.subprocess.run")
+    @patch("buildsys.testsuite.run_product_process")
     def test_success_summary_without_failures_field_is_complete(self, run) -> None:
         run.return_value = self._completed(
             0,
@@ -155,7 +155,7 @@ Result: SUCCESS
         self.assertEqual(report["failed_files"], [])
         self.assertEqual(report["test_files_run"], report["test_files_expected"])
 
-    @patch("buildsys.testsuite.subprocess.run")
+    @patch("buildsys.testsuite.run_product_process")
     def test_singular_failed_file_is_parsed(self, run) -> None:
         run.return_value = self._completed(
             2,
@@ -175,7 +175,7 @@ Result: FAILURE
         self.assertEqual(report["failure_count"], 1)
         self.assertEqual(report["failed_files"], ["test_example"])
 
-    @patch("buildsys.testsuite.subprocess.run")
+    @patch("buildsys.testsuite.run_product_process")
     def test_abnormal_process_termination_fails_even_with_success_output(self, run) -> None:
         run.return_value = self._completed(
             -9,
@@ -188,7 +188,7 @@ Total test files: run=1/1
         with self.assertRaisesRegex(SuiteError, "abnormally with status -9"):
             run_suite(Path("python3.15"))
 
-    @patch("buildsys.testsuite.subprocess.run")
+    @patch("buildsys.testsuite.run_product_process")
     def test_zero_executed_tests_fail(self, run) -> None:
         run.return_value = self._completed(
             4,
@@ -201,7 +201,7 @@ Result: NO TESTS RAN
         with self.assertRaisesRegex(SuiteError, "accounting is incomplete"):
             run_suite(Path("python3.15"))
 
-    @patch("buildsys.testsuite.subprocess.run")
+    @patch("buildsys.testsuite.run_product_process")
     def test_timed_out_test_fails_even_with_failure_summary(self, run) -> None:
         run.return_value = self._completed(
             2,

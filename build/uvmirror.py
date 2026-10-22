@@ -18,9 +18,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", required=True, help="owner/name of this repository")
     parser.add_argument("--dist", default="dist", help="per-triple dist/ root")
     parser.add_argument("--out", default="release", help="output directory")
+    parser.add_argument("--budgets", default="release-budgets.json")
     args = parser.parse_args(argv)
     try:
-        report = assemble(args.tag, args.repo, Path(args.dist), Path(args.out))
+        report = assemble(
+            args.tag,
+            args.repo,
+            Path(args.dist),
+            Path(args.out),
+            budgets_path=Path(args.budgets),
+        )
     except UvMirrorError as error:
         print(f"FAIL uvmirror: {error}", file=sys.stderr)
         return 1

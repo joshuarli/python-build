@@ -1,100 +1,57 @@
-"""Release-asset assembly in python-build-standalone layout.
-
-`build/package.py` writes per-target `dist/<triple>/` directories whose archive
-names carry this project's local build revision
-(`cpython-3.14.6-<triple>-r1.tar.gz`). A public release instead uses Astral's
-naming so the assets work as a `uv` python-install mirror:
-
-    cpython-3.14.6+<tag>-<triple>-install_only_stripped.tar.gz
-
-under `releases/download/<tag>/`, plus a `download-metadata.json` subset in
-the schema `uv` reads (`crates/uv-python/download-metadata.json`).
-
-Two metadata files are emitted because the smoke test and the release need
-different URL bases for the same bytes:
-
-  download-metadata.json  points at this repository's release page, for
-                          consumers (`uv python install --python-downloads-json-url ...`).
-  smoke-metadata.json     keeps the canonical
-                          `github.com/astral-sh/python-build-standalone/releases/download`
-                          prefix so `UV_PYTHON_INSTALL_MIRROR=<local dir>`
-                          rewrites it to files on disk. `uv` only applies the
-                          mirror when the URL carries that exact prefix.
-
-Only the `install_only_stripped` flavor is produced: it is the one `uv`
-downloads, and this project's packaged archive is already stripped.
-"""
+"""Validate qualified artifacts and assemble uv download metadata."""
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
+import os
+import re
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from urllib.parse import quote
 
-VERSION = "3.14.6"
+from .product import PRODUCT
+from .targets import TARGETS
+
+VERSION = PRODUCT.version_string
+TRIPLES = {
+    triple: {
+        "key_arch": target.uv_arch,
+        "os": target.uv_os,
+        "libc": target.uv_libc,
+    }
+    for triple, target in TARGETS.items()
+}
+CANONICAL_PREFIX = "https://github.com/astral-sh/python-build-standalone/releases/download"
+LLVM_VERSIONS = {
+    triple: "23.1.4" if target.is_macos else "23.1.3"
+    for triple, target in TARGETS.items()
+}
+RELEASE_BUDGETS = Path(__file__).resolve().parents[1] / "release-budgets.json"
 
 
 class UvMirrorError(Exception):
-    """Release assets could not be assembled from dist/."""
-
-
-# Every triple this project ships, and the uv metadata key parts for each.
-# Keys follow uv's `{impl}-{version}-{os}-{arch}-{libc}` scheme.
-TRIPLES: dict[str, dict[str, str]] = {
-    "aarch64-apple-darwin": {
-        "key_arch": "aarch64",
-        "os": "darwin",
-        "libc": "none",
-    },
-    "x86_64-unknown-linux-musl": {
-        "key_arch": "x86_64",
-        "os": "linux",
-        "libc": "musl",
-    },
-    "aarch64-unknown-linux-musl": {
-        "key_arch": "aarch64",
-        "os": "linux",
-        "libc": "musl",
-    },
-}
-
-CANONICAL_PREFIX = "https://github.com/astral-sh/python-build-standalone/releases/download"
-
-# Byte sizes of Astral's corresponding CPython 3.14.6 `install_only_stripped`
-# archives from the pinned 20260610 release. Keep our release assets within
-# 1.2x of these references; this is checked before the files are assembled.
-REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES = {
-    "aarch64-apple-darwin": 25_998_180,
-    "x86_64-unknown-linux-musl": 28_899_299,
-    "aarch64-unknown-linux-musl": 29_147_568,
-}
-
-
-def _require_size_budget(size_bytes: int, triple: str) -> None:
-    reference_size = REFERENCE_STRIPPED_ARCHIVE_SIZES_BYTES[triple]
-    if size_bytes * 5 > reference_size * 6:
-        maximum_size = reference_size * 6 // 5
-        raise UvMirrorError(
-            f"{triple} archive is {size_bytes} bytes, above the 1.2x limit "
-            f"of {maximum_size} bytes for the pinned Astral 20260610 asset"
-        )
+    """Release assets failed identity, qualification, or size validation."""
 
 
 def asset_name(tag: str, triple: str) -> str:
-    """The Astral-format asset name for one triple."""
-    return f"cpython-{VERSION}+{tag}-{triple}-install_only_stripped.tar.gz"
+    if triple not in TRIPLES:
+        raise UvMirrorError(f"unsupported release target {triple!r}")
+    return PRODUCT.mirror_archive_name(tag, triple)
 
 
 def metadata_key(triple: str) -> str:
-    """The uv download-metadata.json key for one triple."""
-    info = TRIPLES[triple]
+    try:
+        info = TRIPLES[triple]
+    except KeyError:
+        raise UvMirrorError(f"unsupported release target {triple!r}") from None
     return f"cpython-{VERSION}-{info['os']}-{info['key_arch']}-{info['libc']}"
 
 
 def metadata_entry(triple: str, tag: str, url_base: str, sha256: str) -> dict:
-    """One download-metadata.json entry, matching uv's schema for stable releases."""
     info = TRIPLES[triple]
     name = asset_name(tag, triple)
     return {
@@ -102,9 +59,9 @@ def metadata_entry(triple: str, tag: str, url_base: str, sha256: str) -> dict:
         "arch": {"family": info["key_arch"], "variant": None},
         "os": info["os"],
         "libc": info["libc"],
-        "major": 3,
-        "minor": 14,
-        "patch": 6,
+        "major": PRODUCT.version[0],
+        "minor": PRODUCT.version[1],
+        "patch": PRODUCT.version[2],
         "prerelease": "",
         "url": f"{url_base.rstrip('/')}/{tag}/{quote(name, safe='')}",
         "sha256": sha256,
@@ -113,23 +70,137 @@ def metadata_entry(triple: str, tag: str, url_base: str, sha256: str) -> dict:
     }
 
 
-def find_local_archive(dist: Path, triple: str) -> Path:
-    """The single packaged archive `build/package.py` produced for a triple."""
-    matches = sorted(dist.glob(f"cpython-{VERSION}-{triple}-*.tar.gz"))
-    if len(matches) != 1:
-        raise UvMirrorError(
-            f"expected exactly one packaged archive for {triple} in {dist}, "
-            f"found {len(matches)}: run `build/package.py` first"
-        )
-    return matches[0]
-
-
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
+    with Path(path).open("rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _payload_facts(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    try:
+        with gzip.open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+                size += len(chunk)
+    except (OSError, EOFError) as error:
+        raise UvMirrorError(f"cannot read artifact payload {path}: {error}") from error
+    return digest.hexdigest(), size
+
+
+def _expected_revision(expected_revision: str | None) -> str:
+    revision = expected_revision or os.environ.get("GITHUB_SHA")
+    if not revision:
+        try:
+            revision = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=Path(__file__).resolve().parents[1],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=15,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError) as error:
+            raise UvMirrorError(f"cannot determine artifact source revision: {error}") from error
+    if re.fullmatch(r"[0-9a-f]{40,64}", revision) is None:
+        raise UvMirrorError(f"invalid expected source revision {revision!r}")
+    return revision
+
+
+def _load_manifest(dist: Path, triple: str, expected_revision: str) -> tuple[Path, dict]:
+    target = TARGETS[triple]
+    directory = Path(dist) / triple
+    manifest_path = directory / "artifact.json"
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise UvMirrorError(f"{triple}: artifact manifest is missing or invalid: {error}") from error
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise UvMirrorError(f"{triple}: unsupported artifact manifest schema")
+    if manifest.get("product") != {
+        "version": PRODUCT.version_string,
+        "abi_tag": PRODUCT.abi_tag,
+        "gil_enabled": True,
+    }:
+        raise UvMirrorError(f"{triple}: artifact has a different product identity")
+    if manifest.get("target") != {
+        "triple": triple,
+        "family": target.family,
+        "machine": target.machine,
+        "uv": {"arch": target.uv_arch, "os": target.uv_os, "libc": target.uv_libc},
+    }:
+        raise UvMirrorError(f"{triple}: artifact target metadata does not match the target table")
+    if manifest.get("source_revision") != expected_revision:
+        raise UvMirrorError(
+            f"{triple}: artifact revision {manifest.get('source_revision')!r} "
+            f"does not match built revision {expected_revision}"
+        )
+    if manifest.get("toolchain", {}).get("llvm_version") != LLVM_VERSIONS[triple]:
+        raise UvMirrorError(f"{triple}: artifact does not use locked LLVM {LLVM_VERSIONS[triple]}")
+    qualification = manifest.get("qualification")
+    if not isinstance(qualification, dict) or qualification.get("ok") is not True:
+        raise UvMirrorError(f"{triple}: artifact qualification did not pass")
+    checks = qualification.get("checks")
+    if not isinstance(checks, dict) or not checks or any(
+        not isinstance(check, dict) or check.get("status") not in {"passed", "skipped"}
+        for check in checks.values()
+    ):
+        raise UvMirrorError(f"{triple}: artifact contains a failed or malformed qualification check")
+    archive = manifest.get("archive")
+    if not isinstance(archive, dict):
+        raise UvMirrorError(f"{triple}: artifact manifest has no archive identity")
+    filename = archive.get("filename")
+    if not isinstance(filename, str) or not filename.startswith(
+        f"cpython-{VERSION}-{triple}-"
+    ) or not filename.endswith(".tar.gz") or Path(filename).name != filename:
+        raise UvMirrorError(f"{triple}: artifact manifest has an invalid archive filename")
+    archive_path = directory / filename
+    if archive_path.is_symlink() or not archive_path.is_file():
+        raise UvMirrorError(f"{triple}: packaged archive is missing: {archive_path}")
+    actual_hash = sha256_of(archive_path)
+    actual_size = archive_path.stat().st_size
+    if archive.get("sha256") != actual_hash or archive.get("size_bytes") != actual_size:
+        raise UvMirrorError(f"{triple}: artifact archive digest or size does not match its manifest")
+    payload_hash, payload_size = _payload_facts(archive_path)
+    payload = manifest.get("payload")
+    if not isinstance(payload, dict) or payload.get("sha256") != payload_hash:
+        raise UvMirrorError(f"{triple}: artifact payload digest does not match its manifest")
+    if payload.get("size_bytes") != payload_size:
+        raise UvMirrorError(f"{triple}: artifact payload size does not match its manifest")
+    return archive_path, manifest
+
+
+def _load_budgets(path: Path) -> dict[str, dict[str, int]]:
+    try:
+        document = json.loads(Path(path).read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise UvMirrorError(f"release size budgets are missing or invalid: {error}") from error
+    if not isinstance(document, dict) or document.get("schema_version") != 1:
+        raise UvMirrorError("release size budget file has an unsupported schema")
+    targets = document.get("targets")
+    if not isinstance(targets, dict):
+        raise UvMirrorError("release size budget file has an unsupported schema")
+    result = {}
+    for triple in TARGETS:
+        entry = targets.get(triple)
+        if not isinstance(entry, dict):
+            raise UvMirrorError(f"{triple}: no reviewed compressed and unpacked size budget")
+        compressed = entry.get("archive_size_bytes")
+        unpacked = entry.get("payload_size_bytes")
+        if any(type(value) is not int or value < 1 for value in (compressed, unpacked)):
+            raise UvMirrorError(f"{triple}: size budgets must be positive integers")
+        if not isinstance(entry.get("rationale"), str) or not entry["rationale"].strip():
+            raise UvMirrorError(f"{triple}: size budget has no rationale")
+        result[triple] = {
+            "archive_size_bytes": compressed,
+            "payload_size_bytes": unpacked,
+        }
+    if set(targets) != set(TARGETS):
+        raise UvMirrorError("release size budgets do not match the supported target set")
+    return result
 
 
 def _metadata(tag: str, url_base: str, hashes: dict[str, str]) -> dict:
@@ -137,36 +208,69 @@ def _metadata(tag: str, url_base: str, hashes: dict[str, str]) -> dict:
         metadata_key(triple): metadata_entry(
             triple, tag, url_base, hashes[asset_name(tag, triple)]
         )
-        for triple in TRIPLES
+        for triple in TARGETS
     }
 
 
-def assemble(tag: str, repo: str, dist: Path, out: Path) -> dict:
-    """Copy renamed assets and write checksums plus both metadata files."""
-    if not tag or "/" in tag or tag in (".", ".."):
+def assemble(
+    tag: str,
+    repo: str,
+    dist: Path,
+    out: Path,
+    *,
+    expected_revision: str | None = None,
+    budgets_path: Path = RELEASE_BUDGETS,
+) -> dict:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag) is None:
         raise UvMirrorError(f"refusing unsafe release tag {tag!r}")
-    out.mkdir(parents=True, exist_ok=True)
+    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo) is None:
+        raise UvMirrorError(f"invalid GitHub repository {repo!r}")
+    revision = _expected_revision(expected_revision)
+    budgets = _load_budgets(budgets_path)
+    prepared: dict[str, tuple[Path, Path, dict]] = {}
+    for triple in TARGETS:
+        source, manifest = _load_manifest(dist, triple, revision)
+        limits = budgets[triple]
+        if source.stat().st_size > limits["archive_size_bytes"]:
+            raise UvMirrorError(f"{triple}: compressed archive exceeds its reviewed size budget")
+        if manifest["payload"]["size_bytes"] > limits["payload_size_bytes"]:
+            raise UvMirrorError(f"{triple}: unpacked payload exceeds its reviewed size budget")
+        target = TARGETS[triple]
+        if manifest.get("toolchain", {}).get("llvm_version") != LLVM_VERSIONS[triple]:
+            raise UvMirrorError(f"{triple}: toolchain identity changed")
+        prepared[triple] = (source, Path(dist) / triple / "artifact.json", manifest)
+
+    output = Path(out).resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() or output.is_symlink():
+        raise UvMirrorError(f"refusing to overwrite existing release directory {output}")
     hashes: dict[str, str] = {}
-    for triple in TRIPLES:
-        source = find_local_archive(dist / triple, triple)
-        _require_size_budget(source.stat().st_size, triple)
-        target = out / asset_name(tag, triple)
-        if target.exists():
-            raise UvMirrorError(f"refusing to overwrite existing {target}")
-        shutil.copyfile(source, target)
-        hashes[target.name] = sha256_of(target)
-    (out / "SHA256SUMS").write_text(
-        "".join(f"{digest}  {name}\n" for name, digest in sorted(hashes.items()))
-    )
-    release_base = f"https://github.com/{repo}/releases/download"
-    (out / "download-metadata.json").write_text(
-        json.dumps(_metadata(tag, release_base, hashes), indent=2) + "\n"
-    )
-    (out / "smoke-metadata.json").write_text(
-        json.dumps(_metadata(tag, CANONICAL_PREFIX, hashes), indent=2) + "\n"
-    )
-    return {
-        "tag": tag,
-        "assets": sorted(hashes),
-        "out": str(out),
-    }
+    with tempfile.TemporaryDirectory(prefix=f".{output.name}-", dir=output.parent) as temporary:
+        staging = Path(temporary)
+        for triple, (source, manifest_path, manifest) in prepared.items():
+            name = asset_name(tag, triple)
+            archive = staging / name
+            shutil.copyfile(source, archive)
+            hashes[name] = sha256_of(archive)
+            shutil.copyfile(manifest_path, staging / f"artifact-{triple}.json")
+            manifest_hash = sha256_of(staging / f"artifact-{triple}.json")
+            hashes[f"artifact-{triple}.json"] = manifest_hash
+        (staging / "SHA256SUMS").write_text(
+            "".join(f"{digest}  {name}\n" for name, digest in sorted(hashes.items()))
+        )
+        release_base = f"https://github.com/{repo}/releases/download"
+        (staging / "download-metadata.json").write_text(
+            json.dumps(_metadata(tag, release_base, hashes), indent=2) + "\n"
+        )
+        (staging / "smoke-metadata.json").write_text(
+            json.dumps(_metadata(tag, CANONICAL_PREFIX, hashes), indent=2) + "\n"
+        )
+        report = {
+            "tag": tag,
+            "source_revision": revision,
+            "assets": sorted(hashes),
+            "out": str(output),
+        }
+        (staging / "assembly.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        os.replace(staging, output)
+    return report

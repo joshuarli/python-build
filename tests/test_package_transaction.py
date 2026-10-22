@@ -23,11 +23,27 @@ from buildsys.package import (
     verify_archive_extraction,
 )
 from buildsys.inputs import canonical_json, load_lock
+from buildsys.deporder import dependency_order
 from buildsys.product import PRODUCT, Product
 from buildsys.targets import target_for_triple
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE_LOCK = REPO / "sources.lock.json"
+BUILD_RECORD = {
+    "source": {"name": "cpython", "version": "3.15.1", "sha256": "e" * 64},
+    "patches": [],
+    "dependencies": [],
+    "optimization": {"lto": "thin", "pgo": False},
+    "toolchain_observed": {
+        "commands": {
+            "cc": {"path": "/usr/bin/clang", "version": "clang version 23.1.3"},
+        },
+    },
+    "effective_flags": {"CFLAGS": "-O3"},
+    "commands": {"configure": ["configure"], "build": ["make"], "install": ["make", "install"]},
+    "build_mode": "sealed",
+    "isolation": {"mechanism": "buildkit-network-none", "network": "disabled"},
+}
 
 
 class ArchiveTests(unittest.TestCase):
@@ -87,20 +103,22 @@ class ManifestTests(unittest.TestCase):
                 "validation.version_and_abi": {"gil_enabled": True},
             },
         }
-        archive = ArchiveFacts("a" * 64, 1234, "b" * 64)
+        archive = ArchiveFacts("a" * 64, 1234, "b" * 64, 5678)
         arguments = {
             "product": Product((3, 15, 1)),
             "target": target,
             "source_revision": "f" * 40,
             "recipe_identity": "c" * 64,
             "bootstrap_identity": "d" * 64,
-            "llvm_version": "22.1.3",
+            "llvm_version": "23.1.3",
             "archive_filename": archive_path_for(
                 target, Product((3, 15, 1)), "r2"
             ),
             "archive": archive,
             "qualification": qualification,
             "lock_path": SOURCE_LOCK,
+            "build_record": BUILD_RECORD,
+            "package_patches_directory": REPO / "patches" / "package",
         }
         first = build_manifest(**arguments)
         second = build_manifest(**arguments)
@@ -115,6 +133,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(first["archive"]["filename"],
                          "cpython-3.15.1-aarch64-unknown-linux-musl-r2.tar.gz")
         self.assertEqual(first["payload"]["sha256"], "b" * 64)
+        self.assertEqual(first["payload"]["size_bytes"], 5678)
         self.assertTrue(first["components"]["bundled"])
         self.assertTrue(all("license" in entry for entry in first["components"]["bundled"]))
         self.assertNotIn("reference", first)
@@ -146,10 +165,12 @@ class ManifestTests(unittest.TestCase):
             "source_revision": "f" * 40,
             "recipe_identity": "c" * 64,
             "bootstrap_identity": "d" * 64,
-            "llvm_version": "22.1.3",
+            "llvm_version": "23.1.3",
             "archive_filename": "artifact.tar.gz",
-            "archive": ArchiveFacts("a" * 64, 1, "b" * 64),
+            "archive": ArchiveFacts("a" * 64, 1, "b" * 64, 2),
             "lock_path": SOURCE_LOCK,
+            "build_record": BUILD_RECORD,
+            "package_patches_directory": REPO / "patches" / "package",
         }
         for qualification in (
             {"ok": True, "checks": {"validation.version_and_abi": {"gil_enabled": False}}},
@@ -162,10 +183,16 @@ class ManifestTests(unittest.TestCase):
         target = target_for_triple("aarch64-unknown-linux-musl")
         entries = load_lock(SOURCE_LOCK)
         source = next(entry for entry in entries if entry.name == "cpython")
+        pins_by_name = {entry.name: entry for entry in entries}
         dependencies = [
-            {"name": entry.name, "version": entry.version, "sha256": entry.sha256}
-            for entry in entries
-            if entry.role == "source" and entry.name not in {"certifi-ca", "cpython"}
+            {
+                "name": pins_by_name[name].name,
+                "version": pins_by_name[name].version,
+                "sha256": pins_by_name[name].sha256,
+                "identity": pins_by_name[name].identity(),
+            }
+            for name in dependency_order(target)
+            if name != "pkgconf"
         ]
         patches = [
             {"name": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
@@ -173,7 +200,8 @@ class ManifestTests(unittest.TestCase):
         ]
         toolchain = {
             "family": target.family,
-            "commands": {"cc": {"version": "clang version 22.1.3"}},
+            "cpu_baseline": target.cpu_baseline_cflag,
+            "commands": {"cc": {"version": "clang version 23.1.3"}},
         }
         optimization = {
             "configure_args": ["--enable-shared"], "lto": "thin", "pgo": False,
@@ -194,20 +222,33 @@ class ManifestTests(unittest.TestCase):
             "environment": environment,
             "effective_flags": effective_flags,
             "toolchain": toolchain,
+            "bootstrap_identity": hashlib.sha256(
+                (REPO / "bootstrap.lock.json").read_bytes()
+            ).hexdigest(),
         }
         bootstrap_bytes = (REPO / "bootstrap.lock.json").read_bytes()
         record = {
             "schema_version": 1,
             "target": target.triple,
             "product": {"version": PRODUCT.version_string, "abi_tag": PRODUCT.abi_tag},
-            "build_mode": "development",
-            "isolation": {"mechanism": "host-process", "network": "not-enforced"},
+            "source_revision": "f" * 40,
+            "source_dirty": False,
+            "build_mode": "sealed",
+            "isolation": {
+                "mechanism": "buildkit-network-none",
+                "network": "disabled",
+            },
             "source": {"name": source.name, "version": source.version, "sha256": source.sha256},
             "patches": patches,
             "dependencies": dependencies,
             "recipe_identity": hashlib.sha256(canonical_json(recipe_material).encode()).hexdigest(),
             "bootstrap_identity": hashlib.sha256(bootstrap_bytes).hexdigest(),
             "toolchain": toolchain,
+            "toolchain_observed": {
+                "commands": {
+                    "cc": {"path": "/usr/bin/clang", "version": "clang version 23.1.3"},
+                },
+            },
             "optimization": optimization,
             "environment": environment,
             "effective_flags": effective_flags,
@@ -230,6 +271,10 @@ class ManifestTests(unittest.TestCase):
                 ("target", "x86_64-unknown-linux-musl"),
                 ("source", {**record["source"], "version": "stale"}),
                 ("recipe_identity", "0" * 64),
+                ("build_mode", "development"),
+                ("source_dirty", True),
+                ("isolation", {**record["isolation"], "network": "enabled"}),
+                ("toolchain", {**toolchain, "cpu_baseline": "-march=native"}),
             ):
                 stale = {**record, field: replacement}
                 path.write_text(json.dumps(stale))
@@ -357,6 +402,8 @@ class PublicationTests(unittest.TestCase):
                     "checks": {"validation.version_and_abi": {"gil_enabled": True}},
                 },
                 lock_path=SOURCE_LOCK,
+                build_record=BUILD_RECORD,
+                package_patches_directory=REPO / "patches" / "package",
             )
             (dist / archive_name).write_bytes(staged_archive.read_bytes())
             (dist / "artifact.json").write_text(json.dumps(manifest))

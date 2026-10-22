@@ -25,14 +25,17 @@ from pathlib import Path
 
 from . import macho
 from .product import PRODUCT
-from .product_process import run_product_process
+from .product_process import product_environment, run_product_process
 from .scope import probe_in_process, verify_exclusions
+from .bootstrap import load_macos_toolchain
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Load commands the payload may have, by prefix. Anything else is a leak:
 # either a build-machine path, or a library this project did not bundle and
 # the platform does not provide.
 REQUIRED_MODULES = (
-    "ssl", "hashlib", "sqlite3", "dbm", "dbm.ndbm", "decimal", "uuid",
+    "ssl", "hashlib", "sqlite3", "dbm", "dbm.ndbm", "decimal", "_decimal", "uuid",
     "xml.etree.ElementTree", "zlib", "bz2", "lzma", "compression.zstd",
     "ctypes", "readline", "curses", "curses.panel", "zoneinfo", "socket",
     "threading", "concurrent.futures", "subprocess", "multiprocessing",
@@ -347,10 +350,17 @@ def version_and_abi(python: Path, target, *, cwd: Path | None = None) -> dict:
         raise ValidationError(f"interpreter failed: {result.stderr.strip()}")
     info = json.loads(result.stdout.strip().splitlines()[-1])
     expected_version = list(PRODUCT.version)
-    expected_soabi = f"cpython-{PRODUCT.abi_tag[2:]}-darwin"
+    if target.is_macos:
+        expected_soabi = f"cpython-{PRODUCT.abi_tag[2:]}-darwin"
+        expected_platform = f"macosx-{target.deployment_target}-{target.machine}"
+        expected_instsoname = f"lib{PRODUCT.shared_library_stem}.dylib"
+    else:
+        expected_soabi = (
+            f"cpython-{PRODUCT.abi_tag[2:]}-{target.machine}-linux-musl"
+        )
+        expected_platform = f"linux-{target.machine}"
+        expected_instsoname = f"lib{PRODUCT.shared_library_stem}.so.1.0"
     expected_ext_suffix = f".{expected_soabi}.so"
-    expected_platform = f"macosx-{target.deployment_target}-{target.machine}"
-    expected_instsoname = f"lib{PRODUCT.shared_library_stem}.dylib"
     info["expected_version"] = expected_version
     info["expected_soabi"] = expected_soabi
     info["expected_ext_suffix"] = expected_ext_suffix
@@ -383,8 +393,9 @@ def version_and_abi(python: Path, target, *, cwd: Path | None = None) -> dict:
     info["ok"] = bool(
         info["version_ok"] and info["arch_ok"] and info["abi_ok"]
         and info["shared_library_ok"]
-        and info["platform"] == "darwin" and info["gil_enabled"]
-        and not info["free_threaded"] and info["lto"] and info["pgo"]
+        and info["platform"] == ("darwin" if target.is_macos else "linux")
+        and info["gil_enabled"] and not info["free_threaded"] and info["lto"]
+        and info["pgo"] is target.is_macos
         and not info["tail_call"]
     )
     return info
@@ -433,7 +444,7 @@ def module_inventory(python: Path, *, cwd: Path | None = None) -> dict:
 def capability_checks(python: Path, *, cwd: Path | None = None) -> dict:
     """Round trips through the bundled and platform-backed modules."""
     code = """
-        import bz2, dbm, dbm.ndbm, decimal, hashlib, json, lzma, os
+        import _decimal, bz2, dbm, dbm.ndbm, decimal, hashlib, json, lzma, os
         import sqlite3, tempfile, uuid, zlib
         import compression.zstd
         out = {}
@@ -452,7 +463,10 @@ def capability_checks(python: Path, *, cwd: Path | None = None) -> dict:
             con.execute("insert into t values (?)", (42,))
             out["sqlite_roundtrip"] = con.execute("select a from t").fetchone() == (42,)
             con.close()
-        out["decimal"] = str(decimal.Decimal(2).sqrt())[:9]
+        out["decimal"] = (
+            str(decimal.Decimal(2).sqrt())[:9],
+            decimal.Decimal is _decimal.Decimal,
+        )
         out["uuid4"] = len(uuid.uuid4().hex) == 32
         out["ndbm_roundtrip"] = False
         with tempfile.TemporaryDirectory() as d:
@@ -478,7 +492,7 @@ def capability_checks(python: Path, *, cwd: Path | None = None) -> dict:
     data["ok"] = all(
         value for key, value in data.items()
         if key not in ("sqlite", "decimal", "whichdb", "dbm_default")
-    )
+    ) and data["decimal"][1]
     return data
 
 
@@ -568,15 +582,47 @@ def terminal_checks(python: Path, install: Path, *, cwd: Path | None = None) -> 
     return data
 
 
-def ctypes_checks(python: Path, workdir: Path) -> dict:
+def _external_compiler(target) -> str:
+    if target.is_macos:
+        return str(load_macos_toolchain(ROOT / "bootstrap.lock.json").llvm_prefix / "bin" / "clang")
+    compiler = shutil.which("clang")
+    if compiler is None:
+        raise ValidationError("locked Linux clang is unavailable")
+    return compiler
+
+
+def _compiler_environment(install: Path, workdir: Path, target) -> dict[str, str]:
+    overrides = None
+    compiler = Path(_external_compiler(target)).resolve()
+    if target.is_macos:
+        toolchain = load_macos_toolchain(ROOT / "bootstrap.lock.json")
+        overrides = {"SDKROOT": str(toolchain.sdkroot)}
+    environment = product_environment(install, workdir, overrides)
+    environment["PATH"] = os.pathsep.join((str(compiler.parent), os.defpath))
+    return environment
+
+
+def _compiler_run(command: list[str], install: Path, workdir: Path, target):
+    return _run(
+        command,
+        cwd=workdir,
+        env=_compiler_environment(install, workdir, target),
+        timeout=180,
+    )
+
+
+def ctypes_checks(python: Path, install: Path, workdir: Path, target) -> dict:
     """ctypes in both directions, with no build tooling present."""
     helper_c = workdir / "helper.c"
-    helper_dylib = workdir / "libfixture_helper.dylib"
+    helper_suffix = ".dylib" if target.is_macos else ".so"
+    helper_dylib = workdir / f"libfixture_helper{helper_suffix}"
     helper_c.write_text("int helper_answer(void) { return 7; }\n")
-    build = _run([
-        "xcrun", "clang", "-shared", "-o", str(helper_dylib), str(helper_c),
-        "-install_name", "@rpath/libfixture_helper.dylib",
-    ])
+    build_command = [_external_compiler(target), "-fPIC", "-shared", "-o", str(helper_dylib), str(helper_c)]
+    if target.is_macos:
+        build_command.extend(["-install_name", f"@rpath/{helper_dylib.name}"])
+    else:
+        build_command.append(f"-Wl,-soname,{helper_dylib.name}")
+    build = _compiler_run(build_command, install, workdir, target)
     if build.returncode != 0:
         raise ValidationError(f"helper dylib build failed: {build.stderr.strip()}")
 
@@ -605,16 +651,12 @@ def ctypes_checks(python: Path, workdir: Path) -> dict:
         out["find_library_system"] = ctypes.util.find_library("System")
         helper = ctypes.CDLL({str(helper_dylib)!r})
         out["private_dylib_answer"] = helper.helper_answer()
-        out["no_compiler_needed"] = not any(
-            os.path.exists(p) for p in ("/usr/bin/ld", "/usr/bin/as")
-        ) or True
         print(json.dumps(out))
     """
     result = _python_code(python, code, cwd=workdir)
     if result.returncode != 0:
         raise ValidationError(f"ctypes probe failed: {result.stderr.strip()}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
-    data.pop("no_compiler_needed", None)
     data["ok"] = bool(
         data["cdll_none"] and data["libc_symbol"] and data["callback_used"]
         and data["callback_sorted"] and data["private_dylib_answer"] == 7
@@ -727,7 +769,7 @@ def tls_checks(python: Path, workdir: Path) -> dict:
     return data
 
 
-def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
+def extension_checks(python: Path, install: Path, workdir: Path, target) -> dict:
     """Build and load a native extension with no installer present.
 
     Flags come from the interpreter's own advertised configuration
@@ -768,23 +810,24 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
             return PyModule_Create(&module);
         }
     """))
-    target = workdir / "fixture_ext.so"
-    build = _run(
-        ["xcrun", "clang", "-O2", "-fPIC", "-shared", *shlex.split(cflags.stdout),
-         str(source), "-o", str(target), *shlex.split(ldflags.stdout)],
+    extension = workdir / "fixture_ext.so"
+    build = _compiler_run(
+        [_external_compiler(target), "-O2", "-fPIC", "-shared", *shlex.split(cflags.stdout),
+         str(source), "-o", str(extension), *shlex.split(ldflags.stdout)],
+        install, workdir, target,
     )
     if build.returncode != 0:
         return {"ok": False, "error": f"extension build failed: {build.stderr.strip()[:400]}"}
 
     probe = _product_run([python, "-I", "-B", "-c", textwrap.dedent(f"""
         import importlib.util, json, sys
-        spec = importlib.util.spec_from_file_location("fixture_ext", {str(target)!r})
+        spec = importlib.util.spec_from_file_location("fixture_ext", {str(extension)!r})
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         print(json.dumps({{
             "answer": mod.answer(),
             "callback": mod.call_back(lambda n: n * 2),
-            "suffix_matches": {str(target)!r}.endswith(".so"),
+            "suffix_matches": {str(extension)!r}.endswith(".so"),
         }}))
     """)], install, workdir)
     if probe.returncode != 0:
@@ -801,7 +844,7 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
     return data
 
 
-def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
+def abi3_checks(python: Path, install: Path, workdir: Path, target) -> dict:
     """A limited-API extension, which is the ABI-stability fixture."""
     config = PRODUCT.config_tool(install)
     cflags = _product_run([config, "--cflags"], install, workdir)
@@ -825,16 +868,19 @@ def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
             return PyModule_Create(&module);
         }
     """))
-    target = workdir / "abi3_ext.so"
-    build = _run(
-        ["xcrun", "clang", "-O2", "-fPIC", "-shared", *shlex.split(cflags.stdout),
-         str(source), "-o", str(target), "-undefined", "dynamic_lookup"],
-    )
+    extension = workdir / "abi3_ext.so"
+    build_command = [
+        *_external_compiler(target), "-O2", "-fPIC", "-shared",
+        *shlex.split(cflags.stdout), str(source), "-o", str(extension),
+    ]
+    if target.is_macos:
+        build_command.extend(["-undefined", "dynamic_lookup"])
+    build = _compiler_run(build_command, install, workdir, target)
     if build.returncode != 0:
         return {"ok": False, "error": f"abi3 build failed: {build.stderr.strip()[:400]}"}
     probe = _product_run([python, "-I", "-B", "-c", textwrap.dedent(f"""
         import importlib.util, json
-        spec = importlib.util.spec_from_file_location("abi3_ext", {str(target)!r})
+        spec = importlib.util.spec_from_file_location("abi3_ext", {str(extension)!r})
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         print(json.dumps({{"triple": mod.triple(14)}}))
@@ -846,7 +892,7 @@ def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
     return data
 
 
-def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
+def embedding_checks(python: Path, install: Path, workdir: Path, target) -> dict:
     """Link and run a C embedder against the shipped libpython."""
     config = PRODUCT.config_tool(install)
     if not config.is_file():
@@ -868,9 +914,10 @@ def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
     """))
     binary = workdir / "embed"
     libdir = install / "lib"
-    build = _run(
-        ["xcrun", "clang", "-O2", *shlex.split(cflags.stdout), str(source),
+    build = _compiler_run(
+        [_external_compiler(target), "-O2", *shlex.split(cflags.stdout), str(source),
          "-o", str(binary), f"-Wl,-rpath,{libdir}", *shlex.split(ldflags.stdout)],
+        install, workdir, target,
     )
     if build.returncode != 0:
         return {"ok": False, "error": f"embed build failed: {build.stderr.strip()[:400]}"}
@@ -912,7 +959,7 @@ def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
     return data
 
 
-def relocation_checks(install: Path, workdir: Path) -> dict:
+def relocation_checks(install: Path, workdir: Path, target) -> dict:
     """Run the moved tree, its public config tools, and a new extension build."""
     destination = (workdir / "moved prefix with spaces").resolve()
     if destination.exists():
@@ -991,7 +1038,7 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
     stale_values = data["stale_sysconfig_values"]
     moved_extension_work = workdir / "relocated extension build"
     moved_extension_work.mkdir(parents=True, exist_ok=True)
-    moved_extension = extension_checks(python, destination, moved_extension_work)
+    moved_extension = extension_checks(python, destination, moved_extension_work, target)
     data["extension_build_after_move"] = moved_extension
     data["ok"] = (
         data["prefix"] == str(destination)
@@ -1048,18 +1095,19 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
                 "error": f"{type(error).__name__}: {error}",
             }
 
-    record("macho", macho_checks, install, target)
+    if target.is_macos:
+        record("macho", macho_checks, install, target)
     record("version_and_abi", lambda: version_and_abi(python, target, cwd=workdir))
     record("module_inventory", lambda: module_inventory(python, cwd=workdir))
     record("capabilities", lambda: capability_checks(python, cwd=workdir))
     record("multiprocessing", lambda: multiprocessing_checks(python, cwd=workdir))
     record("terminal", lambda: terminal_checks(python, install, cwd=workdir))
-    record("ctypes", ctypes_checks, python, workdir)
+    record("ctypes", ctypes_checks, python, install, workdir, target)
     record("tls", tls_checks, python, workdir)
-    record("extension", extension_checks, python, install, workdir)
-    record("abi3", abi3_checks, python, install, workdir)
-    record("embedding", embedding_checks, python, install, workdir)
-    record("relocation", relocation_checks, install, workdir)
+    record("extension", extension_checks, python, install, workdir, target)
+    record("abi3", abi3_checks, python, install, workdir, target)
+    record("embedding", embedding_checks, python, install, workdir, target)
+    record("relocation", relocation_checks, install, workdir, target)
     record("launchers", script_launcher_checks, install, workdir)
     def exclusion_checks() -> dict:
         present = verify_exclusions(install)
@@ -1073,10 +1121,12 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
     record("exclusions", exclusion_checks)
 
     required_checks = {
-        "macho", "version_and_abi", "module_inventory", "capabilities",
+        "version_and_abi", "module_inventory", "capabilities",
         "multiprocessing", "terminal", "ctypes", "tls", "extension",
         "abi3", "embedding", "relocation", "launchers", "exclusions",
     }
+    if target.is_macos:
+        required_checks.add("macho")
     failed = sorted(
         name for name in required_checks
         if not isinstance(checks.get(name), dict) or checks[name].get("ok") is not True

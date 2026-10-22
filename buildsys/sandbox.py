@@ -65,6 +65,13 @@ class SandboxError(Exception):
     """The sandbox could not be used, or the boundary did not hold."""
 
 
+def _profile_path(path: Path) -> str:
+    value = str(Path(path).resolve())
+    if "\0" in value or "\n" in value or "\r" in value:
+        raise SandboxError(f"sandbox path cannot be represented in a profile: {path!s}")
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def available() -> bool:
     return Path(SANDBOX_EXEC).is_file()
 
@@ -110,8 +117,7 @@ class SealedRun:
     def profile(self) -> str:
         rules = []
         for path in self.write_paths:
-            resolved = Path(path).resolve()
-            rules.append(f'(allow file-write* (subpath "{resolved}"))')
+            rules.append(f'(allow file-write* (subpath "{_profile_path(path)}"))')
         # `ld` caches a database under the per-user Darwin temp directory and
         # ignores TMPDIR when doing so (it asks confstr directly). Denying it
         # is non-fatal but noisy, and a future linker could make it fatal, so
@@ -126,7 +132,9 @@ class SealedRun:
             # to /private/var and the sandbox matches on the resolved path.
             trimmed = scratch.rstrip("/")
             for candidate in {trimmed, str(Path(trimmed).resolve())}:
-                rules.append(f'(allow file-write* (subpath "{candidate}"))')
+                rules.append(
+                    f'(allow file-write* (subpath "{_profile_path(Path(candidate))}"))'
+                )
         return PROFILE_TEMPLATE.format(write_rules="\n".join(rules))
 
     def environment(self, base: dict[str, str] | None = None) -> dict[str, str]:
@@ -159,6 +167,7 @@ class SealedRun:
         cwd: Path,
         env: dict[str, str],
         log: Path | None = None,
+        timeout_seconds: float | None = None,
     ) -> subprocess.CompletedProcess:
         self.prepare()
         handle = tempfile.NamedTemporaryFile(
@@ -172,20 +181,32 @@ class SealedRun:
                 log.parent.mkdir(parents=True, exist_ok=True)
                 with log.open("w") as out:
                     result = subprocess.run(
-                        full, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT
+                        full, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT,
+                        timeout=timeout_seconds,
                     )
                 return result
-            return subprocess.run(full, cwd=cwd, env=env, capture_output=True, text=True)
+            return subprocess.run(
+                full, cwd=cwd, env=env, capture_output=True, text=True,
+                timeout=timeout_seconds,
+            )
         finally:
             Path(handle.name).unlink(missing_ok=True)
 
 
 _PROBE = """
-import socket, sys
+import errno, socket, sys
 sock = socket.socket()
 sock.settimeout(5)
-sock.connect(("127.0.0.1", int(sys.argv[1])))
-sock.sendall(b"ping")
+try:
+    sock.connect(("127.0.0.1", int(sys.argv[1])))
+    sock.sendall(b"python-build-network-probe")
+except OSError as error:
+    sock.close()
+    if error.errno == errno.EPERM:
+        print("DENIED:1")
+        raise SystemExit(0)
+    print(f"UNEXPECTED:{error.errno}")
+    raise SystemExit(4)
 sock.close()
 print("CONNECTED")
 """
@@ -210,39 +231,84 @@ def network_boundary_selftest(python: Path, workdir: Path) -> dict:
     listener = socket.socket()
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listener.bind(("127.0.0.1", 0))
-    listener.listen(4)
+    listener.listen(2)
     port = listener.getsockname()[1]
-    accepted = []
+    received = []
+    server_errors = []
+    stop = threading.Event()
 
     def accept_loop() -> None:
-        listener.settimeout(20)
-        while len(accepted) < 2:
+        listener.settimeout(0.2)
+        while not stop.is_set():
             try:
                 conn, _ = listener.accept()
-            except OSError:
+            except TimeoutError:
+                continue
+            except OSError as error:
+                if not stop.is_set():
+                    server_errors.append(str(error))
                 return
-            accepted.append(1)
-            conn.close()
+            try:
+                conn.settimeout(3)
+                chunks = []
+                while chunk := conn.recv(64):
+                    chunks.append(chunk)
+                received.append(b"".join(chunks))
+            except OSError as error:
+                server_errors.append(str(error))
+            finally:
+                conn.close()
 
-    thread = threading.Thread(target=accept_loop, daemon=True)
+    thread = threading.Thread(target=accept_loop)
     thread.start()
 
-    outside = subprocess.run(
-        [str(python), str(probe), str(port)], capture_output=True, text=True
-    )
-    sealed = SealedRun(write_paths=[workdir], home=workdir / "home")
-    inside = sealed.run([str(python), str(probe), str(port)], cwd=workdir,
-                        env=sealed.environment())
+    outside = None
+    inside = None
+    failure = None
+    try:
+        outside = subprocess.run(
+            [str(python), str(probe), str(port)], capture_output=True, text=True,
+            cwd=workdir, timeout=10,
+        )
+        sealed = SealedRun(write_paths=[workdir], home=workdir / "home")
+        inside = sealed.run(
+            [str(python), str(probe), str(port)], cwd=workdir,
+            env=sealed.environment(), timeout_seconds=10,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        failure = str(error)
+    finally:
+        stop.set()
+        listener.close()
+        thread.join(timeout=3)
 
-    listener.close()
-    thread.join(timeout=5)
+    outside_output = "" if outside is None else outside.stdout.strip()
+    inside_output = "" if inside is None else (inside.stdout + inside.stderr).strip()
+    outside_ok = (
+        outside is not None and outside.returncode == 0
+        and outside_output == "CONNECTED"
+    )
+    inside_ok = (
+        inside is not None and inside.returncode == 0
+        and inside.stdout.strip() == "DENIED:1"
+    )
+    listener_ok = received == [b"python-build-network-probe"]
+    thread_ok = not thread.is_alive()
 
     return {
         "probe": "tcp connect to a loopback listener owned by the validating process",
-        "unsandboxed_connected": "CONNECTED" in outside.stdout,
-        "sandboxed_connected": "CONNECTED" in inside.stdout,
-        "sandboxed_output": (inside.stdout + inside.stderr).strip()[:300],
-        "ok": "CONNECTED" in outside.stdout and "CONNECTED" not in inside.stdout,
+        "unsandboxed_returncode": None if outside is None else outside.returncode,
+        "unsandboxed_output": outside_output[:300],
+        "sandboxed_returncode": None if inside is None else inside.returncode,
+        "sandboxed_output": inside_output[:300],
+        "listener_received": [value.decode("ascii", errors="replace") for value in received],
+        "server_errors": server_errors,
+        "worker_stopped": thread_ok,
+        "error": failure,
+        "ok": (
+            outside_ok and inside_ok and listener_ok and thread_ok
+            and not server_errors and failure is None
+        ),
     }
 
 

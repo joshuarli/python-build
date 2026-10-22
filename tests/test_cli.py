@@ -15,7 +15,7 @@ class CLITests(unittest.TestCase):
                               cwd=ROOT, text=True, capture_output=True)
 
     def test_unsupported_target_fails_before_building(self):
-        result = self.invoke('build', '--target', 'riscv64-unknown-linux-musl', '--dev')
+        result = self.invoke('build', '--target', 'riscv64-unknown-linux-musl')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('not implemented', result.stderr)
 
@@ -26,14 +26,14 @@ class CLITests(unittest.TestCase):
         # wrong architecture. Picked dynamically so this test is correct
         # under QEMU-emulated aarch64 runs too, not just on an x86_64 host.
         foreign = next(t for t in TARGETS if t != native_target().triple)
-        result = self.invoke('build', '--target', foreign, '--dev')
+        result = self.invoke('build', '--target', foreign)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('does not match the running machine', result.stderr)
 
-    def test_sealed_requires_qualification_not_only_an_offline_flag(self):
+    def test_legacy_mode_flags_are_not_accepted(self):
         result = self.invoke('build', '--offline', '--sealed')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('qualification', result.stderr)
+        self.assertIn('unrecognized arguments', result.stderr)
 
     def test_doctor_reports_container_and_target(self):
         result = self.invoke('doctor')

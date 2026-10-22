@@ -53,9 +53,7 @@ class ScopeTests(unittest.TestCase):
                      "mpdecimal", "expat"):
             self.assertIn(name, MACOS_DEPENDENCY_ORDER)
 
-    def test_linux_order_is_unchanged_and_remains_the_default(self):
-        # The frozen Linux targets' order is evidence-bearing: it must not
-        # drift because a second family was added.
+    def test_linux_dependency_order_is_the_default(self):
         self.assertIs(DEPENDENCY_ORDER, LINUX_DEPENDENCY_ORDER)
         self.assertIn("bdb", LINUX_DEPENDENCY_ORDER)
         self.assertIn("libuuid", LINUX_DEPENDENCY_ORDER)

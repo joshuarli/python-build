@@ -18,6 +18,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .product_process import run_product_process
 
 @dataclass(frozen=True)
 class Exclusion:
@@ -161,11 +162,15 @@ def _accounting(output: str) -> dict:
 
 
 def run_suite(python: Path, *, jobs: int = 6, timeout: int = 600) -> dict:
-    command = [str(python), "-m", "test", "-j", str(jobs), f"--timeout={timeout}"]
+    python = Path(python).resolve()
+    install = python.parent.parent
+    command = [str(python), "-B", "-m", "test", "-j", str(jobs), f"--timeout={timeout}"]
     for exclusion in FILE_EXCLUSIONS:
         command += ["-x", exclusion.test]
     try:
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = run_product_process(
+            command, install, install, timeout_seconds=timeout + 60
+        )
     except subprocess.TimeoutExpired as error:
         output = _output_text(error.stdout) + _output_text(error.stderr)
         raise SuiteError(f"suite process timed out:\n{output[-2000:]}") from error
@@ -210,6 +215,7 @@ def verify_excluded_failures(
     fresh_python=None,
 ) -> dict:
     """Collect bounded, visible diagnostics for files that failed the suite."""
+    python = Path(python).resolve()
     findings: dict[str, dict] = {}
     case_exclusions = {
         exclusion.test.split(":", 1)[0]
@@ -224,16 +230,17 @@ def verify_excluded_failures(
                 if fresh_python is not None and attempt == retry_count
                 else python
             )
-            command = [str(interpreter), "-m", "test"]
+            command = [str(interpreter), "-B", "-m", "test"]
             if name in case_exclusions:
                 command.append("-v")
             command.extend(("--timeout=600", name))
             try:
-                result = subprocess.run(
+                interpreter = Path(interpreter).resolve()
+                result = run_product_process(
                     command,
-                    capture_output=True,
-                    text=True,
-                    timeout=600,
+                    interpreter.parent.parent,
+                    interpreter.parent.parent,
+                    timeout_seconds=600,
                 )
                 output = _ANSI_ESCAPE.sub("", result.stdout + result.stderr)
                 accounting_error = None

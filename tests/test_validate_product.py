@@ -19,7 +19,7 @@ from buildsys.macho import (
 )
 from buildsys.product import PRODUCT
 from buildsys.targets import TARGETS
-from buildsys.validate_macos import macho_checks, run_validation, version_and_abi
+from buildsys.validate_product import macho_checks, run_validation, version_and_abi
 
 
 def _command(command: int, payload: bytes) -> bytes:
@@ -66,7 +66,7 @@ class MachOValidationTests(unittest.TestCase):
         self.libpython = self.lib / f"lib{PRODUCT.shared_library_stem}.dylib"
         self._write_images()
         self.signature = patch(
-            "buildsys.validate_macos.macho.signature_status",
+            "buildsys.validate_product.macho.signature_status",
             return_value=(True, ""),
         )
         self.signature.start()
@@ -212,7 +212,7 @@ class ProductVersionValidationTests(unittest.TestCase):
             subprocess.CompletedProcess([], 0, output, "") for output in outputs
         ]
         with patch(
-            "buildsys.validate_macos.run_product_process",
+            "buildsys.validate_product.run_product_process",
             side_effect=completed,
         ):
             report = version_and_abi(
@@ -226,6 +226,45 @@ class ProductVersionValidationTests(unittest.TestCase):
         self.assertFalse(report["abi_ok"])
         self.assertEqual(report["expected_version"], list(PRODUCT.version))
         self.assertTrue(report["shared_library_ok"])
+
+    def test_linux_product_identity_rejects_stale_interpreter_version(self) -> None:
+        target = TARGETS["x86_64-unknown-linux-musl"]
+        stale_version = [3, 14, 6]
+        soabi = f"cpython-{PRODUCT.abi_tag[2:]}-{target.machine}-linux-musl"
+        info = {
+            "version": stale_version,
+            "version_string": "3.14.6",
+            "platform": "linux",
+            "machine": target.machine,
+            "implementation": "cpython",
+            "cache_tag": PRODUCT.abi_tag.replace("cp", "cpython-"),
+            "python_platform": f"linux-{target.machine}",
+            "soabi": soabi,
+            "ext_suffix": f".{soabi}.so",
+            "gil_enabled": True,
+            "free_threaded": False,
+            "lto": True,
+            "pgo": False,
+            "tail_call": False,
+            "shared_libpython": True,
+            "INSTSONAME": f"lib{PRODUCT.shared_library_stem}.so.1.0",
+        }
+        with patch(
+            "buildsys.validate_product.run_product_process",
+            side_effect=[
+                subprocess.CompletedProcess([], 0, json.dumps(info), ""),
+                subprocess.CompletedProcess([], 0, "|", ""),
+            ],
+        ):
+            report = version_and_abi(
+                Path("/install/bin") / PRODUCT.interpreter_name,
+                target,
+                cwd=Path("/work"),
+            )
+
+        self.assertEqual(report["expected_version"], list(PRODUCT.version))
+        self.assertFalse(report["version_ok"])
+        self.assertFalse(report["ok"])
 
     def test_wrong_shared_libpython_name_fails(self) -> None:
         info = {
@@ -253,7 +292,7 @@ class ProductVersionValidationTests(unittest.TestCase):
             subprocess.CompletedProcess([], 0, "|", ""),
         ]
         with patch(
-            "buildsys.validate_macos.run_product_process",
+            "buildsys.validate_product.run_product_process",
             side_effect=completed,
         ):
             report = version_and_abi(
