@@ -20,7 +20,7 @@ from typing import NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from buildsys.targets import (  # noqa: E402
-    TARGETS, UnsupportedTargetError, native_target,
+    TARGETS, UnsupportedTargetError, docker_execution_mode, native_target,
 )
 
 SUPPORTED = set(TARGETS)
@@ -205,6 +205,19 @@ def qualify_linux(target: str) -> int:
         ["docker", "buildx", "version"], capture_output=True, timeout=30
     ).returncode != 0:
         _fail("Linux qualification requires Docker Buildx")
+    try:
+        docker_host = subprocess.run(
+            ["docker", "info", "--format", "{{.OSType}} {{.Architecture}}"],
+            capture_output=True, text=True, check=True, timeout=30,
+        ).stdout.split()
+    except (OSError, subprocess.SubprocessError) as error:
+        _fail(f"cannot identify the Docker runtime architecture: {error}")
+    if len(docker_host) != 2 or docker_host[0] != "linux":
+        _fail(f"Docker runtime did not report a Linux architecture: {docker_host!r}")
+    try:
+        execution = docker_execution_mode(description, docker_host[1])
+    except UnsupportedTargetError as error:
+        _fail(str(error))
 
     try:
         revision = subprocess.run(
@@ -268,7 +281,6 @@ def qualify_linux(target: str) -> int:
         for name in files:
             shutil.copyfile(artifact_root / name, package_directory / name)
         try:
-            execution = "native" if _NATIVE is not None and _NATIVE.triple == target else "emulated"
             manifest = record_runtime_container(
                 package_directory, target, revision, execution
             )

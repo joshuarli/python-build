@@ -4,7 +4,8 @@ from __future__ import annotations
 import unittest
 
 from buildsys.targets import (
-    MACOS, TARGETS, UnsupportedTargetError, native_target, target_for_triple,
+    MACOS, TARGETS, UnsupportedTargetError, docker_execution_mode,
+    native_target, target_for_triple,
 )
 
 LINUX_TRIPLES = ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl")
@@ -79,6 +80,22 @@ class TargetRegistryTests(unittest.TestCase):
         target = target_for_triple("aarch64-unknown-linux-musl")
         self.assertEqual(target.machine, "aarch64")
         self.assertEqual(target.docker_platform, "linux/arm64")
+
+    def test_docker_execution_mode_uses_daemon_architecture(self) -> None:
+        arm64 = target_for_triple("aarch64-unknown-linux-musl")
+        x86_64 = target_for_triple("x86_64-unknown-linux-musl")
+        self.assertEqual(docker_execution_mode(arm64, "aarch64"), "native")
+        self.assertEqual(docker_execution_mode(arm64, "arm64"), "native")
+        self.assertEqual(docker_execution_mode(arm64, "x86_64"), "emulated")
+        self.assertEqual(docker_execution_mode(arm64, "amd64"), "emulated")
+        self.assertEqual(docker_execution_mode(x86_64, "amd64"), "native")
+
+    def test_docker_execution_mode_fails_closed_for_unknown_architecture(self) -> None:
+        target = target_for_triple("aarch64-unknown-linux-musl")
+        with self.assertRaises(UnsupportedTargetError):
+            docker_execution_mode(target, "riscv64")
+        with self.assertRaises(UnsupportedTargetError):
+            docker_execution_mode(target_for_triple(MACOS_TRIPLE), "aarch64")
 
     def test_native_target_matches_this_host(self) -> None:
         # Whatever this test runs on, native_target() must describe it —

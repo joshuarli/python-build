@@ -23,11 +23,18 @@ from __future__ import annotations
 
 import platform
 from dataclasses import dataclass
+from typing import Literal
 
 LINUX_MUSL = "linux-musl"
 MACOS = "macos"
 
 FAMILIES = (LINUX_MUSL, MACOS)
+_DOCKER_ARCHITECTURES = {
+    "amd64": "x86_64",
+    "x86_64": "x86_64",
+    "arm64": "aarch64",
+    "aarch64": "aarch64",
+}
 
 
 class UnsupportedTargetError(Exception):
@@ -120,6 +127,22 @@ def target_for_triple(triple: str) -> Target:
         return TARGETS[triple]
     except KeyError:
         raise UnsupportedTargetError(f"no target description for {triple!r}") from None
+
+
+def docker_execution_mode(
+    target: Target, daemon_architecture: str
+) -> Literal["native", "emulated"]:
+    if target.family != LINUX_MUSL:
+        raise UnsupportedTargetError(
+            f"Docker runtime qualification requires a Linux target: {target.triple}"
+        )
+    try:
+        daemon_machine = _DOCKER_ARCHITECTURES[daemon_architecture]
+    except KeyError:
+        raise UnsupportedTargetError(
+            f"unsupported Docker daemon architecture {daemon_architecture!r}"
+        ) from None
+    return "native" if daemon_machine == target.machine else "emulated"
 
 
 def native_target() -> Target:
