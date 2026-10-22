@@ -7,10 +7,11 @@ import unittest
 from pathlib import Path
 
 from buildsys.patches import PatchError, apply_patch, apply_patch_set
+from buildsys.product import PRODUCT
 
 REPO = Path(__file__).resolve().parent.parent
 PATCH_DIR = REPO / "patches" / "cpython"
-CPYTHON_SOURCE = REPO / "src" / "Python-3.14.6"
+CPYTHON_SOURCE = REPO / "src" / f"Python-{PRODUCT.version_string}"
 
 
 class PatchProvenanceTests(unittest.TestCase):
@@ -42,7 +43,7 @@ class ApplyPatchTests(unittest.TestCase):
 class PythonConfigQuotingTests(unittest.TestCase):
     def test_patch_removes_the_unquoted_cd_substitution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            source = Path(tmp) / "Python-3.14.6"
+            source = Path(tmp) / f"Python-{PRODUCT.version_string}"
             shutil.copytree(CPYTHON_SOURCE / "Misc", source / "Misc")
             target = source / "Misc" / "python-config.sh.in"
             before = target.read_text()

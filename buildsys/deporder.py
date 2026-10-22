@@ -42,13 +42,9 @@ LINUX_DEPENDENCY_ORDER: tuple[str, ...] = (
 # build artifacts, so the order is chosen for fast failure (cheap libraries
 # first) with the slowest — OpenSSL — last.
 #
-# The set is not the Linux one minus exclusions; it was derived from the
-# pinned reference's own Mach-O load commands; the split is confirmed against
-# the artifact rather than trusting the summary table. The
-# reference links `/usr/lib/libncurses.5.4.dylib`, `/usr/lib/libpanel.5.4.dylib`,
-# `/usr/lib/libz.1.dylib` and `/usr/lib/libedit.3.dylib`, and shows no
-# libexpat load command — so ncurses and zlib and libedit are the platform's,
-# while Expat is statically linked from source like the rest.
+# The macOS set builds only the libraries the product ships privately.
+# System zlib, libedit, ncurses, and panel come from the SDK; Expat is built
+# from source and linked statically.
 MACOS_DEPENDENCY_ORDER: tuple[str, ...] = (
     "bzip2",
     "xz",
@@ -62,7 +58,7 @@ MACOS_DEPENDENCY_ORDER: tuple[str, ...] = (
 
 ORDERS = {"linux-musl": LINUX_DEPENDENCY_ORDER, MACOS: MACOS_DEPENDENCY_ORDER}
 
-# Retained for the frozen Linux importers and tests; prefer dependency_order().
+# Retained for callers that need the Linux dependency list; prefer dependency_order().
 DEPENDENCY_ORDER = LINUX_DEPENDENCY_ORDER
 
 

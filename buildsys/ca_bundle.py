@@ -8,9 +8,10 @@ import tempfile
 from pathlib import Path
 
 from .inputs import Cache, InputError, load_lock, safe_extract
+from .product import PRODUCT
 
 INPUT_NAME = "certifi-ca"
-BUNDLE_RELATIVE_PATH = Path("lib/python3.14/python-build-cacert.pem")
+BUNDLE_RELATIVE_PATH = PRODUCT.stdlib_relative_path / "python-build-cacert.pem"
 LICENSE_DIRECTORY = Path("share/licenses/python-build")
 
 

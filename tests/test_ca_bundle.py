@@ -15,6 +15,7 @@ from buildsys.ca_bundle import (
     install_fallback_ca_bundle,
 )
 from buildsys.inputs import Cache, load_lock
+from buildsys.product import PRODUCT
 
 
 class InstallFallbackCABundleTests(unittest.TestCase):
@@ -58,7 +59,7 @@ class InstallFallbackCABundleTests(unittest.TestCase):
             archive, pem = self._source_archive(root)
             lock, cache_root = self._lock(root, archive, version="2026.7.22")
             install = root / "python"
-            (install / "lib" / "python3.14").mkdir(parents=True)
+            PRODUCT.stdlib(install).mkdir(parents=True)
 
             report = install_fallback_ca_bundle(
                 install, cache_root=cache_root, lock_path=lock

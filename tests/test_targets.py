@@ -52,15 +52,16 @@ class TargetRegistryTests(unittest.TestCase):
     def test_incomplete_target_is_rejected_at_construction(self) -> None:
         from buildsys.targets import Target
 
+        uv_metadata = {"uv_arch": "aarch64", "uv_os": "darwin", "uv_libc": "none"}
         with self.assertRaises(UnsupportedTargetError):
             Target(triple="x", machine="x", family=MACOS, cpu_baseline_cflag="",
-                   openssl_configure_target="")
+                   openssl_configure_target="", **uv_metadata)
         with self.assertRaises(UnsupportedTargetError):
             Target(triple="x", machine="x", family="linux-musl", cpu_baseline_cflag="",
-                   openssl_configure_target="")
+                   openssl_configure_target="", **uv_metadata)
         with self.assertRaises(UnsupportedTargetError):
             Target(triple="x", machine="x", family="plan9", cpu_baseline_cflag="",
-                   openssl_configure_target="")
+                   openssl_configure_target="", **uv_metadata)
 
     def test_unknown_triple_fails_closed(self) -> None:
         with self.assertRaises(UnsupportedTargetError):

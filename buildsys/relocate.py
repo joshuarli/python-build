@@ -25,6 +25,8 @@ import subprocess
 from pathlib import Path
 from typing import Iterable
 
+from .product import PRODUCT
+
 ELF_MAGIC = b"\x7fELF"
 
 _RELOCATABLE_SYSCONFIG_MARKER = "# python-build relocatable sysconfig values"
@@ -239,7 +241,7 @@ def _rewrite(
 
 def _fix_python_config_scripts(install: Path) -> list[Path]:
     """Shell-quote compiler flags so config scripts survive prefix spaces."""
-    scripts = [install / "bin" / "python3.14-config"]
+    scripts = [PRODUCT.config_tool(install)]
     scripts.extend(sorted((install / "lib").rglob("python-config.py")))
     changed: list[Path] = []
     for script in scripts:
@@ -249,7 +251,7 @@ def _fix_python_config_scripts(install: Path) -> list[Path]:
         try:
             module = ast.parse(source, filename=str(script))
         except SyntaxError as error:
-            if script.name == "python3.14-config" and source.startswith("#!/bin/sh\n"):
+            if script.name == PRODUCT.config_name and source.startswith("#!/bin/sh\n"):
                 rewritten = _fix_shell_python_config_script(source, script)
                 if rewritten != source:
                     script.write_text(rewritten)
@@ -366,7 +368,7 @@ def _fix_shell_python_config_script(source: str, path: Path) -> str:
         output = output.replace(original, replacement, 1)
     helper = (
         '\nquote_args() {\n'
-        '    "$(dirname "$0")/python3.14" -c '
+        f'    "$(dirname "$0")/{PRODUCT.interpreter_name}" -c '
         "'import shlex, sys; print(shlex.join(sys.argv[1:]))' \"$@\"\n"
         '}\n'
     )
@@ -388,7 +390,7 @@ def clean_sysconfig(
     from its own installed location at import time; all other builder paths
     are removed or reduced to executable names so consumers can build
     extensions without the original checkout, dependency prefix, SDK, or
-    compiler cache. `python3.14-config` shell-quotes its flag lists so a
+    compiler cache. The configuration tool shell-quotes its flags so a
     relocated install under a path containing spaces remains usable.
     """
     roots = tuple(dict.fromkeys(
@@ -443,18 +445,6 @@ def clean_sysconfig(
     return changed
 
 
-# A shebang cannot be relative, so a script whose first line names the
-# configure-time prefix (`#!/install/bin/python3.14`) is dead the moment the
-# tree is staged, and stays dead after relocation. CPython writes exactly
-# that for pydoc3, idle3 and python3.14-config (`@EXENAME@` in
-# Makefile.pre.in), and ensurepip writes it again for the pip launchers.
-#
-# The replacement is the standard sh/Python polyglot: sh reads the second
-# line as `exec <interpreter> "$0" "$@"`, while Python sees a triple-quoted
-# string literal and skips it. `readlink -f` is available on macOS 12.3+ and
-# on any glibc/musl userspace this project targets, and resolves the case
-# where the launcher itself was reached through a symlink — which is exactly
-# how `pip3` is usually invoked.
 POLYGLOT_PREFIX = (
     "#!/bin/sh\n"
     "'''exec' \"$(dirname \"$(readlink -f -- \"$0\")\")/{interpreter}\" \"$0\" \"$@\"\n"
@@ -469,7 +459,9 @@ def _is_interpreter_shebang(line: str, interpreter: str) -> bool:
     return Path(target).name.startswith(interpreter.rsplit(".", 1)[0])
 
 
-def fix_script_shebangs(install: Path, interpreter: str = "python3.14") -> list[Path]:
+def fix_script_shebangs(
+    install: Path, interpreter: str = PRODUCT.interpreter_name
+) -> list[Path]:
     """Make installed launcher scripts relocatable; return the ones rewritten.
 
     Only files that actually name an interpreter are touched, and an already

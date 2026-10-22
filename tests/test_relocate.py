@@ -19,19 +19,26 @@ from buildsys.relocate import (
     relocate,
     strip_private_prefix,
 )
+from buildsys.product import PRODUCT
 
 HAS_PATCHELF = shutil.which("patchelf") is not None
 
 
 class OriginTokenTests(unittest.TestCase):
     def test_sibling_directory_is_bare_origin(self) -> None:
-        self.assertEqual(origin_token(Path("/install/lib/libpython3.14.so.1.0"), Path("/install/lib")), "$ORIGIN")
+        self.assertEqual(
+            origin_token(Path(f"/install/lib/lib{PRODUCT.shared_library_stem}.so.1.0"), Path("/install/lib")),
+            "$ORIGIN",
+        )
 
     def test_bin_to_lib_goes_up_one_level(self) -> None:
-        self.assertEqual(origin_token(Path("/install/bin/python3.14"), Path("/install/lib")), "$ORIGIN/../lib")
+        self.assertEqual(
+            origin_token(Path(f"/install/bin/{PRODUCT.interpreter_name}"), Path("/install/lib")),
+            "$ORIGIN/../lib",
+        )
 
     def test_nested_extension_module_goes_up_two_levels(self) -> None:
-        elf = Path("/install/lib/python3.14/lib-dynload/_ssl.so")
+        elf = Path("/install") / PRODUCT.stdlib_relative_path / "lib-dynload" / "_ssl.so"
         self.assertEqual(origin_token(elf, Path("/install/lib")), "$ORIGIN/../..")
 
 
@@ -59,13 +66,13 @@ class CleanSysconfigTests(unittest.TestCase):
     def test_sysconfig_paths_follow_moved_tree_and_drop_builder_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            libdir = root / "lib" / "python3.14"
+            libdir = root / PRODUCT.stdlib_relative_path
             libdir.mkdir(parents=True)
             sysconfigdata = libdir / "_sysconfigdata__linux_x86_64-linux-musl.py"
             sysconfigdata.write_text(
                 "build_time_vars = {\n"
                 "    'prefix': '/install',\n"
-                "    'LIBPL': '/install/lib/python3.14/config-example',\n"
+                f"    'LIBPL': '/install/{PRODUCT.stdlib_relative_path.as_posix()}/config-example',\n"
                 "    'CC': '/work/llvm/bin/clang',\n"
                 "    'LDSHARED': '/work/llvm/bin/clang -bundle -fprofile-instr-use=/work/build/code.profclangd',\n"
                 "    'PGO_PROF_GEN_FLAG': '-fprofile-instr-generate',\n"
@@ -78,7 +85,7 @@ class CleanSysconfigTests(unittest.TestCase):
                 "    'UNRELATED': '/installation/data',\n"
                 "}\n"
             )
-            configdir = libdir / "config-3.14-x86_64-linux-musl"
+            configdir = libdir / f"config-{PRODUCT.major_minor}-x86_64-linux-musl"
             configdir.mkdir()
             makefile = configdir / "Makefile"
             makefile.write_text(
@@ -95,7 +102,7 @@ class CleanSysconfigTests(unittest.TestCase):
             )
             binary_dir = root / "bin"
             binary_dir.mkdir()
-            config_script = binary_dir / "python3.14-config"
+            config_script = PRODUCT.config_tool(root)
             config_source = (
                 "import getopt\nimport sys\nflags = []\n"
                 "libs = []\nprint(' '.join(flags))\nprint(' '.join(libs))\n"
@@ -124,7 +131,10 @@ class CleanSysconfigTests(unittest.TestCase):
             values = runpy.run_path(str(sysconfigdata))["build_time_vars"]
             resolved_root = root.resolve()
             self.assertEqual(values["prefix"], str(resolved_root))
-            self.assertEqual(values["LIBPL"], str(resolved_root / "lib/python3.14/config-example"))
+            self.assertEqual(
+                values["LIBPL"],
+                str(resolved_root / PRODUCT.stdlib_relative_path / "config-example"),
+            )
             self.assertEqual(values["CC"], "clang")
             self.assertEqual(values["LDSHARED"], "clang -bundle")
             for key in (
@@ -158,14 +168,14 @@ class CleanSysconfigTests(unittest.TestCase):
             install = Path(tmp) / "moved python"
             binary_dir = install / "bin"
             binary_dir.mkdir(parents=True)
-            shutil.copy2(sys.executable, binary_dir / "python3.14")
-            config_script = binary_dir / "python3.14-config"
+            PRODUCT.interpreter(install).symlink_to(Path(sys.executable))
+            config_script = PRODUCT.config_tool(install)
             config_script.write_text(
                 "#!/bin/sh\n"
                 'INCDIR="-I' + str(install / "include") + '"\n'
                 'PLATINCDIR="-I' + str(install / "platinclude") + '"\n'
                 'BASECFLAGS="-O3"\nCFLAGS="-DTEST=1"\nOPT=""\n'
-                'LIBS="-lpython3.14 -lm"\nLIBPLUSED=""\n'
+                f'LIBS="-l{PRODUCT.shared_library_stem} -lm"\nLIBPLUSED=""\n'
                 'libdir="' + str(install / "lib") + '"\n'
                 'case "$1" in\n'
                 '  --includes) echo "$INCDIR $PLATINCDIR" ;;\n'
@@ -193,7 +203,8 @@ class CleanSysconfigTests(unittest.TestCase):
                 [str(config_script), "--ldflags"], capture_output=True, text=True, check=True
             ).stdout.strip()
             self.assertEqual(
-                shlex.split(ldflags), [f"-L{install}/lib", "-lpython3.14", "-lm"]
+                shlex.split(ldflags),
+                [f"-L{install}/lib", f"-l{PRODUCT.shared_library_stem}", "-lm"],
             )
 
 
@@ -222,7 +233,7 @@ class RelocateIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "bin").mkdir()
-            lib = root / "lib" / "python3.14"
+            lib = root / PRODUCT.stdlib_relative_path
             lib.mkdir(parents=True)
             # relocate() validates a complete installed tree, including the
             # generated sysconfig metadata that a real installation contains.

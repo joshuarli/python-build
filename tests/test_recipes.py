@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from buildsys.recipes import Recipe, build_recipe
+from buildsys.recipes import RECIPE_LAYOUTS, Recipe, build_recipe
 
 
 def _resolved(path: Path) -> Path:
@@ -55,7 +55,7 @@ class RecipeTests(unittest.TestCase):
         driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
         for name in ("tk", "tcl", "libx11", "libxcb", "libxau", "xcb-proto",
                      "xorgproto", "xtrans", "util-macros"):
-            self.assertNotIn(name, driver["EXTRACT_DIRS"])
+            self.assertNotIn(name, driver["RECIPE_LAYOUTS"])
             with self.assertRaises(driver["BuildError"]):
                 driver["configure_args"](name, Path("/private"))
 
@@ -64,16 +64,15 @@ class RecipeTests(unittest.TestCase):
             root = Path(temporary)
             archive = root / "source.tar"
             with tarfile.open(archive, "w") as output:
-                script = tarfile.TarInfo("openssl/Configure")
+                script = tarfile.TarInfo("openssl-3.5.7/Configure")
                 script.size = 1
                 output.addfile(script, io.BytesIO(b"1"))
-            recipe = Recipe("openssl", "openssl", source_subdir="openssl",
-                            install="openssl", log_path=root / "logs")
+            recipe = Recipe("openssl", RECIPE_LAYOUTS["openssl"], log_path=root / "logs")
             with patch("buildsys.recipes.run") as runner:
                 build_recipe(recipe, archive, root / "work", root / "prefix")
             calls = runner.call_args_list
             self.assertEqual(calls[0].args[0][:2],
-                             ["perl", str(_resolved(root / "work/openssl/openssl/Configure"))])
+                             ["perl", str(_resolved(root / "work/openssl/openssl-3.5.7/Configure"))])
             self.assertIn("no-shared", calls[0].args[0])
             self.assertEqual(calls[-1].args[0], ["make", "install_sw"])
 
@@ -82,16 +81,15 @@ class RecipeTests(unittest.TestCase):
             root = Path(temporary)
             archive = root / "source.tar"
             with tarfile.open(archive, "w") as output:
-                script = tarfile.TarInfo("db/dist/configure")
+                script = tarfile.TarInfo("db-6.0.19/dist/configure")
                 script.size = 10
                 script.mode = 0o755
                 output.addfile(script, io.BytesIO(b"#!/bin/sh\n"))
-            recipe = Recipe("db", "db", source_subdir="db/dist",
-                            build_subdir="db/build_unix", log_path=root / "logs")
+            recipe = Recipe("bdb", RECIPE_LAYOUTS["bdb"], log_path=root / "logs")
             with patch("buildsys.recipes.run") as runner:
                 build_recipe(recipe, archive, root / "work", root / "prefix")
             self.assertEqual(len(runner.call_args_list), 3)
-            expected = _resolved(root / "work/db/db/build_unix")
+            expected = _resolved(root / "work/bdb/db-6.0.19/build_unix")
             for call in runner.call_args_list:
                 self.assertEqual(call.kwargs["cwd"], expected)
                 self.assertTrue(expected.is_dir())

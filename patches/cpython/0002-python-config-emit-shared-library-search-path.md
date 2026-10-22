@@ -1,22 +1,22 @@
 # python-config: emit the shared libpython's search path
 
 - **Upstream source/version**: `Misc/python-config.in` in the verified
-  CPython 3.14.6 source tree (`sources.lock.json` entry `cpython`,
-  `Python-3.14.6.tar.xz`, sha256
-  `143b1dddefaec3bd2e21e3b839b34a2b7fb9842272883c576420d605e9f30c63`).
+  CPython 3.15.1 source tree (`sources.lock.json` entry `cpython`,
+  `Python-3.15.1.tar.xz`, SHA-256
+  `673ae7232d84c894729882c8257d300ef2d26523911bfd3917ec8ce7f526f99b`).
 
 - **Origin / license**: original to this project; not adapted from another
   project's patch. CPython itself is Python-2.0 licensed; this diff carries
   the same license as the file it modifies.
 
-- **Explanation**: `python3.14-config --ldflags --embed` is the advertised
+- **Explanation**: `python3.15-config --ldflags --embed` is the advertised
   contract for linking an embedder against the shipped shared libpython. The
   upstream script emits `-L<libdir>` only when there is *no* shared library,
   on the assumption that a shared libpython sits in a directory the linker
   already searches. That assumption holds for a distribution installed at a
   system prefix and fails for a relocated, self-contained tree: the linker is
-  left with a bare `-lpython3.14` and no search path, so every embedder build
-  fails with `ld: library 'python3.14' not found`. The fix derives the lib
+  left with a bare `-lpython3.15` and no search path, so every embedder build
+  fails with `ld: library 'python3.15' not found`. The fix derives the lib
   directory from the runtime standard-library path — `sysconfig` computes
   that from the running interpreter's own location — instead of the
   configure-time `LIBDIR`, which is baked to the build prefix and would send
@@ -40,10 +40,9 @@
   scratch copy of the fetched CPython source and asserts the inverted
   condition is present and that `-L` is emitted on the shared path.
   End-to-end, `buildsys/validate_macos.py`'s `embedding_checks` compiles and
-  runs a C program against `python3.14-config --cflags --ldflags --embed`
+  runs a C program against `python3.15-config --cflags --ldflags --embed`
   from the relocated tree; that check failed before this patch and passes
   after it.
 
-- **Upstream status**: not verified against later CPython releases offline
-  (no network research was performed for this pin); treat as unconfirmed
-  whether a later version derives the search path itself.
+- **Upstream status**: the patch applies to the verified 3.15.1 source with
+  zero fuzz and remains required by the installed embedding qualification.

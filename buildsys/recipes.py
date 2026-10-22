@@ -1,13 +1,12 @@
-"""Dependency recipes, shared by the Linux/musl and macOS targets.
+"""Dependency recipes shared by all supported targets.
 
 Each recipe builds into its own scratch directory and installs into a shared
 private prefix. Static PIC libraries keep downstream linkage simple;
 the dependency closure is small enough that a plain list beats a scheduler.
 
 The build systems invoked here are the components' own — autotools, plain
-make, and OpenSSL's Configure. Only the toolchain, the flags, and which
-packages are built at all differ per family; that data lives on `Toolchain`
-and in `buildsys.deporder`.
+make, and OpenSSL's Configure. The selected family determines the toolchain
+and dependency set.
 """
 
 from __future__ import annotations
@@ -32,12 +31,9 @@ class BuildError(Exception):
 class Toolchain:
     """The compiler/linker set a recipe is built with.
 
-    `family` selects the environment conventions that genuinely differ: the
-    Linux/musl toolchain is addressed by bare names that the container's PATH
-    resolves and pins its linker explicitly, while the macOS toolchain is
-    addressed by absolute paths in the verified LLVM prefix and deliberately
-    leaves the linker to the clang driver, which supplies the libLTO matching the compiler's own
-    bitcode generation.
+    Linux tools come from the pinned native-musl bootstrap. macOS uses
+    absolute paths in the verified LLVM prefix and lets clang select Apple's
+    linker.
     """
 
     cc: str = "clang"
@@ -103,12 +99,8 @@ class Toolchain:
             env["PKG_CONFIG_PATH"] = self.pkg_config_path
             env["PKG_CONFIG_SYSROOT_DIR"] = ""
             if self.is_macos:
-                # PKG_CONFIG_PATH only *prepends*; Homebrew's own
-                # /opt/homebrew/lib/pkgconfig stays on the default search
-                # path and carries .pc files for openssl, sqlite, libffi and
-                # the rest at different versions. PKG_CONFIG_LIBDIR replaces
-                # the default path outright. The frozen Linux container has
-                # no competing prefix, so it keeps its original behavior.
+                # PKG_CONFIG_LIBDIR replaces the default search path, which
+                # may otherwise include unrelated host packages.
                 env["PKG_CONFIG_LIBDIR"] = self.pkg_config_path
         else:
             env.pop("PKG_CONFIG_PATH", None)
@@ -120,6 +112,8 @@ class Toolchain:
 
     def cflags(self, extra: str = "") -> str:
         parts = ["-O3", self.cpu_baseline, "-fno-omit-frame-pointer", "-fPIC"]
+        if self.lto:
+            parts.append(self.lto)
         if self.is_macos:
             parts.append(f"-mmacosx-version-min={self.deployment_target}")
         else:
@@ -131,6 +125,8 @@ class Toolchain:
 
     def ldflags(self, prefix: Path, extra: str = "") -> str:
         parts = [f"-L{prefix}/lib"]
+        if self.lto:
+            parts.append(self.lto)
         if self.is_macos:
             parts.append(f"-mmacosx-version-min={self.deployment_target}")
         else:
@@ -152,42 +148,49 @@ def run(cmd: list[str], *, cwd: Path, env: dict[str, str], log: Path) -> None:
         raise BuildError(f"command failed ({result.returncode}): {cmd} — log {log}")
 
 
-def _find_makefile(source: Path) -> Path:
-    """Return the package's Makefile, tolerating one level of nesting."""
-    direct = source / "Makefile"
-    if direct.is_file():
-        return direct
-    for child in sorted(source.iterdir()):
-        candidate = child / "Makefile"
-        if candidate.is_file():
-            return candidate
-    raise BuildError(f"no Makefile found under {source}")
+@dataclass(frozen=True)
+class RecipeLayout:
+    archive_root: str
+    source_root: str
+    build_subdirectory: str = ""
+    configure_subdirectory: str = ""
+    style: str = "autotools"
 
 
-def _find_configure(source: Path) -> Path:
-    """Return the package's configure script, tolerating one level of nesting."""
-    direct = source / "configure"
-    if direct.is_file():
-        return direct
-    for child in sorted(source.iterdir()):
-        candidate = child / "configure"
-        if candidate.is_file():
-            return candidate
-    raise BuildError(f"no configure script found under {source}")
+RECIPE_LAYOUTS = {
+    "zlib": RecipeLayout("zlib-1.3.1", "zlib-1.3.1"),
+    "bzip2": RecipeLayout("bzip2-1.0.8", "bzip2-1.0.8", style="make"),
+    "xz": RecipeLayout("xz-5.8.1", "xz-5.8.1"),
+    "zstd": RecipeLayout(
+        "cpython-source-deps-zstd-1.5.7",
+        "cpython-source-deps-zstd-1.5.7/lib",
+        style="make",
+    ),
+    "expat": RecipeLayout("expat-2.8.1", "expat-2.8.1"),
+    "mpdecimal": RecipeLayout("mpdecimal-4.0.0", "mpdecimal-4.0.0"),
+    "libffi": RecipeLayout("libffi-3.8.0", "libffi-3.8.0"),
+    "libedit": RecipeLayout("libedit-20240808-3.1", "libedit-20240808-3.1"),
+    "ncurses": RecipeLayout("ncurses-6.5", "ncurses-6.5"),
+    "libuuid": RecipeLayout("libuuid-1.0.3", "libuuid-1.0.3"),
+    "bdb": RecipeLayout(
+        "db-6.0.19", "db-6.0.19", "db-6.0.19/build_unix", "dist"
+    ),
+    "sqlite": RecipeLayout("sqlite-autoconf-3530100", "sqlite-autoconf-3530100"),
+    "openssl": RecipeLayout(
+        "openssl-3.5.7", "openssl-3.5.7", style="openssl"
+    ),
+}
 
 
 @dataclass
 class Recipe:
     name: str
-    extract_dir: str
-    source_subdir: str = ""
-    build_subdir: str = ""
+    layout: RecipeLayout
     configure_args: tuple[str, ...] = ()
     make_targets: tuple[str, ...] = ()
     cflags: str = ""
     cxxflags: str = ""
     ldflags: str = ""
-    install: str = "autotools"
     log_path: Path | None = None
 
 
@@ -201,9 +204,8 @@ def build_recipe(
 ) -> None:
     """Extract a verified blob and build it into the private prefix.
 
-    `toolchain` is injected by drivers that target macOS; when omitted the
-    Linux/musl default is used, which is what the frozen container recipes
-    rely on.
+    `toolchain` is injected by the build driver; when omitted, the native
+    Alpine toolchain is selected.
     """
     # Resolve everything up front: a relative executable path would be
     # resolved against the child process's cwd, not the parent's.
@@ -219,7 +221,12 @@ def build_recipe(
     from buildsys.inputs import safe_extract
 
     safe_extract(blob, scratch)
-    source = scratch / recipe.source_subdir if recipe.source_subdir else scratch
+    archive_root = scratch / recipe.layout.archive_root
+    source = scratch / recipe.layout.source_root
+    if not archive_root.is_dir() or not source.is_dir():
+        raise BuildError(
+            f"{recipe.name}: expected archive root {archive_root} and source {source}"
+        )
     pkg_config_path = (
         f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig"
         if (prefix / "lib/pkgconfig").exists() or (prefix / "share/pkgconfig").exists()
@@ -229,7 +236,7 @@ def build_recipe(
         toolchain = Toolchain(pkg_config_path=pkg_config_path)
     elif not toolchain.pkg_config_path:
         toolchain = replace(toolchain, pkg_config_path=pkg_config_path)
-    if recipe.install == "make":
+    if recipe.layout.style == "make":
         # Plain make packages: no configure step at all. CFLAGS/LDFLAGS are
         # passed as make command-line overrides because some Makefiles
         # (bzip2) assign these variables internally and ignore the
@@ -237,18 +244,14 @@ def build_recipe(
         # assignment. `-D_FILE_OFFSET_BITS=64` is a large-file concern for
         # 32-bit-off_t platforms and is not needed on Darwin.
         env = toolchain.env()
-        makefile = _find_makefile(source)
-        if toolchain.is_macos:
-            make_cflags = toolchain.cflags(recipe.cflags)
-            make_ldflags = toolchain.ldflags(prefix, recipe.ldflags)
-        else:
-            # Keep the Linux flag strings unchanged: they already produced
-            # validated artifacts, and changing them would alter a completed
-            # target without re-validating it.
-            # `-D_FILE_OFFSET_BITS=64` is a large-file concern for
-            # 32-bit-off_t platforms and is not needed on Darwin.
-            make_cflags = f"{recipe.cflags} -O3 -fPIC -D_FILE_OFFSET_BITS=64"
-            make_ldflags = recipe.ldflags
+        makefile = source / "Makefile"
+        if not makefile.is_file():
+            raise BuildError(f"{recipe.name}: missing Makefile at {makefile}")
+        extra_cflags = recipe.cflags
+        if not toolchain.is_macos:
+            extra_cflags = " ".join(filter(None, (extra_cflags, "-D_FILE_OFFSET_BITS=64")))
+        make_cflags = toolchain.cflags(extra_cflags)
+        make_ldflags = toolchain.ldflags(prefix, recipe.ldflags)
         command = [
             toolchain.make,
             "-j",
@@ -273,20 +276,21 @@ def build_recipe(
         ]
         command += list(recipe.make_targets)
         run(command, cwd=makefile.parent, env=env, log=recipe.log_path / "make.log")
-    elif recipe.install == "autotools":
-        if toolchain.is_macos:
-            cflags = toolchain.cflags(recipe.cflags)
-            cxxflags = toolchain.cflags(recipe.cxxflags)
-            ldflags = toolchain.ldflags(prefix, recipe.ldflags)
-        else:
-            cflags = f"{recipe.cflags} -O3 -fPIC"
-            cxxflags = f"{recipe.cxxflags} -O3 -fPIC"
-            ldflags = recipe.ldflags
+    elif recipe.layout.style == "autotools":
+        cflags = toolchain.cflags(recipe.cflags)
+        cxxflags = toolchain.cflags(recipe.cxxflags)
+        ldflags = toolchain.ldflags(prefix, recipe.ldflags)
         env = toolchain.env(
             {"CFLAGS": cflags, "CXXFLAGS": cxxflags, "LDFLAGS": ldflags}
         )
-        configure = _find_configure(source)
-        build_directory = scratch / recipe.build_subdir if recipe.build_subdir else configure.parent
+        configure = source / recipe.layout.configure_subdirectory / "configure"
+        if not configure.is_file():
+            raise BuildError(f"{recipe.name}: missing configure script at {configure}")
+        build_directory = (
+            scratch / recipe.layout.build_subdirectory
+            if recipe.layout.build_subdirectory
+            else source
+        )
         build_directory.mkdir(parents=True, exist_ok=True)
         run(
             [str(configure), f"--prefix={prefix}", *recipe.configure_args],
@@ -306,20 +310,10 @@ def build_recipe(
             env=env,
             log=recipe.log_path / "install.log",
         )
-    elif recipe.install == "openssl":
+    elif recipe.layout.style == "openssl":
         target = native_target()
-        if toolchain.is_macos:
-            openssl_cflags = (
-                f"-O3 -fPIC {toolchain.cpu_baseline} -fno-omit-frame-pointer "
-                f"-mmacosx-version-min={toolchain.deployment_target}"
-            )
-            # OpenSSL honours MACOSX_DEPLOYMENT_TARGET for its own compile
-            # lines, but its generated link line is not guaranteed to carry
-            # the flag, so it is given explicitly as well.
-            openssl_ldflags = toolchain.ldflags(prefix)
-        else:
-            openssl_cflags = f"-O3 -fPIC {target.cpu_baseline_cflag} -fno-omit-frame-pointer"
-            openssl_ldflags = "-fuse-ld=lld -Wl,-z,noexecstack"
+        openssl_cflags = toolchain.cflags()
+        openssl_ldflags = toolchain.ldflags(prefix)
         env = toolchain.env({"CFLAGS": openssl_cflags, "LDFLAGS": openssl_ldflags})
         run(["perl", str(source / "Configure"), target.openssl_configure_target,
              f"--prefix={prefix}", "--libdir=lib", "--openssldir=/etc/ssl",
@@ -330,4 +324,4 @@ def build_recipe(
         run([toolchain.make, "install_sw"], cwd=source,
             env=env, log=recipe.log_path / "install.log")
     else:
-        raise BuildError(f"unknown install style {recipe.install!r}")
+        raise BuildError(f"unknown recipe style {recipe.layout.style!r}")

@@ -22,7 +22,7 @@ def apply_patch(source: Path, patch: Path, *, strip: int = 1) -> None:
     if not patch.is_file():
         raise PatchError(f"patch not found: {patch}")
     dry_run = subprocess.run(
-        ["patch", f"-p{strip}", "--dry-run", "--forward", "-i", str(patch)],
+        ["patch", f"-p{strip}", "--fuzz=0", "--dry-run", "--forward", "-i", str(patch)],
         cwd=source, capture_output=True, text=True,
     )
     if dry_run.returncode != 0:
@@ -30,7 +30,7 @@ def apply_patch(source: Path, patch: Path, *, strip: int = 1) -> None:
             f"{patch.name} does not apply cleanly to {source}: {dry_run.stdout}{dry_run.stderr}"
         )
     result = subprocess.run(
-        ["patch", f"-p{strip}", "--forward", "-i", str(patch)],
+        ["patch", f"-p{strip}", "--fuzz=0", "--forward", "-i", str(patch)],
         cwd=source, capture_output=True, text=True,
     )
     if result.returncode != 0:

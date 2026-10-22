@@ -9,10 +9,9 @@ disagree with reality.
 
 Two families are implemented, and they are deliberately different shapes:
 
-  linux-musl  Alpine userspace in a Dockerfile-defined container. ELF,
+  linux-musl  Alpine userspace in a pinned Docker container. ELF,
               musl loader, Alpine apk toolchain.
-              Completed and frozen.
-  macos       Native Apple Silicon macOS 26.0+. Mach-O,
+  macos       Native Apple Silicon macOS 27.0+. Mach-O,
               Apple libSystem, the locked official LLVM archive, and the Xcode SDK.
 
 `family` selects the toolchain, relocation module, and binary-format checks.
@@ -62,6 +61,8 @@ class Target:
             raise UnsupportedTargetError(f"{self.triple}: linux-musl target needs loader/arch")
         if self.family == MACOS and not self.deployment_target:
             raise UnsupportedTargetError(f"{self.triple}: macos target needs a deployment floor")
+        if not all((self.uv_arch, self.uv_os, self.uv_libc)):
+            raise UnsupportedTargetError(f"{self.triple}: target needs complete uv metadata")
 
     @property
     def is_macos(self) -> bool:

@@ -1,7 +1,8 @@
 PYTHON ?= python3
 
 BENCH_TARGET ?= $(shell $(PYTHON) -c 'from buildsys.targets import native_target; print(native_target().triple)')
-BENCH_ARTIFACT := dist/$(BENCH_TARGET)/cpython-3.14.6-$(BENCH_TARGET)-r2.tar.gz
+BENCH_ARTIFACT := $(shell $(PYTHON) -c 'from buildsys.product import PRODUCT; print("dist/$(BENCH_TARGET)/" + PRODUCT.local_archive_name("$(BENCH_TARGET)", "r2"))')
+BENCH_PRODUCT_LABEL := python-build CPython $(shell $(PYTHON) -c 'from buildsys.product import PRODUCT; print(PRODUCT.version_string)')
 BENCH_PROFILE ?= standard
 BENCH_PYPERFORMANCE_SELECTION ?= all
 BENCH_PYPERFORMANCE_ARGS = $(if $(strip $(BENCH_PYPERFORMANCE_SELECTION)),--pyperformance-selection $(BENCH_PYPERFORMANCE_SELECTION),)
@@ -23,7 +24,7 @@ bench: bench-inputs bench-product
 	$(PYTHON) benchmarks/bench.py run \
 		--preset pbs \
 		--candidate "$(BENCH_ARTIFACT)" \
-		--candidate-label "python-build CPython 3.14.6" \
+		--candidate-label "$(BENCH_PRODUCT_LABEL)" \
 		--candidate-kind python-build \
 		--suite $(BENCH_SUITE) \
 		--profile $(BENCH_PROFILE) \
@@ -38,7 +39,7 @@ bench-full: bench-inputs bench-product
 	$(PYTHON) benchmarks/bench.py run \
 		--preset pbs \
 		--candidate "$(BENCH_ARTIFACT)" \
-		--candidate-label "python-build CPython 3.14.6" \
+		--candidate-label "$(BENCH_PRODUCT_LABEL)" \
 		--candidate-kind python-build \
 		--suite full \
 		--profile $(BENCH_PROFILE) \
@@ -57,6 +58,6 @@ bench-product: bench-host-check
 		printf '%s\n' "Using existing product artifact: $(BENCH_ARTIFACT)"; \
 	else \
 		$(PYTHON) build.py fetch --target $(BENCH_TARGET) && \
-		$(PYTHON) build.py build --target $(BENCH_TARGET) --dev && \
+		$(PYTHON) build.py build --target $(BENCH_TARGET) && \
 		$(PYTHON) build.py package --target $(BENCH_TARGET); \
 	fi

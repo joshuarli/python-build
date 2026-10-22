@@ -16,7 +16,8 @@ class CPythonTests(unittest.TestCase):
         self.assertIn('--with-lto=thin', args)
         self.assertIn('--enable-shared', args)
         self.assertIn('--enable-loadable-sqlite-extensions', args)
-        self.assertIn('--without-ensurepip', args)
+        self.assertIn('--with-ensurepip=no', args)
+        self.assertIn('--with-system-libmpdec', args)
         self.assertNotIn('--enable-optimizations', args)
         self.assertNotIn('PROFILE_TASK', env)
         self.assertIn('--enable-experimental-jit=no', args)
@@ -30,6 +31,8 @@ class CPythonTests(unittest.TestCase):
         self.assertIn('/private/lib/libzstd.a', env['LIBZSTD_LIBS'])
         self.assertIn('-pthread', env['LIBZSTD_LIBS'])
         self.assertNotIn('-flto', env.get('CFLAGS', ''))
+        self.assertIn('-fstack-protector-strong', env['CFLAGS'])
+        self.assertIn('-D_FORTIFY_SOURCE=2', env['CFLAGS'])
         # $ORIGIN rpaths are applied by a post-install ELF edit, not baked
         # into configure-time LDFLAGS (see buildsys/cpython.py for why).
         self.assertNotIn('ORIGIN', env['LDFLAGS'])
@@ -86,13 +89,15 @@ class MacOSCPythonTests(unittest.TestCase):
         self.assertIn('--with-lto=thin', self.args)
         self.assertIn('--enable-shared', self.args)
         self.assertIn('--enable-loadable-sqlite-extensions', self.args)
-        self.assertIn('--without-ensurepip', self.args)
+        self.assertIn('--with-ensurepip=no', self.args)
+        self.assertIn('--with-system-libmpdec', self.args)
         self.assertIn('--enable-experimental-jit=no', self.args)
         self.assertIn('--with-tail-call-interp=no', self.args)
         self.assertIn('--enable-optimizations', self.args)
         self.assertEqual(self.env['PROFILE_TASK'], '-m test --pgo -j 4')
         self.assertEqual(self.env['PYTHONHASHSEED'], CPYTHON_PGO_HASH_SEED)
         self.assertNotIn('-fno-omit-frame-pointer', self.env['CFLAGS'])
+        self.assertNotIn('--without-frame-pointers', self.args)
 
     def test_deployment_floor_is_explicit_in_flags(self):
         # Left unset, clang inherits the SDK's version (newer than the

@@ -1,10 +1,8 @@
-"""CPython 3.14.6 configuration policy.
+"""CPython product configuration policy.
 
-Values derive from the verified 3.14.6 `configure --help` output, not memory:
-LTO is explicit ThinLTO; macOS uses CPython's instrumented PGO build with
-Astral's pinned `-m test --pgo` workload; BOLT/JIT/tail-call stay off;
-ensurepip is deferred to a pinned offline pip wheel; and every third-party
-dependency is pinned to the private prefix so host packages cannot be detected.
+LTO is explicit ThinLTO; macOS uses CPython's instrumented PGO build with the
+locked `-m test --pgo` workload; BOLT/JIT/tail-call stay off; ensurepip stays
+disabled; and third-party dependencies resolve through the private prefix.
 
 The two families differ in more than flag spelling, and the differences are
 consequences of the platform rather than preferences:
@@ -29,10 +27,8 @@ from pathlib import Path
 from .targets import Target, native_target
 
 
-# Keep the profile workload as a named policy input. PBS f1d7b92 uses this
-# same CPython test-runner selection, then appends `-j ${NUM_CPUS}`. These
-# tests are shipped with the locked CPython source, so updating that source
-# pin also updates the profile workload's implementation.
+# Keep the profile workload as a named policy input. The tests are part of the
+# locked CPython source, so the source pin selects their implementation.
 CPYTHON_PGO_PROFILE_TASK = "-m test --pgo"
 CPYTHON_PGO_HASH_SEED = "1704067200"
 
@@ -46,12 +42,12 @@ def resolve_pgo_jobs(jobs: int | None = None) -> int:
 
 
 def resolve_build_jobs() -> int:
-    """Match PBS's host parallelism convention: one fewer than host CPUs."""
+    """Use one fewer worker than the host has CPUs."""
     return max(1, (os.cpu_count() or 4) - 1)
 
 
 def pgo_profile_task(jobs: int) -> str:
-    """Return the exact PBS profile task with an explicit worker count."""
+    """Return CPython's profile task with an explicit worker count."""
     if jobs < 1:
         raise ValueError("PGO profile jobs must be at least one")
     return f"{CPYTHON_PGO_PROFILE_TASK} -j {jobs}"
@@ -73,10 +69,8 @@ def configuration(
 def _base_env(prefix: Path) -> dict[str, str]:
     """Dependency-selection variables shared by both families.
 
-    These cover the libraries this project builds itself. Anything absent
-    here is deliberately left to the platform: on macOS that is zlib, Expat,
-    and libedit, which configure finds in the SDK because no private copy
-    shadows them.
+    These cover the libraries this project builds itself. macOS gets zlib
+    and libedit from the SDK; Expat uses the private static build.
     """
     return {
         "BZIP2_CFLAGS": f"-I{prefix}/include",
@@ -96,10 +90,7 @@ def _base_env(prefix: Path) -> dict[str, str]:
 
 
 # Configure arguments that encode the product policy and are identical on
-# every platform: ThinLTO, BOLT/JIT/tail-call off, shared libpython, and
-# ensurepip deferred to the pinned wheel. The Linux branch spells its own
-# list out rather than sharing this tuple so its argument order stays
-# byte-identical to the frozen build that produced its evidence.
+# every platform.
 COMMON_POLICY_ARGS = (
     "--with-lto=thin",
     "--enable-shared",
@@ -107,12 +98,29 @@ COMMON_POLICY_ARGS = (
     "--enable-experimental-jit=no",
     "--with-tail-call-interp=no",
     "--without-static-libpython",
+    "--with-system-libmpdec",
+    "--with-system-expat",
     "--with-ensurepip=no",
-    "--without-ensurepip",
 )
 
 
+def _interpreter_flags(prefix: Path, target: Target) -> tuple[str, str]:
+    cflags = ["-O3", target.cpu_baseline_cflag, "-fPIC"]
+    ldflags = [f"-L{prefix}/lib"]
+    if target.is_macos:
+        cflags.append(f"-mmacosx-version-min={target.deployment_target}")
+        ldflags.extend((
+            f"-mmacosx-version-min={target.deployment_target}",
+            "-Wl,-headerpad_max_install_names",
+        ))
+    else:
+        cflags.extend(("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2"))
+        ldflags.extend(("-Wl,-z,noexecstack", "-Wl,--build-id=sha1"))
+    return " ".join(cflags), " ".join(ldflags)
+
+
 def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], dict[str, str]]:
+    cflags, ldflags = _interpreter_flags(prefix, target)
     env = {
         **_base_env(prefix),
         "PKG_CONFIG_LIBDIR": f"{prefix}/lib/pkgconfig:{prefix}/share/pkgconfig",
@@ -142,20 +150,11 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         # at the same time. Relative RPATHs are set as a structured
         # post-install ELF edit instead, so the installed search path is
         # relative to the interpreter rather than the build prefix.
-        "LDFLAGS": f"-L{prefix}/lib -Wl,-z,noexecstack -Wl,--build-id=sha1",
-        "CFLAGS": (
-            f"-O3 {target.cpu_baseline_cflag} -fno-omit-frame-pointer -fPIC -fstack-protector-strong "
-            "-D_FORTIFY_SOURCE=2"
-        ),
+        "LDFLAGS": ldflags,
+        "CFLAGS": cflags,
     }
     args = [
-        "--with-lto=thin",
-        "--enable-shared",
-        "--enable-loadable-sqlite-extensions",
-        "--without-ensurepip",
-        "--enable-experimental-jit=no",
-        "--with-system-expat",
-        "--with-system-libmpdec",
+        *COMMON_POLICY_ARGS,
         "--with-openssl=" + str(prefix),
         "--with-openssl-rpath=no",
         "--with-dbmliborder=bdb:ndbm:gdbm",
@@ -163,9 +162,6 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         # private libedit build rather than probe for a system GNU readline
         # that is not part of this product.
         "--with-readline=editline",
-        "--with-tail-call-interp=no",
-        "--without-static-libpython",
-        "--with-ensurepip=no",
         # Musl default thread stack (128 KiB) is too small for CPython
         # recursion depth (Alpine carries the same 2 MiB policy).
         "CFLAGS_NODIST=-DTHREAD_STACK_SIZE=0x200000",
@@ -177,6 +173,7 @@ def _macos_configuration(
     prefix: Path, target: Target, pgo_jobs: int
 ) -> tuple[list[str], dict[str, str]]:
     profile_task = pgo_profile_task(pgo_jobs)
+    cflags, ldflags = _interpreter_flags(prefix, target)
     env = {
         **_base_env(prefix),
         # Lock dependency detection to the private prefix. Without this,
@@ -198,20 +195,8 @@ def _macos_configuration(
         # private prefix first, which makes configure's -lexpat probe resolve
         # to the bundled libexpat.a rather than the SDK's dylib.
         "LIBSQLITE3_LIBS": f"-L{prefix}/lib {prefix}/lib/libsqlite3.a",
-        "LDFLAGS": (
-            f"-L{prefix}/lib -mmacosx-version-min={target.deployment_target} "
-            # install_name_tool must rewrite libpython's id and the
-            # interpreter's dependency on it, and adding an LC_RPATH needs
-            # room the default header layout does not leave.
-            "-Wl,-headerpad_max_install_names"
-        ),
-        # The pinned PBS macOS build omits frame pointers. Keep that compiler
-        # policy for parity; the installed-tree deep-recursion tests remain the
-        # authority on whether the stack guard works with this profile.
-        "CFLAGS": (
-            f"-O3 {target.cpu_baseline_cflag} -fPIC "
-            f"-mmacosx-version-min={target.deployment_target}"
-        ),
+        "LDFLAGS": ldflags,
+        "CFLAGS": cflags,
         # `--enable-optimizations` runs this task against the instrumented
         # interpreter, then consumes its profile for the optimized build.
         # Keep the worker count explicit so the recipe can be reproduced.
@@ -223,10 +208,6 @@ def _macos_configuration(
     args = [
         *COMMON_POLICY_ARGS,
         "--enable-optimizations",
-        # `--with-system-expat` means "use an external Expat rather than a
-        # vendored one"; the search path above decides *which* external one.
-        "--with-system-expat",
-        "--with-system-libmpdec",
         "--with-openssl=" + str(prefix),
         "--with-openssl-rpath=no",
         # Darwin's _uuid uses platform facilities and dbm uses ndbm; neither

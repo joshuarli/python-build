@@ -22,39 +22,13 @@ sys.path.insert(0, str(REPO))
 from buildsys.bootstrap import BootstrapError, lto_smoke_test, toolchain_for  # noqa: E402
 from buildsys.deporder import dependency_order  # noqa: E402
 from buildsys.inputs import Cache, InputError, load_lock  # noqa: E402
-from buildsys.recipes import BuildError, Recipe, build_recipe  # noqa: E402
+from buildsys.recipes import (  # noqa: E402
+    RECIPE_LAYOUTS, BuildError, Recipe, build_recipe,
+)
 from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
 
-# Extract-directory names as they appear inside each tarball.
-EXTRACT_DIRS = {
-    "zlib": "zlib-1.3.1",
-    "bzip2": "bzip2-1.0.8",
-    "xz": "xz-5.8.1",
-    "zstd": "cpython-source-deps-zstd-1.5.7",  # cpython-source-deps export layout checked below
-    "expat": "expat-2.8.1",
-    "mpdecimal": "mpdecimal-4.0.0",
-    "libffi": "libffi-3.8.0",
-    "libedit": "libedit-20240808-3.1",
-    "ncurses": "ncurses-6.5",
-    "libuuid": "libuuid-1.0.3",
-    "bdb": "db-6.0.19",
-    "sqlite": "sqlite-autoconf-3530100",
-    "openssl": "openssl-3.5.7",
-}
-
-# Packages whose build Makefile lives below the tarball root.
-SOURCE_SUBDIRS = {
-    "zstd": "cpython-source-deps-zstd-1.5.7/lib",
-    "bdb": "db-6.0.19/dist",  # BDB keeps configure in dist/
-    "openssl": "openssl-3.5.7",
-}
-
-PREFIX_CPPFLAGS = "-I{prefix}/include"
-PREFIX_LDFLAGS = "-L{prefix}/lib"
-
-
 def configure_args(name: str, prefix: Path | None = None, target: Target | None = None) -> tuple[str, ...]:
-    if name not in EXTRACT_DIRS:
+    if name not in RECIPE_LAYOUTS:
         raise BuildError(f"unsupported dependency: {name}")
     target = target or native_target()
     # Resolve the private prefix from the driver's own location, not the
@@ -98,14 +72,6 @@ def configure_args(name: str, prefix: Path | None = None, target: Target | None 
         )
     return ("--disable-shared", "--enable-static")
 
-
-def install_style(name: str) -> str:
-    """Packages without autotools configure: bzip2, zstd."""
-    if name in {"bzip2", "zstd"}:
-        return "make"
-    if name == "openssl":
-        return "openssl"
-    return "autotools"
 
 def cflags_for(name: str, target: Target | None = None) -> str:
     """Per-package CFLAGS additions."""
@@ -154,7 +120,7 @@ def special_install(name: str, source: Path, prefix: Path, log: Path) -> bool:
     `source` is the scratch tree; nesting is resolved per package here.
     """
     if name == "bzip2":
-        nested = source / "bzip2-1.0.8"
+        nested = source / RECIPE_LAYOUTS["bzip2"].source_root
         (prefix / "lib").mkdir(parents=True, exist_ok=True)
         (prefix / "include").mkdir(parents=True, exist_ok=True)
         shutil.copyfile(nested / "libbz2.a", prefix / "lib" / "libbz2.a")
@@ -162,7 +128,7 @@ def special_install(name: str, source: Path, prefix: Path, log: Path) -> bool:
         log.open("a").write("bzip2: manual static install from nested tree\n")
         return True
     if name == "zstd":
-        nested = source / "cpython-source-deps-zstd-1.5.7" / "lib"
+        nested = source / RECIPE_LAYOUTS["zstd"].source_root
         (prefix / "lib").mkdir(parents=True, exist_ok=True)
         (prefix / "include").mkdir(parents=True, exist_ok=True)
         shutil.copyfile(nested / "libzstd.a", prefix / "lib" / "libzstd.a")
@@ -174,12 +140,32 @@ def special_install(name: str, source: Path, prefix: Path, log: Path) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Non-hermetic dependency development builds")
-    parser.add_argument("--only", choices=EXTRACT_DIRS)
+    parser = argparse.ArgumentParser(description="Build locked native dependencies")
+    parser.add_argument("--only", choices=RECIPE_LAYOUTS)
     args = parser.parse_args()
     work = REPO / "build" / "work"
     prefix = (REPO / "build" / "prefix").resolve()
     logs = REPO / "build" / "logs"
+    cache = Cache(REPO / ".cache")
+    lock = {e.name: e for e in load_lock(REPO / "sources.lock.json")}
+    try:
+        target = native_target()
+        toolchain = toolchain_for(target, REPO / "bootstrap.lock.json")
+    except (UnsupportedTargetError, BootstrapError) as error:
+        print(f"FAIL deps: {error}")
+        return 1
+
+    required_dependencies = tuple(
+        name for name in dependency_order(target) if name != "pkgconf"
+    )
+    missing = sorted(set(required_dependencies) - lock.keys())
+    if missing:
+        print("FAIL deps: missing locked source pins: " + ", ".join(missing))
+        return 1
+    if args.only and args.only not in required_dependencies:
+        print(f"FAIL deps: {args.only} is not a {target.family} build input")
+        return 1
+
     # A full build owns the prefix and the scratch area; `--only` is the
     # incremental path and keeps both. Reusing a prefix across runs let a
     # stale libncursesw.a from an earlier configuration be linked into the
@@ -196,14 +182,6 @@ def main() -> int:
                 print(f"CLEAN {directory}", flush=True)
                 shutil.rmtree(directory)
             directory.mkdir(parents=True)
-    cache = Cache(REPO / ".cache")
-    lock = {e.name: e for e in load_lock(REPO / "sources.lock.json")}
-    try:
-        target = native_target()
-        toolchain = toolchain_for(target, REPO / "bootstrap.lock.json")
-    except (UnsupportedTargetError, BootstrapError) as error:
-        print(f"FAIL deps: {error}")
-        return 1
 
     if target.is_macos:
         # The LTO gate runs before anything large is compiled:
@@ -224,25 +202,17 @@ def main() -> int:
             continue
         if name == "pkgconf":
             continue  # host tool (Alpine apk or Homebrew), not shipped
-        if name not in lock:
-            print(f"SKIP {name}: not in lock")
-            continue
         entry = lock[name]
         blob = cache.require(entry)
-        extract_dir = EXTRACT_DIRS.get(name)
-        if extract_dir is None:
-            print(f"SKIP {name}: no extract_dir mapping")
-            continue
         dest = work / name
+        if args.only and dest.exists():
+            shutil.rmtree(dest)
         recipe = Recipe(
             name=name,
-            extract_dir=extract_dir,
-            source_subdir=SOURCE_SUBDIRS.get(name, ""),
-            build_subdir="db-6.0.19/build_unix" if name == "bdb" else "",
+            layout=RECIPE_LAYOUTS[name],
             configure_args=configure_args(name, target=target),
             make_targets=make_targets(name),
             cflags=cflags_for(name, target),
-            install=install_style(name),
             log_path=logs / name,
         )
         print(f"BUILD {name} {entry.version}", flush=True)

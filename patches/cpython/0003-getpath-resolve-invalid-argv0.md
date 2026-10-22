@@ -1,4 +1,4 @@
-Upstream source: CPython 3.14.6, `Modules/getpath.c` and `Modules/getpath.py`.
+Upstream source: CPython 3.15.1, `Modules/getpath.c` and `Modules/getpath.py`.
 Origin: project-authored compatibility fix; no third-party code copied.
 License: Python Software Foundation License Version 2.
 
@@ -13,7 +13,7 @@ behavior.
 Scope: `aarch64-apple-darwin` and both Linux musl targets; no new targets or
 dependencies.
 
-Applicability check: the patch applies to the locked CPython 3.14.6 source
+Applicability check: the patch applies to the locked CPython 3.15.1 source
 with no fuzz or rejected hunks.
 
 Regression test: `buildsys/standalone_compat.py::_getpath_check` checks

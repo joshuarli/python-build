@@ -3,10 +3,10 @@
 The staged installation lands in build/stage; the relocation decision
 (destining a neutral prefix rather than the checkout) belongs to packaging.
 
-The relocation step is per-format: the frozen Linux targets rewrite ELF
-rpaths with patchelf, macOS rewrites Mach-O install names and adds
-`@loader_path` search paths. Both run immediately after `make install`, so
-the tree that later phases see is already relocatable.
+The relocation step is per-format: Linux rewrites ELF rpaths with patchelf,
+and macOS rewrites Mach-O install names and adds `@loader_path` search paths.
+Both run immediately after `make install`, so later phases see a relocatable
+tree.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -29,7 +30,10 @@ from buildsys.bootstrap import (  # noqa: E402
 from buildsys.cpython import (  # noqa: E402
     configuration, resolve_build_jobs, resolve_pgo_jobs,
 )
+from buildsys.deporder import dependency_order  # noqa: E402
 from buildsys.inputs import Cache, InputError, load_lock, safe_extract  # noqa: E402
+from buildsys.product import PRODUCT  # noqa: E402
+from buildsys.product_process import run_product_process  # noqa: E402
 from buildsys.patches import PatchError, apply_patch_set  # noqa: E402
 from buildsys.recipes import BuildError, run  # noqa: E402
 from buildsys.relocate import RelocationError, macho_relocate, relocate  # noqa: E402
@@ -40,6 +44,20 @@ from buildsys.targets import Target, UnsupportedTargetError, native_target  # no
 
 CONFIGURE_PREFIX = "/install"
 JOBS = str(resolve_build_jobs())
+
+
+def _tool_version(command: str, env: dict[str, str]) -> str:
+    try:
+        result = subprocess.run(
+            [command, "--version"], capture_output=True, text=True,
+            env=env, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise BuildError(f"cannot identify build tool {command}: {error}") from error
+    output = (result.stdout + result.stderr).strip()
+    if result.returncode != 0 or not output:
+        raise BuildError(f"cannot identify build tool {command}: {output}")
+    return output.splitlines()[0]
 
 
 def verify_deployment_floor(install: Path, target: Target) -> dict:
@@ -79,22 +97,25 @@ def build(
     pgo_jobs: int | None = None,
 ) -> Path:
     target = native_target()
+    recipe_path = logs / "build-record.json"
+    recipe_path.unlink(missing_ok=True)
     if pgo_jobs is not None and not target.is_macos:
         raise BuildError("--pgo-jobs is only supported for the macOS PGO build")
     resolved_pgo_jobs = resolve_pgo_jobs(pgo_jobs) if target.is_macos else None
-    if target.is_macos:
-        # Never let a failed rebuild leave an older PGO recipe looking current.
-        (logs / "cpython-build.json").unlink(missing_ok=True)
-    pin = next(
-        entry for entry in load_lock(REPO / "sources.lock.json") if entry.name == "cpython"
-    )
+    staged = stage / "cpython-staged"
+    if staged.exists():
+        shutil.rmtree(staged)
+    pins = load_lock(REPO / "sources.lock.json")
+    pin = next(entry for entry in pins if entry.name == "cpython")
+    if pin.version != PRODUCT.version_string:
+        raise BuildError("the CPython source lock and product definition disagree")
     blob = cache.require(pin)
     # safe_extract refuses an existing destination, so clear our own scratch
     # rather than making the caller do it before every rebuild.
     if (work / "cpython").exists():
         shutil.rmtree(work / "cpython")
     source = safe_extract(blob, work / "cpython") / f"Python-{pin.version}"
-    apply_patch_set(source, REPO / "patches" / "cpython")
+    applied_patches = apply_patch_set(source, REPO / "patches" / "cpython")
     build_directory = work / "cpython-build"
     if build_directory.exists():
         shutil.rmtree(build_directory)
@@ -120,6 +141,12 @@ def build(
             "PKG_CONFIG": "pkg-config",
         }
     )
+    build_mode = env.get("PYTHON_BUILD_BUILD_MODE", "development")
+    isolation_mechanism = env.get("PYTHON_BUILD_ISOLATION", "host-process")
+    if build_mode not in {"development", "sealed"}:
+        raise BuildError(f"unsupported build mode {build_mode!r}")
+    if build_mode == "sealed" and isolation_mechanism == "host-process":
+        raise BuildError("sealed builds must identify their enforced isolation boundary")
     configure = source / "configure"
     run(
         [str(configure), f"--prefix={CONFIGURE_PREFIX}", *args],
@@ -133,9 +160,6 @@ def build(
         env=env,
         log=logs / "cpython-make.log",
     )
-    staged = stage / "cpython-staged"
-    if staged.exists():
-        shutil.rmtree(staged)
     staged.parent.mkdir(parents=True, exist_ok=True)
     run(
         [toolchain.make, "install", f"DESTDIR={staged}"],
@@ -188,10 +212,18 @@ def build(
     remaining = verify_exclusions(install)
     if remaining:
         raise ScopeError("excluded components still present: " + ", ".join(remaining))
-    importable = probe_in_process(install / "bin" / "python3.14")
+    importable = probe_in_process(PRODUCT.interpreter(install))
     leaked = sorted(name for name, present in importable.items() if present)
     if leaked:
         raise ScopeError(f"excluded modules are still importable: {', '.join(leaked)}")
+    profile_data = None
+    optimization = {
+        "pgo": target.is_macos,
+        "pgo_jobs": resolved_pgo_jobs,
+        "profile_task": env.get("PROFILE_TASK"),
+        "lto": "thin",
+        "configure_args": args,
+    }
     if target.is_macos:
         profile_path = build_directory / "code.profclangd"
         try:
@@ -200,46 +232,161 @@ def build(
             raise BuildError(
                 f"CPython did not leave merged PGO data at {profile_path}: {error}"
             ) from error
-        recipe = {
-            "target": target.triple,
-            "build_mode": "development",
-            "source": {
-                "name": pin.name,
-                "version": pin.version,
-                "sha256": pin.sha256,
-            },
-            "optimization": {
-                "pgo": True,
-                "pgo_jobs": resolved_pgo_jobs,
-                "profile_task": env["PROFILE_TASK"],
-                "llvm_profdata": env["LLVM_PROFDATA"],
-                "profile_data": {
-                    "path": profile_path.name,
-                    "sha256": hashlib.sha256(profile_bytes).hexdigest(),
-                    "size_bytes": len(profile_bytes),
-                },
-                "lto": "thin",
-                "configure_args": args,
-            },
-            "toolchain": profile_toolchain.identity(),
+        profile_data = {
+            "path": profile_path.name,
+            "sha256": hashlib.sha256(profile_bytes).hexdigest(),
+            "size_bytes": len(profile_bytes),
+        }
+        optimization["profile_data"] = profile_data
+        optimization["llvm_profdata"] = env["LLVM_PROFDATA"]
+
+    effective_flags = run_product_process(
+        [str(PRODUCT.interpreter(install)), "-I", "-B", "-c",
+         "import json,sysconfig; print(json.dumps({key: sysconfig.get_config_var(key) "
+         "for key in ('CFLAGS','CFLAGS_NODIST','PY_CFLAGS','PY_CFLAGS_NODIST',"
+         "'LDFLAGS','LTOFLAGS','CONFIG_ARGS')}))"],
+        install,
+        build_directory,
+        timeout_seconds=30,
+    )
+    if effective_flags.returncode != 0:
+        raise BuildError(
+            "installed interpreter could not report effective compiler flags: "
+            + effective_flags.stderr.strip()
+        )
+    config_flags = json.loads(effective_flags.stdout.strip().splitlines()[-1])
+    patch_identities = [
+        {"name": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        for path in applied_patches
+    ]
+    pin_by_name = {entry.name: entry for entry in pins}
+    dependency_names = tuple(
+        name for name in dependency_order(target) if name != "pkgconf"
+    )
+    missing_dependencies = sorted(set(dependency_names) - pin_by_name.keys())
+    if missing_dependencies:
+        raise BuildError(
+            "missing locked dependency inputs: " + ", ".join(missing_dependencies)
+        )
+    dependency_inputs = [
+        {
+            "name": pin_by_name[name].name,
+            "version": pin_by_name[name].version,
+            "sha256": pin_by_name[name].sha256,
+            "identity": pin_by_name[name].identity(),
+        }
+        for name in dependency_names
+    ]
+    command_facts = {
+        name: {"path": command, "version": _tool_version(command, env)}
+        for name, command in (
+            ("cc", toolchain.cc), ("cxx", toolchain.cxx),
+            ("ar", toolchain.ar), ("ranlib", toolchain.ranlib),
+            ("ld", toolchain.ld), ("nm", toolchain.nm),
+            ("strip", toolchain.strip), ("make", toolchain.make),
+        ) if command
+    }
+    bootstrap_bytes = (REPO / "bootstrap.lock.json").read_bytes()
+    bootstrap_document = json.loads(bootstrap_bytes)
+    bootstrap_identity = hashlib.sha256(bootstrap_bytes).hexdigest()
+    if profile_toolchain is not None:
+        toolchain_identity = profile_toolchain.identity()
+        toolchain_observed = {
+            **profile_toolchain.observed_facts(),
+            "commands": command_facts,
+        }
+    else:
+        linux_packages = bootstrap_document["linux_toolchain"]["direct_packages"]
+        clang_versions = [
+            package["version"].split("-r", 1)[0]
+            for package in linux_packages
+            if package["name"] == "clang23"
+        ]
+        if len(clang_versions) != 1:
+            raise BuildError("bootstrap lock must identify one Linux clang23 version")
+        toolchain_identity = {
+            "family": target.family,
+            "cpu_baseline": target.cpu_baseline_cflag,
+            "llvm_version": clang_versions[0],
             "commands": {
-                "configure": [str(configure), f"--prefix={CONFIGURE_PREFIX}", *args],
-                "build": [toolchain.make, "-j", JOBS],
-                "install": [toolchain.make, "install", f"DESTDIR={staged}"],
-            },
-            "environment": {
-                key: env[key]
-                for key in (
-                    "CC", "CFLAGS", "CPPFLAGS", "LDFLAGS", "LLVM_PROFDATA",
-                    "MACOSX_DEPLOYMENT_TARGET", "PROFILE_TASK", "SDKROOT",
-                    "SOURCE_DATE_EPOCH", "PYTHONHASHSEED",
-                )
-                if key in env
+                name: {"version": value["version"]}
+                for name, value in command_facts.items()
             },
         }
-        (logs / "cpython-build.json").write_text(
-            json.dumps(recipe, indent=2, sort_keys=True) + "\n"
+        toolchain_observed = {"commands": command_facts}
+    recipe_environment = {
+        key: env[key] for key in (
+            "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "PROFILE_TASK",
+            "MACOSX_DEPLOYMENT_TARGET", "PYTHONHASHSEED",
+        ) if key in env
+    }
+    recipe_material = {
+        "target": target.triple,
+        "product": PRODUCT.version_string,
+        "source": {"name": pin.name, "version": pin.version, "sha256": pin.sha256},
+        "patches": patch_identities,
+        "dependencies": dependency_inputs,
+        "configure_args": args,
+        "environment": recipe_environment,
+        "effective_flags": config_flags,
+        "toolchain": toolchain_identity,
+        "bootstrap_identity": bootstrap_identity,
+    }
+    recipe_identity = hashlib.sha256(
+        json.dumps(recipe_material, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    source_revision = env.get("PYTHON_BUILD_SOURCE_REVISION") or env.get("GITHUB_SHA")
+    source_dirty_value = env.get("PYTHON_BUILD_SOURCE_DIRTY")
+    if not source_revision:
+        source_revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO, check=True,
+            capture_output=True, text=True, timeout=15,
+        ).stdout.strip()
+    if source_dirty_value is None:
+        source_dirty_value = "1" if subprocess.run(
+            ["git", "status", "--porcelain"], cwd=REPO, check=True,
+            capture_output=True, text=True, timeout=15,
+        ).stdout.strip() else "0"
+    if source_dirty_value not in {"0", "1"}:
+        raise BuildError("PYTHON_BUILD_SOURCE_DIRTY must be 0 or 1")
+    if env.get("GITHUB_SHA") and env["GITHUB_SHA"] != source_revision:
+        raise BuildError(
+            f"checkout revision {source_revision} does not match GITHUB_SHA "
+            f"{env['GITHUB_SHA']}"
         )
+    if not re.fullmatch(r"[0-9a-f]{40,64}", source_revision):
+        raise BuildError(f"invalid source revision {source_revision!r}")
+    source_dirty = source_dirty_value == "1"
+    build_record = {
+        "schema_version": 1,
+        "target": target.triple,
+        "source_revision": source_revision,
+        "source_dirty": source_dirty,
+        "product": {"version": PRODUCT.version_string, "abi_tag": PRODUCT.abi_tag},
+        "build_mode": build_mode,
+        "isolation": {
+            "mechanism": isolation_mechanism,
+            "network": "disabled" if build_mode == "sealed" else "not-enforced",
+        },
+        "source": {"name": pin.name, "version": pin.version, "sha256": pin.sha256},
+        "patches": patch_identities,
+        "dependencies": dependency_inputs,
+        "recipe_identity": recipe_identity,
+        "bootstrap_identity": bootstrap_identity,
+        "toolchain": toolchain_identity,
+        "optimization": optimization,
+        "environment": recipe_environment,
+        "effective_flags": config_flags,
+        "toolchain_observed": toolchain_observed,
+        "commands": {
+            "configure": [str(configure), f"--prefix={CONFIGURE_PREFIX}", *args],
+            "build": [toolchain.make, "-j", JOBS],
+            "install": [toolchain.make, "install", f"DESTDIR={staged}"],
+        },
+    }
+    staged_record = staged / "build-record.json"
+    staged_record.write_text(json.dumps(build_record, indent=2, sort_keys=True) + "\n")
+    recipe_path.write_text(json.dumps(build_record, indent=2, sort_keys=True) + "\n")
     print(f"      removed {len(report['removed'])} excluded path(s)", flush=True)
     return staged
 
@@ -270,11 +417,7 @@ def main(argv: list[str] | None = None) -> int:
     stage.mkdir(parents=True, exist_ok=True)
     logs.mkdir(parents=True, exist_ok=True)
     cache = Cache(REPO / ".cache")
-    version = next(
-        entry.version for entry in load_lock(REPO / "sources.lock.json")
-        if entry.name == "cpython"
-    )
-    print(f"BUILD cpython {version}", flush=True)
+    print(f"BUILD cpython {PRODUCT.version_string}", flush=True)
     try:
         staged = build(
             work, prefix, stage, logs, cache, pgo_jobs=args.pgo_jobs
