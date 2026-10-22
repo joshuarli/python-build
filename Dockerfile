@@ -69,6 +69,7 @@ RUN MARCH="$(PYTHONPATH=/opt/bootstrap python3 -c 'from targets import native_ta
 
 FROM toolchain AS development
 COPY --chown=builder:builder build.py /work/build.py
+COPY --chown=builder:builder bootstrap.lock.json /work/bootstrap.lock.json
 COPY --chown=builder:builder buildsys/ /work/buildsys/
 COPY --chown=builder:builder build/ /work/build/
 COPY --chown=builder:builder patches/ /work/patches/

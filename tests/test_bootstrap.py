@@ -310,6 +310,13 @@ class LinuxBootstrapLockTests(unittest.TestCase):
                 dockerfile,
             )
 
+    def test_build_stage_receives_bootstrap_lock(self) -> None:
+        dockerfile = (ROOT / "Dockerfile").read_text()
+        self.assertIn(
+            "COPY --chown=builder:builder bootstrap.lock.json /work/bootstrap.lock.json",
+            dockerfile,
+        )
+
     def test_apk_pin_rejects_architecture_or_url_drift(self) -> None:
         lock = json.loads(LOCK.read_text())
         lock["linux_toolchain"]["apk_closure"]["aarch64"][0]["arch"] = "x86_64"
