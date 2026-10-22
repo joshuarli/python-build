@@ -55,6 +55,50 @@ class RecipeTests(unittest.TestCase):
             driver["cflags_for"]("zstd", TARGETS["x86_64-unknown-linux-musl"]),
         )
 
+    def test_mpdecimal_avoids_the_false_x64_probe_on_macos_arm64(self):
+        import runpy
+
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        self.assertEqual(
+            driver["configure_environment"]("mpdecimal", TARGETS["aarch64-apple-darwin"]),
+            (("MACHINE", "uint128"),),
+        )
+        for triple in ("aarch64-unknown-linux-musl", "x86_64-unknown-linux-musl"):
+            with self.subTest(triple=triple):
+                self.assertEqual(
+                    driver["configure_environment"]("mpdecimal", TARGETS[triple]),
+                    (),
+                )
+
+    def test_autotools_recipe_passes_configure_environment(self):
+        import runpy
+
+        from buildsys.targets import TARGETS
+
+        driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "source.tar"
+            with tarfile.open(archive, "w") as output:
+                script = tarfile.TarInfo("mpdecimal-4.0.0/configure")
+                script.size = 1
+                output.addfile(script, io.BytesIO(b"x"))
+            recipe = Recipe(
+                "mpdecimal",
+                RECIPE_LAYOUTS["mpdecimal"],
+                configure_env=driver["configure_environment"](
+                    "mpdecimal", TARGETS["aarch64-apple-darwin"]
+                ),
+                log_path=root / "logs",
+            )
+            with patch("buildsys.recipes.run") as runner:
+                build_recipe(recipe, archive, root / "work", root / "prefix")
+            self.assertEqual(
+                runner.call_args_list[0].kwargs["env"]["MACHINE"], "uint128"
+            )
+
     def test_gui_recipes_are_not_selectable(self):
         import runpy
         driver = runpy.run_path(str(Path(__file__).resolve().parents[1] / "build/deps.py"))

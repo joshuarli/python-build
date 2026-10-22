@@ -196,6 +196,7 @@ class Recipe:
     cxxflags: str = ""
     ldflags: str = ""
     log_path: Path | None = None
+    configure_env: tuple[tuple[str, str], ...] = ()
 
 
 def build_recipe(
@@ -285,7 +286,12 @@ def build_recipe(
         cxxflags = toolchain.cflags(recipe.cxxflags)
         ldflags = toolchain.ldflags(prefix, recipe.ldflags)
         env = toolchain.env(
-            {"CFLAGS": cflags, "CXXFLAGS": cxxflags, "LDFLAGS": ldflags}
+            {
+                "CFLAGS": cflags,
+                "CXXFLAGS": cxxflags,
+                "LDFLAGS": ldflags,
+                **dict(recipe.configure_env),
+            }
         )
         configure = source / recipe.layout.configure_subdirectory / "configure"
         if not configure.is_file():

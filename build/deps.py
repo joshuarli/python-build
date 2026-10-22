@@ -73,6 +73,14 @@ def configure_args(name: str, prefix: Path | None = None, target: Target | None 
     return ("--disable-shared", "--enable-static")
 
 
+def configure_environment(name: str, target: Target | None = None) -> tuple[tuple[str, str], ...]:
+    target = target or native_target()
+    if name != "mpdecimal" or not target.is_macos:
+        return ()
+    # ThinLTO makes Apple clang accept mpdecimal's invalid x64 assembly probe.
+    return (("MACHINE", "uint128"),)
+
+
 def cflags_for(name: str, target: Target | None = None) -> str:
     """Per-package CFLAGS additions."""
     target = target or native_target()
@@ -211,6 +219,7 @@ def main() -> int:
             name=name,
             layout=RECIPE_LAYOUTS[name],
             configure_args=configure_args(name, target=target),
+            configure_env=configure_environment(name, target),
             make_targets=make_targets(name),
             cflags=cflags_for(name, target),
             log_path=logs / name,
