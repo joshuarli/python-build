@@ -313,15 +313,17 @@ class StagedBuildVerificationTests(unittest.TestCase):
         driver = runpy.run_path(str(REPO / "build" / "package.py"))
         verifier = driver["_verify_install_matches_record"]
         with tempfile.TemporaryDirectory() as temporary:
-            install = Path(temporary) / "copy"
+            install = Path(temporary) / "copy with spaces"
             recorded = {
                 "CFLAGS": "-O3",
                 "LDFLAGS": "-flto=thin",
-                "CONFIG_ARGS": "'--prefix=/install' '--with-lto=thin'",
+                "CONFIG_ARGS": "'--prefix=/install' '--with-lto=thin' 'PANEL_LIBS=\"",
             }
             relocated = {
                 **recorded,
-                "CONFIG_ARGS": f"'--prefix={install}' '--with-lto=thin'",
+                "CONFIG_ARGS": (
+                    f"'--prefix={install}' '--with-lto=thin' 'PANEL_LIBS=\""
+                ),
             }
             probe = Mock(
                 returncode=0,
@@ -338,7 +340,7 @@ class StagedBuildVerificationTests(unittest.TestCase):
         driver = runpy.run_path(str(REPO / "build" / "package.py"))
         verifier = driver["_verify_install_matches_record"]
         with tempfile.TemporaryDirectory() as temporary:
-            install = Path(temporary) / "copy"
+            install = Path(temporary) / "copy with spaces"
             recorded = {
                 "CFLAGS": "-O3",
                 "LDFLAGS": "-flto=thin",
@@ -347,12 +349,12 @@ class StagedBuildVerificationTests(unittest.TestCase):
             probes = (
                 {
                     **recorded,
-                    "CONFIG_ARGS": "'--prefix=/unexpected' '--with-lto=thin'",
+                    "CONFIG_ARGS": "'--prefix=/unexpected' '--with-lto=thin' 'PANEL_LIBS=\"",
                 },
                 {
                     **recorded,
                     "CFLAGS": "-O2",
-                    "CONFIG_ARGS": f"'--prefix={install}' '--with-lto=thin'",
+                    "CONFIG_ARGS": f"'--prefix={install}' '--with-lto=thin' 'PANEL_LIBS=\"",
                 },
             )
             for actual in probes:

@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -318,6 +317,35 @@ def _source_revision(build_record: dict) -> str:
     return revision
 
 
+def _config_prefix_argument(config_args: str) -> tuple[int, int, str] | None:
+    first = len(config_args) - len(config_args.lstrip())
+    if first == len(config_args):
+        return None
+    if config_args[first] in {"'", '"'}:
+        quote = config_args[first]
+        start = first + 1
+        end = config_args.find(quote, start)
+        if end < 0 or (
+            end + 1 < len(config_args)
+            and not config_args[end + 1].isspace()
+        ):
+            return None
+    else:
+        start = first
+        end = next(
+            (
+                index
+                for index in range(start, len(config_args))
+                if config_args[index].isspace()
+            ),
+            len(config_args),
+        )
+    argument = config_args[start:end]
+    if not argument.startswith("--prefix="):
+        return None
+    return start, end, argument
+
+
 def _effective_flags_match_record(
     actual: object, expected: object, install: Path
 ) -> bool:
@@ -329,27 +357,21 @@ def _effective_flags_match_record(
     expected_config = expected.get("CONFIG_ARGS")
     if not isinstance(actual_config, str) or not isinstance(expected_config, str):
         return actual == expected
-    try:
-        actual_arguments = shlex.split(actual_config)
-        expected_arguments = shlex.split(expected_config)
-    except ValueError:
+    actual_prefix = _config_prefix_argument(actual_config)
+    expected_prefix = _config_prefix_argument(expected_config)
+    if actual_prefix is None or expected_prefix is None:
         return False
-    actual_prefixes = [
-        index for index, argument in enumerate(actual_arguments)
-        if argument.startswith("--prefix=")
-    ]
-    expected_prefixes = [
-        index for index, argument in enumerate(expected_arguments)
-        if argument.startswith("--prefix=")
-    ]
-    if len(actual_prefixes) != 1 or len(expected_prefixes) != 1:
+    actual_start, actual_end, actual_argument = actual_prefix
+    _, _, expected_argument = expected_prefix
+    if actual_argument != f"--prefix={install.resolve()}":
         return False
-    actual_prefix_index = actual_prefixes[0]
-    if actual_arguments[actual_prefix_index] != f"--prefix={install.resolve()}":
-        return False
-    actual_arguments[actual_prefix_index] = expected_arguments[expected_prefixes[0]]
+    normalized_config = (
+        actual_config[:actual_start]
+        + expected_argument
+        + actual_config[actual_end:]
+    )
     return (
-        actual_arguments == expected_arguments
+        normalized_config == expected_config
         and {key: value for key, value in actual.items() if key != "CONFIG_ARGS"}
         == {key: value for key, value in expected.items() if key != "CONFIG_ARGS"}
     )
