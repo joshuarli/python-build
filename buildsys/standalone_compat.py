@@ -427,12 +427,17 @@ root = os.path.realpath(sys.prefix)
 import ssl
 fallback_bundle = os.path.realpath(ssl._PYTHON_BUILD_DEFAULT_CA_BUNDLE)
 default_verify_paths = ssl.SSLContext.set_default_verify_paths
+original_verify_paths = ssl.get_default_verify_paths
 ssl.SSLContext.set_default_verify_paths = lambda self: None
+ssl.get_default_verify_paths = lambda: original_verify_paths()._replace(
+    cafile=None, capath=None
+)
 try:
     fallback_context = ssl.create_default_context()
     fallback_ca_count = fallback_context.cert_store_stats()["x509_ca"]
 finally:
     ssl.SSLContext.set_default_verify_paths = default_verify_paths
+    ssl.get_default_verify_paths = original_verify_paths
 fallback_ca = {
     "bundle": fallback_bundle,
     "inside_moved_tree": os.path.commonpath((root, fallback_bundle)) == root,
@@ -550,6 +555,7 @@ import json, os, socket, ssl, sys, tempfile, threading
 certificate, key = sys.argv[1:]
 original_bundle = ssl._PYTHON_BUILD_DEFAULT_CA_BUNDLE
 original_default_paths = ssl.SSLContext.set_default_verify_paths
+original_verify_paths = ssl.get_default_verify_paths
 
 def tls_roundtrip(context):
     server = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -618,6 +624,9 @@ if system_default_count and actual_default_ca_count != system_default_count:
         f"before={system_default_count}, after={actual_default_ca_count}"
     )
 ssl.SSLContext.set_default_verify_paths = lambda self: None
+ssl.get_default_verify_paths = lambda: original_verify_paths()._replace(
+    cafile=None, capath=None
+)
 try:
     # First prove the real moved installation bundle loads without a system
     # trust store, then substitute the private fixture CA for a local TLS test.
@@ -631,6 +640,7 @@ try:
     tls_roundtrip(fallback_context)
 finally:
     ssl.SSLContext.set_default_verify_paths = original_default_paths
+    ssl.get_default_verify_paths = original_verify_paths
     ssl._PYTHON_BUILD_DEFAULT_CA_BUNDLE = original_bundle
 
 with tempfile.TemporaryDirectory() as temporary:
@@ -646,6 +656,9 @@ environment.pop("SSL_CERT_FILE", None)
 environment.pop("SSL_CERT_DIR", None)
 environment["PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE"] = "1"
 ssl.SSLContext.set_default_verify_paths = lambda self: None
+ssl.get_default_verify_paths = lambda: original_verify_paths()._replace(
+    cafile=None, capath=None
+)
 try:
     opted_out = ssl.create_default_context()
     opt_out_count = opted_out.cert_store_stats()["x509_ca"]
@@ -653,6 +666,7 @@ try:
         raise RuntimeError(f"opt-out loaded unexpected roots: {opt_out_count}")
 finally:
     ssl.SSLContext.set_default_verify_paths = original_default_paths
+    ssl.get_default_verify_paths = original_verify_paths
     environment.pop("PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE", None)
 print(json.dumps({
     "ok": True,

@@ -21,6 +21,9 @@ from pathlib import Path
 from .product_process import run_product_process
 from .targets import Target
 
+SCRATCH_ROOT = Path(__file__).resolve().parents[1] / ".work" / "tmp"
+
+
 @dataclass(frozen=True)
 class Exclusion:
     test: str
@@ -212,12 +215,13 @@ def _accounting(output: str) -> dict:
 def run_suite(python: Path, *, jobs: int = 6, timeout: int = 600) -> dict:
     python = Path(python).resolve()
     install = python.parent.parent
+    SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
     command = [str(python), "-B", "-m", "test", "-j", str(jobs), f"--timeout={timeout}"]
     for exclusion in FILE_EXCLUSIONS:
         command += ["-x", exclusion.test]
     try:
         result = run_product_process(
-            command, install, install, timeout_seconds=timeout + 60
+            command, install, SCRATCH_ROOT, timeout_seconds=timeout + 60
         )
     except subprocess.TimeoutExpired as error:
         output = _output_text(error.stdout) + _output_text(error.stderr)
