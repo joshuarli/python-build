@@ -133,6 +133,7 @@ class MacOSToolchain:
             "cxx": str(binary / "clang++"),
             "ar": str(binary / "llvm-ar"),
             "ranlib": str(binary / "llvm-ranlib"),
+            "ld": "",
             "nm": str(binary / "llvm-nm"),
             "strip": str(binary / "llvm-strip"),
             "make": str(self.make),

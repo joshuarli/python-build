@@ -280,6 +280,8 @@ class ToolchainSelectionTests(unittest.TestCase):
             toolchain = toolchain_for(target_for_triple("aarch64-apple-darwin"), LOCK)
         self.assertTrue(toolchain.is_macos)
         self.assertTrue(Path(toolchain.cc).is_absolute())
+        self.assertEqual(toolchain.ld, "")
+        self.assertNotIn("LD", toolchain.env())
 
 
 class LinuxBootstrapLockTests(unittest.TestCase):
