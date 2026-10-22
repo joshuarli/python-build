@@ -355,7 +355,20 @@ def _verify_install_matches_record(install: Path, record: dict) -> None:
         "'PY_CFLAGS_NODIST','LDFLAGS','LTOFLAGS','CONFIG_ARGS'); "
         "print(json.dumps({key:sysconfig.get_config_var(key) for key in keys}))",
     ], install, install, timeout_seconds=30)
-    actual = json.loads(probe.stdout.strip().splitlines()[-1])
+    if probe.returncode != 0:
+        raise PackagingError(
+            "staged interpreter could not report effective configuration: "
+            + probe.stderr.strip()
+        )
+    output = [line for line in probe.stdout.splitlines() if line.strip()]
+    if not output:
+        raise PackagingError("staged interpreter returned no effective configuration")
+    try:
+        actual = json.loads(output[-1])
+    except json.JSONDecodeError as error:
+        raise PackagingError(
+            f"staged interpreter returned invalid effective configuration: {error}"
+        ) from error
     if actual != record["effective_flags"]:
         raise PackagingError("staged install configuration does not match its build record")
 

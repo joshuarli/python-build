@@ -5,10 +5,11 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from buildsys.comparison import compare_completed_artifact
 from buildsys.package import (
@@ -287,6 +288,26 @@ class ManifestTests(unittest.TestCase):
                         bootstrap_lock_path=REPO / "bootstrap.lock.json",
                         patches_directory=REPO / "patches" / "cpython",
                     )
+
+
+class StagedBuildVerificationTests(unittest.TestCase):
+    def test_failed_interpreter_cannot_supply_effective_flag_evidence(self) -> None:
+        driver = runpy.run_path(str(REPO / "build" / "package.py"))
+        verifier = driver["_verify_install_matches_record"]
+        probe = Mock(
+            returncode=1,
+            stdout='{"CFLAGS":"-O3"}\n',
+            stderr="interpreter startup failed",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.dict(
+                verifier.__globals__,
+                {"run_product_process": Mock(return_value=probe)},
+            ):
+                with self.assertRaisesRegex(
+                    driver["PackagingError"], "interpreter could not report"
+                ):
+                    verifier(Path(temporary), {"effective_flags": {"CFLAGS": "-O3"}})
 
 
 class PublicationTests(unittest.TestCase):
