@@ -3,20 +3,20 @@
   "inputs": [
     {
       "name": "cpython",
-      "version": "3.14.6",
-      "url": "https://www.python.org/ftp/python/3.14.6/Python-3.14.6.tar.xz",
-      "sha256": "143b1dddefaec3bd2e21e3b839b34a2b7fb9842272883c576420d605e9f30c63",
-      "size": 23921184,
+      "version": "3.15.1",
+      "url": "https://www.python.org/ftp/python/3.15.1/Python-3.15.1.tar.xz",
+      "sha256": "673ae7232d84c894729882c8257d300ef2d26523911bfd3917ec8ce7f526f99b",
+      "size": 35789408,
       "role": "source",
       "license": "Python-2.0",
       "purpose": "The distributed interpreter"
     },
     {
       "name": "certifi-ca",
-      "version": "2026.7.22",
-      "url": "https://files.pythonhosted.org/packages/source/c/certifi/certifi-2026.7.22.tar.gz",
-      "sha256": "741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55",
-      "size": 138112,
+      "version": "2026.10.19",
+      "url": "https://files.pythonhosted.org/packages/a6/bd/1436c50cc46699de0230fbaacc1d1de7bfec413176099949e9d5112e88f2/certifi-2026.10.19.tar.gz",
+      "sha256": "035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae",
+      "size": 137598,
       "role": "source",
       "license": "MPL-2.0",
       "purpose": "Mozilla root CA fallback for ssl.create_default_context() when the configured trust store is empty"

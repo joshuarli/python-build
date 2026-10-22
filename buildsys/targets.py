@@ -42,6 +42,9 @@ class Target:
     family: str  # linux-musl | macos
     cpu_baseline_cflag: str  # explicit, recorded ISA floor
     openssl_configure_target: str  # `Configure <target>` string
+    uv_arch: str
+    uv_os: str
+    uv_libc: str
 
     # linux-musl only
     alpine_arch: str = ""  # apk/Alpine architecture tag
@@ -72,6 +75,9 @@ TARGETS: dict[str, Target] = {
         family=LINUX_MUSL,
         cpu_baseline_cflag="-march=x86-64",
         openssl_configure_target="linux-x86_64",
+        uv_arch="x86_64",
+        uv_os="linux",
+        uv_libc="musl",
         alpine_arch="x86_64",
         docker_platform="linux/amd64",
         musl_loader="/lib/ld-musl-x86_64.so.1",
@@ -82,6 +88,9 @@ TARGETS: dict[str, Target] = {
         family=LINUX_MUSL,
         cpu_baseline_cflag="-march=armv8-a",
         openssl_configure_target="linux-aarch64",
+        uv_arch="aarch64",
+        uv_os="linux",
+        uv_libc="musl",
         alpine_arch="aarch64",
         docker_platform="linux/arm64",
         musl_loader="/lib/ld-musl-aarch64.so.1",
@@ -96,6 +105,9 @@ TARGETS: dict[str, Target] = {
         family=MACOS,
         cpu_baseline_cflag="-mcpu=apple-m1",
         openssl_configure_target="darwin64-arm64-cc",
+        uv_arch="aarch64",
+        uv_os="darwin",
+        uv_libc="none",
         deployment_target="26.0",
         platform_tag_prefix="macosx_26_0",
     ),
