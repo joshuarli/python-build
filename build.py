@@ -9,15 +9,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from buildsys.targets import TARGETS, UnsupportedTargetError, native_target  # noqa: E402
+from buildsys.targets import (  # noqa: E402
+    TARGETS, UnsupportedTargetError, native_target,
+)
 
 SUPPORTED = set(TARGETS)
 try:
@@ -34,7 +38,7 @@ DEFAULT_TARGET = _NATIVE.triple if _NATIVE else "x86_64-unknown-linux-musl"
 # cross-compiled, so the requested --target must be the
 # architecture this process is actually running as right now.
 NATIVE_EXECUTION_COMMANDS = {
-    "build", "qualify", "package", "compare-reference", "reproduce"
+    "build", "package", "compare-reference", "reproduce"
 }
 
 
@@ -193,6 +197,99 @@ def build(args: argparse.Namespace) -> int:
     return subprocess.run(cpython_command, cwd=Path(__file__).parent).returncode
 
 
+def qualify_linux(target: str) -> int:
+    description = TARGETS[target]
+    if description.family != "linux-musl":
+        _fail(f"target {target} does not use Linux container qualification")
+    if not shutil.which("docker") or subprocess.run(
+        ["docker", "buildx", "version"], capture_output=True, timeout=30
+    ).returncode != 0:
+        _fail("Linux qualification requires Docker Buildx")
+
+    try:
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent,
+            capture_output=True, text=True, check=True, timeout=15,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=Path(__file__).parent,
+            capture_output=True, text=True, check=True, timeout=15,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as error:
+        _fail(f"cannot establish qualification source identity: {error}")
+    if dirty:
+        _fail("Linux release qualification requires a clean source checkout")
+
+    fetch = subprocess.run(
+        [sys.executable, "build/fetch.py", "--target", target],
+        cwd=Path(__file__).parent,
+    )
+    if fetch.returncode != 0:
+        return fetch.returncode
+
+    from buildsys.package import PackageError, publish_files, write_manifest
+    from buildsys.uvmirror import UvMirrorError, record_runtime_container
+
+    scratch = Path(__file__).parent / ".work" / "tmp"
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"qualify-{target}-", dir=scratch) as temporary:
+        temporary_root = Path(temporary)
+        output = temporary_root / "buildkit-output"
+        environment = os.environ.copy()
+        environment["TMPDIR"] = str(scratch)
+        command = [
+            "docker", "buildx", "build",
+            "--platform", description.docker_platform,
+            "--target", "checked",
+            "--build-arg", f"PYTHON_BUILD_SOURCE_REVISION={revision}",
+            "--build-arg", "PYTHON_BUILD_SOURCE_DIRTY=0",
+            "--output", f"type=local,dest={output}",
+            ".",
+        ]
+        result = subprocess.run(
+            command, cwd=Path(__file__).parent, env=environment
+        )
+        if result.returncode != 0:
+            return result.returncode
+
+        artifact_root = output / "artifacts"
+        if not artifact_root.is_dir():
+            _fail(f"checked Docker output has no artifacts directory: {artifact_root}")
+        entries = list(artifact_root.iterdir())
+        files = {path.name for path in entries if path.is_file() and not path.is_symlink()}
+        archives = sorted(name for name in files if name.endswith(".tar.gz"))
+        if len(archives) != 1 or len(entries) != len(files) or files != {
+            "artifact.json", "runtime-smoke.json", *archives,
+        }:
+            _fail(f"checked Docker output has unexpected files: {sorted(files)}")
+
+        package_directory = temporary_root / "dist" / target
+        package_directory.mkdir(parents=True)
+        for name in files:
+            shutil.copyfile(artifact_root / name, package_directory / name)
+        try:
+            execution = "native" if _NATIVE is not None and _NATIVE.triple == target else "emulated"
+            manifest = record_runtime_container(
+                package_directory, target, revision, execution
+            )
+        except (OSError, json.JSONDecodeError, UvMirrorError) as error:
+            _fail(f"checked artifact validation failed: {error}")
+        archive_name = manifest["archive"]["filename"]
+        archive = package_directory / archive_name
+        manifest_temp = temporary_root / "artifact.json"
+        write_manifest(manifest_temp, manifest)
+        output_directory = Path(__file__).parent / "dist" / target
+        try:
+            publish_files({
+                output_directory / archive_name: archive,
+                output_directory / "artifact.json": manifest_temp,
+            })
+        except (OSError, PackageError) as error:
+            _fail(f"cannot publish qualified Linux artifact: {error}")
+    print(f"OK    qualify -> {Path(__file__).parent / 'dist' / target}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="build.py")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -244,17 +341,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         return result.returncode
     if args.command == "qualify":
-        if args.pgo_jobs is not None and not _NATIVE.is_macos:
-            _fail("--pgo-jobs is only supported for the macOS PGO build")
-        if _NATIVE.is_macos:
-            sealed_command = [sys.executable, "build/sealed.py"]
+        _require_target(args.target)
+        target = TARGETS[args.target]
+        if target.family == "linux-musl":
             if args.pgo_jobs is not None:
-                sealed_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
-            result = subprocess.run(sealed_command, cwd=Path(__file__).parent)
-            if result.returncode != 0:
-                return result.returncode
+                _fail("--pgo-jobs is only supported for the macOS PGO build")
+            return qualify_linux(args.target)
+        _require_native_target(args.target)
+        if args.pgo_jobs is not None and not target.is_macos:
+            _fail("--pgo-jobs is only supported for the macOS PGO build")
+        sealed_command = [sys.executable, "build/sealed.py"]
+        if args.pgo_jobs is not None:
+            sealed_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
+        result = subprocess.run(sealed_command, cwd=Path(__file__).parent)
+        if result.returncode != 0:
+            return result.returncode
         result = subprocess.run(
-            [sys.executable, "build/package.py", "--qualify-only"],
+            [sys.executable, "build/package.py", "--target", args.target],
             cwd=Path(__file__).parent,
         )
         return result.returncode
@@ -265,7 +368,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return result.returncode
     if args.command == "package":
-        result = subprocess.run([sys.executable, "build/package.py"], cwd=Path(__file__).parent)
+        result = subprocess.run(
+            [sys.executable, "build/package.py", "--target", args.target],
+            cwd=Path(__file__).parent,
+        )
         return result.returncode
     if args.command == "reproduce":
         _require_target(args.target)

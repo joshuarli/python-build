@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import sys
 import unittest
@@ -107,15 +108,30 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(self.workflow.count("runs-on: xcode-27"), 2)
         self.assertIn("runs-on: ubuntu-24.04", self.workflow)
         self.assertIn("runs-on: ubuntu-24.04-arm", self.workflow)
-        self.assertIn("python3.15 build.py build --target aarch64-apple-darwin", self.workflow)
-        self.assertIn("python3.15 build.py package --target aarch64-apple-darwin", self.workflow)
-        self.assertIn("python3.15 build/package.py", self.workflow)
+        self.assertIn("python3.15 build.py qualify --target aarch64-apple-darwin", self.workflow)
+        self.assertIn("target: checked", self.workflow)
+        self.assertIn("python3.15 build/record_runtime.py", self.workflow)
         self.assertIn('gh release create "$RELEASE_TAG" --target "$GITHUB_SHA"', self.workflow)
         self.assertNotIn("GH_TOKEN", self.workflow.split("  publish:", 1)[0])
         self.assertNotIn("3.14", self.workflow)
         self.assertNotIn("macos-26", self.workflow)
         self.assertNotIn("1.2x", self.workflow)
         self.assertNotIn("python-build-standalone size", self.workflow)
+        self.assertNotIn("brew update", self.workflow)
+        self.assertNotIn("brew upgrade", self.workflow)
+
+    def test_linux_smoke_images_match_locked_architecture_digests(self):
+        lock = json.loads((ROOT / "bootstrap.lock.json").read_text())
+        for arch in ("amd64", "arm64"):
+            digest = lock["linux_toolchain"]["images"][arch]["digest"]
+            with self.subTest(arch=arch):
+                self.assertIn(f"runtime_image: alpine@{digest}", self.workflow)
+
+    def test_build_jobs_bind_artifacts_to_the_checked_out_revision(self):
+        self.assertIn("PYTHON_BUILD_SOURCE_REVISION: ${{ github.sha }}", self.workflow)
+        self.assertIn("PYTHON_BUILD_SOURCE_DIRTY=0", self.workflow)
+        self.assertIn("--revision \"$GITHUB_SHA\"", self.workflow)
+        self.assertIn("--execution native", self.workflow)
 
     def test_uv_smokes_verify_exact_assets_and_fresh_install_paths(self) -> None:
         self.assertIn("UV_VERSION: \"0.13.4\"", self.workflow)

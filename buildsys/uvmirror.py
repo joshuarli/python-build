@@ -173,6 +173,60 @@ def _load_manifest(dist: Path, triple: str, expected_revision: str) -> tuple[Pat
     return archive_path, manifest
 
 
+def validate_artifact(
+    directory: Path, triple: str, expected_revision: str
+) -> tuple[Path, dict]:
+    if triple not in TARGETS:
+        raise UvMirrorError(f"unsupported artifact target {triple!r}")
+    if re.fullmatch(r"[0-9a-f]{40,64}", expected_revision) is None:
+        raise UvMirrorError(f"invalid expected source revision {expected_revision!r}")
+    return _load_manifest(Path(directory).parent, triple, expected_revision)
+
+
+def record_runtime_container(
+    directory: Path,
+    triple: str,
+    expected_revision: str,
+    execution: str,
+) -> dict:
+    if execution not in {"native", "emulated"}:
+        raise UvMirrorError(f"invalid runtime execution mode {execution!r}")
+    package_directory = Path(directory)
+    archive, manifest = validate_artifact(
+        package_directory, triple, expected_revision
+    )
+    try:
+        runtime = json.loads((package_directory / "runtime-smoke.json").read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise UvMirrorError(f"{triple}: runtime smoke result is missing or invalid: {error}") from error
+    if (
+        runtime.get("ok") is not True
+        or runtime.get("target") != triple
+        or runtime.get("archive") != archive.name
+        or runtime.get("archive_sha256") != manifest["archive"]["sha256"]
+        or runtime.get("python") != manifest["product"]["version"]
+    ):
+        raise UvMirrorError(f"{triple}: runtime smoke result does not match its artifact")
+    checks = manifest["qualification"]["checks"]
+    checks["runtime_container"] = {
+        "status": "passed",
+        "execution": execution,
+        "python": runtime["python"],
+        "target": triple,
+        "archive_sha256": runtime["archive_sha256"],
+    }
+    manifest["qualification"]["ok"] = all(
+        check.get("status") in {"passed", "skipped"}
+        for check in checks.values()
+    )
+    if not manifest["qualification"]["ok"]:
+        raise UvMirrorError(f"{triple}: runtime smoke did not preserve qualification")
+    from .package import write_manifest
+
+    write_manifest(package_directory / "artifact.json", manifest)
+    return manifest
+
+
 def _load_budgets(path: Path) -> dict[str, dict[str, int]]:
     try:
         document = json.loads(Path(path).read_text())
@@ -230,6 +284,18 @@ def assemble(
     prepared: dict[str, tuple[Path, Path, dict]] = {}
     for triple in TARGETS:
         source, manifest = _load_manifest(dist, triple, revision)
+        if TARGETS[triple].family == "linux-musl":
+            runtime = manifest.get("qualification", {}).get("checks", {}).get(
+                "runtime_container", {}
+            )
+            if (
+                not isinstance(runtime, dict)
+                or runtime.get("status") != "passed"
+                or runtime.get("execution") != "native"
+            ):
+                raise UvMirrorError(
+                    f"{triple}: release assembly requires native runtime-container qualification"
+                )
         limits = budgets[triple]
         if source.stat().st_size > limits["archive_size_bytes"]:
             raise UvMirrorError(f"{triple}: compressed archive exceeds its reviewed size budget")

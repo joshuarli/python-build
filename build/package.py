@@ -423,7 +423,7 @@ def _qualification(
     return qualify(validation, compatibility)
 
 
-def _package(*, qualify_only: bool = False) -> Path:
+def _package() -> Path:
     stage = REPO / "build" / "stage" / "cpython-staged" / "install"
     if not stage.is_dir():
         raise PackagingError("no staged install; run `build` first")
@@ -482,31 +482,6 @@ def _package(*, qualify_only: bool = False) -> Path:
             build_record, REPO / "bootstrap.lock.json", TARGET_DESCRIPTION
         )
         recipe_identity = build_record["recipe_identity"]
-        if qualify_only:
-            report = {
-                "schema_version": 1,
-                "product": {
-                    "version": PRODUCT.version_string,
-                    "abi_tag": PRODUCT.abi_tag,
-                    "gil_enabled": True,
-                },
-                "target": TARGET,
-                "source_revision": source_revision,
-                "recipe_identity": recipe_identity,
-                "bootstrap_identity": bootstrap_identity,
-                "toolchain": {"llvm_version": llvm_version},
-                "archive": {
-                    "filename": archive_name,
-                    "sha256": facts.sha256,
-                    "size_bytes": facts.size_bytes,
-                },
-                "qualification": qualification,
-            }
-            report_temp = workdir / "qualification.json"
-            report_temp.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-            report_path = REPO / "build" / "qualification" / f"{TARGET}.json"
-            publish_files({report_path: report_temp})
-            return report_path
         manifest = build_manifest(
             product=PRODUCT,
             target=TARGET_DESCRIPTION,
@@ -532,13 +507,13 @@ def _package(*, qualify_only: bool = False) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Qualify and package the staged interpreter")
-    parser.add_argument("--qualify-only", action="store_true")
+    parser.add_argument("--target", default=TARGET)
     arguments = parser.parse_args(argv)
     try:
-        if arguments.qualify_only:
-            report = _package(qualify_only=True)
-            print(f"OK    qualify -> {report}")
-            return 0
+        if arguments.target != TARGET:
+            raise PackagingError(
+                f"--target {arguments.target} does not match this runtime target {TARGET}"
+            )
         archive = _package()
     except (
         PackagingError, PackageError, InputError, ScopeError, CompatibilityError,

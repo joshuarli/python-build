@@ -17,6 +17,7 @@ from buildsys.uvmirror import (
     asset_name,
     metadata_entry,
     metadata_key,
+    validate_artifact,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -73,7 +74,11 @@ class AssembleTests(unittest.TestCase):
                     "validation.version_and_abi": {
                         "status": "passed",
                         "gil_enabled": True,
-                    }
+                    },
+                    "runtime_container": {
+                        "status": "passed",
+                        "execution": "native",
+                    },
                 },
             }
             manifest = build_manifest(
@@ -91,6 +96,14 @@ class AssembleTests(unittest.TestCase):
                     "source": {"name": "cpython", "version": PRODUCT.version_string, "sha256": "d" * 64},
                     "patches": [],
                     "dependencies": [],
+                    "toolchain_observed": {
+                        "commands": {
+                            "cc": {
+                                "path": "/usr/bin/clang",
+                                "version": "clang version " + LLVM_VERSIONS[triple],
+                            },
+                        },
+                    },
                     "optimization": {"lto": "thin", "pgo": False},
                     "effective_flags": {"CFLAGS": "-O3"},
                     "commands": {"configure": ["configure"], "build": ["make"], "install": ["make", "install"]},
@@ -171,6 +184,38 @@ class AssembleTests(unittest.TestCase):
                 )
 
             self.assertEqual(accepted.read_text(), "accepted")
+
+    def test_artifact_validation_binds_exact_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, _ = self._input_tree(root)
+            target_directory = dist / "aarch64-unknown-linux-musl"
+            archive, manifest = validate_artifact(
+                target_directory, "aarch64-unknown-linux-musl", REVISION
+            )
+            self.assertEqual(archive.name, manifest["archive"]["filename"])
+            with self.assertRaisesRegex(UvMirrorError, "does not match built revision"):
+                validate_artifact(
+                    target_directory, "aarch64-unknown-linux-musl", "b" * 40
+                )
+
+    def test_emulated_linux_runtime_does_not_qualify_for_release_assembly(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dist, budgets = self._input_tree(root)
+            self._budgets(budgets)
+            triple = "x86_64-unknown-linux-musl"
+            manifest_path = dist / triple / "artifact.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["qualification"]["checks"]["runtime_container"]["execution"] = "emulated"
+            manifest_path.write_text(json.dumps(manifest))
+            output = root / "release"
+            with self.assertRaisesRegex(UvMirrorError, "native runtime-container"):
+                assemble(
+                    "20261022", "owner/name", dist, output,
+                    expected_revision=REVISION, budgets_path=budgets,
+                )
+            self.assertFalse(output.exists())
 
     def test_rejects_corrupt_archive_before_assembly(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
