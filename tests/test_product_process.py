@@ -105,6 +105,9 @@ class ProductProcessTests(unittest.TestCase):
             "TERMINFO_DIRS": "/chosen/terminfo",
             "DEVELOPER_DIR": "/chosen/developer",
             "SDKROOT": "/chosen/sdk",
+            "TARGET_TRIPLE": "aarch64-apple-darwin",
+            "EXPECTED_SQLITE_VERSION_INFO": "3,53,1",
+            "EXPECTED_OPENSSL_VERSION_INFO": "3,5,0,7,0",
         }
         with patch.dict(os.environ, {"PATH": "/hostile/homebrew/bin"}):
             result = run_product_process(
@@ -139,6 +142,17 @@ class ProductProcessTests(unittest.TestCase):
                         timeout_seconds=timeout,
                     )
 
+        for executable, error in (("", ValueError), (object(), TypeError)):
+            with self.subTest(executable=executable):
+                with self.assertRaises(error):
+                    run_product_process(
+                        ["/dev/null"],
+                        self.install,
+                        self.cwd,
+                        executable=executable,
+                        timeout_seconds=1,
+                    )
+
     def test_runner_propagates_launch_and_timeout_errors(self) -> None:
         with self.assertRaises(FileNotFoundError):
             run_product_process(
@@ -155,6 +169,18 @@ class ProductProcessTests(unittest.TestCase):
                 self.cwd,
                 timeout_seconds=0.1,
             )
+
+    def test_runner_preserves_unusual_argv_zero_with_controlled_executable(self) -> None:
+        result = run_product_process(
+            ["/dev/null", "-c", "print(42)"],
+            self.install,
+            self.cwd,
+            executable=sys.executable,
+            timeout_seconds=10,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "42")
 
 
 if __name__ == "__main__":
