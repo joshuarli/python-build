@@ -20,11 +20,41 @@ import tempfile
 import time
 from pathlib import Path
 
+from .product import PRODUCT
+from .product_process import product_environment, run_product_process
 from .targets import Target
 
 
 class CompatibilityError(Exception):
     """A packaged interpreter could not run the compatibility probes."""
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+SCRATCH_ROOT = REPOSITORY_ROOT / ".work" / "tmp"
+
+
+def _temporary_directory(prefix: str) -> tempfile.TemporaryDirectory[str]:
+    SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+    return tempfile.TemporaryDirectory(prefix=prefix, dir=SCRATCH_ROOT)
+
+
+def _product_run(
+    argv: list[str | Path],
+    install: Path,
+    cwd: Path,
+    *,
+    timeout_seconds: float = 15,
+    environment_overrides: dict[str, str] | None = None,
+    executable: str | Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return run_product_process(
+        argv,
+        install,
+        cwd,
+        timeout_seconds=timeout_seconds,
+        environment_overrides=environment_overrides,
+        executable=executable,
+    )
 
 
 def _compatibility_status(result: dict) -> str:
@@ -212,6 +242,12 @@ def target_abi():
     soabi = sysconfig.get_config_var("SOABI") or ""
     multiarch = getattr(sys.implementation, "_multiarch", "")
     suffix = importlib.machinery.EXTENSION_SUFFIXES[0]
+    expected_abi = "__PRODUCT_ABI_TAG__"
+    assert sys.implementation.cache_tag == "__PRODUCT_CACHE_TAG__"
+    assert soabi.startswith(expected_abi + "-"), (
+        f"{soabi!r} does not match the product ABI {expected_abi!r}"
+    )
+    assert suffix.startswith("." + soabi) and suffix.endswith(".so")
     if target.endswith("-linux-musl"):
         for value in (soabi, multiarch, suffix):
             assert "musl" in value, f"{value!r} does not identify musl"
@@ -223,6 +259,13 @@ def target_abi():
     else:
         raise AssertionError(f"unexpected supported target {target!r}")
     return {"soabi": soabi, "multiarch": multiarch, "extension_suffix": suffix}
+
+
+def product_identity():
+    expected = __PRODUCT_VERSION__
+    actual = tuple(sys.version_info[:3])
+    assert actual == expected, f"expected CPython {expected}, got {actual}"
+    return {"version": actual, "cache_tag": sys.implementation.cache_tag}
 
 
 def linux_uapi_sysconfig():
@@ -271,6 +314,7 @@ for name, function in (
     ("ssl_capabilities", ssl_capabilities),
     ("zstd_multithreading", zstd_multithreading),
     ("gil_and_hash_policy", gil_and_hash_policy),
+    ("product_identity", product_identity),
     ("target_abi", target_abi),
     ("linux_uapi_sysconfig", linux_uapi_sysconfig),
     ("linux_mdwe_thread_creation", linux_mdwe_thread_creation),
@@ -288,7 +332,9 @@ print(json.dumps({
     "not_applicable": not_applicable,
     "ok": not any(result["status"] == "failed" for result in checks.values()),
 }, sort_keys=True))
-'''
+'''.replace("__PRODUCT_VERSION__", repr(PRODUCT.version)).replace(
+    "__PRODUCT_ABI_TAG__", f"cpython-{PRODUCT.abi_tag[2:]}"
+).replace("__PRODUCT_CACHE_TAG__", PRODUCT.abi_tag.replace("cp", "cpython-"))
 
 _GETPATH_PROBE = "print(42)"
 _PREFIX_PROBE = "import pathlib, sys; print(pathlib.Path(sys.prefix).resolve())"
@@ -298,12 +344,10 @@ _CURSES_TTY_PROBE = (
 
 
 def _isolated_environment(target: Target) -> dict[str, str]:
-    environment = os.environ.copy()
-    for name in tuple(environment):
-        if name.startswith("PYTHON"):
-            environment.pop(name)
-    environment["TARGET_TRIPLE"] = target.triple
-    environment["TERM"] = "xterm"
+    environment = {
+        "TARGET_TRIPLE": target.triple,
+        "TERM": "xterm",
+    }
     terminfo = [
         path
         for path in ("/etc/terminfo", "/lib/terminfo", "/usr/share/terminfo")
@@ -316,16 +360,14 @@ def _isolated_environment(target: Target) -> dict[str, str]:
 
 def _getpath_check(python: Path, install: Path, environment: dict[str, str]) -> dict:
     expected_prefix = install.resolve()
-    with tempfile.TemporaryDirectory(prefix="standalone-symlink-") as temporary:
+    with _temporary_directory(prefix="standalone-symlink-") as temporary:
         symlink = Path(temporary) / "python"
         symlink.symlink_to(python.resolve())
-        result = subprocess.run(
-            [str(symlink), "-c", _GETPATH_PROBE],
-            cwd=temporary,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=15,
+        result = _product_run(
+            [symlink, "-I", "-B", "-c", _GETPATH_PROBE],
+            install,
+            Path(temporary),
+            environment_overrides=environment,
         )
     if result.returncode != 0 or result.stdout.strip() != "42":
         raise CompatibilityError(
@@ -334,14 +376,12 @@ def _getpath_check(python: Path, install: Path, environment: dict[str, str]) -> 
             f"stderr={result.stderr.strip()[-500:]}"
         )
 
-    unusual_argv = subprocess.run(
-        ["/dev/null", "-c", _GETPATH_PROBE],
-        executable=str(python),
-        cwd=install,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=15,
+    unusual_argv = _product_run(
+        ["/dev/null", "-I", "-B", "-c", _GETPATH_PROBE],
+        install,
+        install,
+        executable=python,
+        environment_overrides=environment,
     )
     if unusual_argv.returncode != 0 or unusual_argv.stdout.strip() != "42":
         raise CompatibilityError(
@@ -350,13 +390,11 @@ def _getpath_check(python: Path, install: Path, environment: dict[str, str]) -> 
             f"output={unusual_argv.stdout.strip()!r}, "
             f"stderr={unusual_argv.stderr.strip()[-500:]}"
         )
-    prefix_result = subprocess.run(
-        [str(python), "-I", "-B", "-c", _PREFIX_PROBE],
-        cwd=install,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=15,
+    prefix_result = _product_run(
+        [python, "-I", "-B", "-c", _PREFIX_PROBE],
+        install,
+        install,
+        environment_overrides=environment,
     )
     actual_prefix = (
         Path(prefix_result.stdout.strip()).resolve()
@@ -379,12 +417,11 @@ def _relocated_sysconfig_check(
     python: Path, install: Path, environment: dict[str, str]
 ) -> dict:
     """Move the complete tree and require sysconfig tools to follow it."""
-    with tempfile.TemporaryDirectory(prefix="standalone moved ") as temporary:
+    with _temporary_directory(prefix="standalone moved ") as temporary:
         destination = Path(temporary) / "python install with spaces"
         shutil.copytree(Path(install).resolve(), destination, symlinks=True)
-        moved_python = destination / "bin" / "python3.14"
-        probe = subprocess.run(
-            [str(moved_python), "-I", "-B", "-c", r'''
+        moved_python = PRODUCT.interpreter(destination)
+        relocated_probe = r'''
 import json, os, sys, sysconfig
 root = os.path.realpath(sys.prefix)
 import ssl
@@ -419,19 +456,20 @@ paths = sysconfig.get_paths()
 rooted = all(inside(value) for value in paths.values())
 rooted = rooted and all(inside(value) for value in values.values())
 forbidden = (
-    "/install", "/build/prefix", "/.cache/llvm/", "/Python-3.14.6/",
+    "/install", "/build/prefix", "/.cache/llvm/", "/Python-__PRODUCT_VERSION__/",
     "code.profclangd", "code-%p.profclangr", "-fprofile-instr-use=",
     "LLVM_PROFILE_FILE=",
 )
 stale = [f"{key}={value}" for key, value in sysconfig.get_config_vars().items()
          if isinstance(value, str) and any(marker in value for marker in forbidden)]
-print(json.dumps({"prefix": sys.prefix, "paths": values, "rooted": rooted, "stale": stale, "fallback_ca": fallback_ca}))
-'''],
-            cwd=destination,
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
+print(json.dumps({"prefix": sys.prefix, "version": sys.version.split()[0], "paths": values, "rooted": rooted, "stale": stale, "fallback_ca": fallback_ca}))
+'''.replace("__PRODUCT_VERSION__", PRODUCT.version_string)
+        probe = _product_run(
+            [moved_python, "-I", "-B", "-c", relocated_probe],
+            destination,
+            destination,
+            timeout_seconds=30,
+            environment_overrides=environment,
         )
         try:
             data = json.loads(probe.stdout.strip().splitlines()[-1])
@@ -440,15 +478,13 @@ print(json.dumps({"prefix": sys.prefix, "paths": values, "rooted": rooted, "stal
                 "moved sysconfig probe returned no report: "
                 f"returncode={probe.returncode}, stderr={probe.stderr.strip()[-500:]}"
             ) from error
-        config = destination / "bin" / "python3.14-config"
+        config = PRODUCT.config_tool(destination)
         outputs = {
-            option: subprocess.run(
-                [str(config), *arguments],
-                cwd=destination,
-                env=environment,
-                capture_output=True,
-                text=True,
-                timeout=15,
+            option: _product_run(
+                [config, *arguments],
+                destination,
+                destination,
+                environment_overrides=environment,
             )
             for option, arguments in (
                 ("prefix", ["--prefix"]),
@@ -476,7 +512,7 @@ print(json.dumps({"prefix": sys.prefix, "paths": values, "rooted": rooted, "stal
         )
         flags_ok = (
             outputs["cflags"].returncode == 0
-            and f"-I{resolved_destination / 'include' / 'python3.14'}" in include_flags
+            and f"-I{PRODUCT.headers(resolved_destination)}" in include_flags
             and outputs["ldflags"].returncode == 0
             and f"-L{resolved_destination / 'lib'}" in link_flags
         )
@@ -487,7 +523,9 @@ print(json.dumps({"prefix": sys.prefix, "paths": values, "rooted": rooted, "stal
             "cflags": outputs["cflags"].stdout.strip(),
             "ldflags": outputs["ldflags"].stdout.strip(),
             "ok": (
-                probe.returncode == 0 and data["rooted"] and not data["stale"]
+                probe.returncode == 0
+                and data["version"] == PRODUCT.version_string
+                and data["rooted"] and not data["stale"]
                 and data["fallback_ca"]["ok"]
                 and prefix_ok and configdir_ok and flags_ok
             ),
@@ -630,21 +668,14 @@ print(json.dumps({
     "opt_out_ca_count": opt_out_count,
 }))
 '''
-    test_environment = {
-        name: value for name, value in environment.items()
-        if name not in {
-            "SSL_CERT_FILE", "SSL_CERT_DIR", "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE",
-            "PYTHONHOME", "PYTHONPATH",
-        }
-    }
     try:
-        result = subprocess.run(
-            [str(python), "-S", "-B", "-c", code, str(certificate), str(key)],
-            cwd=install,
-            env=test_environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
+        SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+        result = _product_run(
+            [python, "-I", "-S", "-B", "-c", code, str(certificate), str(key)],
+            install,
+            SCRATCH_ROOT,
+            timeout_seconds=30,
+            environment_overrides=environment,
         )
     except (OSError, subprocess.SubprocessError) as error:
         return {"ok": False, "error": str(error)}
@@ -662,6 +693,8 @@ print(json.dumps({
 
 
 def _curses_tty_check(python: Path, install: Path, environment: dict[str, str]) -> dict:
+    SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+    child_environment = product_environment(install, SCRATCH_ROOT, environment)
     child, master = pty.fork()
     if child == 0:
         try:
@@ -669,7 +702,7 @@ def _curses_tty_check(python: Path, install: Path, environment: dict[str, str]) 
             os.execve(
                 str(python),
                 [str(python), "-I", "-B", "-c", _CURSES_TTY_PROBE],
-                environment,
+                child_environment,
             )
         except BaseException:
             os._exit(127)
@@ -718,6 +751,11 @@ def run_standalone_compatibility(python: Path, install: Path, target: Target) ->
     """Run applicable PBS distribution behavior checks against packaged bytes."""
     python = Path(python).resolve()
     install = Path(install).resolve()
+    expected_python = PRODUCT.interpreter(install).resolve()
+    if python != expected_python:
+        raise CompatibilityError(
+            f"expected product interpreter {expected_python}, got {python}"
+        )
     environment = _isolated_environment(target)
     source_lock = json.loads(
         (Path(__file__).resolve().parents[1] / "sources.lock.json").read_text()
@@ -735,13 +773,13 @@ def run_standalone_compatibility(python: Path, install: Path, target: Target) ->
     environment["EXPECTED_SQLITE_VERSION_INFO"] = locked_versions["sqlite"].replace(
         ".", ","
     )
-    process = subprocess.run(
-        [str(python), "-I", "-B", "-c", _RUNTIME_PROBE],
-        cwd=install,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=120,
+    SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+    process = _product_run(
+        [python, "-I", "-B", "-c", _RUNTIME_PROBE],
+        install,
+        SCRATCH_ROOT,
+        timeout_seconds=120,
+        environment_overrides=environment,
     )
     try:
         report = json.loads(process.stdout.strip().splitlines()[-1])
@@ -768,10 +806,37 @@ def run_standalone_compatibility(python: Path, install: Path, target: Target) ->
         except (CompatibilityError, OSError, subprocess.SubprocessError) as error:
             checks[name] = {"status": "failed", "error": str(error)}
 
-    report["checks"] = checks
-    report["ok"] = process.returncode == 0 and not any(
-        result.get("status") == "failed" for result in checks.values()
+    required_checks = {
+        "compression", "ctypes_callbacks", "hashlib_algorithms", "testcapi_modules",
+        "sqlite_features", "ssl_capabilities", "zstd_multithreading",
+        "gil_and_hash_policy", "product_identity", "target_abi",
+        "linux_uapi_sysconfig", "linux_mdwe_thread_creation",
+        "interpreter_getpath", "relocated_sysconfig", "fallback_ca", "curses_tty",
+    }
+    failed = sorted(
+        name for name in required_checks
+        if not isinstance(checks.get(name), dict)
+        or checks[name].get("status") == "failed"
     )
+    failed.extend(sorted(
+        name for name, result in checks.items()
+        if not isinstance(result, dict) or result.get("status") == "failed"
+    ))
+    failed = sorted(set(failed))
+    aggregate = {
+        "check_count": len(checks),
+        "required_check_count": len(required_checks),
+        "failed": failed,
+        "ok": (
+            process.returncode == 0
+            and report.get("ok") is True
+            and len(checks) == len(required_checks)
+            and not failed
+        ),
+    }
+    report["aggregate"] = aggregate
+    report["failed"] = failed
+    report["ok"] = aggregate["ok"]
     if process.stderr.strip():
         report["stderr"] = process.stderr.strip()[-2000:]
     return report

@@ -24,19 +24,13 @@ import textwrap
 from pathlib import Path
 
 from . import macho
+from .product import PRODUCT
+from .product_process import run_product_process
 from .scope import probe_in_process, verify_exclusions
 
 # Load commands the payload may have, by prefix. Anything else is a leak:
 # either a build-machine path, or a library this project did not bundle and
 # the platform does not provide.
-PLATFORM_DEPENDENCY_PREFIXES = (
-    "/usr/lib/",
-    "/System/Library/",
-    "@rpath/",
-    "@loader_path/",
-    "@executable_path/",
-)
-
 REQUIRED_MODULES = (
     "ssl", "hashlib", "sqlite3", "dbm", "dbm.ndbm", "decimal", "uuid",
     "xml.etree.ElementTree", "zlib", "bz2", "lzma", "compression.zstd",
@@ -60,46 +54,266 @@ EXCLUDED_MODULES = (
 
 
 class ValidationError(Exception):
-    """A validation step could not be run at all (not a product failure)."""
+    """A validation check could not produce evidence."""
 
 
 def _run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(command, capture_output=True, text=True, **kwargs)
 
 
-def _python_code(python: Path, code: str) -> subprocess.CompletedProcess:
-    return _run([str(python), "-c", textwrap.dedent(code)])
+def _product_run(
+    argv: list[str | Path],
+    install: Path,
+    cwd: Path,
+    *,
+    timeout_seconds: float = 120,
+    environment_overrides: dict[str, str] | None = None,
+    executable: str | Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return run_product_process(
+        argv,
+        install,
+        cwd,
+        timeout_seconds=timeout_seconds,
+        executable=executable,
+        environment_overrides=environment_overrides,
+    )
 
 
-def macho_checks(install: Path) -> dict:
-    """Inspect every shipped Mach-O."""
-    images = macho.find_machos(install)
-    bad_arch, bad_deps, bad_signature, missing_version = [], [], [], []
+def _python_code(
+    python: Path,
+    code: str,
+    *,
+    cwd: Path | None = None,
+    environment_overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    python = Path(python).resolve()
+    install = python.parent.parent
+    return _product_run(
+        [python, "-I", "-B", "-c", textwrap.dedent(code)],
+        install,
+        Path.cwd() if cwd is None else cwd,
+        environment_overrides=environment_overrides,
+    )
+
+
+_FAT_MACHO_MAGICS = frozenset({
+    b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca",
+    b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca",
+})
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        return os.path.commonpath((str(path), str(root))) == str(root)
+    except ValueError:
+        return False
+
+
+def _resolve_image_path(
+    value: str,
+    image: Path,
+    install: Path,
+    executable: Path | None = None,
+) -> Path | None:
+    if value == "@loader_path":
+        candidate = image.parent
+    elif value.startswith("@loader_path/"):
+        candidate = image.parent / value.removeprefix("@loader_path/")
+    elif value == "@executable_path":
+        if executable is None:
+            return None
+        candidate = executable.parent
+    elif value.startswith("@executable_path/"):
+        if executable is None:
+            return None
+        candidate = executable.parent / value.removeprefix("@executable_path/")
+    elif value.startswith("/"):
+        candidate = Path(value)
+    else:
+        return None
+    resolved = candidate.resolve()
+    return resolved if _inside(resolved, install) else None
+
+
+def _rpath_directories(
+    rpath: str,
+    image: Path,
+    install: Path,
+    executable_images: list[Path],
+) -> list[Path | None]:
+    if rpath == "@loader_path" or rpath.startswith("@loader_path/"):
+        return [_resolve_image_path(rpath, image, install)]
+    if rpath == "@executable_path" or rpath.startswith("@executable_path/"):
+        return [
+            _resolve_image_path(rpath, image, install, executable)
+            for executable in executable_images
+        ]
+    return []
+
+
+def _system_load_path(value: str) -> bool:
+    if not value.startswith(("/usr/lib/", "/System/Library/")):
+        return False
+    normalized = os.path.normpath(value)
+    return normalized == value and not normalized.endswith("/")
+
+
+def macho_checks(install: Path, target) -> dict:
+    """Inspect every shipped Mach-O and resolve its product load paths."""
+    install = Path(install).resolve()
+    images: list[Path] = []
+    universal_images: list[str] = []
+    malformed_images: list[str] = []
+    for path in install.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            with path.open("rb") as handle:
+                magic = handle.read(4)
+        except OSError as error:
+            malformed_images.append(f"{path.relative_to(install)}: {error}")
+            continue
+        if magic in _FAT_MACHO_MAGICS:
+            universal_images.append(str(path.relative_to(install)))
+        elif macho.is_macho(path):
+            images.append(path)
+
+    bad_arch: list[str] = []
+    bad_platform: list[str] = []
+    bad_minos: list[str] = []
+    bad_deps: list[str] = []
+    unresolved_deps: list[str] = []
+    bad_rpaths: list[str] = []
+    unresolved_rpaths: list[str] = []
+    bad_signature: list[str] = []
+    missing_version: list[str] = []
+    executable_images: list[Path] = []
+    for image in images:
+        try:
+            if macho.read_header(image).kind == "execute":
+                executable_images.append(image)
+        except macho.MachOError:
+            continue
+    required_images = (
+        PRODUCT.interpreter(install),
+        install / "lib" / f"lib{PRODUCT.shared_library_stem}.dylib",
+    )
+    missing_images = [
+        str(image.relative_to(install))
+        for image in required_images
+        if image not in images
+    ]
+
     for image in images:
         name = str(image.relative_to(install))
-        header = macho.read_header(image)
-        if header.arch != "arm64":
+        try:
+            header = macho.read_header(image)
+            version_commands = [
+                command for command in macho.load_commands(image)
+                if command.cmd in (macho.LC_BUILD_VERSION, macho.LC_VERSION_MIN_MACOSX)
+            ]
+            version = macho.build_version(image) if len(version_commands) == 1 else None
+            dependencies = macho.dependencies(image)
+            rpaths = macho.rpaths(image)
+        except macho.MachOError as error:
+            malformed_images.append(f"{name}: {error}")
+            continue
+        if header.arch != target.machine or not header.is_64:
             bad_arch.append(f"{name}: {header.arch}")
-        version = macho.build_version(image)
         if version is None:
             missing_version.append(name)
-        for dependency in macho.dependencies(image):
-            if not dependency.startswith(PLATFORM_DEPENDENCY_PREFIXES):
+        else:
+            if version.platform != macho.PLATFORM_MACOS:
+                bad_platform.append(f"{name}: {version.platform_name}")
+            if version.minos != target.deployment_target:
+                bad_minos.append(
+                    f"{name}: expected {target.deployment_target}, got {version.minos}"
+                )
+
+        for rpath in rpaths:
+            if rpath.startswith(("@loader_path", "@executable_path")):
+                directories = _rpath_directories(
+                    rpath, image, install, executable_images
+                )
+                if not directories or any(directory is None for directory in directories):
+                    bad_rpaths.append(f"{name}: {rpath}")
+                elif not all(directory.is_dir() for directory in directories if directory):
+                    unresolved_rpaths.append(f"{name}: {rpath}")
+            elif _system_load_path(rpath):
+                if not Path(rpath).is_dir():
+                    unresolved_rpaths.append(f"{name}: {rpath}")
+            else:
+                bad_rpaths.append(f"{name}: {rpath}")
+
+        for dependency in dependencies:
+            if dependency.startswith("@rpath/"):
+                suffix = dependency.removeprefix("@rpath/")
+                if not suffix or Path(suffix).is_absolute() or ".." in Path(suffix).parts:
+                    bad_deps.append(f"{name} -> {dependency}")
+                    continue
+                directories = [
+                    directory
+                    for rpath in rpaths
+                    for directory in _rpath_directories(
+                        rpath, image, install, executable_images
+                    )
+                ]
+                candidates = [
+                    (directory / suffix).resolve()
+                    for directory in directories
+                    if directory is not None and directory.is_dir()
+                ]
+                if not any(_inside(candidate, install) and candidate.is_file()
+                           for candidate in candidates):
+                    unresolved_deps.append(f"{name} -> {dependency}")
+            elif dependency.startswith("@loader_path/"):
+                resolved = _resolve_image_path(dependency, image, install)
+                if resolved is None:
+                    bad_deps.append(f"{name} -> {dependency}")
+                elif not resolved.is_file():
+                    unresolved_deps.append(f"{name} -> {dependency}")
+            elif dependency.startswith("@executable_path/"):
+                resolved = [
+                    _resolve_image_path(dependency, image, install, executable)
+                    for executable in executable_images
+                ]
+                if not resolved or any(path is None for path in resolved):
+                    bad_deps.append(f"{name} -> {dependency}")
+                elif not all(path.is_file() for path in resolved if path is not None):
+                    unresolved_deps.append(f"{name} -> {dependency}")
+            elif _system_load_path(dependency):
+                continue
+            else:
                 bad_deps.append(f"{name} -> {dependency}")
         valid, detail = macho.signature_status(image)
         if not valid:
             bad_signature.append(f"{name}: {detail[:120]}")
+
+    failures = (
+        universal_images or malformed_images or bad_arch or bad_platform or bad_minos
+        or bad_deps or unresolved_deps or bad_rpaths or unresolved_rpaths
+        or bad_signature or missing_version or missing_images
+    )
     return {
         "image_count": len(images),
+        "missing_product_images": missing_images,
+        "universal_images": universal_images,
+        "malformed_images": malformed_images,
         "arch_mismatches": bad_arch,
+        "platform_mismatches": bad_platform,
+        "minos_mismatches": bad_minos,
         "unexpected_dependencies": bad_deps,
+        "unresolved_dependencies": unresolved_deps,
+        "unexpected_rpaths": bad_rpaths,
+        "unresolved_rpaths": unresolved_rpaths,
         "missing_build_version": missing_version,
         "invalid_signatures": bad_signature,
-        "ok": not (bad_arch or bad_deps or missing_version or bad_signature),
+        "ok": not failures,
     }
 
 
-def version_and_abi(python: Path, target) -> dict:
+def version_and_abi(python: Path, target, *, cwd: Path | None = None) -> dict:
     """The exact version, ABI, and package tags."""
     code = """
         import json, sys, sysconfig, platform
@@ -108,6 +322,9 @@ def version_and_abi(python: Path, target) -> dict:
             "version_string": sys.version.split()[0],
             "platform": sys.platform,
             "machine": platform.machine(),
+            "implementation": sys.implementation.name,
+            "cache_tag": sys.implementation.cache_tag,
+            "python_platform": sysconfig.get_platform(),
             "soabi": sysconfig.get_config_var("SOABI"),
             "ext_suffix": sysconfig.get_config_var("EXT_SUFFIX"),
             "gil_enabled": sys._is_gil_enabled(),
@@ -125,59 +342,95 @@ def version_and_abi(python: Path, target) -> dict:
             "config_args": sysconfig.get_config_var("CONFIG_ARGS"),
         }))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=cwd)
     if result.returncode != 0:
         raise ValidationError(f"interpreter failed: {result.stderr.strip()}")
     info = json.loads(result.stdout.strip().splitlines()[-1])
-    info["expected_version"] = [3, 14, 6]
-    info["version_ok"] = info["version"] == [3, 14, 6]
-    info["arch_ok"] = info["machine"] == "arm64"
+    expected_version = list(PRODUCT.version)
+    expected_soabi = f"cpython-{PRODUCT.abi_tag[2:]}-darwin"
+    expected_ext_suffix = f".{expected_soabi}.so"
+    expected_platform = f"macosx-{target.deployment_target}-{target.machine}"
+    expected_instsoname = f"lib{PRODUCT.shared_library_stem}.dylib"
+    info["expected_version"] = expected_version
+    info["expected_soabi"] = expected_soabi
+    info["expected_ext_suffix"] = expected_ext_suffix
+    info["expected_platform"] = expected_platform
+    info["expected_instsoname"] = expected_instsoname
+    info["version_ok"] = info["version"] == expected_version
+    info["arch_ok"] = info["machine"] == target.machine
+    info["abi_ok"] = bool(
+        info["implementation"] == "cpython"
+        and info["cache_tag"] == PRODUCT.abi_tag.replace("cp", "cpython-")
+        and info["soabi"] == expected_soabi
+        and info["ext_suffix"] == expected_ext_suffix
+        and info["python_platform"] == expected_platform
+    )
+    info["shared_library_ok"] = bool(
+        info["shared_libpython"] and info["INSTSONAME"] == expected_instsoname
+    )
     info["platform_tag"] = f"{info['platform']}-{info['machine']}"
     ldf = sysconfig_text = None
     flag_result = _python_code(
         python,
         "import sysconfig;print((sysconfig.get_config_var('LDFLAGS') or '')"
         "+ '|' + (sysconfig.get_config_var('CFLAGS') or ''))",
+        cwd=cwd,
     )
     if flag_result.returncode == 0:
         sysconfig_text, _, ldf = flag_result.stdout.strip().partition("|")
     info["sysconfig_ldflags"] = sysconfig_text
     info["sysconfig_cflags"] = ldf
     info["ok"] = bool(
-        info["version_ok"] and info["arch_ok"] and info["gil_enabled"]
+        info["version_ok"] and info["arch_ok"] and info["abi_ok"]
+        and info["shared_library_ok"]
+        and info["platform"] == "darwin" and info["gil_enabled"]
         and not info["free_threaded"] and info["lto"] and info["pgo"]
         and not info["tail_call"]
     )
     return info
 
 
-def module_inventory(python: Path) -> dict:
+def module_inventory(python: Path, *, cwd: Path | None = None) -> dict:
     """What imports, what does not, and what must not."""
     code = f"""
-        import importlib, importlib.util, json
+        import importlib, importlib.util, json, os, sys
         required = {list(REQUIRED_MODULES)!r}
         excluded = {list(EXCLUDED_MODULES)!r}
         missing = []
+        outside_install = []
         for name in required:
             try:
-                importlib.import_module(name)
+                module = importlib.import_module(name)
+                origin = getattr(getattr(module, "__spec__", None), "origin", None)
+                if origin in ("built-in", "frozen"):
+                    continue
+                if origin is None:
+                    outside_install.append(f"{{name}}: no module origin")
+                else:
+                    root = os.path.realpath(sys.prefix)
+                    resolved = os.path.realpath(origin)
+                    if os.path.commonpath((resolved, root)) != root:
+                        outside_install.append(f"{{name}}: {{origin}}")
             except Exception as error:
                 missing.append(f"{{name}}: {{type(error).__name__}}: {{error}}")
         leaked = [n for n in excluded
                   if importlib.util.find_spec(n) is not None]
-        print(json.dumps({{"missing_required": missing, "excluded_present": leaked}}))
+        print(json.dumps({{"missing_required": missing, "excluded_present": leaked,
+                          "outside_install": outside_install}}))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=cwd)
     if result.returncode != 0:
         raise ValidationError(f"module probe failed: {result.stderr.strip()}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
     data["required_count"] = len(REQUIRED_MODULES)
     data["excluded_count"] = len(EXCLUDED_MODULES)
-    data["ok"] = not data["missing_required"] and not data["excluded_present"]
+    data["ok"] = not (
+        data["missing_required"] or data["excluded_present"] or data["outside_install"]
+    )
     return data
 
 
-def capability_checks(python: Path) -> dict:
+def capability_checks(python: Path, *, cwd: Path | None = None) -> dict:
     """Round trips through the bundled and platform-backed modules."""
     code = """
         import bz2, dbm, dbm.ndbm, decimal, hashlib, json, lzma, os
@@ -218,7 +471,7 @@ def capability_checks(python: Path) -> dict:
                 out["dbm_default"] = (dbm._defaultmod.__name__, db[b"k"] == b"v")
         print(json.dumps(out))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=cwd)
     if result.returncode != 0:
         raise ValidationError(f"capability probe failed: {result.stderr.strip()}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
@@ -229,7 +482,7 @@ def capability_checks(python: Path) -> dict:
     return data
 
 
-def multiprocessing_checks(python: Path) -> dict:
+def multiprocessing_checks(python: Path, *, cwd: Path | None = None) -> dict:
     """Real worker processes, not just `import multiprocessing`.
 
     `SemLock` is absent when POSIX semaphores are disabled at configure time,
@@ -261,7 +514,7 @@ def multiprocessing_checks(python: Path) -> dict:
             out["pool_error"] = f"{type(error).__name__}: {error}"
         print(json.dumps(out))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=cwd)
     if result.returncode != 0:
         raise ValidationError(f"multiprocessing probe failed: {result.stderr.strip()[-300:]}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
@@ -269,7 +522,7 @@ def multiprocessing_checks(python: Path) -> dict:
     return data
 
 
-def terminal_checks(python: Path, install: Path) -> dict:
+def terminal_checks(python: Path, install: Path, *, cwd: Path | None = None) -> dict:
     """Curses, panel, readline and terminfo after relocation."""
     code = """
         import json, os, sys
@@ -307,7 +560,7 @@ def terminal_checks(python: Path, install: Path) -> dict:
         ) if d and os.path.isdir(d)]
         print(json.dumps(out))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=cwd)
     if result.returncode != 0:
         raise ValidationError(f"terminal probe failed: {result.stderr.strip()}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
@@ -357,7 +610,7 @@ def ctypes_checks(python: Path, workdir: Path) -> dict:
         ) or True
         print(json.dumps(out))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=workdir)
     if result.returncode != 0:
         raise ValidationError(f"ctypes probe failed: {result.stderr.strip()}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
@@ -463,7 +716,7 @@ def tls_checks(python: Path, workdir: Path) -> dict:
         thread.join(timeout=5)
         print(json.dumps(out))
     """
-    result = _python_code(python, code)
+    result = _python_code(python, code, cwd=workdir)
     if result.returncode != 0:
         raise ValidationError(f"TLS probe failed: {result.stderr.strip()}")
     data = json.loads(result.stdout.strip().splitlines()[-1])
@@ -478,18 +731,18 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
     """Build and load a native extension with no installer present.
 
     Flags come from the interpreter's own advertised configuration
-    (`python3.14-config`), which is the contract a consumer actually uses —
+    (`python3-config`), which is the contract a consumer actually uses —
     not from anything the build happened to know.
     """
-    config = install / "bin" / "python3.14-config"
+    config = PRODUCT.config_tool(install)
     if not config.is_file():
-        return {"ok": False, "error": "python3.14-config not installed"}
-    cflags = _run([str(config), "--cflags"])
-    ldflags = _run([str(config), "--ldflags", "--embed"])
+        return {"ok": False, "error": f"{config.name} not installed"}
+    cflags = _product_run([config, "--cflags"], install, workdir)
+    ldflags = _product_run([config, "--ldflags", "--embed"], install, workdir)
     if cflags.returncode != 0 or ldflags.returncode != 0:
-        raise ValidationError("python3.14-config failed")
+        raise ValidationError(f"{config.name} failed")
     if "build/prefix" in (cflags.stdout + ldflags.stdout):
-        return {"ok": False, "error": "python3.14-config leaks the builder prefix"}
+        return {"ok": False, "error": f"{config.name} leaks the builder prefix"}
 
     source = workdir / "fixture_ext.c"
     source.write_text(textwrap.dedent("""
@@ -523,7 +776,7 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
     if build.returncode != 0:
         return {"ok": False, "error": f"extension build failed: {build.stderr.strip()[:400]}"}
 
-    probe = _run([str(python), "-c", textwrap.dedent(f"""
+    probe = _product_run([python, "-I", "-B", "-c", textwrap.dedent(f"""
         import importlib.util, json, sys
         spec = importlib.util.spec_from_file_location("fixture_ext", {str(target)!r})
         mod = importlib.util.module_from_spec(spec)
@@ -533,13 +786,16 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
             "callback": mod.call_back(lambda n: n * 2),
             "suffix_matches": {str(target)!r}.endswith(".so"),
         }}))
-    """)])
+    """)], install, workdir)
     if probe.returncode != 0:
         return {"ok": False, "error": f"extension import failed: {probe.stderr.strip()[:400]}"}
     data = json.loads(probe.stdout.strip().splitlines()[-1])
-    data["installed_suffix"] = _run(
-        [str(python), "-c", "import sysconfig;print(sysconfig.get_config_var('EXT_SUFFIX'))"]
-    ).stdout.strip()
+    suffix = _product_run(
+        [python, "-I", "-B", "-c", "import sysconfig;print(sysconfig.get_config_var('EXT_SUFFIX'))"],
+        install,
+        workdir,
+    )
+    data["installed_suffix"] = suffix.stdout.strip()
     data["cflags"] = cflags.stdout.strip()
     data["ok"] = data["answer"] == 42 and data["callback"] == 10
     return data
@@ -547,8 +803,8 @@ def extension_checks(python: Path, install: Path, workdir: Path) -> dict:
 
 def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
     """A limited-API extension, which is the ABI-stability fixture."""
-    config = install / "bin" / "python3.14-config"
-    cflags = _run([str(config), "--cflags"])
+    config = PRODUCT.config_tool(install)
+    cflags = _product_run([config, "--cflags"], install, workdir)
     source = workdir / "abi3_ext.c"
     source.write_text(textwrap.dedent("""
         #define Py_LIMITED_API 0x030C0000
@@ -576,13 +832,13 @@ def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
     )
     if build.returncode != 0:
         return {"ok": False, "error": f"abi3 build failed: {build.stderr.strip()[:400]}"}
-    probe = _run([str(python), "-c", textwrap.dedent(f"""
+    probe = _product_run([python, "-I", "-B", "-c", textwrap.dedent(f"""
         import importlib.util, json
         spec = importlib.util.spec_from_file_location("abi3_ext", {str(target)!r})
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         print(json.dumps({{"triple": mod.triple(14)}}))
-    """)])
+    """)], install, workdir)
     if probe.returncode != 0:
         return {"ok": False, "error": f"abi3 import failed: {probe.stderr.strip()[:400]}"}
     data = json.loads(probe.stdout.strip().splitlines()[-1])
@@ -592,11 +848,11 @@ def abi3_checks(python: Path, install: Path, workdir: Path) -> dict:
 
 def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
     """Link and run a C embedder against the shipped libpython."""
-    config = install / "bin" / "python3.14-config"
+    config = PRODUCT.config_tool(install)
     if not config.is_file():
-        return {"ok": False, "error": "python3.14-config not installed"}
-    cflags = _run([str(config), "--cflags"])
-    ldflags = _run([str(config), "--ldflags", "--embed"])
+        return {"ok": False, "error": f"{config.name} not installed"}
+    cflags = _product_run([config, "--cflags"], install, workdir)
+    ldflags = _product_run([config, "--ldflags", "--embed"], install, workdir)
     source = workdir / "embed.c"
     source.write_text(textwrap.dedent("""
         #include <Python.h>
@@ -611,11 +867,6 @@ def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
         }
     """))
     binary = workdir / "embed"
-    # The consumer's recipe: python-config's flags plus an rpath for the
-    # interpreter's own lib directory. libpython's install name is
-    # @rpath/libpython3.14.dylib, so a binary linked with -lpython3.14 must
-    # carry a search path or dyld cannot resolve it (upstream python-config
-    # emits no -rpath by design).
     libdir = install / "lib"
     build = _run(
         ["xcrun", "clang", "-O2", *shlex.split(cflags.stdout), str(source),
@@ -627,21 +878,25 @@ def embedding_checks(python: Path, install: Path, workdir: Path) -> dict:
     # location, not compiled in, so an embedder sitting outside the tree has
     # to be told where the tree is. Both documented recipes are exercised:
     # PYTHONHOME, and placement inside the install's own bin/.
-    environment = dict(os.environ, PYTHONHOME=str(Path(install).resolve()))
-    run = _run([str(binary)], env=environment)
+    run = _product_run(
+        [binary],
+        install,
+        workdir,
+        environment_overrides={"PYTHONHOME": str(Path(install).resolve())},
+    )
     in_tree = Path(install) / "bin" / "embed-validation"
     shutil.copy2(binary, in_tree)
     try:
-        placed = _run([str(in_tree)])
+        placed = _product_run([in_tree], install, workdir)
     finally:
         in_tree.unlink(missing_ok=True)
     data = {
         "ldflags": ldflags.stdout.strip(),
         "output": run.stdout.strip(),
         "returncode": run.returncode,
-        "pythonhome_recipe_ok": run.returncode == 0 and "embedded 3.14.6" in run.stdout,
+        "pythonhome_recipe_ok": run.returncode == 0 and f"embedded {PRODUCT.version_string}" in run.stdout,
         "in_tree_placement_ok": placed.returncode == 0
-        and "embedded 3.14.6" in placed.stdout,
+        and f"embedded {PRODUCT.version_string}" in placed.stdout,
         "requirement": (
             "A relocatable libpython derives its prefix from the running "
             "executable, so an embedder outside the install tree must set "
@@ -663,8 +918,8 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
     if destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(Path(install).resolve(), destination, symlinks=True)
-    python = destination / "bin" / "python3.14"
-    probe = _run([str(python), "-c", textwrap.dedent("""
+    python = PRODUCT.interpreter(destination)
+    relocation_probe = textwrap.dedent("""
         import ctypes, json, os, ssl, sys, sysconfig
         libdir = os.path.join(sys.prefix, "lib")
         shared = ctypes.CDLL(os.path.join(libdir,
@@ -684,7 +939,7 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
         path_rooted = path_rooted and all(is_inside(value) for value in paths.values())
         forbidden = (
             "/install", "/build/prefix", "/.cache/llvm/",
-            "/Python-3.14.6/", "code.profclangd", "code-%p.profclangr",
+            "/Python-__PRODUCT_VERSION__/", "code.profclangd", "code-%p.profclangr",
             "-fprofile-instr-use=", "LLVM_PROFILE_FILE=",
         )
         stale_values = [
@@ -702,16 +957,19 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
             "sysconfig_paths_rooted": path_rooted,
             "stale_sysconfig_values": stale_values,
         }))
-    """)])
+    """).replace("__PRODUCT_VERSION__", PRODUCT.version_string)
+    probe = _product_run(
+        [python, "-I", "-B", "-c", relocation_probe], destination, workdir
+    )
     if probe.returncode != 0:
         return {"ok": False, "error": probe.stderr.strip()[:400]}
     data = json.loads(probe.stdout.strip().splitlines()[-1])
     data["moved_to"] = str(destination)
-    config = destination / "bin" / "python3.14-config"
-    config_prefix = _run([str(config), "--prefix"])
-    configdir = _run([str(config), "--configdir"])
-    cflags = _run([str(config), "--cflags"])
-    ldflags = _run([str(config), "--ldflags", "--embed"])
+    config = PRODUCT.config_tool(destination)
+    config_prefix = _product_run([config, "--prefix"], destination, workdir)
+    configdir = _product_run([config, "--configdir"], destination, workdir)
+    cflags = _product_run([config, "--cflags"], destination, workdir)
+    ldflags = _product_run([config, "--ldflags", "--embed"], destination, workdir)
     include_flags = shlex.split(cflags.stdout) if cflags.returncode == 0 else []
     link_flags = shlex.split(ldflags.stdout) if ldflags.returncode == 0 else []
     data["config_script_paths"] = {
@@ -725,7 +983,7 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
             and configdir.returncode == 0
             and Path(configdir.stdout.strip()).resolve().is_relative_to(destination)
             and cflags.returncode == 0
-            and f"-I{destination / 'include' / 'python3.14'}" in include_flags
+            and f"-I{PRODUCT.headers(destination)}" in include_flags
             and ldflags.returncode == 0
             and f"-L{destination / 'lib'}" in link_flags
         ),
@@ -737,7 +995,7 @@ def relocation_checks(install: Path, workdir: Path) -> dict:
     data["extension_build_after_move"] = moved_extension
     data["ok"] = (
         data["prefix"] == str(destination)
-        and data["version"] == "3.14.6"
+        and data["version"] == PRODUCT.version_string
         and not data["ldflags_leak"]
         and data["sysconfig_paths_rooted"]
         and not stale_values
@@ -754,15 +1012,15 @@ def script_launcher_checks(install: Path, workdir: Path) -> dict:
         shutil.rmtree(destination)
     shutil.copytree(install, destination, symlinks=True)
     results = {}
-    for name in ("pydoc3.14", "python3.14-config"):
+    for name in (f"pydoc{PRODUCT.major_minor}", PRODUCT.config_name):
         script = destination / "bin" / name
         if not script.is_file():
             results[name] = {"ok": False, "error": "not installed"}
             continue
         if name.endswith("-config"):
-            run = _run([str(script), "--prefix"])
+            run = _product_run([script, "--prefix"], destination, workdir)
         else:
-            run = _run([str(script), "-h"])
+            run = _product_run([script, "-h"], destination, workdir)
         results[name] = {
             "ok": run.returncode == 0,
             "output": (run.stdout or run.stderr).strip()[:120],
@@ -772,12 +1030,10 @@ def script_launcher_checks(install: Path, workdir: Path) -> dict:
 
 def run_validation(install: Path, workdir: Path, target) -> dict:
     """Run every check against an installed tree; return a report."""
-    install = Path(install)
-    workdir = Path(workdir)
+    install = Path(install).resolve()
+    workdir = Path(workdir).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
-    python = install / "bin" / "python3.14"
-    if not python.is_file():
-        raise ValidationError(f"no interpreter at {python}")
+    python = PRODUCT.interpreter(install)
 
     report: dict = {"install": str(install), "checks": {}}
     checks = report["checks"]
@@ -785,15 +1041,19 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
     def record(name: str, function, *args) -> None:
         try:
             checks[name] = function(*args)
-        except ValidationError as error:
-            checks[name] = {"ok": False, "error": str(error)}
+        except Exception as error:
+            checks[name] = {
+                "ok": False,
+                "error_type": type(error).__name__,
+                "error": f"{type(error).__name__}: {error}",
+            }
 
-    record("macho", macho_checks, install)
-    record("version_and_abi", version_and_abi, python, target)
-    record("module_inventory", module_inventory, python)
-    record("capabilities", capability_checks, python)
-    record("multiprocessing", multiprocessing_checks, python)
-    record("terminal", terminal_checks, python, install)
+    record("macho", macho_checks, install, target)
+    record("version_and_abi", lambda: version_and_abi(python, target, cwd=workdir))
+    record("module_inventory", lambda: module_inventory(python, cwd=workdir))
+    record("capabilities", lambda: capability_checks(python, cwd=workdir))
+    record("multiprocessing", lambda: multiprocessing_checks(python, cwd=workdir))
+    record("terminal", lambda: terminal_checks(python, install, cwd=workdir))
     record("ctypes", ctypes_checks, python, workdir)
     record("tls", tls_checks, python, workdir)
     record("extension", extension_checks, python, install, workdir)
@@ -801,16 +1061,37 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
     record("embedding", embedding_checks, python, install, workdir)
     record("relocation", relocation_checks, install, workdir)
     record("launchers", script_launcher_checks, install, workdir)
-    record("exclusions", lambda: {
-        "present": verify_exclusions(install),
-        "importable": probe_in_process(python),
-        "ok": not verify_exclusions(install)
-        and not any(probe_in_process(python).values()),
-    })
+    def exclusion_checks() -> dict:
+        present = verify_exclusions(install)
+        importable = probe_in_process(python, cwd=workdir)
+        return {
+            "present": present,
+            "importable": importable,
+            "ok": not present and not any(importable.values()),
+        }
 
-    failed = sorted(name for name, value in checks.items() if not value.get("ok"))
+    record("exclusions", exclusion_checks)
+
+    required_checks = {
+        "macho", "version_and_abi", "module_inventory", "capabilities",
+        "multiprocessing", "terminal", "ctypes", "tls", "extension",
+        "abi3", "embedding", "relocation", "launchers", "exclusions",
+    }
+    failed = sorted(
+        name for name in required_checks
+        if not isinstance(checks.get(name), dict) or checks[name].get("ok") is not True
+    )
+    failed.extend(sorted(name for name in checks if name not in required_checks))
+    failed = sorted(set(failed))
+    aggregate = {
+        "check_count": len(checks),
+        "required_check_count": len(required_checks),
+        "failed": failed,
+        "ok": len(checks) == len(required_checks) and not failed,
+    }
+    report["aggregate"] = aggregate
     report["failed"] = failed
-    report["ok"] = not failed
+    report["ok"] = aggregate["ok"]
     return report
 
 

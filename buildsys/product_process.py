@@ -18,6 +18,9 @@ _ALLOWED_OVERRIDES = frozenset(
         "TERMINFO_DIRS",
         "DEVELOPER_DIR",
         "SDKROOT",
+        "TARGET_TRIPLE",
+        "EXPECTED_SQLITE_VERSION_INFO",
+        "EXPECTED_OPENSSL_VERSION_INFO",
     }
 )
 
@@ -61,6 +64,7 @@ def run_product_process(
     cwd: Path,
     *,
     timeout_seconds: float,
+    executable: str | Path | None = None,
     environment_overrides: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if isinstance(argv, (str, bytes, Path)) or not argv:
@@ -78,8 +82,14 @@ def run_product_process(
         raise ValueError("argv must start with a non-empty executable")
     if any(not isinstance(argument, str) for argument in command):
         raise TypeError("argv entries must be strings or Path objects")
+    if executable is not None and not isinstance(executable, (str, Path)):
+        raise TypeError("executable must be a string or Path")
+    executable_path = None if executable is None else os.fspath(executable)
+    if executable_path == "":
+        raise ValueError("executable must be a non-empty path")
     return subprocess.run(
         command,
+        executable=executable_path,
         cwd=Path(cwd).resolve(),
         env=product_environment(install, cwd, environment_overrides),
         capture_output=True,

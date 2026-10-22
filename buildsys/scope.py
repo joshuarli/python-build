@@ -24,7 +24,11 @@ from the consumer distribution immediately before archiving.
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
+
+from .product import PRODUCT
+from .product_process import run_product_process
 
 # Directory names under lib/pythonX.Y/ that are installed unconditionally and
 # must not ship. `ensurepip/_bundled/` carries a full pip wheel, so removing
@@ -53,7 +57,19 @@ class ScopeError(Exception):
 
 def stdlib_directories(install: Path) -> list[Path]:
     """The lib/pythonX.Y directories of an installed tree."""
-    return sorted(p for p in Path(install).glob("lib/python3.*") if p.is_dir())
+    library = PRODUCT.stdlib(Path(install))
+    return [library] if library.is_dir() and not library.is_symlink() else []
+
+
+def unexpected_stdlib_directories(install: Path) -> list[Path]:
+    expected = PRODUCT.stdlib(Path(install))
+    library_root = Path(install) / "lib"
+    if not library_root.is_dir():
+        return []
+    return sorted(
+        path for path in library_root.glob("python3.*")
+        if (path.exists() or path.is_symlink()) and path != expected
+    )
 
 
 def enforce_exclusions(install: Path) -> dict:
@@ -67,6 +83,12 @@ def enforce_exclusions(install: Path) -> dict:
     libraries = stdlib_directories(install)
     if not libraries:
         raise ScopeError(f"no lib/python3.* directory under {install}")
+    unexpected = unexpected_stdlib_directories(install)
+    if unexpected:
+        raise ScopeError(
+            "unexpected CPython standard library directories: "
+            + ", ".join(str(path.relative_to(install)) for path in unexpected)
+        )
     removed: list[str] = []
     for library in libraries:
         for name in EXCLUDED_STDLIB_DIRS:
@@ -92,6 +114,13 @@ def verify_exclusions(install: Path) -> list[str]:
     """Every excluded component still present, as human-readable findings."""
     install = Path(install)
     found: list[str] = []
+    expected_library = PRODUCT.stdlib(install)
+    if expected_library.is_symlink():
+        found.append(str(expected_library.relative_to(install)))
+    found.extend(
+        str(path.relative_to(install))
+        for path in unexpected_stdlib_directories(install)
+    )
     for library in stdlib_directories(install):
         for name in (*EXCLUDED_STDLIB_DIRS, *EXCLUDED_STDLIB_FILES):
             if (library / name).exists():
@@ -115,6 +144,12 @@ def prune_distribution_payload(install: Path) -> dict[str, object]:
     libraries = stdlib_directories(install)
     if not libraries:
         raise ScopeError(f"no lib/python3.* directory under {install}")
+    unexpected = unexpected_stdlib_directories(install)
+    if unexpected:
+        raise ScopeError(
+            "unexpected CPython standard library directories: "
+            + ", ".join(str(path.relative_to(install)) for path in unexpected)
+        )
 
     bytecode_files = sorted(install.rglob("*.pyc"))
     cache_directories = sorted(
@@ -153,7 +188,7 @@ def prune_distribution_payload(install: Path) -> dict[str, object]:
             + ", ".join(remaining[:10])
         )
     test_importable = probe_in_process(
-        install / "bin" / "python3.14", modules=["test"], write_bytecode=False
+        PRODUCT.interpreter(install), modules=["test"], write_bytecode=False
     )["test"]
     if test_importable:
         raise ScopeError("CPython regression suite remains importable in distribution")
@@ -173,6 +208,10 @@ def verify_distribution_payload(install: Path) -> list[str]:
     """Find test-suite files or bytecode caches that could enter the archive."""
     install = Path(install)
     found: list[str] = []
+    found.extend(
+        str(path.relative_to(install))
+        for path in unexpected_stdlib_directories(install)
+    )
     for library in stdlib_directories(install):
         for name in DISTRIBUTION_EXCLUDED_STDLIB_DIRS:
             target = library / name
@@ -203,6 +242,7 @@ def probe_in_process(
     modules: list[str] | None = None,
     *,
     write_bytecode: bool = True,
+    cwd: Path | None = None,
 ) -> dict:
     """Ask the built interpreter whether the excluded modules are importable.
 
@@ -212,19 +252,27 @@ def probe_in_process(
     the exclusion is about.
     """
     import json
-    import subprocess
-
     names = modules if modules is not None else excluded_module_names()
     code = (
         "import importlib.util as u, json\n"
         f"mods = {names!r}\n"
         "print(json.dumps({m: u.find_spec(m) is not None for m in mods}))\n"
     )
-    command = [str(python)]
+    python = Path(python).resolve()
+    install = python.parent.parent
+    command = [str(python), "-I"]
     if not write_bytecode:
         command.append("-B")
-    command += ["-c", code]
-    result = subprocess.run(command, capture_output=True, text=True)
+    command.extend(("-c", code))
+    try:
+        result = run_product_process(
+            command,
+            install,
+            Path.cwd() if cwd is None else Path(cwd),
+            timeout_seconds=15,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ScopeError(f"could not launch probe for {python}: {error}") from error
     if result.returncode != 0:
         raise ScopeError(
             f"could not probe {python}: {result.stderr.strip() or result.stdout.strip()}"
