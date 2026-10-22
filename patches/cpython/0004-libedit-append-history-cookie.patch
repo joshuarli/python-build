@@ -59,3 +59,16 @@
      Py_XDECREF(filename_bytes);
      errno = err;
      if (errno)
+@@ -599,8 +631,12 @@
+     errno = err = append_history(
+         nelements - libedit_append_replace_history_offset, filename);
+     int history_length = FT_ATOMIC_LOAD_INT_RELAXED(_history_length);
+     if (!err && history_length >= 0)
+         _py_history_truncate_file(filename, history_length);
++#ifndef __APPLE__
++    else if (!err && using_libedit_emulation)
++        _py_libedit_history_truncate_file(filename, -1);
++#endif
+     Py_XDECREF(filename_bytes);
+     errno = err;
+     if (errno)

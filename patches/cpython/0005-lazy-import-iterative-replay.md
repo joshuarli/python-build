@@ -5,11 +5,11 @@ size 35,789,408 bytes.
 Origin: project-authored compatibility fix; no third-party code copied.
 License: Python Software Foundation License Version 2.
 
-Explanation: Resolving a long dotted lazy import recursively replays every
-attribute lookup through one C stack frame per component. On a 256 KiB stack,
-the stack can overflow before CPython's recursion check can raise
-`RecursionError`. Collect the existing placeholder chain and replay it in
-order with constant C stack depth.
+Explanation: Resolving a long dotted lazy import replayed every attribute and
+later reconstructed its dotted name recursively. Either walk used one C stack
+frame per component and could overflow a 256 KiB stack before CPython's
+recursion check ran. Collect the existing placeholder chain and replay and
+format it iteratively.
 
 Scope: CPython 3.15.1 on all production targets. No build flags or CPU
 baselines change.

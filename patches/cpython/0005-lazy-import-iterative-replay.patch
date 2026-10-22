@@ -1,6 +1,105 @@
 --- a/Objects/lazyimportobject.c
 +++ b/Objects/lazyimportobject.c
-@@ -278,21 +278,39 @@
+@@ -203,32 +203,77 @@
+ static PyObject *
+ lazy_import_path(PyLazyImportObject *m)
+ {
+-    if (PyLazyImport_CheckExact(m->lz_from)) {
+-        if (_Py_EnterRecursiveCall(" while getting the name of a lazy import")) {
+-            return NULL;
++    Py_ssize_t count = 0;
++    PyLazyImportObject *current = m;
++    while (PyLazyImport_CheckExact(current->lz_from)) {
++        if (count == PY_SSIZE_T_MAX / sizeof(PyLazyImportObject *)) {
++            return PyErr_NoMemory();
+         }
+-        PyObject *base = lazy_import_path((PyLazyImportObject *)m->lz_from);
+-        _Py_LeaveRecursiveCall();
+-        if (base == NULL) {
++        count++;
++        current = (PyLazyImportObject *)current->lz_from;
++    }
++
++    PyObject *base;
++    if (current->lz_attr != NULL &&
++        (!PyTuple_Check(current->lz_attr) ||
++         PyTuple_GET_SIZE(current->lz_attr) > 0)) {
++        base = Py_NewRef(current->lz_from);
++    }
++    else {
++        Py_ssize_t dot = PyUnicode_FindChar(
++            current->lz_from, '.', 0, PyUnicode_GET_LENGTH(current->lz_from), 1
++        );
++        if (dot == -2) {
+             return NULL;
+         }
+-        PyObject *res = PyUnicode_FromFormat("%U.%U", base, m->lz_attr);
+-        Py_DECREF(base);
+-        return res;
++        if (dot < 0) {
++            base = Py_NewRef(current->lz_from);
++        }
++        else {
++            base = PyUnicode_Substring(current->lz_from, 0, dot);
++            if (base == NULL) {
++                return NULL;
++            }
++        }
+     }
+-    if (m->lz_attr != NULL &&
+-        (!PyTuple_Check(m->lz_attr) || PyTuple_GET_SIZE(m->lz_attr) > 0)) {
+-        return Py_NewRef(m->lz_from);
++    if (count == 0) {
++        return base;
+     }
+-    // __import__("a.b") returns the top-level package `a`.
+-    Py_ssize_t dot = PyUnicode_FindChar(
+-        m->lz_from, '.', 0, PyUnicode_GET_LENGTH(m->lz_from), 1
+-    );
+-    if (dot == -2) {
+-        return NULL;
++
++    PyLazyImportObject **chain = PyMem_Malloc(
++        (size_t)count * sizeof(PyLazyImportObject *));
++    if (chain == NULL) {
++        Py_DECREF(base);
++        return PyErr_NoMemory();
+     }
+-    if (dot < 0) {
+-        return Py_NewRef(m->lz_from);
++    current = m;
++    for (Py_ssize_t i = count; i > 0; i--) {
++        chain[i - 1] = current;
++        current = (PyLazyImportObject *)current->lz_from;
+     }
+-    return PyUnicode_Substring(m->lz_from, 0, dot);
++
++    PyUnicodeWriter *writer = PyUnicodeWriter_Create(0);
++    if (writer == NULL) {
++        PyMem_Free(chain);
++        Py_DECREF(base);
++        return NULL;
++    }
++    if (PyUnicodeWriter_WriteStr(writer, base) < 0) {
++        goto error;
++    }
++    for (Py_ssize_t i = 0; i < count; i++) {
++        if (PyUnicodeWriter_WriteChar(writer, '.') < 0 ||
++            PyUnicodeWriter_WriteStr(writer, chain[i]->lz_attr) < 0) {
++            goto error;
++        }
++    }
++    PyMem_Free(chain);
++    Py_DECREF(base);
++    return PyUnicodeWriter_Finish(writer);
++
++error:
++    PyUnicodeWriter_Discard(writer);
++    PyMem_Free(chain);
++    Py_DECREF(base);
++    return NULL;
+ }
+@@ -278,21 +323,39 @@
  lazy_import_replay_from(PyThreadState *tstate, PyObject *mod,
                          PyLazyImportObject *lz)
  {

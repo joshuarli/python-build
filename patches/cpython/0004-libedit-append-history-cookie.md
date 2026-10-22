@@ -8,8 +8,8 @@ License: Python Software Foundation License Version 2.
 Explanation: libedit can write a second `_HiStOrY_V2_` cookie when appending
 history. The duplicate is read as a history item and breaks CPython's
 append-history tests. On non-Apple libedit builds, remove duplicate cookie
-lines after a successful append while preserving the first file header and
-all history entries.
+lines after successful history writes and appends while preserving the first
+file header and all history entries.
 
 Scope: `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` when
 CPython uses the libedit compatibility path. macOS keeps its existing
