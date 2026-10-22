@@ -17,3 +17,8 @@ The `getrandom`, `r-efi`, `wasip2`, and `wit-bindgen` entries are target
 support dependencies recorded by Cargo. The lockfile also removes the AWS-LC
 native build dependencies. Exact registry checksums remain in
 [`rtls-graviola.patch`](rtls-graviola.patch).
+
+The no-`_ssl` contract harness uses certificate and key fixtures from the
+CPython 3.15.1 `Lib/test/certdata` directory, including its PSF-licensed test
+CA key to generate a local expired leaf. These files are not copied into this
+repository or the product.

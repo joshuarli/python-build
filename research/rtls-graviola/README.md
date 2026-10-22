@@ -42,34 +42,59 @@ The provider exposes rustls cipher suites, key exchange groups, signature
 operations, verification algorithms, and random bytes. It has no HPKE
 provider. The patch therefore disables RTLS's ECH setup and returns an error
 when a caller supplies ECH configuration. ECH support is an explicit gap.
-The patch keeps the existing ring provider and ECH behavior for WASI builds;
-the Graviola dependency is limited to non-WASI targets.
+The patch keeps the existing ring provider and ECH code behind WASI-specific
+configuration; the Graviola dependency is limited to non-WASI targets. The
+WASI target is not installed in the tested Rust toolchain, so this is source
+inspection, not a WASI build result.
 
-The Python `SSLContext` adapter subclasses CPython's standard-library context.
-The prototype therefore does not prove that a product can remove CPython's
-`_ssl`, `libssl`, or `libcrypto`. Native extensions that call OpenSSL remain
-outside this Python-level adapter's compatibility boundary.
+The Python `SSLContext` adapter subclasses CPython's standard-library context
+when `_ssl` exists. The first prototype did not prove that `_ssl` could be
+removed. The follow-up found and patched a concrete RTLS fallback defect: its
+placeholder `_SSLSocket` was not a `socket.socket` subtype, although
+`TLSSocket` calls `socket.socket.__new__`. The fallback now imports `_ssl`
+first, avoids a partially initialized `ssl` import when `_ssl` is absent, and
+uses a socket subtype. `run-no-ssl-contract.sh` verifies that behavior with a
+disposable CPython 3.15.1 installation that has `_ssl` removed and `_hashlib`
+retained.
 
 ## What the local prototype proves
 
-The Rust adapter compiled on native Apple Silicon macOS. A Python 3.15.0
-process completed two verified TLS 1.3 socket exchanges using the adapter's
-Graviola client. One server used the RTLS Graviola provider. The other used
-the host Python's standard-library OpenSSL implementation. Each exchange
-trusted RTLS's test root certificate, checked the `localhost` name, and
-round-tripped a payload over loopback.
+On native Apple Silicon macOS 27, the patched adapter built with Rust 1.99.1,
+rustls 0.23.45, `rustls-graviola` 0.4.0, and Graviola 0.4.1. The earlier
+Python 3.15.0 smoke completed verified TLS 1.3 loopback exchanges between a
+Graviola client and both Graviola and OpenSSL servers.
 
-The run used Rust 1.99.1, rustls 0.23.45, `rustls-graviola` 0.4.0, and
-Graviola 0.4.1. The build used `kache` as the compiler wrapper. The exact
-commands are in [REPRODUCE.md](REPRODUCE.md).
+The stronger follow-up used an isolated CPython 3.15.1 build linked to the
+pinned OpenSSL 3.5.7. This probe build used Apple Clang 21 without PGO; it did
+not use the production LLVM 23 toolchain or release recipe. After copying it
+to a disposable prefix, removing only `_ssl`, retaining `_hashlib`, installing
+the RTLS extension, and adding the research `ssl_facade.py` installed as
+`ssl.py`, the candidate passed:
 
-This result establishes a narrow TLS handshake and socket-interoperability
-path. It does not qualify CPython 3.15.1, a production toolchain, or any Linux
-target. It does not establish the product's default CA selection, certificate
-chain policy, or OpenSSL compatibility. No performance or archive-size result
-was measured.
-No amd64 verification was performed from this arm64 host; use native amd64
-qualification rather than treating emulation as equivalent evidence.
+- isolated `import ssl`, `import hashlib`, and retained `hashlib.pbkdf2_hmac`;
+- TLS 1.3 client/server exchange, `urllib.request.urlopen()` HTTPS, and
+  `asyncio` TLS client/server operation;
+- rejection of an untrusted issuer, the wrong hostname, and an expired leaf;
+- the product-style test-bundle fallback, valid `SSL_CERT_FILE`, hashed
+  `SSL_CERT_DIR`, suppression by empty and invalid explicit paths, and the
+  bundle opt-out.
+
+The same harness passed against the pinned OpenSSL 3.5.7 reference interpreter.
+It is a focused contract probe, not a run of CPython's full `test_ssl` or
+`test_asyncio.test_ssl` suites.
+The RTLS candidate failed two certificate cases that OpenSSL rejected:
+`VERIFY_X509_STRICT` accepted a leaf missing its Authority Key Identifier, and
+`load_cert_chain()` accepted a malformed PEM certificate appended to a valid
+chain. The harness exits nonzero for these cases. This is a meaningful API
+feasibility result, but it fails the required certificate-policy gate.
+
+The CPython 3.15.1 test used a local research facade and a test-only CA file
+copied beside `ssl.py`; it did not use the production Mozilla bundle. Direct
+RTLS `SSLContext.load_default_certs()` also fails in the candidate because
+`wassima` is not installed. The facade supplies the product-style bundled
+fallback for this experiment. No Linux target, production artifact,
+performance result, or archive-size result was qualified. This Apple Silicon
+host performed no amd64 verification.
 
 ## Compatibility gaps
 
@@ -78,20 +103,27 @@ surface omits several CPython 3.15.1 interfaces, including signature-algorithm
 and supported-group getters and setters. Session exposure and post-handshake
 client authentication also differ from CPython's OpenSSL-backed module.
 
-RTLS's [verifier configuration](https://github.com/jawah/rtls/blob/302423b49e494863d07630d50b15a9488ec85ef7/rust/src/config.rs)
-maps `VERIFY_X509_TRUSTED_FIRST` and `VERIFY_X509_PARTIAL_CHAIN` to the same
-trust-anchor behavior. OpenSSL assigns these flags different meanings. The
-product enables strict and partial-chain verification in
-`ssl.create_default_context()`, so this difference requires a certificate-path
-security review before adoption.
+The candidate's `VERIFY_X509_STRICT` discrepancy is reproduced, not
+hypothetical. CPython's 3.15.1 test certificate with a missing Authority Key
+Identifier is rejected by OpenSSL 3.5.7 when strict verification is enabled;
+RTLS accepts it even when the facade sets the strict flag. RTLS's
+[verifier configuration](https://github.com/jawah/rtls/blob/302423b49e494863d07630d50b15a9488ec85ef7/rust/src/config.rs)
+also maps `VERIFY_X509_TRUSTED_FIRST` and `VERIFY_X509_PARTIAL_CHAIN` to the
+same trust-anchor behavior, although OpenSSL assigns them different meanings.
+The malformed-chain case is independently reproduced: RTLS accepts an
+invalid PEM item after a valid certificate and key, while OpenSSL rejects the
+chain during `load_cert_chain()`.
 
 RTLS's [context code](https://github.com/jawah/rtls/blob/302423b49e494863d07630d50b15a9488ec85ef7/src/rtls/_context.py)
-loads operating-system roots through `wassima`. Its CA loading does not match
-the product's OpenSSL-first source contract. It scans CA directories by file
-extension rather than using OpenSSL's hashed-directory lookup. The prototype
-did not test the product's rules for explicit empty or invalid `SSL_CERT_FILE`
-and `SSL_CERT_DIR` values, isolated `-E` and `-I` startup, empty default files,
-hashed directories, or the bundled fallback.
+loads operating-system roots through `wassima`; that module is absent from the
+OpenSSL-free prefix. Its `set_default_verify_paths()` only handles
+environment-specified paths, and `load_verify_locations(capath=...)` scans
+filenames by extension instead of implementing OpenSSL hashed-directory
+lookup. The research facade supplies the product's bundle fallback and
+explicit-source precedence for the test. The harness verified file/hashed
+directory inputs and empty/invalid override suppression under isolated Python
+startup with both `-I` and `-E -s`, but it does not establish full OpenSSL
+path-resolution parity.
 
 The product's native-extension boundary also matters. A Python package can
 use an alternate `ssl` module while a binary extension still imports
@@ -134,13 +166,13 @@ and `hmac` behavior without silently losing those functions.
 
 ## CPU and platform policy
 
-Keep the current Linux baselines: `-march=x86-64` and `-march=armv8-a`. Keep
-the macOS Apple M1 baseline. Do not raise them for Graviola until a complete
-replacement demonstrates a material benefit and runs on the proposed floor.
-Graviola documents a Broadwell-class feature requirement on x86-64. The
-candidate's Rust compilation must observe the same CPU contract as its C
-build, and startup must reject unsupported machines if the selected build
-requires more than the product baseline.
+Keep production baselines unchanged: `-march=x86-64`, `-march=armv8-a`, and
+Apple M1. For future Graviola qualification, use separate candidate floors of
+Broadwell-class x86-64 and ARMv8-A with crypto extensions; do not require the
+candidate to run on legacy production floors that it would explicitly stop
+supporting. These candidate floors do not change the production target
+registry. Rust and C code must use the same declared CPU contract, and
+qualification must run on hardware that satisfies it.
 
 Graviola 0.4.1 declares Rust 1.89, Rust 2024 edition, and the license
 expression `Apache-2.0 OR ISC OR MIT-0`. `rustls-graviola` 0.4.0 declares Rust
@@ -163,12 +195,11 @@ Graviola's [compatibility table](https://github.com/ctz/graviola/blob/v/0.4.1/CO
 lists Broadwell as its x86-64 floor. That is a candidate constraint for a
 future build, not a reason to change the product baseline today.
 
-For a future native build, `-march=broadwell` is a candidate x86-64 minimum;
-`-march=armv8-a+crypto` is a candidate Linux arm64 baseline after checking the
-exact Rust and C compiler output on supported hardware. Apple M1 remains the
-macOS floor. These are investigation points, not accepted product settings.
-A compiler flag alone does not prove that every binary stays within its
-declared CPU floor.
+The current macOS prototype ran on Apple Silicon and did not exercise the
+candidate Linux floors. `-march=broadwell` and `-march=armv8-a+crypto` remain
+candidate settings to validate with the actual C and Rust compilers. A compiler
+flag alone does not prove that every binary stays within its declared CPU
+floor. Do not change production settings until a separate product decision.
 
 ## Adoption gates
 
@@ -185,9 +216,11 @@ Keep production on OpenSSL until a candidate meets all of these conditions:
 3. Match the product trust-source rules for normal and isolated startup.
    Test environment overrides, OpenSSL defaults, CA files, hashed directories,
    the bundled PEM, relocation, and the opt-out.
-4. Build and run on all three production targets with the locked toolchains
-   and current CPU floors. Inspect unresolved symbols, runtime dependencies,
-   and native-extension behavior.
+4. Build and run on all three candidate targets with the locked toolchains and
+   candidate CPU floors: Broadwell-class x86-64, ARMv8-A with crypto
+   extensions, and Apple M1. Inspect unresolved symbols, runtime dependencies,
+   and native-extension behavior. Approve any production baseline change
+   separately.
 5. Measure a clean build against the `no-apps no-tests` OpenSSL baseline.
    Include dependency and interpreter build time, peak scratch space,
    stripped extension sizes, and the final compressed artifact size. Keep the
@@ -197,8 +230,11 @@ Record every unsupported API and intentional difference before changing the
 product contract. Treat test-only success as research evidence, not release
 qualification.
 
-Resume this as staged work: close the Python TLS and trust-policy gaps in an
-isolated RTLS fork; qualify the Graviola provider on product Rust/C toolchains
-for each target; then evaluate any independent hashing replacement. A failure
-at an earlier stage should not trigger a product CPU-floor change or an
-OpenSSL ABI-shim project by default.
+Stop the current replacement investigation at the certificate-policy gate.
+The socket, HTTPS, asyncio, and fallback-import boundaries are technically
+workable, but the reproduced strict-verification and malformed-chain
+discrepancies prevent adoption. Resume only if RTLS fixes those behaviors or a
+maintained adapter can make them fail closed while passing the pinned OpenSSL
+comparison. Then qualify its trust resolver before doing Linux builds,
+hashing work, or payoff measurements. The OpenSSL `no-apps no-tests` change
+stands independently; its time and artifact-size savings remain unmeasured.

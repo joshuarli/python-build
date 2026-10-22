@@ -21,21 +21,40 @@ if [ "$actual" != "$expected" ]; then
     exit 1
 fi
 
-git -C "$checkout" apply --check "$repo_root/research/rtls-graviola/rtls-graviola.patch"
-git -C "$checkout" apply "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+git -C "$checkout" apply --unidiff-zero --check \
+    "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+git -C "$checkout" apply --unidiff-zero \
+    "$repo_root/research/rtls-graviola/rtls-graviola.patch"
 
 mkdir -p "$work_dir/tmp"
 export TMPDIR="$work_dir/tmp"
+export CARGO_HOME="$work_dir/cargo-home"
 export CARGO_TARGET_DIR="$work_dir/target"
-rustc_wrapper=$(command -v kache) || {
-    printf '%s\n' 'kache is required for Rust compilation.' >&2
+rust_toolchain=${RTLS_RUST_TOOLCHAIN:-stable}
+expected_rust_version=1.99.1
+rust_version_output=$(rustup run "$rust_toolchain" rustc --version) || {
+    printf '%s\n' 'Install rustup and Rust 1.99.1 to replay this prototype.' >&2
     exit 1
 }
-export RUSTC_WRAPPER="$rustc_wrapper"
+rust_version=$(printf '%s\n' "$rust_version_output" | awk '{print $2}')
+if [ "$rust_version" != "$expected_rust_version" ]; then
+    printf 'Expected Rust %s, found %s.\n' \
+        "$expected_rust_version" "$rust_version" >&2
+    exit 1
+fi
+if [ "${RUSTC_WRAPPER+x}" != x ]; then
+    if command -v kache >/dev/null 2>&1; then
+        RUSTC_WRAPPER=$(command -v kache)
+    else
+        RUSTC_WRAPPER=
+    fi
+    export RUSTC_WRAPPER
+fi
 export PYO3_BUILD_EXTENSION_MODULE=1
 export RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup'
 
-cargo build --manifest-path "$checkout/rust/Cargo.toml" --locked
+rustup run "$rust_toolchain" cargo build \
+    --manifest-path "$checkout/rust/Cargo.toml" --locked
 cp "$CARGO_TARGET_DIR/debug/lib_rustls.dylib" "$checkout/src/rtls/_rustls.abi3.so"
 env -u PYTHONHOME -u PYTHONPATH -u PYTHONUSERBASE PYTHONNOUSERSITE=1 \
     python3.15 "$repo_root/research/rtls-graviola/local_tls_smoke.py" "$checkout"

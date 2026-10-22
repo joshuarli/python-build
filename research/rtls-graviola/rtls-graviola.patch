@@ -513,3 +513,24 @@ index 7193a9f..d004720 100644
  def crypto_provider() -> str: ...
  def crypto_provider_version() -> str: ...
  def rand_bytes(n: int) -> bytes: ...
+diff --git a/src/rtls/_stdlib.py b/src/rtls/_stdlib.py
+index 65634fb..04abc22 100644
+--- a/src/rtls/_stdlib.py
++++ b/src/rtls/_stdlib.py
+@@ -9,5 +9,7 @@ else:
+     try:
+-        import ssl
++        import _ssl
+     except ModuleNotFoundError as error:
+         if error.name != "_ssl":
+             raise
++        import socket
++
+@@ -19,2 +21,2 @@
+-        class _SSLSocket:
++        class _SSLSocket(socket.socket):
+             pass
+@@ -54,1 +56,3 @@
+         )
++    else:
++        import ssl
