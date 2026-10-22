@@ -102,6 +102,11 @@ class ManifestTests(unittest.TestCase):
             "ok": True,
             "checks": {
                 "validation.version_and_abi": {"gil_enabled": True},
+                "validation.elf_linkage": {
+                    "platform_libraries": [
+                        "libc.musl-aarch64.so.1", "libgcc_s.so.1",
+                    ],
+                },
             },
         }
         archive = ArchiveFacts("a" * 64, 1234, "b" * 64, 5678)
@@ -137,6 +142,23 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(first["payload"]["size_bytes"], 5678)
         self.assertTrue(first["components"]["bundled"])
         self.assertTrue(all("license" in entry for entry in first["components"]["bundled"]))
+        self.assertEqual(first["components"]["platform_provided"], [
+            {
+                "name": target.musl_loader,
+                "linkage": "interpreter",
+                "source": "Alpine runtime",
+            },
+            {
+                "name": "libc.musl-aarch64.so.1",
+                "linkage": "dynamic",
+                "source": "Alpine runtime",
+            },
+            {
+                "name": "libgcc_s.so.1",
+                "linkage": "dynamic",
+                "source": "Alpine runtime",
+            },
+        ])
         self.assertNotIn("reference", first)
         self.assertNotIn("parity", first)
         self.assertNotIn("benchmarks", first)
@@ -316,13 +338,17 @@ class StagedBuildVerificationTests(unittest.TestCase):
             install = Path(temporary) / "copy with spaces"
             recorded = {
                 "CFLAGS": "-O3",
+                "CFLAGS_NODIST": "-O3",
+                "PY_CFLAGS": "-O3",
+                "PY_CFLAGS_NODIST": "-O3",
                 "LDFLAGS": "-flto=thin",
+                "LTOFLAGS": "-flto=thin",
                 "CONFIG_ARGS": "'--prefix=/install' '--with-lto=thin' 'PANEL_LIBS=\"",
             }
             relocated = {
                 **recorded,
                 "CONFIG_ARGS": (
-                    f"'--prefix={install}' '--with-lto=thin' 'PANEL_LIBS=\""
+                    f"'--prefix={install.resolve()}' '--with-lto=thin' 'PANEL_LIBS=\""
                 ),
             }
             probe = Mock(
@@ -343,7 +369,11 @@ class StagedBuildVerificationTests(unittest.TestCase):
             install = Path(temporary) / "copy with spaces"
             recorded = {
                 "CFLAGS": "-O3",
+                "CFLAGS_NODIST": "-O3",
+                "PY_CFLAGS": "-O3",
+                "PY_CFLAGS_NODIST": "-O3",
                 "LDFLAGS": "-flto=thin",
+                "LTOFLAGS": "-flto=thin",
                 "CONFIG_ARGS": "'--prefix=/install' '--with-lto=thin'",
             }
             probes = (
@@ -354,7 +384,7 @@ class StagedBuildVerificationTests(unittest.TestCase):
                 {
                     **recorded,
                     "CFLAGS": "-O2",
-                    "CONFIG_ARGS": f"'--prefix={install}' '--with-lto=thin' 'PANEL_LIBS=\"",
+                    "CONFIG_ARGS": f"'--prefix={install.resolve()}' '--with-lto=thin' 'PANEL_LIBS=\"",
                 },
             )
             for actual in probes:
@@ -482,7 +512,10 @@ class PublicationTests(unittest.TestCase):
                 archive=facts,
                 qualification={
                     "ok": True,
-                    "checks": {"validation.version_and_abi": {"gil_enabled": True}},
+                    "checks": {
+                        "validation.version_and_abi": {"gil_enabled": True},
+                        "validation.elf_linkage": {"platform_libraries": []},
+                    },
                 },
                 lock_path=SOURCE_LOCK,
                 build_record=BUILD_RECORD,

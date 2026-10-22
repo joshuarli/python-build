@@ -307,7 +307,9 @@ def gil_enabled(qualification: dict) -> bool:
     raise PackageError("qualification did not report the interpreter GIL state")
 
 
-def _component_manifest(lock_path: Path, target: Target) -> dict:
+def _component_manifest(
+    lock_path: Path, target: Target, qualification: dict
+) -> dict:
     entries = {entry.name: entry for entry in load_lock(lock_path)}
     bundled_by_family = {
         "linux-musl": (
@@ -331,15 +333,37 @@ def _component_manifest(lock_path: Path, target: Target) -> dict:
             "purpose": entry.purpose,
             "linkage": "payload" if name in {"cpython", "certifi-ca"} else "static",
         })
-    platform_provided = (
-        [
+    if target.is_macos:
+        platform_provided = [
             {"name": "zlib", "linkage": "dynamic", "source": "/usr/lib"},
             {"name": "libedit", "linkage": "dynamic", "source": "/usr/lib"},
             {"name": "ncurses/panel", "linkage": "dynamic", "source": "/usr/lib"},
             {"name": "ndbm", "linkage": "platform", "purpose": "dbm backend"},
         ]
-        if target.is_macos else []
-    )
+    else:
+        elf_check = qualification.get("checks", {}).get("validation.elf_linkage")
+        if not isinstance(elf_check, dict):
+            raise PackageError("Linux artifact has no verified ELF runtime dependency record")
+        platform_libraries = elf_check.get("platform_libraries")
+        if not isinstance(platform_libraries, list) or any(
+            not isinstance(name, str) for name in platform_libraries
+        ):
+            raise PackageError("Linux artifact has no valid platform library list")
+        platform_provided = [
+            {
+                "name": target.musl_loader,
+                "linkage": "interpreter",
+                "source": "Alpine runtime",
+            },
+            *(
+                {
+                    "name": name,
+                    "linkage": "dynamic",
+                    "source": "Alpine runtime",
+                }
+                for name in sorted(set(platform_libraries))
+            ),
+        ]
     return {
         "bundled": bundled,
         "platform_provided": platform_provided,
@@ -433,7 +457,7 @@ def build_manifest(
             "size_bytes": archive.size_bytes,
         },
         "qualification": qualification,
-        "components": _component_manifest(lock_path, target),
+        "components": _component_manifest(lock_path, target, qualification),
     }
 
 

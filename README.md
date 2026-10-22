@@ -24,6 +24,9 @@ python3 build.py qualify --target aarch64-apple-darwin
 Linux uses the locked Alpine image and package closure through Docker BuildKit.
 The x86-64 target uses `linux/amd64`; arm64 uses `linux/arm64`. Native runners
 provide qualification evidence; emulated timing is not performance evidence.
+Linux artifact manifests list the target musl interpreter and platform
+libraries observed in the payload. The minimal runtime qualification image
+installs only the pinned Alpine `libgcc` runtime package when required.
 
 `qualify` applies required installed-tree fixes, runs the CPython regression
 suite on a disposable pre-prune copy, validates the packaged payload and

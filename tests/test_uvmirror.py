@@ -75,6 +75,12 @@ class AssembleTests(unittest.TestCase):
                         "status": "passed",
                         "gil_enabled": True,
                     },
+                    "validation.elf_linkage": {
+                        "status": "passed",
+                        "platform_libraries": [
+                            "libc.musl-aarch64.so.1", "libgcc_s.so.1",
+                        ],
+                    },
                     "runtime_container": {
                         "status": "passed",
                         "execution": "native",

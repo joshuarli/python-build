@@ -221,10 +221,17 @@ def _linux_validation(install: Path) -> dict:
             "linkage": linkage,
             "gnu_stack": stack,
         })
+    platform_libraries = sorted({
+        library
+        for report in elf_report
+        for library in report["needed"]
+        if library in system_libraries
+    })
     checks["elf_linkage"] = {
         "ok": not forbidden and not linkage_violations,
         "forbidden_needed": forbidden,
         "unresolved": linkage_violations,
+        "platform_libraries": platform_libraries,
         "elf_report": elf_report,
     }
     checks["elf_machine"] = {
