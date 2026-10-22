@@ -14,6 +14,7 @@ from buildsys.testsuite import (
     CASE_EXCLUSIONS, FILE_EXCLUSIONS, SuiteError, classify, report_payload,
     run_suite, verify_excluded_failures,
 )
+from buildsys.targets import target_for_triple
 
 
 class ExclusionRegisterTests(unittest.TestCase):
@@ -24,6 +25,7 @@ class ExclusionRegisterTests(unittest.TestCase):
 
     def test_the_packaging_exclusions_are_registered(self) -> None:
         names = {e.test for e in FILE_EXCLUSIONS}
+        self.assertIn("test_cext", names)
         self.assertIn("test_venv", names)
         self.assertIn("test_ensurepip", names)
 
@@ -63,6 +65,21 @@ class ClassifyTests(unittest.TestCase):
         result = classify({stem: finding})
         self.assertIn(stem, result["accepted_exclusions"])
         self.assertEqual(result["unexpected_failures"], [])
+
+    def test_linux_ctypes_system_listing_exclusion_is_target_specific(self) -> None:
+        finding = self._finding(2, failed_cases=["test_lists_system"])
+        finding["attempts"] = [{"complete": True}]
+        findings = {"test_ctypes": finding}
+        linux = target_for_triple("aarch64-unknown-linux-musl")
+        macos = target_for_triple("aarch64-apple-darwin")
+        self.assertEqual(
+            classify(findings, target=linux)["accepted_exclusions"],
+            ["test_ctypes"],
+        )
+        self.assertEqual(
+            classify(findings, target=macos)["unexpected_failures"],
+            ["test_ctypes"],
+        )
 
     def test_unregistered_case_in_registered_file_is_unexpected(self) -> None:
         stem = CASE_EXCLUSIONS[0].test.split(":", 1)[0]
@@ -109,6 +126,26 @@ class ClassifyTests(unittest.TestCase):
             "complete": True,
         }
         self.assertFalse(report_payload(report)["ok"])
+
+    def test_report_payload_accounts_resource_denied_files(self) -> None:
+        report = {
+            "tests_run": "5",
+            "failure_count": 0,
+            "failed_files": [],
+            "resource_denied_files": ["test_network"],
+            "test_files_run": 2,
+            "test_files_expected": 3,
+            "returncode": 0,
+            "result_state": "SUCCESS",
+            "complete": True,
+            "classification": {
+                "accepted_exclusions": [],
+                "unexpected_failures": [],
+            },
+        }
+        payload = report_payload(report)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["resource_denied_files"], ["test_network"])
 
     @patch("buildsys.testsuite.run_product_process")
     def test_retries_are_bounded_and_passing_retries_preserve_initial_failure(
@@ -174,6 +211,47 @@ Result: FAILURE
         self.assertEqual(report["returncode"], 2)
         self.assertEqual(report["failure_count"], 1)
         self.assertEqual(report["failed_files"], ["test_example"])
+
+    @patch("buildsys.testsuite.run_product_process")
+    def test_resource_denied_files_complete_cpython_file_accounting(self, run) -> None:
+        run.return_value = self._completed(
+            2,
+            """== Tests result: FAILURE ==
+
+2 tests skipped (resource denied):
+    test_network_a
+    test_network_b
+
+1 test failed:
+    test_example
+
+Total tests: run=87 failures=1
+Total test files: run=3/5 failed=1 skipped=1 resource_denied=2
+Result: FAILURE
+""",
+        )
+        report = run_suite(Path("python3.15"))
+        self.assertTrue(report["complete"])
+        self.assertEqual(report["resource_denied_files"], ["test_network_a", "test_network_b"])
+        self.assertEqual(report["test_files_run"], 3)
+        self.assertEqual(report["test_files_expected"], 5)
+
+    @patch("buildsys.testsuite.run_product_process")
+    def test_resource_denied_count_must_match_names(self, run) -> None:
+        run.return_value = self._completed(
+            0,
+            """== Tests result: SUCCESS ==
+
+1 test skipped (resource denied):
+    test_network_a
+
+Total tests: run=87
+Total test files: run=3/4 resource_denied=2
+Result: SUCCESS
+""",
+        )
+        with self.assertRaisesRegex(SuiteError, "accounting is incomplete"):
+            run_suite(Path("python3.15"))
 
     @patch("buildsys.testsuite.run_product_process")
     def test_abnormal_process_termination_fails_even_with_success_output(self, run) -> None:

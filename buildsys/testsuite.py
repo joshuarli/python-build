@@ -19,18 +19,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .product_process import run_product_process
+from .targets import Target
 
 @dataclass(frozen=True)
 class Exclusion:
     test: str
     reason: str
     consequence: str
+    targets: tuple[str, ...] = ()
 
 
 # Whole files that cannot run at all against this distribution. Each is a
 # structural consequence, not a flake: the module under test does not exist,
 # or the test requires build material an installed tree deliberately lacks.
 FILE_EXCLUSIONS = (
+    Exclusion(
+        test="test_cext",
+        reason="requires creating a venv, which is absent from this product",
+        consequence="the separate extension and embedding probes qualify the shipped C API",
+    ),
     Exclusion(
         test="test_venv",
         reason="venv is removed by the 2026-09-18 scope decision",
@@ -68,7 +75,25 @@ CASE_EXCLUSIONS = (
                     "this interpreter from starting. Recorded as an envelope "
                     "limitation of the relocatable layout",
     ),
+    Exclusion(
+        test="test_ctypes:test_lists_system",
+        reason=(
+            "musl libc is part of the loader and private libffi is statically "
+            "linked"
+        ),
+        consequence=(
+            "ctypes loading, callbacks, and private libffi linkage are "
+            "qualified separately"
+        ),
+        targets=("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"),
+    ),
 )
+
+
+def _applies_to_target(exclusion: Exclusion, target: Target | None) -> bool:
+    return not exclusion.targets or (
+        target is not None and target.triple in exclusion.targets
+    )
 
 
 class SuiteError(Exception):
@@ -90,6 +115,10 @@ _FILE_FAILURE_COUNT = re.compile(
 )
 _FAILED_FILE_LIST = re.compile(
     r"^(\d+) tests? failed:\s*\n((?:[ \t]+\S.*(?:\n|$))+)", re.M
+)
+_RESOURCE_DENIED_LIST = re.compile(
+    r"^(\d+) tests? skipped \(resource denied\):\s*\n"
+    r"((?:[ \t]+\S.*(?:\n|$))+)", re.M
 )
 _FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
 _TIMED_OUT_TEST = re.compile(r"\btest[\w.]* timed out \(")
@@ -114,6 +143,16 @@ def _failed_files(output: str) -> list[str]:
     return names
 
 
+def _resource_denied_files(output: str) -> list[str]:
+    match = _RESOURCE_DENIED_LIST.search(output)
+    if not match:
+        return []
+    names = match.group(2).split()
+    if len(names) != int(match.group(1)) or len(names) != len(set(names)):
+        raise SuiteError("resource-denied test file list did not match its count")
+    return names
+
+
 def _accounting(output: str) -> dict:
     output = _ANSI_ESCAPE.sub("", output)
     summary = _SUMMARY.search(output)
@@ -129,16 +168,24 @@ def _accounting(output: str) -> dict:
     failed_files = _failed_files(output)
     failed_file_match = _FILE_FAILURE_COUNT.search(output)
     failed_file_count = int(failed_file_match.group(1)) if failed_file_match else 0
+    resource_denied_files = _resource_denied_files(output)
+    resource_denied_match = re.search(
+        r"\bresource_denied=(\d+)(?: |$)", total_files.group(0)
+    )
+    resource_denied_count = (
+        int(resource_denied_match.group(1)) if resource_denied_match else 0
+    )
     result_state = state.group(1)
 
     if (
         tests_run <= 0
         or files_run <= 0
         or files_expected <= 0
-        or files_run != files_expected
+        or files_run + resource_denied_count != files_expected
         or "(filtered)" in summary.group(0)
         or total_files.group(3)
         or failed_file_count != len(failed_files)
+        or resource_denied_count != len(resource_denied_files)
     ):
         raise SuiteError("suite execution accounting is incomplete or inconsistent")
 
@@ -155,6 +202,7 @@ def _accounting(output: str) -> dict:
         "tests_run": summary.group(1),
         "failure_count": failures,
         "failed_files": failed_files,
+        "resource_denied_files": resource_denied_files,
         "test_files_run": files_run,
         "test_files_expected": files_expected,
         "result_state": result_state,
@@ -213,6 +261,7 @@ def verify_excluded_failures(
     *,
     attempts: int = 3,
     fresh_python=None,
+    target: Target | None = None,
 ) -> dict:
     """Collect bounded, visible diagnostics for files that failed the suite."""
     python = Path(python).resolve()
@@ -220,6 +269,7 @@ def verify_excluded_failures(
     case_exclusions = {
         exclusion.test.split(":", 1)[0]
         for exclusion in CASE_EXCLUSIONS
+        if _applies_to_target(exclusion, target)
     }
     retry_count = min(max(attempts, 1), 3)
     for name in failed_files:
@@ -318,12 +368,20 @@ def verify_excluded_failures(
     return findings
 
 
-def classify(solo_findings: dict) -> dict:
+def classify(solo_findings: dict, target: Target | None = None) -> dict:
     """Split observed failures into registered exclusions and real failures."""
-    registered = {e.test for e in FILE_EXCLUSIONS} | {e.test for e in CASE_EXCLUSIONS}
-    registered_files = {e.test for e in FILE_EXCLUSIONS}
+    applicable_files = tuple(
+        exclusion for exclusion in FILE_EXCLUSIONS
+        if _applies_to_target(exclusion, target)
+    )
+    applicable_cases = tuple(
+        exclusion for exclusion in CASE_EXCLUSIONS
+        if _applies_to_target(exclusion, target)
+    )
+    registered = {e.test for e in (*applicable_files, *applicable_cases)}
+    registered_files = {e.test for e in applicable_files}
     file_cases: dict[str, set[str]] = {}
-    for exclusion in CASE_EXCLUSIONS:
+    for exclusion in applicable_cases:
         file_name, case_name = exclusion.test.split(":", 1)
         file_cases.setdefault(file_name, set()).add(case_name)
 
@@ -349,7 +407,7 @@ def classify(solo_findings: dict) -> dict:
     }
 
 
-def report_payload(report: dict) -> dict:
+def report_payload(report: dict, target: Target | None = None) -> dict:
     """Shape the suite result for `dist/validation.json`."""
     classification = report.get("classification")
     classified = (
@@ -366,6 +424,7 @@ def report_payload(report: dict) -> dict:
     failures = report.get("failure_count")
     failed_files = report.get("failed_files")
     complete = report.get("complete") is True
+    resource_denied = report.get("resource_denied_files")
     status_ok = (
         status == 0
         and report.get("result_state") == "SUCCESS"
@@ -386,15 +445,17 @@ def report_payload(report: dict) -> dict:
         tests_executed = 0
     accounting_ok = (
         tests_executed > 0
+        and isinstance(resource_denied, list)
         and isinstance(files_run, int)
         and isinstance(files_expected, int)
         and files_run > 0
-        and files_run == files_expected
+        and files_run + len(resource_denied) == files_expected
     )
     return {
         "tests_run": report["tests_run"],
         "failure_count": report["failure_count"],
         "failed_files": report["failed_files"],
+        "resource_denied_files": resource_denied if isinstance(resource_denied, list) else [],
         "test_files_run": report.get("test_files_run"),
         "test_files_expected": report.get("test_files_expected"),
         "returncode": status,
@@ -406,6 +467,7 @@ def report_payload(report: dict) -> dict:
         "exclusions": [
             {"test": e.test, "reason": e.reason, "consequence": e.consequence}
             for e in (*FILE_EXCLUSIONS, *CASE_EXCLUSIONS)
+            if _applies_to_target(e, target)
         ],
         "unexpected_failures": unexpected,
         "ok": complete and accounting_ok and status_ok and classified and not unexpected,

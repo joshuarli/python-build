@@ -449,10 +449,13 @@ def _regression_suite(install: Path, workdir: Path) -> dict:
 
     suite = run_suite(suite_python)
     solo = verify_excluded_failures(
-        suite_python, suite["failed_files"], fresh_python=fresh_python
+        suite_python,
+        suite["failed_files"],
+        fresh_python=fresh_python,
+        target=TARGET_DESCRIPTION,
     )
-    suite["classification"] = classify(solo)
-    report = report_payload(suite)
+    suite["classification"] = classify(solo, target=TARGET_DESCRIPTION)
+    report = report_payload(suite, target=TARGET_DESCRIPTION)
     report["solo_findings"] = {
         name: finding["failures"] for name, finding in solo.items()
     }
