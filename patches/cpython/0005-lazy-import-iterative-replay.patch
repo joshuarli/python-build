@@ -1,0 +1,54 @@
+--- a/Objects/lazyimportobject.c
++++ b/Objects/lazyimportobject.c
+@@ -278,21 +278,39 @@
+ lazy_import_replay_from(PyThreadState *tstate, PyObject *mod,
+                         PyLazyImportObject *lz)
+ {
+-    if (!PyLazyImport_CheckExact(lz->lz_from)) {
++    Py_ssize_t count = 0;
++    PyLazyImportObject *current = lz;
++    while (PyLazyImport_CheckExact(current->lz_from)) {
++        if (count == PY_SSIZE_T_MAX / sizeof(PyLazyImportObject *)) {
++            return PyErr_NoMemory();
++        }
++        count++;
++        current = (PyLazyImportObject *)current->lz_from;
++    }
++    if (count == 0) {
+         return Py_NewRef(mod);
+     }
+-    if (_Py_EnterRecursiveCallTstate(tstate, " while resolving a lazy import")) {
+-        return NULL;
+-    }
+-    PyObject *from = lazy_import_replay_from(
+-        tstate, mod, (PyLazyImportObject *)lz->lz_from);
+-    _Py_LeaveRecursiveCallTstate(tstate);
+-    if (from == NULL) {
+-        return NULL;
++    PyLazyImportObject **chain = PyMem_Malloc(
++        (size_t)count * sizeof(PyLazyImportObject *));
++    if (chain == NULL) {
++        return PyErr_NoMemory();
+     }
+-    PyObject *obj = _PyEval_ImportFrom(tstate, from, lz->lz_attr);
+-    Py_DECREF(from);
+-    return lazy_import_resolve_result(tstate, obj);
++    current = lz;
++    for (Py_ssize_t i = count; i > 0; i--) {
++        chain[i - 1] = current;
++        current = (PyLazyImportObject *)current->lz_from;
++    }
++    PyObject *from = Py_NewRef(mod);
++    for (Py_ssize_t i = 0; i < count; i++) {
++        PyObject *obj = _PyEval_ImportFrom(tstate, from, chain[i]->lz_attr);
++        Py_DECREF(from);
++        from = lazy_import_resolve_result(tstate, obj);
++        if (from == NULL) {
++            break;
++        }
++    }
++    PyMem_Free(chain);
++    return from;
+ }
+ 
+ // Preserve the resolution error and attach the import's declaration location.

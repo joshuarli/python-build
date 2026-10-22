@@ -1,0 +1,61 @@
+--- a/Modules/readline.c
++++ b/Modules/readline.c
+@@ -438,7 +438,27 @@
+     if (size >= cookie_len && memcmp(buf, cookie, cookie_len) == 0) {
+         header = cookie_len;
+     }
+-    const char *end = buf + size;
++    char *read = buf + header;
++    char *write = read;
++    char *end = buf + size;
++    int changed = 0;
++    while (read < end) {
++        char *newline = memchr(read, '\n', end - read);
++        size_t line = newline
++            ? (size_t)(newline - read + 1)
++            : (size_t)(end - read);
++        if (header && line == cookie_len
++            && memcmp(read, cookie, cookie_len) == 0) {
++            changed = 1;
++        }
++        else {
++            memmove(write, read, line);
++            write += line;
++        }
++        read += line;
++    }
++    end = write;
++    size = (size_t)(end - buf);
+ 
+     /* Count the lines following the header. */
+     size_t total = 0;
+@@ -450,8 +470,16 @@
+     if (end > buf + header && end[-1] != '\n') {
+         total++;  /* an unterminated last line */
+     }
+-    if (total <= (size_t)nlines) {
+-        ret = 0;  /* nothing to drop */
++    if (nlines < 0 || total <= (size_t)nlines) {
++        if (changed) {
++            if (fseek(fp, 0, SEEK_SET) != 0
++                || fwrite(buf, 1, size, fp) != size
++                || fflush(fp) != 0
++                || ftruncate(fd, (off_t)size) != 0) {
++                goto done;
++            }
++        }
++        ret = 0;
+         goto done;
+     }
+ 
+@@ -542,6 +570,10 @@
+     int history_length = FT_ATOMIC_LOAD_INT_RELAXED(_history_length);
+     if (!err && history_length >= 0)
+         _py_history_truncate_file(filename, history_length);
++#ifndef __APPLE__
++    else if (!err && using_libedit_emulation)
++        _py_libedit_history_truncate_file(filename, -1);
++#endif
+     Py_XDECREF(filename_bytes);
+     errno = err;
+     if (errno)
