@@ -19,7 +19,12 @@ from buildsys.macho import (
 )
 from buildsys.product import PRODUCT
 from buildsys.targets import TARGETS
-from buildsys.validate_product import macho_checks, run_validation, version_and_abi
+from buildsys.validate_product import (
+    abi3_checks,
+    macho_checks,
+    run_validation,
+    version_and_abi,
+)
 
 
 def _command(command: int, payload: bytes) -> bytes:
@@ -179,6 +184,38 @@ class MachOValidationTests(unittest.TestCase):
 
 
 class ProductVersionValidationTests(unittest.TestCase):
+    def test_abi3_compiler_is_one_argument(self) -> None:
+        target = TARGETS["aarch64-unknown-linux-musl"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            install = root / "python"
+            workdir = root / "checks"
+            workdir.mkdir()
+            compiler_command: list[str] = []
+
+            def compile_extension(command, install, workdir, target):
+                compiler_command.extend(command)
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with (
+                patch("buildsys.validate_product._external_compiler", return_value="/usr/bin/clang"),
+                patch(
+                    "buildsys.validate_product._product_run",
+                    side_effect=[
+                        subprocess.CompletedProcess([], 0, "-I/include", ""),
+                        subprocess.CompletedProcess([], 0, '{"triple": 42}', ""),
+                        subprocess.CompletedProcess([], 0, ".cpython-315-aarch64-linux-musl.so", ""),
+                    ],
+                ),
+                patch("buildsys.validate_product._compiler_run", side_effect=compile_extension),
+            ):
+                report = abi3_checks(
+                    PRODUCT.interpreter(install), install, workdir, target
+                )
+
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(compiler_command[0], "/usr/bin/clang")
+
     def test_stale_cpython_version_and_abi_fail(self) -> None:
         stale_version = [
             PRODUCT.version[0], PRODUCT.version[1] - 1, PRODUCT.version[2]

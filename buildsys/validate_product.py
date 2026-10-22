@@ -870,7 +870,7 @@ def abi3_checks(python: Path, install: Path, workdir: Path, target) -> dict:
     """))
     extension = workdir / "abi3_ext.so"
     build_command = [
-        *_external_compiler(target), "-O2", "-fPIC", "-shared",
+        _external_compiler(target), "-O2", "-fPIC", "-shared",
         *shlex.split(cflags.stdout), str(source), "-o", str(extension),
     ]
     if target.is_macos:
