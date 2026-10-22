@@ -163,11 +163,11 @@ zlib_decode_1m`, the runner prepares no third-party wheel site and needs no
 wheelhouse. Package workloads still require their locked inputs.
 
 The controller selects package inputs from both interpreter identities, their
-platform, and the selected workload groups. CPython 3.14 Linux musl uses the
-full [`inputs.lock.json`](inputs.lock.json) set. CPython 3.15 uses separate
-macOS arm64 and Linux x86-64 musl locks for the `macros` group. The CPython
-3.15 route requires both interpreters to match that version, platform, and
-CPython ABI. Package workloads fail before measurement if no lock covers
+platform, and the selected workload groups. The legacy CPython 3.14 Linux musl
+route uses the full [`inputs.lock.json`](inputs.lock.json) set. The product's
+CPython 3.15 route uses separate macOS arm64 and Linux x86-64 musl locks for
+the `macros` group. Both interpreters must match the lock's version, platform,
+and CPython ABI. Package workloads fail before measurement if no lock covers
 their platform or workload group.
 
 ## Compare interpreters
@@ -181,7 +181,7 @@ python3 benchmarks/bench.py run \
   --candidate dist/x86_64-unknown-linux-musl/python.tar.gz \
   --baseline-label "upstream CPython" \
   --baseline-kind upstream \
-  --candidate-label "python-build CPython 3.14.6" \
+  --candidate-label "python-build CPython 3.15.1" \
   --suite realworld --profile standard
 ```
 
@@ -201,10 +201,12 @@ The `pbs` preset resolves the pinned Astral PBS 20260610 artifact and the
 python-build artifact for the native target. Linux amd64 uses the musl pair in
 the isolated benchmark container. Native Apple Silicon uses the macOS PBS
 archive and requires `--local`. Reports label the reference
-**Astral PBS**, never upstream CPython. Linux PBS comparisons receive a
-baseline-relative memory verdict: a failure means the candidate regressed
-against PBS. Only a comparable upstream CPython build, explicitly labeled
-`upstream CPython`, can establish the upstream memory parity guarantee.
+**Astral PBS**, never upstream CPython. The pinned PBS artifacts contain
+CPython 3.14.6, so they are not same-version references for the 3.15.1
+product. The runner rejects that pair unless `--allow-cross-version` is
+explicitly supplied; such a report is a research comparison and establishes
+no product parity claim. Only a comparable upstream CPython build, explicitly
+labeled `upstream CPython`, can establish the upstream memory parity guarantee.
 
 Use the same comparison machinery to calibrate a Python against itself:
 
@@ -361,7 +363,7 @@ The experimental CPython 3.16 Django route keeps its separate pure-wheel
 locks. [`inputs.macos-cp316.lock.json`](inputs.macos-cp316.lock.json) and
 [`inputs.linux-cp316.lock.json`](inputs.linux-cp316.lock.json) pin Django
 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0. These inputs do not replace the
-production CPython 3.14 or 3.15 locks.
+legacy CPython 3.14 or product CPython 3.15 locks.
 
 The CPython 3.14 FastAPI payload uses Pydantic 2.13.5 and `pydantic-core`
 2.46.5. Its `pydantic-core` wheel targets CPython 3.14 and

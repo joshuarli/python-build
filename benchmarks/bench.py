@@ -27,6 +27,7 @@ if str(ROOT) not in sys.path:
 
 from benchmarks.harness.runner import run_workload
 from benchmarks.workloads.registry import Workload, select_workloads
+from buildsys.product import PRODUCT
 
 BENCH = Path(__file__).resolve().parent
 IMAGE = "python-build-bench:local"
@@ -616,7 +617,7 @@ def _resolve_preset(args: argparse.Namespace) -> None:
                 f"PBS preset requires exactly one {target} dist archive; specify --candidate"
             )
         args.candidate = str(candidates[0])
-        args.candidate_label = "python-build CPython 3.14.6"
+        args.candidate_label = f"python-build CPython {PRODUCT.version_string}"
         args.candidate_kind = "python-build"
 
 

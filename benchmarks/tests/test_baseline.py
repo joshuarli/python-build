@@ -21,6 +21,7 @@ from benchmarks.harness.baseline import (
     save_baseline_snapshot,
     update_baseline_snapshot,
 )
+from buildsys.product import PRODUCT
 
 
 class BaselineSnapshotTests(unittest.TestCase):
@@ -201,7 +202,9 @@ class BaselineSnapshotTests(unittest.TestCase):
             root = Path(temp)
             candidate_directory = root / "dist" / "aarch64-apple-darwin"
             candidate_directory.mkdir(parents=True)
-            candidate = candidate_directory / "cpython-3.14.6-aarch64-apple-darwin-r2.tar.gz"
+            candidate = candidate_directory / PRODUCT.local_archive_name(
+                "aarch64-apple-darwin", "r2"
+            )
             candidate.touch()
             reference = root / "pbs-macos.tar.gz"
             args = SimpleNamespace(
@@ -226,6 +229,7 @@ class BaselineSnapshotTests(unittest.TestCase):
         self.assertEqual(args.baseline_label, "Astral PBS 20260610")
         self.assertEqual(args.baseline_kind, "pbs")
         self.assertEqual(args.candidate, str(candidate))
+        self.assertEqual(args.candidate_label, f"python-build CPython {PRODUCT.version_string}")
         self.assertEqual(args.candidate_kind, "python-build")
         resolve_pbs.assert_called_once_with(target="aarch64-apple-darwin")
 
