@@ -99,8 +99,8 @@ python3 benchmarks/bench.py fetch --target x86_64-unknown-linux-musl
 python3 benchmarks/bench.py prepare
 ```
 
-For native Apple Silicon, fetch its pinned PBS comparison artifact without
-downloading Linux-only benchmark wheels:
+For native Apple Silicon, fetch the macOS reference archive, the production
+CPython 3.15 macro inputs, and the experimental CPython 3.16 Django inputs:
 
 ```sh
 python3 benchmarks/bench.py fetch --target aarch64-apple-darwin
@@ -161,6 +161,14 @@ general macOS benchmark profile.
 For a selected stdlib-only workload such as `--suite realworld --workload
 zlib_decode_1m`, the runner prepares no third-party wheel site and needs no
 wheelhouse. Package workloads still require their locked inputs.
+
+The controller selects package inputs from both interpreter identities, their
+platform, and the selected workload groups. CPython 3.14 Linux musl uses the
+full [`inputs.lock.json`](inputs.lock.json) set. CPython 3.15 uses separate
+macOS arm64 and Linux x86-64 musl locks for the `macros` group. The CPython
+3.15 route requires both interpreters to match that version, platform, and
+CPython ABI. Package workloads fail before measurement if no lock covers
+their platform or workload group.
 
 ## Compare interpreters
 
@@ -341,15 +349,25 @@ workloads. The repository-owned Django macros use Django 6.1.1 and should be
 read as a distinct workload version. The `full` suite combines pyperformance
 with the repository-owned macro suite.
 
-The separate macOS CPython 3.16 lock in
-[`inputs.macos-cp316.lock.json`](inputs.macos-cp316.lock.json) pins compatible
-Django 6.1.1, asgiref 3.12.1, and sqlparse 0.6.0 wheel artifacts for the
-experimental interpreter. These inputs do not replace the Linux lock.
+The CPython 3.15 macro inputs use separate native wheel sets:
+[`inputs.macos-cp315.lock.json`](inputs.macos-cp315.lock.json) targets macOS
+arm64, and [`inputs.linux-cp315.lock.json`](inputs.linux-cp315.lock.json)
+targets x86-64 musl. Both pin Pydantic 2.14.1 with `pydantic-core` 2.50.1
+because the CPython 3.15 wheel is not available for the CPython 3.14 lock's
+2.13.5 and 2.46.5 pair. The CPython 3.15 locks contain only the `core` and
+`macros` groups. They do not supply pyperformance or Memray inputs.
 
-The shared FastAPI payload uses Pydantic 2.13.5, `pydantic-core` 2.46.5, and
-their locked transitive dependencies. `pydantic-core` is pinned to its
-CPython 3.14 `musllinux_1_1_x86_64` wheel, which is compatible with the
-benchmark image's musl 1.2 runtime.
+The experimental CPython 3.16 Django route keeps its separate pure-wheel
+locks. [`inputs.macos-cp316.lock.json`](inputs.macos-cp316.lock.json) and
+[`inputs.linux-cp316.lock.json`](inputs.linux-cp316.lock.json) pin Django
+6.1.1, asgiref 3.12.1, and sqlparse 0.6.0. These inputs do not replace the
+production CPython 3.14 or 3.15 locks.
+
+The CPython 3.14 FastAPI payload uses Pydantic 2.13.5 and `pydantic-core`
+2.46.5. Its `pydantic-core` wheel targets CPython 3.14 and
+`musllinux_1_1_x86_64`, which is compatible with the benchmark image's musl
+1.2 runtime. The CPython 3.15 locks use Pydantic 2.14.1 and `pydantic-core`
+2.50.1 with native wheels for their declared targets.
 
 ## Memory and allocation measurements
 

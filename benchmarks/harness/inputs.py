@@ -29,6 +29,8 @@ REPOSITORY = BENCHMARKS.parent
 DEFAULT_WHEELHOUSE = BENCHMARKS / ".cache" / "wheelhouse"
 DEFAULT_REFERENCE_CACHE = BENCHMARKS / ".cache" / "references"
 LOCK_PATH = BENCHMARKS / "inputs.lock.json"
+LINUX_CP315_LOCK_PATH = BENCHMARKS / "inputs.linux-cp315.lock.json"
+MACOS_CP315_LOCK_PATH = BENCHMARKS / "inputs.macos-cp315.lock.json"
 MACOS_CP316_LOCK_PATH = BENCHMARKS / "inputs.macos-cp316.lock.json"
 LINUX_CP316_LOCK_PATH = BENCHMARKS / "inputs.linux-cp316.lock.json"
 SOURCES_LOCK_PATH = REPOSITORY / "sources.lock.json"
@@ -179,6 +181,45 @@ def _parse_input(raw: Mapping[str, Any]) -> LockedInput:
     )
 
 
+def _validate_cp315_wheel_target(target: Mapping[str, Any], item: LockedInput) -> None:
+    if item.kind != "wheel":
+        raise InputError(f"CPython 3.15 inputs must use wheels: {item.filename}")
+    wheel_platform = str(target["wheel_platform"])
+    for wheel_tag in item.wheel_tags:
+        python_tag, abi_tag, platform_tag = wheel_tag.rsplit("-", 2)
+        if platform_tag == "any":
+            python_tags = set(python_tag.split("."))
+            compatible_python = (
+                abi_tag == "none"
+                and bool(python_tags.intersection({"py3", "py315"}))
+            )
+        else:
+            match = re.fullmatch(r"cp(\d+)", python_tag)
+            compatible_python = bool(
+                match
+                and (
+                    (match.group(1) == "315" and abi_tag in {"cp315", "abi3", "none"})
+                    or (abi_tag == "abi3" and int(match.group(1)) < 315)
+                )
+            )
+        if wheel_platform == "macosx_26_0_arm64":
+            platform_match = re.fullmatch(r"macosx_(\d+)_(\d+)_(arm64|universal2)", platform_tag)
+            compatible_platform = platform_tag == "any" or bool(
+                platform_match
+                and tuple(map(int, platform_match.groups()[:2])) <= (26, 0)
+            )
+        elif wheel_platform == "musllinux_1_2_x86_64":
+            compatible_platform = platform_tag in {
+                "any", "musllinux_1_1_x86_64", "musllinux_1_2_x86_64",
+            }
+        else:
+            compatible_platform = platform_tag == "any"
+        if not compatible_python or not compatible_platform:
+            raise InputError(
+                f"wheel tag is incompatible with the CPython 3.15 lock target: {item.filename} ({wheel_tag})"
+            )
+
+
 def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     """Load an explicitly supported benchmark target's input manifest."""
     lock_path = Path(path) if path is not None else LOCK_PATH
@@ -192,17 +233,31 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     target = raw.get("target")
     if not isinstance(target, dict):
         raise InputError("benchmark lock needs a target descriptor")
+    linux_cp315 = target == {
+        "os": "linux", "architecture": "x86_64", "libc": "musl",
+        "python": "CPython 3.15", "wheel_platform": "musllinux_1_2_x86_64",
+    }
     linux_cp316 = target == {
         "os": "linux", "architecture": "x86_64", "python": "CPython 3.16",
         "wheel_platform": "manylinux_x86_64",
     }
-    linux = target.get("os") == "linux" and target.get("architecture") == "x86_64" and (
-        linux_cp316 or target.get("python") != "CPython 3.16"
+    linux = (
+        linux_cp315
+        or linux_cp316
+        or (
+            target.get("os") == "linux"
+            and target.get("architecture") == "x86_64"
+            and target.get("python") not in {"CPython 3.15", "CPython 3.16"}
+        )
     )
+    macos_cp315 = target == {
+        "os": "macos", "architecture": "arm64", "python": "CPython 3.15",
+        "wheel_platform": "macosx_26_0_arm64",
+    }
     macos = target == {
         "os": "macos", "architecture": "arm64", "python": "CPython 3.16",
         "wheel_platform": "macosx_arm64",
-    }
+    } or macos_cp315
     if not linux and not macos:
         raise InputError("unsupported benchmark lock target")
     raw_groups = raw.get("groups")
@@ -231,7 +286,7 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
     if not isinstance(raw_inputs, list):
         raise InputError("benchmark lock must contain an inputs list")
     inputs = tuple(_parse_input(item) for item in raw_inputs)
-    if macos or linux_cp316:
+    if (macos and not macos_cp315) or linux_cp316:
         approved = {"django": "6.1.1", "asgiref": "3.12.1", "sqlparse": "0.6.0"}
         if set(groups) != {"core", "django"} or groups["core"]["packages"] or groups["django"]["packages"] != ("Django==6.1.1",):
             raise InputError("CPython 3.16 lock must contain only the approved Django group")
@@ -240,6 +295,9 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
         for item in inputs:
             if item.kind != "wheel" or item.wheel_tags != ("py3-none-any",) or item.groups != ("django",):
                 raise InputError(f"CPython 3.16 requires a compatible pure wheel: {item.filename}")
+    if linux_cp315 or macos_cp315:
+        for item in inputs:
+            _validate_cp315_wheel_target(target, item)
     names: set[tuple[str, str]] = set()
     filenames: dict[str, str] = {}
     for item in inputs:
@@ -264,6 +322,61 @@ def load_lock(path: Path | str | None = None) -> BenchmarkLock:
         notes=tuple(notes),
         sha256=hashlib.sha256(raw_bytes).hexdigest(),
     )
+
+
+def validate_interpreters(lock: BenchmarkLock, identities: Iterable[Mapping[str, Any]]) -> None:
+    expected_python = lock.target.get("python")
+    if expected_python is None:
+        return
+    expected_minor = tuple(int(part) for part in expected_python.removeprefix("CPython ").split("."))
+    expected_platform = lock.target["wheel_platform"]
+    expected_os = lock.target["os"]
+    target_libc = lock.target.get("libc")
+    observed: list[tuple[tuple[int, ...], str, str]] = []
+    for identity in identities:
+        if identity.get("implementation") != "CPython":
+            raise InputError(
+                f"benchmark input lock requires CPython, received {identity.get('implementation')!r}"
+            )
+        version = tuple(identity.get("version", ()))
+        if version[:2] != expected_minor:
+            raise InputError(
+                f"benchmark input lock targets {expected_python}, received CPython {'.'.join(map(str, version[:2]))}"
+            )
+        abi = str(identity.get("abi") or "")
+        if not re.fullmatch(rf"cpython-{expected_minor[0]}{expected_minor[1]}(?:-.+)?", abi):
+            raise InputError(f"benchmark input lock requires the CPython ABI for {expected_python}, got {abi!r}")
+        runtime_platform = str(identity.get("platform") or "")
+        multiarch = str(identity.get("multiarch") or "").lower()
+        config_args = str(identity.get("config_args") or "").lower()
+        libc = str(identity.get("libc") or "").lower()
+        if expected_os == "macos":
+            if not runtime_platform.startswith("macosx-") or not runtime_platform.endswith("-arm64"):
+                raise InputError(f"benchmark input lock targets macOS arm64, got {runtime_platform!r}")
+            if expected_platform == "macosx_26_0_arm64":
+                runtime_version = tuple(
+                    int(part) for part in str(identity.get("macos_version") or "").split(".")[:2]
+                    if part.isdigit()
+                )
+                if len(runtime_version) < 2 or runtime_version < (26, 0):
+                    raise InputError("CPython 3.15 benchmark inputs require macOS 26.0 or later")
+            actual_libc = "darwin"
+        else:
+            if runtime_platform != "linux-x86_64":
+                raise InputError(f"benchmark input lock targets Linux x86_64, got {runtime_platform!r}")
+            if target_libc == "musl" or expected_platform.startswith("musllinux_"):
+                if not any("musl" in value for value in (libc, multiarch, config_args)):
+                    raise InputError("Linux benchmark inputs target musl, but the interpreter is not musl-built")
+                actual_libc = "musl"
+            elif expected_platform.startswith("manylinux_"):
+                if libc not in {"glibc", "gnu libc"} and "gnu" not in multiarch:
+                    raise InputError("Linux benchmark inputs target glibc, but the interpreter is not glibc-built")
+                actual_libc = "glibc"
+            else:
+                actual_libc = libc
+        observed.append((version[:2], abi, actual_libc))
+    if len(observed) > 1 and any(identity != observed[0] for identity in observed[1:]):
+        raise InputError("baseline and candidate interpreters cannot share this benchmark input set")
 
 
 def _select_groups(lock: BenchmarkLock, requested: Iterable[str] | str | None) -> set[str]:
