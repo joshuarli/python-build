@@ -6,6 +6,7 @@ import importlib.util
 import os
 import platform
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -428,6 +429,107 @@ def verify_hashing_source_snapshot(run_dir: Path, source: Path | None = None) ->
     return snapshot
 
 
+def rtls_source_digest(source: Path) -> str:
+    source = Path(source)
+    try:
+        root_metadata = source.lstat()
+    except OSError as error:
+        raise BuildError(f"prepared RTLS source is missing: {source}: {error}") from error
+    if not stat.S_ISDIR(root_metadata.st_mode):
+        raise BuildError(f"prepared RTLS source is not a real directory: {source}")
+    paths = [source, *source.rglob("*")]
+    paths.sort(key=lambda path: "." if path == source else path.relative_to(source).as_posix())
+    digest = hashlib.sha256()
+    for path in paths:
+        relative = "." if path == source else path.relative_to(source).as_posix()
+        try:
+            metadata = path.lstat()
+        except OSError as error:
+            raise BuildError(f"cannot inspect prepared RTLS source {relative}: {error}") from error
+        if stat.S_ISLNK(metadata.st_mode):
+            raise BuildError(f"prepared RTLS source contains a symlink: {relative}")
+        if stat.S_ISDIR(metadata.st_mode):
+            kind = b"d"
+        elif stat.S_ISREG(metadata.st_mode):
+            kind = b"f"
+        else:
+            raise BuildError(f"prepared RTLS source contains a special file: {relative}")
+        name = relative.encode("utf-8")
+        digest.update(kind)
+        digest.update(len(name).to_bytes(4, "big"))
+        digest.update(name)
+        digest.update(stat.S_IMODE(metadata.st_mode).to_bytes(4, "big"))
+        if kind == b"d":
+            continue
+        digest.update(metadata.st_size.to_bytes(8, "big"))
+        try:
+            with path.open("rb") as source_file:
+                read_size = 0
+                while block := source_file.read(1024 * 1024):
+                    digest.update(block)
+                    read_size += len(block)
+            after = path.lstat()
+        except OSError as error:
+            raise BuildError(f"cannot read prepared RTLS source {relative}: {error}") from error
+        if (
+            read_size != metadata.st_size
+            or not stat.S_ISREG(after.st_mode)
+            or after.st_ino != metadata.st_ino
+            or after.st_size != metadata.st_size
+            or stat.S_IMODE(after.st_mode) != stat.S_IMODE(metadata.st_mode)
+        ):
+            raise BuildError(f"prepared RTLS source changed while hashing: {relative}")
+    return digest.hexdigest()
+
+
+def record_rtls_source_snapshot(
+    run_dir: Path,
+    *,
+    expected_digest: str | None = None,
+) -> Path:
+    run_dir = Path(run_dir).resolve()
+    source = run_dir / "rtls-build"
+    inputs = run_dir / "inputs"
+    checksum = inputs / "rtls-source.sha256"
+    if inputs.is_symlink() or not inputs.is_dir():
+        raise BuildError(f"prepared Rust input directory is missing or unsafe: {inputs}")
+    if checksum.exists() or checksum.is_symlink():
+        raise BuildError(f"refusing to replace an RTLS source digest: {checksum}")
+    digest = rtls_source_digest(source)
+    if expected_digest is not None and digest != expected_digest:
+        raise BuildError("prepared RTLS source changed during Cargo fetch")
+    try:
+        with checksum.open("x", encoding="ascii") as output:
+            output.write(digest + "\n")
+    except OSError as error:
+        raise BuildError(f"cannot record prepared RTLS source digest {checksum}: {error}") from error
+    return checksum
+
+
+def verify_rtls_source_snapshot(run_dir: Path) -> Path:
+    run_dir = Path(run_dir).resolve()
+    source = run_dir / "rtls-build"
+    inputs = run_dir / "inputs"
+    checksum = inputs / "rtls-source.sha256"
+    if inputs.is_symlink() or not inputs.is_dir():
+        raise BuildError(f"prepared Rust input directory is missing or unsafe: {inputs}")
+    if checksum.is_symlink() or not checksum.is_file():
+        raise BuildError(f"prepared RTLS source digest is missing: {checksum}")
+    expected_bytes = checksum.read_bytes()
+    if len(expected_bytes) != 65 or expected_bytes[-1:] != b"\n":
+        raise BuildError(f"prepared RTLS source digest is invalid: {checksum}")
+    try:
+        expected = expected_bytes[:-1].decode("ascii")
+    except UnicodeDecodeError as error:
+        raise BuildError(f"prepared RTLS source digest is invalid: {checksum}") from error
+    if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
+        raise BuildError(f"prepared RTLS source digest is invalid: {checksum}")
+    actual = rtls_source_digest(source)
+    if actual != expected:
+        raise BuildError("prepared RTLS source changed after fetch; fetch again into a fresh run directory")
+    return source
+
+
 def load_webpki_helper():
     path = REPO / "research" / "rtls-graviola" / "prepare_webpki.py"
     spec = importlib.util.spec_from_file_location("rtls_prepare_webpki", path)
@@ -478,10 +580,13 @@ def fetch_rust_inputs(
 
     rtls_source, hashing_source = validate_adapter_sources(rtls_source, hashing_source)
     checkout = run_dir / "rtls-build"
-    if checkout.exists():
+    if checkout.exists() or checkout.is_symlink():
         raise BuildError(f"refusing to replace prepared RTLS checkout: {checkout}")
     inputs = run_dir / "inputs"
     inputs.mkdir(parents=True, exist_ok=True)
+    checksum = inputs / "rtls-source.sha256"
+    if inputs.is_symlink() or checksum.exists() or checksum.is_symlink():
+        raise BuildError(f"refusing to replace a staged RTLS source digest: {checksum}")
     source_archive = inputs / "rtls-source.tar"
     with source_archive.open("wb") as output:
         result = subprocess.run(
@@ -511,6 +616,7 @@ def fetch_rust_inputs(
     rustls_archive = inputs / f"rustls-{rustls_helper.RUSTLS_VERSION}.crate"
     rustls_helper.fetch_archive(rustls_archive)
     rustls_helper.prepare(rustls_archive, checkout)
+    prepared_digest = rtls_source_digest(checkout)
     cargo_home = run_dir / "cargo-home"
     cargo_home.mkdir(parents=True, exist_ok=True)
     target_dir = run_dir / "cargo-fetch-target"
@@ -542,6 +648,7 @@ def fetch_rust_inputs(
                 f"{(result.stdout + result.stderr)[-4000:]}"
             )
         print(f"FETCHED Rust inputs for {name}", flush=True)
+    record_rtls_source_snapshot(run_dir, expected_digest=prepared_digest)
 
 
 def require_fetched_rust_inputs(
@@ -555,6 +662,7 @@ def require_fetched_rust_inputs(
         checkout / "rust" / "Cargo.lock",
         checkout / "webpki" / "Cargo.toml",
         checkout / "rustls" / "Cargo.toml",
+        run_dir / "inputs" / "rtls-source.sha256",
         hashing_build / "Cargo.lock",
         hashing_build / "Cargo.toml",
         cargo_home / "registry",
@@ -565,6 +673,7 @@ def require_fetched_rust_inputs(
             "offline Rust inputs are incomplete; run the separate --phase fetch first: "
             + ", ".join(str(path) for path in missing)
         )
+    checkout = verify_rtls_source_snapshot(run_dir)
     hashing_build = verify_hashing_source_snapshot(run_dir, hashing_source)
     return checkout, hashing_build
 
