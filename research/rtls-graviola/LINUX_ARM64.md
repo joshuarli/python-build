@@ -1,0 +1,85 @@
+# Run the Linux arm64 experiment
+
+Use a clean checkout and a native Linux arm64 Docker daemon. On Apple Silicon,
+use the daemon's arm64 VM. The driver rejects an amd64 daemon and never requests
+amd64 emulation.
+
+Add `.work/` to Git's local exclusions before creating scratch files:
+
+```sh
+printf '\n.work/\n' >> "$(git rev-parse --git-path info/exclude)"
+mkdir -p .work/tmp
+```
+
+Fetch the pinned RTLS checkout:
+
+```sh
+git clone --depth 1 --branch 2026.10.3 \
+    https://github.com/jawah/rtls.git .work/tmp/rtls-linux-source
+```
+
+Build and qualify a fresh candidate:
+
+```sh
+python3.15 research/rtls-graviola/docker-linux-arm64.py \
+    --phase all \
+    --run-dir .work/tmp/openssl-free-linux-arm64 \
+    --jobs 6 \
+    --source-revision "$(git rev-parse HEAD)" \
+    --rtls-source .work/tmp/rtls-linux-source
+```
+
+The command fails if the checkout is dirty or the run directory is populated.
+Use a new run directory after a failed build. Keep the failed run for diagnosis.
+
+The fetch phase verifies the production C inputs and the separate
+[experimental Linux bootstrap lock](linux-bootstrap.lock.json). The native
+build consumes these inputs with networking disabled. Rust sources stay pinned
+by the experiment's source checks and Cargo locks. Production locks remain
+unchanged.
+
+The candidate uses `-march=armv8-a+crypto`, ThinLTO, mold, shared libpython, and
+the GIL. Linux PGO is disabled. Every CPU must expose AES, PMULL, SHA2, and ASIMD.
+No OpenSSL source enters the candidate dependency graph. The separate reference
+build uses the locked OpenSSL 3.5.7 source.
+
+The driver runs the complete default-resource CPython regression suite on a
+copy inside a Docker-managed Linux disk volume. Short temporary paths preserve
+Unix-socket support. Linux filename semantics do not depend on the macOS bind
+mount. The volume remains available through archive validation and is then
+removed.
+
+Inspect the resulting evidence under the run directory:
+
+- `linux-build.json` and `docker-build.json` identify the sealed native build.
+- `qualification/regression/report.json` accounts for the upstream suite and
+  retains failures under the declared [modern TLS policy](MODERN_TLS_POLICY.md).
+- `qualification/archive/qualification report.json` records checks against the
+  extracted archive.
+- `qualification/archive/EXPERIMENTALartifact.json` binds sources, tools,
+  licenses, and archive bytes.
+- `qualification/archive/experimental no-openssl candidate.tar.gz` contains the
+  experimental distribution.
+- `docker-runtime.json` records execution of those archive bytes in a separate
+  locked Alpine image with libgcc and no build toolchain.
+
+The minimal runtime executes SHA-256, HMAC, PBKDF2, scrypt, and a TLS ClientHello.
+Certificate, trust-source, HTTP, asyncio, native-extension, and relocation
+checks run during archive qualification. A nonzero command status is a failed
+qualification, even if an archive or partial report exists.
+
+## Run the prerelease workflow
+
+After pushing the tested revision, dispatch the dedicated workflow:
+
+```sh
+gh workflow run openssl-free-linux-arm64.yml --ref main
+gh run list --workflow openssl-free-linux-arm64.yml
+gh run watch <run-id> --exit-status
+```
+
+Both jobs use native `ubuntu-24.04-arm` runners. The qualification job runs the
+same Docker driver. The publication job rechecks archive and receipt hashes
+before creating `research-openssl-free-cp315-arm64-<commit>` as a prerelease.
+The prerelease does not become GitHub's latest release. The production build
+workflow and published production artifacts remain unchanged.

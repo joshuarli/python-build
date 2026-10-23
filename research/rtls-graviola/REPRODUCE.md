@@ -1,5 +1,9 @@
 # Reproduce the RTLS and Graviola experiments
 
+For the complete native Linux arm64 candidate, use the
+[Docker and prerelease procedure](LINUX_ARM64.md). The replay procedures below
+retain their macOS scope.
+
 Both replay scripts run on native Apple Silicon macOS. They verify RTLS
 commit `302423b49e494863d07630d50b15a9488ec85ef7`, apply
 [`rtls-graviola.patch`](rtls-graviola.patch). They build the
