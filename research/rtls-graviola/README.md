@@ -138,8 +138,6 @@ the native AWS-LC provider with
 which uses Graviola 0.4.1. The source pin, dependency changes, Rust adapter
 changes, and lockfile update are in
 [`rtls-graviola.patch`](rtls-graviola.patch).
-[`ssl-utilities-followup.patch`](ssl-utilities-followup.patch) adds utility
-compatibility required by the OpenSSL-free facade.
 The recorded licenses are in
 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md). The patch removes the
 RTLS AWS-LC native build crates and adds Graviola plus target support crates.

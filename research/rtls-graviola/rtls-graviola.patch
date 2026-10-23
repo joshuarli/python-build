@@ -8031,6 +8031,15 @@
  
  
  def DER_cert_to_PEM_cert(der_cert_bytes: bytes) -> str:
+@@ -209,6 +223,8 @@
+ 
+ def RAND_bytes(num: int) -> bytes:
+     """Generate num cryptographically secure random bytes."""
++    if num < 0:
++        raise ValueError("num must be positive")
+     try:
+         from . import _rustls
+ 
 --- /dev/null
 +++ b/tests/certdata/crl_intermediate_empty.pem
 @@ -0,0 +1,11 @@

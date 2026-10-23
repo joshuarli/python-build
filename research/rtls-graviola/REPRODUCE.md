@@ -2,8 +2,7 @@
 
 Both replay scripts run on native Apple Silicon macOS. They verify RTLS
 commit `302423b49e494863d07630d50b15a9488ec85ef7`, apply
-[`rtls-graviola.patch`](rtls-graviola.patch) and
-[`ssl-utilities-followup.patch`](ssl-utilities-followup.patch). They build the
+[`rtls-graviola.patch`](rtls-graviola.patch). They build the
 checked-in Cargo lockfile with Rust `1.99.1`. The replay verifies and patches
 the pinned rustls-webpki archive before Cargo builds it as a path dependency.
 Cargo downloads the remaining pinned crates. Neither script connects to an

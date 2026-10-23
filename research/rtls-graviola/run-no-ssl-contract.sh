@@ -52,10 +52,6 @@ git -C "$checkout" apply --unidiff-zero --check \
     "$repo_root/research/rtls-graviola/rtls-graviola.patch"
 git -C "$checkout" apply --unidiff-zero \
     "$repo_root/research/rtls-graviola/rtls-graviola.patch"
-git -C "$checkout" apply --unidiff-zero --check \
-    "$repo_root/research/rtls-graviola/ssl-utilities-followup.patch"
-git -C "$checkout" apply --unidiff-zero \
-    "$repo_root/research/rtls-graviola/ssl-utilities-followup.patch"
 
 rust_toolchain=${RTLS_RUST_TOOLCHAIN:-stable}
 expected_rust_version=1.99.1
