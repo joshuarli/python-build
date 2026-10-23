@@ -1,0 +1,56 @@
+--- a/rust/src/policy.rs
++++ b/rust/src/policy.rs
+@@ -150,11 +150,9 @@
+         }
+     }
+     let ca = basic.is_some_and(|(value, _)| value.ca);
+-    if is_anchor {
+-        let timestamp = now.as_secs() as i64;
+-        if timestamp < cert.validity().not_before.timestamp() { return Err(webpki::Error::CertNotValidYet { time: now, not_before: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_before.timestamp().max(0) as u64)) }); }
+-        if timestamp > cert.validity().not_after.timestamp() { return Err(webpki::Error::CertExpired { time: now, not_after: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_after.timestamp().max(0) as u64)) }); }
+-    }
++    let timestamp = now.as_secs() as i64;
++    if timestamp < cert.validity().not_before.timestamp() { return Err(webpki::Error::CertNotValidYet { time: now, not_before: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_before.timestamp().max(0) as u64)) }); }
++    if timestamp >= cert.validity().not_after.timestamp() { return Err(webpki::Error::CertExpired { time: now, not_after: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_after.timestamp().max(0) as u64)) }); }
+     if depth > 0 && basic.is_some_and(|(value, _)| !value.ca) { return Err(invalid); }
+     if depth > 0 && usage.is_some_and(|value| !value.key_cert_sign()) { return Err(invalid); }
+     if depth == 0 && usage.is_some_and(|value| if client { !(value.digital_signature() || value.key_agreement()) } else {
+@@ -406,3 +404,38 @@
+     }
+     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> { self.allowed_schemes.clone() }
+ }
++
++#[cfg(test)]
++mod expiry_tests {
++    use super::*;
++
++    fn check_expiry(pem: &[u8], anchor: bool, depth: usize) {
++        let certificates = parse_certificates(pem).unwrap();
++        let certificate = certificates[0].as_ref();
++        let (_, parsed) = X509Certificate::from_der(certificate).unwrap();
++        let expires = parsed.validity().not_after.timestamp() as u64;
++        let time = |seconds| UnixTime::since_unix_epoch(std::time::Duration::from_secs(seconds));
++        assert!(check_certificate(certificate, anchor, depth, time(expires - 1), false, false).is_ok());
++        for seconds in [expires, expires + 1] {
++            assert!(matches!(
++                check_certificate(certificate, anchor, depth, time(seconds), false, false),
++                Err(webpki::Error::CertExpired { .. })
++            ));
++        }
++    }
++
++    #[test]
++    fn leaf_expires_at_not_after() {
++        check_expiry(include_bytes!("../../tests/certdata/keycert3.pem"), false, 0);
++    }
++
++    #[test]
++    fn intermediate_expires_at_not_after() {
++        check_expiry(include_bytes!("../../tests/certdata/pycacert.pem"), false, 1);
++    }
++
++    #[test]
++    fn anchor_expires_at_not_after() {
++        check_expiry(include_bytes!("../../tests/certdata/pycacert.pem"), true, 2);
++    }
++}

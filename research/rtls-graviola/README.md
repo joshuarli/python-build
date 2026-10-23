@@ -91,6 +91,11 @@ integer bounds, and serializes EOF with writes. All five unchanged upstream
 MemoryBIO tests pass. Four additional contract tests pass on both backends;
 they fail on the frozen candidate.
 
+Certificate validity now expires at the `notAfter` second, matching pinned
+OpenSSL 3.5.7. Three deterministic Rust tests cover leaf, intermediate, and
+anchor boundaries; all three failed before the repair and pass afterward.
+The combined verifier also passes the expanded 82-case certificate corpus.
+
 The next validation wave combines socket I/O, explicit sessions, cipher and
 context controls, offline CRLs, and SSL utility compatibility. Capath review
 also found that delaying store statistics does not reproduce OpenSSL's lookup
