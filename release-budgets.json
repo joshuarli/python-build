@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "targets": {
+    "aarch64-apple-darwin": {
+      "archive_size_bytes": 17041505,
+      "payload_size_bytes": 51927040,
+      "rationale": "First complete native CPython 3.15.1 qualification: workflow run 39880142105 at commit 7520a6a measured a 15492277-byte archive and 47206400-byte uncompressed tar payload; ceiling adds 10% headroom for ordinary packaging growth."
+    },
+    "x86_64-unknown-linux-musl": {
+      "archive_size_bytes": 18621386,
+      "payload_size_bytes": 57998336,
+      "rationale": "First complete native CPython 3.15.1 qualification: workflow run 39880142105 at commit 7520a6a measured a 16928532-byte archive and 52725760-byte uncompressed tar payload; ceiling adds 10% headroom for ordinary packaging growth."
+    },
+    "aarch64-unknown-linux-musl": {
+      "archive_size_bytes": 18584543,
+      "payload_size_bytes": 58798080,
+      "rationale": "First complete native CPython 3.15.1 qualification: workflow run 39880142105 at commit 7520a6a measured a 16895039-byte archive and 53452800-byte uncompressed tar payload; ceiling adds 10% headroom for ordinary packaging growth."
+    }
+  }
+}
