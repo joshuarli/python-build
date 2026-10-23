@@ -54,6 +54,7 @@ def prepare(archive: Path, checkout: Path) -> Path:
             Path(__file__).with_name("webpki-crl-policy.patch"),
             strip=2,
         )
+        apply_patch(source, Path(__file__).with_name("webpki-strict-policy.patch"))
         os.replace(source, destination)
     return destination
 

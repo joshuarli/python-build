@@ -2933,7 +2933,7 @@
 +}
 --- a/rust/src/error.rs
 +++ b/rust/src/error.rs
-@@ -1,62 +1,374 @@
+@@ -1,62 +1,440 @@
  use pyo3::prelude::*;
 -use pyo3::types::PyType;
 -
@@ -2962,6 +2962,8 @@
 +}
 +
 +fn verify_code_from_webpki(error: &webpki::Error) -> i32 {
++    use webpki::CertificatePolicyViolation as Violation;
++
 +    match error {
 +        webpki::Error::CertExpired { .. } => 10,
 +        webpki::Error::CertNotValidForName(_) => 62,
@@ -2973,12 +2975,58 @@
 +        webpki::Error::EmptyEkuExtension
 +        | webpki::Error::RequiredEkuNotFoundContext(_) => 26,
 +        webpki::Error::ExtensionValueInvalid => 41,
++        webpki::Error::EndEntityUsedAsCa => 79,
++        webpki::Error::PathLenConstraintViolated => 25,
++        webpki::Error::CertificatePolicyViolation(violation) => match violation {
++            Violation::InvalidCaCertificate => 79,
++            Violation::PathLengthOnNonCaCertificate => 80,
++            Violation::PathLengthWithoutKeyCertSign => 81,
++            Violation::KeyCertSignOnNonCaCertificate => 82,
++            Violation::EmptyIssuerName => 83,
++            Violation::EmptySubjectName => 84,
++            Violation::MissingAuthorityKeyIdentifier => 85,
++            Violation::MissingSubjectKeyIdentifier => 86,
++            Violation::EmptySubjectAlternativeName => 87,
++            Violation::EmptySubjectWithNoncriticalSubjectAlternativeName => 88,
++            Violation::NoncriticalCaBasicConstraints => 89,
++            Violation::CriticalAuthorityKeyIdentifier => 90,
++            Violation::CriticalSubjectKeyIdentifier => 91,
++            Violation::CaMissingKeyUsage => 92,
++            Violation::ExtensionsRequireX509V3 => 93,
++            Violation::SignatureAlgorithmMismatch => 78,
++            Violation::InvalidPurpose => 26,
++        },
++        webpki::Error::UnsupportedSignatureAlgorithmContext(context)
++            if is_rsa_sha1_algorithm(&context.signature_algorithm_id) => 68,
 +        webpki::Error::InvalidSignatureForPublicKey => 7,
 +        webpki::Error::UnknownIssuer => 20,
 +        webpki::Error::UnknownRevocationStatus => 3,
 +        webpki::Error::UnsupportedCriticalExtension => 34,
 +        _ => 1,
 +    }
++}
++
++fn is_rsa_sha1_algorithm(algorithm: &[u8]) -> bool {
++    const RSA_SHA1_WITH_NULL: &[u8] = &[
++        0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05, 0x05, 0x00,
++    ];
++    const RSA_SHA1_WITHOUT_NULL: &[u8] = &[
++        0x30, 0x0b, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05,
++    ];
++    const RSA_SHA1_CONTENT_WITH_NULL: &[u8] = &[
++        0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05, 0x05, 0x00,
++    ];
++    const RSA_SHA1_CONTENT_WITHOUT_NULL: &[u8] = &[
++        0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x05,
++    ];
++
++    matches!(
++        algorithm,
++        RSA_SHA1_WITH_NULL
++            | RSA_SHA1_WITHOUT_NULL
++            | RSA_SHA1_CONTENT_WITH_NULL
++            | RSA_SHA1_CONTENT_WITHOUT_NULL
++    )
 +}
 +
 +fn verify_code_from_certificate_error(error: &rustls::CertificateError) -> i32 {
@@ -3134,19 +3182,6 @@
 -
 -/// Raise SSLCertVerificationError on the Python side.
 -pub fn raise_cert_verification(py: Python<'_>, msg: &str) -> PyErr {
--    get_exc_type(
--        py,
--        "rtls._exceptions",
--        "SSLCertVerificationError",
--        "SSL: CERTIFICATE_VERIFY_FAILED - ",
--        msg,
--    )
--}
--
--/// Raise a general SSLError on the Python side.
--pub fn raise_ssl_error(py: Python<'_>, msg: &str) -> PyErr {
--    get_exc_type(py, "rtls._exceptions", "SSLError", "SSL: ", msg)
--}
 +    )
 +}
 +
@@ -3288,8 +3323,19 @@
 +            (None, format!("[SSL] unknown error (0x{error_code:x})"))
 +        }
 +    };
-+    get_exc_type(
-+        py,
+     get_exc_type(
+         py,
+-        "rtls._exceptions",
+-        "SSLCertVerificationError",
+-        "SSL: CERTIFICATE_VERIFY_FAILED - ",
+-        msg,
+-    )
+-}
+-
+-/// Raise a general SSLError on the Python side.
+-pub fn raise_ssl_error(py: Python<'_>, msg: &str) -> PyErr {
+-    get_exc_type(py, "rtls._exceptions", "SSLError", "SSL: ", msg)
+-}
 +        "SSLError",
 +        SSL_ERROR_SSL,
 +        &message,
@@ -3322,8 +3368,26 @@
 +        12 => "CRL has expired",
 +        20 => "unable to get local issuer certificate",
 +        23 => "certificate revoked",
++        25 => "path length constraint exceeded",
 +        26 => "unsuitable certificate purpose",
 +        34 => "unhandled critical extension",
++        68 => "CA signature digest algorithm too weak",
++        78 => "Signature algorithm mismatch",
++        79 => "invalid CA certificate",
++        80 => "Path length invalid for non-CA cert",
++        81 => "Path length given without key usage keyCertSign",
++        82 => "Key usage keyCertSign invalid for non-CA cert",
++        83 => "Issuer name empty",
++        84 => "Subject name empty",
++        85 => "Missing Authority Key Identifier",
++        86 => "Missing Subject Key Identifier",
++        87 => "Empty Subject Alternative Name extension",
++        88 => "Subject empty and Subject Alt Name extension not critical",
++        89 => "Basic Constraints of CA cert not marked critical",
++        90 => "Authority Key Identifier marked critical",
++        91 => "Subject Key Identifier marked critical",
++        92 => "CA cert does not include key usage extension",
++        93 => "Using cert extension requires at least X509v3",
 +        41 => "invalid certificate extension",
 +        62 => "Hostname mismatch",
 +        _ => message,
@@ -3442,7 +3506,7 @@
      .map_err(|_| pyo3::exceptions::PyOSError::new_err("Failed to generate random bytes"))?;
 --- /dev/null
 +++ b/rust/src/policy.rs
-@@ -0,0 +1,615 @@
+@@ -0,0 +1,670 @@
 +use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 +use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 +use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSupportedAlgorithms};
@@ -3610,7 +3674,10 @@
 +}
 +
 +fn check_certificate(der: &[u8], is_anchor: bool, depth: usize, now: UnixTime, client: bool, strict: bool) -> Result<(), webpki::Error> {
++    use webpki::CertificatePolicyViolation as Violation;
++
 +    let invalid = webpki::Error::ExtensionValueInvalid;
++    let violation = |cause| webpki::Error::CertificatePolicyViolation(cause);
 +    let (rest, cert) = X509Certificate::from_der(der).map_err(|_| invalid.clone())?;
 +    if !rest.is_empty() { return Err(invalid); }
 +    let mut seen = HashSet::new();
@@ -3619,6 +3686,8 @@
 +    let mut san = None;
 +    let mut aki = false;
 +    let mut ski = false;
++    let mut aki_critical = false;
++    let mut ski_critical = false;
 +    for extension in cert.extensions() {
 +        if !seen.insert(extension.oid.clone()) { return Err(invalid); }
 +        let oid = extension.oid.to_id_string();
@@ -3632,19 +3701,23 @@
 +            ParsedExtension::BasicConstraints(value) => basic = Some((value, extension.critical)),
 +            ParsedExtension::KeyUsage(value) => usage = Some(value),
 +            ParsedExtension::NSCertType(value) if depth == 0 => {
-+                if !(if client { value.ssl_client() } else { value.ssl_server() }) { return Err(invalid); }
++                if !(if client { value.ssl_client() } else { value.ssl_server() }) {
++                    return Err(violation(Violation::InvalidPurpose));
++                }
 +            }
 +            ParsedExtension::SubjectAlternativeName(value) => san = Some((value, extension.critical)),
 +            ParsedExtension::AuthorityKeyIdentifier(value) => {
-+                if strict && extension.critical { return Err(invalid); }
++                aki_critical = extension.critical;
 +                aki = value.key_identifier.is_some();
 +            }
 +            ParsedExtension::SubjectKeyIdentifier(_) => {
-+                if strict && extension.critical { return Err(invalid); }
++                ski_critical = extension.critical;
 +                ski = true;
 +            }
 +            ParsedExtension::ExtendedKeyUsage(value) if is_anchor => {
-+                if !(if client { value.client_auth } else { value.server_auth }) { return Err(invalid); }
++                if !(if client { value.client_auth } else { value.server_auth }) {
++                    return Err(violation(Violation::InvalidPurpose));
++                }
 +            }
 +            ParsedExtension::ParseError { .. } => return Err(invalid),
 +            ParsedExtension::UnsupportedExtension { .. } if extension.critical => return Err(webpki::Error::UnsupportedCriticalExtension),
@@ -3653,29 +3726,75 @@
 +    }
 +    let ca = basic.is_some_and(|(value, _)| value.ca);
 +    let timestamp = now.as_secs() as i64;
-+    if timestamp < cert.validity().not_before.timestamp() { return Err(webpki::Error::CertNotValidYet { time: now, not_before: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_before.timestamp().max(0) as u64)) }); }
-+    if timestamp >= cert.validity().not_after.timestamp() { return Err(webpki::Error::CertExpired { time: now, not_after: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_after.timestamp().max(0) as u64)) }); }
-+    if depth > 0 && basic.is_some_and(|(value, _)| !value.ca) { return Err(invalid); }
-+    if depth > 0 && usage.is_some_and(|value| !value.key_cert_sign()) { return Err(invalid); }
-+    if depth == 0 && usage.is_some_and(|value| if client { !(value.digital_signature() || value.key_agreement()) } else {
-+        !(value.digital_signature() || value.key_encipherment() || value.key_agreement())
-+    }) { return Err(invalid); }
-+    if !strict { return Ok(()); }
-+    if depth > 0 && !ca { return Err(invalid); }
-+    if ca && (!basic.is_some_and(|(_, critical)| critical) || usage.is_none()) { return Err(invalid); }
-+    if ca && !usage.is_some_and(|value| value.key_cert_sign()) { return Err(invalid); }
-+    if !ca && usage.is_some_and(|value| value.key_cert_sign()) { return Err(invalid); }
-+    if basic.is_some_and(|(value, _)| value.path_len_constraint.is_some()) &&
-+        (!ca || !usage.is_some_and(|value| value.key_cert_sign())) { return Err(invalid); }
-+    if cert.issuer().iter().next().is_none() { return Err(invalid); }
-+    if cert.subject().iter().next().is_none() {
-+        if ca || usage.is_some_and(|value| value.crl_sign()) || !san.is_some_and(|(_, critical)| critical) { return Err(invalid); }
++    if timestamp < cert.validity().not_before.timestamp() {
++        return Err(webpki::Error::CertNotValidYet {
++            time: now,
++            not_before: UnixTime::since_unix_epoch(std::time::Duration::from_secs(
++                cert.validity().not_before.timestamp().max(0) as u64,
++            )),
++        });
 +    }
-+    if san.is_some_and(|(value, _)| value.general_names.is_empty()) { return Err(invalid); }
-+    if cert.signature_algorithm != cert.tbs_certificate.signature { return Err(invalid); }
++    if timestamp >= cert.validity().not_after.timestamp() {
++        return Err(webpki::Error::CertExpired {
++            time: now,
++            not_after: UnixTime::since_unix_epoch(std::time::Duration::from_secs(
++                cert.validity().not_after.timestamp().max(0) as u64,
++            )),
++        });
++    }
++    if depth > 0 && basic.is_some_and(|(value, _)| !value.ca) {
++        return Err(webpki::Error::EndEntityUsedAsCa);
++    }
++    if depth > 0 && usage.is_some_and(|value| !value.key_cert_sign()) {
++        return Err(webpki::Error::EndEntityUsedAsCa);
++    }
++    if depth == 0 && usage.is_some_and(|value| if client {
++        !(value.digital_signature() || value.key_agreement())
++    } else {
++        !(value.digital_signature() || value.key_encipherment() || value.key_agreement())
++    }) {
++        return Err(violation(Violation::InvalidPurpose));
++    }
++    if !strict { return Ok(()); }
++    if depth > 0 && !ca { return Err(violation(Violation::InvalidCaCertificate)); }
++    if basic.is_some_and(|(value, _)| value.path_len_constraint.is_some()) {
++        if !ca { return Err(violation(Violation::PathLengthOnNonCaCertificate)); }
++        if !usage.is_some_and(|value| value.key_cert_sign()) {
++            return Err(violation(Violation::PathLengthWithoutKeyCertSign));
++        }
++    }
++    if ca && !basic.is_some_and(|(_, critical)| critical) {
++        return Err(violation(Violation::NoncriticalCaBasicConstraints));
++    }
++    if ca && usage.is_none() { return Err(violation(Violation::CaMissingKeyUsage)); }
++    if !ca && usage.is_some_and(|value| value.key_cert_sign()) {
++        return Err(violation(Violation::KeyCertSignOnNonCaCertificate));
++    }
++    if cert.issuer().iter().next().is_none() {
++        return Err(violation(Violation::EmptyIssuerName));
++    }
++    if cert.subject().iter().next().is_none() {
++        if ca || usage.is_some_and(|value| value.crl_sign()) {
++            return Err(violation(Violation::EmptySubjectName));
++        }
++        if !san.is_some_and(|(_, critical)| critical) {
++            return Err(violation(Violation::EmptySubjectWithNoncriticalSubjectAlternativeName));
++        }
++    }
++    if san.is_some_and(|(value, _)| value.general_names.is_empty()) {
++        return Err(violation(Violation::EmptySubjectAlternativeName));
++    }
++    if cert.signature_algorithm != cert.tbs_certificate.signature {
++        return Err(violation(Violation::SignatureAlgorithmMismatch));
++    }
++    if aki_critical { return Err(violation(Violation::CriticalAuthorityKeyIdentifier)); }
++    if ski_critical { return Err(violation(Violation::CriticalSubjectKeyIdentifier)); }
 +    if cert.version().0 >= 2 {
-+        if (!is_anchor && !aki) || (ca && !ski) { return Err(invalid); }
-+    } else if !cert.extensions().is_empty() { return Err(invalid); }
++        if !is_anchor && !aki { return Err(violation(Violation::MissingAuthorityKeyIdentifier)); }
++        if ca && !ski { return Err(violation(Violation::MissingSubjectKeyIdentifier)); }
++    } else if !cert.extensions().is_empty() {
++        return Err(violation(Violation::ExtensionsRequireX509V3));
++    }
 +    Ok(())
 +}
 +

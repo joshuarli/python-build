@@ -25,7 +25,10 @@ become a trust anchor, and root classification checks the self-signature.
 
 The 82-case differential corpus matches pinned OpenSSL 3.5.7 acceptance under
 the same flags, including the original missing-AKI and malformed-chain defects.
-The missing-CA-SKI fixture independently reaches OpenSSL verification error 86.
+Twelve isolated verification-code gates also match, including missing AKI
+(error 85) and missing CA SKI (error 86). A typed local webpki policy-error
+enum preserves the cause through path building and the shared exception mapper;
+its ranking remains identical to the previous generic extension error.
 Duplicate critical extensions are rejected during candidate loading rather
 than reference verification; the harness records this earlier rejection.
 Certificate expiration includes the exact `notAfter` second. Canonical issuer

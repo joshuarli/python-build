@@ -25,29 +25,29 @@ REFERENCE_EXPECTATIONS = {
     "load_encrypted_key_wrong_password": {"accepted": False},
     "load_duplicate_critical_extension": {"accepted": True},
     "valid_path": {"accepted": True},
-    "strict_missing_aki_default": {"accepted": False},
+    "strict_missing_aki_default": {"accepted": False, "error.verify_code": 85},
     "strict_missing_aki_disabled": {"accepted": True},
     "partial_chain_enabled": {"accepted": True},
     "partial_chain_disabled": {"accepted": False},
     "trusted_first_disabled": {"accepted": True},
-    "strict_basic_constraints_missing": {"accepted": False},
-    "strict_basic_constraints_missing_disabled": {"accepted": False},
-    "strict_basic_constraints_noncritical": {"accepted": False},
+    "strict_basic_constraints_missing": {"accepted": False, "error.verify_code": 79},
+    "strict_basic_constraints_missing_disabled": {"accepted": False, "error.verify_code": 79},
+    "strict_basic_constraints_noncritical": {"accepted": False, "error.verify_code": 89},
     "strict_basic_constraints_noncritical_disabled": {"accepted": True},
-    "strict_key_usage_missing": {"accepted": False},
+    "strict_key_usage_missing": {"accepted": False, "error.verify_code": 81},
     "strict_key_usage_missing_disabled": {"accepted": True},
-    "strict_key_usage_no_keycertsign": {"accepted": False},
-    "strict_key_usage_no_keycertsign_disabled": {"accepted": False},
+    "strict_key_usage_no_keycertsign": {"accepted": False, "error.verify_code": 79},
+    "strict_key_usage_no_keycertsign_disabled": {"accepted": False, "error.verify_code": 79},
     "strict_subject_key_identifier_missing": {
         "accepted": False,
         "error.verify_code": 86,
     },
     "strict_subject_key_identifier_missing_disabled": {"accepted": True},
-    "strict_authority_key_identifier_missing": {"accepted": False},
+    "strict_authority_key_identifier_missing": {"accepted": False, "error.verify_code": 85},
     "strict_authority_key_identifier_missing_disabled": {"accepted": True},
-    "strict_signature_sha1": {"accepted": False},
+    "strict_signature_sha1": {"accepted": False, "error.verify_code": 68},
     "strict_signature_sha1_disabled": {"accepted": False},
-    "strict_pathlen_exceeded": {"accepted": False},
+    "strict_pathlen_exceeded": {"accepted": False, "error.verify_code": 25},
     "strict_issuer_subject_mismatch": {"accepted": False},
     "issuer_name_root_exact_control": {"accepted": True},
     "issuer_name_root_case_equivalent": {"accepted": True},
@@ -79,7 +79,7 @@ REFERENCE_EXPECTATIONS = {
     "strict_duplicate_critical_extension": {"accepted": False},
     "strict_duplicate_critical_extension_disabled": {"accepted": False},
     "critical_aia_on_trust_root": {"accepted": False},
-    "ns_cert_type_client_on_server_leaf": {"accepted": False},
+    "ns_cert_type_client_on_server_leaf": {"accepted": False, "error.verify_code": 26},
     "unrelated_malformed_peer_certificate": {"accepted": True},
     "self_issued_not_self_signed_pathlen": {"accepted": True},
     "self_issued_canonical_name_pathlen": {"accepted": True},
@@ -147,7 +147,10 @@ import sys
 
 
 def error_value(error):
-    return {"type": type(error).__name__, "message": str(error)}
+    result = {"type": type(error).__name__, "message": str(error)}
+    if isinstance(error, ssl.SSLCertVerificationError):
+        result["verify_code"] = error.verify_code
+    return result
 
 
 def main():
@@ -185,7 +188,10 @@ raise SystemExit(main())
 
 
 def error_value(error):
-    return {"type": type(error).__name__, "message": str(error)}
+    result = {"type": type(error).__name__, "message": str(error)}
+    if isinstance(error, ssl.SSLCertVerificationError):
+        result["verify_code"] = error.verify_code
+    return result
 
 
 def verify_flags(context):
@@ -2351,8 +2357,18 @@ def main() -> int:
                 and candidate_case.get("phase") == "handshake"
                 and candidate_error.get("type") == "SSLCertVerificationError"
             )
-        behavior_different = oracle_differs and not intentional_difference
-        different = not contract_passed or (flags_differ and not intentional_difference)
+        expected_verify_code = REFERENCE_EXPECTATIONS.get(name, {}).get("error.verify_code")
+        candidate_error = candidate_case.get("error") or {}
+        verify_code_matches_expected = (
+            expected_verify_code is None
+            or candidate_error.get("verify_code") == expected_verify_code
+        )
+        behavior_different = (oracle_differs and not intentional_difference) or not verify_code_matches_expected
+        different = (
+            not contract_passed
+            or (flags_differ and not intentional_difference)
+            or not verify_code_matches_expected
+        )
         if behavior_different:
             differences.append(name)
         if flags_differ:
@@ -2366,6 +2382,8 @@ def main() -> int:
                 if name in REFERENCE_EXPECTATIONS and reference_case is not None
                 else None
             ),
+            "verify_code_expected": expected_verify_code,
+            "verify_code_matches_expected": verify_code_matches_expected,
             "matches_reference": not oracle_differs,
             "behavior_different": behavior_different,
             "flags_differ": flags_differ,
