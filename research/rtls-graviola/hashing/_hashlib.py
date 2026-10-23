@@ -80,6 +80,11 @@ hmac_digest = _hashlib_graviola.hmac_digest
 pbkdf2_hmac = _hashlib_graviola.pbkdf2_hmac
 scrypt = _hashlib_graviola.scrypt
 
+
+def get_fips_mode():
+    return 0
+
+
 for _name, _constructor in _constructors.items():
     globals()["openssl_" + _name] = _constructor
 

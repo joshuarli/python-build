@@ -12,6 +12,8 @@ uses. Its `openssl_*` names are compatibility aliases for the CPython digest
 constructors. They do not call OpenSSL. The Rust extension is
 `_hashlib_graviola.abi3.so`.
 
+The replacement has no FIPS mode; `get_fips_mode()` therefore returns `0`.
+
 The hash-isolated CPython 3.15.1 run passed `test_hashlib` and `test_hmac` with
 240 tests run and 18 skipped. It used a disposable prefix without the Python
 `_ssl.py` marker shim to isolate hashing behavior; this is not the integrated
