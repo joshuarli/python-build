@@ -338,9 +338,24 @@ def run(args) -> int:
     if run_dir.exists() and any(run_dir.iterdir()):
         raise QualificationError(f"run directory is not empty: {run_dir}")
     run_dir.mkdir(parents=True, exist_ok=True)
-    scratch = run_dir / "scratch"
+    work_dir = run_dir
+    if args.work_dir is not None:
+        work_dir = work_path(args.work_dir, REPO, label="work directory", no_spaces=True)
+        if (
+            work_dir == source_prefix
+            or work_dir.is_relative_to(source_prefix)
+            or source_prefix.is_relative_to(work_dir)
+            or work_dir == run_dir
+            or work_dir.is_relative_to(run_dir)
+            or run_dir.is_relative_to(work_dir)
+        ):
+            raise QualificationError("external work directory overlaps the candidate or reports")
+        if work_dir.exists() and any(work_dir.iterdir()):
+            raise QualificationError(f"work directory is not empty: {work_dir}")
+        work_dir.mkdir(parents=True, exist_ok=True)
+    scratch = work_dir / ("t" if args.work_dir is not None else "scratch")
     scratch.mkdir()
-    tested_prefix = run_dir / "python"
+    tested_prefix = work_dir / ("p" if args.work_dir is not None else "python")
     report_path = run_dir / "report.json"
     full_suite_log = run_dir / "full-suite.log"
     test_ssl_log = run_dir / "test_ssl.log"
@@ -349,6 +364,7 @@ def run(args) -> int:
         "ok": False,
         "candidate_prefix": str(source_prefix),
         "tested_prefix": str(tested_prefix),
+        "execution_directory": str(scratch),
         "candidate_identity": {},
         "tested_identity": {},
         "runtime_identity": {},
@@ -451,12 +467,21 @@ def run(args) -> int:
             accounting = report
             failed_files = set(accounting["failed_files"])
             solo_names = failed_files - {"test_ssl"}
-            solo_findings = testsuite.verify_excluded_failures(
-                PRODUCT.interpreter(tested_prefix),
-                sorted(solo_names),
-                attempts=1,
-                target=target,
-            )
+            original_process = testsuite.run_product_process
+
+            def run_diagnostic(argv, install, cwd, **kwargs):
+                return original_process(argv, install, scratch, **kwargs)
+
+            testsuite.run_product_process = run_diagnostic
+            try:
+                solo_findings = testsuite.verify_excluded_failures(
+                    PRODUCT.interpreter(tested_prefix),
+                    sorted(solo_names),
+                    attempts=1,
+                    target=target,
+                )
+            finally:
+                testsuite.run_product_process = original_process
             if set(solo_findings) != solo_names:
                 raise QualificationError("solo findings do not match non-SSL failed files")
             classification = testsuite.classify(solo_findings, target)
@@ -494,6 +519,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--prefix", required=True, type=Path)
     parser.add_argument("--run-dir", required=True, type=Path)
+    parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--jobs", default=6, type=positive_integer)
     parser.add_argument("--timeout", default=600, type=positive_integer)
     args = parser.parse_args(argv)
