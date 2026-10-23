@@ -32,12 +32,11 @@ The failing files were `test_ssl`, three asyncio files, and `test_httplib`.
 The HTTP failure concerns certificate-exception `reason` metadata. This is
 unfinished compatibility work. No release candidate is qualified yet.
 
-The broader differential corpus currently has 43 cases. After the native
-repairs, all certificate-path accept and reject outcomes match OpenSSL. One
-loader difference remains: the candidate rejects a duplicate critical Basic
-Constraints extension during loading, while OpenSSL rejects it at verification.
-The earlier rejection follows the experiment's malformed-certificate ingestion
-contract. Further adversarial fixtures remain under verification.
+The broader differential corpus currently has 72 cases. After the native
+repairs, all certificate-path accept and reject outcomes match OpenSSL. The candidate rejects a duplicate critical Basic Constraints extension during
+loading, while OpenSSL rejects it at verification. The corpus records that
+intentional earlier rejection as required malformed-input handling. The
+independent review's seven additional probes also match the reference.
 
 The pinned webpki source has a narrow local adaptation. It excludes self-issued
 intermediates from the path-length count and exposes its existing DNS matcher
@@ -55,6 +54,13 @@ not restore CPython's compiled `_ssl` extension or its native object layouts.
 The separate [hashing backend](hashing/README.md) passes its initial complete
 `test_hashlib` and `test_hmac` run with 240 tests and 18 skips. Additional
 algorithm-discovery and input-boundary checks are in progress.
+
+The earlier integrated runtime checkpoint passed 3,269 tests across asyncio, HTTP, and urllib
+(77 resource or platform skips). The current native sources are consolidated
+in one context patch, `rtls-graviola.patch`. Clean source replay caught missing
+new-file hunks and misplaced zero-context method additions before qualification.
+The original upstream `test_ssl` still has unsupported features and API gaps.
+Those failures remain qualification failures.
 
 The remainder records the earlier prototype and adoption requirements.
 
