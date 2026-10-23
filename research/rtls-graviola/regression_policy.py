@@ -7,6 +7,11 @@ from typing import Any
 
 POLICY_SOURCE = "research/rtls-graviola/MODERN_TLS_POLICY.md"
 EXPECTED_TESTS_RUN = 219
+_FULL_SSL_PROGRESS = re.compile(
+    r"^.*\[[^\]\n]+\]\s+test_ssl (?:(?:failed \((\d+) errors?, (\d+) failures?\))|passed)(?:\s|$)",
+    re.MULTILINE,
+)
+_SSL_BLOCK_END = re.compile(r"^test test_ssl (?:failed|passed)$", re.MULTILINE)
 
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _RESULT_BLOCK = re.compile(
@@ -465,3 +470,76 @@ def assess_ssl_log(output: str) -> dict[str, Any]:
         "outside_policy_event_count": len(_EXPECTED),
         "policy_source": POLICY_SOURCE,
     }
+
+
+def extract_test_ssl_log(full_run_output: str) -> str:
+    if not isinstance(full_run_output, str) or not full_run_output:
+        raise ValueError("full regression output is empty or not text")
+    banners = list(_BACKEND.finditer(full_run_output))
+    if len(banners) != 1:
+        raise ValueError("full regression output must contain one Rustls test_ssl block")
+    endings = [
+        match for match in _SSL_BLOCK_END.finditer(full_run_output)
+        if match.start() > banners[0].start()
+    ]
+    if len(endings) != 1:
+        raise ValueError("full regression output has no unique completed test_ssl block")
+    end = endings[0].end()
+    if full_run_output[end : end + 2] == "\r\n":
+        end += 2
+    elif full_run_output[end : end + 1] == "\n":
+        end += 1
+    return full_run_output[banners[0].start() : end]
+
+
+def assess_ssl_full_run(full_run_output: str) -> dict[str, Any]:
+    ssl_output = extract_test_ssl_log(full_run_output)
+    progress = list(_FULL_SSL_PROGRESS.finditer(full_run_output))
+    if len(progress) != 1:
+        raise ValueError("full regression output must report one completed test_ssl result")
+    full_counts = (
+        tuple(map(int, progress[0].groups()))
+        if progress[0].group(1) is not None
+        else (0, 0)
+    )
+
+    ran = list(_RUN.finditer(ssl_output))
+    failed = list(_FAILED.finditer(ssl_output))
+    successful = list(_OK.finditer(ssl_output))
+    blocks = list(_RESULT_BLOCK.finditer(ssl_output))
+    if len(ran) != 1 or len(failed) + len(successful) != 1:
+        raise ValueError("full-run test_ssl block has incomplete unittest accounting")
+    tests_run = int(ran[0].group(1).replace(",", ""))
+    if tests_run != EXPECTED_TESTS_RUN:
+        raise ValueError(f"full-run test_ssl block must include all {EXPECTED_TESTS_RUN} tests")
+
+    if failed:
+        fields = _count_fields(failed[0].group(1), {"failures", "errors", "skipped"})
+        if fields is None:
+            raise ValueError("full-run test_ssl FAILED summary is malformed")
+        failures = fields.get("failures", 0)
+        errors = fields.get("errors", 0)
+        skips = fields.get("skipped", 0)
+    else:
+        fields = _count_fields(successful[0].group(1) or "", {"skipped"})
+        if fields is None:
+            raise ValueError("full-run test_ssl OK summary is malformed")
+        failures = errors = 0
+        skips = fields.get("skipped", 0)
+
+    if (
+        sum(match.group(1) == "FAIL" for match in blocks) != failures
+        or sum(match.group(1) == "ERROR" for match in blocks) != errors
+        or (errors, failures) != full_counts
+    ):
+        raise ValueError("full-suite and verbose test_ssl result counts differ")
+    wrapper = ssl_output + (
+        f"\nTotal tests: run={tests_run} failures={failures} errors={errors} skipped={skips}\n"
+        "Total test files: run=1/1 failed=1\n"
+        "Result: FAILURE\n1 test failed:\n    test_ssl\n"
+        if failures or errors
+        else f"\nTotal tests: run={tests_run} skipped={skips}\n"
+        "Total test files: run=1/1 passed=1\n"
+        "Result: SUCCESS\n"
+    )
+    return assess_ssl_log(wrapper)

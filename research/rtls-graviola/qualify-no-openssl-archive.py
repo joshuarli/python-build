@@ -74,6 +74,8 @@ from buildsys.product_process import run_product_process
 from buildsys.scope import ScopeError, prune_distribution_payload
 from buildsys.standalone_compat import run_standalone_compatibility
 from buildsys.targets import native_target
+from buildsys.testsuite import _accounting as account_suite_log
+from buildsys.testsuite import classify as classify_suite_findings
 from buildsys.testsuite import report_payload
 from buildsys.validate_product import run_validation, write_report
 
@@ -86,11 +88,102 @@ REQUIRED_CANDIDATE_FILES = (
     "lib/python3.15/_ssl.py",
     "lib/python3.15/_ssl_metadata.py",
     "lib/python3.15/_hashlib.py",
+    "lib/python3.15/python-build-cacert.pem",
 )
 CERTIFICATE_CASE_COUNT = 82
 CERTIFICATE_VERIFY_CODE_COUNT = 12
 SSL_EXACT_CASE_COUNT = 219
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+OPENSSL_SYMBOL_PREFIXES = (
+    "AES_", "ASN1_", "ASYNC_", "BF_", "BIO_", "BN_", "BUF_", "CAMELLIA_",
+    "CAST_", "CMS_", "COMP_", "CONF_", "CRYPTO_", "CT_", "DES_", "DH_",
+    "DSA_", "DTLS_", "EC_", "ECDH_", "ECDSA_", "ENGINE_", "ERR_", "EVP_",
+    "HMAC_", "IDEA_", "KDF_", "MD4_", "MD5_", "OCSP_", "OPENSSL_", "OSSL_",
+    "PEM_", "PKCS", "RAND_", "RC2_", "RC4_", "RSA_", "SHA1_", "SHA224_",
+    "SHA256_", "SHA384_", "SHA512_", "SRP_", "SSL_", "TLS_", "TS_", "UI_",
+    "X509_", "X509V3_",
+)
+ADAPTER_EXPORT_IMAGES = frozenset(
+    {
+        "lib/python3.15/rtls/_rustls.abi3.so",
+        "lib/python3.15/lib-dynload/_hashlib_graviola.abi3.so",
+    }
+)
+
+
+def candidate_runtime_identity_paths(prefix: Path) -> tuple[str, ...]:
+    root = Path(prefix).resolve(strict=True)
+    package = root / "lib" / "python3.15" / "rtls"
+    if not package.is_dir():
+        raise QualificationDriverError(f"candidate RTLS package is missing: {package}")
+    paths = set(REQUIRED_CANDIDATE_FILES)
+    for path in package.rglob("*"):
+        relative = path.relative_to(root)
+        if "__pycache__" in relative.parts or path.suffix in {".pyc", ".pyo"}:
+            continue
+        if path.is_symlink():
+            raise QualificationDriverError(f"candidate runtime identity contains a symlink: {relative}")
+        if path.is_file():
+            paths.add(relative.as_posix())
+    missing = sorted(relative for relative in paths if not (root / relative).is_file())
+    if missing:
+        raise QualificationDriverError("candidate runtime identity is missing: " + ", ".join(missing))
+    return tuple(sorted(paths))
+
+
+def openssl_symbol_family(symbol: str) -> str | None:
+    normalized = symbol[1:] if symbol.startswith("_") else symbol
+    return next(
+        (prefix for prefix in OPENSSL_SYMBOL_PREFIXES if normalized.startswith(prefix)),
+        None,
+    )
+
+
+def audit_openssl_symbols(prefix: Path) -> dict:
+    from buildsys import macho
+
+    nm = Path("/usr/bin/nm")
+    if not nm.is_file():
+        return check_result(False, error=f"native symbol tool is missing: {nm}")
+    images = macho.find_machos(prefix)
+    if not images:
+        return check_result(False, error="extracted archive contains no Mach-O images")
+    unresolved = []
+    adapter_exports = {}
+    for image in images:
+        relative = image.relative_to(prefix).as_posix()
+        result = subprocess.run(
+            [str(nm), "-g", str(image)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode:
+            return check_result(
+                False,
+                tool=str(nm),
+                image=relative,
+                error=(result.stdout + result.stderr)[-2000:],
+            )
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if len(fields) < 2:
+                continue
+            symbol_type = fields[0] if len(fields) == 2 else fields[-2]
+            symbol = fields[-1]
+            family = openssl_symbol_family(symbol)
+            if family is not None and symbol_type in {"U", "u", "w", "v"}:
+                unresolved.append({"image": relative, "symbol": symbol, "family": family})
+            if relative in ADAPTER_EXPORT_IMAGES and symbol_type not in {"U", "u", "w", "v"}:
+                adapter_exports.setdefault(relative, []).append(symbol)
+    return check_result(
+        not unresolved,
+        tool=str(nm),
+        image_count=len(images),
+        audited_symbol_families=list(OPENSSL_SYMBOL_PREFIXES),
+        unresolved_openssl_symbols=unresolved,
+        adapter_exports=adapter_exports,
+    )
 
 
 def load_research_driver():
@@ -98,6 +191,17 @@ def load_research_driver():
     spec = importlib.util.spec_from_file_location("no_openssl_build_driver", path)
     if spec is None or spec.loader is None:
         raise QualificationDriverError(f"cannot load research build driver: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_regression_policy():
+    path = REPO / "research" / "rtls-graviola" / "regression_policy.py"
+    spec = importlib.util.spec_from_file_location("modern_tls_regression_policy", path)
+    if spec is None or spec.loader is None:
+        raise QualificationDriverError(f"cannot load regression policy: {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -311,7 +415,7 @@ def validate_ssl_exact_case_assessment(report: dict) -> dict:
     if not isinstance(assessment, dict):
         raise QualificationDriverError("regression report has no SSL exact-case assessment")
 
-    count_fields = ("tests_run", "positive_tests", "failures", "errors", "skips")
+    count_fields = ("tests_run", "failures", "errors", "skips")
     for field in count_fields:
         value = assessment.get(field)
         if type(value) is not int or value < 0:
@@ -345,7 +449,7 @@ def validate_ssl_exact_case_assessment(report: dict) -> dict:
     complete = (
         assessment.get("complete") is True
         and assessment["tests_run"] == SSL_EXACT_CASE_COUNT
-        and assessment["positive_tests"] > 0
+        and assessment["tests_run"] > 0
     )
     ok = (
         assessment.get("ok") is True
@@ -362,6 +466,61 @@ def validate_ssl_exact_case_assessment(report: dict) -> dict:
     }
 
 
+def validate_ssl_log_evidence(report: dict) -> dict:
+    diagnostics = report.get("diagnostics")
+    if not isinstance(diagnostics, dict):
+        raise QualificationDriverError("regression report has no diagnostics mapping")
+    records = {}
+    contents = {}
+    for name in ("full_suite_log", "test_ssl_log"):
+        record = diagnostics.get(name)
+        if not isinstance(record, dict):
+            raise QualificationDriverError(f"regression report has no {name} record")
+        value = record.get("path")
+        digest = record.get("sha256")
+        if not isinstance(value, str) or not Path(value).is_absolute():
+            raise QualificationDriverError(f"regression report has an invalid {name} path")
+        requested = Path(value)
+        log_path = require_product_work_path(requested, name)
+        if requested.is_symlink() or str(log_path) != value or not log_path.is_file():
+            raise QualificationDriverError(f"regression report {name} is missing, linked, or noncanonical")
+        if not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest):
+            raise QualificationDriverError(f"regression report has an invalid {name} digest")
+        log_bytes = log_path.read_bytes()
+        if hashlib.sha256(log_bytes).hexdigest() != digest:
+            raise QualificationDriverError(f"regression report {name} digest differs from its file")
+        records[name] = {"path": value, "sha256": digest}
+        contents[name] = log_bytes
+
+    try:
+        full_text = contents["full_suite_log"].decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise QualificationDriverError("regression logs must be UTF-8") from error
+    policy = load_regression_policy()
+    test_ssl_bytes = contents["test_ssl_log"]
+    test_ssl_block = policy.extract_test_ssl_log(full_text).encode("utf-8")
+    if test_ssl_bytes not in (contents["full_suite_log"], test_ssl_block):
+        raise QualificationDriverError("test_ssl log is not the exact module block from the full suite log")
+
+    assessment = report.get("modern_policy", {}).get("ssl_exact_case_assessment")
+    if not isinstance(assessment, dict):
+        raise QualificationDriverError("regression report has no SSL exact-case assessment")
+    test_ssl_record = records["test_ssl_log"]
+    if (
+        assessment.get("source_log_path") != test_ssl_record["path"]
+        or assessment.get("source_log_sha256") != test_ssl_record["sha256"]
+    ):
+        raise QualificationDriverError("SSL assessment is not bound to the full-run test_ssl log")
+    derived = policy.assess_ssl_full_run(full_text)
+    if any(assessment.get(field) != value for field, value in derived.items()):
+        raise QualificationDriverError("SSL assessment differs from the full-run test_ssl block")
+    return {
+        "full_suite_log": records["full_suite_log"],
+        "test_ssl_log": test_ssl_record,
+        "assessment": derived,
+    }
+
+
 def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
     if path is None:
         return check_result(False, error="pre-prune regression report was not supplied")
@@ -372,7 +531,31 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
     if not isinstance(report, dict):
         return check_result(False, error="regression report must be a JSON object")
     try:
+        ssl_log_evidence = validate_ssl_log_evidence(report)
+        full_log_path = Path(ssl_log_evidence["full_suite_log"]["path"])
+        full_log_bytes = full_log_path.read_bytes()
+        if hashlib.sha256(full_log_bytes).hexdigest() != ssl_log_evidence["full_suite_log"]["sha256"]:
+            raise QualificationDriverError("full suite log changed during validation")
+        try:
+            raw_suite = account_suite_log(full_log_bytes.decode("utf-8"))
+        except UnicodeDecodeError as error:
+            raise QualificationDriverError("full regression log is not UTF-8") from error
         suite = report_payload(report, native_target())
+        for field, value in raw_suite.items():
+            if suite.get(field) != value:
+                raise QualificationDriverError(f"full regression report disagrees with raw log: {field}")
+        expected_returncode = 0 if raw_suite["result_state"] == "SUCCESS" else 2
+        if report.get("returncode") != expected_returncode:
+            raise QualificationDriverError("full regression exit status disagrees with raw log")
+        solo_findings = report.get("solo_findings")
+        if not isinstance(solo_findings, dict):
+            raise QualificationDriverError("regression report has no non-SSL diagnostic mapping")
+        expected_finding_files = set(raw_suite["failed_files"]) - {"test_ssl"}
+        if set(solo_findings) != expected_finding_files:
+            raise QualificationDriverError("non-SSL diagnostics do not cover the raw failed-file set")
+        classification = classify_suite_findings(solo_findings, native_target())
+        if report.get("classification") != classification:
+            raise QualificationDriverError("regression classification differs from registered diagnostics")
         if suite.get("complete") is not True or suite.get("ok") is not True:
             raise QualificationDriverError("full regression suite is incomplete or has unexpected failures")
         if report.get("candidate_prefix") != str(source_prefix.resolve()):
@@ -386,9 +569,13 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
         candidate_identity = report.get("candidate_identity")
         if not isinstance(candidate_identity, dict):
             raise QualificationDriverError("regression report has no candidate identity mapping")
-        if not set(REQUIRED_CANDIDATE_FILES).issubset(candidate_identity):
-            missing = sorted(set(REQUIRED_CANDIDATE_FILES) - set(candidate_identity))
-            raise QualificationDriverError("candidate identity omits runtime files: " + ", ".join(missing))
+        expected_identity = set(candidate_runtime_identity_paths(source_prefix))
+        if set(candidate_identity) != expected_identity:
+            missing = sorted(expected_identity - set(candidate_identity))
+            extra = sorted(set(candidate_identity) - expected_identity)
+            raise QualificationDriverError(
+                f"candidate identity file set differs from runtime inputs: missing={missing}, extra={extra}"
+            )
         identities = {}
         for relative, expected_digest in candidate_identity.items():
             if not isinstance(relative, str) or not isinstance(expected_digest, str) or not SHA256_PATTERN.fullmatch(expected_digest):
@@ -419,6 +606,7 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
             suite=suite,
             candidate_identity=identities,
             modern_policy=ssl_assessment,
+            ssl_log_evidence=ssl_log_evidence,
             report=report,
         )
     except Exception as error:
@@ -567,8 +755,10 @@ def run_archive_contracts(
         hash_output,
     )
     hashing_ok = hashing_process.get("returncode") == 0 and hash_match is not None
+    symbol_audit = audit_openssl_symbols(extracted)
 
     return {
+        "no_openssl_symbols": symbol_audit,
         "certificate_contract": check_result(
             certificate_ok,
             process=certificate_process,
@@ -911,7 +1101,7 @@ def build_experimental_manifest(
         "lib/python3.15/_ssl_metadata.py",
         "lib/python3.15/_hashlib.py",
     )
-    native_paths = tuple(REQUIRED_CANDIDATE_FILES)
+    native_paths = candidate_runtime_identity_paths(extracted_prefix)
     runtime_files = {
         relative: sha256_file(extracted_prefix / relative)
         for relative in native_paths
@@ -1059,6 +1249,9 @@ def build_experimental_manifest(
     macho_check = qualification.get("checks", {}).get("validation.macho")
     if not isinstance(macho_check, dict) or macho_check.get("status") != "passed":
         raise QualificationDriverError("experimental artifact has no passing native image report")
+    symbol_check = qualification.get("checks", {}).get("no_openssl_symbols")
+    if not isinstance(symbol_check, dict) or symbol_check.get("status") != "passed":
+        raise QualificationDriverError("experimental artifact has no passing OpenSSL symbol audit")
 
     manifest["experimental"] = {
         "status": "research artifact; not a production qualification",
@@ -1094,6 +1287,7 @@ def build_experimental_manifest(
             "unexpected_dependencies": macho_check.get("unexpected_dependencies"),
             "unresolved_dependencies": macho_check.get("unresolved_dependencies"),
         },
+        "native_symbol_audit": symbol_check,
         "research_checkout_revision": _load_source_revision(REPO),
         "qualification_helper_sha256": common_helper_hashes,
         "regression_evidence": {
@@ -1101,6 +1295,7 @@ def build_experimental_manifest(
             "report_sha256": regression_check["source_report_sha256"],
             "suite": regression_check["suite"],
             "candidate_identity": regression_check["candidate_identity"],
+            "ssl_log_evidence": regression_check["ssl_log_evidence"],
             "diagnostics": regression_check["report"].get("diagnostics"),
             "modern_policy": regression_check["report"].get("modern_policy"),
         },
