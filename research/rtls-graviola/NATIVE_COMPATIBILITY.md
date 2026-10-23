@@ -4,14 +4,14 @@ This note covers native consumers of the CPython 3.15.1 TLS and hashing
 modules. It distinguishes the supported CPython C API from OpenSSL symbols
 that happen to be present in the reference extension binaries.
 
-The candidate evidence uses the macOS arm64 v2 research prefix. That prefix
-contains the RTLS `ssl` adapter and the Graviola hashing adapter, but it is an
-intermediate build. It is not product qualification.
+The candidate evidence uses the frozen macOS arm64 build at revision
+`a0940b5`, relocated to a path with spaces. It contains the RTLS `ssl`
+adapter and the Graviola hashing adapter.
 
 ## CPython extension ABI checks pass
 
-The v2 prefix passed the existing `buildsys.validate_product` checks for a
-native extension, a limited-API extension, and shared-library embedding:
+The relocated prefix passed the existing `buildsys.validate_product` checks
+for a native extension, a limited-API extension, and shared-library embedding:
 
 | Check | Result |
 | --- | --- |
@@ -44,13 +44,17 @@ to different addresses through the `_ssl` and `_hashlib` handles.
 The modules therefore contain separate OpenSSL copies, not one shared
 OpenSSL library or a supported pointer interface.
 
-The v2 candidate replaces the native `_ssl` and `_hashlib` modules with Python
+The candidate replaces the native `_ssl` and `_hashlib` modules with Python
 adapters. Its `_ssl.py` and `_hashlib.py` module dictionaries publish no
 `_C_API` attribute or `PyCapsule`. The native `_hashlib_graviola.abi3.so` and
 `rtls._rustls.abi3.so` each define only their module initializer. Direct
 `ctypes` lookup on either native module handle finds none of the tested
 OpenSSL functions. The installed prefix also has no OpenSSL headers or
 `libssl` and `libcrypto` archives.
+
+In both native candidate modules, `LC_ID_DYLIB` uses an `@rpath` install name.
+Their `LC_LOAD_DYLIB` entries name only `libiconv` and `libSystem`. Neither
+module loads OpenSSL or a build-tree library.
 
 Process-wide `dlsym` results are different from extension-handle results on
 this macOS host. The host resolves some OpenSSL-named functions from
@@ -75,8 +79,3 @@ An application that links and packages its own OpenSSL dependency remains
 separate from this CPython change. A Python extension that relies on symbols
 from the reference `_ssl` or `_hashlib` bundles does not have that independent
 dependency and loses those symbols with the replacement.
-
-The v2 RTLS extension still has an absolute `LC_ID_DYLIB` install name under
-its scratch build path. `otool -l` identifies it as the image's own install
-name, not an `LC_LOAD_DYLIB` dependency. The candidate must use a relocatable
-install name before packaging.
