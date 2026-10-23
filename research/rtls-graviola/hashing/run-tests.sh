@@ -43,6 +43,11 @@ for module in "$dynload"/_ssl.cpython-*.so "$dynload"/_ssl.abi3.so; do
     fi
 done
 
+if [ -e "$stdlib/_ssl.py" ]; then
+    printf '%s\n' 'candidate still contains a Python _ssl module' >&2
+    exit 2
+fi
+
 "$python" -c 'import platform, sys; assert sys.implementation.name == "cpython"; assert sys.version_info[:3] == (3, 15, 1); assert sys.platform == "darwin"; assert platform.machine() == "arm64"'
 
 mkdir -p "$work"

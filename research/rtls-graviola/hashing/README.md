@@ -3,7 +3,9 @@
 This experiment replaces CPython's `_hashlib` module on native Apple Silicon
 macOS. The Python facade keeps the standard digest objects from `_md5`,
 `_sha1`, `_sha2`, `_sha3`, and `_blake2`. The Rust extension implements HMAC,
-PBKDF2, and scrypt with RustCrypto.
+PBKDF2, and scrypt with RustCrypto. It supplies digest objects for
+`sha512_224`, `sha512_256`, `ripemd160`, and `sm3`; the facade composes
+`md5-sha1` from CPython's `_md5` and `_sha1` builtins.
 
 `_hashlib.py` provides the constructor and name interface that `hashlib.py`
 uses. Its `openssl_*` names are compatibility aliases for the CPython digest
@@ -21,5 +23,11 @@ This module does not provide OpenSSL's native `_hashlib` C API or its shared
 digest object types. Native extensions that import `_hashlib.HASH`, expect
 OpenSSL symbols, or link `libcrypto` are outside this experiment's contract.
 It does not replace `_ssl` or change the product build.
+
+Scrypt admission uses the OpenSSL 3.5.7 maxmem lower bound
+`128 * r * (n + p + 2)`. The serial RustCrypto implementation's large work
+buffers `B`, `V`, and `T` total `128 * r * (n + p + 1)` bytes; the requested
+derived key and password and salt copies are separate allocations and are not
+part of that compatibility limit.
 
 See [REPRODUCE.md](REPRODUCE.md) for the build and test procedure.

@@ -3,7 +3,8 @@
 Run the experiment on native Apple Silicon macOS with Rust 1.85 or newer,
 `kache`, Cargo, and a CPython 3.15.1 candidate that has `_ssl` and the native
 `_hashlib` extension disabled. Keep the candidate prefix under the repository's
-`.work/` directory. The script modifies only that disposable prefix.
+`.work/` directory. It must not contain a Python `_ssl.py` provider shim. The
+script modifies only that disposable prefix.
 
 Copy a prepared candidate prefix before installing the facade:
 
@@ -23,12 +24,23 @@ research/rtls-graviola/hashing/run-tests.sh \
 The script downloads locked Cargo inputs, builds with `--offline --locked`,
 and installs `_hashlib.py` in `lib/python3.15/`. It installs
 `_hashlib_graviola.abi3.so` in `lib/python3.15/lib-dynload/`. It checks that
-the original native `_hashlib` and `_ssl` modules are absent before testing.
+the original native `_hashlib` and `_ssl` modules and any Python `_ssl.py`
+module are absent before testing.
+
+Compare names, aliases, errors, HMAC, PBKDF2, buffer updates, and the exact
+scrypt maxmem boundary against a pinned reference prefix:
+
+```sh
+python3 research/rtls-graviola/hashing/compare-reference.py \
+    .work/tmp/rtls-no-ssl/python-prefix/bin/python3.15 \
+    .work/tmp/hashlib-candidate/bin/python3.15
+```
 
 The recorded run used a private copy of
 `.work/tmp/rtls-no-ssl.bnHJ8y/python` on CPython 3.15.1 arm64 macOS. The copy
 had the original `_hashlib.cpython-315-darwin.so` removed. It retained the
-builtin digest modules and `_hmac`. The command completed with 240 tests run,
+builtin digest modules and `_hmac`; its Python `_ssl.py` provider shim was
+removed from the disposable copy. The command completed with 240 tests run,
 18 skipped, and no failures. The Python process loaded the installed
 `_hashlib.py`; `_ssl` was not present in `sys.modules`.
 

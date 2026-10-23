@@ -7,15 +7,18 @@ the applicable license texts.
 
 | Package | Version | License expression |
 | --- | --- | --- |
+| `blake2` | 0.11.0 | MIT OR Apache-2.0 |
 | `hmac` | 0.13.0 | MIT OR Apache-2.0 |
 | `md-5` | 0.11.0 | MIT OR Apache-2.0 |
 | `pbkdf2` | 0.13.0 | MIT OR Apache-2.0 |
 | `pyo3` | 0.27.2 | MIT OR Apache-2.0 |
 | `pyo3-build-config` | 0.27.2 | MIT OR Apache-2.0 |
+| `ripemd` | 0.2.0 | MIT OR Apache-2.0 |
 | `scrypt` | 0.12.0 | MIT OR Apache-2.0 |
 | `sha1` | 0.11.0 | MIT OR Apache-2.0 |
 | `sha2` | 0.11.0 | MIT OR Apache-2.0 |
 | `sha3` | 0.12.0 | MIT OR Apache-2.0 |
+| `sm3` | 0.5.0 | MIT OR Apache-2.0 |
 | `autocfg` | 1.5.1 | Apache-2.0 OR MIT |
 | `block-buffer` | 0.12.1 | MIT OR Apache-2.0 |
 | `cfg-if` | 1.0.5 | MIT OR Apache-2.0 |
