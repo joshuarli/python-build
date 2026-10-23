@@ -22,3 +22,8 @@ The parser supports `@STRENGTH`, `+` reordering, `-` temporary removal, and `!`
 permanent exclusion. It raises `NotImplementedError` for other `@` directives.
 In particular, it rejects `@SECLEVEL=N` because the provider has no matching
 security-level control.
+
+`SSLContext.set_ciphersuites()` independently selects the TLS 1.3 list.
+An empty list disables TLS 1.3 suites. Unknown-only nonempty input fails
+atomically, and mixed input retains supported names in the supplied order.
+This control does not alter TLS 1.2 cipher selection.
