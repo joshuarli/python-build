@@ -38,7 +38,10 @@ REFERENCE_EXPECTATIONS = {
     "strict_key_usage_missing_disabled": {"accepted": True},
     "strict_key_usage_no_keycertsign": {"accepted": False},
     "strict_key_usage_no_keycertsign_disabled": {"accepted": False},
-    "strict_subject_key_identifier_missing": {"accepted": False},
+    "strict_subject_key_identifier_missing": {
+        "accepted": False,
+        "error.verify_code": 86,
+    },
     "strict_subject_key_identifier_missing_disabled": {"accepted": True},
     "strict_authority_key_identifier_missing": {"accepted": False},
     "strict_authority_key_identifier_missing_disabled": {"accepted": True},
@@ -574,7 +577,10 @@ def exchange_reference_server(interpreter, chainfile, ciphers, context, hostname
         outcome = {
             "accepted": False,
             "peer_sha256": None,
-            "error": error_value(error),
+            "error": {
+                **error_value(error),
+                "verify_code": getattr(error, "verify_code", None),
+            },
             "phase": "handshake",
         }
     finally:
@@ -1290,6 +1296,7 @@ def make_policy_fixtures(
         "subject_key_identifier_missing": [
             "basicConstraints = critical,CA:true,pathlen:4",
             "keyUsage = critical,digitalSignature,keyCertSign,cRLSign",
+            "subjectKeyIdentifier = hash",
             "authorityKeyIdentifier = keyid:always,issuer:always",
         ],
         "authority_key_identifier_missing": [
@@ -1317,20 +1324,6 @@ def make_policy_fixtures(
             extensions,
             "sha1" if name == "signature_sha1" else "sha256",
         )
-        missing_extension = {
-            "subject_key_identifier_missing": SUBJECT_KEY_IDENTIFIER_EXTENSION_OID,
-            "authority_key_identifier_missing": AUTHORITY_KEY_IDENTIFIER_EXTENSION_OID,
-        }.get(name)
-        if missing_extension is not None:
-            certificate.write_bytes(
-                remove_certificate_extension(
-                    certificate.read_bytes(),
-                    missing_extension,
-                    root_a_key,
-                    directory,
-                    openssl,
-                )
-            )
     leaf_key, leaf_request = make_key_request(
         openssl, directory, "leaf", "/CN=localhost"
     )
@@ -1363,6 +1356,17 @@ def make_policy_fixtures(
             leaf,
             "leaf_" + name,
             normal_leaf,
+        )
+    missing_extensions = {
+        "subject_key_identifier_missing": SUBJECT_KEY_IDENTIFIER_EXTENSION_OID,
+        "authority_key_identifier_missing": AUTHORITY_KEY_IDENTIFIER_EXTENSION_OID,
+    }
+    for name, oid in missing_extensions.items():
+        certificate = intermediate_certificates[name]
+        certificate.write_bytes(
+            remove_certificate_extension(
+                certificate.read_bytes(), oid, root_a_key, directory, openssl
+            )
         )
     normal_leaf_state = ca_state(
         directory,
@@ -2204,6 +2208,7 @@ def comparable(case: dict[str, object], include_flags: bool = True) -> dict[str,
                 key: normalized(item)
                 for key, item in value.items()
                 if key != "message"
+                and key != "verify_code"
                 and key != "hostname_policy"
                 and (include_flags or key != "verify_flags")
             }
@@ -2218,6 +2223,8 @@ def reference_matches_expectation(case: dict[str, object], expected: dict[str, o
     for name, value in expected.items():
         if name == "error_type":
             actual = (case.get("error") or {}).get("type")
+        elif name.startswith("error."):
+            actual = (case.get("error") or {}).get(name.split(".", 1)[1])
         elif name == "after_accepted":
             actual = (case.get("after") or {}).get("accepted")
         elif name.startswith("hostname_policy."):
