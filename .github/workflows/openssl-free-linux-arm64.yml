@@ -103,6 +103,7 @@ jobs:
           cp "$regression" "$assets/regression-report.json"
           cp "$EXPERIMENT_RUN_DIR/linux-build.json" "$assets/"
           cp "$EXPERIMENT_RUN_DIR/docker-build.json" "$assets/"
+          cp "$EXPERIMENT_RUN_DIR/docker-qualification.json" "$assets/"
           cp "$EXPERIMENT_RUN_DIR/docker-runtime.json" "$assets/"
           test -d "$EXPERIMENT_RUN_DIR/logs"
           (
