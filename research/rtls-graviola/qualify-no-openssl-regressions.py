@@ -19,7 +19,7 @@ from buildsys.product import PRODUCT
 
 RUNTIME_FILES = (
     Path("bin") / PRODUCT.interpreter_name,
-    Path("lib") / f"{PRODUCT.shared_library_stem}.dylib",
+    Path("lib") / f"lib{PRODUCT.shared_library_stem}.dylib",
     PRODUCT.stdlib_relative_path / "ssl.py",
     PRODUCT.stdlib_relative_path / "_ssl.py",
     PRODUCT.stdlib_relative_path / "_ssl_metadata.py",
@@ -67,7 +67,7 @@ print(json.dumps({
     "machine": platform.machine(),
     "soabi": sysconfig.get_config_var("SOABI"),
     "multiarch": sysconfig.get_config_var("MULTIARCH"),
-    "config_args": sysconfig.get_config_var("CONFIG_ARGS"),
+    "config_args": sysconfig.get_config_var("CONFIG_ARGS").replace(str(prefix), "{prefix}"),
     "ssl_backend": ssl.OPENSSL_VERSION,
     "module_origins": modules,
 }, sort_keys=True))
