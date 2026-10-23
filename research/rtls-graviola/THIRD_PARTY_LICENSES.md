@@ -7,6 +7,8 @@ dependencies. Its `rust/Cargo.lock` delta adds or changes these packages:
 | --- | --- | --- |
 | `rustls-webpki` (locally adapted verified-path API) | 0.103.15 | ISC |
 | `rustls` (session metadata accessors) | 0.23.45 | Apache-2.0 OR ISC OR MIT |
+| `x509-parser` (signature-verification feature) | 0.16.0 | MIT OR Apache-2.0 |
+| `ring` (RSA/SHA1 implicit-anchor verification) | 0.17.14 | Apache-2.0 AND ISC |
 | RTLS source | 2026.10.3 | MIT |
 | `rustls-graviola` | 0.4.0 | Apache-2.0 OR ISC OR MIT-0 |
 | `graviola` | 0.4.1 | Apache-2.0 OR ISC OR MIT-0 |
@@ -36,3 +38,8 @@ SHA-256. `webpki-policy.patch` adapts path-length counting and exposes existing
 DNS validation to the policy layer. The extracted source retains its ISC
 license notices. The CPython protocol-message enums in `ssl_metadata.py` are
 covered by the Python Software Foundation license.
+
+The x509-parser verification feature exercises the already locked Ring package
+for RSA/SHA1 self-signatures when classifying implicit trust anchors. It adds a
+dependency edge without adding a package version. SHA1 remains unavailable for
+leaf, intermediate, and TLS signature verification.

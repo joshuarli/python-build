@@ -364,19 +364,27 @@
  
  [[package]]
  name = "windows-sys"
-@@ -926,6 +948,12 @@
- version = "0.52.6"
- source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -928,6 +950,12 @@
  checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
-+
-+[[package]]
+ 
+ [[package]]
 +name = "wit-bindgen"
 +version = "0.57.1"
 +source = "registry+https://github.com/rust-lang/crates.io-index"
 +checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
- 
- [[package]]
++
++[[package]]
  name = "x509-parser"
+ version = "0.16.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -939,6 +967,7 @@
+  "lazy_static",
+  "nom",
+  "oid-registry",
++ "ring",
+  "rusticata-macros",
+  "thiserror",
+  "time",
 --- a/rust/Cargo.toml
 +++ b/rust/Cargo.toml
 @@ -16,8 +16,10 @@
@@ -385,7 +393,8 @@
  rustls-pemfile = "2"
 +webpki = { package = "rustls-webpki", version = "=0.103.15", default-features = false, features = ["std"] }
  rustls-pki-types = "1"
- x509-parser = "0.16"
+-x509-parser = "0.16"
++x509-parser = { version = "0.16", features = ["verify"] }
 +sha1 = { version = "0.11.0", default-features = false }
  pkcs8 = { version = "0.10", features = ["encryption", "pem", "std", "3des"] }
  pem-rfc7468 = { version = "0.7", features = ["alloc"] }
@@ -3254,7 +3263,7 @@
      .map_err(|_| pyo3::exceptions::PyOSError::new_err("Failed to generate random bytes"))?;
 --- /dev/null
 +++ b/rust/src/policy.rs
-@@ -0,0 +1,591 @@
+@@ -0,0 +1,615 @@
 +use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 +use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 +use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSupportedAlgorithms};
@@ -3379,9 +3388,33 @@
 +    Ok(certs)
 +}
 +
++const RSA_ENCRYPTION_OID: &str = "1.2.840.113549.1.1.1";
++const RSA_SHA1_SIGNATURE_OID: &str = "1.2.840.113549.1.1.5";
++
++fn null_or_absent_parameters(
++    parameters: Option<&x509_parser::der_parser::asn1_rs::Any<'_>>,
++) -> bool {
++    match parameters {
++        None => true,
++        Some(parameters) => {
++            parameters.header.class() == x509_parser::der_parser::asn1_rs::Class::Universal
++                && parameters.tag() == x509_parser::der_parser::asn1_rs::Tag::Null
++                && parameters.data.is_empty()
++        }
++    }
++}
++
 +fn self_signed(der: &CertificateDer<'_>, supported: WebPkiSupportedAlgorithms) -> bool {
 +    let Ok((rest, cert)) = X509Certificate::from_der(der.as_ref()) else { return false; };
 +    if !rest.is_empty() || cert.signature_algorithm != cert.tbs_certificate.signature || !crate::trust::names_equal(cert.subject().as_raw(), cert.issuer().as_raw()) { return false; }
++    let signature_oid = cert.signature_algorithm.algorithm.to_id_string();
++    if signature_oid == RSA_SHA1_SIGNATURE_OID {
++        let public_key = cert.public_key();
++        return public_key.algorithm.algorithm.to_id_string() == RSA_ENCRYPTION_OID
++            && null_or_absent_parameters(cert.signature_algorithm.parameters.as_ref())
++            && null_or_absent_parameters(public_key.algorithm.parameters.as_ref())
++            && cert.verify_signature(None).is_ok();
++    }
 +    let Ok(key) = webpki::EndEntityCert::try_from(der) else { return false; };
 +    supported.all.iter().any(|algorithm| {
 +        let id = algorithm.signature_alg_id();

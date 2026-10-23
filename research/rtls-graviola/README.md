@@ -32,6 +32,15 @@ Certificate expiration includes the exact `notAfter` second. Canonical issuer
 names govern issuer selection, cycle detection, self-issued path-length checks,
 and CRL authority checks without changing signed bytes or keys.
 
+Legacy RSA/SHA1 root self-signatures use x509-parser's maintained Ring-backed
+verification API only during implicit-anchor classification. This restores valid
+Mozilla roots without enabling SHA1 for certificate paths or TLS signatures.
+The paired legacy-root test and all 82 security cases pass after this change.
+A root with a corrupted self-signature remains rejected, although OpenSSL
+accepts its explicitly trusted copy without checking that self-signature.
+This deliberate restriction preserves the experiment's cryptographic
+self-signed-anchor invariant and remains a documented compatibility difference.
+
 Certificate and key ingestion validates complete PEM blocks and DER before
 committing state. Eight paired PEM tests cover malformed footer suffixes,
 allowed whitespace, surrounding text, and first-key selection. The public
