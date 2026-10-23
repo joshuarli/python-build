@@ -1251,10 +1251,33 @@ def run_archive_contracts(
         hash_output,
     )
     hashing_ok = hashing_process.get("returncode") == 0 and hash_match is not None
+    cleanup_process, cleanup_payload = run_json_contract(
+        "handshake-error-cleanup",
+        [
+            python, "-I", "-B",
+            REPO / "research" / "rtls-graviola" / "test_ssl_handshake_error_cleanup.py",
+            "--certdata", certdata,
+        ],
+        extracted,
+        contracts,
+        logs,
+        timeout_seconds=60,
+        report_path=contracts / "handshake-error-cleanup.json",
+    )
+    cleanup_ok = (
+        cleanup_process.get("returncode") == 0
+        and isinstance(cleanup_payload, dict)
+        and cleanup_payload.get("ok") is True
+        and cleanup_payload.get("tests_run") == 6
+        and cleanup_payload.get("skipped") == 0
+    )
     symbol_audit = audit_openssl_symbols(extracted, target)
 
     return {
         "no_openssl_symbols": symbol_audit,
+        "handshake_error_cleanup": check_result(
+            cleanup_ok, process=cleanup_process, summary=cleanup_payload,
+        ),
         "certificate_contract": check_result(
             certificate_ok,
             process=certificate_process,
@@ -1805,6 +1828,7 @@ def build_experimental_manifest(
         REPO / "research" / "rtls-graviola" / "MODERN_TLS_POLICY.md",
         REPO / "research" / "rtls-graviola" / "certificate_contract.py",
         REPO / "research" / "rtls-graviola" / "modern_tls_contract.py",
+        REPO / "research" / "rtls-graviola" / "test_ssl_handshake_error_cleanup.py",
         REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py",
         REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py",
         REPO / "research" / "rtls-graviola" / "regression_policy.py",

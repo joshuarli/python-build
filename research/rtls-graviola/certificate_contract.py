@@ -552,20 +552,27 @@ def exchange_reference_server(interpreter, chainfile, ciphers, context, hostname
     readable, _, _ = select.select([server.stdout], [], [], 15)
     if not readable:
         server.kill()
-        _, stderr = server.communicate()
-        raise TimeoutError("reference TLS server did not become ready: " + stderr.strip())
+        stdout, stderr = server.communicate()
+        raise TimeoutError(
+            "reference TLS server did not become ready "
+            f"(exit code {server.returncode}): "
+            f"stdout={stdout!r}; stderr={stderr!r}"
+        )
     ready_line = server.stdout.readline()
     if not ready_line:
-        _, stderr = server.communicate(timeout=15)
-        raise RuntimeError("reference TLS server failed before listening: " + stderr.strip())
+        stdout, stderr = server.communicate(timeout=15)
+        raise RuntimeError(
+            "reference TLS server failed before listening "
+            f"(exit code {server.returncode}): "
+            f"stdout={stdout!r}; stderr={stderr!r}"
+        )
     ready = json.loads(ready_line)
     if "port" not in ready:
-        _, stderr = server.communicate(timeout=15)
+        stdout, stderr = server.communicate(timeout=15)
         raise RuntimeError(
-            "reference TLS server setup failed: "
-            + str(ready.get("server_error"))
-            + " "
-            + stderr.strip()
+            "reference TLS server setup failed "
+            f"(exit code {server.returncode}): "
+            f"ready={ready!r}; stdout={stdout!r}; stderr={stderr!r}"
         )
     outcome = None
     try:
@@ -594,10 +601,18 @@ def exchange_reference_server(interpreter, chainfile, ciphers, context, hostname
             stdout, stderr = server.communicate(timeout=12)
         except subprocess.TimeoutExpired:
             server.kill()
-            server.communicate()
-            raise TimeoutError("reference TLS server did not finish")
+            stdout, stderr = server.communicate()
+            raise TimeoutError(
+                "reference TLS server did not finish "
+                f"(exit code {server.returncode}): "
+                f"stdout={stdout!r}; stderr={stderr!r}"
+            )
     if server.returncode != 0:
-        raise RuntimeError("reference TLS server failed: " + stderr.strip())
+        raise RuntimeError(
+            "reference TLS server failed "
+            f"(exit code {server.returncode}): "
+            f"stdout={stdout!r}; stderr={stderr!r}"
+        )
     status_lines = [line for line in stdout.splitlines() if line.strip()]
     status = json.loads(status_lines[-1]) if status_lines else {}
     if outcome["accepted"] and status.get("peer_error"):

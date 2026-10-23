@@ -10033,11 +10033,13 @@ diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
 diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 --- a/src/rtls/_socket.py
 +++ b/src/rtls/_socket.py
-@@ -1,12 +1,17 @@
+@@ -1,20 +1,34 @@
  from __future__ import annotations
  
++import ctypes
  import errno
 +import operator
++import os
  import socket
 -from typing import TYPE_CHECKING, Any
 -
@@ -10054,7 +10056,8 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  from ._exceptions import (
      SSLEOFError,
      SSLError,
-@@ -14,7 +19,13 @@
++    SSLCertVerificationError,
+     SSLWantReadError,
      SSLWantWriteError,
      SSLZeroReturnError,
  )
@@ -10069,7 +10072,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  from ._stdlib import ssl as _stdlib_ssl
  
  if TYPE_CHECKING:
-@@ -25,6 +36,71 @@
+@@ -25,6 +39,93 @@
  
  # Size of each ciphertext read from the underlying network socket.
  _SOCKET_READ_BUFFER_SIZE = 65536
@@ -10085,6 +10088,28 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +        errno.ETIMEDOUT,
 +    }
 +)
++
++
++_libc = ctypes.CDLL(None, use_errno=True)
++_recv = _libc.recv
++_recv.argtypes = (ctypes.c_int, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int)
++_recv.restype = ctypes.c_ssize_t
++
++
++def _discard_pending_handshake_data(sock: socket.socket) -> int:
++    buffer = ctypes.create_string_buffer(_SOCKET_READ_BUFFER_SIZE)
++    received = _recv(
++        sock.fileno(),
++        buffer,
++        len(buffer),
++        socket.MSG_DONTWAIT,
++    )
++    if received >= 0:
++        return received
++    error = ctypes.get_errno()
++    if error in (errno.EAGAIN, errno.EWOULDBLOCK):
++        return 0
++    raise OSError(error, os.strerror(error))
 +
 +
 +class _SocketTLSPrivateObject:
@@ -10141,7 +10166,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
  
  class TLSSocket(_stdlib_ssl.SSLSocket):
-@@ -42,22 +118,35 @@
+@@ -42,22 +143,35 @@
  
      def __init__(
          self,
@@ -10180,7 +10205,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._closed = False
  
          # Take over the underlying socket's fd.
-@@ -91,47 +180,143 @@
+@@ -91,47 +205,143 @@
          else:
              self.settimeout(_timeout)
  
@@ -10341,7 +10366,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if self._do_handshake_on_connect:
              self.do_handshake()
  
-@@ -139,18 +324,30 @@
+@@ -139,18 +349,30 @@
          """Connect and perform TLS handshake, returning error code."""
          if self._server_side:
              raise ValueError("can't connect in server-side mode")
@@ -10375,7 +10400,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if self._sslobj_internal is None:
              self._create_sslobj()
  
-@@ -160,11 +357,12 @@
+@@ -160,11 +382,12 @@
          self._do_handshake_loop(timeout)
  
      def _do_handshake_loop(self, timeout: float | None) -> None:
@@ -10390,7 +10415,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
              except SSLWantReadError:
                  # Flush any outgoing data (handshake messages)
                  self._flush_outgoing()
-@@ -172,29 +370,67 @@
+@@ -172,29 +395,75 @@
                  self._pull_incoming(timeout)
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -10399,6 +10424,14 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +                    self._flush_outgoing()
 +                except OSError as alert_error:
 +                    raise handshake_error from alert_error
++                if isinstance(handshake_error, SSLCertVerificationError):
++                    try:
++                        _discard_pending_handshake_data(self)
++                    except OSError as cleanup_error:
++                        handshake_error.add_note(
++                            "discarding pending handshake data failed: "
++                            f"{cleanup_error}"
++                        )
 +                raise
 +
 +    def _uses_plain_transport(self) -> bool:
@@ -10461,7 +10494,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -202,6 +438,8 @@
+@@ -202,6 +471,8 @@
              raise SSLError("SSL handshake not done")
          if obj._shutdown:
              return b""
@@ -10470,7 +10503,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
          while True:
              # 1. Drain plaintext rustls already holds, without touching the
-@@ -219,25 +457,45 @@
+@@ -219,25 +490,45 @@
  
              # 3. Read more ciphertext directly from the network.
              try:
@@ -10523,7 +10556,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
              # 4. Feed + decrypt. If only handshake/control records arrived
              #    this yields no plaintext — loop and read more.
-@@ -248,61 +506,132 @@
+@@ -248,61 +539,132 @@
              if data:
                  return data
  
@@ -10677,7 +10710,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
                  )
              raise
  
-@@ -311,11 +640,42 @@
+@@ -311,11 +673,42 @@
  
          self._incoming.write(data)
  
@@ -10720,7 +10753,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def cipher(self) -> tuple[str, str, int] | None:
          """Return cipher info tuple."""
-@@ -334,6 +694,21 @@
+@@ -334,6 +727,21 @@
              return None
          return self._sslobj_internal.version()
  
@@ -10742,7 +10775,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
      def selected_alpn_protocol(self) -> str | None:
          if self._sslobj_internal is None:
              return None
-@@ -351,28 +726,37 @@
+@@ -351,28 +759,37 @@
          return self._sslobj_internal.pending()
  
      def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
@@ -10799,7 +10832,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          socket.socket.shutdown(self, how)
  
      def close(self) -> None:
-@@ -401,6 +785,7 @@
+@@ -401,6 +818,7 @@
              except Exception:  # Defensive:
                  pass
              self._sslobj_internal = None
@@ -10807,7 +10840,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          socket.socket._real_close(self)  # type: ignore[attr-defined]
  
      @property  # type: ignore[override]
-@@ -409,6 +794,8 @@
+@@ -409,6 +827,8 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -10816,7 +10849,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._rtls_context = ctx
  
      @property
-@@ -419,57 +806,114 @@
+@@ -419,57 +839,114 @@
      def server_hostname(self) -> str | None:  # type: ignore[override]
          return self._server_hostname
  
@@ -10955,7 +10988,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def __enter__(self) -> TLSSocket:
          return self
-@@ -501,17 +945,38 @@
+@@ -501,17 +978,38 @@
          server_hostname: str | None = None,
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
@@ -10996,7 +11029,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
          try:
              sock.getpeername()
-@@ -530,13 +995,16 @@
+@@ -530,13 +1028,16 @@
                      raise
  
      def _create_sslobj(self) -> None:
@@ -11014,7 +11047,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def connect(self, addr: Any) -> None:
          if self._server_side:
-@@ -575,6 +1043,12 @@
+@@ -575,6 +1076,12 @@
                  self._pull_incoming()
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -11027,7 +11060,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def send(self, data: bytes, flags: int = 0) -> int:
          if flags:
-@@ -595,6 +1069,8 @@
+@@ -595,6 +1102,8 @@
      def recv(self, buflen: int = _DEFAULT_BUFFER_SIZE, flags: int = 0) -> bytes:
          if flags:
              raise ValueError("non-zero flags not allowed on TLS sockets")
@@ -11036,7 +11069,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -615,6 +1091,18 @@
+@@ -615,6 +1124,18 @@
              self._flush_outgoing()
              chunk = self._transport.recv(_SOCKET_READ_BUFFER_SIZE)
              if not chunk:
@@ -11055,7 +11088,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
                  if self._suppress_ragged_eofs:
                      return b""
                  raise SSLEOFError("EOF occurred in violation of protocol")
-@@ -625,15 +1113,32 @@
+@@ -625,15 +1146,32 @@
              if data:
                  return data
  
@@ -11092,7 +11125,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def write(self, data: bytes) -> int:
          return self.send(data)
-@@ -644,9 +1149,11 @@
+@@ -644,9 +1182,11 @@
              self._transport.sendall(data)
  
      def _pull_incoming(self) -> None:
@@ -11107,7 +11140,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._incoming.write(data)
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
-@@ -660,6 +1167,15 @@
+@@ -660,6 +1200,15 @@
      def version(self) -> str | None:
          return self._sslobj_internal.version() if self._sslobj_internal else None
  
@@ -11123,7 +11156,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
      def selected_alpn_protocol(self) -> str | None:
          if self._sslobj_internal is None:
              return None
-@@ -668,17 +1184,33 @@
+@@ -668,17 +1217,33 @@
      def pending(self) -> int:
          return self._sslobj_internal.pending() if self._sslobj_internal else 0
  
@@ -11162,7 +11195,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._transport.shutdown(how)
  
      def close(self) -> None:
-@@ -694,14 +1226,14 @@
+@@ -694,14 +1259,14 @@
              self._sslobj_internal = None
          self._transport.close()
  
@@ -11183,7 +11216,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          return self._sslobj_internal.get_unverified_chain()
  
      @property
-@@ -717,11 +1249,35 @@
+@@ -717,11 +1282,35 @@
          return self._server_hostname
  
      @property
