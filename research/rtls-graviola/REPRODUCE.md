@@ -213,19 +213,39 @@ Both recreate interpreters and exercise trusted and rejected TLS 1.2 and 1.3
 connections. The combined regression also checks fixed hashing, HMAC, PBKDF2,
 and scrypt outputs with both native backends active.
 
-After completing regression checks on the unpruned candidate, package and
-validate a private copy:
+After the full regression suite finishes, package and validate a private copy.
+Pass the reference interpreter and the same CPython certificate directory.
+Pass the complete pre-prune regression report, including its modern TLS case
+assessment and candidate identity digests:
 
 ```sh
+reference_python=/path/to/OpenSSL-reference/bin/python3.15
+certdata=/path/to/Python-3.15.1/Lib/test/certdata
 python3.15 research/rtls-graviola/qualify-no-openssl-archive.py \
     --prefix <relocated-candidate-prefix> \
     --build-run-dir <candidate-build-directory> \
+    --base-build-run-dir <pgo-base-build-directory> \
+    --reference-python "$reference_python" \
+    --certdata "$certdata" \
+    --regression-report <complete-pre-prune-regression-report.json> \
     --run-dir .work/tmp/rtls-archive-qualification
 ```
 
-The output directory must be new. The driver strips native images, removes
-tests and bytecode, creates a deterministic archive, extracts it into a path
-with spaces, and runs the existing product checks against those exact bytes.
-It records failures from the unchanged OpenSSL-specific product expectations.
-It does not publish an artifact or establish production PGO or macOS 26
-runtime qualification. A failed aggregate remains a qualification failure.
+The output directory must be new. If the PGO base and adapter overlay share a
+run directory, omit `--base-build-run-dir`. The driver strips native images,
+removes tests and bytecode, creates a deterministic archive, extracts it into
+a path with spaces, and validates those exact bytes. It runs the 82-case
+certificate contract, the modern TLS handshake contract, and the hashing
+reference comparison on the extracted interpreter. It keeps the raw
+OpenSSL-specific compatibility report. The effective experimental profile
+replaces only `ssl_capabilities` with the locked Rustls modern capability
+check.
+
+The regression report must account for every test and match the candidate
+files in both the source prefix and its disposable test copy. Missing,
+incomplete, or unexpected regression results fail qualification. A passing
+run writes `EXPERIMENTALartifact.json` beside the archive and report. The
+record identifies the archive, source inputs, Rust dependency closure,
+toolchains, build flags, and verified PGO profile. It is a research record.
+The command does not publish an artifact, qualify the production release, or
+establish runtime support on macOS 26.
