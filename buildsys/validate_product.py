@@ -26,6 +26,7 @@ from pathlib import Path
 from . import macho
 from .product import PRODUCT
 from .product_process import product_environment, run_product_process
+from .relocate import stale_sysconfig_values
 from .scope import probe_in_process, verify_exclusions
 from .bootstrap import load_macos_toolchain
 
@@ -984,15 +985,6 @@ def relocation_checks(install: Path, workdir: Path, target) -> dict:
         sysconfig_paths = sysconfig.get_paths()
         path_rooted = all(is_inside(value) for value in sysconfig_paths.values())
         path_rooted = path_rooted and all(is_inside(value) for value in paths.values())
-        forbidden = (
-            "/install", "/build/prefix", "/.cache/llvm/",
-            "/Python-__PRODUCT_VERSION__/", "code.profclangd", "code-%p.profclangr",
-            "-fprofile-instr-use=", "LLVM_PROFILE_FILE=",
-        )
-        stale_values = [
-            f"{key}={value}" for key, value in sysconfig.get_config_vars().items()
-            if isinstance(value, str) and any(marker in value for marker in forbidden)
-        ]
         print(json.dumps({
             "executable": sys.executable,
             "prefix": sys.prefix,
@@ -1002,15 +994,21 @@ def relocation_checks(install: Path, workdir: Path, target) -> dict:
             "ldflags_leak": "build/prefix" in (sysconfig.get_config_var("LDFLAGS") or ""),
             "sysconfig_paths": paths,
             "sysconfig_paths_rooted": path_rooted,
-            "stale_sysconfig_values": stale_values,
+            "sysconfig_string_values": {
+                key: value for key, value in sysconfig.get_config_vars().items()
+                if isinstance(value, str)
+            },
         }))
-    """).replace("__PRODUCT_VERSION__", PRODUCT.version_string)
+    """)
     probe = _product_run(
         [python, "-I", "-B", "-c", relocation_probe], destination, workdir
     )
     if probe.returncode != 0:
         return {"ok": False, "error": probe.stderr.strip()[:400]}
     data = json.loads(probe.stdout.strip().splitlines()[-1])
+    data["stale_sysconfig_values"] = stale_sysconfig_values(
+        data.pop("sysconfig_string_values")
+    )
     data["moved_to"] = str(destination)
     config = PRODUCT.config_tool(destination)
     config_prefix = _product_run([config, "--prefix"], destination, workdir)

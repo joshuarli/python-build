@@ -22,6 +22,7 @@ import os
 import re
 import shlex
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Iterable
 
@@ -42,10 +43,40 @@ _COMMAND_VARIABLES = frozenset({
     "AR", "CC", "CXX", "INSTALL", "LD", "LINKCC", "LDCXXSHARED",
     "LDSHARED", "MAKE", "NM", "RANLIB", "STRIP",
 })
+_STALE_SYSCONFIG_MARKERS = (
+    "/install",
+    "/build/prefix",
+    "/.cache/llvm/",
+    f"/Python-{PRODUCT.version_string}/",
+    "code.profclangd",
+    "code-%p.profclangr",
+    "-fprofile-instr-use=",
+    "LLVM_PROFILE_FILE=",
+)
+_SYSTEM_INSTALL = "/usr/bin/install"
 
 
 class RelocationError(Exception):
     """A staged file could not be relocated for a portable install."""
+
+
+def stale_sysconfig_values(values: Mapping[str, object]) -> list[str]:
+    stale = []
+    for key, value in values.items():
+        if not isinstance(value, str):
+            continue
+        checked_value = value
+        if key == "INSTALL" or key.startswith("INSTALL_"):
+            try:
+                words = shlex.split(value)
+            except ValueError:
+                words = []
+            if words and words[0] == _SYSTEM_INSTALL:
+                offset = value.find(_SYSTEM_INSTALL)
+                checked_value = value[:offset] + value[offset + len(_SYSTEM_INSTALL):]
+        if any(marker in checked_value for marker in _STALE_SYSCONFIG_MARKERS):
+            stale.append(f"{key}={value}")
+    return stale
 
 
 def is_elf(path: Path) -> bool:

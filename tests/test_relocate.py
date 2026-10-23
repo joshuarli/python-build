@@ -19,6 +19,7 @@ from buildsys.relocate import (
     is_elf,
     origin_token,
     relocate,
+    stale_sysconfig_values,
     strip_private_prefix,
 )
 from buildsys.product import PRODUCT
@@ -62,6 +63,34 @@ class StripPrivatePrefixTests(unittest.TestCase):
         text = "-I/usr/include -L/work/build/prefix/lib"
         cleaned = strip_private_prefix(text, Path("/work/build/prefix"))
         self.assertIn("-I/usr/include", cleaned)
+
+
+class StaleSysconfigValueTests(unittest.TestCase):
+    def test_reference_install_commands_and_space_paths_are_valid(self) -> None:
+        values = {
+            "INSTALL": "/usr/bin/install -c",
+            "INSTALL_DATA": "/usr/bin/install -c -m 644",
+            "INSTALL_PROGRAM": "/usr/bin/install -c",
+            "INSTALL_SCRIPT": "/usr/bin/install -c",
+            "INSTALL_SHARED": "/usr/bin/install -c -m 755",
+            "BINDIR": "/opt/python install with spaces/bin",
+            "CONFIG_ARGS": "'--prefix=/opt/python install with spaces'",
+        }
+        self.assertEqual(stale_sysconfig_values(values), [])
+
+    def test_configure_stage_source_and_toolchain_paths_remain_stale(self) -> None:
+        values = {
+            "CONFIG_ARGS": "'--prefix=/install'",
+            "INSTALL_DATA": "/usr/bin/install -c -m 644 /work/stage/install/share",
+            "CFLAGS": "-I/work/build/prefix/include -L/work/build/prefix/lib",
+            "srcdir": "/work/cpython/Python-3.15.1/Modules",
+            "CC": "/.cache/llvm/toolchains/clang",
+            "LLVM_PROFILE_FILE": "code-%p.profclangr",
+        }
+        self.assertEqual(
+            stale_sysconfig_values(values),
+            [f"{key}={value}" for key, value in values.items()],
+        )
 
 
 class CleanSysconfigTests(unittest.TestCase):

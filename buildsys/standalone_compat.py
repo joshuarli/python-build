@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .product import PRODUCT
 from .product_process import product_environment, run_product_process
+from .relocate import stale_sysconfig_values
 from .targets import Target
 
 
@@ -460,15 +461,18 @@ def inside(path):
 paths = sysconfig.get_paths()
 rooted = all(inside(value) for value in paths.values())
 rooted = rooted and all(inside(value) for value in values.values())
-forbidden = (
-    "/install", "/build/prefix", "/.cache/llvm/", "/Python-__PRODUCT_VERSION__/",
-    "code.profclangd", "code-%p.profclangr", "-fprofile-instr-use=",
-    "LLVM_PROFILE_FILE=",
-)
-stale = [f"{key}={value}" for key, value in sysconfig.get_config_vars().items()
-         if isinstance(value, str) and any(marker in value for marker in forbidden)]
-print(json.dumps({"prefix": sys.prefix, "version": sys.version.split()[0], "paths": values, "rooted": rooted, "stale": stale, "fallback_ca": fallback_ca}))
-'''.replace("__PRODUCT_VERSION__", PRODUCT.version_string)
+print(json.dumps({
+    "prefix": sys.prefix,
+    "version": sys.version.split()[0],
+    "paths": values,
+    "rooted": rooted,
+    "sysconfig_string_values": {
+        key: value for key, value in sysconfig.get_config_vars().items()
+        if isinstance(value, str)
+    },
+    "fallback_ca": fallback_ca,
+}))
+'''
         probe = _product_run(
             [moved_python, "-I", "-B", "-c", relocated_probe],
             destination,
@@ -483,6 +487,9 @@ print(json.dumps({"prefix": sys.prefix, "version": sys.version.split()[0], "path
                 "moved sysconfig probe returned no report: "
                 f"returncode={probe.returncode}, stderr={probe.stderr.strip()[-500:]}"
             ) from error
+        data["stale"] = stale_sysconfig_values(
+            data.pop("sysconfig_string_values")
+        )
         config = PRODUCT.config_tool(destination)
         outputs = {
             option: _product_run(
