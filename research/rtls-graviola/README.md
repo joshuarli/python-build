@@ -85,6 +85,12 @@ The isolated listening-socket repair in `ssl-accept.patch` passes the unchanged
 the listener's TLS context. Previously the `_ssl`-absent socket base returned
 raw connections, causing the HTTPS tests to fail.
 
+The MemoryBIO repair in `ssl-memory-bio.patch` validates contiguous buffer
+inputs before mutation, counts bytes for typed buffers, enforces the native
+integer bounds, and serializes EOF with writes. All five unchanged upstream
+MemoryBIO tests pass. Four additional contract tests pass on both backends;
+they fail on the frozen candidate.
+
 The next validation wave combines socket I/O, explicit sessions, cipher and
 context controls, offline CRLs, and SSL utility compatibility. Capath review
 also found that delaying store statistics does not reproduce OpenSSL's lookup

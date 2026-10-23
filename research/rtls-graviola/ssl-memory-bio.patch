@@ -1,0 +1,95 @@
+diff --git a/src/rtls/_bio.py b/src/rtls/_bio.py
+index d7f6f43..9915e7b 100644
+--- a/src/rtls/_bio.py
++++ b/src/rtls/_bio.py
+@@ -1,7 +1,10 @@
+ from __future__ import annotations
+ 
++import operator
+ import threading
+ 
++_MAX_BIO_SIZE = (1 << 31) - 1
++
+ 
+ class MemoryBIO:
+     """In-memory BIO that buffers bytes, compatible with ssl.MemoryBIO.
+@@ -18,52 +21,57 @@ class MemoryBIO:
+         self._eof = False
+         self._lock = threading.Lock()
+ 
+-    def read(self, n: int = -1) -> bytes:
+-        """Read up to *n* bytes from the BIO.
++    def read(self, size: int = -1, /) -> bytes:
++        """Read up to *size* bytes from the BIO.
+ 
+-        If *n* is -1 or omitted, read all available data.
++        If *size* is -1 or omitted, read all available data.
+         Returns b"" if no data is available (non-blocking).
+         """
++        size = operator.index(size)
++        if not -_MAX_BIO_SIZE - 1 <= size <= _MAX_BIO_SIZE:
++            raise OverflowError("Python int too large to convert to C int")
+         with self._lock:
+-            if n < 0 or n >= len(self._buf):
++            if size < 0 or size >= len(self._buf):
+                 data = bytes(self._buf)
+                 self._buf.clear()
+                 return data
+-            data = bytes(self._buf[:n])
+-            del self._buf[:n]
++            data = bytes(self._buf[:size])
++            del self._buf[:size]
+             return data
+ 
+-    def write(self, data: bytes) -> int:
+-        """Write *data* into the BIO. Returns number of bytes written.
++    def write(self, data: bytes, /) -> int:
++        with memoryview(data) as view:
++            if not view.c_contiguous:
++                raise BufferError("memoryview: underlying buffer is not C-contiguous")
++            if view.nbytes > _MAX_BIO_SIZE:
++                raise OverflowError(f"string longer than {_MAX_BIO_SIZE} bytes")
++            with self._lock:
++                if self._eof:
++                    from ._exceptions import SSLError
+ 
+-        Raises ``ssl.SSLError`` if write_eof() has been called.
+-        """
+-        if self._eof:
+-            from ._exceptions import SSLError
+-
+-            raise SSLError("cannot write to a BIO after write_eof()")
+-        if not data:
+-            return 0
+-        with self._lock:
+-            self._buf.extend(data)
+-            return len(data)
++                    raise SSLError("cannot write() after write_eof()")
++                self._buf.extend(view.cast("B"))
++                return view.nbytes
+ 
+     def write_eof(self) -> None:
+         """Signal that no more data will be written.
+ 
+         After this, further write() calls will raise SSLError.
+         """
+-        self._eof = True
++        with self._lock:
++            self._eof = True
+ 
+     @property
+     def pending(self) -> int:
+         """Number of bytes currently in the buffer waiting to be read."""
+-        return len(self._buf)
++        with self._lock:
++            return len(self._buf)
+ 
+     @property
+     def eof(self) -> bool:
+         """True if write_eof() was called AND all buffered data has been read."""
+-        return self._eof and len(self._buf) == 0
++        with self._lock:
++            return self._eof and not self._buf
+ 
+     def __repr__(self) -> str:
+         return f"<MemoryBIO pending={self.pending} eof_written={self._eof}>"
