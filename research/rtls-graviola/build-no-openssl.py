@@ -871,6 +871,19 @@ def require_fetched_rust_inputs(
     return checkout, hashing_build
 
 
+def rust_flags(target, *, rtls: bool) -> list[str]:
+    if target.triple == LINUX_TARGET_TRIPLE:
+        return ["-C", "target-cpu=generic", "-C", "target-feature=-crt-static,+aes,+sha2,+neon",
+                "-C", "link-arg=-fuse-ld=mold", "-C", "link-arg=-Wl,-z,noexecstack"]
+    cpu_flag = target.cpu_baseline_cflag
+    if not cpu_flag.startswith("-mcpu="):
+        raise BuildError(f"unsupported Rust CPU baseline flag: {cpu_flag}")
+    flags = ["-C", f"target-cpu={cpu_flag.removeprefix('-mcpu=')}"]
+    if rtls:
+        flags.extend(("-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"))
+    return flags
+
+
 def build_rust_extension(
     cargo: Path,
     rustc: Path,
@@ -890,15 +903,7 @@ def build_rust_extension(
 ) -> Path:
     from buildsys.recipes import BuildError as RecipeBuildError, run
 
-    cpu_flag = target.cpu_baseline_cflag
-    if target.triple == LINUX_TARGET_TRIPLE:
-        rustflags = ["-C", "target-cpu=generic", "-C", "target-feature=-crt-static,+aes,+sha2,+neon", "-C", "link-arg=-fuse-ld=mold", "-C", "link-arg=-Wl,-z,noexecstack"]
-    elif not cpu_flag.startswith("-mcpu="):
-        raise BuildError(f"unsupported Rust CPU baseline flag: {cpu_flag}")
-    else:
-        rustflags = ["-C", f"target-cpu={cpu_flag.removeprefix('-mcpu=')}"]
-    if rtls and target.is_macos:
-        rustflags.extend(("-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"))
+    rustflags = rust_flags(target, rtls=rtls)
     environment = os.environ.copy()
     linker_environment_key = (
         f"CARGO_TARGET_{target.triple.upper().replace('-', '_')}_LINKER"
@@ -1362,6 +1367,10 @@ def verify_linux_overlay(prefix: Path, run_dir: Path) -> None:
 
 
 def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, commands: dict) -> None:
+    from buildsys.cpython import configuration
+    from buildsys.deporder import dependency_order
+    from buildsys.inputs import Cache, load_lock
+
     compiler = {}
     for name in ("cc", "cxx", "ar", "ranlib", "ld", "nm", "strip"):
         path = Path(shutil.which(getattr(toolchain, name)) or getattr(toolchain, name)).resolve()
@@ -1377,6 +1386,19 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
         "sources_lock_sha256": hashlib.sha256((REPO / "sources.lock.json").read_bytes()).hexdigest(),
         "bootstrap_lock_sha256": hashlib.sha256((REPO / "bootstrap.lock.json").read_bytes()).hexdigest(),
     }
+    pins = {pin.name: pin for pin in load_lock(REPO / "sources.lock.json")}
+    names = ("cpython", *tuple(name for name in dependency_order(target) if name not in {"pkgconf", "openssl"}), "certifi-ca")
+    cache = Cache(repository_common_root() / ".cache")
+    source["c_inputs"] = []
+    for name in names:
+        pin = pins[name]
+        blob = cache.require(pin)
+        source["c_inputs"].append({
+            "name": name, "version": pin.version, "sha256": pin.sha256, "size": pin.size,
+            "role": pin.role, "license": pin.license, "purpose": pin.purpose,
+            "cached_bytes_sha256": hashlib.sha256(blob.read_bytes()).hexdigest(),
+        })
+    _, configure_env = configuration(run_dir / "private", target)
     if (run_dir / "rtls-build").is_dir():
         rtls, hashing = require_fetched_rust_inputs(run_dir)
         source.update(
@@ -1393,6 +1415,13 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
         ).stdout.strip(),
         "compiler": compiler, "commands": commands, "logs": logs,
         "source": source, "isolation": isolation,
+        "effective_flags": {
+            "dependency_cflags": toolchain.cflags(),
+            "dependency_ldflags": toolchain.ldflags(run_dir / "private"),
+            "cpython_cflags": configure_env["CFLAGS"],
+            "cpython_ldflags": configure_env["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold"),
+            "rust": rust_flags(target, rtls=True),
+        },
     }
     (run_dir / "linux-build.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
