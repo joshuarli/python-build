@@ -42,9 +42,18 @@ def validate_docker_receipt(receipt: dict, name: str, revision: str) -> None:
         raise ValueError(f"{name} does not prove a clean source tree")
     if receipt.get("daemon_os") != "linux":
         raise ValueError(f"{name} did not run on Linux")
-    for field in ("daemon_architecture", "image_architecture", "container_architecture"):
-        if not is_arm64(receipt.get(field)):
-            raise ValueError(f"{name} does not prove arm64: {field}")
+    if receipt.get("daemon_platform") != "linux/arm64":
+        raise ValueError(f"{name} did not use a native Linux arm64 daemon")
+    if not is_arm64(receipt.get("daemon_architecture")):
+        raise ValueError(f"{name} did not report an arm64 Docker daemon")
+    if receipt.get("container_architecture") != "aarch64":
+        raise ValueError(f"{name} did not run an arm64 container")
+    if receipt.get("image_architecture") not in {"aarch64", "arm64"}:
+        raise ValueError(f"{name} did not use an arm64 image")
+    if not isinstance(receipt.get("image_id"), str) or re.fullmatch(
+        r"sha256:[0-9a-f]{64}", receipt["image_id"]
+    ) is None:
+        raise ValueError(f"{name} has no immutable image identity")
     if receipt.get("network_mode") != "none":
         raise ValueError(f"{name} did not use an isolated network")
     if receipt.get("isolation") != "docker-network-none":
@@ -53,6 +62,28 @@ def validate_docker_receipt(receipt: dict, name: str, revision: str) -> None:
         raise ValueError(f"{name} does not record success")
     if not isinstance(receipt.get("command"), list) or not receipt["command"]:
         raise ValueError(f"{name} does not record the executed command")
+    command = receipt["command"]
+    if any(not isinstance(argument, str) for argument in command):
+        raise ValueError(f"{name} has an invalid command record")
+    if not any(
+        command[index : index + 2] == ["--network", "none"]
+        or command[index] == "--network=none"
+        for index in range(len(command))
+    ):
+        raise ValueError(f"{name} command did not disable networking")
+    if not any(
+        command[index : index + 2] == ["--platform", "linux/arm64"]
+        or command[index] == "--platform=linux/arm64"
+        for index in range(len(command))
+    ):
+        raise ValueError(f"{name} command did not request the native arm64 platform")
+    bootstrap_path = Path(__file__).resolve().parents[2] / "bootstrap.lock.json"
+    bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+    expected_image = bootstrap["linux_toolchain"]["images"]["arm64"]["digest"]
+    if receipt.get("locked_image_digest") != expected_image:
+        raise ValueError(f"{name} does not use the locked arm64 image")
+    if not isinstance(receipt.get("container_id"), str) or not receipt["container_id"]:
+        raise ValueError(f"{name} does not record a container identity")
 
 
 def validate_build_receipts(directory: Path, revision: str) -> dict:
@@ -67,10 +98,22 @@ def validate_build_receipts(directory: Path, revision: str) -> dict:
         raise ValueError("Linux build receipt has an unsupported schema")
     if linux_build.get("target") != "aarch64-unknown-linux-musl":
         raise ValueError("Linux build receipt has the wrong target")
+    if linux_build.get("cpu_baseline") != "-march=armv8-a+crypto":
+        raise ValueError("Linux build receipt has the wrong CPU baseline")
+    if not {"aes", "pmull", "sha2", "asimd"}.issubset(linux_build.get("cpu_features", [])):
+        raise ValueError("Linux build receipt does not prove the required ARM crypto features")
     if linux_build.get("source_revision") != revision:
         raise ValueError("Linux build receipt has the wrong source revision")
     if linux_build.get("pgo") is not False:
         raise ValueError("Linux build receipt unexpectedly enabled PGO")
+    isolation = linux_build.get("isolation", {})
+    if (
+        isolation.get("build_mode") != "sealed"
+        or isolation.get("mechanism") != "docker-network-none"
+        or isolation.get("interfaces") != ["lo"]
+        or isolation.get("default_routes") != []
+    ):
+        raise ValueError("Linux build receipt lacks network-disabled build evidence")
 
     validate_docker_receipt(docker_build, "Docker build receipt", revision)
     validate_docker_receipt(docker_runtime, "Docker runtime receipt", revision)

@@ -29,6 +29,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Exclude task-local scratch
+        run: |
+          set -eu
+          exclude="$(git rev-parse --git-path info/exclude)"
+          if ! rg --quiet --fixed-strings --line-regexp ".work/" "$exclude"; then
+            printf '\n.work/\n' >> "$exclude"
+          fi
+          mkdir -p .work/tmp
+
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -130,12 +139,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Exclude task-local scratch
+        run: |
+          set -eu
+          exclude="$(git rev-parse --git-path info/exclude)"
+          if ! rg --quiet --fixed-strings --line-regexp ".work/" "$exclude"; then
+            printf '\n.work/\n' >> "$exclude"
+          fi
+          mkdir -p .work/tmp
+
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Prepare the release asset directory
-        run: mkdir -p .work/tmp
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -169,15 +184,16 @@ jobs:
 
           This is a research prerelease. It is not a supported python-build product release.
           The candidate was built and qualified on a native ubuntu-24.04-arm runner using the
-          locked Alpine arm64 toolchain. Build and runtime qualification used network-disabled
-          containers. The attached manifest, qualification report, receipts, and logs bind the
-          archive to this source revision.
+          locked Alpine arm64 toolchain. It uses the `-march=armv8-a+crypto` CPU baseline and
+          requires AES, PMULL, SHA2, and ASIMD CPU features. Build and runtime qualification
+          used network-disabled containers. The attached manifest, qualification report,
+          receipts, and logs bind the archive to this source revision.
 
           Source revision: $GITHUB_SHA
           EOF
           gh release create "$RELEASE_TAG" \
             --target "$GITHUB_SHA" \
             --prerelease \
-          --title "Research: OpenSSL-free CPython $PYTHON_VERSION Linux arm64 ${GITHUB_SHA:0:12}" \
+            --title "Research: OpenSSL-free CPython $PYTHON_VERSION Linux arm64 ${GITHUB_SHA:0:12}" \
             --notes-file "$notes" \
             "$RELEASE_ASSETS_DIR"/*
