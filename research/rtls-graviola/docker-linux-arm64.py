@@ -125,7 +125,7 @@ def source_identity(requested_revision: str | None) -> tuple[str, bool]:
     return revision, dirty
 
 
-def require_work_dir(path: Path) -> Path:
+def require_work_dir(path: Path, *, fresh: bool) -> Path:
     work_root = REPO / ".work" / "tmp"
     work_parent = REPO / ".work"
     if work_parent.is_symlink() or work_root.is_symlink():
@@ -148,6 +148,8 @@ def require_work_dir(path: Path) -> Path:
         current = current / part
         if current.is_symlink():
             raise DockerBuildError(f"run directory cannot contain symlinks: {current}")
+    if fresh and lexical.exists() and any(lexical.iterdir()):
+        raise DockerBuildError(f"--phase all requires an empty run directory: {lexical}")
     lexical.mkdir(parents=True, exist_ok=True)
     return lexical.resolve(strict=True)
 
@@ -1022,7 +1024,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.jobs <= 0:
             raise DockerBuildError("--jobs must be positive")
         daemon = docker_daemon()
-        run_dir = require_work_dir(args.run_dir)
+        run_dir = require_work_dir(args.run_dir, fresh=args.phase == "all")
         revision, dirty = source_identity(args.source_revision)
         rtls_source = args.rtls_source.resolve(strict=True)
         hashing_source = args.hashing_source.resolve(strict=True)
