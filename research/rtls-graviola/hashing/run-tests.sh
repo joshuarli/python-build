@@ -43,11 +43,6 @@ for module in "$dynload"/_ssl.cpython-*.so "$dynload"/_ssl.abi3.so; do
     fi
 done
 
-if [ -e "$stdlib/_ssl.py" ]; then
-    printf '%s\n' 'candidate still contains a Python _ssl module' >&2
-    exit 2
-fi
-
 "$python" -c 'import platform, sys; assert sys.implementation.name == "cpython"; assert sys.version_info[:3] == (3, 15, 1); assert sys.platform == "darwin"; assert platform.machine() == "arm64"'
 
 mkdir -p "$work"
@@ -57,8 +52,30 @@ TMPDIR="$work" CARGO_TARGET_DIR="$cargo_target" PYO3_USE_ABI3_FORWARD_COMPATIBIL
 cp "$lane_dir/_hashlib.py" "$stdlib/_hashlib.py"
 cp "$cargo_target/debug/lib_hashlib_graviola.dylib" "$dynload/_hashlib_graviola.abi3.so"
 
-"$python" -c 'import _hashlib, sys; print(_hashlib.__file__); print(sys.modules["_hashlib_graviola"].__file__); assert "_ssl" not in sys.modules'
+"$python" -I -B - <<'PY'
+import importlib.util
+from pathlib import Path
+import _hashlib
+import sys
+
+spec = importlib.util.find_spec("_ssl")
+if spec is not None:
+    origin = Path(spec.origin) if spec.origin is not None else None
+    if (
+        origin is None
+        or not origin.is_relative_to(Path(sys.prefix, "lib/python3.15"))
+        or origin.name != "_ssl.py"
+        or "_RUSTLS_BACKEND = True" not in origin.read_text()
+    ):
+        raise SystemExit("candidate _ssl must be a Python marker shim or absent")
+print(_hashlib.__file__)
+print(sys.modules["_hashlib_graviola"].__file__)
+print(spec.origin if spec is not None else "_ssl unavailable")
+PY
 
 mkdir -p "$work/hashlib-test-run"
 cd "$work/hashlib-test-run"
-TMPDIR="$work" PYTHONPATH="$source_root/Lib" "$python" -m test test_hashlib test_hmac
+if [ ! -d "$stdlib/test" ]; then
+    cp -R "$source_root/Lib/test" "$stdlib/test"
+fi
+TMPDIR="$work" "$python" -I -B -m test test_hashlib test_hmac

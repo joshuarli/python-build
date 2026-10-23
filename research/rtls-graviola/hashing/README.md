@@ -12,12 +12,13 @@ uses. Its `openssl_*` names are compatibility aliases for the CPython digest
 constructors. They do not call OpenSSL. The Rust extension is
 `_hashlib_graviola.abi3.so`.
 
-The Python `hashlib` and `hmac` APIs pass CPython 3.15.1's complete
-`test_hashlib` and `test_hmac` suites. The recorded run passed 240 tests and
-skipped 18. One skip covers `_hashlib.HASH` instantiation checks. The facade
-does not expose that private native type because CPython's builtin digest
-modules return several distinct types. Resource gated tests also remain
-skipped under the default test runner settings.
+The hash-isolated CPython 3.15.1 run passed `test_hashlib` and `test_hmac` with
+240 tests run and 18 skipped. It used a disposable prefix without the Python
+`_ssl.py` marker shim to isolate hashing behavior; this is not the integrated
+marker-backed acceptance run. One skip covers `_hashlib.HASH` instantiation
+checks. The facade does not expose that private native type because CPython's
+builtin digest modules return several distinct types. Resource gated tests
+also remain skipped under the default test runner settings.
 
 This module does not provide OpenSSL's native `_hashlib` C API or its shared
 digest object types. Native extensions that import `_hashlib.HASH`, expect
