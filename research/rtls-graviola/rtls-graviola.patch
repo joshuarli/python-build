@@ -685,7 +685,7 @@
  ];
  
  /// Preferred key exchange group order.
-@@ -71,177 +101,560 @@
+@@ -71,177 +101,562 @@
  /// NIST curves.  Placing MLKEM first also means rustls will include a
  /// key share for it in the initial ClientHello.
  #[cfg(not(target_os = "wasi"))]
@@ -1157,6 +1157,7 @@
      sni_enabled: bool,
 -    keylog_filename: Option<String>,
 +    cipher_server_preference: bool,
++    num_tickets: i64,
 +    keylog: Option<Arc<KeyLogToFile>>,
  
      /// Stored server cert chain + key (for server-side TLS)
@@ -1205,6 +1206,7 @@
              sni_enabled: true,
 -            keylog_filename: None,
 +            cipher_server_preference: false,
++            num_tickets: 2,
 +            keylog: None,
              server_cert_chain: None,
              server_key: None,
@@ -1360,7 +1362,7 @@
          Ok(())
      }
  
-@@ -258,14 +671,12 @@
+@@ -258,14 +673,12 @@
      ) -> PyResult<()> {
          let result = py.detach(
              || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
@@ -1381,7 +1383,7 @@
                  Ok((certs, key))
              },
          );
-@@ -273,6 +684,7 @@
+@@ -273,6 +686,7 @@
              Ok((certs, key)) => {
                  self.client_cert_chain = Some(certs);
                  self.client_key = Some(key);
@@ -1389,7 +1391,7 @@
                  Ok(())
              }
              Err(msg) => Err(raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg))),
-@@ -292,14 +704,12 @@
+@@ -292,14 +706,12 @@
      ) -> PyResult<()> {
          let result = py.detach(
              || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
@@ -1410,7 +1412,7 @@
                  Ok((certs, key))
              },
          );
-@@ -307,6 +717,7 @@
+@@ -307,6 +719,7 @@
              Ok((certs, key)) => {
                  self.server_cert_chain = Some(certs);
                  self.server_key = Some(key);
@@ -1418,7 +1420,7 @@
                  Ok(())
              }
              Err(msg) => Err(raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg))),
-@@ -316,45 +727,170 @@
+@@ -316,45 +729,190 @@
      /// Set ALPN protocol list.
      fn set_alpn(&mut self, protocols: Vec<Vec<u8>>) {
          self.alpn_protocols = protocols;
@@ -1538,6 +1540,26 @@
          self.verify_flags = flags;
 +        self.invalidate_config();
 +        Ok(())
++    }
++
++    fn get_num_tickets(&self) -> i64 {
++        self.num_tickets
++    }
++
++    fn set_num_tickets(&mut self, value: Bound<'_, PyAny>, server_side: bool) -> PyResult<()> {
++        let value = value.extract::<i64>()?;
++        if value < 0 {
++            return Err(pyo3::exceptions::PyValueError::new_err(
++                "value must be non-negative",
++            ));
++        }
++        if !server_side {
++            return Err(pyo3::exceptions::PyValueError::new_err(
++                "SSLContext is not a server context.",
++            ));
++        }
++        self.num_tickets = value;
++        Ok(())
      }
  
      fn set_sni_enabled(&mut self, enabled: bool) {
@@ -1596,7 +1618,7 @@
      }
  
      /// Check if ECH is configured.
-@@ -368,68 +904,165 @@
+@@ -368,68 +926,167 @@
      /// GIL is released during the deep copy of root store, keys, and certs.
      fn clone_builder(&self, py: Python<'_>) -> RustlsConfigBuilder {
          // Borrow all fields we need before entering allow_threads
@@ -1613,6 +1635,7 @@
 +            .as_ref()
 +            .map(|logger| Arc::new(logger.clone_logger()));
 +        let cipher_server_preference = self.cipher_server_preference;
++        let num_tickets = self.num_tickets;
          let server_cert_chain = &self.server_cert_chain;
          let server_key = &self.server_key;
          let root_certs_der = &self.root_certs_der;
@@ -1643,6 +1666,7 @@
              sni_enabled: self.sni_enabled,
 -            keylog_filename: keylog_filename.clone(),
 +            cipher_server_preference,
++            num_tickets,
 +            keylog: keylog.clone(),
              server_cert_chain: server_cert_chain.clone(),
              server_key: server_key.as_ref().map(|k| k.clone_key()),
@@ -1781,7 +1805,7 @@
      }
  
      /// Build a server connection.
-@@ -438,16 +1071,146 @@
+@@ -438,16 +1095,146 @@
          let builder = self;
          let result = py.detach(|| -> Result<RustlsServerConnection, String> {
              let config = builder.build_server_config_inner()?;
@@ -1930,7 +1954,7 @@
          let mut versions = Vec::new();
          let min = self.min_version.unwrap_or(TLS_V1_2);
          let max = self.max_version.unwrap_or(TLS_V1_3);
-@@ -459,88 +1222,87 @@
+@@ -459,88 +1246,87 @@
              versions.push(&rustls::version::TLS13);
          }
          if versions.is_empty() {
@@ -2097,7 +2121,7 @@
      }
  
      #[cfg(target_os = "wasi")]
-@@ -555,47 +1317,20 @@
+@@ -555,47 +1341,20 @@
      /// Returns Result<ClientConfig, String> so errors can be converted to
      /// Python exceptions after re-acquiring the GIL.
      fn build_client_config_inner(&self) -> Result<ClientConfig, String> {
@@ -2150,7 +2174,7 @@
          macro_rules! apply_versions_or_ech {
              ($provider:expr) => {
                  if let Some(mode) = ech_mode.clone() {
-@@ -610,110 +1345,125 @@
+@@ -610,110 +1369,126 @@
              };
          }
  
@@ -2334,6 +2358,7 @@
 +            selected_context.server_sigalgs.as_deref(),
 +        )?;
 +        let mut config = builder.with_cert_resolver(Arc::new(SingleCertAndKey::from(certified)));
++        config.send_tls13_tickets = self.num_tickets as usize;
 +        config.session_storage = Arc::clone(&self.server_sessions);
 +        config.ignore_client_order = self.cipher_server_preference;
 +        config.ticketer = self.get_or_create_server_ticketer()?;
@@ -2347,7 +2372,7 @@
          }
  
          Ok(config)
-@@ -733,6 +1483,7 @@
+@@ -733,6 +1508,7 @@
      pem_data: &[u8],
      password: Option<&[u8]>,
  ) -> Result<PrivateKeyDer<'static>, String> {
@@ -2482,7 +2507,7 @@
              // Cache peer certs after handshake completes (while lock is held)
              if !guard.conn.is_handshaking() && guard.peer_certs_cache.is_none() {
                  guard.peer_certs_cache = guard
-@@ -185,6 +196,85 @@
+@@ -185,6 +196,116 @@
          py.detach(|| inner.lock().unwrap().conn.is_handshaking())
      }
  
@@ -2565,10 +2590,41 @@
 +        })
 +    }
 +
++    fn tls_unique(&self, py: Python<'_>) -> Py<PyAny> {
++        let inner = &self.inner;
++        let data = py.detach(|| {
++            let guard = inner.lock().unwrap();
++            if guard.conn.is_handshaking() {
++                None
++            } else {
++                guard.conn.tls_unique().map(<[u8]>::to_vec)
++            }
++        });
++        match data {
++            Some(data) => PyBytes::new(py, &data).into(),
++            None => py.None(),
++        }
++    }
++
++    fn group(&self, py: Python<'_>) -> Option<String> {
++        let inner = &self.inner;
++        py.detach(|| {
++            inner
++                .lock()
++                .unwrap()
++                .conn
++                .negotiated_key_exchange_group()
++                .map(|group| match group.name() {
++                    rustls::NamedGroup::X25519 => "x25519".to_string(),
++                    name => format!("{name:?}"),
++                })
++        })
++    }
++
      /// Returns True if the state machine wants to read more ciphertext from the network.
      fn wants_read(&self, py: Python<'_>) -> bool {
          let inner = &self.inner;
-@@ -199,6 +289,14 @@
+@@ -199,6 +320,14 @@
  
      /// Get peer certificates as list of DER-encoded bytes.
      /// Returns None if no certificates available (e.g., before handshake).
@@ -2583,7 +2639,7 @@
      fn peer_certificates(&self, py: Python<'_>) -> PyResult<Option<Vec<Py<PyAny>>>> {
          let inner = &self.inner;
          let cached = py.detach(|| {
-@@ -326,11 +424,16 @@
+@@ -326,11 +455,16 @@
              let total = ciphertext.len();
  
              while offset < total || !guard.conn.wants_read() {
@@ -2601,7 +2657,7 @@
                          Err(e) => {
                              let msg = e.to_string();
                              if msg.contains("buffer full") {
-@@ -343,9 +446,16 @@
+@@ -343,9 +477,16 @@
                  }
  
                  // Process buffered TLS records (the expensive crypto work)
@@ -2618,7 +2674,7 @@
  
                  // Drain available plaintext
                  let remaining = max_plaintext - plaintext.len();
-@@ -377,7 +487,8 @@
+@@ -377,7 +518,8 @@
                  }
  
                  // If all ciphertext consumed and nothing left to process, done
@@ -2628,7 +2684,7 @@
                      break;
                  }
              }
-@@ -416,6 +527,8 @@
+@@ -416,6 +558,8 @@
  /// Internal mutable state for server connections, protected by a Mutex.
  struct ServerInner {
      conn: ServerConnection,
@@ -2637,7 +2693,7 @@
      peer_certs_cache: Option<Vec<Vec<u8>>>,
      // Updated from IoState after processing, then reduced by plaintext reads.
      plaintext_pending: usize,
-@@ -430,13 +543,23 @@
+@@ -430,13 +574,23 @@
  #[pyclass(frozen)]
  pub struct RustlsServerConnection {
      inner: Mutex<ServerInner>,
@@ -2662,7 +2718,7 @@
                  peer_certs_cache: None,
                  plaintext_pending: 0,
                  peer_has_closed: false,
-@@ -452,7 +575,12 @@
+@@ -452,7 +606,12 @@
          let mut cursor = Cursor::new(data);
          let result = py.detach(|| {
              let mut guard = inner.lock().unwrap();
@@ -2676,7 +2732,7 @@
          });
          result.map_err(|e| error::raise_ssl_error(py, &format!("read_tls failed: {}", e)))
      }
-@@ -461,9 +589,17 @@
+@@ -461,9 +620,17 @@
          let inner = &self.inner;
          let result: Result<(), TlsError> = py.detach(|| {
              let mut guard = inner.lock().unwrap();
@@ -2694,7 +2750,7 @@
              if !guard.conn.is_handshaking() && guard.peer_certs_cache.is_none() {
                  guard.peer_certs_cache = guard
                      .conn
-@@ -544,6 +680,16 @@
+@@ -544,6 +711,47 @@
          py.detach(|| inner.lock().unwrap().conn.is_handshaking())
      }
  
@@ -2708,10 +2764,41 @@
 +        })
 +    }
 +
++    fn tls_unique(&self, py: Python<'_>) -> Py<PyAny> {
++        let inner = &self.inner;
++        let data = py.detach(|| {
++            let guard = inner.lock().unwrap();
++            if guard.conn.is_handshaking() {
++                None
++            } else {
++                guard.conn.tls_unique().map(<[u8]>::to_vec)
++            }
++        });
++        match data {
++            Some(data) => PyBytes::new(py, &data).into(),
++            None => py.None(),
++        }
++    }
++
++    fn group(&self, py: Python<'_>) -> Option<String> {
++        let inner = &self.inner;
++        py.detach(|| {
++            inner
++                .lock()
++                .unwrap()
++                .conn
++                .negotiated_key_exchange_group()
++                .map(|group| match group.name() {
++                    rustls::NamedGroup::X25519 => "x25519".to_string(),
++                    name => format!("{name:?}"),
++                })
++        })
++    }
++
      fn wants_read(&self, py: Python<'_>) -> bool {
          let inner = &self.inner;
          py.detach(|| inner.lock().unwrap().conn.wants_read())
-@@ -552,6 +698,14 @@
+@@ -552,6 +760,14 @@
      fn wants_write(&self, py: Python<'_>) -> bool {
          let inner = &self.inner;
          py.detach(|| inner.lock().unwrap().conn.wants_write())
@@ -2726,7 +2813,7 @@
      }
  
      fn peer_certificates(&self, py: Python<'_>) -> PyResult<Option<Vec<Py<PyAny>>>> {
-@@ -653,10 +807,18 @@
+@@ -653,10 +869,18 @@
              let total = ciphertext.len();
  
              while offset < total || !guard.conn.wants_read() {
@@ -2746,7 +2833,7 @@
                          Err(e) => {
                              let msg = e.to_string();
                              if msg.contains("buffer full") {
-@@ -668,9 +830,17 @@
+@@ -668,9 +892,17 @@
                      }
                  }
  
@@ -2764,7 +2851,7 @@
  
                  let remaining = max_plaintext - plaintext.len();
                  if remaining > 0 {
-@@ -698,7 +868,8 @@
+@@ -698,7 +930,8 @@
                      break;
                  }
  
@@ -6400,6 +6487,10 @@
 -            value = TLSVersion(value)
 -            self._maximum_version = value
 -            self._builder.set_max_version(int(value))
+-
+-    @property
+-    def post_handshake_auth(self) -> bool:
+-        return self._post_handshake_auth
 +    def maximum_version(self, value: TLSVersion | int) -> None:
 +        version = self._coerce_tls_version(value)
 +        if version == TLSVersion.MINIMUM_SUPPORTED:
@@ -6461,10 +6552,8 @@
 +            self._minimum_version = minimum
 +            self._maximum_version = maximum
 +            self._options = options
- 
-     @property
--    def post_handshake_auth(self) -> bool:
--        return self._post_handshake_auth
++
++    @property
 +    def post_handshake_auth(self) -> None:
 +        return None
  
@@ -6472,10 +6561,12 @@
      def post_handshake_auth(self, value: bool) -> None:
 -        # rustls doesn't support PHA, but we store the value
 -        self._post_handshake_auth = value
-+        raise NotImplementedError("RTLS does not support post-handshake authentication")
- 
-     @property
+-
+-    @property
 -    def keylog_filename(self) -> str | None:
++        raise NotImplementedError("RTLS does not support post-handshake authentication")
++
++    @property
 +    def keylog_filename(self) -> Any:
          return self._keylog_filename
  
@@ -6527,7 +6618,7 @@
  
      @property
      def security_level(self) -> int:  # type: ignore[override]
-@@ -408,49 +554,42 @@
+@@ -408,49 +554,52 @@
  
      @sni_callback.setter
      def sni_callback(self, callback: Callable | None) -> None:
@@ -6598,10 +6689,20 @@
 -            "cache_full": 0,
 -        }
 +        return self._builder.session_stats()
++
++    @property
++    def num_tickets(self) -> int:
++        return self._builder.get_num_tickets()
++
++    @num_tickets.setter
++    def num_tickets(self, value: int) -> None:
++        self._builder.set_num_tickets(
++            value, self.protocol == PROTOCOL_TLS_SERVER
++        )
  
      def set_npn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """No-op — NPN is not supported by rustls."""
-@@ -465,14 +604,11 @@
+@@ -465,14 +614,11 @@
                      f"expected bytes-like object, got {type(ech_config_list).__name__}"
                  )
  
@@ -6616,7 +6717,7 @@
              clone._verify_mode = self._verify_mode
              clone._check_hostname = self._check_hostname
              clone._options = self._options
-@@ -481,18 +617,15 @@
+@@ -481,18 +627,15 @@
              clone._alpn_protocols = list(self._alpn_protocols)
              clone._ciphers_string = self._ciphers_string
              clone._sni_callback = self._sni_callback
@@ -6636,7 +6737,7 @@
              from ._constants import TLSVersion
  
              clone._minimum_version = TLSVersion.TLSv1_3
-@@ -505,72 +638,10 @@
+@@ -505,72 +648,10 @@
              """Return True if ECH configs have been set."""
              return self._builder.has_ech()
  
@@ -6780,7 +6881,7 @@
      _HAS_ECH,
      CERT_NONE,
      SSL_ERROR_WANT_READ,
-@@ -40,6 +42,43 @@
+@@ -40,6 +42,53 @@
  }
  
  
@@ -6797,6 +6898,16 @@
 +    if server_side:
 +        raise ValueError("session can only be specified in client mode")
 +    _validate_session_type(session)
++
++
++def _validate_channel_binding_type(cb_type: Any) -> None:
++    if not isinstance(cb_type, str):
++        raise TypeError(
++            "get_channel_binding() argument 'cb_type' must be str, "
++            f"not {type(cb_type).__name__}"
++        )
++    if cb_type != "tls-unique":
++        raise ValueError(f"'{cb_type}' channel binding type not implemented")
 +
 +
 +class _TLSPrivateObject:
@@ -6824,7 +6935,7 @@
  class TLSObject:
      """Sans-I/O TLS object — equivalent of ``ssl.SSLObject``.
  
-@@ -57,33 +96,49 @@
+@@ -57,33 +106,49 @@
          outgoing: MemoryBIO,
          server_side: bool = False,
          server_hostname: str | None = None,
@@ -6880,7 +6991,7 @@
  
          # After building client connection, the state machine immediately
          # has a ClientHello to send — flush it to the outgoing BIO
-@@ -129,6 +184,53 @@
+@@ -129,6 +194,53 @@
                      break
                  offset += consumed
  
@@ -6934,7 +7045,7 @@
      def do_handshake(self) -> None:
          """Perform the TLS handshake.
  
-@@ -137,8 +239,11 @@
+@@ -137,8 +249,11 @@
          """
          if self._handshake_done:
              return
@@ -6948,7 +7059,7 @@
          self._pump_incoming()
  
          # Process the TLS records
-@@ -171,12 +276,16 @@
+@@ -171,12 +286,16 @@
          read_tls → process_new_packets → read_plaintext in a single
          Python→Rust call, handling buffer-full looping internally.
          """
@@ -6969,7 +7080,7 @@
  
          # Read all available ciphertext from the BIO
          ciphertext = self._incoming.read()
-@@ -187,7 +296,7 @@
+@@ -187,7 +306,7 @@
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
                  self._peer_closed = True
@@ -6978,7 +7089,7 @@
  
              # Stash any unconsumed ciphertext back in the BIO
              if unconsumed:
-@@ -197,11 +306,7 @@
+@@ -197,11 +316,7 @@
              self._flush_outgoing()
  
              if plaintext:
@@ -6991,7 +7102,7 @@
  
          # No ciphertext available (or it produced no plaintext).
          # Try draining any plaintext already buffered in rustls from
-@@ -210,13 +315,9 @@
+@@ -210,13 +325,9 @@
              data = self._conn.read_plaintext(max_len)
          except SSLZeroReturnError:
              self._peer_closed = True
@@ -7007,7 +7118,7 @@
  
          # Truly no data available
          if self._incoming.eof:
-@@ -225,14 +326,40 @@
+@@ -225,14 +336,40 @@
              SSL_ERROR_WANT_READ, "The read operation did not complete"
          )
  
@@ -7049,7 +7160,7 @@
  
          # Absorb any ciphertext left in the incoming BIO
          if self._incoming.pending:
-@@ -271,7 +398,7 @@
+@@ -271,7 +408,7 @@
          Returns number of bytes written. The encrypted ciphertext is
          placed in the outgoing BIO for the transport to send.
          """
@@ -7058,7 +7169,7 @@
              raise SSLZeroReturnError("TLS/SSL connection has been closed")
  
          if not self._handshake_done:
-@@ -289,14 +416,46 @@
+@@ -289,14 +426,46 @@
          return n
  
      def unwrap(self) -> None:
@@ -7110,7 +7221,7 @@
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
          """Return the peer's certificate.
-@@ -323,12 +482,9 @@
+@@ -323,12 +492,9 @@
          if binary_form:
              return der_bytes
  
@@ -7126,7 +7237,34 @@
  
      def cipher(self) -> tuple[str, str, int] | None:
          """Return a 3-tuple (cipher_name, tls_version, secret_bits) or None."""
-@@ -400,6 +556,10 @@
+@@ -366,6 +532,12 @@
+             return None
+         return _VERSION_MAP.get(v, None)
+ 
++    def group(self) -> str | None:
++        """Return the negotiated key exchange group name."""
++        if self._conn is None:
++            return None
++        return self._conn.group()
++
+     def selected_alpn_protocol(self) -> str | None:
+         """Return the selected ALPN protocol as a string, or None."""
+         proto = self._conn.alpn_protocol()
+@@ -386,8 +558,11 @@
+         return self._conn.pending()
+ 
+     def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
+-        """Return channel binding data. Not yet implemented."""
+-        return None
++        """Return channel binding data."""
++        _validate_channel_binding_type(cb_type)
++        if self._conn is None:
++            return None
++        return self._conn.tls_unique()
+ 
+     def getpeername(self) -> tuple | None:
+         """SSLObject doesn't have a socket, so no peername."""
+@@ -400,6 +575,10 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -7137,7 +7275,7 @@
          self._context = ctx
  
      @property
-@@ -411,35 +571,32 @@
+@@ -411,35 +590,32 @@
          return self._server_hostname
  
      @property
@@ -7196,7 +7334,7 @@
  
      @property
      def owner(self) -> Any:
-@@ -447,14 +604,26 @@
+@@ -447,14 +623,26 @@
          return None
  
      @property
@@ -7245,7 +7383,7 @@
      def add_root_cert_from_der(self, der_data: bytes) -> None: ...
      def set_client_cert_chain_pem(
          self,
-@@ -22,18 +26,43 @@
+@@ -22,18 +26,45 @@
      def set_min_version(self, version: int) -> None: ...
      def set_max_version(self, version: int) -> None: ...
      def set_cipher_suites(self, suites: list[str]) -> None: ...
@@ -7276,6 +7414,8 @@
 +    ) -> RustlsClientConnection: ...
      def build_server_connection(self) -> RustlsServerConnection: ...
      def set_verify_flags(self, flags: int) -> None: ...
++    def get_num_tickets(self) -> int: ...
++    def set_num_tickets(self, value: int, server_side: bool) -> None: ...
 +
 +class RustlsSession:
 +    @property
@@ -7291,17 +7431,29 @@
  
  class RustlsClientConnection:
      """Client-side TLS state machine. No network I/O."""
-@@ -46,6 +75,9 @@
+@@ -46,6 +77,11 @@
      def write_tls(self) -> bytes: ...
      def send_close_notify(self) -> None: ...
      def is_handshaking(self) -> bool: ...
 +    def session(self) -> RustlsSession | None: ...
 +    def set_session(self, session: RustlsSession) -> bool: ...
 +    def session_reused(self) -> bool: ...
++    def tls_unique(self) -> bytes | None: ...
++    def group(self) -> str | None: ...
      def wants_read(self) -> bool: ...
      def wants_write(self) -> bool: ...
      def peer_certificates(self) -> list[bytes] | None: ...
-@@ -81,8 +113,9 @@
+@@ -69,6 +105,9 @@
+     def write_tls(self) -> bytes: ...
+     def send_close_notify(self) -> None: ...
+     def is_handshaking(self) -> bool: ...
++    def session_reused(self) -> bool: ...
++    def tls_unique(self) -> bytes | None: ...
++    def group(self) -> str | None: ...
+     def wants_read(self) -> bool: ...
+     def wants_write(self) -> bool: ...
+     def peer_certificates(self) -> list[bytes] | None: ...
+@@ -81,8 +120,9 @@
      ) -> tuple[bytes, bytes]: ...
  
  def parse_certificate_dict(der_bytes: bytes) -> dict[str, object]: ...
@@ -7336,7 +7488,7 @@
      SSLZeroReturnError,
  )
 -from ._object import TLSObject
-+from ._object import TLSObject, _validate_session_type
++from ._object import TLSObject, _validate_channel_binding_type, _validate_session_type
  from ._stdlib import ssl as _stdlib_ssl
  
  if TYPE_CHECKING:
@@ -7624,10 +7776,24 @@
          except (BlockingIOError, InterruptedError):
              raise SSLWantReadError(
                  SSL_ERROR_WANT_READ, "The read operation did not complete"
-@@ -353,26 +487,31 @@
-     def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
-         return None
+@@ -334,6 +468,11 @@
+             return None
+         return self._sslobj_internal.version()
  
++    def group(self) -> str | None:
++        if self._sslobj_internal is None:
++            return None
++        return self._sslobj_internal.group()
++
+     def selected_alpn_protocol(self) -> str | None:
+         if self._sslobj_internal is None:
+             return None
+@@ -351,28 +490,36 @@
+         return self._sslobj_internal.pending()
+ 
+     def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
+-        return None
+-
 -    def unwrap(self) -> socket.socket:
 -        """Shut down the TLS layer and return the underlying socket.
 -
@@ -7642,6 +7808,11 @@
 -        # Create a new plain socket from our fd (detach so we don't close it)
 -        fd = self.detach()
 -        return socket.socket(fileno=fd)
++        _validate_channel_binding_type(cb_type)
++        if self._sslobj_internal is None:
++            return None
++        return self._sslobj_internal.get_channel_binding(cb_type)
++
 +    def unwrap(self) -> TLSSocket:
 +        """Shut down TLS and return this socket in plain-socket mode."""
 +        if self._sslobj_internal is None:
@@ -7673,7 +7844,7 @@
          socket.socket.shutdown(self, how)
  
      def close(self) -> None:
-@@ -409,6 +548,8 @@
+@@ -409,6 +556,8 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -7682,7 +7853,7 @@
          self._rtls_context = ctx
  
      @property
-@@ -419,11 +560,34 @@
+@@ -419,11 +568,34 @@
      def server_hostname(self) -> str | None:  # type: ignore[override]
          return self._server_hostname
  
@@ -7720,7 +7891,7 @@
  
      @_sslobj.setter
      def _sslobj(self, value: Any) -> None:
-@@ -434,14 +598,14 @@
+@@ -434,14 +606,14 @@
      def sslobj(self) -> TLSObject | None:
          return self._sslobj_internal
  
@@ -7741,7 +7912,7 @@
          return self._sslobj_internal.get_unverified_chain()
  
      if _HAS_ECH:
-@@ -462,14 +626,19 @@
+@@ -462,14 +634,19 @@
      def sendto(self, *args: Any, **kwargs: Any) -> Any:
          raise ValueError("sendto not allowed on TLS sockets")
  
@@ -7764,7 +7935,7 @@
  
      def __enter__(self) -> TLSSocket:
          return self
-@@ -501,15 +670,23 @@
+@@ -501,15 +678,23 @@
          server_hostname: str | None = None,
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
@@ -7788,7 +7959,7 @@
          self._sslobj_internal: TLSObject | None = None
          self._closed = False
  
-@@ -536,7 +713,10 @@
+@@ -536,7 +721,10 @@
              outgoing=self._outgoing,
              server_side=self._server_side,
              server_hostname=self._server_hostname,
@@ -7799,7 +7970,7 @@
  
      def connect(self, addr: Any) -> None:
          if self._server_side:
-@@ -575,6 +755,12 @@
+@@ -575,6 +763,12 @@
                  self._pull_incoming()
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -7812,7 +7983,7 @@
  
      def send(self, data: bytes, flags: int = 0) -> int:
          if flags:
-@@ -595,6 +781,8 @@
+@@ -595,6 +789,8 @@
      def recv(self, buflen: int = _DEFAULT_BUFFER_SIZE, flags: int = 0) -> bytes:
          if flags:
              raise ValueError("non-zero flags not allowed on TLS sockets")
@@ -7821,7 +7992,7 @@
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -632,7 +820,11 @@
+@@ -632,7 +828,11 @@
  
      def read(self, n: int = _DEFAULT_BUFFER_SIZE, buffer: Any = None) -> bytes | int:
          if buffer is None:
@@ -7833,7 +8004,7 @@
          return self.recv_into(buffer, n)
  
      def write(self, data: bytes) -> int:
-@@ -644,9 +836,11 @@
+@@ -644,9 +844,11 @@
              self._transport.sendall(data)
  
      def _pull_incoming(self) -> None:
@@ -7848,8 +8019,26 @@
          self._incoming.write(data)
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
-@@ -670,15 +864,25 @@
+@@ -660,6 +862,9 @@
+     def version(self) -> str | None:
+         return self._sslobj_internal.version() if self._sslobj_internal else None
  
++    def group(self) -> str | None:
++        return self._sslobj_internal.group() if self._sslobj_internal else None
++
+     def selected_alpn_protocol(self) -> str | None:
+         if self._sslobj_internal is None:
+             return None
+@@ -668,17 +873,33 @@
+     def pending(self) -> int:
+         return self._sslobj_internal.pending() if self._sslobj_internal else 0
+ 
++    def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
++        _validate_channel_binding_type(cb_type)
++        if self._sslobj_internal is None:
++            return None
++        return self._sslobj_internal.get_channel_binding(cb_type)
++
      def unwrap(self) -> Any:
          if self._sslobj_internal is not None:
 -            self._sslobj_internal.unwrap()
@@ -7879,7 +8068,7 @@
          self._transport.shutdown(how)
  
      def close(self) -> None:
-@@ -694,14 +898,14 @@
+@@ -694,14 +915,14 @@
              self._sslobj_internal = None
          self._transport.close()
  
@@ -7900,7 +8089,7 @@
          return self._sslobj_internal.get_unverified_chain()
  
      @property
-@@ -717,8 +921,32 @@
+@@ -717,8 +938,32 @@
          return self._server_hostname
  
      @property
@@ -8155,7 +8344,7 @@
    - Tests that rely on OpenSSL internals (_ssl, ASN1Object, DH params, etc.) are skipped
    - Error message assertions adapted for rustls error strings
 -  - Session-related features (session reuse) skipped (rustls doesn't expose sessions)
-+  - Session objects are not exposed; context-managed resumption is tested
++  - Explicit sessions, metadata, and resumption are tested
  """
  
  import sys
@@ -8187,7 +8376,25 @@
  ALLSANFILE = data_file("allsans.pem")
  IDNSANSFILE = data_file("idnsans.pem")
  NOSANFILE = data_file("nosan.pem")
-@@ -494,6 +508,7 @@
+@@ -239,6 +253,8 @@
+                 self.server.selected_alpn_protocols.append(
+                     self.sslconn.selected_alpn_protocol()
+                 )
++                self.server.selected_groups.append(self.sslconn.group())
++                self.server.selected_object_groups.append(self.sslconn._sslobj.group())
+             except (
+                 ConnectionResetError,
+                 BrokenPipeError,
+@@ -423,6 +439,8 @@
+         self.flag = None
+         self.active = False
+         self.selected_alpn_protocols = []
++        self.selected_groups = []
++        self.selected_object_groups = []
+         self.shared_ciphers = []
+         self.conn_errors = []
+         threading.Thread.__init__(self)
+@@ -494,6 +512,7 @@
      chatty=True,
      connectionchatty=False,
      sni_name=None,
@@ -8195,7 +8402,7 @@
  ):
      """Launch a server, connect a client to it and try various reads and writes."""
      stats = {}
-@@ -501,7 +516,9 @@
+@@ -501,7 +520,9 @@
          context=server_context, chatty=chatty, connectionchatty=False
      )
      with server:
@@ -8206,19 +8413,118 @@
              s.connect((HOST, server.port))
              for arg in [indata, bytearray(indata), memoryview(indata)]:
                  if connectionchatty and VERBOSE:
-@@ -530,6 +547,8 @@
+@@ -530,10 +551,16 @@
                      "peercert": s.getpeercert(),
                      "client_alpn_protocol": s.selected_alpn_protocol(),
                      "version": s.version(),
++                    "group": s.group(),
++                    "object_group": s._sslobj.group(),
 +                    "session": s.session,
 +                    "session_reused": s.session_reused,
                  }
              )
              s.close()
-@@ -718,6 +737,270 @@
+         stats["server_alpn_protocols"] = server.selected_alpn_protocols
++        stats["server_groups"] = server.selected_groups
++        stats["server_object_groups"] = server.selected_object_groups
+         stats["server_shared_ciphers"] = server.shared_ciphers
+     return stats
+ 
+@@ -711,12 +738,369 @@
+         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
+         self.assertEqual(ctx.protocol, ssl.PROTOCOL_TLS)
+ 
++    def test_num_tickets(self):
++        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++        self.assertEqual(ctx.num_tickets, 2)
++        ctx.num_tickets = 1
++        self.assertEqual(ctx.num_tickets, 1)
++        ctx.num_tickets = 0
++        self.assertEqual(ctx.num_tickets, 0)
++        ctx.num_tickets = 2**63 - 1
++        self.assertEqual(ctx.num_tickets, 2**63 - 1)
++        with self.assertRaises(OverflowError):
++            ctx.num_tickets = 2**63
++        with self.assertRaisesRegex(ValueError, "value must be non-negative"):
++            ctx.num_tickets = -1
++        with self.assertRaises(TypeError):
++            ctx.num_tickets = None
++
++        client_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++        self.assertEqual(client_context.num_tickets, 2)
++        with self.assertRaisesRegex(ValueError, "not a server context"):
++            client_context.num_tickets = 1
++
++    def test_num_tickets_controls_tls13_ticket_count(self):
++        for ticket_count in (0, 1, 2):
++            with self.subTest(ticket_count=ticket_count):
++                client_context, server_context, hostname = testing_context()
++                client_context.minimum_version = ssl.TLSVersion.TLSv1_3
++                client_context.maximum_version = ssl.TLSVersion.TLSv1_3
++                server_context.minimum_version = ssl.TLSVersion.TLSv1_3
++                server_context.maximum_version = ssl.TLSVersion.TLSv1_3
++                server_context.num_tickets = ticket_count
++
++                server_params_test(
++                    client_context,
++                    server_context,
++                    chatty=False,
++                    sni_name=hostname,
++                )
++
++                self.assertEqual(
++                    client_context.session_stats()["number"], ticket_count
++                )
++
++    def test_sni_callback_preserves_initial_num_tickets(self):
++        for initial_tickets, selected_tickets, expected_ticket in (
++            (0, 2, False),
++            (2, 0, True),
++        ):
++            with self.subTest(
++                initial_tickets=initial_tickets,
++                selected_tickets=selected_tickets,
++            ):
++                client_context, initial_context, hostname = testing_context()
++                selected_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++                selected_context.load_cert_chain(SIGNED_CERTFILE)
++                for context in (client_context, initial_context, selected_context):
++                    context.minimum_version = ssl.TLSVersion.TLSv1_3
++                    context.maximum_version = ssl.TLSVersion.TLSv1_3
++                initial_context.num_tickets = initial_tickets
++                selected_context.num_tickets = selected_tickets
++                callback_contexts = []
++
++                def select_context(sock, servername, context):
++                    callback_contexts.append((servername, context))
++                    sock.context = selected_context
++
++                initial_context.sni_callback = select_context
++                server = ThreadedEchoServer(context=initial_context, chatty=False)
++                with server:
++                    with client_context.wrap_socket(
++                        socket.socket(), server_hostname=hostname
++                    ) as sock:
++                        sock.connect((HOST, server.port))
++                        sock.write(b"FOO\n")
++                        self.assertEqual(sock.read(), b"foo\n")
++                        self.assertEqual(
++                            callback_contexts, [(hostname, initial_context)]
++                        )
++                        session = sock.session
++                        self.assertEqual(
++                            session is not None and session.has_ticket,
++                            expected_ticket,
++                        )
++                        sock.write(b"over\n")
++
+     def test_ciphers(self):
+         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+         ctx.set_ciphers("ALL")
+         ctx.set_ciphers("DEFAULT")
          with self.assertRaises(ssl.SSLError):
              ctx.set_ciphers("^$:,;?*'dorothyx")
- 
++
 +    def test_groups(self):
 +        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 +        self.assertNotIn("P-256", ctx.get_groups())
@@ -8232,12 +8538,21 @@
 +        client_context.minimum_version = ssl.TLSVersion.TLSv1_3
 +        server_context.minimum_version = ssl.TLSVersion.TLSv1_3
 +        server_context.set_groups("secp384r1")
-+        server_params_test(
++        obj = client_context.wrap_bio(
++            ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname=hostname
++        )
++        self.assertIsNone(obj.group())
++
++        stats = server_params_test(
 +            client_context,
 +            server_context,
 +            chatty=False,
 +            sni_name=hostname,
 +        )
++        self.assertEqual(stats["group"], "secp384r1")
++        self.assertEqual(stats["object_group"], "secp384r1")
++        self.assertEqual(stats["server_groups"], ["secp384r1"])
++        self.assertEqual(stats["server_object_groups"], ["secp384r1"])
 +
 +        client_context, server_context, hostname = testing_context()
 +        client_context.minimum_version = ssl.TLSVersion.TLSv1_3
@@ -8482,11 +8797,10 @@
 +            ssl.SSLError, "No supported cipher suites selected"
 +        ):
 +            context._get_builder().build_client_connection("localhost")
-+
+ 
      def test_get_ciphers(self):
          ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-         ciphers = ctx.get_ciphers()
-@@ -901,6 +1184,231 @@
+@@ -901,6 +1285,231 @@
          stats = ctx.cert_store_stats()
          self.assertGreaterEqual(stats["x509_ca"], 1)
  
@@ -8718,6 +9032,66 @@
      def test_get_ca_certs(self):
          ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
          self.assertEqual(ctx.get_ca_certs(), [])
+@@ -1534,6 +2143,59 @@
+                 version = s.version()
+                 self.assertEqual(version, "TLSv1.3")
+ 
++    def test_tls_unique_channel_binding_tls13(self):
++        client_context, server_context, hostname = testing_context()
++        for context in (client_context, server_context):
++            context.minimum_version = ssl.TLSVersion.TLSv1_3
++            context.maximum_version = ssl.TLSVersion.TLSv1_3
++            context.set_ciphersuites("TLS_AES_256_GCM_SHA384")
++
++        server = ThreadedEchoServer(context=server_context, chatty=False)
++        with server:
++            with client_context.wrap_socket(
++                socket.socket(), server_hostname=hostname
++            ) as s:
++                s.connect((HOST, server.port))
++                self.assertEqual(s.version(), "TLSv1.3")
++                self.assertEqual(s.cipher()[0], "TLS_AES_256_GCM_SHA384")
++                binding = s.get_channel_binding()
++                self.assertIsNotNone(binding)
++                self.assertEqual(len(binding), 48)
++                s.write(b"CB tls-unique\n")
++                self.assertEqual(
++                    s.read(), repr(binding).encode("us-ascii") + b"\n"
++                )
++
++    def test_tls_unique_channel_binding_resumed_session(self):
++        client_context, server_context, hostname = testing_context()
++        for context in (client_context, server_context):
++            context.minimum_version = ssl.TLSVersion.TLSv1_2
++            context.maximum_version = ssl.TLSVersion.TLSv1_2
++
++        session = None
++        server = ThreadedEchoServer(context=server_context, chatty=False)
++        with server:
++            for expected_reused in (False, True):
++                with client_context.wrap_socket(
++                    socket.socket(),
++                    server_hostname=hostname,
++                    session=session,
++                ) as s:
++                    s.connect((HOST, server.port))
++                    self.assertEqual(s.version(), "TLSv1.2")
++                    self.assertEqual(s.session_reused, expected_reused)
++                    binding = s.get_channel_binding()
++                    self.assertIsNotNone(binding)
++                    self.assertEqual(len(binding), 12)
++                    s.write(b"CB tls-unique\n")
++                    self.assertEqual(
++                        s.read(), repr(binding).encode("us-ascii") + b"\n"
++                    )
++                    s.write(b"over\n")
++                    if session is None:
++                        session = s.session
++                        self.assertIsNotNone(session)
++
+     def test_min_max_version(self):
+         """Test TLS version constraints."""
+         client_context, server_context, hostname = testing_context()
 --- /dev/null
 +++ b/tests/test_handshake_record_boundary.py
 @@ -0,0 +1,129 @@

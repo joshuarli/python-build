@@ -1,3 +1,118 @@
+--- a/src/client/hs.rs
++++ b/src/client/hs.rs
+@@ -94,10 +94,11 @@
+                         // If we have a ticket, we use the sessionid as a signal that
+                         // we're  doing an abbreviated handshake.  See section 3.4 in
+                         // RFC5077.
+-                        if !inner.ticket().0.is_empty() {
+-                            inner.session_id = SessionId::random(config.provider.secure_random)?;
++                        if inner.has_ticket() {
++                            Some(SessionId::random(config.provider.secure_random)?)
++                        } else {
++                            Some(inner.session_id)
+                         }
+-                        Some(inner.session_id)
+                     }
+                     _ => None,
+                 }
+--- a/src/client/tls12.rs
++++ b/src/client/tls12.rs
+@@ -92,6 +92,7 @@
+             let ClientHelloInput {
+                 config,
+                 server_name,
++                session_id,
+                 ..
+             } = self.input;
+ 
+@@ -138,7 +139,7 @@
+ 
+             // See if we're successfully resuming.
+             if let Some(resuming) = resuming_session {
+-                if resuming.session_id == server_hello.session_id {
++                if session_id == server_hello.session_id {
+                     debug!("Server agreed to resume");
+ 
+                     // Is the server telling lies about the ciphersuite?
+@@ -607,6 +608,7 @@
+ ) {
+     let vh = transcript.current_hash();
+     let verify_data = secrets.client_verify_data(&vh);
++    common.set_tls_unique_if_none(&verify_data);
+     let verify_data_payload = Payload::new(verify_data);
+ 
+     let f = Message {
+@@ -1220,9 +1222,14 @@
+             return;
+         };
+ 
++        let session_id = self
++            .resuming_session
++            .as_ref()
++            .map(|session| session.session_id)
++            .unwrap_or(self.session_id);
+         let session_value = persist::Tls12ClientSessionValue::new(
+             self.secrets.suite(),
+-            self.session_id,
++            session_id,
+             ticket,
+             self.secrets.master_secret(),
+             cx.common
+@@ -1273,6 +1280,8 @@
+                         .send_fatal_alert(AlertDescription::DecryptError, Error::DecryptError));
+                 }
+             };
++
++        cx.common.set_tls_unique_if_none(finished.bytes());
+ 
+         // Hash this message too.
+         st.transcript.add_message(&m);
+--- a/src/client/tls13.rs
++++ b/src/client/tls13.rs
+@@ -1414,6 +1414,7 @@
+ 
+         emit_finished_tls13(&mut flight, &verify_data);
+         flight.finish(cx.common);
++        cx.common.set_tls_unique_if_none(verify_data.as_ref());
+ 
+         /* We're now sure this server supports TLS1.3.  But if we run out of TLS1.3 tickets
+          * when connecting to it again, we definitely don't want to attempt a TLS1.2 resumption. */
+--- a/src/common_state.rs
++++ b/src/common_state.rs
+@@ -61,6 +61,7 @@
+     pub(crate) refresh_traffic_keys_pending: bool,
+     pub(crate) fips: bool,
+     pub(crate) tls13_tickets_received: u32,
++    tls_unique: Option<Vec<u8>>,
+ }
+ 
+ impl CommonState {
+@@ -94,6 +95,7 @@
+             refresh_traffic_keys_pending: false,
+             fips: false,
+             tls13_tickets_received: 0,
++            tls_unique: None,
+         }
+     }
+ 
+@@ -113,6 +115,17 @@
+     /// [`Connection::process_new_packets()`]: crate::Connection::process_new_packets
+     pub fn is_handshaking(&self) -> bool {
+         !(self.may_send_application_data && self.may_receive_application_data)
++    }
++
++    /// Returns the captured tls-unique channel binding data, if available.
++    pub fn tls_unique(&self) -> Option<&[u8]> {
++        self.tls_unique.as_deref()
++    }
++
++    pub(crate) fn set_tls_unique_if_none(&mut self, finished: &[u8]) {
++        if self.tls_unique.is_none() {
++            self.tls_unique = Some(finished.to_vec());
++        }
+     }
+ 
+     /// Retrieves the certificate chain or the raw public key used by the peer to authenticate.
 --- a/src/msgs/persist.rs
 +++ b/src/msgs/persist.rs
 @@ -199,6 +199,11 @@
@@ -39,58 +154,6 @@
      }
  
      pub(crate) fn compatible_config(
---- a/src/client/hs.rs
-+++ b/src/client/hs.rs
-@@ -94,10 +94,11 @@
-                         // If we have a ticket, we use the sessionid as a signal that
-                         // we're  doing an abbreviated handshake.  See section 3.4 in
-                         // RFC5077.
--                        if !inner.ticket().0.is_empty() {
--                            inner.session_id = SessionId::random(config.provider.secure_random)?;
-+                        if inner.has_ticket() {
-+                            Some(SessionId::random(config.provider.secure_random)?)
-+                        } else {
-+                            Some(inner.session_id)
-                         }
--                        Some(inner.session_id)
-                     }
-                     _ => None,
-                 }
---- a/src/client/tls12.rs
-+++ b/src/client/tls12.rs
-@@ -92,6 +92,7 @@
-             let ClientHelloInput {
-                 config,
-                 server_name,
-+                session_id,
-                 ..
-             } = self.input;
- 
-@@ -138,7 +139,7 @@
- 
-             // See if we're successfully resuming.
-             if let Some(resuming) = resuming_session {
--                if resuming.session_id == server_hello.session_id {
-+                if session_id == server_hello.session_id {
-                     debug!("Server agreed to resume");
- 
-                     // Is the server telling lies about the ciphersuite?
-@@ -1220,9 +1221,14 @@
-             return;
-         };
- 
-+        let session_id = self
-+            .resuming_session
-+            .as_ref()
-+            .map(|session| session.session_id)
-+            .unwrap_or(self.session_id);
-         let session_value = persist::Tls12ClientSessionValue::new(
-             self.secrets.suite(),
--            self.session_id,
-+            session_id,
-             ticket,
-             self.secrets.master_secret(),
-             cx.common
 --- a/src/server/server_conn.rs
 +++ b/src/server/server_conn.rs
 @@ -1051,6 +1051,30 @@
@@ -124,3 +187,33 @@
      /// Convert the [`Accepted`] into a [`ServerConnection`].
      ///
      /// Takes the state returned from [`Acceptor::accept()`] as well as the [`ServerConfig`] and
+--- a/src/server/tls12.rs
++++ b/src/server/tls12.rs
+@@ -827,6 +827,7 @@
+ ) {
+     let vh = transcript.current_hash();
+     let verify_data = secrets.server_verify_data(&vh);
++    common.set_tls_unique_if_none(&verify_data);
+     let verify_data_payload = Payload::new(verify_data);
+ 
+     let f = Message {
+@@ -876,6 +877,8 @@
+                         .send_fatal_alert(AlertDescription::DecryptError, Error::DecryptError));
+                 }
+             };
++
++        cx.common.set_tls_unique_if_none(finished.bytes());
+ 
+         // Save connection, perhaps
+         if !self.resuming && !self.session_id.is_empty() {
+--- a/src/server/tls13.rs
++++ b/src/server/tls13.rs
+@@ -1385,6 +1385,8 @@
+             }
+         };
+ 
++        cx.common.set_tls_unique_if_none(finished.bytes());
++
+         // Note: future derivations include Client Finished, but not the
+         // main application data keying.
+         self.transcript.add_message(&m);
