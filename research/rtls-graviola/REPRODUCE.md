@@ -80,9 +80,8 @@ random source` at `test_ssl.py:509`. The pinned OpenSSL reference completes that
 test.
 
 The test bundle is a single CPython test CA, not the production certifi PEM.
-The replay does not establish the production bundle contents. The RTLS upstream
-`load_default_certs()` path also imports `wassima`; the experimental facade
-supplies the bundled fallback separately.
+The replay does not establish the production bundle contents. The patched adapter does not import `wassima` or inject OS trust stores.
+Its facade applies the product fallback policy separately.
 
 `trust_policy_contract.py` uses the real locked Mozilla bundle. Its capath case
 covers the OpenSSL 3.5.7 lookup behavior for unchanged files, removal before
@@ -184,3 +183,38 @@ trust-policy suite, and runs CPython's `test_hashlib`, `test_hmac`, and
 `test_ssl` suites against that copy. The `test_ssl` run uses a 120-second
 per-test timeout. This keeps the candidate's installed
 `ssl.py` in the import path.
+
+## Combined interpreter and archive checks
+
+The normal TLS import uses the interpreter-safe native handle binding from the
+consolidated overlay. After building a candidate, run its ownership and TLS
+contract and the combined TLS/hashing regression:
+
+```sh
+<candidate-prefix>/bin/python3.15 -E -s -B \
+    research/rtls-graviola/subinterpreter_contract.py <cpython-test-certdata>
+<candidate-prefix>/bin/python3.15 -E -s -B \
+    research/rtls-graviola/hashing/testdrivers/combined_tls.py \
+    research/rtls-graviola <cpython-test-certdata>
+```
+
+Both recreate interpreters and exercise trusted and rejected TLS 1.2 and 1.3
+connections. The combined regression also checks fixed hashing, HMAC, PBKDF2,
+and scrypt outputs with both native backends active.
+
+After completing regression checks on the unpruned candidate, package and
+validate a private copy:
+
+```sh
+python3.15 research/rtls-graviola/qualify-no-openssl-archive.py \
+    --prefix <relocated-candidate-prefix> \
+    --build-run-dir <candidate-build-directory> \
+    --run-dir .work/tmp/rtls-archive-qualification
+```
+
+The output directory must be new. The driver strips native images, removes
+tests and bytecode, creates a deterministic archive, extracts it into a path
+with spaces, and runs the existing product checks against those exact bytes.
+It records failures from the unchanged OpenSSL-specific product expectations.
+It does not publish an artifact or establish production PGO or macOS 26
+runtime qualification. A failed aggregate remains a qualification failure.
