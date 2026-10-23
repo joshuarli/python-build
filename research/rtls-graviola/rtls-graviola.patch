@@ -610,7 +610,7 @@ diff --git a/rust/src/cert.rs b/rust/src/cert.rs
 diff --git a/rust/src/config.rs b/rust/src/config.rs
 --- a/rust/src/config.rs
 +++ b/rust/src/config.rs
-@@ -1,18 +1,22 @@
+@@ -1,18 +1,23 @@
  use pyo3::prelude::*;
  use rustls::client::EchMode;
  #[cfg(not(target_os = "wasi"))]
@@ -628,6 +628,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 -use rustls::{ClientConfig, RootCertStore, ServerConfig, SupportedCipherSuite};
 +use rustls::sign::{CertifiedKey, SigningKey, SingleCertAndKey};
 +use rustls::{ClientConfig, NamedGroup, ServerConfig, SignatureScheme, SupportedCipherSuite};
++use rustls::server::{ClientHello, ResolvesServerCert};
 +use rustls::{client::Resumption, server::ServerSessionMemoryCache};
 +use rustls::{client::ClientSessionStore, server::{ProducesTickets, StoresServerSessions}};
 +use std::collections::{HashMap, VecDeque};
@@ -641,7 +642,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
  
  /// Custom KeyLog implementation that writes to a specific file path,
  /// matching stdlib ssl's `SSLContext.keylog_filename` behavior.
-@@ -20,30 +24,56 @@
+@@ -20,30 +25,56 @@
  /// this writes to whatever path the user set via `ctx.keylog_filename`.
  #[derive(Debug)]
  struct KeyLogToFile {
@@ -710,7 +711,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      }
  }
  
-@@ -53,16 +83,16 @@
+@@ -53,16 +84,16 @@
  /// This differs from rustls's default (AES-256 first).
  static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
      // TLS 1.3 suites: 128 before 256
@@ -736,7 +737,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
  ];
  
  /// Preferred key exchange group order.
-@@ -71,177 +101,562 @@
+@@ -71,177 +102,622 @@
  /// NIST curves.  Placing MLKEM first also means rustls will include a
  /// key share for it in the initial ClientHello.
  #[cfg(not(target_os = "wasi"))]
@@ -979,6 +980,69 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +    Ok(certified)
 +}
 +
++struct ServerCertificate {
++    chain: Vec<CertificateDer<'static>>,
++    key: PrivateKeyDer<'static>,
++    algorithm: rustls::SignatureAlgorithm,
++}
++
++#[derive(Debug)]
++struct ContextCertResolver {
++    certified_keys: Vec<Arc<CertifiedKey>>,
++    cipher_suites: Vec<SupportedCipherSuite>,
++    server_preference: bool,
++}
++
++impl ContextCertResolver {
++    fn resolve_for_suite(
++        &self,
++        suite: &SupportedCipherSuite,
++        signature_schemes: &[SignatureScheme],
++    ) -> Option<Arc<CertifiedKey>> {
++        self.certified_keys
++            .iter()
++            .find(|certified| {
++                let usable = suite.usable_for_signature_algorithm(certified.key.algorithm());
++                let scheme = certified.key.choose_scheme(signature_schemes);
++                usable && scheme.is_some()
++            })
++            .cloned()
++    }
++}
++
++impl ResolvesServerCert for ContextCertResolver {
++    fn resolve(&self, client_hello: ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
++        let offered_suites = client_hello.cipher_suites();
++        let signature_schemes = client_hello.signature_schemes();
++        for tls13 in [false, true] {
++            if self.server_preference {
++                for suite in &self.cipher_suites {
++                    if (suite.version().version == rustls::ProtocolVersion::TLSv1_3) == tls13
++                        && offered_suites.contains(&suite.suite())
++                    {
++                        if let Some(certified) = self.resolve_for_suite(suite, signature_schemes) {
++                            return Some(certified);
++                        }
++                    }
++                }
++            } else {
++                for offered in offered_suites {
++                    if let Some(suite) = self.cipher_suites.iter().find(|suite| {
++                        suite.suite() == *offered
++                            && (suite.version().version == rustls::ProtocolVersion::TLSv1_3)
++                                == tls13
++                    }) {
++                        if let Some(certified) = self.resolve_for_suite(suite, signature_schemes) {
++                            return Some(certified);
++                        }
++                    }
++                }
++            }
++        }
++        None
++    }
++}
++
 +const MAX_SESSION_HOSTS: usize = 256;
 +const MAX_TLS13_TICKETS_PER_HOST: usize = 4;
 +
@@ -1207,17 +1271,20 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      verify_flags: i32,
      sni_enabled: bool,
 -    keylog_filename: Option<String>,
-+    cipher_server_preference: bool,
-+    num_tickets: i64,
-+    keylog: Option<Arc<KeyLogToFile>>,
- 
-     /// Stored server cert chain + key (for server-side TLS)
-     server_cert_chain: Option<Vec<CertificateDer<'static>>>,
-     server_key: Option<PrivateKeyDer<'static>>,
- 
+-
+-    /// Stored server cert chain + key (for server-side TLS)
+-    server_cert_chain: Option<Vec<CertificateDer<'static>>>,
+-    server_key: Option<PrivateKeyDer<'static>>,
+-
 -    /// Track number of root certs loaded for cert_store_stats()
 -    root_cert_count: usize,
 -    /// Store raw DER of loaded root certs for get_ca_certs()
++    cipher_server_preference: bool,
++    num_tickets: i64,
++    keylog: Option<Arc<KeyLogToFile>>,
++
++    server_certificates: Vec<ServerCertificate>,
++
      root_certs_der: Vec<Vec<u8>>,
 +    crls_der: Vec<Vec<u8>>,
 +    capath_dirs: Vec<PathBuf>,
@@ -1256,12 +1323,13 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
              verify_flags: 0,
              sni_enabled: true,
 -            keylog_filename: None,
+-            server_cert_chain: None,
+-            server_key: None,
+-            root_cert_count: 0,
 +            cipher_server_preference: false,
 +            num_tickets: 2,
 +            keylog: None,
-             server_cert_chain: None,
-             server_key: None,
--            root_cert_count: 0,
++            server_certificates: Vec::new(),
              root_certs_der: Vec::new(),
 +            crls_der: Vec::new(),
 +            capath_dirs: Vec::new(),
@@ -1413,7 +1481,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          Ok(())
      }
  
-@@ -258,14 +673,12 @@
+@@ -258,14 +734,12 @@
      ) -> PyResult<()> {
          let result = py.detach(
              || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
@@ -1434,7 +1502,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
                  Ok((certs, key))
              },
          );
-@@ -273,6 +686,7 @@
+@@ -273,6 +747,7 @@
              Ok((certs, key)) => {
                  self.client_cert_chain = Some(certs);
                  self.client_key = Some(key);
@@ -1442,10 +1510,11 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
                  Ok(())
              }
              Err(msg) => Err(raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg))),
-@@ -292,14 +706,12 @@
+@@ -291,22 +766,20 @@
+         password: Option<&[u8]>,
      ) -> PyResult<()> {
          let result = py.detach(
-             || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
+-            || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
 -                let mut cert_reader = BufReader::new(cert_pem);
 -                let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cert_reader)
 -                    .filter_map(|r| r.ok())
@@ -1454,24 +1523,28 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 -                    return Err("No certificates found in PEM data".to_string());
 -                }
 -                let key = load_private_key(key_pem, password).map_err(|e| e.to_string())?;
+-                Ok((certs, key))
++            || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>, rustls::SignatureAlgorithm), String> {
 +                let certs = parse_certificates(cert_pem)?;
 +                let key = load_private_key(key_pem, password)?;
 +                let certified = rustls::sign::CertifiedKey::from_der(
 +                    certs.clone(), key.clone_key(), &default_crypto_provider(),
 +                ).map_err(|e| format!("Invalid certificate/key: {e}"))?;
 +                certified.keys_match().map_err(|e| format!("Certificate/key mismatch: {e}"))?;
-                 Ok((certs, key))
++                Ok((certs, key, certified.key.algorithm()))
              },
          );
-@@ -307,6 +719,7 @@
-             Ok((certs, key)) => {
-                 self.server_cert_chain = Some(certs);
-                 self.server_key = Some(key);
+         match result {
+-            Ok((certs, key)) => {
+-                self.server_cert_chain = Some(certs);
+-                self.server_key = Some(key);
++            Ok((certs, key, algorithm)) => {
++                self.add_server_certificate(certs, key, algorithm);
 +                self.invalidate_config();
                  Ok(())
              }
              Err(msg) => Err(raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg))),
-@@ -316,45 +729,179 @@
+@@ -316,45 +789,179 @@
      /// Set ALPN protocol list.
      fn set_alpn(&mut self, protocols: Vec<Vec<u8>>) {
          self.alpn_protocols = protocols;
@@ -1658,7 +1731,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      }
  
      /// Check if ECH is configured.
-@@ -367,87 +914,326 @@
+@@ -367,87 +974,353 @@
      /// per-connection clone without mutating the shared (cached) context.
      /// GIL is released during the deep copy of root store, keys, and certs.
      fn clone_builder(&self, py: Python<'_>) -> RustlsConfigBuilder {
@@ -1889,6 +1962,8 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          let alpn_protocols = &self.alpn_protocols;
          let cipher_suites = &self.cipher_suites;
 -        let keylog_filename = &self.keylog_filename;
+-        let server_cert_chain = &self.server_cert_chain;
+-        let server_key = &self.server_key;
 +        let tls13_cipher_suites = &self.tls13_cipher_suites;
 +        let keylog = self
 +            .keylog
@@ -1896,8 +1971,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +            .map(|logger| Arc::new(logger.clone_logger()));
 +        let cipher_server_preference = self.cipher_server_preference;
 +        let num_tickets = self.num_tickets;
-         let server_cert_chain = &self.server_cert_chain;
-         let server_key = &self.server_key;
++        let server_certificates = &self.server_certificates;
          let root_certs_der = &self.root_certs_der;
 +        let crls_der = &self.crls_der;
 +        let capath_dirs = &self.capath_dirs;
@@ -1926,12 +2000,20 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
              verify_flags: self.verify_flags,
              sni_enabled: self.sni_enabled,
 -            keylog_filename: keylog_filename.clone(),
+-            server_cert_chain: server_cert_chain.clone(),
+-            server_key: server_key.as_ref().map(|k| k.clone_key()),
+-            root_cert_count: self.root_cert_count,
 +            cipher_server_preference,
 +            num_tickets,
 +            keylog: keylog.clone(),
-             server_cert_chain: server_cert_chain.clone(),
-             server_key: server_key.as_ref().map(|k| k.clone_key()),
--            root_cert_count: self.root_cert_count,
++            server_certificates: server_certificates
++                .iter()
++                .map(|certificate| ServerCertificate {
++                    chain: certificate.chain.clone(),
++                    key: certificate.key.clone_key(),
++                    algorithm: certificate.algorithm.clone(),
++                })
++                .collect(),
              root_certs_der: root_certs_der.clone(),
 +            crls_der: crls_der.clone(),
 +            capath_dirs: capath_dirs.clone(),
@@ -1967,6 +2049,28 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +        if !server_side { return Err("SSLContext is not a server context.".into()); }
 +        self.num_tickets = value;
 +        Ok(())
++    }
++
++    fn add_server_certificate(
++        &mut self,
++        chain: Vec<CertificateDer<'static>>,
++        key: PrivateKeyDer<'static>,
++        algorithm: rustls::SignatureAlgorithm,
++    ) {
++        if let Some(certificate) = self
++            .server_certificates
++            .iter_mut()
++            .find(|certificate| certificate.algorithm == algorithm)
++        {
++            certificate.chain = chain;
++            certificate.key = key;
++        } else {
++            self.server_certificates.push(ServerCertificate {
++                chain,
++                key,
++                algorithm,
++            });
++        }
 +    }
 +
 +    fn invalidate_config(&mut self) {
@@ -2042,7 +2146,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          let mut versions = Vec::new();
          let min = self.min_version.unwrap_or(TLS_V1_2);
          let max = self.max_version.unwrap_or(TLS_V1_3);
-@@ -459,88 +1245,87 @@
+@@ -459,88 +1332,87 @@
              versions.push(&rustls::version::TLS13);
          }
          if versions.is_empty() {
@@ -2209,7 +2313,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      }
  
      #[cfg(target_os = "wasi")]
-@@ -555,47 +1340,20 @@
+@@ -555,47 +1427,20 @@
      /// Returns Result<ClientConfig, String> so errors can be converted to
      /// Python exceptions after re-acquiring the GIL.
      fn build_client_config_inner(&self) -> Result<ClientConfig, String> {
@@ -2262,7 +2366,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          macro_rules! apply_versions_or_ech {
              ($provider:expr) => {
                  if let Some(mode) = ech_mode.clone() {
-@@ -610,110 +1368,126 @@
+@@ -610,110 +1455,133 @@
              };
          }
  
@@ -2398,17 +2502,19 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          };
  
 -        let certs = self
-+        let certs = selected_context
-             .server_cert_chain
-             .as_ref()
-             .ok_or_else(|| "No server certificate chain configured".to_string())?;
+-            .server_cert_chain
+-            .as_ref()
+-            .ok_or_else(|| "No server certificate chain configured".to_string())?;
 -        let key = self
-+        let key = selected_context
-             .server_key
-             .as_ref()
-             .ok_or_else(|| "No server private key configured".to_string())?;
- 
+-            .server_key
+-            .as_ref()
+-            .ok_or_else(|| "No server private key configured".to_string())?;
+-
 -        let mut config = ServerConfig::builder_with_provider(Arc::new(provider))
++        if selected_context.server_certificates.is_empty() {
++            return Err("No server certificate chain configured".into());
++        }
++
 +        let provider = Arc::new(provider);
 +        let builder = ServerConfig::builder_with_provider(provider.clone())
              .with_protocol_versions(&versions)
@@ -2439,13 +2545,25 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +                self.verify_mode == CERT_OPTIONAL, &provider, client_sigalgs,
 +            )?))
 +        };
-+        let certified = certified_key(
-+            certs,
-+            key,
-+            provider.as_ref(),
-+            selected_context.server_sigalgs.as_deref(),
-+        )?;
-+        let mut config = builder.with_cert_resolver(Arc::new(SingleCertAndKey::from(certified)));
++        let certified_keys = selected_context
++            .server_certificates
++            .iter()
++            .map(|certificate| {
++                certified_key(
++                    &certificate.chain,
++                    &certificate.key,
++                    provider.as_ref(),
++                    selected_context.server_sigalgs.as_deref(),
++                )
++                .map(Arc::new)
++            })
++            .collect::<Result<Vec<_>, _>>()?;
++        let resolver = ContextCertResolver {
++            certified_keys,
++            cipher_suites: provider.cipher_suites.clone(),
++            server_preference: self.cipher_server_preference,
++        };
++        let mut config = builder.with_cert_resolver(Arc::new(resolver));
 +        config.send_tls13_tickets = self.num_tickets as usize;
 +        config.session_storage = Arc::clone(&self.server_sessions);
 +        config.ignore_client_order = self.cipher_server_preference;
@@ -2460,7 +2578,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          }
  
          Ok(config)
-@@ -733,6 +1507,7 @@
+@@ -733,6 +1601,7 @@
      pem_data: &[u8],
      password: Option<&[u8]>,
  ) -> Result<PrivateKeyDer<'static>, String> {
@@ -2468,7 +2586,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      // Case 1: PKCS#8 encrypted key (BEGIN ENCRYPTED PRIVATE KEY).
      if pem_data
          .windows(b"ENCRYPTED PRIVATE KEY".len())
-@@ -1009,3 +1784,7 @@
+@@ -1009,3 +1878,7 @@
      }
      Ok(body)
  }
@@ -4030,7 +4148,7 @@ new file mode 100644
 +            let certified = rustls::sign::CertifiedKey::from_der(certificates.clone(), key.clone_key(), &default_crypto_provider()).map_err(|e| NativeError::ssl(e.to_string()))?;
 +            certified.keys_match().map_err(|e| NativeError::ssl(e.to_string()))?;
 +            if method == "set_client_cert_chain_pem" { builder.client_cert_chain = Some(certificates); builder.client_key = Some(key); }
-+            else { builder.server_cert_chain = Some(certificates); builder.server_key = Some(key); }
++            else { builder.add_server_certificate(certificates, key, certified.key.algorithm()); }
 +        }
 +        "root_cert_count" => return Ok(Value::Int(builder.root_cert_count() as i64)),
 +        "root_ca_count" => return Ok(Value::Int(builder.root_ca_count() as i64)),
@@ -4419,7 +4537,7 @@ diff --git a/rust/src/policy.rs b/rust/src/policy.rs
 new file mode 100644
 --- /dev/null
 +++ b/rust/src/policy.rs
-@@ -0,0 +1,670 @@
+@@ -0,0 +1,673 @@
 +use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 +use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 +use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSupportedAlgorithms};
@@ -4889,7 +5007,10 @@ new file mode 100644
 +    }
 +
 +    fn verify(&self, leaf: &CertificateDer<'_>, sent: &[CertificateDer<'_>], now: UnixTime, client: bool) -> Result<(), Error> {
-+        let invalid = |e: webpki::Error| Error::InvalidCertificate(CertificateError::Other(rustls::OtherError(Arc::new(e))));
++        let invalid = |e: webpki::Error| match e {
++            webpki::Error::UnknownIssuer => Error::InvalidCertificate(CertificateError::UnknownIssuer),
++            error => Error::InvalidCertificate(CertificateError::Other(rustls::OtherError(Arc::new(error)))),
++        };
 +        let crl_check = self.flags & VERIFY_CRL_CHECK_LEAF != 0;
 +        if crl_check && self.crls.is_empty() {
 +            return Err(invalid(webpki::Error::UnknownRevocationStatus));
@@ -7037,7 +7158,7 @@ diff --git a/src/rtls/_constants.py b/src/rtls/_constants.py
 diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 --- a/src/rtls/_context.py
 +++ b/src/rtls/_context.py
-@@ -1,31 +1,73 @@
+@@ -1,31 +1,81 @@
  from __future__ import annotations
  
 +import operator
@@ -7088,6 +7209,14 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
 -if sys.platform == "wasi":
 -    import wassima  # noqa: F401
++def _encode_server_hostname(server_hostname: str | bytes | None) -> str | None:
++    if server_hostname is None:
++        return None
++    if isinstance(server_hostname, str):
++        return server_hostname.encode("idna").decode("ascii")
++    return server_hostname.decode("ascii")
++
++
 +_VERSION_OPTION_CHANGES = (
 +    OP_NO_SSLv3 | OP_NO_TLSv1 | OP_NO_TLSv1_1 | OP_NO_TLSv1_2 | OP_NO_TLSv1_3
 +)
@@ -7117,7 +7246,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
  
  class TLSContext(_stdlib_ssl.SSLContext):
-@@ -43,41 +85,54 @@
+@@ -43,41 +93,54 @@
      def __new__(
          cls, protocol: int = PROTOCOL_TLS, *args: Any, **kwargs: Any
      ) -> TLSContext:
@@ -7190,7 +7319,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          if protocol == PROTOCOL_TLS_CLIENT:
              self._verify_mode = CERT_REQUIRED
              self._check_hostname = True
-@@ -87,6 +142,12 @@
+@@ -87,6 +150,12 @@
              self._verify_mode = CERT_NONE
              self._check_hostname = False
  
@@ -7203,7 +7332,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
      def _get_builder(self) -> Any:
          """Return the RustlsConfigBuilder (used by TLSObject/TLSSocket)."""
          return self._builder
-@@ -98,6 +159,7 @@
+@@ -98,9 +167,19 @@
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
          server_hostname: str | None = None,
@@ -7211,7 +7340,19 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
      ) -> Any:
          """Wrap a socket with TLS, returning an TLSSocket."""
          from ._socket import TLSSocket, TLSStreamSocket
-@@ -117,6 +179,7 @@
++        from ._object import _validate_server_hostname
++
++        if (
++            isinstance(sock, socket.socket)
++            and sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
++            != socket.SOCK_STREAM
++        ):
++            raise NotImplementedError("only stream sockets are supported")
++        _validate_server_hostname(server_side, server_hostname)
+ 
+         if not server_side and self._check_hostname and not server_hostname:
+             raise ValueError("check_hostname requires server_hostname")
+@@ -117,6 +196,7 @@
              server_hostname=server_hostname,
              do_handshake_on_connect=do_handshake_on_connect,
              suppress_ragged_eofs=suppress_ragged_eofs,
@@ -7219,7 +7360,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          )
  
      def wrap_bio(  # type: ignore[override]
-@@ -125,12 +188,15 @@
+@@ -125,47 +205,38 @@
          outgoing: MemoryBIO,
          server_side: bool = False,
          server_hostname: str | None = None,
@@ -7230,15 +7371,20 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          This is the method asyncio's SSLProtocol calls to create a sans-I/O
          TLS state machine.
          """
+-        from ._object import TLSObject
++        from ._object import TLSObject, _validate_server_hostname
++
++        _validate_server_hostname(server_side, server_hostname)
 +        if not server_side and self._check_hostname and not server_hostname:
 +            raise ValueError("check_hostname requires server_hostname")
-         from ._object import TLSObject
  
          return TLSObject(
-@@ -139,33 +205,19 @@
+             context=self,
+             incoming=incoming,
              outgoing=outgoing,
              server_side=server_side,
-             server_hostname=server_hostname,
+-            server_hostname=server_hostname,
++            server_hostname=_encode_server_hostname(server_hostname),
 +            session=session,
          )
  
@@ -7276,7 +7422,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          pw_bytes: bytes | None = None
          if password is not None:
              if callable(password):
-@@ -180,98 +232,117 @@
+@@ -180,98 +251,117 @@
                      f" got {type(password).__name__}"
                  )
  
@@ -7467,7 +7613,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      def set_alpn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """Set ALPN protocols for negotiation."""
-@@ -292,14 +363,15 @@
+@@ -292,14 +382,15 @@
  
      @verify_mode.setter
      def verify_mode(self, value: int) -> None:
@@ -7491,7 +7637,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property
      def check_hostname(self) -> bool:
-@@ -307,12 +379,17 @@
+@@ -307,12 +398,17 @@
  
      @check_hostname.setter
      def check_hostname(self, value: bool) -> None:
@@ -7515,7 +7661,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property  # type: ignore[override]
      def options(self) -> Options:
-@@ -320,73 +397,142 @@
+@@ -320,73 +416,142 @@
  
      @options.setter
      def options(self, value: int) -> None:
@@ -7702,7 +7848,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property  # type: ignore[override]
      def verify_flags(self) -> int:
-@@ -394,8 +540,9 @@
+@@ -394,8 +559,9 @@
  
      @verify_flags.setter
      def verify_flags(self, value: int) -> None:
@@ -7714,7 +7860,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property
      def security_level(self) -> int:  # type: ignore[override]
-@@ -408,49 +555,68 @@
+@@ -408,49 +574,68 @@
  
      @sni_callback.setter
      def sni_callback(self, callback: Callable | None) -> None:
@@ -7814,7 +7960,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      def set_npn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """No-op — NPN is not supported by rustls."""
-@@ -465,14 +631,11 @@
+@@ -465,14 +650,11 @@
                      f"expected bytes-like object, got {type(ech_config_list).__name__}"
                  )
  
@@ -7829,7 +7975,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
              clone._verify_mode = self._verify_mode
              clone._check_hostname = self._check_hostname
              clone._options = self._options
-@@ -481,18 +644,16 @@
+@@ -481,18 +663,16 @@
              clone._alpn_protocols = list(self._alpn_protocols)
              clone._ciphers_string = self._ciphers_string
              clone._sni_callback = self._sni_callback
@@ -7850,7 +7996,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
              from ._constants import TLSVersion
  
              clone._minimum_version = TLSVersion.TLSv1_3
-@@ -505,72 +666,10 @@
+@@ -505,72 +685,10 @@
              """Return True if ECH configs have been set."""
              return self._builder.has_ech()
  
@@ -8359,7 +8505,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      _HAS_ECH,
      CERT_NONE,
      SSL_ERROR_WANT_READ,
-@@ -40,6 +43,56 @@
+@@ -40,6 +43,63 @@
  }
  
  
@@ -8376,6 +8522,13 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +    if server_side:
 +        raise ValueError("session can only be specified in client mode")
 +    _validate_session_type(session)
++
++
++def _validate_server_hostname(
++    server_side: bool, server_hostname: str | bytes | None
++) -> None:
++    if server_side and server_hostname:
++        raise ValueError("server_hostname can only be specified in client mode")
 +
 +
 +def _validate_channel_binding_type(cb_type: Any) -> None:
@@ -8416,12 +8569,26 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  class TLSObject:
      """Sans-I/O TLS object — equivalent of ``ssl.SSLObject``.
  
-@@ -57,33 +110,56 @@
-         outgoing: MemoryBIO,
+@@ -52,38 +112,67 @@
+ 
+     def __init__(
+         self,
+-        context: TLSContext,
+-        incoming: MemoryBIO,
+-        outgoing: MemoryBIO,
++        context: TLSContext | None = None,
++        incoming: MemoryBIO | None = None,
++        outgoing: MemoryBIO | None = None,
          server_side: bool = False,
          server_hostname: str | None = None,
 +        session: Any = None,
      ) -> None:
++        if context is None or incoming is None or outgoing is None:
++            raise TypeError(
++                f"{self.__class__.__name__} does not have a public constructor. "
++                "Instances are returned by SSLContext.wrap_bio()."
++            )
++        _validate_server_hostname(server_side, server_hostname)
 +        _validate_constructor_session(session, server_side)
          self._context = context
 +        self._connection_verify_mode = int(context.verify_mode)
@@ -8479,7 +8646,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # After building client connection, the state machine immediately
          # has a ClientHello to send — flush it to the outgoing BIO
-@@ -99,6 +175,19 @@
+@@ -99,6 +188,19 @@
                  self._outgoing.write(data)
              else:
                  break
@@ -8499,7 +8666,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def _pump_incoming(self) -> None:
          """Move ciphertext from the incoming BIO into the Rust state machine.
-@@ -129,6 +218,66 @@
+@@ -129,6 +231,66 @@
                      break
                  offset += consumed
  
@@ -8512,7 +8679,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +        try:
 +            if not acceptor.feed(self._incoming.read()):
 +                raise SSLWantReadError(
-+                    SSL_ERROR_WANT_READ, "The handshake operation did not complete"
++                    SSL_ERROR_WANT_READ, "The operation did not complete (read)"
 +                )
 +            self._dispatch_message_events()
 +            self._initial_server_builder.validate_server_hello(acceptor)
@@ -8566,7 +8733,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      def do_handshake(self) -> None:
          """Perform the TLS handshake.
  
-@@ -137,8 +286,14 @@
+@@ -137,8 +299,14 @@
          """
          if self._handshake_done:
              return
@@ -8583,7 +8750,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._pump_incoming()
  
          # Process the TLS records
-@@ -146,8 +301,10 @@
+@@ -146,22 +314,24 @@
              self._conn.process_new_packets()
          except SSLError:
              # Flush any alert that rustls wants to send
@@ -8594,7 +8761,14 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Flush outgoing ciphertext (handshake messages)
          self._flush_outgoing()
-@@ -161,7 +318,7 @@
+ 
+         if self._conn.is_handshaking():
+             raise SSLWantReadError(
+-                SSL_ERROR_WANT_READ, "The handshake operation did not complete"
++                SSL_ERROR_WANT_READ, "The operation did not complete (read)"
+             )
+ 
+         self._handshake_done = True
          # process_new_packets() may have decrypted early application data
          self._maybe_buffered = True
  
@@ -8603,7 +8777,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          """Read decrypted data from the TLS connection.
  
          Returns bytes, or if *buffer* is given, reads into it and returns count.
-@@ -171,12 +328,30 @@
+@@ -171,12 +341,30 @@
          read_tls → process_new_packets → read_plaintext in a single
          Python→Rust call, handling buffer-full looping internally.
          """
@@ -8640,7 +8814,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Read all available ciphertext from the BIO
          ciphertext = self._incoming.read()
-@@ -186,22 +361,20 @@
+@@ -186,22 +374,20 @@
              try:
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
@@ -8667,7 +8841,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # No ciphertext available (or it produced no plaintext).
          # Try draining any plaintext already buffered in rustls from
-@@ -210,13 +383,9 @@
+@@ -210,29 +396,51 @@
              data = self._conn.read_plaintext(max_len)
          except SSLZeroReturnError:
              self._peer_closed = True
@@ -8683,10 +8857,12 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Truly no data available
          if self._incoming.eof:
-@@ -225,14 +394,40 @@
-             SSL_ERROR_WANT_READ, "The read operation did not complete"
+             raise SSLEOFError("EOF occurred in violation of protocol")
+         raise SSLWantReadError(
+-            SSL_ERROR_WANT_READ, "The read operation did not complete"
++            SSL_ERROR_WANT_READ, "The operation did not complete (read)"
          )
- 
++
 +    def _closed_read_result(self, buffer: Any | None) -> bytes | int:
 +        if self._shutdown_sent:
 +            raise SSLZeroReturnError("TLS/SSL connection has been closed")
@@ -8702,7 +8878,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +        if nbytes < len(data):
 +            self._pending_plaintext = data[nbytes:] + self._pending_plaintext
 +        return nbytes
-+
+ 
      def has_pending(self) -> bool:
          """True if plaintext or clean EOF may be available without network I/O."""
 -        return self._peer_closed or bool(self._pending_ct) or self._maybe_buffered
@@ -8725,7 +8901,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Absorb any ciphertext left in the incoming BIO
          if self._incoming.pending:
-@@ -247,13 +442,17 @@
+@@ -247,13 +455,17 @@
              try:
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
@@ -8743,7 +8919,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
              return plaintext
  
          # drain already decrypted.
-@@ -263,6 +462,8 @@
+@@ -263,6 +475,8 @@
              self._peer_closed = True
              raise
          self._maybe_buffered = bool(plaintext)
@@ -8752,7 +8928,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          return plaintext
  
      def write(self, data: bytes | bytearray | memoryview) -> int:
-@@ -271,17 +472,18 @@
+@@ -271,17 +485,18 @@
          Returns number of bytes written. The encrypted ciphertext is
          placed in the outgoing BIO for the transport to send.
          """
@@ -8773,7 +8949,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Flush the resulting ciphertext to the outgoing BIO
          self._flush_outgoing()
-@@ -289,14 +491,49 @@
+@@ -289,14 +504,49 @@
          return n
  
      def unwrap(self) -> None:
@@ -8809,7 +8985,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +            return
 +        if self._pending_plaintext or self._conn.pending():
 +            raise SSLWantReadError(
-+                SSL_ERROR_WANT_READ, "The shutdown operation did not complete"
++                SSL_ERROR_WANT_READ, "The operation did not complete (read)"
 +            )
 +
 +        try:
@@ -8823,12 +8999,12 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +        if self._incoming.eof:
 +            raise SSLEOFError("EOF occurred in violation of protocol")
 +        raise SSLWantReadError(
-+            SSL_ERROR_WANT_READ, "The shutdown operation did not complete"
++            SSL_ERROR_WANT_READ, "The operation did not complete (read)"
 +        )
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
          """Return the peer's certificate.
-@@ -309,26 +546,25 @@
+@@ -309,26 +559,25 @@
          is False, returns {} (empty dict) after handshake — the cert is
          not validated so its contents are not exposed.
          """
@@ -8866,7 +9042,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def cipher(self) -> tuple[str, str, int] | None:
          """Return a 3-tuple (cipher_name, tls_version, secret_bits) or None."""
-@@ -349,15 +585,23 @@
+@@ -349,15 +598,23 @@
          return (openssl_name, version_str, bits)
  
      def shared_ciphers(self) -> list[tuple[str, str, int]] | None:
@@ -8899,7 +9075,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def version(self) -> str | None:
          """Return the negotiated TLS version string, e.g. 'TLSv1.3'."""
-@@ -366,6 +610,22 @@
+@@ -366,6 +623,22 @@
              return None
          return _VERSION_MAP.get(v, None)
  
@@ -8922,7 +9098,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      def selected_alpn_protocol(self) -> str | None:
          """Return the selected ALPN protocol as a string, or None."""
          proto = self._conn.alpn_protocol()
-@@ -386,8 +646,11 @@
+@@ -386,8 +659,11 @@
          return self._conn.pending()
  
      def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
@@ -8936,7 +9112,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def getpeername(self) -> tuple | None:
          """SSLObject doesn't have a socket, so no peername."""
-@@ -400,6 +663,16 @@
+@@ -400,6 +676,16 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -8953,7 +9129,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._context = ctx
  
      @property
-@@ -411,50 +684,65 @@
+@@ -411,50 +697,65 @@
          return self._server_hostname
  
      @property
@@ -9184,16 +9360,22 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  from ._exceptions import (
      SSLEOFError,
      SSLError,
-@@ -14,7 +19,7 @@
+@@ -14,7 +19,13 @@
      SSLWantWriteError,
      SSLZeroReturnError,
  )
 -from ._object import TLSObject
-+from ._object import TLSObject, _validate_channel_binding_type, _validate_session_type
++from ._object import (
++    TLSObject,
++    _validate_channel_binding_type,
++    _validate_constructor_session,
++    _validate_server_hostname,
++    _validate_session_type,
++)
  from ._stdlib import ssl as _stdlib_ssl
  
  if TYPE_CHECKING:
-@@ -25,6 +30,71 @@
+@@ -25,6 +36,71 @@
  
  # Size of each ciphertext read from the underlying network socket.
  _SOCKET_READ_BUFFER_SIZE = 65536
@@ -9265,21 +9447,34 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
  
  class TLSSocket(_stdlib_ssl.SSLSocket):
-@@ -48,7 +118,12 @@
+@@ -42,22 +118,35 @@
+ 
+     def __init__(
+         self,
+-        sock: socket.socket,
+-        context: TLSContext,
++        sock: socket.socket | None = None,
++        context: TLSContext | None = None,
+         server_side: bool = False,
          server_hostname: str | None = None,
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
 +        session: Any = None,
      ) -> None:
-+        if session is not None:
-+            if server_side:
-+                raise ValueError("session can only be specified in client mode")
-+            _validate_session_type(session)
++        if sock is None or context is None:
++            raise TypeError(
++                f"{self.__class__.__name__} does not have a public constructor. "
++                "Instances are returned by SSLContext.wrap_socket()."
++            )
++        _validate_server_hostname(server_side, server_hostname)
++        _validate_constructor_session(session, server_side)
          # NOTE: We intentionally do NOT call ssl.SSLSocket.__init__() because
          # it raises TypeError (SSLSocket has no public constructor). All real
          # initialization goes through socket.socket.__init__() instead.
-@@ -57,7 +132,12 @@
-         self._server_hostname = server_hostname
+         self._rtls_context = context
+         self._server_side = server_side
+-        self._server_hostname = server_hostname
++        self._server_hostname = None
          self._do_handshake_on_connect = do_handshake_on_connect
          self._suppress_ragged_eofs = suppress_ragged_eofs
 +        self._pending_session = session
@@ -9291,7 +9486,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._closed = False
  
          # Take over the underlying socket's fd.
-@@ -94,14 +174,39 @@
+@@ -94,14 +183,52 @@
          # Create the MemoryBIO pair and TLSObject
          self._incoming = MemoryBIO()
          self._outgoing = MemoryBIO()
@@ -9302,8 +9497,22 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +        self._pending_ciphertext = bytearray()
  
          self._sslobj_internal: TLSObject | None = None
- 
+-
 -        # If the socket was already connected, do handshake now
++        from ._context import _encode_server_hostname
++
++        try:
++            self._server_hostname = _encode_server_hostname(server_hostname)
++        except BaseException as error:
++            try:
++                self.close()
++            except BaseException as cleanup_error:
++                error.add_note(
++                    "closing TLS socket after hostname encoding failed also failed: "
++                    f"{cleanup_error}"
++                )
++            raise
++
          try:
              self.getpeername()
              self._connected = True
@@ -9333,7 +9542,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
              self._connected = False
  
          if self._connected:
-@@ -113,25 +218,83 @@
+@@ -113,25 +240,83 @@
                      self.close()
                      raise
  
@@ -9420,7 +9629,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if self._do_handshake_on_connect:
              self.do_handshake()
  
-@@ -139,18 +302,28 @@
+@@ -139,18 +324,28 @@
          """Connect and perform TLS handshake, returning error code."""
          if self._server_side:
              raise ValueError("can't connect in server-side mode")
@@ -9452,7 +9661,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if self._sslobj_internal is None:
              self._create_sslobj()
  
-@@ -164,7 +337,8 @@
+@@ -164,7 +359,8 @@
          while True:
              try:
                  self._sslobj_internal.do_handshake()
@@ -9462,7 +9671,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
              except SSLWantReadError:
                  # Flush any outgoing data (handshake messages)
                  self._flush_outgoing()
-@@ -172,29 +346,67 @@
+@@ -172,29 +368,67 @@
                  self._pull_incoming(timeout)
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -9533,7 +9742,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -202,6 +414,8 @@
+@@ -202,6 +436,8 @@
              raise SSLError("SSL handshake not done")
          if obj._shutdown:
              return b""
@@ -9542,7 +9751,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
          while True:
              # 1. Drain plaintext rustls already holds, without touching the
-@@ -219,11 +433,31 @@
+@@ -219,25 +455,45 @@
  
              # 3. Read more ciphertext directly from the network.
              try:
@@ -9554,7 +9763,8 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +                )
              except (BlockingIOError, InterruptedError):
                  raise SSLWantReadError(
-                     SSL_ERROR_WANT_READ, "The read operation did not complete"
+-                    SSL_ERROR_WANT_READ, "The read operation did not complete"
++                    SSL_ERROR_WANT_READ, "The operation did not complete (read)"
                  )
 +            except SSLEOFError:
 +                if not self._incoming.eof:
@@ -9575,7 +9785,11 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
              except (socket.timeout, TimeoutError):
                  raise  # Let timeout propagate unchanged.
              except OSError as e:
-@@ -234,10 +468,10 @@
+                 if e.errno == errno.EAGAIN or e.errno == errno.EWOULDBLOCK:
+                     raise SSLWantReadError(
+-                        SSL_ERROR_WANT_READ, "The read operation did not complete"
++                        SSL_ERROR_WANT_READ, "The operation did not complete (read)"
+                     )
                  raise
  
              if not chunk:
@@ -9590,7 +9804,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
              # 4. Feed + decrypt. If only handshake/control records arrived
              #    this yields no plaintext — loop and read more.
-@@ -248,51 +482,120 @@
+@@ -248,61 +504,132 @@
              if data:
                  return data
  
@@ -9600,6 +9814,8 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +    ) -> int:  # type: ignore[override]
          """Receive decrypted data into a buffer."""
 +        if self._uses_plain_transport():
++            if nbytes is None:
++                return socket.socket.recv_into(self, buffer, flags=flags)
 +            return socket.socket.recv_into(self, buffer, nbytes, flags)
 +
 +        view = None
@@ -9670,7 +9886,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +            while self._ciphertext_write_in_progress:
 +                if timeout == 0:
 +                    raise SSLWantWriteError(
-+                        SSL_ERROR_WANT_WRITE, "The write operation did not complete"
++                        SSL_ERROR_WANT_WRITE, "The operation did not complete (write)"
 +                    )
 +                waited = True
 +                if deadline is None:
@@ -9706,7 +9922,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +                except BlockingIOError as error:
 +                    raise SSLWantWriteError(
 +                        SSL_ERROR_WANT_WRITE,
-+                        "The write operation did not complete",
++                        "The operation did not complete (write)",
 +                    ) from error
 +                if sent == 0:
 +                    raise SSLError("connection closed during TLS write")
@@ -9729,8 +9945,20 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +            )
          except (BlockingIOError, InterruptedError):
              raise SSLWantReadError(
-                 SSL_ERROR_WANT_READ, "The read operation did not complete"
-@@ -311,11 +614,42 @@
+-                SSL_ERROR_WANT_READ, "The read operation did not complete"
++                SSL_ERROR_WANT_READ, "The operation did not complete (read)"
+             )
+         except (socket.timeout, TimeoutError):
+             raise  # Let timeout propagate — don't convert to SSLWantReadError
+         except OSError as e:
+             if e.errno == errno.EAGAIN or e.errno == errno.EWOULDBLOCK:
+                 raise SSLWantReadError(
+-                    SSL_ERROR_WANT_READ, "The read operation did not complete"
++                    SSL_ERROR_WANT_READ, "The operation did not complete (read)"
+                 )
+             raise
+ 
+@@ -311,11 +638,42 @@
  
          self._incoming.write(data)
  
@@ -9773,7 +10001,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def cipher(self) -> tuple[str, str, int] | None:
          """Return cipher info tuple."""
-@@ -334,6 +668,21 @@
+@@ -334,6 +692,21 @@
              return None
          return self._sslobj_internal.version()
  
@@ -9795,7 +10023,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
      def selected_alpn_protocol(self) -> str | None:
          if self._sslobj_internal is None:
              return None
-@@ -351,28 +700,37 @@
+@@ -351,28 +724,37 @@
          return self._sslobj_internal.pending()
  
      def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
@@ -9852,7 +10080,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          socket.socket.shutdown(self, how)
  
      def close(self) -> None:
-@@ -401,6 +759,7 @@
+@@ -401,6 +783,7 @@
              except Exception:  # Defensive:
                  pass
              self._sslobj_internal = None
@@ -9860,7 +10088,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          socket.socket._real_close(self)  # type: ignore[attr-defined]
  
      @property  # type: ignore[override]
-@@ -409,6 +768,8 @@
+@@ -409,6 +792,8 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -9869,7 +10097,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._rtls_context = ctx
  
      @property
-@@ -419,29 +780,59 @@
+@@ -419,29 +804,59 @@
      def server_hostname(self) -> str | None:  # type: ignore[override]
          return self._server_hostname
  
@@ -9938,7 +10166,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          return self._sslobj_internal.get_unverified_chain()
  
      if _HAS_ECH:
-@@ -453,23 +844,46 @@
+@@ -453,23 +868,50 @@
                  return "not_offered"
              return self._sslobj_internal.ech_status
  
@@ -9962,6 +10190,10 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +            raise ValueError(
 +                f"recvfrom_into not allowed on instances of {self.__class__}"
 +            )
++        if self._uses_plain_transport():
++            if nbytes is None:
++                return socket.socket.recvfrom_into(self, buffer, flags=flags)
++            return socket.socket.recvfrom_into(self, buffer, nbytes, flags)
 +        view = memoryview(buffer)
 +        nbytes = 0 if nbytes is None else operator.index(nbytes)
 +        if nbytes < 0:
@@ -9996,7 +10228,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def __enter__(self) -> TLSSocket:
          return self
-@@ -501,15 +915,23 @@
+@@ -501,17 +943,38 @@
          server_hostname: str | None = None,
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
@@ -10009,7 +10241,8 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._transport = sock
          self._rtls_context = context
          self._server_side = server_side
-         self._server_hostname = server_hostname
+-        self._server_hostname = server_hostname
++        self._server_hostname = None
          self._do_handshake_on_connect = do_handshake_on_connect
          self._suppress_ragged_eofs = suppress_ragged_eofs
 +        self._pending_session = session
@@ -10019,8 +10252,23 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +        self._handshake_record_size: int | None = None
          self._sslobj_internal: TLSObject | None = None
          self._closed = False
++        from ._context import _encode_server_hostname
++
++        try:
++            self._server_hostname = _encode_server_hostname(server_hostname)
++        except BaseException as error:
++            try:
++                self.close()
++            except BaseException as cleanup_error:
++                error.add_note(
++                    "closing TLS socket after hostname encoding failed also failed: "
++                    f"{cleanup_error}"
++                )
++            raise
  
-@@ -536,7 +958,10 @@
+         try:
+             sock.getpeername()
+@@ -536,7 +999,10 @@
              outgoing=self._outgoing,
              server_side=self._server_side,
              server_hostname=self._server_hostname,
@@ -10031,7 +10279,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def connect(self, addr: Any) -> None:
          if self._server_side:
-@@ -575,6 +1000,12 @@
+@@ -575,6 +1041,12 @@
                  self._pull_incoming()
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -10044,7 +10292,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def send(self, data: bytes, flags: int = 0) -> int:
          if flags:
-@@ -595,6 +1026,8 @@
+@@ -595,6 +1067,8 @@
      def recv(self, buflen: int = _DEFAULT_BUFFER_SIZE, flags: int = 0) -> bytes:
          if flags:
              raise ValueError("non-zero flags not allowed on TLS sockets")
@@ -10053,7 +10301,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -615,6 +1048,18 @@
+@@ -615,6 +1089,18 @@
              self._flush_outgoing()
              chunk = self._transport.recv(_SOCKET_READ_BUFFER_SIZE)
              if not chunk:
@@ -10072,7 +10320,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
                  if self._suppress_ragged_eofs:
                      return b""
                  raise SSLEOFError("EOF occurred in violation of protocol")
-@@ -625,15 +1070,32 @@
+@@ -625,15 +1111,32 @@
              if data:
                  return data
  
@@ -10109,7 +10357,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
      def write(self, data: bytes) -> int:
          return self.send(data)
-@@ -644,9 +1106,11 @@
+@@ -644,9 +1147,11 @@
              self._transport.sendall(data)
  
      def _pull_incoming(self) -> None:
@@ -10124,7 +10372,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._incoming.write(data)
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
-@@ -660,6 +1124,15 @@
+@@ -660,6 +1165,15 @@
      def version(self) -> str | None:
          return self._sslobj_internal.version() if self._sslobj_internal else None
  
@@ -10140,7 +10388,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
      def selected_alpn_protocol(self) -> str | None:
          if self._sslobj_internal is None:
              return None
-@@ -668,17 +1141,33 @@
+@@ -668,17 +1182,33 @@
      def pending(self) -> int:
          return self._sslobj_internal.pending() if self._sslobj_internal else 0
  
@@ -10179,7 +10427,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._transport.shutdown(how)
  
      def close(self) -> None:
-@@ -694,14 +1183,14 @@
+@@ -694,14 +1224,14 @@
              self._sslobj_internal = None
          self._transport.close()
  
@@ -10200,7 +10448,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          return self._sslobj_internal.get_unverified_chain()
  
      @property
-@@ -717,8 +1206,32 @@
+@@ -717,8 +1247,32 @@
          return self._server_hostname
  
      @property
@@ -11208,7 +11456,81 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
  
      def test_session_properties(self):
          """SSLObject.session should be None, session_reused should be False."""
-@@ -1534,6 +2158,59 @@
+@@ -1461,6 +2085,73 @@
+                 cert = s.getpeercert()
+                 self.assertTrue(cert, "Can't get peer certificate.")
+ 
++    def test_dual_rsa_ecc_certificate_selection(self):
++        cases = (
++            (
++                ssl.TLSVersion.TLSv1_2,
++                "TLSv1.2",
++                "ECDHE:ECDSA:!NULL:!aRSA",
++                "ecdsa_secp256r1_sha256:ecdsa_secp384r1_sha384",
++                SIGNED_CERTFILE_ECC_HOSTNAME,
++                ["ECDHE", "ECDSA"],
++            ),
++            (
++                ssl.TLSVersion.TLSv1_2,
++                "TLSv1.2",
++                "ECDHE-RSA-AES128-GCM-SHA256",
++                "rsa_pss_rsae_sha256",
++                SIGNED_CERTFILE_HOSTNAME,
++                ["ECDHE", "RSA"],
++            ),
++            (
++                ssl.TLSVersion.TLSv1_3,
++                "TLSv1.3",
++                "ECDHE:ECDSA:!NULL:!aRSA",
++                "ecdsa_secp256r1_sha256:ecdsa_secp384r1_sha384",
++                SIGNED_CERTFILE_ECC_HOSTNAME,
++                "TLS_",
++            ),
++            (
++                ssl.TLSVersion.TLSv1_3,
++                "TLSv1.3",
++                "ECDHE-RSA-AES128-GCM-SHA256",
++                "rsa_pss_rsae_sha256",
++                SIGNED_CERTFILE_HOSTNAME,
++                "TLS_",
++            ),
++        )
++
++        for version, expected_version, ciphers, sigalgs, hostname, expected_cipher in cases:
++            with self.subTest(version=version, hostname=hostname, ciphers=ciphers):
++                client_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++                client_context.load_verify_locations(SIGNING_CA)
++                client_context.minimum_version = version
++                client_context.maximum_version = version
++                client_context.set_ciphers(ciphers)
++                client_context.set_server_sigalgs(sigalgs)
++
++                server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++                server_context.load_cert_chain(SIGNED_CERTFILE_ECC)
++                server_context.load_cert_chain(SIGNED_CERTFILE)
++
++                server = ThreadedEchoServer(context=server_context, chatty=False)
++                with server:
++                    with client_context.wrap_socket(
++                        socket.socket(), server_hostname=hostname
++                    ) as sock:
++                        sock.connect((HOST, server.port))
++                        certificate = sock.getpeercert()
++                        self.assertIn(
++                            ("DNS", hostname), certificate["subjectAltName"]
++                        )
++                        self.assertEqual(sock.version(), expected_version)
++                        if version == ssl.TLSVersion.TLSv1_2:
++                            self.assertEqual(
++                                sock.cipher()[0].split("-")[:2], expected_cipher
++                            )
++                        else:
++                            self.assertTrue(sock.cipher()[0].startswith(expected_cipher))
++
+     @unittest.skip("rustls server-side client cert verification differs from OpenSSL")
+     def test_wrong_cert_tls12(self):
+         """Connecting when the server rejects the client's certificate."""
+@@ -1534,6 +2225,59 @@
                  version = s.version()
                  self.assertEqual(version, "TLSv1.3")
  
@@ -11268,7 +11590,7 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
      def test_min_max_version(self):
          """Test TLS version constraints."""
          client_context, server_context, hostname = testing_context()
-@@ -1579,6 +2256,171 @@
+@@ -1579,6 +2323,171 @@
                      self.assertIsInstance(cipher, tuple)
                      self.assertEqual(len(cipher), 3)
  
@@ -11440,7 +11762,7 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
      def test_recv_send(self):
          """Test basic send/recv over TLS."""
          client_context, server_context, hostname = testing_context()
-@@ -1638,6 +2480,149 @@
+@@ -1638,6 +2547,149 @@
                  uchain = s.get_unverified_chain()
                  self.assertIsNotNone(uchain)
                  self.assertGreater(len(uchain), 0)
