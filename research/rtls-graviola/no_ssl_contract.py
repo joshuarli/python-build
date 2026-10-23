@@ -36,6 +36,34 @@ def environment(values: dict[str, str | None]):
                 os.environ[name] = value
 
 
+@contextmanager
+def unavailable_configured_sources(ssl, fallback_certificate: Path):
+    from rtls import _utils
+
+    original_paths = ssl.get_default_verify_paths
+    original_context_paths = _utils.get_default_verify_paths
+    original_bundle = ssl._PYTHON_BUILD_DEFAULT_CA_BUNDLE
+
+    def fixture_paths():
+        paths = original_paths()
+        cafile = os.environ.get("SSL_CERT_FILE", "")
+        capath = os.environ.get("SSL_CERT_DIR", "")
+        return paths._replace(
+            cafile=cafile if os.path.isfile(cafile) else None,
+            capath=capath if os.path.isdir(capath) else None,
+        )
+
+    ssl.get_default_verify_paths = fixture_paths
+    _utils.get_default_verify_paths = fixture_paths
+    ssl._PYTHON_BUILD_DEFAULT_CA_BUNDLE = os.fspath(fallback_certificate)
+    try:
+        yield
+    finally:
+        ssl.get_default_verify_paths = original_paths
+        _utils.get_default_verify_paths = original_context_paths
+        ssl._PYTHON_BUILD_DEFAULT_CA_BUNDLE = original_bundle
+
+
 def make_expired_certificate(certdata: Path, destination: Path) -> tuple[Path, Path]:
     openssl = shutil.which("openssl")
     if openssl is None:
@@ -237,18 +265,11 @@ def https_default_context(ssl, certdata: Path, mode: str) -> str:
     )
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
-    if mode == "openssl":
-        overrides = {
-            "SSL_CERT_FILE": str(certdata / "capath" / "ceff1710.0"),
-            "SSL_CERT_DIR": None,
-            "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
-        }
-    else:
-        overrides = {
-            "SSL_CERT_FILE": None,
-            "SSL_CERT_DIR": None,
-            "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
-        }
+    overrides = {
+        "SSL_CERT_FILE": str(certdata / "capath" / "ceff1710.0"),
+        "SSL_CERT_DIR": "",
+        "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
+    }
     try:
         with environment(overrides):
             with urllib.request.urlopen(
@@ -281,18 +302,11 @@ async def asyncio_default_context(ssl, certdata: Path, mode: str) -> None:
         ssl_handshake_timeout=5,
     )
     port = server.sockets[0].getsockname()[1]
-    if mode == "openssl":
-        overrides = {
-            "SSL_CERT_FILE": str(certdata / "capath" / "ceff1710.0"),
-            "SSL_CERT_DIR": None,
-            "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
-        }
-    else:
-        overrides = {
-            "SSL_CERT_FILE": None,
-            "SSL_CERT_DIR": None,
-            "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
-        }
+    overrides = {
+        "SSL_CERT_FILE": str(certdata / "capath" / "ceff1710.0"),
+        "SSL_CERT_DIR": "",
+        "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
+    }
     try:
         with environment(overrides):
             reader, writer = await asyncio.wait_for(
@@ -346,7 +360,10 @@ def main() -> int:
         results["interpreter"] = sys.version.split()[0]
         results["ssl_backend"] = getattr(ssl, "__version__", "unknown")
         results["ssl_extension_absent"] = True
-        results["hashlib_retained"] = True
+        results["hashlib_available"] = True
+        results["hashlib_backend"] = (
+            "python-rustcrypto" if str(_hashlib.__file__).endswith(".py") else "openssl"
+        )
         results["ignore_environment"] = sys.flags.ignore_environment
         results["isolated_mode"] = sys.flags.isolated
         if not issubclass(ssl.SSLSocket, socket.socket):
@@ -428,7 +445,7 @@ def main() -> int:
             },
         }
         for name, overrides in trust_cases.items():
-            with environment(overrides):
+            with environment(overrides), unavailable_configured_sources(ssl, root):
                 outcomes[name] = tls_exchange(
                     ssl,
                     certdata / "keycert3.pem",

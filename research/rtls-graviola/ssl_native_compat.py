@@ -35,7 +35,7 @@ def __getattr__(name):
         from rtls._certificate import TLSCertificate
 
         return TLSCertificate
-    if name == "__path__":
+    if name.startswith("__"):
         raise AttributeError(name)
     module = importlib.import_module("ssl")
     aliases = {"_SSLContext": "SSLContext", "_SSLSocket": "SSLSocket"}
