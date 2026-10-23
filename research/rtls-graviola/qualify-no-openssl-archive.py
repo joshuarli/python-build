@@ -1229,6 +1229,34 @@ def run_archive_contracts(
         and all(isinstance(row, dict) and row.get("status") not in {"failed", "reference_unavailable"} for row in modern_matrix)
     )
 
+    from buildsys.inputs import Cache, load_lock, safe_extract
+
+    ca_pin = next(pin for pin in load_lock(COMMON_ROOT / "sources.lock.json") if pin.name == "certifi-ca")
+    ca_source = safe_extract(
+        Cache(COMMON_ROOT / ".cache").require(ca_pin), contracts / "pinned CA source",
+    )
+    ca_bundles = list(ca_source.glob("*/certifi/cacert.pem"))
+    if len(ca_bundles) != 1:
+        raise QualificationDriverError("locked CA source does not contain one certificate bundle")
+    trust_process = run_logged_process(
+        "trust-source-contract",
+        [
+            python, "-I", "-B",
+            REPO / "research" / "rtls-graviola" / "trust_policy_contract.py",
+            certdata, ca_bundles[0], reference_python,
+        ],
+        extracted,
+        contracts,
+        logs,
+        timeout_seconds=120,
+    )
+    trust_output = Path(trust_process["stderr_log"]).read_text()
+    trust_runs = re.findall(r"^Ran ([0-9]+) tests in ", trust_output, re.MULTILINE)
+    trust_ok = (
+        trust_process.get("returncode") == 0
+        and trust_runs == ["16"]
+        and re.search(r"^OK$", trust_output, re.MULTILINE) is not None
+    )
     hashing_process = run_logged_process(
         "hashing-reference-comparison",
         [
@@ -1275,6 +1303,10 @@ def run_archive_contracts(
 
     return {
         "no_openssl_symbols": symbol_audit,
+        "trust_source_contract": check_result(
+            trust_ok, process=trust_process, tests_run=trust_runs,
+            pinned_bundle_sha256=sha256_file(ca_bundles[0]),
+        ),
         "handshake_error_cleanup": check_result(
             cleanup_ok, process=cleanup_process, summary=cleanup_payload,
         ),
@@ -1829,6 +1861,7 @@ def build_experimental_manifest(
         REPO / "research" / "rtls-graviola" / "certificate_contract.py",
         REPO / "research" / "rtls-graviola" / "modern_tls_contract.py",
         REPO / "research" / "rtls-graviola" / "test_ssl_handshake_error_cleanup.py",
+        REPO / "research" / "rtls-graviola" / "trust_policy_contract.py",
         REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py",
         REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py",
         REPO / "research" / "rtls-graviola" / "regression_policy.py",
