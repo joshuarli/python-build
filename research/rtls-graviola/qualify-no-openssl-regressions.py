@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -19,7 +20,6 @@ from buildsys.product import PRODUCT
 
 RUNTIME_FILES = (
     Path("bin") / PRODUCT.interpreter_name,
-    Path("lib") / f"lib{PRODUCT.shared_library_stem}.dylib",
     PRODUCT.stdlib_relative_path / "ssl.py",
     PRODUCT.stdlib_relative_path / "_ssl.py",
     PRODUCT.stdlib_relative_path / "_ssl_metadata.py",
@@ -110,7 +110,14 @@ def work_path(value: Path, root: Path, *, label: str, no_spaces: bool) -> Path:
 
 
 def runtime_files(prefix: Path) -> dict[str, str]:
+    from buildsys.targets import native_target
+
+    target = native_target()
+    shared_library_suffix = ".dylib" if target.is_macos else ".so.1.0"
     expected = {prefix / relative for relative in RUNTIME_FILES}
+    expected.add(
+        prefix / "lib" / f"lib{PRODUCT.shared_library_stem}{shared_library_suffix}"
+    )
     rtls = prefix / PRODUCT.stdlib_relative_path / "rtls"
     if not rtls.is_dir():
         raise QualificationError(f"runtime package is missing: {rtls}")
@@ -161,6 +168,76 @@ def runtime_identity(prefix: Path, scratch: Path) -> dict[str, object]:
             f"runtime identity reports a non-Rustls TLS backend: {runtime['ssl_backend']}"
         )
     return {"runtime": runtime, "files": runtime_files(prefix)}
+
+
+def ssl_test_case_inventory(prefix: Path, scratch: Path) -> dict[str, object]:
+    from buildsys.product_process import run_product_process
+
+    test_source = prefix / PRODUCT.stdlib_relative_path / "test" / "test_ssl.py"
+    if test_source.is_symlink() or not test_source.is_file():
+        raise QualificationError(f"CPython test_ssl source is missing or linked: {test_source}")
+    source_root = prefix.resolve(strict=True)
+    resolved_source = test_source.resolve(strict=True)
+    if not resolved_source.is_relative_to(source_root):
+        raise QualificationError(f"CPython test_ssl source escapes the prefix: {test_source}")
+    inventory_script = r"""
+import hashlib
+import json
+import unittest
+from pathlib import Path
+from test import test_ssl
+
+def cases(suite):
+    for case in suite:
+        if isinstance(case, unittest.TestSuite):
+            yield from cases(case)
+        else:
+            yield case.id()
+
+suite = unittest.defaultTestLoader.loadTestsFromModule(test_ssl)
+identifiers = list(cases(suite))
+encoded = json.dumps(identifiers, separators=(",", ":")).encode()
+print(json.dumps({
+    "module_path": str(Path(test_ssl.__file__).resolve()),
+    "test_count": suite.countTestCases(),
+    "case_ids_sha256": hashlib.sha256(encoded).hexdigest(),
+}, sort_keys=True))
+"""
+    process = run_product_process(
+        [PRODUCT.interpreter(prefix), "-I", "-B", "-c", inventory_script],
+        prefix,
+        scratch,
+        timeout_seconds=30,
+    )
+    if process.returncode:
+        raise QualificationError(
+            f"test_ssl case discovery failed for {prefix}: {process.stdout}{process.stderr}"
+        )
+    try:
+        observed = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise QualificationError(
+            f"test_ssl case discovery returned invalid JSON: {process.stdout!r}"
+        ) from error
+    if not isinstance(observed, dict):
+        raise QualificationError(f"test_ssl case discovery returned a non-object: {observed!r}")
+    test_count = observed.get("test_count")
+    module_path = observed.get("module_path")
+    case_digest = observed.get("case_ids_sha256")
+    if (
+        type(test_count) is not int
+        or test_count <= 0
+        or module_path != str(resolved_source)
+        or not isinstance(case_digest, str)
+        or re.fullmatch(r"[0-9a-f]{64}", case_digest) is None
+    ):
+        raise QualificationError(f"test_ssl case discovery is incomplete: {observed!r}")
+    return {
+        "source_path": str(resolved_source),
+        "source_sha256": hashlib.sha256(resolved_source.read_bytes()).hexdigest(),
+        "test_count": test_count,
+        "case_ids_sha256": case_digest,
+    }
 
 
 def verbose_command(argv) -> list[str]:
@@ -244,9 +321,12 @@ def run(args) -> int:
     from buildsys.targets import native_target
 
     target = native_target()
-    if target.triple != "aarch64-apple-darwin":
+    if target.triple not in {
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-musl",
+    }:
         raise QualificationError(
-            f"this experimental regression check is native macOS arm64 only: {target.triple}"
+            f"this experimental regression check supports native arm64 targets only: {target.triple}"
         )
     root = common_root()
     source_prefix = work_path(args.prefix, root, label="prefix", no_spaces=False)
@@ -272,12 +352,19 @@ def run(args) -> int:
         "candidate_identity": {},
         "tested_identity": {},
         "runtime_identity": {},
+        "ssl_test_inventory": {},
         "diagnostics": {},
         "solo_findings": {},
     }
 
     try:
         source_identity = runtime_identity(source_prefix, scratch)
+        source_test_inventory = ssl_test_case_inventory(source_prefix, scratch)
+        if target.is_macos and source_test_inventory["test_count"] != 219:
+            raise QualificationError(
+                "pinned macOS test_ssl source no longer discovers exactly 219 cases: "
+                f"{source_test_inventory['test_count']}"
+            )
         shutil.copytree(
             source_prefix,
             tested_prefix,
@@ -285,6 +372,16 @@ def run(args) -> int:
             copy_function=shutil.copy2,
         )
         tested_identity = runtime_identity(tested_prefix, scratch)
+        tested_test_inventory = ssl_test_case_inventory(tested_prefix, scratch)
+        inventories_equal = all(
+            source_test_inventory[key] == tested_test_inventory[key]
+            for key in ("source_sha256", "test_count", "case_ids_sha256")
+        )
+        report["ssl_test_inventory"] = {
+            "candidate": source_test_inventory,
+            "tested": tested_test_inventory,
+            "equal": inventories_equal,
+        }
         report["candidate_identity"] = source_identity["files"]
         report["tested_identity"] = tested_identity["files"]
         report["runtime_identity"] = {
@@ -294,6 +391,8 @@ def run(args) -> int:
         }
         if source_identity != tested_identity:
             raise QualificationError("copied prefix runtime identity changed")
+        if not inventories_equal:
+            raise QualificationError("copied test_ssl source or discovered cases changed")
 
         try:
             accounting, full_output = capture_suite(
@@ -321,7 +420,10 @@ def run(args) -> int:
             if not isinstance(extracted, str) or not extracted:
                 raise QualificationError("test_ssl extraction returned no verbose output")
             test_ssl_log.write_text(extracted, encoding="utf-8")
-            assessment = policy.assess_ssl_full_run(full_output)
+            assessment = policy.assess_ssl_full_run(
+                full_output,
+                expected_tests_run=source_test_inventory["test_count"],
+            )
             if not isinstance(assessment, dict):
                 raise QualificationError("test_ssl assessment did not return an object")
             assessment = dict(assessment)

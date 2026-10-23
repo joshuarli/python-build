@@ -6,7 +6,7 @@ from typing import Any
 
 
 POLICY_SOURCE = "research/rtls-graviola/MODERN_TLS_POLICY.md"
-EXPECTED_TESTS_RUN = 219
+MACOS_EXPECTED_TESTS_RUN = 219
 _FULL_SSL_PROGRESS = re.compile(
     r"^.*\[[^\]\n]+\]\s+test_ssl (?:(?:failed \((\d+) errors?, (\d+) failures?\))|passed)(?:\s|$)",
     re.MULTILINE,
@@ -288,7 +288,11 @@ def _expected_result(kind: str, header: str, body: str) -> _ExpectedFailure | No
     return None
 
 
-def assess_ssl_log(output: str) -> dict[str, Any]:
+def assess_ssl_log(
+    output: str,
+    *,
+    expected_tests_run: int = MACOS_EXPECTED_TESTS_RUN,
+) -> dict[str, Any]:
     accepted: list[dict[str, str]] = []
     unexpected: list[dict[str, str]] = []
     accounting_errors: list[str] = []
@@ -364,9 +368,11 @@ def assess_ssl_log(output: str) -> dict[str, Any]:
 
     if tests_run <= 0:
         accounting_errors.append("test run count is missing or zero")
-    if tests_run != EXPECTED_TESTS_RUN:
+    if type(expected_tests_run) is not int or expected_tests_run <= 0:
+        accounting_errors.append("expected test count is missing or invalid")
+    elif tests_run != expected_tests_run:
         accounting_errors.append(
-            f"pinned test_ssl run must include all {EXPECTED_TESTS_RUN} tests"
+            f"test_ssl run must include all {expected_tests_run} discovered tests"
         )
     if len(total_files) != 1:
         accounting_errors.append("expected exactly one outer Total test files summary")
@@ -460,6 +466,7 @@ def assess_ssl_log(output: str) -> dict[str, Any]:
         "ok": complete and not unexpected,
         "complete": complete,
         "tests_run": tests_run,
+        "expected_tests_run": expected_tests_run,
         "failures": failures,
         "errors": errors,
         "skips": skips,
@@ -492,7 +499,11 @@ def extract_test_ssl_log(full_run_output: str) -> str:
     return full_run_output[banners[0].start() : end]
 
 
-def assess_ssl_full_run(full_run_output: str) -> dict[str, Any]:
+def assess_ssl_full_run(
+    full_run_output: str,
+    *,
+    expected_tests_run: int = MACOS_EXPECTED_TESTS_RUN,
+) -> dict[str, Any]:
     ssl_output = extract_test_ssl_log(full_run_output)
     progress = list(_FULL_SSL_PROGRESS.finditer(full_run_output))
     if len(progress) != 1:
@@ -510,8 +521,12 @@ def assess_ssl_full_run(full_run_output: str) -> dict[str, Any]:
     if len(ran) != 1 or len(failed) + len(successful) != 1:
         raise ValueError("full-run test_ssl block has incomplete unittest accounting")
     tests_run = int(ran[0].group(1).replace(",", ""))
-    if tests_run != EXPECTED_TESTS_RUN:
-        raise ValueError(f"full-run test_ssl block must include all {EXPECTED_TESTS_RUN} tests")
+    if type(expected_tests_run) is not int or expected_tests_run <= 0:
+        raise ValueError("expected test count is missing or invalid")
+    if tests_run != expected_tests_run:
+        raise ValueError(
+            f"full-run test_ssl block must include all {expected_tests_run} discovered tests"
+        )
 
     if failed:
         fields = _count_fields(failed[0].group(1), {"failures", "errors", "skipped"})
@@ -542,4 +557,4 @@ def assess_ssl_full_run(full_run_output: str) -> dict[str, Any]:
         "Total test files: run=1/1 passed=1\n"
         "Result: SUCCESS\n"
     )
-    return assess_ssl_log(wrapper)
+    return assess_ssl_log(wrapper, expected_tests_run=expected_tests_run)

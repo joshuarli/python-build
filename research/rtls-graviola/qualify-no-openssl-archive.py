@@ -81,7 +81,6 @@ from buildsys.validate_product import run_validation, write_report
 
 REQUIRED_CANDIDATE_FILES = (
     "bin/python3.15",
-    "lib/libpython3.15.dylib",
     "lib/python3.15/rtls/_rustls.abi3.so",
     "lib/python3.15/lib-dynload/_hashlib_graviola.abi3.so",
     "lib/python3.15/ssl.py",
@@ -94,6 +93,7 @@ CERTIFICATE_CASE_COUNT = 82
 CERTIFICATE_VERIFY_CODE_COUNT = 12
 SSL_EXACT_CASE_COUNT = 219
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+REVISION_PATTERN = re.compile(r"[0-9a-f]{40,64}")
 OPENSSL_SYMBOL_PREFIXES = (
     "AES_", "ASN1_", "ASYNC_", "BF_", "BIO_", "BN_", "BUF_", "CAMELLIA_",
     "CAST_", "CMS_", "COMP_", "CONF_", "CRYPTO_", "CT_", "DES_", "DH_",
@@ -111,12 +111,18 @@ ADAPTER_EXPORT_IMAGES = frozenset(
 )
 
 
-def candidate_runtime_identity_paths(prefix: Path) -> tuple[str, ...]:
+def shared_library_relative_path(target) -> str:
+    suffix = ".dylib" if target.is_macos else ".so.1.0"
+    return f"lib/lib{PRODUCT.shared_library_stem}{suffix}"
+
+
+def candidate_runtime_identity_paths(prefix: Path, target) -> tuple[str, ...]:
     root = Path(prefix).resolve(strict=True)
     package = root / "lib" / "python3.15" / "rtls"
     if not package.is_dir():
         raise QualificationDriverError(f"candidate RTLS package is missing: {package}")
     paths = set(REQUIRED_CANDIDATE_FILES)
+    paths.add(shared_library_relative_path(target))
     for path in package.rglob("*"):
         relative = path.relative_to(root)
         if "__pycache__" in relative.parts or path.suffix in {".pyc", ".pyo"}:
@@ -139,21 +145,27 @@ def openssl_symbol_family(symbol: str) -> str | None:
     )
 
 
-def audit_openssl_symbols(prefix: Path) -> dict:
+def audit_openssl_symbols(prefix: Path, target) -> dict:
     from buildsys import macho
+    from buildsys.relocate import find_elfs
 
-    nm = Path("/usr/bin/nm")
-    if not nm.is_file():
-        return check_result(False, error=f"native symbol tool is missing: {nm}")
-    images = macho.find_machos(prefix)
+    nm = "/usr/bin/nm" if target.is_macos else shutil.which("nm")
+    if nm is None:
+        return check_result(False, error="native nm symbol tool is missing")
+    if target.is_macos:
+        images = macho.find_machos(prefix)
+        image_format = "Mach-O"
+    else:
+        images = find_elfs(prefix)
+        image_format = "ELF"
     if not images:
-        return check_result(False, error="extracted archive contains no Mach-O images")
+        return check_result(False, error=f"extracted archive contains no {image_format} images")
     unresolved = []
     adapter_exports = {}
     for image in images:
         relative = image.relative_to(prefix).as_posix()
         result = subprocess.run(
-            [str(nm), "-g", str(image)],
+            [nm, "-g", str(image)],
             capture_output=True,
             text=True,
             timeout=60,
@@ -178,7 +190,8 @@ def audit_openssl_symbols(prefix: Path) -> dict:
                 adapter_exports.setdefault(relative, []).append(symbol)
     return check_result(
         not unresolved,
-        tool=str(nm),
+        tool=nm,
+        image_format=image_format,
         image_count=len(images),
         audited_symbol_families=list(OPENSSL_SYMBOL_PREFIXES),
         unresolved_openssl_symbols=unresolved,
@@ -217,6 +230,317 @@ def load_package_driver():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def load_regression_driver():
+    path = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py"
+    spec = importlib.util.spec_from_file_location("no_openssl_regression_driver", path)
+    if spec is None or spec.loader is None:
+        raise QualificationDriverError(f"cannot load regression driver: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _receipt_commands(value, prefix: tuple[str, ...] = ()):
+    if isinstance(value, dict):
+        if "argv" in value:
+            yield prefix, value
+        else:
+            for name, item in value.items():
+                if isinstance(name, str):
+                    yield from _receipt_commands(item, (*prefix, name))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _receipt_commands(item, (*prefix, str(index)))
+
+
+def _validate_linux_command_logs(receipt: dict, run_dir: Path) -> dict[str, dict]:
+    commands = receipt.get("commands")
+    logs = receipt.get("logs")
+    if not isinstance(commands, dict) or not isinstance(logs, dict):
+        raise QualificationDriverError("Linux build receipt has no command mapping")
+    verified_logs = {}
+    for key, log in logs.items():
+        if not isinstance(key, str) or not isinstance(log, dict):
+            raise QualificationDriverError("Linux build receipt has a malformed log inventory")
+        log_value = log.get("path")
+        digest = log.get("sha256")
+        if (
+            not isinstance(log_value, str)
+            or Path(log_value).is_absolute()
+            or ".." in Path(log_value).parts
+            or not isinstance(digest, str)
+            or SHA256_PATTERN.fullmatch(digest) is None
+        ):
+            raise QualificationDriverError(f"Linux build receipt has an unsafe log record: {key}")
+        log_path = (run_dir / log_value).resolve(strict=True)
+        if not log_path.is_relative_to(run_dir.resolve(strict=True)) or not log_path.is_file():
+            raise QualificationDriverError(f"Linux build log escapes its run directory: {key}")
+        if sha256_file(log_path) != digest:
+            raise QualificationDriverError(f"Linux build log digest differs: {key}")
+        verified_logs[key] = {"path": log_value, "sha256": digest}
+    observed = {}
+    for path, command in _receipt_commands(commands):
+        label = ".".join(path)
+        argv = command.get("argv")
+        log = command.get("log")
+        if (
+            not isinstance(argv, list)
+            or not argv
+            or any(not isinstance(argument, str) or not argument for argument in argv)
+            or not isinstance(log, dict)
+        ):
+            raise QualificationDriverError(f"Linux build command record is malformed: {label}")
+        log_value = log.get("path")
+        log_digest = log.get("sha256")
+        if (
+            not isinstance(log_value, str)
+            or not log_value
+            or Path(log_value).is_absolute()
+            or ".." in Path(log_value).parts
+            or not isinstance(log_digest, str)
+            or SHA256_PATTERN.fullmatch(log_digest) is None
+        ):
+            raise QualificationDriverError(f"Linux build command log record is unsafe: {label}")
+        log_path = (run_dir / log_value).resolve(strict=True)
+        if not log_path.is_relative_to(run_dir.resolve(strict=True)) or not log_path.is_file():
+            raise QualificationDriverError(f"Linux build command log escapes its run directory: {label}")
+        if sha256_file(log_path) != log_digest:
+            raise QualificationDriverError(f"Linux build command log digest differs: {label}")
+        if verified_logs.get(log_value) != {"path": log_value, "sha256": log_digest}:
+            raise QualificationDriverError(f"Linux command log is absent from the receipt inventory: {label}")
+        observed[label.lower()] = {
+            "argv": argv,
+            "log": {"path": log_value, "sha256": log_digest},
+        }
+    return observed
+
+
+def _validate_linux_build_receipt(
+    run_dir: Path,
+    target,
+    bootstrap: dict,
+    expected_source_revision: str,
+) -> tuple[dict, dict, dict[str, dict]]:
+    receipt_path = run_dir / "linux-build.json"
+    try:
+        receipt = json.loads(receipt_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise QualificationDriverError(f"Linux build receipt is missing or invalid: {error}") from error
+    if not isinstance(receipt, dict) or type(receipt.get("schema_version")) is not int or receipt.get("schema_version") != 1:
+        raise QualificationDriverError("Linux build receipt has an unsupported schema")
+    if receipt.get("target") != target.triple:
+        raise QualificationDriverError("Linux build receipt names a different target")
+    if receipt.get("cpu_baseline") != target.cpu_baseline_cflag:
+        raise QualificationDriverError("Linux research build does not declare the armv8-a+crypto floor")
+    if receipt.get("pgo") is not False:
+        raise QualificationDriverError("Linux research build must record PGO disabled")
+    cpu_features = receipt.get("cpu_features")
+    if not isinstance(cpu_features, list) or not {"aes", "pmull", "sha2", "asimd"}.issubset(cpu_features):
+        raise QualificationDriverError("Linux build receipt does not prove the required native ARM crypto features")
+    source_revision = receipt.get("source_revision")
+    if (
+        not isinstance(source_revision, str)
+        or REVISION_PATTERN.fullmatch(source_revision) is None
+        or source_revision != expected_source_revision
+    ):
+        raise QualificationDriverError("Linux build receipt has a stale source revision")
+    compiler = receipt.get("compiler")
+    if not isinstance(compiler, dict):
+        raise QualificationDriverError("Linux build receipt has no compiler tool mapping")
+    required_tools = {"cc", "cxx", "ar", "ranlib", "ld", "nm", "strip"}
+    if set(compiler) != required_tools:
+        raise QualificationDriverError("Linux build receipt has an incomplete compiler tool mapping")
+    for name, tool in compiler.items():
+        if (
+            not isinstance(tool, dict)
+            or not isinstance(tool.get("path"), str)
+            or not Path(tool["path"]).is_absolute()
+            or not Path(tool["path"]).is_file()
+            or not os.access(tool["path"], os.X_OK)
+            or not isinstance(tool.get("version"), str)
+            or not tool["version"].strip()
+        ):
+            raise QualificationDriverError(f"Linux build receipt has an invalid {name} identity")
+        resolved_path = Path(tool["path"]).resolve()
+        located_path = shutil.which(Path(tool["path"]).name)
+        if located_path is None or Path(located_path).resolve() != resolved_path:
+            raise QualificationDriverError(f"Linux build receipt {name} path is not the active tool in PATH")
+    pinned_clang = next(
+        (
+            package["version"].split("-r", 1)[0]
+            for package in bootstrap.get("linux_toolchain", {}).get("direct_packages", [])
+            if isinstance(package, dict) and package.get("name") == "clang23"
+        ),
+        None,
+    )
+    if pinned_clang is None or pinned_clang not in compiler["cc"]["version"]:
+        raise QualificationDriverError("Linux build receipt compiler differs from locked LLVM")
+    isolation = receipt.get("isolation")
+    if (
+        not isinstance(isolation, dict)
+        or isolation.get("build_mode") != "sealed"
+        or isolation.get("mechanism") != "docker-network-none"
+        or isolation.get("interfaces") != ["lo"]
+        or isolation.get("default_routes") != []
+    ):
+        raise QualificationDriverError("Linux build receipt lacks network-disabled Docker evidence")
+    commands = _validate_linux_command_logs(receipt, run_dir)
+    return receipt, compiler, commands
+
+
+def _validate_linux_docker_receipt(
+    run_dir: Path,
+    target,
+    bootstrap: dict,
+    build_receipt_path: Path,
+    build_receipt: dict,
+) -> dict:
+    docker_path = run_dir / "docker-build.json"
+    try:
+        docker = json.loads(docker_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise QualificationDriverError(f"Docker build receipt is missing or invalid: {error}") from error
+    if not isinstance(docker, dict) or type(docker.get("schema")) is not int or docker.get("schema") != 1:
+        raise QualificationDriverError("Docker build receipt has an unsupported schema")
+    expected_image = bootstrap.get("linux_toolchain", {}).get("images", {}).get("arm64", {}).get("digest")
+    if (
+        docker.get("target_triple") != target.triple
+        or docker.get("platform") != "linux/arm64"
+        or docker.get("daemon_os") != "linux"
+        or docker.get("daemon_architecture") != "linux/arm64"
+        or docker.get("container_architecture") != "aarch64"
+        or docker.get("image_architecture") not in {"aarch64", "arm64"}
+        or not isinstance(docker.get("image_id"), str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", docker["image_id"]) is None
+        or docker.get("locked_image_digest") != expected_image
+        or docker.get("network_mode") != "none"
+        or docker.get("isolation") != "docker-network-none"
+        or docker.get("source_revision") != build_receipt.get("source_revision")
+        or docker.get("source_dirty") is not False
+        or docker.get("linux_build_sha256") != sha256_file(build_receipt_path)
+        or type(docker.get("exit_code")) is not int
+        or docker.get("exit_code") != 0
+        or not isinstance(docker.get("container_id"), str)
+        or not docker["container_id"]
+    ):
+        raise QualificationDriverError("Docker build receipt does not prove the locked native arm64 isolated run")
+    argv = docker.get("command")
+    if not isinstance(argv, list) or not argv or any(not isinstance(value, str) for value in argv):
+        raise QualificationDriverError("Docker build receipt has no inspected container command")
+    if not any(
+        argv[index : index + 2] == ["--network", "none"]
+        or argv[index] == "--network=none"
+        for index in range(len(argv))
+    ) or not any(
+        argv[index : index + 2] == ["--platform", "linux/arm64"]
+        or argv[index] == "--platform=linux/arm64"
+        for index in range(len(argv))
+    ):
+        raise QualificationDriverError("Docker command does not request native arm64 with no network")
+    return docker
+
+
+def _linux_build_evidence(
+    build_run_dir: Path,
+    base_build_run_dir: Path,
+    target,
+    research_driver,
+) -> dict:
+    try:
+        bootstrap = json.loads((COMMON_ROOT / "bootstrap.lock.json").read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise QualificationDriverError(f"cannot read Linux bootstrap lock: {error}") from error
+    source_revision = _load_source_revision(COMMON_ROOT)
+    run_directories = []
+    for path in (base_build_run_dir, build_run_dir):
+        resolved = Path(path).resolve(strict=True)
+        if not resolved.is_relative_to((COMMON_ROOT / ".work").resolve()):
+            raise QualificationDriverError(f"Linux build run directory is outside .work: {resolved}")
+        if resolved not in run_directories:
+            run_directories.append(resolved)
+
+    records = []
+    docker_records = []
+    commands = {}
+    compiler = None
+    source_inputs = None
+    for run_directory in run_directories:
+        receipt_path = run_directory / "linux-build.json"
+        receipt, observed_compiler, observed_commands = _validate_linux_build_receipt(
+            run_directory, target, bootstrap, source_revision
+        )
+        docker = _validate_linux_docker_receipt(
+            run_directory, target, bootstrap, receipt_path, receipt
+        )
+        if compiler is None:
+            compiler = observed_compiler
+        elif compiler != observed_compiler:
+            raise QualificationDriverError("base and overlay Linux compiler identities differ")
+        receipt_source = receipt.get("source")
+        if not isinstance(receipt_source, dict):
+            raise QualificationDriverError("Linux build receipt has no source identity mapping")
+        if (
+            receipt_source.get("sources_lock_sha256")
+            != sha256_file(COMMON_ROOT / "sources.lock.json")
+            or receipt_source.get("bootstrap_lock_sha256")
+            != sha256_file(COMMON_ROOT / "bootstrap.lock.json")
+        ):
+            raise QualificationDriverError("Linux build receipt is bound to different input locks")
+        if source_inputs is None:
+            source_inputs = receipt_source
+        else:
+            for key, value in receipt_source.items():
+                if key in source_inputs and source_inputs[key] != value:
+                    raise QualificationDriverError(f"Linux build source identity differs for {key}")
+                source_inputs[key] = value
+        for key, value in observed_commands.items():
+            commands[f"{run_directory.name}.{key}"] = value
+        records.append(
+            {
+                "path": str(receipt_path),
+                "sha256": sha256_file(receipt_path),
+                "receipt": receipt,
+            }
+        )
+        docker_records.append(
+            {
+                "path": str(run_directory / "docker-build.json"),
+                "sha256": sha256_file(run_directory / "docker-build.json"),
+                "receipt": docker,
+            }
+        )
+
+    command_names = set(commands)
+    for required in ("configure", "build", "install", "rtls", "hashing"):
+        if not any(required in name for name in command_names):
+            raise QualificationDriverError(f"Linux build receipts omit the {required} command log")
+    if not isinstance(source_inputs, dict):
+        raise QualificationDriverError("Linux build receipts have no source inputs")
+    rtls_source, hashing_source = research_driver.require_fetched_rust_inputs(build_run_dir)
+    required_source_digests = {
+        "rtls_revision": research_driver.RTLS_REVISION,
+        "rtls_snapshot_sha256": research_driver.rtls_source_digest(rtls_source),
+        "hashing_snapshot_sha256": research_driver.hashing_source_digest(hashing_source),
+        "rtls_cargo_lock_sha256": sha256_file(rtls_source / "rust" / "Cargo.lock"),
+        "hashing_cargo_lock_sha256": sha256_file(hashing_source / "Cargo.lock"),
+    }
+    for name, expected in required_source_digests.items():
+        if source_inputs.get(name) != expected:
+            raise QualificationDriverError(f"Linux build receipt has a stale {name}")
+    return {
+        "source_revision": source_revision,
+        "bootstrap": bootstrap,
+        "bootstrap_identity": sha256_file(COMMON_ROOT / "bootstrap.lock.json"),
+        "compiler": compiler,
+        "source": source_inputs,
+        "commands": commands,
+        "build_receipts": records,
+        "docker_receipts": docker_records,
+        "rust_sources": (rtls_source, hashing_source),
+    }
 
 
 def check_result(ok: bool, **values) -> dict:
@@ -403,7 +727,7 @@ def modern_compatibility_profile(
     return modern_compatibility, capability
 
 
-def validate_ssl_exact_case_assessment(report: dict) -> dict:
+def validate_ssl_exact_case_assessment(report: dict, expected_tests_run: int) -> dict:
     modern_policy = report.get("modern_policy")
     if not isinstance(modern_policy, dict):
         raise QualificationDriverError("regression report has no modern_policy mapping")
@@ -448,7 +772,8 @@ def validate_ssl_exact_case_assessment(report: dict) -> dict:
         raise QualificationDriverError("SSL exact-case failure/error categories do not reconcile")
     complete = (
         assessment.get("complete") is True
-        and assessment["tests_run"] == SSL_EXACT_CASE_COUNT
+        and assessment["tests_run"] == expected_tests_run
+        and assessment.get("expected_tests_run") == expected_tests_run
         and assessment["tests_run"] > 0
     )
     ok = (
@@ -466,7 +791,7 @@ def validate_ssl_exact_case_assessment(report: dict) -> dict:
     }
 
 
-def validate_ssl_log_evidence(report: dict) -> dict:
+def validate_ssl_log_evidence(report: dict, expected_tests_run: int) -> dict:
     diagnostics = report.get("diagnostics")
     if not isinstance(diagnostics, dict):
         raise QualificationDriverError("regression report has no diagnostics mapping")
@@ -511,7 +836,10 @@ def validate_ssl_log_evidence(report: dict) -> dict:
         or assessment.get("source_log_sha256") != test_ssl_record["sha256"]
     ):
         raise QualificationDriverError("SSL assessment is not bound to the full-run test_ssl log")
-    derived = policy.assess_ssl_full_run(full_text)
+    derived = policy.assess_ssl_full_run(
+        full_text,
+        expected_tests_run=expected_tests_run,
+    )
     if any(assessment.get(field) != value for field, value in derived.items()):
         raise QualificationDriverError("SSL assessment differs from the full-run test_ssl block")
     return {
@@ -521,7 +849,65 @@ def validate_ssl_log_evidence(report: dict) -> dict:
     }
 
 
-def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
+def validate_test_ssl_inventory(
+    report: dict,
+    source_prefix: Path,
+    tested_prefix: Path,
+    expected_source: Path,
+    scratch: Path,
+    target,
+) -> dict:
+    inventory = report.get("ssl_test_inventory")
+    if not isinstance(inventory, dict) or inventory.get("equal") is not True:
+        raise QualificationDriverError("regression report has no matching test_ssl source inventory")
+    candidate = inventory.get("candidate")
+    tested = inventory.get("tested")
+    if not isinstance(candidate, dict) or not isinstance(tested, dict):
+        raise QualificationDriverError("test_ssl source inventory is malformed")
+    candidate_source = source_prefix / PRODUCT.stdlib_relative_path / "test" / "test_ssl.py"
+    tested_source = tested_prefix / PRODUCT.stdlib_relative_path / "test" / "test_ssl.py"
+    expected_source = Path(expected_source).resolve(strict=True)
+    for label, record, path, prefix in (
+        ("candidate", candidate, candidate_source, source_prefix),
+        ("tested", tested, tested_source, tested_prefix),
+    ):
+        resolved = path.resolve(strict=True)
+        if path.is_symlink() or not path.is_file() or not resolved.is_relative_to(prefix.resolve(strict=True)):
+            raise QualificationDriverError(f"{label} test_ssl source is missing, linked, or outside its prefix")
+        if record.get("source_path") != str(resolved):
+            raise QualificationDriverError(f"{label} test_ssl inventory names a different source file")
+        digest = sha256_file(path)
+        if record.get("source_sha256") != digest or digest != sha256_file(expected_source):
+            raise QualificationDriverError(f"{label} test_ssl source differs from pinned CPython source")
+    for field in ("test_count", "case_ids_sha256"):
+        if candidate.get(field) != tested.get(field):
+            raise QualificationDriverError(f"candidate and disposable test_ssl inventories differ in {field}")
+    expected_fields = {"source_path", "source_sha256", "test_count", "case_ids_sha256"}
+    if set(candidate) != expected_fields or set(tested) != expected_fields:
+        raise QualificationDriverError("test_ssl inventory has unexpected or missing fields")
+    if (
+        type(tested.get("test_count")) is not int
+        or tested["test_count"] <= 0
+        or not isinstance(tested.get("case_ids_sha256"), str)
+        or SHA256_PATTERN.fullmatch(tested["case_ids_sha256"]) is None
+    ):
+        raise QualificationDriverError("test_ssl case inventory has invalid count or digest")
+    if target.is_macos and tested["test_count"] != SSL_EXACT_CASE_COUNT:
+        raise QualificationDriverError("pinned macOS test_ssl source must contain all 219 cases")
+    driver = load_regression_driver()
+    observed = driver.ssl_test_case_inventory(tested_prefix, scratch)
+    if observed != tested:
+        raise QualificationDriverError("test_ssl inventory differs from disposable runtime discovery")
+    return tested
+
+
+def validate_regression_report(
+    path: Path | None,
+    source_prefix: Path,
+    target,
+    expected_test_source: Path,
+    inventory_scratch: Path,
+) -> dict:
     if path is None:
         return check_result(False, error="pre-prune regression report was not supplied")
     try:
@@ -531,7 +917,22 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
     if not isinstance(report, dict):
         return check_result(False, error="regression report must be a JSON object")
     try:
-        ssl_log_evidence = validate_ssl_log_evidence(report)
+        tested_value = report.get("tested_prefix")
+        if not isinstance(tested_value, str):
+            raise QualificationDriverError("regression report has no disposable tested prefix")
+        tested_prefix = require_product_work_path(Path(tested_value), "regression tested prefix")
+        if not tested_prefix.is_dir():
+            raise QualificationDriverError(f"regression tested prefix is missing: {tested_prefix}")
+        ssl_inventory = validate_test_ssl_inventory(
+            report,
+            source_prefix,
+            tested_prefix,
+            expected_test_source,
+            inventory_scratch,
+            target,
+        )
+        expected_tests_run = ssl_inventory["test_count"]
+        ssl_log_evidence = validate_ssl_log_evidence(report, expected_tests_run)
         full_log_path = Path(ssl_log_evidence["full_suite_log"]["path"])
         full_log_bytes = full_log_path.read_bytes()
         if hashlib.sha256(full_log_bytes).hexdigest() != ssl_log_evidence["full_suite_log"]["sha256"]:
@@ -540,7 +941,7 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
             raw_suite = account_suite_log(full_log_bytes.decode("utf-8"))
         except UnicodeDecodeError as error:
             raise QualificationDriverError("full regression log is not UTF-8") from error
-        suite = report_payload(report, native_target())
+        suite = report_payload(report, target)
         for field, value in raw_suite.items():
             if suite.get(field) != value:
                 raise QualificationDriverError(f"full regression report disagrees with raw log: {field}")
@@ -553,23 +954,17 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
         expected_finding_files = set(raw_suite["failed_files"]) - {"test_ssl"}
         if set(solo_findings) != expected_finding_files:
             raise QualificationDriverError("non-SSL diagnostics do not cover the raw failed-file set")
-        classification = classify_suite_findings(solo_findings, native_target())
+        classification = classify_suite_findings(solo_findings, target)
         if report.get("classification") != classification:
             raise QualificationDriverError("regression classification differs from registered diagnostics")
         if suite.get("complete") is not True or suite.get("ok") is not True:
             raise QualificationDriverError("full regression suite is incomplete or has unexpected failures")
         if report.get("candidate_prefix") != str(source_prefix.resolve()):
             raise QualificationDriverError("regression report names a different source candidate prefix")
-        tested_value = report.get("tested_prefix")
-        if not isinstance(tested_value, str):
-            raise QualificationDriverError("regression report has no disposable tested prefix")
-        tested_prefix = require_product_work_path(Path(tested_value), "regression tested prefix")
-        if not tested_prefix.is_dir():
-            raise QualificationDriverError(f"regression tested prefix is missing: {tested_prefix}")
         candidate_identity = report.get("candidate_identity")
         if not isinstance(candidate_identity, dict):
             raise QualificationDriverError("regression report has no candidate identity mapping")
-        expected_identity = set(candidate_runtime_identity_paths(source_prefix))
+        expected_identity = set(candidate_runtime_identity_paths(source_prefix, target))
         if set(candidate_identity) != expected_identity:
             missing = sorted(expected_identity - set(candidate_identity))
             extra = sorted(set(candidate_identity) - expected_identity)
@@ -595,7 +990,7 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
                 if found != expected_digest:
                     raise QualificationDriverError(f"{label} candidate identity differs: {relative}")
             identities[relative] = expected_digest
-        ssl_assessment = validate_ssl_exact_case_assessment(report)
+        ssl_assessment = validate_ssl_exact_case_assessment(report, expected_tests_run)
         if not ssl_assessment["ok"]:
             raise QualificationDriverError("SSL exact-case modern policy assessment failed")
         return check_result(
@@ -639,6 +1034,7 @@ def run_archive_contracts(
     reference_python: Path,
     certdata: Path,
     run_dir: Path,
+    target,
 ) -> dict[str, dict]:
     python = PRODUCT.interpreter(extracted)
     contracts = run_dir / "contracts"
@@ -771,7 +1167,7 @@ def run_archive_contracts(
         hash_output,
     )
     hashing_ok = hashing_process.get("returncode") == 0 and hash_match is not None
-    symbol_audit = audit_openssl_symbols(extracted)
+    symbol_audit = audit_openssl_symbols(extracted, target)
 
     return {
         "no_openssl_symbols": symbol_audit,
@@ -818,7 +1214,7 @@ def _load_source_revision(repository: Path) -> str:
     return result.stdout.strip()
 
 
-def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver) -> list[dict]:
+def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver, target) -> list[dict]:
     license_helper = importlib.util.spec_from_file_location(
         "no_openssl_rust_license_helper",
         REPO / "research" / "rtls-graviola" / "rust_licenses.py",
@@ -862,7 +1258,7 @@ def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver) 
                 "--format-version",
                 "1",
                 "--filter-platform",
-                "aarch64-apple-darwin",
+                target.triple,
                 "--manifest-path",
                 str(manifest),
             ],
@@ -929,38 +1325,11 @@ def build_experimental_manifest(
     effective_compatibility: dict,
     research_driver,
 ) -> dict:
-    from buildsys.bootstrap import load_macos_toolchain
     from buildsys.deporder import dependency_order
     from buildsys.inputs import Cache, canonical_json, load_lock
 
-    locked_toolchain = load_macos_toolchain(COMMON_ROOT / "bootstrap.lock.json")
-    target_toolchain = locked_toolchain.toolchain(jobs=2)
-    source_dir = base_build_run_dir / "cpython-source" / "Python-3.15.1"
+    source_dir = base_build_run_dir / "cpython-source" / f"Python-{PRODUCT.version_string}"
     build_directory = base_build_run_dir / "cpython-build"
-    profile_path = build_directory / "code.profclangd"
-    pgo_stdout = StringIO()
-    pgo_environment = target_toolchain.env(
-        {"LLVM_PROFDATA": str(locked_toolchain.llvm_profdata)}
-    )
-    with contextlib.redirect_stdout(pgo_stdout):
-        research_driver.verify_pgo_build(
-            source_dir,
-            build_directory,
-            target_toolchain,
-            pgo_environment,
-        )
-    pgo_summary = pgo_stdout.getvalue()
-    pgo_match = re.search(
-        r"PGO profile valid: bytes=(\d+), sha256=([0-9a-f]{64}), "
-        r"functions=(\d+), max_count=(\d+)",
-        pgo_summary,
-    )
-    if pgo_match is None or not profile_path.is_file():
-        raise QualificationDriverError("locked PGO verifier did not return profile evidence")
-    profile_size, profile_digest, functions, maximum_count = pgo_match.groups()
-    if sha256_file(profile_path) != profile_digest or profile_path.stat().st_size != int(profile_size):
-        raise QualificationDriverError("verified PGO profile changed after inspection")
-
     makefile = build_directory / "Makefile"
     config_log = build_directory / "config.log"
     make_variables = _parse_make_variables(
@@ -978,11 +1347,11 @@ def build_experimental_manifest(
             "PROFILE_TASK",
         },
     )
-    required_make_variables = {"CONFIG_ARGS", "CONFIGURE_CFLAGS", "PROFILE_TASK"}
+    required_make_variables = {"CONFIG_ARGS", "CONFIGURE_CFLAGS"}
+    if target.is_macos:
+        required_make_variables.add("PROFILE_TASK")
     if not required_make_variables.issubset(make_variables):
-        raise QualificationDriverError("CPython Makefile omits the PGO configuration or effective flags")
-    if "--enable-optimizations" not in make_variables["CONFIG_ARGS"]:
-        raise QualificationDriverError("CPython Makefile does not show PGO optimization")
+        raise QualificationDriverError("CPython Makefile omits its configuration or effective flags")
     configure_arguments = shlex.split(make_variables["CONFIG_ARGS"])
     if "--with-lto=thin" not in configure_arguments:
         raise QualificationDriverError("CPython Makefile does not show ThinLTO configuration")
@@ -994,16 +1363,96 @@ def build_experimental_manifest(
         for key, separator, value in (argument.partition("="),)
         if separator
     }
-    locked_clang = (locked_toolchain.llvm_prefix / "bin" / "clang").resolve()
-    if Path(configure_values.get("CC", "")).resolve() != locked_clang:
-        raise QualificationDriverError("CPython configure arguments do not select locked clang")
     cflags = configure_values.get("CFLAGS", "")
-    ldflags = configure_values.get("LDFLAGS", "")
-    if "-O3" not in cflags or target.cpu_baseline_cflag not in cflags:
-        raise QualificationDriverError("CPython configure arguments omit the optimized CPU baseline")
-    deployment_flag = f"-mmacosx-version-min={target.deployment_target}"
-    if deployment_flag not in cflags or deployment_flag not in ldflags:
-        raise QualificationDriverError("CPython configure arguments omit the macOS deployment floor")
+    if target.is_macos:
+        from buildsys.bootstrap import load_macos_toolchain
+
+        locked_toolchain = load_macos_toolchain(COMMON_ROOT / "bootstrap.lock.json")
+        target_toolchain = locked_toolchain.toolchain(jobs=2)
+        profile_path = build_directory / "code.profclangd"
+        pgo_stdout = StringIO()
+        pgo_environment = target_toolchain.env(
+            {"LLVM_PROFDATA": str(locked_toolchain.llvm_profdata)}
+        )
+        with contextlib.redirect_stdout(pgo_stdout):
+            research_driver.verify_pgo_build(
+                source_dir,
+                build_directory,
+                target_toolchain,
+                pgo_environment,
+            )
+        pgo_summary = pgo_stdout.getvalue()
+        pgo_match = re.search(
+            r"PGO profile valid: bytes=(\d+), sha256=([0-9a-f]{64}), "
+            r"functions=(\d+), max_count=(\d+)",
+            pgo_summary,
+        )
+        if pgo_match is None or not profile_path.is_file():
+            raise QualificationDriverError("locked PGO verifier did not return profile evidence")
+        profile_size, profile_digest, functions, maximum_count = pgo_match.groups()
+        if sha256_file(profile_path) != profile_digest or profile_path.stat().st_size != int(profile_size):
+            raise QualificationDriverError("verified PGO profile changed after inspection")
+        locked_clang = (locked_toolchain.llvm_prefix / "bin" / "clang").resolve()
+        llvm_version = locked_toolchain.llvm_version
+        bootstrap_identity = hashlib.sha256(
+            canonical_json(locked_toolchain.identity()).encode()
+        ).hexdigest()
+        source_revision = _load_source_revision(COMMON_ROOT)
+        rust_target_cpu = "apple-m1"
+        rust_target_features = None
+        pgo_receipt = {
+            "verified": True,
+            "summary": pgo_summary.strip().splitlines(),
+            "profile_path": str(profile_path),
+            "profile_sha256": profile_digest,
+            "profile_size_bytes": int(profile_size),
+        }
+        if "--enable-optimizations" not in configure_arguments:
+            raise QualificationDriverError("CPython Makefile does not show PGO optimization")
+        if Path(configure_values.get("CC", "")).resolve() != locked_clang:
+            raise QualificationDriverError("CPython configure arguments do not select locked clang")
+        ldflags = configure_values.get("LDFLAGS", "")
+        if "-O3" not in shlex.split(cflags) or target.cpu_baseline_cflag not in shlex.split(cflags):
+            raise QualificationDriverError("CPython configure arguments omit the optimized CPU baseline")
+        deployment_flag = f"-mmacosx-version-min={target.deployment_target}"
+        if deployment_flag not in shlex.split(cflags) or deployment_flag not in shlex.split(ldflags):
+            raise QualificationDriverError("CPython configure arguments omit the macOS deployment floor")
+    else:
+        linux_evidence = _linux_build_evidence(
+            build_run_dir,
+            base_build_run_dir,
+            target,
+            research_driver,
+        )
+        locked_toolchain = None
+        profile_path = None
+        profile_digest = None
+        profile_size = 0
+        functions = 0
+        maximum_count = 0
+        pgo_summary = "CPython Linux PGO is disabled by product policy."
+        pgo_receipt = {"verified": False, "enabled": False, "policy": "Linux PGO is disabled"}
+        locked_clang = Path(linux_evidence["compiler"]["cc"]["path"]).resolve()
+        linux_packages = linux_evidence["bootstrap"]["linux_toolchain"]["direct_packages"]
+        llvm_versions = [
+            package["version"].split("-r", 1)[0]
+            for package in linux_packages
+            if package.get("name") == "clang23"
+        ]
+        if len(llvm_versions) != 1:
+            raise QualificationDriverError("Linux bootstrap lock has no unique clang23 version")
+        llvm_version = llvm_versions[0]
+        bootstrap_identity = linux_evidence["bootstrap_identity"]
+        source_revision = linux_evidence["source_revision"]
+        rust_target_cpu = "generic"
+        rust_target_features = "+aes,+sha2,+neon"
+        if "--enable-optimizations" in configure_arguments or make_variables.get("PROFILE_TASK", ""):
+            raise QualificationDriverError("Linux CPython build unexpectedly enables PGO")
+        if Path(configure_values.get("CC", "")).resolve() != locked_clang:
+            raise QualificationDriverError("Linux CPython configure arguments do not use receipt clang")
+        cflag_tokens = shlex.split(cflags)
+        if "-O3" not in cflag_tokens or target.cpu_baseline_cflag not in cflag_tokens:
+            raise QualificationDriverError("Linux CPython configure flags omit the candidate arm64 floor")
 
     pins = {entry.name: entry for entry in load_lock(COMMON_ROOT / "sources.lock.json")}
     c_names = tuple(
@@ -1031,7 +1480,7 @@ def build_experimental_manifest(
         )
 
     rtls_source, hashing_source = research_driver.require_fetched_rust_inputs(build_run_dir)
-    rust_graph = _rust_dependency_graph(build_run_dir, run_dir, research_driver)
+    rust_graph = _rust_dependency_graph(build_run_dir, run_dir, research_driver, target)
     rust_locks = {
         "rtls": {
             "path": str((rtls_source / "rust" / "Cargo.lock").relative_to(build_run_dir)),
@@ -1054,8 +1503,13 @@ def build_experimental_manifest(
         linker_paths = sorted(set(re.findall(r"-C linker=([^\s]+)", log_text)))
         if not linker_paths or any(Path(path).resolve() != locked_clang for path in linker_paths):
             raise QualificationDriverError(f"{name} Cargo log does not prove the locked clang linker")
-        if "-C target-cpu=apple-m1" not in log_text:
-            raise QualificationDriverError(f"{name} Cargo log omits the apple-m1 baseline")
+        if f"-C target-cpu={rust_target_cpu}" not in log_text:
+            raise QualificationDriverError(f"{name} Cargo log omits the target CPU policy")
+        if not target.is_macos:
+            if target.triple not in log_text or not all(
+                feature in log_text for feature in ("+aes", "+sha2", "+neon")
+            ) or "-crt-static" not in log_text:
+                raise QualificationDriverError(f"{name} Cargo log omits the musl target or ARM feature policy")
         extension_name = "_rustls" if name == "rtls" else "_hashlib_graviola"
         extension_commands = [
             line for line in log_text.splitlines()
@@ -1064,17 +1518,24 @@ def build_experimental_manifest(
         if len(extension_commands) != 1:
             raise QualificationDriverError(f"{name} Cargo log does not identify one extension link command")
         extension_command = extension_commands[0]
-        for required_flag in ("-C opt-level=3", "-C lto=thin", "-C codegen-units=1", "-C target-cpu=apple-m1"):
+        required_flags = (
+            "-C opt-level=3",
+            "-C lto=thin",
+            "-C codegen-units=1",
+            f"-C target-cpu={rust_target_cpu}",
+        )
+        for required_flag in required_flags:
             if required_flag not in extension_command:
                 raise QualificationDriverError(f"{name} extension command omits {required_flag}")
-        if name == "rtls" and "-C link-arg=dynamic_lookup" not in extension_command:
+        if name == "rtls" and target.is_macos and "-C link-arg=dynamic_lookup" not in extension_command:
             raise QualificationDriverError("RTLS extension command omits its dynamic lookup link policy")
         rust_logs[name] = {
             "path": str(log_path),
             "sha256": sha256_file(log_path),
             "linker_paths": linker_paths,
-            "target_cpu": "apple-m1",
-            "deployment_target": target.deployment_target,
+            "target_cpu": rust_target_cpu,
+            "target_features": rust_target_features,
+            "deployment_target": target.deployment_target if target.is_macos else None,
             "release_profile": "opt-level=3, thin LTO, one codegen unit, no debug info, unwind",
             "extension_command": extension_command,
             "extension_dynamic_lookup": "-C link-arg=dynamic_lookup" in extension_command,
@@ -1082,8 +1543,10 @@ def build_experimental_manifest(
 
     make_log = base_build_run_dir / "logs" / "cpython-build.log"
     overlay_log = build_run_dir / "driver-overlay.log"
-    if not make_log.is_file() or not overlay_log.is_file() or not config_log.is_file():
-        raise QualificationDriverError("build records are missing CPython or overlay logs")
+    if not config_log.is_file():
+        raise QualificationDriverError("CPython configure record is missing")
+    if target.is_macos and (not make_log.is_file() or not overlay_log.is_file()):
+        raise QualificationDriverError("macOS build records are missing CPython or overlay logs")
     rustc, _, kache = research_driver.rust_toolchain()
     rustc_result = subprocess.run(
         [str(rustc), "-vV"], capture_output=True, text=True, timeout=30, check=True
@@ -1095,17 +1558,25 @@ def build_experimental_manifest(
         timeout=30,
         check=True,
     )
-    clang = locked_toolchain.llvm_prefix / "bin" / "clang"
-    clang_result = subprocess.run(
-        [str(clang), "--version"], capture_output=True, text=True, timeout=30, check=True
-    )
-    if locked_toolchain.llvm_version not in clang_result.stdout.splitlines()[0]:
-        raise QualificationDriverError("observed clang version differs from the locked LLVM version")
-    toolchain_observed = locked_toolchain.observed_facts()
-    toolchain_observed["clang"] = {
-        "path": str(clang),
-        "version": clang_result.stdout.splitlines()[0].strip(),
-    }
+    if target.is_macos:
+        clang = locked_toolchain.llvm_prefix / "bin" / "clang"
+        clang_result = subprocess.run(
+            [str(clang), "--version"], capture_output=True, text=True, timeout=30, check=True
+        )
+        if locked_toolchain.llvm_version not in clang_result.stdout.splitlines()[0]:
+            raise QualificationDriverError("observed clang version differs from the locked LLVM version")
+        toolchain_observed = locked_toolchain.observed_facts()
+        toolchain_observed["clang"] = {
+            "path": str(clang),
+            "version": clang_result.stdout.splitlines()[0].strip(),
+        }
+    else:
+        clang = locked_clang
+        toolchain_observed = {
+            "family": target.family,
+            "cpu_baseline": "-march=armv8-a+crypto",
+            "commands": linux_evidence["compiler"],
+        }
     toolchain_observed["rust"] = {
         "rustc_path": str(rustc),
         "rustc_verbose_version": rustc_result.stdout.strip(),
@@ -1121,7 +1592,7 @@ def build_experimental_manifest(
         "lib/python3.15/_ssl_metadata.py",
         "lib/python3.15/_hashlib.py",
     )
-    native_paths = candidate_runtime_identity_paths(extracted_prefix)
+    native_paths = candidate_runtime_identity_paths(extracted_prefix, target)
     runtime_files = {
         relative: sha256_file(extracted_prefix / relative)
         for relative in native_paths
@@ -1130,6 +1601,21 @@ def build_experimental_manifest(
     if set(runtime_files) != set(native_paths):
         raise QualificationDriverError("extracted archive is missing a required runtime identity file")
     facade_hashes = {relative: runtime_files[relative] for relative in facade_paths}
+
+    if not target.is_macos:
+        recorded_c_inputs = linux_evidence["source"].get("c_inputs")
+        expected_c_inputs = [
+            {
+                key: item[key]
+                for key in (
+                    "name", "version", "sha256", "size", "role",
+                    "license", "purpose", "cached_bytes_sha256",
+                )
+            }
+            for item in c_inputs
+        ]
+        if recorded_c_inputs != expected_c_inputs:
+            raise QualificationDriverError("Linux build receipt inputs differ from the locked dependency closure")
 
     patch_paths = sorted((COMMON_ROOT / "patches" / "cpython").glob("*.patch"))
     cpython_patches = [
@@ -1160,6 +1646,8 @@ def build_experimental_manifest(
         REPO / "research" / "rtls-graviola" / "certificate_contract.py",
         REPO / "research" / "rtls-graviola" / "modern_tls_contract.py",
         REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py",
+        REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py",
+        REPO / "research" / "rtls-graviola" / "regression_policy.py",
         REPO / "research" / "rtls-graviola" / "rust_licenses.py",
         REPO / "research" / "rtls-graviola" / "hashing" / "compare-reference.py",
     )
@@ -1167,13 +1655,16 @@ def build_experimental_manifest(
         {"name": path.name, "sha256": sha256_file(path)} for path in helper_paths
     ]
     common_helper_paths = (
+        COMMON_ROOT / "build" / "package.py",
         COMMON_ROOT / "buildsys" / "package.py",
+        COMMON_ROOT / "buildsys" / "elf.py",
         COMMON_ROOT / "buildsys" / "product_process.py",
         COMMON_ROOT / "buildsys" / "scope.py",
         COMMON_ROOT / "buildsys" / "standalone_compat.py",
         COMMON_ROOT / "buildsys" / "testsuite.py",
         COMMON_ROOT / "buildsys" / "validate_product.py",
         COMMON_ROOT / "buildsys" / "relocate.py",
+        COMMON_ROOT / "buildsys" / "targets.py",
     )
     common_helper_hashes = {
         path.relative_to(COMMON_ROOT).as_posix(): sha256_file(path)
@@ -1182,7 +1673,7 @@ def build_experimental_manifest(
 
     build_record = {
         "source": {
-            "revision": _load_source_revision(COMMON_ROOT),
+            "revision": source_revision,
             "cpython": next(item for item in c_inputs if item["name"] == "cpython"),
             "target": target.triple,
             "dependency_graph": [item["name"] for item in c_inputs],
@@ -1200,39 +1691,70 @@ def build_experimental_manifest(
         "toolchain_observed": toolchain_observed,
         "optimization": {
             "cpython": {
-                "pgo": True,
+                "pgo": target.is_macos,
                 "profile_sha256": profile_digest,
                 "profile_bytes": int(profile_size),
                 "profile_functions": int(functions),
                 "profile_maximum_count": int(maximum_count),
-                "profile_task": make_variables["PROFILE_TASK"],
+                "profile_task": make_variables.get("PROFILE_TASK", ""),
             },
             "rust_extensions": rust_logs,
         },
         "effective_flags": {
             "cpython_make_variables": make_variables,
             "target_cpu_baseline": target.cpu_baseline_cflag,
-            "macos_deployment_minimum": target.deployment_target,
+            "macos_deployment_minimum": target.deployment_target if target.is_macos else None,
             "rust": {
-                "target_cpu": "apple-m1",
-                "deployment_target": target.deployment_target,
+                "target_cpu": rust_target_cpu,
+                "target_features": rust_target_features,
+                "deployment_target": target.deployment_target if target.is_macos else None,
                 "release_profile": "opt-level=3, thin LTO, one codegen unit, no debug info, unwind",
             },
         },
-        "commands": {
-            "cpython_build_log": {"path": str(make_log), "sha256": sha256_file(make_log)},
-            "cpython_config_log": {"path": str(config_log), "sha256": sha256_file(config_log)},
-            "rust_build_logs": rust_logs,
-            "overlay_log": {"path": str(overlay_log), "sha256": sha256_file(overlay_log)},
-            "pgo_verification": pgo_summary.strip().splitlines(),
-        },
-        "build_mode": "sealed macOS sandbox, network access denied during adapter builds",
-        "isolation": {
-            "buildsys_sealed_run": True,
-            "network_boundary_selftest_before_and_after_overlay": True,
-            "build_output_root": str(build_run_dir),
-            "candidate_build_log": str(overlay_log),
-        },
+        "commands": (
+            {
+                "cpython_build_log": {"path": str(make_log), "sha256": sha256_file(make_log)},
+                "cpython_config_log": {"path": str(config_log), "sha256": sha256_file(config_log)},
+                "rust_build_logs": rust_logs,
+                "overlay_log": {"path": str(overlay_log), "sha256": sha256_file(overlay_log)},
+                "pgo_verification": pgo_summary.strip().splitlines(),
+            }
+            if target.is_macos
+            else {
+                "linux_build_receipts": [
+                    {"path": item["path"], "sha256": item["sha256"]}
+                    for item in linux_evidence["build_receipts"]
+                ],
+                "docker_build_receipts": [
+                    {"path": item["path"], "sha256": item["sha256"]}
+                    for item in linux_evidence["docker_receipts"]
+                ],
+                "commands": linux_evidence["commands"],
+            }
+        ),
+        "build_mode": (
+            "sealed macOS sandbox, network access denied during adapter builds"
+            if target.is_macos
+            else "sealed native Linux arm64 Docker network-none build"
+        ),
+        "isolation": (
+            {
+                "buildsys_sealed_run": True,
+                "network_boundary_selftest_before_and_after_overlay": True,
+                "build_output_root": str(build_run_dir),
+                "candidate_build_log": str(overlay_log),
+            }
+            if target.is_macos
+            else {
+                "build_receipts": [
+                    item["receipt"]["isolation"]
+                    for item in linux_evidence["build_receipts"]
+                ],
+                "docker_receipts": [
+                    item["receipt"] for item in linux_evidence["docker_receipts"]
+                ],
+            }
+        ),
     }
     recipe_material = {
         "experimental": "openssl-free-modern-rtls-graviola",
@@ -1250,8 +1772,8 @@ def build_experimental_manifest(
         target=target,
         source_revision=build_record["source"]["revision"],
         recipe_identity=recipe_identity,
-        bootstrap_identity=hashlib.sha256(canonical_json(locked_toolchain.identity()).encode()).hexdigest(),
-        llvm_version=locked_toolchain.llvm_version,
+        bootstrap_identity=bootstrap_identity,
+        llvm_version=llvm_version,
         archive_filename=archive_path.name,
         archive=archive_facts,
         qualification=qualification,
@@ -1266,8 +1788,9 @@ def build_experimental_manifest(
     ]
     if any(item["name"] == "openssl" or item["name"].startswith(("openssl-", "libssl", "libcrypto")) for item in rust_graph):
         raise QualificationDriverError("experimental artifact manifest found an OpenSSL Rust component")
-    macho_check = qualification.get("checks", {}).get("validation.macho")
-    if not isinstance(macho_check, dict) or macho_check.get("status") != "passed":
+    native_check_name = "validation.macho" if target.is_macos else "linux_elf_validation"
+    native_check = qualification.get("checks", {}).get(native_check_name)
+    if not isinstance(native_check, dict) or native_check.get("status") != "passed":
         raise QualificationDriverError("experimental artifact has no passing native image report")
     symbol_check = qualification.get("checks", {}).get("no_openssl_symbols")
     if not isinstance(symbol_check, dict) or symbol_check.get("status") != "passed":
@@ -1291,22 +1814,15 @@ def build_experimental_manifest(
         },
         "hashing_source": rust_locks["hashing"],
         "pgo_receipt": {
-            "verified": True,
+            **pgo_receipt,
             "summary": pgo_summary.strip().splitlines(),
-            "profile_path": str(profile_path),
-            "profile_sha256": profile_digest,
-            "profile_size_bytes": int(profile_size),
         },
-        "host_macos_version": platform.mac_ver()[0],
-        "runtime_floor_claim": "macOS 26 deployment target recorded; runtime not tested on macOS 26",
-        "native_images": {
-            "image_count": macho_check.get("image_count"),
-            "architecture_mismatches": macho_check.get("arch_mismatches"),
-            "platform_mismatches": macho_check.get("platform_mismatches"),
-            "deployment_minimum_mismatches": macho_check.get("minos_mismatches"),
-            "unexpected_dependencies": macho_check.get("unexpected_dependencies"),
-            "unresolved_dependencies": macho_check.get("unresolved_dependencies"),
-        },
+        "runtime_floor_claim": (
+            "macOS 26 deployment target recorded; runtime not tested on macOS 26"
+            if target.is_macos
+            else "native Linux arm64 musl runtime tested in the locked Docker image"
+        ),
+        "native_images": native_check.get("checks", native_check),
         "native_symbol_audit": symbol_check,
         "research_checkout_revision": _load_source_revision(REPO),
         "qualification_helper_sha256": common_helper_hashes,
@@ -1318,6 +1834,7 @@ def build_experimental_manifest(
             "ssl_log_evidence": regression_check["ssl_log_evidence"],
             "diagnostics": regression_check["report"].get("diagnostics"),
             "modern_policy": regression_check["report"].get("modern_policy"),
+            "ssl_test_inventory": regression_check["report"].get("ssl_test_inventory"),
         },
         "compatibility": {
             "raw_openssl_profile": {
@@ -1335,6 +1852,13 @@ def build_experimental_manifest(
             "modern_policy_exclusions": regression_check["report"].get("modern_policy", {}).get("exclusions"),
         },
     }
+    if target.is_macos:
+        manifest["experimental"]["host_macos_version"] = platform.mac_ver()[0]
+    else:
+        manifest["experimental"]["docker_build_receipts"] = [
+            {"path": item["path"], "sha256": item["sha256"]}
+            for item in linux_evidence["docker_receipts"]
+        ]
     return manifest
 
 
@@ -1387,11 +1911,16 @@ def main(argv: list[str] | None = None) -> int:
             )
         ):
             raise QualificationDriverError("candidate, build, and qualification paths must not overlap")
-        target = native_target()
-        if target.triple != "aarch64-apple-darwin":
+        host_target = native_target()
+        if host_target.triple not in {
+            "aarch64-apple-darwin",
+            "aarch64-unknown-linux-musl",
+        }:
             raise QualificationDriverError(
-                f"this experimental qualification is native macOS arm64 only: {target.triple}"
+                f"this experimental qualification supports native arm64 targets only: {host_target.triple}"
             )
+        research_driver = load_research_driver()
+        target = research_driver.experimental_target()
         if not PRODUCT.interpreter(source_prefix).is_file():
             raise QualificationDriverError(
                 f"candidate interpreter is missing: {PRODUCT.interpreter(source_prefix)}"
@@ -1402,9 +1931,25 @@ def main(argv: list[str] | None = None) -> int:
         validation_work = run_dir / "native product validation"
         compatibility_work = run_dir / "standalone compatibility scratch"
         host_tmp = run_dir / "host temporary files"
-        for path in (validation_work, compatibility_work, host_tmp):
+        regression_inventory_work = run_dir / "test_ssl inventory validation"
+        for path in (validation_work, compatibility_work, host_tmp, regression_inventory_work):
             path.mkdir()
         tempfile.tempdir = str(host_tmp)
+        scope = {
+            "result_is_production_qualification": False,
+            "full_cpython_regression_suite": "required from supplied pre-prune regression report",
+        }
+        if target.is_macos:
+            scope.update(
+                production_pgo="research PGO source profile is verified; not production PGO qualification",
+                minimum_macos_runtime="not tested",
+                host_macos_version=platform.mac_ver()[0],
+            )
+        else:
+            scope.update(
+                production_pgo="disabled by Linux product policy",
+                linux_runtime="native Linux arm64 musl Docker runtime",
+            )
 
         report: dict = {
             "candidate_prefix": str(source_prefix),
@@ -1417,13 +1962,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             "target": target.triple,
             "shared_lock_root": str(COMMON_ROOT),
-            "scope": {
-                "result_is_production_qualification": False,
-                "full_cpython_regression_suite": "required from supplied pre-prune regression report",
-                "production_pgo": "research PGO source profile is verified; not production PGO qualification",
-                "minimum_macos_runtime": "not tested",
-                "host_macos_version": platform.mac_ver()[0],
-            },
+            "scope": scope,
             "checks": {},
         }
 
@@ -1432,7 +1971,6 @@ def main(argv: list[str] | None = None) -> int:
             True, path=str(package_work), source_preserved=True
         )
 
-        research_driver = load_research_driver()
         try:
             research_driver.verify_overlay_prefix(package_work, build_run_dir, target)
             report["checks"]["no_openssl_overlay"] = check_result(True)
@@ -1441,14 +1979,43 @@ def main(argv: list[str] | None = None) -> int:
                 False, error_type=type(error).__name__, error=str(error)
             )
 
+        linux_evidence = None
+        if not target.is_macos:
+            linux_evidence = _linux_build_evidence(
+                build_run_dir,
+                base_build_run_dir,
+                target,
+                research_driver,
+            )
+            report["linux_build_evidence"] = {
+                "build_receipts": [
+                    {"path": item["path"], "sha256": item["sha256"]}
+                    for item in linux_evidence["build_receipts"]
+                ],
+                "docker_receipts": [
+                    {"path": item["path"], "sha256": item["sha256"]}
+                    for item in linux_evidence["docker_receipts"]
+                ],
+                "source_revision": linux_evidence["source_revision"],
+                "cpu_baseline": target.cpu_baseline_cflag,
+                "pgo": False,
+            }
+
         package_driver = load_package_driver()
         package_driver.REPO = COMMON_ROOT
 
         try:
-            stripped = package_driver.strip_tree_macos(package_work)
-            report["checks"]["strip"] = check_result(
-                True, mach_o_images_stripped=len(stripped)
-            )
+            if target.is_macos:
+                stripped = package_driver.strip_tree_macos(package_work)
+                report["checks"]["strip"] = check_result(
+                    True, mach_o_images_stripped=len(stripped)
+                )
+            else:
+                strip = linux_evidence["compiler"]["strip"]["path"]
+                stripped = package_driver.strip_tree(package_work, strip=strip)
+                report["checks"]["strip"] = check_result(
+                    True, elf_images_stripped=len(stripped), tool=strip
+                )
         except Exception as error:
             report["checks"]["strip"] = check_result(
                 False, error_type=type(error).__name__, error=str(error)
@@ -1474,6 +2041,13 @@ def main(argv: list[str] | None = None) -> int:
                 payload_size_bytes=archive_facts.payload_size_bytes,
                 extracted_prefix=str(extracted),
             )
+            report["archive_artifact"] = {
+                "path": str(archive_path),
+                "sha256": archive_facts.sha256,
+                "payload_sha256": archive_facts.payload_sha256,
+                "size_bytes": archive_facts.size_bytes,
+                "payload_size_bytes": archive_facts.payload_size_bytes,
+            }
         except (PackageError, OSError) as error:
             report["checks"]["archive_roundtrip"] = check_result(
                 False, error_type=type(error).__name__, error=str(error)
@@ -1487,6 +2061,18 @@ def main(argv: list[str] | None = None) -> int:
         validation = run_validation(extracted, validation_work, target)
         report["validation"] = validation
         write_json(run_dir / "product validation.json", validation)
+        if not target.is_macos:
+            try:
+                linux_validation = package_driver._linux_validation(extracted)
+            except Exception as error:
+                linux_validation = {
+                    "ok": False,
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                }
+            report["linux_elf_validation"] = linux_validation
+            report["checks"]["linux_elf_validation"] = linux_validation
+            write_json(run_dir / "Linux ELF validation.json", linux_validation)
         try:
             import buildsys.standalone_compat as standalone_compat
 
@@ -1552,6 +2138,7 @@ def main(argv: list[str] | None = None) -> int:
                 reference_python,
                 certdata,
                 run_dir,
+                target,
             )
             report["checks"].update(contracts)
         except Exception as error:
@@ -1564,6 +2151,14 @@ def main(argv: list[str] | None = None) -> int:
         regression_check = validate_regression_report(
             regression_report_path,
             source_prefix,
+            target,
+            base_build_run_dir
+            / "cpython-source"
+            / f"Python-{PRODUCT.version_string}"
+            / "Lib"
+            / "test"
+            / "test_ssl.py",
+            regression_inventory_work,
         )
         report["regression"] = {
             key: value for key, value in regression_check.items() if key != "report"
