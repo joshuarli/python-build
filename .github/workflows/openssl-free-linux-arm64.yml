@@ -126,6 +126,20 @@ jobs:
           path: ${{ env.EXPERIMENT_RUN_DIR }}/release-assets/*
           if-no-files-found: error
 
+      - name: Preserve failed qualification evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: failed-openssl-free-linux-arm64-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.EXPERIMENT_RUN_DIR }}/logs/
+            ${{ env.EXPERIMENT_RUN_DIR }}/reference-build/logs/
+            ${{ env.EXPERIMENT_RUN_DIR }}/qualification/regression/*.log
+            ${{ env.EXPERIMENT_RUN_DIR }}/qualification/regression/report.json
+            ${{ env.EXPERIMENT_RUN_DIR }}/qualification/archive/*.json
+            ${{ env.EXPERIMENT_RUN_DIR }}/qualification/archive/contracts/logs/
+          if-no-files-found: warn
+
   publish-prerelease:
     runs-on: ubuntu-24.04-arm
     needs: [qualify]
