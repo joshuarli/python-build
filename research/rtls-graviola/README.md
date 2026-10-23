@@ -102,6 +102,11 @@ constructor, context, and error behavior, deliberately unsupported features,
 and tests whose OpenSSL version guards select an inappropriate branch for
 rustls. The interpreter reports its real backend identity; it does not claim an
 OpenSSL version to bypass those guards.
+A subsequent socket repair rejects queued pre-handshake bytes when a reset
+connection appears unconnected. Both original client/server regression cases
+complete their data, error-reason, and library assertions when the upstream
+Darwin skip helper is bypassed; the ordinary run skips after its initial
+security checks. The full-suite counts above precede that repair.
 
 The combined source passes the 82-case certificate corpus, 12 isolated strict
 error-code gates, and 14 trust-source cases. Actual TLS message callbacks and
