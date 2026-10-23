@@ -24,6 +24,7 @@ import textwrap
 from pathlib import Path
 
 from . import macho
+from .package import copy_product_tree
 from .product import PRODUCT
 from .product_process import product_environment, run_product_process
 from .relocate import stale_sysconfig_values
@@ -965,7 +966,7 @@ def relocation_checks(install: Path, workdir: Path, target) -> dict:
     destination = (workdir / "moved prefix with spaces").resolve()
     if destination.exists():
         shutil.rmtree(destination)
-    shutil.copytree(Path(install).resolve(), destination, symlinks=True)
+    copy_product_tree(Path(install).resolve(), destination)
     python = PRODUCT.interpreter(destination)
     relocation_probe = textwrap.dedent("""
         import ctypes, json, os, ssl, sys, sysconfig
@@ -1055,7 +1056,7 @@ def script_launcher_checks(install: Path, workdir: Path) -> dict:
     destination = (workdir / "launcher prefix").resolve()
     if destination.exists():
         shutil.rmtree(destination)
-    shutil.copytree(install, destination, symlinks=True)
+    copy_product_tree(install, destination)
     results = {}
     for name in (f"pydoc{PRODUCT.major_minor}", PRODUCT.config_name):
         script = destination / "bin" / name

@@ -20,6 +20,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from .package import copy_product_tree
 from .product import PRODUCT
 from .product_process import product_environment, run_product_process
 from .relocate import stale_sysconfig_values
@@ -420,7 +421,7 @@ def _relocated_sysconfig_check(
     """Move the complete tree and require sysconfig tools to follow it."""
     with _temporary_directory(prefix="standalone moved ") as temporary:
         destination = Path(temporary) / "python install with spaces"
-        shutil.copytree(Path(install).resolve(), destination, symlinks=True)
+        copy_product_tree(Path(install).resolve(), destination)
         moved_python = PRODUCT.interpreter(destination)
         relocated_probe = r'''
 import json, os, sys, sysconfig
