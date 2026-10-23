@@ -148,6 +148,51 @@ class ServerNameContract(unittest.TestCase):
                     with self.assertRaises(ssl.SSLError):
                         self.handshake(client, initial, "example.test")
 
+    def test_context_switch_uses_selected_client_signature_schemes(self):
+        schemes = ("rsa_pss_rsae_sha256", "ecdsa_secp256r1_sha256")
+        for version in (ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3):
+            for initial_scheme in schemes:
+                for selected_scheme in schemes:
+                    with self.subTest(version=version, initial=initial_scheme, selected=selected_scheme):
+                        client, initial, selected = self.contexts()
+                        client.load_cert_chain(str(CERTDATA / "keycert3.pem"))
+                        client.set_client_sigalgs(schemes[0])
+                        for context in (client, initial, selected):
+                            context.minimum_version = version
+                            context.maximum_version = version
+                        for context, scheme in ((initial, initial_scheme), (selected, selected_scheme)):
+                            context.verify_mode = ssl.CERT_REQUIRED
+                            context.load_verify_locations(CERTDATA / "pycacert.pem")
+                            context.set_client_sigalgs(scheme)
+                        initial.sni_callback = lambda connection, hostname, context: setattr(
+                            connection, "context", selected
+                        )
+                        if selected_scheme == schemes[0]:
+                            self.handshake(client, initial, "example.test")
+                        else:
+                            with self.assertRaises(ssl.SSLError):
+                                self.handshake(client, initial, "example.test")
+
+    def test_context_switch_uses_selected_capath(self):
+        for selected_capath in (False, True):
+            with self.subTest(selected_capath=selected_capath):
+                client, initial, selected = self.contexts()
+                client.load_cert_chain(str(CERTDATA / "keycert3.pem"))
+                for context in (initial, selected):
+                    context.verify_mode = ssl.CERT_REQUIRED
+                trusted = selected if selected_capath else initial
+                untrusted = initial if selected_capath else selected
+                trusted.load_verify_locations(capath=str(CERTDATA / "capath"))
+                untrusted.load_verify_locations(FIXTURES / "unrelated-root.pem")
+                initial.sni_callback = lambda connection, hostname, context: setattr(
+                    connection, "context", selected
+                )
+                if selected_capath:
+                    self.handshake(client, initial, "example.test")
+                else:
+                    with self.assertRaises(ssl.SSLError):
+                        self.handshake(client, initial, "example.test")
+
     def test_context_switch_preserves_initial_verify_flags(self):
         for initial_strict, selected_strict in ((True, False), (False, True), (False, False)):
             with self.subTest(initial=initial_strict, selected=selected_strict):
