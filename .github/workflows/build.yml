@@ -227,7 +227,10 @@ jobs:
           tar -xzf "$archive" -C "$work" "$UV_TARGET/uv"
           mkdir -p "$work/uv-bin"
           install -m 0755 "$work/$UV_TARGET/uv" "$work/uv-bin/uv"
-          "$work/uv-bin/uv" --version | grep -Fx "uv $UV_VERSION"
+          case "$("$work/uv-bin/uv" --version)" in
+            "uv $UV_VERSION"|"uv $UV_VERSION "*) ;;
+            *) exit 1 ;;
+          esac
 
       - name: Smoke exact assembled bytes through uv
         env:
@@ -317,17 +320,20 @@ jobs:
             --env UV_PYTHON_CACHE_DIR \
             --env EXPECTED_PLATFORM=linux \
             "${{ matrix.runtime_image }}" sh -ec '
-              apk add --no-cache ca-certificates curl tar
+              apk add --no-cache ca-certificates curl tar libgcc
               archive="uv-$UV_TARGET.tar.gz"
               curl --fail --location --output "/work/.work/uv-smoke/$archive" \
                 "https://releases.astral.sh/github/uv/releases/download/$UV_VERSION/$archive"
-              printf "%s  %s\n" "$UV_SHA256" "/work/.work/uv-smoke/$archive" | sha256sum --check -
-              tar -xzf "/work/.work/uv-smoke/$archive" -C /work/.work/uv-smoke "$UV_TARGET/uv"
-              install -m 0755 "/work/.work/uv-smoke/$UV_TARGET/uv" /usr/local/bin/uv
-              uv --version | grep -Fx "uv $UV_VERSION"
+              printf "%s  %s\n" "$UV_SHA256" "/work/.work/uv-smoke/$archive" | sha256sum -c -
+              tar -xzf "/work/.work/uv-smoke/$archive" -C /work/.work/uv-smoke "uv-$UV_TARGET/uv"
+              install -m 0755 "/work/.work/uv-smoke/uv-$UV_TARGET/uv" /usr/local/bin/uv
+              case "$(uv --version)" in
+                "uv $UV_VERSION"|"uv $UV_VERSION "*) ;;
+                *) exit 1 ;;
+              esac
               rm -rf /work/.work/uv-smoke/python /work/.work/uv-smoke/cache /work/.work/uv-smoke/python-cache
               mkdir -p "$UV_PYTHON_INSTALL_DIR" "$UV_CACHE_DIR" "$UV_PYTHON_CACHE_DIR"
-              (cd /release && sha256sum --check SHA256SUMS)
+              (cd /release && sha256sum -c SHA256SUMS)
               export UV_PYTHON_INSTALL_MIRROR=file:///mirror
               key="cpython-${PYTHON_VERSION}-${UV_KEY_SUFFIX}"
               uv python install "$key" --python-downloads-json-url /release/smoke-metadata.json
