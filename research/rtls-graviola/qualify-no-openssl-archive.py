@@ -91,7 +91,6 @@ REQUIRED_CANDIDATE_FILES = (
 )
 CERTIFICATE_CASE_COUNT = 82
 CERTIFICATE_VERIFY_CODE_COUNT = 12
-SSL_EXACT_CASE_COUNT = 219
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 REVISION_PATTERN = re.compile(r"[0-9a-f]{40,64}")
 OPENSSL_SYMBOL_PREFIXES = (
@@ -855,7 +854,7 @@ def validate_test_ssl_inventory(
     tested_prefix: Path,
     expected_source: Path,
     scratch: Path,
-    target,
+    reference_python: Path,
 ) -> dict:
     inventory = report.get("ssl_test_inventory")
     if not isinstance(inventory, dict) or inventory.get("equal") is not True:
@@ -864,8 +863,19 @@ def validate_test_ssl_inventory(
     tested = inventory.get("tested")
     if not isinstance(candidate, dict) or not isinstance(tested, dict):
         raise QualificationDriverError("test_ssl source inventory is malformed")
+    expected_test_count = load_regression_policy().EXPECTED_SSL_TEST_COUNT
+    if (
+        inventory.get("expected_test_count") != expected_test_count
+        or inventory.get("candidate_count_matches_expected") is not True
+        or inventory.get("tested_count_matches_expected") is not True
+    ):
+        raise QualificationDriverError(
+            f"regression inventory does not match the pinned {expected_test_count}-case policy"
+        )
     candidate_source = source_prefix / PRODUCT.stdlib_relative_path / "test" / "test_ssl.py"
     tested_source = tested_prefix / PRODUCT.stdlib_relative_path / "test" / "test_ssl.py"
+    if expected_source.is_symlink() or not expected_source.is_file():
+        raise QualificationDriverError("pinned CPython test_ssl source is missing or linked")
     expected_source = Path(expected_source).resolve(strict=True)
     for label, record, path, prefix in (
         ("candidate", candidate, candidate_source, source_prefix),
@@ -886,19 +896,46 @@ def validate_test_ssl_inventory(
     if set(candidate) != expected_fields or set(tested) != expected_fields:
         raise QualificationDriverError("test_ssl inventory has unexpected or missing fields")
     if (
-        type(tested.get("test_count")) is not int
-        or tested["test_count"] <= 0
+        type(candidate.get("test_count")) is not int
+        or candidate["test_count"] != expected_test_count
+        or type(tested.get("test_count")) is not int
+        or tested["test_count"] != expected_test_count
         or not isinstance(tested.get("case_ids_sha256"), str)
         or SHA256_PATTERN.fullmatch(tested["case_ids_sha256"]) is None
     ):
-        raise QualificationDriverError("test_ssl case inventory has invalid count or digest")
-    if target.is_macos and tested["test_count"] != SSL_EXACT_CASE_COUNT:
-        raise QualificationDriverError("pinned macOS test_ssl source must contain all 219 cases")
+        raise QualificationDriverError("test_ssl case inventory differs from the pinned count or digest policy")
+    if candidate.get("test_count") != tested["test_count"]:
+        raise QualificationDriverError("candidate test_ssl inventory differs from the pinned test count")
     driver = load_regression_driver()
-    observed = driver.ssl_test_case_inventory(tested_prefix, scratch)
-    if observed != tested:
+    observed_tested = driver.ssl_test_case_inventory(tested_prefix, scratch)
+    if observed_tested != tested:
         raise QualificationDriverError("test_ssl inventory differs from disposable runtime discovery")
-    return tested
+    reference_python = Path(reference_python).resolve(strict=True)
+    reference_prefix = reference_python.parent.parent.resolve(strict=True)
+    if PRODUCT.interpreter(reference_prefix).resolve(strict=True) != reference_python:
+        raise QualificationDriverError("OpenSSL reference interpreter is outside its product prefix")
+    reference = driver.ssl_test_case_inventory(reference_prefix, scratch)
+    if set(reference) != expected_fields:
+        raise QualificationDriverError("OpenSSL reference test_ssl inventory is malformed")
+    if (
+        reference["source_sha256"] != sha256_file(expected_source)
+        or reference["test_count"] != expected_test_count
+        or reference["case_ids_sha256"] != tested["case_ids_sha256"]
+    ):
+        raise QualificationDriverError(
+            "test_ssl case inventory differs from the pinned OpenSSL reference"
+        )
+    return {
+        "expected_test_count": expected_test_count,
+        "pinned_source": {
+            "path": str(expected_source),
+            "sha256": sha256_file(expected_source),
+        },
+        "reference": reference,
+        "candidate": candidate,
+        "tested": tested,
+        "equal": True,
+    }
 
 
 def validate_regression_report(
@@ -907,6 +944,7 @@ def validate_regression_report(
     target,
     expected_test_source: Path,
     inventory_scratch: Path,
+    reference_python: Path,
 ) -> dict:
     if path is None:
         return check_result(False, error="pre-prune regression report was not supplied")
@@ -929,9 +967,9 @@ def validate_regression_report(
             tested_prefix,
             expected_test_source,
             inventory_scratch,
-            target,
+            reference_python,
         )
-        expected_tests_run = ssl_inventory["test_count"]
+        expected_tests_run = load_regression_policy().EXPECTED_SSL_TEST_COUNT
         ssl_log_evidence = validate_ssl_log_evidence(report, expected_tests_run)
         full_log_path = Path(ssl_log_evidence["full_suite_log"]["path"])
         full_log_bytes = full_log_path.read_bytes()
@@ -999,6 +1037,7 @@ def validate_regression_report(
             source_report_sha256=sha256_file(path),
             tested_prefix=str(tested_prefix),
             suite=suite,
+            ssl_test_inventory=ssl_inventory,
             candidate_identity=identities,
             modern_policy=ssl_assessment,
             ssl_log_evidence=ssl_log_evidence,
@@ -1834,7 +1873,7 @@ def build_experimental_manifest(
             "ssl_log_evidence": regression_check["ssl_log_evidence"],
             "diagnostics": regression_check["report"].get("diagnostics"),
             "modern_policy": regression_check["report"].get("modern_policy"),
-            "ssl_test_inventory": regression_check["report"].get("ssl_test_inventory"),
+            "ssl_test_inventory": regression_check["ssl_test_inventory"],
         },
         "compatibility": {
             "raw_openssl_profile": {
@@ -2159,6 +2198,7 @@ def main(argv: list[str] | None = None) -> int:
             / "test"
             / "test_ssl.py",
             regression_inventory_work,
+            reference_python,
         )
         report["regression"] = {
             key: value for key, value in regression_check.items() if key != "report"

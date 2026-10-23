@@ -6,7 +6,7 @@ from typing import Any
 
 
 POLICY_SOURCE = "research/rtls-graviola/MODERN_TLS_POLICY.md"
-MACOS_EXPECTED_TESTS_RUN = 219
+EXPECTED_SSL_TEST_COUNT = 219
 _FULL_SSL_PROGRESS = re.compile(
     r"^.*\[[^\]\n]+\]\s+test_ssl (?:(?:failed \((\d+) errors?, (\d+) failures?\))|passed)(?:\s|$)",
     re.MULTILINE,
@@ -291,7 +291,7 @@ def _expected_result(kind: str, header: str, body: str) -> _ExpectedFailure | No
 def assess_ssl_log(
     output: str,
     *,
-    expected_tests_run: int = MACOS_EXPECTED_TESTS_RUN,
+    expected_tests_run: int = EXPECTED_SSL_TEST_COUNT,
 ) -> dict[str, Any]:
     accepted: list[dict[str, str]] = []
     unexpected: list[dict[str, str]] = []
@@ -502,7 +502,7 @@ def extract_test_ssl_log(full_run_output: str) -> str:
 def assess_ssl_full_run(
     full_run_output: str,
     *,
-    expected_tests_run: int = MACOS_EXPECTED_TESTS_RUN,
+    expected_tests_run: int = EXPECTED_SSL_TEST_COUNT,
 ) -> dict[str, Any]:
     ssl_output = extract_test_ssl_log(full_run_output)
     progress = list(_FULL_SSL_PROGRESS.finditer(full_run_output))

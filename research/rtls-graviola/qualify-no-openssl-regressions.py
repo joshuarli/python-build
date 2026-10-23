@@ -360,11 +360,8 @@ def run(args) -> int:
     try:
         source_identity = runtime_identity(source_prefix, scratch)
         source_test_inventory = ssl_test_case_inventory(source_prefix, scratch)
-        if target.is_macos and source_test_inventory["test_count"] != 219:
-            raise QualificationError(
-                "pinned macOS test_ssl source no longer discovers exactly 219 cases: "
-                f"{source_test_inventory['test_count']}"
-            )
+        policy = importlib.import_module("regression_policy")
+        expected_ssl_test_count = policy.EXPECTED_SSL_TEST_COUNT
         shutil.copytree(
             source_prefix,
             tested_prefix,
@@ -380,6 +377,13 @@ def run(args) -> int:
         report["ssl_test_inventory"] = {
             "candidate": source_test_inventory,
             "tested": tested_test_inventory,
+            "expected_test_count": expected_ssl_test_count,
+            "candidate_count_matches_expected": (
+                source_test_inventory["test_count"] == expected_ssl_test_count
+            ),
+            "tested_count_matches_expected": (
+                tested_test_inventory["test_count"] == expected_ssl_test_count
+            ),
             "equal": inventories_equal,
         }
         report["candidate_identity"] = source_identity["files"]
@@ -415,14 +419,13 @@ def run(args) -> int:
         if full_suite_log.exists():
             report["diagnostics"]["full_suite_log"] = log_record(full_suite_log)
         if full_output:
-            policy = importlib.import_module("regression_policy")
             extracted = policy.extract_test_ssl_log(full_output)
             if not isinstance(extracted, str) or not extracted:
                 raise QualificationError("test_ssl extraction returned no verbose output")
             test_ssl_log.write_text(extracted, encoding="utf-8")
             assessment = policy.assess_ssl_full_run(
                 full_output,
-                expected_tests_run=source_test_inventory["test_count"],
+                expected_tests_run=expected_ssl_test_count,
             )
             if not isinstance(assessment, dict):
                 raise QualificationError("test_ssl assessment did not return an object")
