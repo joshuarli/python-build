@@ -179,7 +179,7 @@ jobs:
           set -eu
           mkdir -p "$TMPDIR"
           notes="$TMPDIR/openssl-free-release-notes.md"
-          cat > "$notes" <<EOF
+          cat > "$notes" <<'EOF'
           Experimental OpenSSL-free CPython 3.15.1 candidate for native Linux arm64 musl.
 
           This is a research prerelease. It is not a supported python-build product release.
@@ -189,11 +189,12 @@ jobs:
           used network-disabled containers. The attached manifest, qualification report,
           receipts, and logs bind the archive to this source revision.
 
-          Source revision: $GITHUB_SHA
           EOF
+          printf '\nSource revision: %s\n' "$GITHUB_SHA" >> "$notes"
           gh release create "$RELEASE_TAG" \
             --target "$GITHUB_SHA" \
             --prerelease \
+            --latest=false \
             --title "Research: OpenSSL-free CPython $PYTHON_VERSION Linux arm64 ${GITHUB_SHA:0:12}" \
             --notes-file "$notes" \
             "$RELEASE_ASSETS_DIR"/*
