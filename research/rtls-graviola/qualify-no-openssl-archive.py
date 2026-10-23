@@ -2321,6 +2321,14 @@ def main(argv: list[str] | None = None) -> int:
                     "error_type": type(error).__name__,
                     "error": str(error),
                 }
+            if isinstance(linux_validation.get("checks"), dict):
+                validation["checks"].update(linux_validation["checks"])
+                validation["failed"] = sorted(
+                    name for name, result in validation["checks"].items()
+                    if result.get("ok") is not True
+                )
+                validation["ok"] = not validation["failed"]
+                write_json(run_dir / "product validation.json", validation)
             report["linux_elf_validation"] = linux_validation
             report["checks"]["linux_elf_validation"] = linux_validation
             write_json(run_dir / "Linux ELF validation.json", linux_validation)
