@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "target": {
+    "triple": "aarch64-unknown-linux-musl",
+    "platform": "linux/arm64",
+    "architecture": "aarch64"
+  },
+  "rust": {
+    "version": "1.99.1",
+    "host": "aarch64-unknown-linux-musl",
+    "manifest_date": "2026-10-15",
+    "license": "Apache-2.0 OR MIT",
+    "components": [
+      {
+        "name": "cargo",
+        "file": "cargo-1.99.1-aarch64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-10-15/cargo-1.99.1-aarch64-unknown-linux-musl.tar.xz",
+        "sha256": "50f323ec9e1e60c41d42ef4dd988cc87d0a79f7b4ea10fd364df177212b89106"
+      },
+      {
+        "name": "rustc",
+        "file": "rustc-1.99.1-aarch64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-10-15/rustc-1.99.1-aarch64-unknown-linux-musl.tar.xz",
+        "sha256": "4c80eab52764172618197bd23000c739fdf561ae9415caa2a5ef62ab5c785175"
+      },
+      {
+        "name": "rust-std",
+        "file": "rust-std-1.99.1-aarch64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-10-15/rust-std-1.99.1-aarch64-unknown-linux-musl.tar.xz",
+        "sha256": "2f3eb0d0610e2b7f6b2121d106e2490ac648decfa0c09b30873bdfc60de6c1ab"
+      }
+    ]
+  },
+  "kache": {
+    "version": "1.0.0",
+    "target": "aarch64-unknown-linux-musl",
+    "file": "kache-aarch64-unknown-linux-musl.tar.gz",
+    "url": "https://github.com/kunobi-ninja/kache/releases/download/v1.0.0/kache-aarch64-unknown-linux-musl.tar.gz",
+    "sha256": "88abd848be7d300d4e30b8510ebdc45990dae3f96b6591e3498209639cf34701",
+    "size": 11164714,
+    "license": "Apache-2.0"
+  },
+  "apk_closure": [
+    {
+      "name": "bash",
+      "version": "5.3.9-r2",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/bash-5.3.9-r2.apk",
+      "sha256": "d5c09c882b7d81a9f370206e2e74fa546e5f42a20192edeeb0c7a498ca69d88b",
+      "size": 542112,
+      "license": "GPL-3.0-or-later"
+    },
+    {
+      "name": "eudev-libs",
+      "version": "3.2.14-r8",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/eudev-libs-3.2.14-r8.apk",
+      "sha256": "accc2534393cc2e04cdf341dbbf2fa7946c45c9322a8d2c46f2dd12e042c98bf",
+      "size": 26471,
+      "license": "GPL-2.0-or-later"
+    },
+    {
+      "name": "git",
+      "version": "2.56.0-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/git-2.56.0-r0.apk",
+      "sha256": "3ff37ddcc6eaf5aa12f52eff83c453fcc99d87ac018564b3b7b6e1f64753f994",
+      "size": 3769632,
+      "license": "GPL-2.0-only"
+    },
+    {
+      "name": "git-init-template",
+      "version": "2.56.0-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/git-init-template-2.56.0-r0.apk",
+      "sha256": "65e6bedb3545497060cb2faa5e36c64f7984f7c9e2b77804fb0c5ddac9bd1be2",
+      "size": 10826,
+      "license": "GPL-2.0-only"
+    },
+    {
+      "name": "libcrypto3",
+      "version": "3.5.9-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libcrypto3-3.5.9-r0.apk",
+      "sha256": "ddfed8feb861b75bc002c3bc4a8453cee00f46db822dadc40dabb2334c47b585",
+      "size": 2286824,
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "hwloc",
+      "version": "2.12.2-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/hwloc-2.12.2-r0.apk",
+      "sha256": "d707b5fd652f1cae42c7c7ed9bc5b869efeb68b8959a8d2db94477ce571e44e5",
+      "size": 145125,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "libgcc",
+      "version": "15.2.0-r9",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libgcc-15.2.0-r9.apk",
+      "sha256": "23653103b2adf85dab73e4e35047f64b8671cd654e2d0291f44bec549084afd1",
+      "size": 66331,
+      "license": "GPL-2.0-or-later AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "libstdc++",
+      "version": "15.2.0-r9",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libstdc++-15.2.0-r9.apk",
+      "sha256": "36e8a2cee1ee14df5180c1f5737f0ffb59004ef92dd4f0bedff425968c4855ae",
+      "size": 908720,
+      "license": "GPL-2.0-or-later AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "libxml2",
+      "version": "2.13.9-r2",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libxml2-2.13.9-r2.apk",
+      "sha256": "27c1a195517714c358c9f8c8dd33ec5d0fcc2b47f44c638a487c2a185e0b00af",
+      "size": 496763,
+      "license": "MIT"
+    },
+    {
+      "name": "libssl3",
+      "version": "3.5.9-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/libssl3-3.5.9-r0.apk",
+      "sha256": "90f714960f379016298504d2afac67196814fff6f78ad9844348dda74cc99cb0",
+      "size": 373041,
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "mimalloc2",
+      "version": "2.2.7-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/community/aarch64/mimalloc2-2.2.7-r0.apk",
+      "sha256": "7963468979e013ef764ed6f1d8236abc90ae0c7db77b0d01eaff1919e6798fb5",
+      "size": 86205,
+      "license": "MIT"
+    },
+    {
+      "name": "mold",
+      "version": "2.39.1-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/community/aarch64/mold-2.39.1-r0.apk",
+      "sha256": "e76e2b49635bda6bf7b3a03145388a016e7fbbf3ee740a32c7d0e9f7585005f0",
+      "size": 6960076,
+      "license": "MIT"
+    },
+    {
+      "name": "musl",
+      "version": "1.2.6-r6",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/musl-1.2.6-r6.apk",
+      "sha256": "180b2e52dbd452919c3271ed9dddf06826cee9a387650c81c00c7ac393031c5b",
+      "size": 417747,
+      "license": "MIT"
+    },
+    {
+      "name": "onetbb",
+      "version": "2023.1.0-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/community/aarch64/onetbb-2023.1.0-r0.apk",
+      "sha256": "d1e93263ba2bd8465d0d77b71cbaebc31ec28822641b172747000bedc17699af",
+      "size": 125700,
+      "license": "GPL-2.0-only"
+    },
+    {
+      "name": "openssl",
+      "version": "3.5.9-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/openssl-3.5.9-r0.apk",
+      "sha256": "845ec66b196c94a62647b517de3e8bea7c616a25eb805b7c4bee31b4b88da0dd",
+      "size": 331136,
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "pcre2",
+      "version": "10.49-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/pcre2-10.49-r0.apk",
+      "sha256": "bf8b7b3bdae48c257711c290194da70521df3c68e2963e436b9bfbd834c45b81",
+      "size": 320316,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "xz-libs",
+      "version": "5.8.4-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/xz-libs-5.8.4-r0.apk",
+      "sha256": "54de3f3b3bc26b341f39fcda09e762a22fad10a1d185a1096cc95b4a09bdd4ef",
+      "size": 119441,
+      "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "xz",
+      "version": "5.8.4-r0",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/xz-5.8.4-r0.apk",
+      "sha256": "f9b75ac773820a537740daba361083f4a060b6c81f26b0d37a1ef4c7ddb5dff4",
+      "size": 70079,
+      "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.2-r1",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/zlib-1.3.2-r1.apk",
+      "sha256": "11c745d55520625947fae4096fef8e719c04501484843e123d8051f8f3d6dfa1",
+      "size": 54349,
+      "license": "Zlib"
+    },
+    {
+      "name": "zstd-libs",
+      "version": "1.5.7-r2",
+      "architecture": "aarch64",
+      "url": "https://cdn.alpinelinux.org/edge/main/aarch64/zstd-libs-1.5.7-r2.apk",
+      "sha256": "67f0803cc07bad0dd866d21fdaca1fa742b541a4e5e96e0159bd8b0054d348ac",
+      "size": 363934,
+      "license": "BSD-3-Clause OR GPL-2.0-or-later"
+    }
+  ]
+}

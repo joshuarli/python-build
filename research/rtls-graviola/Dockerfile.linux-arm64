@@ -1,0 +1,95 @@
+ARG TOOLCHAIN_IMAGE
+ARG RUNTIME_BASE_IMAGE
+FROM ${TOOLCHAIN_IMAGE} AS experimental-toolchain
+
+ARG LOCKED_IMAGE_DIGEST
+ARG BOOTSTRAP_INPUTS_SHA256
+LABEL org.python-build.rtls.locked-image-digest=${LOCKED_IMAGE_DIGEST} \
+      org.python-build.rtls.bootstrap-inputs-sha256=${BOOTSTRAP_INPUTS_SHA256}
+
+USER root
+COPY bootstrap.lock.json /opt/bootstrap/base-lock.json
+COPY research/rtls-graviola/linux-bootstrap.lock.json /opt/bootstrap/linux-bootstrap.lock.json
+COPY .cache/bootstrap/rtls-linux-arm64/ /opt/bootstrap/rtls-linux-arm64/
+
+RUN --network=none set -eu \
+    && python3 -c "\
+import hashlib, json, pathlib; \
+root = pathlib.Path('/opt/bootstrap/rtls-linux-arm64'); \
+lock = json.loads(pathlib.Path('/opt/bootstrap/linux-bootstrap.lock.json').read_text()); \
+assert lock['target'] == {'triple': 'aarch64-unknown-linux-musl', 'platform': 'linux/arm64', 'architecture': 'aarch64'}; \
+apk_entries = lock['apk_closure']; \
+rust_entries = lock['rust']['components']; \
+assert {path.name for path in (root / 'apk').iterdir()} == {item['sha256'] + '.apk' for item in apk_entries}; \
+assert {path.name for path in (root / 'rust').iterdir()} == {item['file'] for item in rust_entries}; \
+assert (root / lock['kache']['file']).is_file(); \
+entries = [(root / 'apk' / (item['sha256'] + '.apk'), item['sha256'], item['size']) for item in apk_entries]; \
+entries += [(root / 'rust' / item['file'], item['sha256'], None) for item in rust_entries]; \
+entries += [(root / lock['kache']['file'], lock['kache']['sha256'], lock['kache']['size'])]; \
+[(lambda digest, size, expected, wanted: (digest == expected and (wanted is None or size == wanted)) or (_ for _ in ()).throw(SystemExit(f'input mismatch: {path}')))(hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_size, expected, wanted) for path, expected, wanted in entries]" \
+    && apk --no-network --repositories-file /dev/null add /opt/bootstrap/rtls-linux-arm64/apk/*.apk \
+    && python3 -c "\
+import json, pathlib, subprocess; \
+base = json.loads(pathlib.Path('/opt/bootstrap/base-lock.json').read_text())['linux_toolchain']; \
+lock = json.loads(pathlib.Path('/opt/bootstrap/linux-bootstrap.lock.json').read_text()); \
+expected = dict(item.split('=', 1) for item in base['base_packages']); \
+expected.update({item['name']: item['version'] for item in base['apk_closure']['aarch64']}); \
+expected.update({item['name']: item['version'] for item in lock['apk_closure']}); \
+installed = set(subprocess.check_output(['apk', 'info', '-v'], text=True).splitlines()); \
+wanted = {name + '-' + version for name, version in expected.items()}; \
+assert installed == wanted, {'missing': sorted(wanted - installed), 'extra': sorted(installed - wanted)}; \
+pathlib.Path('/opt/bootstrap/rtls-linux-arm64-packages.txt').write_text(''.join(item + '\\n' for item in sorted(installed)))"
+
+RUN --network=none set -eu \
+    && mkdir -p /opt/rust /work/.work/tmp/rust-install \
+    && for archive in /opt/bootstrap/rtls-linux-arm64/rust/*.tar.xz; do \
+        xz -dc "$archive" > /work/.work/tmp/rust-component.tar; \
+        tar -xf /work/.work/tmp/rust-component.tar -C /work/.work/tmp/rust-install; \
+        set -- /work/.work/tmp/rust-install/*; \
+        [ "$#" -eq 1 ]; \
+        "$1/install.sh" --prefix=/opt/rust --disable-ldconfig; \
+        rm -rf /work/.work/tmp/rust-install/* /work/.work/tmp/rust-component.tar; \
+    done \
+    && tar -xzf "/opt/bootstrap/rtls-linux-arm64/$(python3 -c 'import json; print(json.load(open("/opt/bootstrap/linux-bootstrap.lock.json"))["kache"]["file"])')" -C /usr/local/bin kache \
+    && chmod 0755 /usr/local/bin/kache \
+    && python3 -c "\
+import json, pathlib, platform, subprocess; \
+lock = json.loads(pathlib.Path('/opt/bootstrap/linux-bootstrap.lock.json').read_text()); \
+rust = subprocess.check_output(['/opt/rust/bin/rustc', '-vV'], text=True); \
+assert 'release: ' + lock['rust']['version'] in rust and 'host: ' + lock['rust']['host'] in rust; \
+assert subprocess.check_output(['/opt/rust/bin/cargo', '--version'], text=True).split()[1] == lock['rust']['version']; \
+assert platform.machine() == 'aarch64'; \
+assert next(item['version'].split('-r', 1)[0] for item in lock['apk_closure'] if item['name'] == 'git') in subprocess.check_output(['/usr/bin/git', '--version'], text=True); \
+assert next(item['version'].split('-r', 1)[0] for item in lock['apk_closure'] if item['name'] == 'openssl') in subprocess.check_output(['/usr/bin/openssl', 'version'], text=True); \
+assert lock['kache']['version'] in subprocess.check_output(['/usr/local/bin/kache', '--version'], text=True); \
+assert next(item['version'].split('-r', 1)[0] for item in lock['apk_closure'] if item['name'] == 'mold') in subprocess.check_output(['/usr/bin/mold', '--version'], text=True)" \
+    && /usr/bin/mold --version \
+    && /usr/bin/git --version \
+    && /usr/bin/openssl version \
+    && /opt/rust/bin/rustc --version --verbose \
+    && /usr/local/bin/kache --version
+
+ENV PATH="/opt/rust/bin:/usr/lib/llvm23/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    PYTHON_BUILD_RUST_PREFIX=/opt/rust
+USER builder
+WORKDIR /work
+
+FROM --platform=linux/arm64 ${RUNTIME_BASE_IMAGE} AS archive-runtime
+ARG LOCKED_IMAGE_DIGEST
+ARG LIBGCC_SHA256
+ARG ARCHIVE_SHA256
+LABEL org.python-build.rtls.locked-image-digest=${LOCKED_IMAGE_DIGEST} \
+      org.python-build.rtls.archive-sha256=${ARCHIVE_SHA256}
+
+COPY .cache/bootstrap/apk/arm64/libgcc.apk /opt/bootstrap/libgcc.apk
+COPY qualification/candidate.tar.gz /qualification/candidate.tar.gz
+
+RUN --network=none set -eu \
+    && printf '%s  %s\n' "$LIBGCC_SHA256" /opt/bootstrap/libgcc.apk | sha256sum -c - \
+    && printf '%s  %s\n' "$ARCHIVE_SHA256" /qualification/candidate.tar.gz | sha256sum -c - \
+    && apk --no-network --repositories-file /dev/null add /opt/bootstrap/libgcc.apk \
+    && mkdir -p /opt \
+    && tar -xzf /qualification/candidate.tar.gz -C /opt \
+    && test -x /opt/python/bin/python3.15
+
+WORKDIR /
