@@ -155,8 +155,8 @@ def verify_candidate_inputs(candidate_prefix: Path, dependency_prefix: Path) -> 
     for name in ("_ssl", "_hashlib"):
         extensions = [
             path
-            for suffix in (".so", ".abi3.so")
-            for path in dynamic.glob(f"{name}*{suffix}")
+            for pattern in (f"{name}.cpython-*.so", f"{name}.abi3.so", f"{name}.so")
+            for path in dynamic.glob(pattern)
         ]
         if extensions:
             raise ReferenceBuildError(
