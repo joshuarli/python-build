@@ -1,0 +1,60 @@
+--- a/Lib/platform.py
++++ b/Lib/platform.py
+@@ -207,6 +207,7 @@
+     # able to open symlinks for reading
+     executable = os.path.realpath(executable)
+     ver = None
++    musl_found = False
+     with open(executable, 'rb') as f:
+         binary = f.read(chunksize)
+         pos = 0
+@@ -229,7 +230,7 @@
+              musl, muslversion, musl_so, musl_sover) = decoded_groups
+             if libcinit and not lib:
+                 lib = 'libc'
+-            elif glibc:
++            elif glibc and not musl_found:
+                 if lib != 'glibc':
+                     lib = 'glibc'
+                     ver = glibcversion
+@@ -243,13 +244,19 @@
+                     if threads and ver[-len(threads):] != threads:
+                         ver = ver + threads
+             elif musl:
++                if not musl_found:
++                    ver = muslversion
++                elif not ver or V(muslversion) > V(ver):
++                    ver = muslversion
+                 lib = 'musl'
+-                if not ver or V(muslversion) > V(ver):
+-                    ver = muslversion
++                musl_found = True
+             elif musl_so:
++                if not musl_found:
++                    ver = musl_sover
++                elif musl_sover and (not ver or V(musl_sover) > V(ver)):
++                    ver = musl_sover
+                 lib = 'musl'
+-                if musl_sover and (not ver or V(musl_sover) > V(ver)):
+-                    ver = musl_sover
++                musl_found = True
+             pos = m.end()
+     return lib, version if ver is None else ver
+ 
+--- a/Lib/test/test_platform.py
++++ b/Lib/test/test_platform.py
+@@ -597,6 +597,14 @@
+                     b'ld-musl-x86_64.so.1.4.1\0ld-musl-x86_64.so.2.1.1\0ld-musl-x86_64.so.2.0.1',
+                     ('musl', '2.1.1'),
+                 ),
++                (
++                    b'ld-musl-aarch64.so.1\0GLIBC_2.0',
++                    ('musl', '1'),
++                ),
++                (
++                    b'GLIBC_2.0\0ld-musl-aarch64.so.1',
++                    ('musl', '1'),
++                ),
+                 (b'no match here, so defaults are used', ('test', '100.1.0')),
+             ):
+             with open(filename, 'wb') as f:
