@@ -396,7 +396,7 @@ def prepare_toolchain_image(
                     "--build-arg", f"RUNTIME_BASE_IMAGE=alpine@{locked_digest}",
                     "--build-arg", f"LOCKED_IMAGE_DIGEST={locked_digest}",
                     "--build-arg", f"BOOTSTRAP_INPUTS_SHA256={input_identity}",
-                    "--tag", overlay_tag, "-f", "Dockerfile.linux-arm64", str(context),
+                    "--tag", overlay_tag, "-f", str(context / "Dockerfile.linux-arm64"), str(context),
                 ],
                 run_dir / "logs" / "experimental-toolchain-image.log",
             )
@@ -808,7 +808,7 @@ def build_runtime_image(
                     "--build-arg", f"LOCKED_IMAGE_DIGEST={locked_digest}",
                     "--build-arg", f"LIBGCC_SHA256={libgcc['sha256']}",
                     "--build-arg", f"ARCHIVE_SHA256={archive_hash}",
-                    "--tag", tag, "-f", "Dockerfile.linux-arm64", str(context),
+                    "--tag", tag, "-f", str(context / "Dockerfile.linux-arm64"), str(context),
                 ],
                 run_dir / "logs" / "archive-runtime-image.log",
             )
