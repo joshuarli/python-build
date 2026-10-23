@@ -65,6 +65,15 @@ and signature controls. Twelve SNI contract tests pass. Sessions, ALPN, keylog
 clearing, socket I/O, and supported ECDH groups have focused upstream and
 reference checks. Accepted listening sockets are wrapped with the TLS context.
 
+`ssl_native_compat.py`, installed as `_ssl.py`, provides Python-level metadata
+and certificate decoding for consumers such as CPython's own tests. It does
+not restore CPython's compiled `_ssl` extension or its native object layouts.
+It eagerly exports CPython 3.15.1's integer constants from `ssl_metadata.py`,
+and `ssl_facade.py` builds the matching enum classes from those constants.
+Backend versions and capability flags remain RTLS-specific.
+`ssl_metadata.py` also contains the CPython protocol-message enums.
+
+
 The [hashing backend](hashing/README.md) passes complete `test_hashlib` and
 `test_hmac` suites: 240 tests, 18 skips. Native extension, limited-API extension,
 and shared-libpython embedding probes passed on the preceding candidate;

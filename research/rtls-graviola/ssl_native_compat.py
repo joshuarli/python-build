@@ -1,5 +1,9 @@
 import importlib
 
+from _ssl_metadata import _SSL_CONSTANTS
+
+globals().update(_SSL_CONSTANTS)
+
 _RUSTLS_BACKEND = True
 ENCODING_PEM = 1
 ENCODING_DER = 2

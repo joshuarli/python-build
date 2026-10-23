@@ -1,9 +1,12 @@
 import os
 import sys
+from enum import IntEnum as _IntEnum, IntFlag as _IntFlag
 
 from rtls import *
-from rtls import __all__, __version__
+from rtls import __all__ as _rtls_all, __version__
 from rtls import SSLContext as _RTLS_SSLContext
+
+__all__ = list(_rtls_all)
 
 
 _PYTHON_BUILD_DEFAULT_CA_BUNDLE = os.path.join(
@@ -13,6 +16,34 @@ _PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE = "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE"
 
 
 class SSLContext(_RTLS_SSLContext):
+    @property
+    def protocol(self):
+        return _SSLMethod(super().protocol)
+
+    @property
+    def verify_mode(self):
+        return VerifyMode(super().verify_mode)
+
+    @verify_mode.setter
+    def verify_mode(self, value):
+        _RTLS_SSLContext.verify_mode.fset(self, value)
+
+    @property
+    def options(self):
+        return Options(super().options)
+
+    @options.setter
+    def options(self, value):
+        _RTLS_SSLContext.options.fset(self, value)
+
+    @property
+    def verify_flags(self):
+        return VerifyFlags(super().verify_flags)
+
+    @verify_flags.setter
+    def verify_flags(self, value):
+        _RTLS_SSLContext.verify_flags.fset(self, value)
+
     def load_default_certs(self, purpose=Purpose.SERVER_AUTH):
         super().load_default_certs(purpose)
         default_paths = get_default_verify_paths()
@@ -102,8 +133,47 @@ import _ssl
 from rtls import _constants
 
 HAS_PSK_TLS13 = False
+
+_IntEnum._convert_(
+    "_SSLMethod",
+    __name__,
+    lambda name: name.startswith("PROTOCOL_") and name != "PROTOCOL_SSLv23",
+    source=_ssl,
+)
+_IntFlag._convert_(
+    "Options", __name__, lambda name: name.startswith("OP_"), source=_ssl
+)
+_IntEnum._convert_(
+    "AlertDescription",
+    __name__,
+    lambda name: name.startswith("ALERT_DESCRIPTION_"),
+    source=_ssl,
+)
+_IntEnum._convert_(
+    "SSLErrorNumber",
+    __name__,
+    lambda name: name.startswith("SSL_ERROR_"),
+    source=_ssl,
+)
+_IntFlag._convert_(
+    "VerifyFlags", __name__, lambda name: name.startswith("VERIFY_"), source=_ssl
+)
+_IntEnum._convert_(
+    "VerifyMode", __name__, lambda name: name.startswith("CERT_"), source=_ssl
+)
+
+PROTOCOL_SSLv23 = _SSLMethod.PROTOCOL_SSLv23 = _SSLMethod.PROTOCOL_TLS
 _PROTOCOL_NAMES = {
-    value: name
-    for name, value in vars(_constants).items()
-    if name.startswith("PROTOCOL_") and name != "PROTOCOL_SSLv23"
+    value: name for name, value in _SSLMethod.__members__.items()
 }
+_SSLv2_IF_EXISTS = getattr(_SSLMethod, "PROTOCOL_SSLv2", None)
+__all__.extend(
+    (
+        "SSLErrorNumber",
+        "ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE",
+        "ALERT_DESCRIPTION_UNRECOGNIZED_NAME",
+        "ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE",
+        "ALERT_DESCRIPTION_BAD_CERTIFICATE_HASH_VALUE",
+        "ALERT_DESCRIPTION_UNKNOWN_PSK_IDENTITY",
+    )
+)
