@@ -2,6 +2,11 @@
 
 ## Current implementation
 
+The [modern TLS policy](MODERN_TLS_POLICY.md) defines the experimental support
+matrix. Legacy TLS compatibility is no longer an adoption requirement. Keep
+upstream results intact and distinguish retired capabilities from defects in
+required modern behavior. Certificate security gates remain mandatory.
+
 The isolated macOS arm64 candidate builds CPython 3.15.1 with compiled `_ssl`
 and `_hashlib` explicitly disabled in `Modules/Setup.local`. OpenSSL is absent
 from its native dependency graph. A separate fetch phase supplies checked,
