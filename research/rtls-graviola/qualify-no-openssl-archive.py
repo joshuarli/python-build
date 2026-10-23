@@ -967,14 +967,18 @@ def build_experimental_manifest(
         makefile,
         {
             "CONFIG_ARGS",
-            "CFLAGS",
-            "CFLAGS_NODIST",
-            "CPPFLAGS",
-            "LDFLAGS",
+            "CONFIGURE_CFLAGS",
+            "CONFIGURE_CFLAGS_NODIST",
+            "CONFIGURE_CPPFLAGS",
+            "CONFIGURE_LDFLAGS",
+            "PY_CFLAGS",
+            "PY_CFLAGS_NODIST",
+            "PY_CPPFLAGS",
+            "PY_LDFLAGS",
             "PROFILE_TASK",
         },
     )
-    required_make_variables = {"CONFIG_ARGS", "CFLAGS", "PROFILE_TASK"}
+    required_make_variables = {"CONFIG_ARGS", "CONFIGURE_CFLAGS", "PROFILE_TASK"}
     if not required_make_variables.issubset(make_variables):
         raise QualificationDriverError("CPython Makefile omits the PGO configuration or effective flags")
     if "--enable-optimizations" not in make_variables["CONFIG_ARGS"]:
