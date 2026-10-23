@@ -280,6 +280,7 @@ def build_cpython(
         environment.pop(name, None)
     if not target.is_macos:
         environment["LDFLAGS"] = environment["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
+        environment["LDFLAGS"] += " -flto=thin"
     llvm_profdata = Path(toolchain.cc).with_name("llvm-profdata")
     if pgo:
         if "--enable-optimizations" not in args:
@@ -1419,7 +1420,7 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
             "dependency_cflags": toolchain.cflags(),
             "dependency_ldflags": toolchain.ldflags(run_dir / "private"),
             "cpython_cflags": configure_env["CFLAGS"],
-            "cpython_ldflags": configure_env["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold"),
+            "cpython_ldflags": configure_env["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold") + " -flto=thin",
             "rust": rust_flags(target, rtls=True),
         },
     }

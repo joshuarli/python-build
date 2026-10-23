@@ -442,6 +442,7 @@ def build_cpython_reference(
     environment.update(explicit_openssl)
     environment["CFLAGS"] = environment["CFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
     environment["LDFLAGS"] = environment["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
+    environment["LDFLAGS"] += " -flto=thin"
     if "-fuse-ld=mold" not in environment["LDFLAGS"]:
         raise ReferenceBuildError("CPython link flags do not select mold")
     environment.update(
