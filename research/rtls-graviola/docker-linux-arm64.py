@@ -11,6 +11,7 @@ import sys
 import tempfile
 import urllib.request
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -23,6 +24,7 @@ REGRESSION_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-re
 ARCHIVE_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py"
 BUILD_DRIVER = REPO / "research" / "rtls-graviola" / "build-no-openssl.py"
 ARCHIVE_NAME = "experimental no-openssl candidate.tar.gz"
+QUALIFICATION_VOLUME_TARGET = "/work/.work/tmp/q"
 CHUNK_SIZE = 1 << 20
 
 
@@ -260,12 +262,12 @@ def verify_experimental_inputs(root: Path, lock: dict) -> None:
     require_no_symlink_below(common_root(), root / "rust")
     expected_apks = {item["sha256"] + ".apk" for item in lock["apk_closure"]}
     actual_apks = {path.name for path in (root / "apk").glob("*")}
-    if actual_apks != expected_apks:
-        raise DockerBuildError(f"experimental APK input set differs from its lock: {actual_apks ^ expected_apks}")
+    if expected_apks - actual_apks:
+        raise DockerBuildError(f"experimental APK cache is missing locked files: {expected_apks - actual_apks}")
     expected_rust = {item["file"] for item in lock["rust"]["components"]}
     actual_rust = {path.name for path in (root / "rust").glob("*")}
-    if actual_rust != expected_rust:
-        raise DockerBuildError(f"Rust input set differs from its lock: {actual_rust ^ expected_rust}")
+    if expected_rust - actual_rust:
+        raise DockerBuildError(f"Rust cache is missing locked files: {expected_rust - actual_rust}")
     for item in lock["apk_closure"]:
         if not verify_file(root / "apk" / f"{item['sha256']}.apk", item["sha256"], item["size"]):
             raise DockerBuildError(f"experimental APK input failed verification: {item['name']}")
@@ -371,7 +373,20 @@ def prepare_toolchain_image(
             lock_destination.parent.mkdir(parents=True)
             shutil.copy2(LOCK_PATH, lock_destination)
             cached_inputs = context / ".cache" / "bootstrap" / "rtls-linux-arm64"
-            shutil.copytree(experimental_root, cached_inputs)
+            (cached_inputs / "apk").mkdir(parents=True)
+            (cached_inputs / "rust").mkdir()
+            for item in experimental["apk_closure"]:
+                shutil.copy2(
+                    experimental_root / "apk" / f"{item['sha256']}.apk",
+                    cached_inputs / "apk" / f"{item['sha256']}.apk",
+                )
+            for item in experimental["rust"]["components"]:
+                shutil.copy2(
+                    experimental_root / "rust" / item["file"],
+                    cached_inputs / "rust" / item["file"],
+                )
+            kache = experimental["kache"]
+            shutil.copy2(experimental_root / kache["file"], cached_inputs / kache["file"])
             (context / ".dockerignore").write_text("")
             run_logged(
                 [
@@ -386,10 +401,12 @@ def prepare_toolchain_image(
                 run_dir / "logs" / "experimental-toolchain-image.log",
             )
             overlay_image = image_info(overlay_tag)
-    if overlay_image.get("Config", {}).get("Labels", {}).get(
-        "org.python-build.rtls.locked-image-digest"
-    ) != locked_digest:
-        raise DockerBuildError("experimental toolchain image does not identify the locked base digest")
+    image_labels = overlay_image.get("Config", {}).get("Labels", {})
+    if (
+        image_labels.get("org.python-build.rtls.locked-image-digest") != locked_digest
+        or image_labels.get("org.python-build.rtls.bootstrap-inputs-sha256") != input_identity
+    ):
+        raise DockerBuildError("experimental toolchain image identity differs from its locked inputs")
     return overlay_tag, base_image, overlay_image
 
 
@@ -424,11 +441,25 @@ def create_container(
     workspace: Path | None,
     environment: dict[str, str] | None = None,
     workdir: str = "/work",
+    qualification_volume: str | None = None,
+    user: str | None = None,
 ) -> tuple[str, list[str]]:
     argv = ["docker", "create", "--name", name, "--platform", DOCKER_PLATFORM, "--network", "none"]
-    argv.extend(("--user", f"{os.getuid()}:{os.getgid()}"))
+    execution_user = user or f"{os.getuid()}:{os.getgid()}"
+    if re.fullmatch(r"[0-9]+:[0-9]+", execution_user) is None:
+        raise DockerBuildError(f"invalid container uid:gid: {execution_user}")
+    argv.extend(("--user", execution_user))
     if workspace is not None:
         argv.extend(docker_mounts(workspace))
+    if qualification_volume is not None:
+        if re.fullmatch(r"rtls-q-[0-9a-f]{12}", qualification_volume) is None:
+            raise DockerBuildError(f"invalid qualification volume name: {qualification_volume}")
+        argv.extend(
+            (
+                "--mount",
+                f"type=volume,source={qualification_volume},target={QUALIFICATION_VOLUME_TARGET},volume-nocopy",
+            )
+        )
     argv.extend(("--workdir", workdir))
     for key, value in (environment or {}).items():
         argv.extend(("--env", f"{key}={value}"))
@@ -493,6 +524,8 @@ def run_container(
     workspace: Path | None,
     environment: dict[str, str] | None = None,
     workdir: str = "/work",
+    qualification_volume: str | None = None,
+    user: str | None = None,
 ) -> tuple[dict, dict, list[str], str]:
     image_record = image_info(image)
     container_id, argv = create_container(
@@ -503,6 +536,8 @@ def run_container(
         workspace=workspace,
         environment=environment,
         workdir=workdir,
+        qualification_volume=qualification_volume,
+        user=user,
     )
     try:
         before = inspect_container(container_id)
@@ -842,6 +877,82 @@ def run_runtime_probe(
     return receipt
 
 
+@contextmanager
+def qualification_volume():
+    identity = uuid.uuid4().hex[:12]
+    name = f"rtls-q-{identity}"
+    label = "org.python-build.rtls.qualification-volume"
+    existing = subprocess.run(
+        ["docker", "volume", "inspect", name],
+        capture_output=True,
+        text=True,
+    )
+    if existing.returncode == 0:
+        raise DockerBuildError(f"refusing to reuse an existing qualification volume: {name}")
+    if "no such volume" not in (existing.stdout + existing.stderr).lower():
+        raise DockerBuildError(
+            f"could not establish that qualification volume {name} is unused: "
+            f"{existing.stdout}{existing.stderr}"
+        )
+    if checked_run(["docker", "volume", "create", "--label", f"{label}={identity}", name]) != name:
+        raise DockerBuildError(f"Docker did not create the requested qualification volume: {name}")
+    labels = json.loads(
+        checked_run(["docker", "volume", "inspect", name, "--format", "{{json .Labels}}"])
+    )
+    if not isinstance(labels, dict) or labels.get(label) != identity:
+        raise DockerBuildError(f"qualification volume identity did not match its creation label: {name}")
+    volume = {"name": name, "identity": identity}
+    try:
+        yield volume
+    except BaseException as error:
+        cleanup = subprocess.run(
+            ["docker", "volume", "rm", name], capture_output=True, text=True
+        )
+        if cleanup.returncode:
+            raise DockerBuildError(
+                f"{error}; failed to remove qualification volume {name}: {cleanup.stderr.strip()}"
+            ) from error
+        raise
+    else:
+        checked_run(["docker", "volume", "rm", name])
+
+
+def initialize_qualification_volume(
+    run_dir: Path,
+    image: str,
+    volume: str,
+    owner_uid: int,
+    owner_gid: int,
+) -> dict:
+    command = [
+        "sh",
+        "-ec",
+        'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
+        f"chown {owner_uid}:{owner_gid} {QUALIFICATION_VOLUME_TARGET}; "
+        f"chmod 0700 {QUALIFICATION_VOLUME_TARGET}",
+    ]
+    record, image_record, argv, _ = run_container(
+        image,
+        command,
+        name="rtls-linux-qualification-volume-" + uuid.uuid4().hex[:12],
+        run_dir=run_dir,
+        log_path=run_dir / "logs" / "qualification-volume-init.log",
+        workspace=REPO,
+        environment={"HOME": "/root", "TMPDIR": "/work/.work/tmp"},
+        qualification_volume=volume,
+        user="0:0",
+    )
+    return {
+        "container_id": record["container_id"],
+        "network_mode": record["network_mode"],
+        "exit_code": record["exit_code"],
+        "image_id": image_record["Id"],
+        "command": argv,
+        "owner_uid": owner_uid,
+        "owner_gid": owner_gid,
+    }
+
+
 def qualify(
     run_dir: Path,
     image: str,
@@ -850,14 +961,23 @@ def qualify(
 ) -> tuple[Path, dict]:
     candidate_run = run_dir
     reference_run = run_dir / "reference-build"
+    qualification_parent = run_dir / "qualification"
     regression_run = run_dir / "qualification" / "regression"
     archive_run = run_dir / "qualification" / "archive"
-    for directory in (reference_run, regression_run, archive_run):
+    for directory in (reference_run, qualification_parent, regression_run):
+        if directory.is_symlink():
+            raise DockerBuildError(f"qualification output cannot be a symlink: {directory}")
         directory.mkdir(parents=True, exist_ok=True)
         if any(directory.iterdir()):
             raise DockerBuildError(f"qualification output directory must be empty: {directory}")
+    if archive_run.is_symlink() or archive_run.exists():
+        raise DockerBuildError(f"archive qualifier requires a fresh, absent output directory: {archive_run}")
+    if {entry.name for entry in qualification_parent.iterdir()} != {"regression"}:
+        raise DockerBuildError(f"unexpected qualification output entries under {qualification_parent}")
     relative_run = candidate_run.relative_to(REPO).as_posix()
     base = f"/work/{relative_run}"
+    volume_work_id = uuid.uuid4().hex[:8]
+    volume_work_dir = f"{QUALIFICATION_VOLUME_TARGET}/{volume_work_id}"
     commands = [
         [
             "python3", "research/rtls-graviola/build-linux-reference.py",
@@ -869,6 +989,7 @@ def qualify(
             "python3", "research/rtls-graviola/qualify-no-openssl-regressions.py",
             "--prefix", f"{base}/relocated prefix",
             "--run-dir", f"{base}/qualification/regression",
+            "--work-dir", volume_work_dir,
             "--jobs", str(jobs),
         ],
         [
@@ -884,7 +1005,7 @@ def qualify(
     environment = {
         "HOME": f"{base}/home",
         "XDG_CACHE_HOME": f"{base}/home/.cache",
-        "TMPDIR": "/work/.work/tmp",
+        "TMPDIR": QUALIFICATION_VOLUME_TARGET,
         "CARGO_HOME": f"{base}/cargo-home",
         "PYTHONNOUSERSITE": "1",
         "PYTHONDONTWRITEBYTECODE": "1",
@@ -903,41 +1024,56 @@ def qualify(
     for command in commands:
         sequence.append(" ".join(shlex_quote(item) for item in command))
     shell_command = ["sh", "-ec", "; ".join(sequence)]
-    container, image_record, argv, _ = run_container(
-        image,
-        shell_command,
-        name="rtls-linux-qualification-" + uuid.uuid4().hex[:12],
-        run_dir=run_dir,
-        log_path=run_dir / "logs" / "reference-regression-archive.log",
-        workspace=REPO,
-        environment=environment,
-    )
-    write_json(
-        run_dir / "docker-qualification.json",
-        {
-            "schema": 1,
-            "target_triple": TARGET,
-            "platform": DOCKER_PLATFORM,
-            **daemon,
-            "image_id": image_record["Id"],
-            "image_architecture": image_record["Architecture"],
-            "container_architecture": container["container_architecture"],
-            "container_id": container["container_id"],
-            "network_mode": container["network_mode"],
-            "isolation": "docker-network-none",
-            "command": argv,
-            "exit_code": container["exit_code"],
-        },
-    )
-    archive = archive_run / ARCHIVE_NAME
-    manifest = archive_run / "EXPERIMENTALartifact.json"
-    report = archive_run / "qualification report.json"
-    if not archive.is_file() or not manifest.is_file() or not report.is_file():
-        raise DockerBuildError("archive qualifier did not write the required report, manifest, and archive")
-    report_value = json.loads(report.read_text())
-    if report_value.get("ok") is not True:
-        raise DockerBuildError("archive qualifier did not report success")
-    return archive, image_record
+    with qualification_volume() as volume:
+        owner_uid = os.getuid()
+        owner_gid = os.getgid()
+        initialization = initialize_qualification_volume(
+            run_dir, image, volume["name"], owner_uid, owner_gid
+        )
+        container, image_record, argv, _ = run_container(
+            image,
+            shell_command,
+            name="rtls-linux-qualification-" + uuid.uuid4().hex[:12],
+            run_dir=run_dir,
+            log_path=run_dir / "logs" / "reference-regression-archive.log",
+            workspace=REPO,
+            environment=environment,
+            qualification_volume=volume["name"],
+        )
+        write_json(
+            run_dir / "docker-qualification.json",
+            {
+                "schema": 1,
+                "target_triple": TARGET,
+                "platform": DOCKER_PLATFORM,
+                **daemon,
+                "image_id": image_record["Id"],
+                "image_architecture": image_record["Architecture"],
+                "container_architecture": container["container_architecture"],
+                "container_id": container["container_id"],
+                "network_mode": container["network_mode"],
+                "isolation": "docker-network-none",
+                "command": argv,
+                "qualification_work_volume": {
+                    "name": volume["name"],
+                    "target": QUALIFICATION_VOLUME_TARGET,
+                    "work_dir": volume_work_dir,
+                    "owner_uid": owner_uid,
+                    "owner_gid": owner_gid,
+                    "initialization": initialization,
+                },
+                "exit_code": container["exit_code"],
+            },
+        )
+        archive = archive_run / ARCHIVE_NAME
+        manifest = archive_run / "EXPERIMENTALartifact.json"
+        report = archive_run / "qualification report.json"
+        if not archive.is_file() or archive.is_symlink() or not manifest.is_file() or not report.is_file():
+            raise DockerBuildError("archive qualifier did not write the required report, manifest, and archive")
+        report_value = json.loads(report.read_text())
+        if report_value.get("ok") is not True:
+            raise DockerBuildError("archive qualifier did not report success")
+        return archive, image_record
 
 
 def shlex_quote(value: str) -> str:
