@@ -613,6 +613,7 @@ def main():
     initial = ssl.create_default_context()
     results = {
         "interpreter": sys.version.split()[0],
+        "executable": str(Path(sys.executable).resolve()),
         "backend": getattr(ssl, "OPENSSL_VERSION", getattr(ssl, "__version__", "unknown")),
         "default_verify_flags": verify_flags(initial),
         "path_case_names": [case["name"] for case in manifest["path_cases"]],
@@ -2400,12 +2401,14 @@ def main() -> int:
     report = {
         "reference": {
             "interpreter": oracle["interpreter"],
+            "executable": oracle["executable"],
             "backend": oracle["backend"],
             "default_verify_flags": oracle["default_verify_flags"],
             "expected_backend_prefix": REFERENCE_BACKEND_PREFIX,
         },
         "candidate": {
             "interpreter": port["interpreter"],
+            "executable": port["executable"],
             "backend": port["backend"],
             "default_verify_flags": port["default_verify_flags"],
         },

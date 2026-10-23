@@ -692,7 +692,8 @@ def run_archive_contracts(
             certificate_process_succeeded(certificate_process, certificate_payload)
             and certificate_payload.get("result") == "passed"
             and isinstance(candidate_identity, dict)
-            and candidate_identity.get("interpreter") == str(python)
+            and candidate_identity.get("interpreter") == PRODUCT.version_string
+            and candidate_identity.get("executable") == str(python.resolve())
             and isinstance(cases, dict)
             and len(cases) == CERTIFICATE_CASE_COUNT
             and code_cases == CERTIFICATE_VERIFY_CODE_COUNT
