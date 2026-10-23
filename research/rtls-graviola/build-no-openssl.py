@@ -31,6 +31,7 @@ HASHING_SOURCE_FILES = (
     "src/lib.rs",
     "src/python_ffi.rs",
     "testdrivers/allocation_failures.py",
+    "testdrivers/public_attributes.py",
     "testdrivers/subinterpreters.py",
     "testdrivers/subinterpreter_worker.py",
 )
