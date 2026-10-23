@@ -118,10 +118,17 @@ def _create_unverified_context(
     context.check_hostname = check_hostname
     if cert_reqs is not None:
         context.verify_mode = cert_reqs
+    if keyfile and not certfile:
+        raise ValueError("certfile must be specified")
+    if certfile or keyfile:
+        context.load_cert_chain(certfile, keyfile)
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
-    if certfile:
-        context.load_cert_chain(certfile, keyfile)
+    elif context.verify_mode != CERT_NONE:
+        context.load_default_certs(purpose)
+    keylogfile = os.environ.get("SSLKEYLOGFILE")
+    if keylogfile and not sys.flags.ignore_environment:
+        context.keylog_filename = keylogfile
     return context
 
 
