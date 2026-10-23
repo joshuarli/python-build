@@ -2,12 +2,12 @@
 
 Both replay scripts run on native Apple Silicon macOS. They verify RTLS
 commit `302423b49e494863d07630d50b15a9488ec85ef7`, apply
-[`rtls-graviola.patch`](rtls-graviola.patch), and build its checked-in Cargo
-lockfile with Rust `1.99.1`. The replay verifies and patches the pinned
-rustls-webpki archive before Cargo builds it as a path dependency. Cargo
-downloads the remaining pinned crates. Neither script
-connects to an external TLS server. Builds and disposable interpreters stay
-under `.work/tmp`.
+[`rtls-graviola.patch`](rtls-graviola.patch) and
+[`ssl-utilities-followup.patch`](ssl-utilities-followup.patch). They build the
+checked-in Cargo lockfile with Rust `1.99.1`. The replay verifies and patches
+the pinned rustls-webpki archive before Cargo builds it as a path dependency.
+Cargo downloads the remaining pinned crates. Neither script connects to an
+external TLS server. Builds and disposable interpreters stay under `.work/tmp`.
 
 ## Graviola socket interoperability
 
@@ -63,6 +63,13 @@ The OpenSSL reference and repaired RTLS candidate must both exit successfully.
 The candidate rejects the strict-invalid leaf and malformed PEM chain. These
 cases remain mandatory regression checks. The script runs candidate checks with both `-I` and `-E -s`, and
 prints the disposable path for inspection.
+
+The utility compatibility contract checks `RAND_bytes` negative lengths,
+`get_protocol_name()`, malformed certificate decode errors, and the
+CVE-2013-4238 certificate fields. The no-OpenSSL facade reports
+`_OPENSSL_API_VERSION` as `(0, 0, 0, 0, 0)`. The version-guarded upstream CVE
+test therefore selects its legacy OpenSSL branch, so the direct
+certificate-field contract checks the supported IPv6 SAN behavior separately.
 
 The test bundle is a single CPython test CA, not the production certifi PEM.
 The replay does not establish the production bundle contents. The RTLS upstream

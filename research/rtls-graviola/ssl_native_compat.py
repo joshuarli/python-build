@@ -5,6 +5,7 @@ from _ssl_metadata import _SSL_CONSTANTS
 globals().update(_SSL_CONSTANTS)
 
 _RUSTLS_BACKEND = True
+_OPENSSL_API_VERSION = (0, 0, 0, 0, 0)
 ENCODING_PEM = 1
 ENCODING_DER = 2
 PROTO_MINIMUM_SUPPORTED = -2
@@ -21,17 +22,32 @@ def _test_decode_cert(path):
     import re
     from rtls import _rustls
 
-    with open(path, "rb") as source:
-        pem = source.read()
+    try:
+        with open(path, "rb") as source:
+            pem = source.read()
+    except OSError as error:
+        raise __getattr__("SSLError")("Can't open file") from error
     match = re.search(
         rb"-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----",
         pem,
         re.DOTALL,
     )
     if match is None:
-        raise __getattr__("SSLError")("No certificate found")
-    der = base64.b64decode(b"".join(match[1].split()), validate=True)
-    return _rustls.parse_certificate_dict(der)
+        raise __getattr__("SSLError")("Error decoding PEM-encoded file")
+    try:
+        der = base64.b64decode(b"".join(match[1].split()), validate=True)
+        certificate = _rustls.parse_certificate_dict(der)
+    except ValueError as error:
+        raise __getattr__("SSLError")("Error decoding PEM-encoded file") from error
+    if "subjectAltName" in certificate:
+        certificate["subjectAltName"] = tuple(
+            (
+                kind,
+                value.upper() if kind == "IP Address" and ":" in value else value,
+            )
+            for kind, value in certificate["subjectAltName"]
+        )
+    return certificate
 
 
 def __getattr__(name):

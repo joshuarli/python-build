@@ -35,6 +35,8 @@ mkdir -p "$work_dir/tmp" "$work_dir/home"
 cp "$repo_root/research/rtls-graviola/no_ssl_contract.py" "$work_dir/no_ssl_contract.py"
 cp "$repo_root/research/rtls-graviola/trust_policy_contract.py" \
     "$work_dir/trust_policy_contract.py"
+cp "$repo_root/research/rtls-graviola/ssl_utilities_contract.py" \
+    "$work_dir/ssl_utilities_contract.py"
 cp "$certdata/capath/ceff1710.0" "$stdlib/python-build-cacert.pem"
 
 for module in "$dynload"/_ssl.cpython-*.so "$dynload"/_ssl.abi3.so \
@@ -49,6 +51,16 @@ for module in "$dynload"/_ssl.cpython-*.so "$dynload"/_ssl.abi3.so \
 done
 
 unset SSL_CERT_FILE SSL_CERT_DIR PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE
+utilities_reference_status=0
+env -i HOME="$work_dir/home" PATH="$PATH" TMPDIR="$work_dir/tmp" \
+    "$reference_python" -B -I \
+    "$work_dir/ssl_utilities_contract.py" "$certdata/nullbytecert.pem" \
+    || utilities_reference_status=$?
+utilities_candidate_status=0
+env -i HOME="$work_dir/home" PATH="$PATH" TMPDIR="$work_dir/tmp" \
+    "$candidate/bin/python3.15" -B -I -S \
+    "$work_dir/ssl_utilities_contract.py" "$certdata/nullbytecert.pem" \
+    || utilities_candidate_status=$?
 isolated_status=0
 env -i HOME="$work_dir/home" PATH="$PATH" TMPDIR="$work_dir/tmp" \
     "$candidate/bin/python3.15" -B -I -S \
@@ -76,6 +88,10 @@ ssl_status=0
     || ssl_status=$?
 printf 'Fresh OpenSSL-free isolated candidate exit status: %s\n' \
     "$isolated_status"
+printf 'OpenSSL utility contract reference exit status: %s\n' \
+    "$utilities_reference_status"
+printf 'OpenSSL-free utility contract exit status: %s\n' \
+    "$utilities_candidate_status"
 printf 'Fresh OpenSSL-free -E candidate exit status: %s\n' \
     "$environment_status"
 printf 'Fresh OpenSSL-free trust-policy exit status: %s\n' "$trust_status"
@@ -84,6 +100,12 @@ printf 'Fresh OpenSSL-free test_ssl exit status: %s\n' "$ssl_status"
 printf 'Disposable interpreter: %s\n' "$work_dir"
 if [ "$isolated_status" -ne 0 ]; then
     exit "$isolated_status"
+fi
+if [ "$utilities_reference_status" -ne 0 ]; then
+    exit "$utilities_reference_status"
+fi
+if [ "$utilities_candidate_status" -ne 0 ]; then
+    exit "$utilities_candidate_status"
 fi
 if [ "$environment_status" -ne 0 ]; then
     exit "$environment_status"

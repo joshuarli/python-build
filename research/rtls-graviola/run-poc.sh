@@ -25,6 +25,10 @@ git -C "$checkout" apply --unidiff-zero --check \
     "$repo_root/research/rtls-graviola/rtls-graviola.patch"
 git -C "$checkout" apply --unidiff-zero \
     "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+git -C "$checkout" apply --unidiff-zero --check \
+    "$repo_root/research/rtls-graviola/ssl-utilities-followup.patch"
+git -C "$checkout" apply --unidiff-zero \
+    "$repo_root/research/rtls-graviola/ssl-utilities-followup.patch"
 
 mkdir -p "$work_dir/tmp"
 export TMPDIR="$work_dir/tmp"

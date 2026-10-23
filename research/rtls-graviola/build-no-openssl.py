@@ -486,6 +486,7 @@ def fetch_rust_inputs(
         )
     safe_extract(source_archive, checkout)
     apply_rtls_patch(checkout, "rtls-graviola.patch")
+    apply_rtls_patch(checkout, "ssl-utilities-followup.patch")
     hashing_build = stage_hashing_source(hashing_source, run_dir, inputs)
     helper = load_webpki_helper()
     webpki_archive = inputs / f"rustls-webpki-{helper.VERSION}.crate"

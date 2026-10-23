@@ -132,6 +132,8 @@ from _ssl_metadata import _TLSContentType, _TLSAlertType, _TLSMessageType
 import _ssl
 from rtls import _constants
 
+_OPENSSL_API_VERSION = _ssl._OPENSSL_API_VERSION
+
 HAS_PSK_TLS13 = False
 
 _IntEnum._convert_(
@@ -177,3 +179,10 @@ __all__.extend(
         "ALERT_DESCRIPTION_UNKNOWN_PSK_IDENTITY",
     )
 )
+
+
+def get_protocol_name(protocol_code):
+    return _PROTOCOL_NAMES.get(protocol_code, "<unknown>")
+
+
+__all__.append("get_protocol_name")

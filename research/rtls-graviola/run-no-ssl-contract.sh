@@ -31,10 +31,13 @@ work_dir=$(mktemp -d "$work_parent/rtls-no-ssl.XXXXXX")
 candidate="$work_dir/python"
 checkout="$work_dir/rtls"
 harness="$work_dir/no_ssl_contract.py"
+utilities_harness="$work_dir/ssl_utilities_contract.py"
 mkdir -p "$work_dir/tmp"
 export CARGO_HOME="$work_dir/cargo-home"
 /usr/bin/ditto "$source_prefix" "$candidate"
 cp "$repo_root/research/rtls-graviola/no_ssl_contract.py" "$harness"
+cp "$repo_root/research/rtls-graviola/ssl_utilities_contract.py" \
+    "$utilities_harness"
 
 git clone --depth 1 --branch 2026.10.3 \
     https://github.com/jawah/rtls.git "$checkout"
@@ -49,6 +52,10 @@ git -C "$checkout" apply --unidiff-zero --check \
     "$repo_root/research/rtls-graviola/rtls-graviola.patch"
 git -C "$checkout" apply --unidiff-zero \
     "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+git -C "$checkout" apply --unidiff-zero --check \
+    "$repo_root/research/rtls-graviola/ssl-utilities-followup.patch"
+git -C "$checkout" apply --unidiff-zero \
+    "$repo_root/research/rtls-graviola/ssl-utilities-followup.patch"
 
 rust_toolchain=${RTLS_RUST_TOOLCHAIN:-stable}
 expected_rust_version=1.99.1
@@ -115,19 +122,39 @@ fi
 
 export PYTHONPYCACHEPREFIX="$work_dir/pycache"
 "$python" -B -I "$harness" "$certdata" --openssl-reference
+nullbytecert="$certdata/nullbytecert.pem"
+"$python" -B -I "$utilities_harness" "$nullbytecert"
 
 candidate_status=0
 "$candidate/bin/python3.15" -B -I \
     "$harness" "$certdata" \
     || candidate_status=$?
+utilities_candidate_status=0
+"$candidate/bin/python3.15" -B -I \
+    "$utilities_harness" "$nullbytecert" \
+    || utilities_candidate_status=$?
 environment_status=0
 "$candidate/bin/python3.15" -B -E -s \
     "$harness" "$certdata" \
     || environment_status=$?
+utilities_environment_status=0
+"$candidate/bin/python3.15" -B -E -s \
+    "$utilities_harness" "$nullbytecert" \
+    || utilities_environment_status=$?
 printf 'OpenSSL-free isolated candidate exit status: %s\n' "$candidate_status"
+printf 'OpenSSL-free utility contract exit status: %s\n' \
+    "$utilities_candidate_status"
 printf 'OpenSSL-free -E candidate exit status: %s\n' "$environment_status"
+printf 'OpenSSL-free -E utility contract exit status: %s\n' \
+    "$utilities_environment_status"
 printf 'Disposable interpreter and RTLS build: %s\n' "$work_dir"
 if [ "$candidate_status" -ne 0 ]; then
     exit "$candidate_status"
 fi
-exit "$environment_status"
+if [ "$utilities_candidate_status" -ne 0 ]; then
+    exit "$utilities_candidate_status"
+fi
+if [ "$environment_status" -ne 0 ]; then
+    exit "$environment_status"
+fi
+exit "$utilities_environment_status"

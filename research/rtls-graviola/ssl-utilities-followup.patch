@@ -1,0 +1,7 @@
+--- a/src/rtls/_utils.py
++++ b/src/rtls/_utils.py
+@@ -225,2 +225,4 @@
+     """Generate num cryptographically secure random bytes."""
++    if num < 0:
++        raise ValueError("num must be positive")
+     try:
