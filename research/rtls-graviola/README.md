@@ -70,7 +70,9 @@ and certificate decoding for consumers such as CPython's own tests. It does
 not restore CPython's compiled `_ssl` extension or its native object layouts.
 It eagerly exports CPython 3.15.1's integer constants from `ssl_metadata.py`,
 and `ssl_facade.py` builds the matching enum classes from those constants.
-Backend versions and capability flags remain RTLS-specific.
+Backend versions and capability flags remain RTLS-specific. Kernel TLS is
+unavailable: `OP_ENABLE_KTLS` is absent. The ordinary TLS `sendfile()`
+fallback is still under repair.
 `ssl_metadata.py` also contains the CPython protocol-message enums.
 
 
