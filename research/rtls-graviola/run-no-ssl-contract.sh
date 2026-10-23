@@ -79,6 +79,9 @@ export RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup'
 webpki_archive="$work_dir/rustls-webpki.crate"
 "$python" "$repo_root/research/rtls-graviola/prepare_webpki.py" fetch "$webpki_archive"
 "$python" "$repo_root/research/rtls-graviola/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
+rustls_archive="$work_dir/rustls.crate"
+"$python" "$repo_root/research/rtls-graviola/prepare_rustls.py" fetch "$rustls_archive"
+"$python" "$repo_root/research/rtls-graviola/prepare_rustls.py" prepare "$rustls_archive" "$checkout"
 rustup run "$rust_toolchain" cargo build \
     --manifest-path "$checkout/rust/Cargo.toml" --locked
 cp "$CARGO_TARGET_DIR/debug/lib_rustls.dylib" \
