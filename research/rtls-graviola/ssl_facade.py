@@ -18,7 +18,7 @@ def create_default_context(
     if purpose == Purpose.SERVER_AUTH:
         context.verify_mode = CERT_REQUIRED
         context.check_hostname = True
-        context.verify_flags |= VERIFY_X509_PARTIAL_CHAIN | VERIFY_X509_STRICT
+        context.verify_flags |= VERIFY_X509_PARTIAL_CHAIN | VERIFY_X509_STRICT | VERIFY_X509_TRUSTED_FIRST
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
     elif "SSL_CERT_FILE" in os.environ or "SSL_CERT_DIR" in os.environ:
@@ -60,3 +60,13 @@ def _create_unverified_context(
 
 _create_stdlib_context = _create_unverified_context
 _create_default_https_context = create_default_context
+
+from _ssl_metadata import _TLSContentType, _TLSAlertType, _TLSMessageType
+import _ssl
+from rtls import _constants
+
+_PROTOCOL_NAMES = {
+    value: name
+    for name, value in vars(_constants).items()
+    if name.startswith("PROTOCOL_") and name != "PROTOCOL_SSLv23"
+}

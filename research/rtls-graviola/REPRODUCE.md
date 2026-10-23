@@ -3,7 +3,9 @@
 Both replay scripts run on native Apple Silicon macOS. They verify RTLS
 commit `302423b49e494863d07630d50b15a9488ec85ef7`, apply
 [`rtls-graviola.patch`](rtls-graviola.patch), and build its checked-in Cargo
-lockfile with Rust `1.99.1`. Cargo downloads pinned crates; neither script
+lockfile with Rust `1.99.1`. The replay verifies and patches the pinned
+rustls-webpki archive before Cargo builds it as a path dependency. Cargo
+downloads the remaining pinned crates. Neither script
 connects to an external TLS server. Builds and disposable interpreters stay
 under `.work/tmp`.
 
@@ -72,3 +74,22 @@ No Linux musl build, x86-64 verification, production release artifact,
 build-time comparison, or archive-size comparison is performed by these
 commands. The checked-in patch and harness are research artifacts; the
 production build keeps OpenSSL and its existing CPU baselines.
+
+## Differential certificate policy
+
+Run the generated corpus against the pinned reference and candidate interpreters:
+
+```sh
+python3.15 research/rtls-graviola/certificate_contract.py \
+    --reference <reference-prefix>/bin/python3.15 \
+    --candidate <candidate-prefix>/bin/python3.15 \
+    --certdata <cpython-source>/Lib/test/certdata \
+    --workdir .work/tmp/certificate-contract
+```
+
+The harness uses one-shot reference servers to present identical chains to
+both verifying clients. Certificate setup failures and timeouts fail the
+harness. Each case records flags, acceptance, error category, and the required
+contract. The original missing-AKI and malformed-chain cases remain mandatory.
+The duplicate-critical-extension fixture currently records an earlier candidate
+loader rejection than the reference.

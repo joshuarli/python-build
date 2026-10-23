@@ -1,0 +1,76 @@
+--- a/src/verify_cert.rs
++++ b/src/verify_cert.rs
+@@ -120,7 +120,8 @@
+ 
+             let next_sub_ca_count = match role {
+                 Role::EndEntity => sub_ca_count,
+-                Role::Issuer => sub_ca_count + 1,
++                Role::Issuer => sub_ca_count
++                    + usize::from(!public_values_eq(path.head().subject, path.head().issuer)),
+             };
+ 
+             budget.consume_build_chain_call()?;
+@@ -196,6 +197,17 @@
+             },
+             anchor,
+         }
++    }
++
++    /// Validate a DNS name against every name constraint in this verified path.
++    pub fn verify_common_name_constraints(&'p self, name: &str) -> Result<(), Error> {
++        subject_name::check_dns_name_constraints(
++            self.anchor.name_constraints.as_ref().map(|value| untrusted::Input::from(value.as_ref())), name,
++        )?;
++        for certificate in self.intermediate_certificates() {
++            subject_name::check_dns_name_constraints(certificate.name_constraints, name)?;
++        }
++        Ok(())
+     }
+ 
+     /// Yields a (double-ended) iterator over the intermediate certificates in this path.
+--- a/src/subject_name/mod.rs
++++ b/src/subject_name/mod.rs
+@@ -84,6 +84,33 @@
+     }
+ 
+     Ok(())
++}
++
++/// Match a legacy subject common name using the DNS-ID matcher.
++pub fn common_name_matches(presented: &str, expected: &pki_types::DnsName<'_>) -> Result<bool, Error> {
++    dns_name::presented_id_matches_reference_id(
++        untrusted::Input::from(presented.as_bytes()), IdRole::Reference,
++        untrusted::Input::from(expected.as_ref().as_bytes()),
++    )
++}
++
++pub(crate) fn check_dns_name_constraints(
++    constraints: Option<untrusted::Input<'_>>,
++    name: &str,
++) -> Result<(), Error> {
++    untrusted::read_all_optional(constraints, Error::BadDer, |constraints| {
++        let Some(constraints) = constraints else { return Ok(()); };
++        let permitted = if constraints.peek(der::Tag::ContextSpecificConstructed0.into()) {
++            Some(der::expect_tag(constraints, der::Tag::ContextSpecificConstructed0)?)
++        } else { None };
++        let excluded = if constraints.peek(der::Tag::ContextSpecificConstructed1.into()) {
++            Some(der::expect_tag(constraints, der::Tag::ContextSpecificConstructed1)?)
++        } else { None };
++        check_presented_id_conforms_to_constraints(
++            GeneralName::DnsName(untrusted::Input::from(name.as_bytes())),
++            permitted, excluded, &mut Budget::default(),
++        ).unwrap_or(Ok(()))
++    })
+ }
+ 
+ fn check_presented_id_conforms_to_constraints(
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -90,6 +90,7 @@
+         UnsupportedSignatureAlgorithmForPublicKeyContext,
+     },
+     rpk_entity::RawPublicKeyEntity,
++    subject_name::common_name_matches,
+     trust_anchor::anchor_from_trusted_cert,
+     verify_cert::{
+         ExtendedKeyUsageValidator, IntermediateIterator, KeyPurposeId, KeyPurposeIdIter, KeyUsage,

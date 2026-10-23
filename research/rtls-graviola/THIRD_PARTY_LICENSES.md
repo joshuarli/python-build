@@ -5,7 +5,7 @@ dependencies. Its `rust/Cargo.lock` delta adds or changes these packages:
 
 | Package | Version | License expression |
 | --- | --- | --- |
-| `rustls-webpki` (direct verified-path API) | 0.103.15 | ISC |
+| `rustls-webpki` (locally adapted verified-path API) | 0.103.15 | ISC |
 | RTLS source | 2026.10.3 | MIT |
 | `rustls-graviola` | 0.4.0 | Apache-2.0 OR ISC OR MIT-0 |
 | `graviola` | 0.4.1 | Apache-2.0 OR ISC OR MIT-0 |
@@ -23,3 +23,9 @@ The no-`_ssl` contract harness uses certificate and key fixtures from the
 CPython 3.15.1 `Lib/test/certdata` directory, including its PSF-licensed test
 CA key to generate a local expired leaf. These files are not copied into this
 repository or the product.
+
+`prepare_webpki.py` pins the original rustls-webpki 0.103.15 crate archive by
+SHA-256. `webpki-policy.patch` adapts path-length counting and exposes existing
+DNS validation to the policy layer. The extracted source retains its ISC
+license notices. The CPython protocol-message enums in `ssl_metadata.py` are
+covered by the Python Software Foundation license.

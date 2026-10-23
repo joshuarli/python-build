@@ -76,20 +76,25 @@ export CARGO_TARGET_DIR="$work_dir/target"
 export PYO3_BUILD_EXTENSION_MODULE=1
 export PYO3_PYTHON="$candidate/bin/python3.15"
 export RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup'
+webpki_archive="$work_dir/rustls-webpki.crate"
+"$python" "$repo_root/research/rtls-graviola/prepare_webpki.py" fetch "$webpki_archive"
+"$python" "$repo_root/research/rtls-graviola/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
 rustup run "$rust_toolchain" cargo build \
     --manifest-path "$checkout/rust/Cargo.toml" --locked
 cp "$CARGO_TARGET_DIR/debug/lib_rustls.dylib" \
     "$checkout/src/rtls/_rustls.abi3.so"
 
 stdlib="$candidate/lib/python3.15"
-site="$stdlib/site-packages"
+module_dir="$stdlib"
 dynload="$stdlib/lib-dynload"
-mkdir -p "$site"
-if [ -e "$site/rtls" ]; then
-    mv "$site/rtls" "$work_dir/original-rtls"
+mkdir -p "$module_dir"
+if [ -e "$module_dir/rtls" ]; then
+    mv "$module_dir/rtls" "$work_dir/original-rtls"
 fi
-cp -R "$checkout/src/rtls" "$site/rtls"
+cp -R "$checkout/src/rtls" "$module_dir/rtls"
 cp "$repo_root/research/rtls-graviola/ssl_facade.py" "$stdlib/ssl.py"
+cp "$repo_root/research/rtls-graviola/ssl_native_compat.py" "$stdlib/_ssl.py"
+cp "$repo_root/research/rtls-graviola/ssl_metadata.py" "$stdlib/_ssl_metadata.py"
 cp "$certdata/capath/ceff1710.0" "$stdlib/python-build-cacert.pem"
 
 extension_count=0

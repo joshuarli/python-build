@@ -53,6 +53,9 @@ fi
 export PYO3_BUILD_EXTENSION_MODULE=1
 export RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup'
 
+webpki_archive="$work_dir/rustls-webpki.crate"
+python3.15 "$repo_root/research/rtls-graviola/prepare_webpki.py" fetch "$webpki_archive"
+python3.15 "$repo_root/research/rtls-graviola/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
 rustup run "$rust_toolchain" cargo build \
     --manifest-path "$checkout/rust/Cargo.toml" --locked
 cp "$CARGO_TARGET_DIR/debug/lib_rustls.dylib" "$checkout/src/rtls/_rustls.abi3.so"

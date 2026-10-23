@@ -32,6 +32,30 @@ The failing files were `test_ssl`, three asyncio files, and `test_httplib`.
 The HTTP failure concerns certificate-exception `reason` metadata. This is
 unfinished compatibility work. No release candidate is qualified yet.
 
+The broader differential corpus currently has 43 cases. After the native
+repairs, all certificate-path accept and reject outcomes match OpenSSL. One
+loader difference remains: the candidate rejects a duplicate critical Basic
+Constraints extension during loading, while OpenSSL rejects it at verification.
+The earlier rejection follows the experiment's malformed-certificate ingestion
+contract. Further adversarial fixtures remain under verification.
+
+The pinned webpki source has a narrow local adaptation. It excludes self-issued
+intermediates from the path-length count and exposes its existing DNS matcher
+and name-constraint checker to the RTLS policy adapter. The adapter applies
+DNS constraints to fallback common names on the actual verified path, including
+when hostname checking is disabled. The archive checksum, safe extraction, and
+patch application are enforced by `prepare_webpki.py`. Signature algorithms
+remain in webpki and Graviola.
+
+`ssl_native_compat.py`, installed as `_ssl.py`, provides Python-level metadata
+and certificate decoding for consumers such as CPython's own tests. It does
+not restore CPython's compiled `_ssl` extension or its native object layouts.
+`ssl_metadata.py` contains the CPython protocol-message enums.
+
+The separate [hashing backend](hashing/README.md) passes its initial complete
+`test_hashlib` and `test_hmac` run with 240 tests and 18 skips. Additional
+algorithm-discovery and input-boundary checks are in progress.
+
 The remainder records the earlier prototype and adoption requirements.
 
 ## Decision

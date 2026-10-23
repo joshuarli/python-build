@@ -328,8 +328,12 @@ def main() -> int:
             raise RuntimeError(f"unexpected OpenSSL baseline: {ssl.OPENSSL_VERSION}")
         mode = "openssl"
     else:
-        if importlib.util.find_spec("_ssl") is not None:
-            raise RuntimeError("candidate interpreter still contains _ssl")
+        native_ssl = importlib.util.find_spec("_ssl")
+        if native_ssl is not None:
+            import _ssl
+
+            if not getattr(_ssl, "_RUSTLS_BACKEND", False):
+                raise RuntimeError("candidate interpreter still contains CPython's _ssl")
         import _hashlib
 
         if hashlib.sha256(b"rtls").digest() != hashlib.new("sha256", b"rtls").digest():
