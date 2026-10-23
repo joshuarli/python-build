@@ -71,6 +71,11 @@ flush retries `BlockingIOError` without yielding. That failure prevents a
 complete regression verdict. The socket repair is being checked against the
 unchanged upstream test before the next combined candidate is built.
 
+The isolated listening-socket repair in `ssl-accept.patch` passes the unchanged
+`test_httpservers` suite: 103 tests, four skips. Accepted connections now use
+the listener's TLS context. Previously the `_ssl`-absent socket base returned
+raw connections, causing the HTTPS tests to fail.
+
 The next validation wave combines socket I/O, explicit sessions, cipher and
 context controls, offline CRLs, and SSL utility compatibility. Capath review
 also found that delaying store statistics does not reproduce OpenSSL's lookup
