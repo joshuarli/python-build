@@ -4,7 +4,7 @@ use crate::{
 };
 use pyo3_ffi as ffi;
 use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_ulong, c_void};
 use std::marker::PhantomData;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
@@ -12,6 +12,19 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 const CAPSULE_NAME: &[u8] = b"_hashlib_graviola.NativeState\0";
+const PY_ASNATIVEBYTES_NATIVE_ENDIAN: c_int = 3;
+const PY_ASNATIVEBYTES_UNSIGNED_BUFFER: c_int = 4;
+const PY_ASNATIVEBYTES_REJECT_NEGATIVE: c_int = 8;
+const PY_ASNATIVEBYTES_ALLOW_INDEX: c_int = 16;
+
+unsafe extern "C" {
+    fn PyLong_AsNativeBytes(
+        value: *mut ffi::PyObject,
+        buffer: *mut c_void,
+        n_bytes: isize,
+        flags: c_int,
+    ) -> isize;
+}
 
 #[repr(C)]
 struct ModuleState {
@@ -218,6 +231,35 @@ unsafe fn read_long(object: *mut ffi::PyObject) -> Result<i64, ()> {
     } else {
         Ok(value)
     }
+}
+
+unsafe fn read_unsigned_long(object: *mut ffi::PyObject) -> Result<u64, ()> {
+    let mut value: c_ulong = 0;
+    // SAFETY: The borrowed object remains live in the argument tuple while the GIL is held. `value` is aligned writable storage of the requested size.
+    let size = unsafe {
+        PyLong_AsNativeBytes(
+            object,
+            (&mut value as *mut c_ulong).cast(),
+            std::mem::size_of::<c_ulong>() as isize,
+            PY_ASNATIVEBYTES_NATIVE_ENDIAN
+                | PY_ASNATIVEBYTES_UNSIGNED_BUFFER
+                | PY_ASNATIVEBYTES_REJECT_NEGATIVE
+                | PY_ASNATIVEBYTES_ALLOW_INDEX,
+        )
+    };
+    if size < 0 {
+        return Err(());
+    }
+    if size as usize > std::mem::size_of::<c_ulong>() {
+        unsafe {
+            ffi::PyErr_SetString(
+                ffi::PyExc_OverflowError,
+                c"Python int too large for C unsigned long".as_ptr(),
+            );
+        }
+        return Err(());
+    }
+    Ok(value as u64)
 }
 
 fn backend_error(module: *mut ffi::PyObject, error: BackendError) {
@@ -539,9 +581,9 @@ unsafe extern "C" fn pbkdf2_hmac_call(module: *mut ffi::PyObject, args: *mut ffi
 unsafe extern "C" fn scrypt_call(module: *mut ffi::PyObject, args: *mut ffi::PyObject) -> *mut ffi::PyObject {
     ffi_call(|| unsafe {
         require_arity(args, 7)?;
-        let n = read_long(tuple_arg(args, 2)?)?;
-        let r = read_long(tuple_arg(args, 3)?)?;
-        let p = read_long(tuple_arg(args, 4)?)?;
+        let n = read_unsigned_long(tuple_arg(args, 2)?)?;
+        let r = read_unsigned_long(tuple_arg(args, 3)?)?;
+        let p = read_unsigned_long(tuple_arg(args, 4)?)?;
         let maxmem = read_long(tuple_arg(args, 5)?)?;
         let dklen = read_long(tuple_arg(args, 6)?)?;
         let password_buffer = Buffer::from_object(tuple_arg(args, 0)?)?;

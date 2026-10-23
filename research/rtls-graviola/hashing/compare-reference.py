@@ -84,6 +84,41 @@ for name, make in (
 probe['scrypt_boundary'] = capture(
     lambda: hashlib.scrypt(b'p', salt=b's', n=16, r=1, p=1, maxmem=2432).hex()
 )
+probe['scrypt_parameter_bounds'] = {}
+for parameter in ('n', 'r', 'p'):
+    for label, value in (
+        ('signed_max', 2**63),
+        ('unsigned_max', 2**64 - 1),
+        ('unsigned_overflow', 2**64),
+        ('negative', -1),
+    ):
+        def check_scrypt_bounds(parameter=parameter, value=value):
+            parameters = {'n': 16, 'r': 1, 'p': 1}
+            parameters[parameter] = value
+            return hashlib.scrypt(
+                b'p', salt=b's', maxmem=1024, dklen=16, **parameters
+            ).hex()
+        probe['scrypt_parameter_bounds'][f'{parameter}_{label}'] = capture(
+            check_scrypt_bounds
+        )
+class Indexable:
+    def __init__(self, value):
+        self.value = value
+
+    def __index__(self):
+        return self.value
+
+probe['scrypt_index_parameters'] = capture(
+    lambda: hashlib.scrypt(
+        b'p',
+        salt=b's',
+        n=Indexable(16),
+        r=Indexable(1),
+        p=Indexable(1),
+        maxmem=2432,
+        dklen=16,
+    ).hex()
+)
 print(json.dumps(probe, sort_keys=True))
 '''
 
@@ -123,5 +158,7 @@ if reference != candidate:
 print(
     f"matched {len(reference['names'])} name and error cases, "
     f"{len(reference['hmac'])} HMAC/PBKDF2 algorithms, and the scrypt boundary"
-    f" ({len(reference['buffer_updates'])} buffer cases)"
+    f" ({len(reference['buffer_updates'])} buffer cases, "
+    f"{len(reference['scrypt_parameter_bounds'])} scrypt parameter bounds, "
+    "and scrypt __index__ conversion)"
 )

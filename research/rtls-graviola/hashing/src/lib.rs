@@ -557,19 +557,22 @@ pub(crate) struct ScryptParameters {
 pub(crate) fn scrypt_parameters(
     password_length: usize,
     salt_length: usize,
-    n: i64,
-    r: i64,
-    p: i64,
+    n: u64,
+    r: u64,
+    p: u64,
     maxmem: i64,
     dklen: i64,
 ) -> Result<ScryptParameters, BackendError> {
+    let memory_limit_error = || {
+        BackendError::Value("[digital envelope routines] memory limit exceeded".to_owned())
+    };
     if password_length > i32::MAX as usize {
         return Err(BackendError::Overflow("password is too long"));
     }
     if salt_length > i32::MAX as usize {
         return Err(BackendError::Overflow("salt is too long"));
     }
-    if n < 2 || !(n as u64).is_power_of_two() {
+    if n < 2 || !n.is_power_of_two() {
         return Err(BackendError::Value("n must be a power of 2".to_owned()));
     }
     if maxmem < 0 || maxmem > i32::MAX as i64 {
@@ -582,15 +585,26 @@ pub(crate) fn scrypt_parameters(
             "dklen must be at least 1 and at most 2147483647".to_owned(),
         ));
     }
-    if r < 1 || r > u32::MAX as i64 || p < 1 || p > u32::MAX as i64 {
+    if r > u32::MAX as u64 || p > u32::MAX as u64 {
+        return Err(BackendError::Value(
+            "[digital envelope routines] parameter too large".to_owned(),
+        ));
+    }
+    if r == 0 || p == 0 {
         return Err(BackendError::Value(
             "invalid parameter combination for n, r, p, and maxmem".to_owned(),
         ));
     }
-    let log_n = (n as u64).trailing_zeros() as u8;
-    let params = scrypt::Params::new(log_n, r as u32, p as u32).map_err(|_| {
-        BackendError::Value("invalid parameter combination for n, r, p, and maxmem".to_owned())
-    })?;
+    if p > ((1 << 30) - 1) / r {
+        return Err(memory_limit_error());
+    }
+    if r <= 3 && n >= 1u64 << (16 * r as u32) {
+        return Err(memory_limit_error());
+    }
+    let block_memory = 128u128 * r as u128 * p as u128;
+    if block_memory > i32::MAX as u128 {
+        return Err(memory_limit_error());
+    }
     let memory = 128u128
         .checked_mul(r as u128)
         .and_then(|value| {
@@ -599,19 +613,19 @@ pub(crate) fn scrypt_parameters(
                 .and_then(|sum| sum.checked_add(2))
                 .and_then(|sum| value.checked_mul(sum))
         })
-        .ok_or_else(|| {
-            BackendError::Value("invalid parameter combination for n, r, p, and maxmem".to_owned())
-        })?;
+        .ok_or_else(memory_limit_error)?;
     let limit = if maxmem == 0 {
         32u128 * 1024 * 1024
     } else {
         maxmem as u128
     };
     if memory > limit {
-        return Err(BackendError::Value(
-            "invalid parameter combination for n, r, p, and maxmem".to_owned(),
-        ));
+        return Err(memory_limit_error());
     }
+    let log_n = n.trailing_zeros() as u8;
+    let params = scrypt::Params::new(log_n, r as u32, p as u32).map_err(|_| {
+        BackendError::Value("invalid parameter combination for n, r, p, and maxmem".to_owned())
+    })?;
     Ok(ScryptParameters {
         params,
         dklen: dklen as usize,

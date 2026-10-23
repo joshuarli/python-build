@@ -32,8 +32,9 @@ and do not add the source `Lib` directory to `PYTHONPATH`. The interpreter
 driver runs with `-E -s -B` so its worker helper can be imported from the
 driver directory while ignoring Python environment overrides.
 
-Compare names, aliases, errors, HMAC, PBKDF2, buffer updates, and the exact
-scrypt maxmem boundary against a pinned reference prefix:
+Compare names, aliases, errors, HMAC, PBKDF2, buffer updates, the scrypt
+maxmem boundary, unsigned parameter limits, and `__index__` conversion against
+a pinned reference prefix:
 
 ```sh
 python3 research/rtls-graviola/hashing/compare-reference.py \
