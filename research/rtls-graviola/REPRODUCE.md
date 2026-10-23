@@ -213,6 +213,38 @@ Both recreate interpreters and exercise trusted and rejected TLS 1.2 and 1.3
 connections. The combined regression also checks fixed hashing, HMAC, PBKDF2,
 and scrypt outputs with both native backends active.
 
+Run the complete default-resource regression suite on an unpruned candidate:
+
+```sh
+python3.15 research/rtls-graviola/qualify-no-openssl-regressions.py \
+    --prefix <relocated-candidate-prefix> \
+    --run-dir .work/tmp/rtls-regression-qualification \
+    --jobs 6 --timeout 600
+```
+
+The new run directory must contain no whitespace. The runner copies the
+candidate there because an upstream asyncio test constructs an unquoted
+shell command from the interpreter path. It compares the runtime files,
+records the complete verbose run, and classifies SSL failures from that
+same run. Its `report.json` binds the full log, extracted SSL log, policy,
+and runtime identities. Diagnostics never replace the initial results.
+Timeouts, incomplete accounting, and unexpected failures return failure.
+The upstream SSL result remains visible even when its exact failures are
+outside the experimental support policy.
+
+Exercise factory environment handling under normal and isolated startup:
+
+```sh
+<candidate-prefix>/bin/python3.15 -I -B \
+    research/rtls-graviola/ssl_factory_contract.py <cpython-test-certdata>
+<candidate-prefix>/bin/python3.15 -I -B \
+    research/rtls-graviola/test_ssl_protocol_mode.py
+```
+
+The factory contract launches child interpreters normally and with `-E` and
+`-I`. The protocol-mode contract checks both BIO and socket roles, deferred
+unconnected wrapping, and immediate cleanup of transferred descriptors.
+
 After the full regression suite finishes, package and validate a private copy.
 Pass the reference interpreter and the same CPython certificate directory.
 Pass the complete pre-prune regression report, including its modern TLS case
