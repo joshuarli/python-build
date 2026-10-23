@@ -126,6 +126,8 @@ _RESOURCE_DENIED_LIST = re.compile(
 _FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
 _TIMED_OUT_TEST = re.compile(r"\btest[\w.]* timed out \(")
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_REGRTEST_WORKER_GRACE_SECONDS = 5 * 60
+_SUITE_PROCESS_EXIT_GRACE_SECONDS = 60
 
 
 def _output_text(value: str | bytes | None) -> str:
@@ -212,16 +214,32 @@ def _accounting(output: str) -> dict:
     }
 
 
-def run_suite(python: Path, *, jobs: int = 6, timeout: int = 600) -> dict:
+def run_suite(
+    python: Path,
+    *,
+    jobs: int = 6,
+    per_test_timeout: int = 600,
+) -> dict:
     python = Path(python).resolve()
     install = python.parent.parent
     SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
-    command = [str(python), "-B", "-m", "test", "-j", str(jobs), f"--timeout={timeout}"]
+    command = [
+        str(python), "-B", "-m", "test", "-j", str(jobs),
+        f"--timeout={per_test_timeout}",
+    ]
+    suite_process_timeout = (
+        per_test_timeout * 2
+        + _REGRTEST_WORKER_GRACE_SECONDS
+        + _SUITE_PROCESS_EXIT_GRACE_SECONDS
+    )
     for exclusion in FILE_EXCLUSIONS:
         command += ["-x", exclusion.test]
     try:
         result = run_product_process(
-            command, install, SCRATCH_ROOT, timeout_seconds=timeout + 60
+            command,
+            install,
+            SCRATCH_ROOT,
+            timeout_seconds=suite_process_timeout,
         )
     except subprocess.TimeoutExpired as error:
         output = _output_text(error.stdout) + _output_text(error.stderr)

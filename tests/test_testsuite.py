@@ -395,6 +395,22 @@ Total test files: run=1/1 failed=1
         with self.assertRaisesRegex(SuiteError, "timed-out test"):
             run_suite(Path("python3.15"))
 
+    @patch("buildsys.testsuite.run_product_process")
+    def test_process_deadline_allows_a_late_test_to_reach_its_timeout(
+        self, run
+    ) -> None:
+        run.return_value = self._completed(
+            0,
+            """== Tests result: SUCCESS ==
+1 test OK.
+Total tests: run=5
+Total test files: run=1/1
+""",
+        )
+        run_suite(Path("python3.15"), per_test_timeout=600)
+        self.assertIn("--timeout=600", run.call_args.args[0])
+        self.assertEqual(run.call_args.kwargs["timeout_seconds"], 1560)
+
 
 if __name__ == "__main__":
     unittest.main()
