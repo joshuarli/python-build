@@ -49,7 +49,8 @@ and the original native `_hashlib` extension was absent. `test_hashlib` and
 The allocation-failure driver exercised native hash and HMAC constructor
 cleanup at CPython allocation failpoints, then verified recovery outputs.
 The public-attribute driver checks read-only hash/HMAC metadata, independent
-copies, and constructor signatures and forwarded keywords against CPython.
+copies, constructor signatures and forwarded keywords, and one-time
+`usedforsecurity` coercion including unsupported-name precedence against CPython.
 
 The subinterpreter driver verifies fixed reference outputs for hash, HMAC,
 PBKDF2, and scrypt. It begins before either `_hashlib` module is imported in

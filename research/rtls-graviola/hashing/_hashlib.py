@@ -19,6 +19,7 @@ class _MD5SHA1:
     __slots__ = ("_md5", "_sha1")
 
     def __init__(self, data=b"", *, usedforsecurity=True):
+        usedforsecurity = bool(usedforsecurity)
         self._md5 = _md5.md5(data, usedforsecurity=usedforsecurity)
         self._sha1 = _sha1.sha1(data, usedforsecurity=usedforsecurity)
 
@@ -44,6 +45,7 @@ def _rust_constructor(algorithm):
         __slots__ = ("_state", "_name", "_digest_size", "_block_size")
 
         def __init__(self, data=b"", *, usedforsecurity=True):
+            bool(usedforsecurity)
             self._state, self._digest_size, self._block_size = (
                 _hashlib_graviola.hash_state_new(algorithm, data)
             )
@@ -301,6 +303,8 @@ def new(name, *args, **kwargs):
     try:
         constructor = _constructors[normalized_name]
     except KeyError:
+        if "usedforsecurity" in kwargs:
+            bool(kwargs["usedforsecurity"])
         raise UnsupportedDigestmodError(
             f"[digital envelope routines] unsupported hash algorithm {name}"
         ) from None
