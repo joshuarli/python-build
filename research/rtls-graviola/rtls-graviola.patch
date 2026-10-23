@@ -743,11 +743,12 @@
 +}
 +
  use crate::connection::{RustlsClientConnection, RustlsServerConnection};
-+use crate::crl::parse_trust_material;
- use crate::error::raise_ssl_error;
+-use crate::error::raise_ssl_error;
 -use crate::verify::{
 -    NoHostnameVerifier, NoHostnameVerifierWithIntermediates, NoVerifier,
 -    ServerVerifierWithIntermediates,
++use crate::crl::parse_trust_material;
++use crate::error::{raise_rustls_error, raise_ssl_error};
 +use crate::policy::{
 +    parse_certificates, validate_der, PathVerifier, VerificationCapture, VerifiedChain,
 +    SUPPORTED_VERIFY_FLAGS,
@@ -1771,7 +1772,7 @@
      }
  
      /// Build a server connection.
-@@ -438,16 +1062,126 @@
+@@ -438,16 +1062,146 @@
          let builder = self;
          let result = py.detach(|| -> Result<RustlsServerConnection, String> {
              let config = builder.build_server_config_inner()?;
@@ -1823,7 +1824,7 @@
 +        acceptor: &crate::sni::RustlsServerAcceptor,
 +        selected_context: &RustlsConfigBuilder,
 +    ) -> PyResult<RustlsServerConnection> {
-+        let result = py.detach(|| -> Result<RustlsServerConnection, String> {
++        let result = py.detach(|| -> Result<RustlsServerConnection, AcceptorError> {
 +            let mut config = self.build_server_config_for_context(selected_context)?;
 +            let mut state = acceptor.inner.lock().unwrap();
 +            let accepted = state.accepted.take().ok_or("ClientHello is not available")?;
@@ -1841,7 +1842,7 @@
 +                Ok(conn) => conn,
 +                Err((error, mut alert)) => {
 +                    alert.write_all(&mut state.alert).map_err(|e| e.to_string())?;
-+                    return Err(error.to_string());
++                    return Err(AcceptorError::Rustls(error));
 +                }
 +            };
 +            let mut pending = std::io::Cursor::new(std::mem::take(&mut state.remaining));
@@ -1852,9 +1853,29 @@
 +            }
 +            Ok(RustlsServerConnection::new(conn, verified_chain, Arc::clone(&self.session_stats)))
 +        });
-+        result.map_err(|message| raise_ssl_error(py, &message))
++        result.map_err(|error| match error {
++            AcceptorError::Rustls(error) => raise_rustls_error(py, error),
++            AcceptorError::General(message) => raise_ssl_error(py, &message),
++        })
 +    }
 +
++}
++
++enum AcceptorError {
++    Rustls(rustls::Error),
++    General(String),
++}
++
++impl From<String> for AcceptorError {
++    fn from(message: String) -> Self {
++        Self::General(message)
++    }
++}
++
++impl From<&str> for AcceptorError {
++    fn from(message: &str) -> Self {
++        Self::General(message.to_string())
++    }
  }
  
  impl RustlsConfigBuilder {
@@ -1900,7 +1921,7 @@
          let mut versions = Vec::new();
          let min = self.min_version.unwrap_or(TLS_V1_2);
          let max = self.max_version.unwrap_or(TLS_V1_3);
-@@ -459,15 +1193,14 @@
+@@ -459,15 +1213,14 @@
              versions.push(&rustls::version::TLS13);
          }
          if versions.is_empty() {
@@ -1923,7 +1944,7 @@
              let mut selected = Vec::new();
              for name in names {
                  for suite in all {
-@@ -477,70 +1210,51 @@
+@@ -477,70 +1230,51 @@
                      }
                  }
              }
@@ -2036,7 +2057,7 @@
      }
  
      #[cfg(target_os = "wasi")]
-@@ -555,47 +1269,20 @@
+@@ -555,47 +1289,20 @@
      /// Returns Result<ClientConfig, String> so errors can be converted to
      /// Python exceptions after re-acquiring the GIL.
      fn build_client_config_inner(&self) -> Result<ClientConfig, String> {
@@ -2089,7 +2110,7 @@
          macro_rules! apply_versions_or_ech {
              ($provider:expr) => {
                  if let Some(mode) = ech_mode.clone() {
-@@ -610,110 +1297,125 @@
+@@ -610,110 +1317,125 @@
              };
          }
  
@@ -2286,7 +2307,7 @@
          }
  
          Ok(config)
-@@ -733,6 +1435,7 @@
+@@ -733,6 +1455,7 @@
      pem_data: &[u8],
      password: Option<&[u8]>,
  ) -> Result<PrivateKeyDer<'static>, String> {
@@ -2296,7 +2317,7 @@
          .windows(b"ENCRYPTED PRIVATE KEY".len())
 --- a/rust/src/connection.rs
 +++ b/rust/src/connection.rs
-@@ -2,26 +2,85 @@
+@@ -2,45 +2,22 @@
  use pyo3::types::{PyAny, PyBytes};
  #[cfg(not(target_os = "wasi"))]
  use rustls::client::EchStatus;
@@ -2305,104 +2326,46 @@
 +use rustls::{ClientConfig, ClientConnection, ServerConnection};
  use std::io::{Cursor, Read, Write};
 -use std::sync::Mutex;
+-
+-use crate::error;
+-
+-/// Categorized TLS error — carries enough info to map to the right Python
+-/// exception type *after* re-acquiring the GIL.
+-enum TlsError {
+-    CertVerification(String),
+-    General(String),
+-    CleanEof,
+-}
+-
+-impl From<rustls::Error> for TlsError {
+-    fn from(err: rustls::Error) -> Self {
+-        match &err {
+-            rustls::Error::InvalidCertificate(_) | rustls::Error::NoCertificatesPresented => {
+-                TlsError::CertVerification(format!("{}", err))
+-            }
+-            _ => TlsError::General(format!("{}", err)),
+-        }
+-    }
+-}
+-
+-impl TlsError {
+-    /// Convert to a Python exception (requires the GIL).
+-    fn into_pyerr(self, py: Python<'_>) -> PyErr {
+-        match self {
+-            TlsError::CertVerification(msg) => error::raise_cert_verification(py, &msg),
+-            TlsError::General(msg) => error::raise_ssl_error(py, &msg),
+-            TlsError::CleanEof => error::raise_zero_return(py),
+-        }
+-    }
+-}
 +use std::sync::{Arc, Mutex};
- 
- use crate::error;
++
++use crate::error::{self, TlsError};
 +use crate::policy::{VerifiedChain, VerificationCapture};
 +use crate::session::{
 +    ContextIdentity, RustlsSession, SessionCapture, SessionData, SessionOverride, SessionStats,
 +};
  
- /// Categorized TLS error — carries enough info to map to the right Python
- /// exception type *after* re-acquiring the GIL.
- enum TlsError {
--    CertVerification(String),
-+    CertVerification { message: String, code: i32 },
-     General(String),
-+    AlertReceived(rustls::AlertDescription),
-+    NoSharedCipher,
-     CleanEof,
-+}
-+
-+fn verify_code_from_webpki(error: &webpki::Error) -> i32 {
-+    match error {
-+        webpki::Error::CertExpired { .. } => 10,
-+        webpki::Error::CertNotValidForName(_) => 62,
-+        webpki::Error::CertNotValidYet { .. } => 9,
-+        webpki::Error::CertRevoked => 23,
-+        webpki::Error::CrlNotYetValid { .. } => 11,
-+        webpki::Error::CrlExpired { .. } => 12,
-+        webpki::Error::InvalidCrlSignatureForPublicKey => 8,
-+        webpki::Error::EmptyEkuExtension
-+        | webpki::Error::RequiredEkuNotFoundContext(_) => 26,
-+        webpki::Error::ExtensionValueInvalid => 41,
-+        webpki::Error::InvalidSignatureForPublicKey => 7,
-+        webpki::Error::UnknownIssuer => 20,
-+        webpki::Error::UnknownRevocationStatus => 3,
-+        webpki::Error::UnsupportedCriticalExtension => 34,
-+        _ => 1,
-+    }
-+}
-+
-+fn verify_code_from_certificate_error(error: &rustls::CertificateError) -> i32 {
-+    use rustls::CertificateError;
-+
-+    match error {
-+        CertificateError::Expired | CertificateError::ExpiredContext { .. } => 10,
-+        CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => 9,
-+        CertificateError::Revoked => 23,
-+        CertificateError::UnhandledCriticalExtension => 34,
-+        CertificateError::UnknownIssuer => 20,
-+        CertificateError::UnknownRevocationStatus => 3,
-+        CertificateError::ExpiredRevocationList
-+        | CertificateError::ExpiredRevocationListContext { .. } => 12,
-+        CertificateError::BadSignature => 7,
-+        CertificateError::NotValidForName | CertificateError::NotValidForNameContext { .. } => 62,
-+        CertificateError::InvalidPurpose | CertificateError::InvalidPurposeContext { .. } => 26,
-+        CertificateError::Other(other) => other
-+            .0
-+            .downcast_ref::<webpki::Error>()
-+            .map_or(1, verify_code_from_webpki),
-+        _ => 1,
-+    }
- }
- 
- impl From<rustls::Error> for TlsError {
-     fn from(err: rustls::Error) -> Self {
--        match &err {
--            rustls::Error::InvalidCertificate(_) | rustls::Error::NoCertificatesPresented => {
--                TlsError::CertVerification(format!("{}", err))
--            }
-+        match err {
-+            rustls::Error::AlertReceived(alert) => TlsError::AlertReceived(alert),
-+            rustls::Error::PeerIncompatible(
-+                rustls::PeerIncompatible::NoCipherSuitesInCommon,
-+            ) => TlsError::NoSharedCipher,
-+            rustls::Error::InvalidCertificate(cert_error) => TlsError::CertVerification {
-+                message: format!("invalid peer certificate: {}", cert_error),
-+                code: verify_code_from_certificate_error(&cert_error),
-+            },
-+            rustls::Error::NoCertificatesPresented => TlsError::CertVerification {
-+                message: "no certificates presented".to_string(),
-+                code: 1,
-+            },
-             _ => TlsError::General(format!("{}", err)),
-         }
-     }
-@@ -31,7 +90,11 @@
-     /// Convert to a Python exception (requires the GIL).
-     fn into_pyerr(self, py: Python<'_>) -> PyErr {
-         match self {
--            TlsError::CertVerification(msg) => error::raise_cert_verification(py, &msg),
-+            TlsError::CertVerification { message, code } => {
-+                error::raise_cert_verification(py, &message, code)
-+            }
-+            TlsError::AlertReceived(alert) => error::raise_alert_received(py, alert),
-+            TlsError::NoSharedCipher => error::raise_no_shared_cipher(py),
-             TlsError::General(msg) => error::raise_ssl_error(py, &msg),
-             TlsError::CleanEof => error::raise_zero_return(py),
-         }
-@@ -41,6 +104,8 @@
  /// Internal mutable state for client connections, protected by a Mutex.
  struct ClientInner {
      conn: ClientConnection,
@@ -2411,7 +2374,7 @@
      peer_certs_cache: Option<Vec<Vec<u8>>>,
      // Updated from IoState after processing, then reduced by plaintext reads.
      plaintext_pending: usize,
-@@ -56,13 +121,38 @@
+@@ -56,13 +33,38 @@
  #[pyclass(frozen)]
  pub struct RustlsClientConnection {
      inner: Mutex<ClientInner>,
@@ -2451,7 +2414,7 @@
                  peer_certs_cache: None,
                  plaintext_pending: 0,
                  peer_has_closed: false,
-@@ -80,7 +170,9 @@
+@@ -80,7 +82,9 @@
          let mut cursor = Cursor::new(data);
          let result = py.detach(|| {
              let mut guard = inner.lock().unwrap();
@@ -2462,7 +2425,7 @@
          });
          result.map_err(|e| error::raise_ssl_error(py, &format!("read_tls failed: {}", e)))
      }
-@@ -92,9 +184,16 @@
+@@ -92,9 +96,16 @@
          let inner = &self.inner;
          let result: Result<(), TlsError> = py.detach(|| {
              let mut guard = inner.lock().unwrap();
@@ -2479,7 +2442,7 @@
              // Cache peer certs after handshake completes (while lock is held)
              if !guard.conn.is_handshaking() && guard.peer_certs_cache.is_none() {
                  guard.peer_certs_cache = guard
-@@ -185,6 +284,85 @@
+@@ -185,6 +196,85 @@
          py.detach(|| inner.lock().unwrap().conn.is_handshaking())
      }
  
@@ -2565,7 +2528,7 @@
      /// Returns True if the state machine wants to read more ciphertext from the network.
      fn wants_read(&self, py: Python<'_>) -> bool {
          let inner = &self.inner;
-@@ -199,6 +377,14 @@
+@@ -199,6 +289,14 @@
  
      /// Get peer certificates as list of DER-encoded bytes.
      /// Returns None if no certificates available (e.g., before handshake).
@@ -2580,7 +2543,7 @@
      fn peer_certificates(&self, py: Python<'_>) -> PyResult<Option<Vec<Py<PyAny>>>> {
          let inner = &self.inner;
          let cached = py.detach(|| {
-@@ -326,11 +512,16 @@
+@@ -326,11 +424,16 @@
              let total = ciphertext.len();
  
              while offset < total || !guard.conn.wants_read() {
@@ -2598,7 +2561,7 @@
                          Err(e) => {
                              let msg = e.to_string();
                              if msg.contains("buffer full") {
-@@ -343,9 +534,16 @@
+@@ -343,9 +446,16 @@
                  }
  
                  // Process buffered TLS records (the expensive crypto work)
@@ -2615,7 +2578,7 @@
  
                  // Drain available plaintext
                  let remaining = max_plaintext - plaintext.len();
-@@ -377,7 +575,8 @@
+@@ -377,7 +487,8 @@
                  }
  
                  // If all ciphertext consumed and nothing left to process, done
@@ -2625,7 +2588,7 @@
                      break;
                  }
              }
-@@ -416,6 +615,8 @@
+@@ -416,6 +527,8 @@
  /// Internal mutable state for server connections, protected by a Mutex.
  struct ServerInner {
      conn: ServerConnection,
@@ -2634,7 +2597,7 @@
      peer_certs_cache: Option<Vec<Vec<u8>>>,
      // Updated from IoState after processing, then reduced by plaintext reads.
      plaintext_pending: usize,
-@@ -430,13 +631,23 @@
+@@ -430,13 +543,23 @@
  #[pyclass(frozen)]
  pub struct RustlsServerConnection {
      inner: Mutex<ServerInner>,
@@ -2659,7 +2622,7 @@
                  peer_certs_cache: None,
                  plaintext_pending: 0,
                  peer_has_closed: false,
-@@ -452,7 +663,12 @@
+@@ -452,7 +575,12 @@
          let mut cursor = Cursor::new(data);
          let result = py.detach(|| {
              let mut guard = inner.lock().unwrap();
@@ -2673,7 +2636,7 @@
          });
          result.map_err(|e| error::raise_ssl_error(py, &format!("read_tls failed: {}", e)))
      }
-@@ -461,9 +677,17 @@
+@@ -461,9 +589,17 @@
          let inner = &self.inner;
          let result: Result<(), TlsError> = py.detach(|| {
              let mut guard = inner.lock().unwrap();
@@ -2691,7 +2654,7 @@
              if !guard.conn.is_handshaking() && guard.peer_certs_cache.is_none() {
                  guard.peer_certs_cache = guard
                      .conn
-@@ -544,6 +768,16 @@
+@@ -544,6 +680,16 @@
          py.detach(|| inner.lock().unwrap().conn.is_handshaking())
      }
  
@@ -2708,7 +2671,7 @@
      fn wants_read(&self, py: Python<'_>) -> bool {
          let inner = &self.inner;
          py.detach(|| inner.lock().unwrap().conn.wants_read())
-@@ -552,6 +786,14 @@
+@@ -552,6 +698,14 @@
      fn wants_write(&self, py: Python<'_>) -> bool {
          let inner = &self.inner;
          py.detach(|| inner.lock().unwrap().conn.wants_write())
@@ -2723,7 +2686,7 @@
      }
  
      fn peer_certificates(&self, py: Python<'_>) -> PyResult<Option<Vec<Py<PyAny>>>> {
-@@ -653,10 +895,18 @@
+@@ -653,10 +807,18 @@
              let total = ciphertext.len();
  
              while offset < total || !guard.conn.wants_read() {
@@ -2743,7 +2706,7 @@
                          Err(e) => {
                              let msg = e.to_string();
                              if msg.contains("buffer full") {
-@@ -668,9 +918,17 @@
+@@ -668,9 +830,17 @@
                      }
                  }
  
@@ -2761,7 +2724,7 @@
  
                  let remaining = max_plaintext - plaintext.len();
                  if remaining > 0 {
-@@ -698,7 +956,8 @@
+@@ -698,7 +868,8 @@
                      break;
                  }
  
@@ -2843,7 +2806,7 @@
 +}
 --- a/rust/src/error.rs
 +++ b/rust/src/error.rs
-@@ -1,62 +1,285 @@
+@@ -1,62 +1,374 @@
  use pyo3::prelude::*;
 -use pyo3::types::PyType;
 -
@@ -2862,6 +2825,95 @@
 +const SSL_ERROR_SSL: i32 = 1;
 +const SSL_ERROR_ZERO_RETURN: i32 = 6;
 +const SSL_ERROR_EOF: i32 = 8;
++
++pub(crate) enum TlsError {
++    CertVerification { message: String, code: i32 },
++    General(String),
++    AlertReceived(rustls::AlertDescription),
++    NoSharedCipher,
++    CleanEof,
++}
++
++fn verify_code_from_webpki(error: &webpki::Error) -> i32 {
++    match error {
++        webpki::Error::CertExpired { .. } => 10,
++        webpki::Error::CertNotValidForName(_) => 62,
++        webpki::Error::CertNotValidYet { .. } => 9,
++        webpki::Error::CertRevoked => 23,
++        webpki::Error::CrlNotYetValid { .. } => 11,
++        webpki::Error::CrlExpired { .. } => 12,
++        webpki::Error::InvalidCrlSignatureForPublicKey => 8,
++        webpki::Error::EmptyEkuExtension
++        | webpki::Error::RequiredEkuNotFoundContext(_) => 26,
++        webpki::Error::ExtensionValueInvalid => 41,
++        webpki::Error::InvalidSignatureForPublicKey => 7,
++        webpki::Error::UnknownIssuer => 20,
++        webpki::Error::UnknownRevocationStatus => 3,
++        webpki::Error::UnsupportedCriticalExtension => 34,
++        _ => 1,
++    }
++}
++
++fn verify_code_from_certificate_error(error: &rustls::CertificateError) -> i32 {
++    use rustls::CertificateError;
++
++    match error {
++        CertificateError::Expired | CertificateError::ExpiredContext { .. } => 10,
++        CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => 9,
++        CertificateError::Revoked => 23,
++        CertificateError::UnhandledCriticalExtension => 34,
++        CertificateError::UnknownIssuer => 20,
++        CertificateError::UnknownRevocationStatus => 3,
++        CertificateError::ExpiredRevocationList
++        | CertificateError::ExpiredRevocationListContext { .. } => 12,
++        CertificateError::BadSignature => 7,
++        CertificateError::NotValidForName | CertificateError::NotValidForNameContext { .. } => 62,
++        CertificateError::InvalidPurpose | CertificateError::InvalidPurposeContext { .. } => 26,
++        CertificateError::Other(other) => other
++            .0
++            .downcast_ref::<webpki::Error>()
++            .map_or(1, verify_code_from_webpki),
++        _ => 1,
++    }
++}
++
++impl From<rustls::Error> for TlsError {
++    fn from(err: rustls::Error) -> Self {
++        match err {
++            rustls::Error::AlertReceived(alert) => TlsError::AlertReceived(alert),
++            rustls::Error::PeerIncompatible(
++                rustls::PeerIncompatible::NoCipherSuitesInCommon,
++            ) => TlsError::NoSharedCipher,
++            rustls::Error::InvalidCertificate(cert_error) => TlsError::CertVerification {
++                message: format!("invalid peer certificate: {}", cert_error),
++                code: verify_code_from_certificate_error(&cert_error),
++            },
++            rustls::Error::NoCertificatesPresented => TlsError::CertVerification {
++                message: "no certificates presented".to_string(),
++                code: 1,
++            },
++            _ => TlsError::General(format!("{}", err)),
++        }
++    }
++}
++
++impl TlsError {
++    pub(crate) fn into_pyerr(self, py: Python<'_>) -> PyErr {
++        match self {
++            TlsError::CertVerification { message, code } => {
++                raise_cert_verification(py, &message, code)
++            }
++            TlsError::AlertReceived(alert) => raise_alert_received(py, alert),
++            TlsError::NoSharedCipher => raise_no_shared_cipher(py),
++            TlsError::General(msg) => raise_ssl_error(py, &msg),
++            TlsError::CleanEof => raise_zero_return(py),
++        }
++    }
++}
++
++pub(crate) fn raise_rustls_error(py: Python<'_>, error: rustls::Error) -> PyErr {
++    TlsError::from(error).into_pyerr(py)
++}
 +
 +fn fallback_error(code: i32, prefix: &str, message: &str) -> PyErr {
 +    pyo3::exceptions::PyOSError::new_err((code, format!("{prefix}{message}")))
@@ -2944,9 +2996,12 @@
          py,
 -        "rtls._exceptions",
          "SSLZeroReturnError",
--        "SSL: ",
 +        SSL_ERROR_ZERO_RETURN,
-         "TLS/SSL connection has been closed by the peer",
++        "TLS/SSL connection has been closed by the peer",
++        None,
++        None,
+         "SSL: ",
+-        "TLS/SSL connection has been closed by the peer",
 -    )
 -}
 -
@@ -2965,9 +3020,6 @@
 -pub fn raise_ssl_error(py: Python<'_>, msg: &str) -> PyErr {
 -    get_exc_type(py, "rtls._exceptions", "SSLError", "SSL: ", msg)
 -}
-+        None,
-+        None,
-+        "SSL: ",
 +    )
 +}
 +
@@ -5965,7 +6017,7 @@
          pw_bytes: bytes | None = None
          if password is not None:
              if callable(password):
-@@ -180,98 +227,97 @@
+@@ -180,98 +227,102 @@
                      f" got {type(password).__name__}"
                  )
  
@@ -6032,7 +6084,12 @@
 +            if capath is not None:
 +                directories = os.fsdecode(capath)
 +                if not directories:
-+                    raise SSLError("[X509: INVALID_DIRECTORY] invalid directory")
++                    raise SSLError(
++                        113,
++                        "[X509: INVALID_DIRECTORY] invalid directory",
++                        library="X509",
++                        reason="INVALID_DIRECTORY",
++                    )
 +                for directory in directories.split(os.pathsep):
 +                    if not directory:
 +                        continue
@@ -6136,7 +6193,7 @@
  
      def set_alpn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """Set ALPN protocols for negotiation."""
-@@ -292,14 +338,15 @@
+@@ -292,14 +343,15 @@
  
      @verify_mode.setter
      def verify_mode(self, value: int) -> None:
@@ -6160,7 +6217,7 @@
  
      @property
      def check_hostname(self) -> bool:
-@@ -307,12 +354,17 @@
+@@ -307,12 +359,17 @@
  
      @check_hostname.setter
      def check_hostname(self, value: bool) -> None:
@@ -6184,7 +6241,7 @@
  
      @property  # type: ignore[override]
      def options(self) -> Options:
-@@ -320,73 +372,142 @@
+@@ -320,73 +377,142 @@
  
      @options.setter
      def options(self, value: int) -> None:
@@ -6367,7 +6424,7 @@
  
      @property  # type: ignore[override]
      def verify_flags(self) -> int:
-@@ -394,8 +515,9 @@
+@@ -394,8 +520,9 @@
  
      @verify_flags.setter
      def verify_flags(self, value: int) -> None:
@@ -6379,7 +6436,7 @@
  
      @property
      def security_level(self) -> int:  # type: ignore[override]
-@@ -408,49 +530,42 @@
+@@ -408,49 +535,42 @@
  
      @sni_callback.setter
      def sni_callback(self, callback: Callable | None) -> None:
@@ -6453,7 +6510,7 @@
  
      def set_npn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """No-op — NPN is not supported by rustls."""
-@@ -465,14 +580,11 @@
+@@ -465,14 +585,11 @@
                      f"expected bytes-like object, got {type(ech_config_list).__name__}"
                  )
  
@@ -6468,7 +6525,7 @@
              clone._verify_mode = self._verify_mode
              clone._check_hostname = self._check_hostname
              clone._options = self._options
-@@ -481,18 +593,15 @@
+@@ -481,18 +598,15 @@
              clone._alpn_protocols = list(self._alpn_protocols)
              clone._ciphers_string = self._ciphers_string
              clone._sni_callback = self._sni_callback
@@ -6488,7 +6545,7 @@
              from ._constants import TLSVersion
  
              clone._minimum_version = TLSVersion.TLSv1_3
-@@ -505,72 +614,10 @@
+@@ -505,72 +619,10 @@
              """Return True if ECH configs have been set."""
              return self._builder.has_ech()
  

@@ -9,9 +9,9 @@ locked Rust sources; the build runs with network access denied. The installed
 `ssl` and `_hashlib` facades load their native adapters under `-I -S` after
 relocation to a path containing spaces. Production remains unchanged.
 
-The consolidated patch reproduces the v7d development candidate. A fresh replay
-of the RTLS, webpki, and rustls source preparations matches that candidate's
-source files byte for byte. This is an OpenSSL-free development distribution,
+The consolidated patch includes the v7d development checkpoint and the later
+repairs described below. Fresh source preparation at that checkpoint matched
+the candidate's executable RTLS, webpki, and rustls sources byte for byte. This is an OpenSSL-free development distribution,
 not a qualified release artifact. The final stripping, pruning, archive, and
 extracted-artifact qualification remain outstanding.
 
