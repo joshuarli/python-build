@@ -620,10 +620,13 @@ def main(argv: list[str] | None = None) -> int:
         requested_run_dir = require_work_path(args.run_dir, "reference output")
         if (
             requested_run_dir == candidate
-            or requested_run_dir.is_relative_to(candidate)
             or candidate.is_relative_to(requested_run_dir)
+            or any(requested_run_dir.is_relative_to(candidate / name) for name in (
+                "private", "prefix", "relocated prefix", "inputs", "rtls-build", "hashing-build",
+                "cargo-home", "cargo-target", "cpython-source", "cpython-build", "logs",
+            ))
         ):
-            raise ReferenceBuildError("candidate and reference run directories must not overlap")
+            raise ReferenceBuildError("reference output overlaps protected candidate inputs or outputs")
         run_dir = require_fresh_run_dir(requested_run_dir)
         for directory in (run_dir / "logs", run_dir / "tmp", run_dir / "home"):
             directory.mkdir()
