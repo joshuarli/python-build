@@ -47,6 +47,10 @@ def __getattr__(name):
         from rtls._certificate import TLSCertificate
 
         return TLSCertificate
+    if name == "_SSLContext":
+        from rtls._context import TLSContext
+
+        return TLSContext
     if name.startswith("__"):
         raise AttributeError(name)
     module = importlib.import_module("ssl")

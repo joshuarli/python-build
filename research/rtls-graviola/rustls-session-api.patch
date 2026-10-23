@@ -1,3 +1,77 @@
+diff --git a/src/client/client_conn.rs b/src/client/client_conn.rs
+--- a/src/client/client_conn.rs
++++ b/src/client/client_conn.rs
+@@ -737,11 +737,34 @@
+             Self::new_with_alpn(config.clone(), name, config.alpn_protocols.clone())
+         }
+ 
++        /// Makes a new client connection and optionally captures bounded message callback events.
++        pub fn new_with_message_callback(
++            config: Arc<ClientConfig>,
++            name: ServerName<'static>,
++            enabled: bool,
++        ) -> Result<Self, Error> {
++            Self::new_with_alpn_and_message_callback(
++                config.clone(),
++                name,
++                config.alpn_protocols.clone(),
++                enabled,
++            )
++        }
++
+         /// Make a new ClientConnection with custom ALPN protocols.
+         pub fn new_with_alpn(
+             config: Arc<ClientConfig>,
+             name: ServerName<'static>,
+             alpn_protocols: Vec<Vec<u8>>,
++        ) -> Result<Self, Error> {
++            Self::new_with_alpn_and_message_callback(config, name, alpn_protocols, false)
++        }
++
++        fn new_with_alpn_and_message_callback(
++            config: Arc<ClientConfig>,
++            name: ServerName<'static>,
++            alpn_protocols: Vec<Vec<u8>>,
++            enabled: bool,
+         ) -> Result<Self, Error> {
+             Ok(Self {
+                 inner: ConnectionCommon::from(ConnectionCore::for_client(
+@@ -749,6 +772,7 @@
+                     name,
+                     ClientExtensionsInput::from_alpn(alpn_protocols),
+                     Protocol::Tcp,
++                    enabled,
+                 )?),
+             })
+         }
+@@ -873,8 +897,18 @@
+         name: ServerName<'static>,
+         extra_exts: ClientExtensionsInput<'static>,
+         proto: Protocol,
++        message_callback_enabled: bool,
+     ) -> Result<Self, Error> {
+         let mut common_state = CommonState::new(Side::Client);
++        if message_callback_enabled {
++            common_state.set_message_callback_enabled(true);
++            let callback_version = if config.versions.contains(ProtocolVersion::TLSv1_3) {
++                ProtocolVersion::TLSv1_3
++            } else {
++                ProtocolVersion::TLSv1_2
++            };
++            common_state.set_message_callback_version(callback_version);
++        }
+         common_state.set_max_fragment_size(config.max_fragment_size)?;
+         common_state.protocol = proto;
+         common_state.enable_secret_extraction = config.enable_secret_extraction;
+@@ -941,6 +975,7 @@
+                 name,
+                 extensions,
+                 Protocol::Tcp,
++                false,
+             )?),
+         })
+     }
+diff --git a/src/client/hs.rs b/src/client/hs.rs
 --- a/src/client/hs.rs
 +++ b/src/client/hs.rs
 @@ -94,10 +94,11 @@
@@ -15,6 +89,7 @@
                      }
                      _ => None,
                  }
+diff --git a/src/client/tls12.rs b/src/client/tls12.rs
 --- a/src/client/tls12.rs
 +++ b/src/client/tls12.rs
 @@ -92,6 +92,7 @@
@@ -34,7 +109,15 @@
                      debug!("Server agreed to resume");
  
                      // Is the server telling lies about the ciphersuite?
-@@ -607,6 +608,7 @@
+@@ -577,6 +578,7 @@
+ 
+     let scheme = signer.scheme();
+     let sig = signer.sign(&message)?;
++    common.set_local_signature_scheme(scheme);
+     let body = DigitallySignedStruct::new(scheme, sig);
+ 
+     let m = Message {
+@@ -607,6 +609,7 @@
  ) {
      let vh = transcript.current_hash();
      let verify_data = secrets.client_verify_data(&vh);
@@ -42,7 +125,16 @@
      let verify_data_payload = Payload::new(verify_data);
  
      let f = Message {
-@@ -1220,9 +1222,14 @@
+@@ -932,6 +935,8 @@
+                         .send_cert_verify_error_alert(err)
+                 })?
+         };
++        cx.common
++            .set_peer_signature_scheme(st.server_kx.kx_sig.scheme);
+         cx.common.peer_certificates = Some(st.server_cert.cert_chain.into_owned());
+ 
+         // 3.
+@@ -1220,9 +1225,14 @@
              return;
          };
  
@@ -58,7 +150,7 @@
              ticket,
              self.secrets.master_secret(),
              cx.common
-@@ -1273,6 +1280,8 @@
+@@ -1273,6 +1283,8 @@
                          .send_fatal_alert(AlertDescription::DecryptError, Error::DecryptError));
                  }
              };
@@ -67,9 +159,41 @@
  
          // Hash this message too.
          st.transcript.add_message(&m);
+diff --git a/src/client/tls13.rs b/src/client/tls13.rs
 --- a/src/client/tls13.rs
 +++ b/src/client/tls13.rs
-@@ -1414,6 +1414,7 @@
+@@ -1198,6 +1198,7 @@
+                     .send_cert_verify_error_alert(err)
+             })?;
+ 
++        cx.common.set_peer_signature_scheme(cert_verify.scheme);
+         cx.common.peer_certificates = Some(self.server_cert.cert_chain.into_owned());
+         self.transcript.add_message(&m);
+ 
+@@ -1271,11 +1272,13 @@
+ fn emit_certverify_tls13(
+     flight: &mut HandshakeFlightTls13<'_>,
+     signer: &dyn Signer,
++    common: &mut CommonState,
+ ) -> Result<(), Error> {
+     let message = construct_client_verify_message(&flight.transcript.current_hash());
+ 
+     let scheme = signer.scheme();
+     let sig = signer.sign(message.as_ref())?;
++    common.set_local_signature_scheme(scheme);
+     let dss = DigitallySignedStruct::new(scheme, sig);
+ 
+     flight.add(HandshakeMessagePayload(
+@@ -1398,7 +1401,7 @@
+                     } else {
+                         emit_certificate_tls13(&mut flight, Some(&certkey), auth_context);
+                     }
+-                    emit_certverify_tls13(&mut flight, signer.as_ref())?;
++                    emit_certverify_tls13(&mut flight, signer.as_ref(), cx.common)?;
+                 }
+             }
+         }
+@@ -1414,6 +1417,7 @@
  
          emit_finished_tls13(&mut flight, &verify_data);
          flight.finish(cx.common);
@@ -77,25 +201,256 @@
  
          /* We're now sure this server supports TLS1.3.  But if we run out of TLS1.3 tickets
           * when connecting to it again, we definitely don't want to attempt a TLS1.2 resumption. */
+diff --git a/src/common_state.rs b/src/common_state.rs
 --- a/src/common_state.rs
 +++ b/src/common_state.rs
-@@ -61,6 +61,7 @@
+@@ -5,7 +5,7 @@
+ 
+ use crate::conn::kernel::KernelState;
+ use crate::crypto::SupportedKxGroup;
+-use crate::enums::{AlertDescription, ContentType, HandshakeType, ProtocolVersion};
++use crate::enums::{AlertDescription, ContentType, HandshakeType, ProtocolVersion, SignatureScheme};
+ use crate::error::{Error, InvalidMessage, PeerMisbehaved};
+ use crate::hash_hs::HandshakeHash;
+ use crate::log::{debug, error, warn};
+@@ -48,6 +48,8 @@
+     #[cfg(feature = "std")]
+     pub(crate) has_seen_eof: bool,
+     pub(crate) peer_certificates: Option<CertificateChain<'static>>,
++    pub(crate) local_signature_scheme: Option<SignatureScheme>,
++    pub(crate) peer_signature_scheme: Option<SignatureScheme>,
+     message_fragmenter: MessageFragmenter,
+     pub(crate) received_plaintext: ChunkVecBuffer,
+     pub(crate) sendable_tls: ChunkVecBuffer,
+@@ -61,6 +63,67 @@
      pub(crate) refresh_traffic_keys_pending: bool,
      pub(crate) fips: bool,
      pub(crate) tls13_tickets_received: u32,
 +    tls_unique: Option<Vec<u8>>,
++    message_callback_version: Option<ProtocolVersion>,
++    message_callback_events: Option<MessageCallbackEvents>,
++}
++
++const MESSAGE_CALLBACK_MAX_EVENTS: usize = 4096;
++const MESSAGE_CALLBACK_MAX_BYTES: usize = 1_048_576;
++
++pub(crate) type MessageCallbackEvent = (bool, u16, u16, i32, Vec<u8>);
++
++struct MessageCallbackEvents {
++    events: Vec<MessageCallbackEvent>,
++    bytes: usize,
++    overflowed: bool,
++}
++
++impl MessageCallbackEvents {
++    fn new() -> Self {
++        Self {
++            events: Vec::new(),
++            bytes: 0,
++            overflowed: false,
++        }
++    }
++
++    fn push(
++        &mut self,
++        write: bool,
++        version: u16,
++        content_type: u16,
++        message_type: i32,
++        data: &[u8],
++    ) {
++        if self.overflowed {
++            return;
++        }
++        if self.events.len() == MESSAGE_CALLBACK_MAX_EVENTS
++            || self.bytes.saturating_add(data.len()) > MESSAGE_CALLBACK_MAX_BYTES
++        {
++            self.overflowed = true;
++            return;
++        }
++        self.bytes += data.len();
++        self.events.push((
++            write,
++            version,
++            content_type,
++            message_type,
++            data.to_vec(),
++        ));
++    }
++
++    fn take(&mut self) -> Option<Vec<MessageCallbackEvent>> {
++        if self.overflowed {
++            self.events.clear();
++            self.bytes = 0;
++            return None;
++        }
++        self.bytes = 0;
++        Some(core::mem::take(&mut self.events))
++    }
  }
  
  impl CommonState {
-@@ -94,6 +95,7 @@
+@@ -83,6 +146,8 @@
+             #[cfg(feature = "std")]
+             has_seen_eof: false,
+             peer_certificates: None,
++            local_signature_scheme: None,
++            peer_signature_scheme: None,
+             message_fragmenter: MessageFragmenter::default(),
+             received_plaintext: ChunkVecBuffer::new(Some(DEFAULT_RECEIVED_PLAINTEXT_LIMIT)),
+             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
+@@ -94,7 +159,149 @@
              refresh_traffic_keys_pending: false,
              fips: false,
              tls13_tickets_received: 0,
+-        }
 +            tls_unique: None,
-         }
++            message_callback_version: None,
++            message_callback_events: None,
++        }
++    }
++
++    pub(crate) fn set_message_callback_enabled(&mut self, enabled: bool) {
++        if enabled {
++            self.message_callback_events
++                .get_or_insert_with(MessageCallbackEvents::new);
++        } else {
++            self.message_callback_events = None;
++        }
++    }
++
++    pub(crate) fn set_message_callback_version(&mut self, version: ProtocolVersion) {
++        self.message_callback_version = Some(version);
++    }
++
++    pub(crate) fn take_message_callback_events(
++        &mut self,
++    ) -> Option<Vec<MessageCallbackEvent>> {
++        self.message_callback_events
++            .as_mut()
++            .map(MessageCallbackEvents::take)
++            .unwrap_or_else(|| Some(Vec::new()))
++    }
++
++    fn capture_message_callback_event(
++        &mut self,
++        write: bool,
++        version: ProtocolVersion,
++        content_type: u16,
++        message_type: i32,
++        data: &[u8],
++    ) {
++        let Some(events) = self.message_callback_events.as_mut() else {
++            return;
++        };
++        let version = self
++            .negotiated_version
++            .or(self.message_callback_version)
++            .unwrap_or(version);
++        events.push(
++            write,
++            u16::from(version),
++            content_type,
++            message_type,
++            data,
++        );
++    }
++
++    pub(crate) fn capture_message_callback_header(&mut self, write: bool, header: &[u8; 5]) {
++        let version = u16::from_be_bytes([header[1], header[2]]);
++        let message_type = i32::from(header[0]);
++        let Some(events) = self.message_callback_events.as_mut() else {
++            return;
++        };
++        events.push(write, version, 0x100, message_type, header);
++    }
++
++    pub(crate) fn capture_message_callback_message(
++        &mut self,
++        write: bool,
++        version: ProtocolVersion,
++        content_type: ContentType,
++        data: &[u8],
++    ) {
++        let content_type = u16::from(u8::from(content_type));
++        let message_type = match content_type {
++            0x14 => 0x101,
++            0x15 if data.len() >= 2 => i32::from(data[1]),
++            0x16 if !data.is_empty() => i32::from(data[0]),
++            _ => -1,
++        };
++        self.capture_message_callback_event(
++            write,
++            version,
++            content_type,
++            message_type,
++            data,
++        );
++    }
++
++    pub(crate) fn capture_message_callback_payload(
++        &mut self,
++        write: bool,
++        version: ProtocolVersion,
++        content_type: ContentType,
++        data: &[u8],
++    ) {
++        if content_type != ContentType::Handshake {
++            self.capture_message_callback_message(write, version, content_type, data);
++            return;
++        }
++        let mut offset = 0;
++        while data.len().saturating_sub(offset) >= 4 {
++            let length = usize::from(u16::from_be_bytes([
++                data[offset + 2],
++                data[offset + 3],
++            ]))
++                | (usize::from(data[offset + 1]) << 16);
++            let end = offset + 4 + length;
++            if end > data.len() {
++                break;
++            }
++            self.capture_message_callback_message(
++                write,
++                version,
++                content_type,
++                &data[offset..end],
++            );
++            offset = end;
++        }
++        if offset < data.len() {
++            self.capture_message_callback_message(
++                write,
++                version,
++                content_type,
++                &data[offset..],
++            );
++        }
++    }
++
++    pub(crate) fn capture_message_callback_inner_type(
++        &mut self,
++        write: bool,
++        content_type: ContentType,
++        data: &[u8],
++    ) {
++        let content_type_byte = u8::from(content_type);
++        let data = if data.is_empty() {
++            &[content_type_byte][..]
++        } else {
++            data
++        };
++        self.capture_message_callback_event(
++            write,
++            ProtocolVersion::TLSv1_3,
++            0x101,
++            i32::from(content_type_byte),
++            data,
++        );
      }
  
-@@ -113,6 +115,17 @@
+     /// Returns true if the caller should call [`Connection::write_tls`] as soon as possible.
+@@ -113,6 +320,17 @@
      /// [`Connection::process_new_packets()`]: crate::Connection::process_new_packets
      pub fn is_handshaking(&self) -> bool {
          !(self.may_send_application_data && self.may_receive_application_data)
@@ -113,6 +468,281 @@
      }
  
      /// Retrieves the certificate chain or the raw public key used by the peer to authenticate.
+@@ -138,6 +356,24 @@
+     /// This choice simplifies the API and ensures backwards compatibility.
+     pub fn peer_certificates(&self) -> Option<&[CertificateDer<'static>]> {
+         self.peer_certificates.as_deref()
++    }
++
++    /// Returns the signature scheme used by this endpoint to sign the TLS handshake, if any.
++    pub fn local_signature_scheme(&self) -> Option<SignatureScheme> {
++        self.local_signature_scheme
++    }
++
++    /// Returns the signature scheme used by the peer to sign the TLS handshake, if any.
++    pub fn peer_signature_scheme(&self) -> Option<SignatureScheme> {
++        self.peer_signature_scheme
++    }
++
++    pub(crate) fn set_local_signature_scheme(&mut self, scheme: SignatureScheme) {
++        self.local_signature_scheme = Some(scheme);
++    }
++
++    pub(crate) fn set_peer_signature_scheme(&mut self, scheme: SignatureScheme) {
++        self.peer_signature_scheme = Some(scheme);
+     }
+ 
+     /// Retrieves the protocol agreed with the peer via ALPN.
+@@ -347,8 +583,9 @@
+     fn send_single_fragment(&mut self, m: OutboundPlainMessage<'_>) {
+         if m.typ == ContentType::Alert {
+             // Alerts are always sendable -- never quashed by a PreEncryptAction.
++            let inner_type = self.outbound_message_callback_inner_type(m.typ);
+             let em = self.record_layer.encrypt_outgoing(m);
+-            self.queue_tls_message(em);
++            self.queue_tls_message(em, inner_type);
+             return;
+         }
+ 
+@@ -383,8 +620,18 @@
+             }
+         };
+ 
++        let inner_type = self.outbound_message_callback_inner_type(m.typ);
+         let em = self.record_layer.encrypt_outgoing(m);
+-        self.queue_tls_message(em);
++        self.queue_tls_message(em, inner_type);
++    }
++
++    fn outbound_message_callback_inner_type(
++        &self,
++        content_type: ContentType,
++    ) -> Option<(ContentType, Vec<u8>)> {
++        (self.negotiated_version == Some(ProtocolVersion::TLSv1_3)
++            && self.record_layer.is_encrypting())
++        .then(|| (content_type, Vec::new()))
+     }
+ 
+     fn send_plain_non_buffering(&mut self, payload: OutboundChunks<'_>, limit: Limit) -> usize {
+@@ -433,9 +680,20 @@
+     }
+ 
+     // Put m into sendable_tls for writing.
+-    fn queue_tls_message(&mut self, m: OutboundOpaqueMessage) {
++    fn queue_tls_message(
++        &mut self,
++        m: OutboundOpaqueMessage,
++        inner_type: Option<(ContentType, Vec<u8>)>,
++    ) {
+         self.perhaps_write_key_update();
+-        self.sendable_tls.append(m.encode());
++        let encoded = m.encode();
++        if let Ok(header) = <[u8; 5]>::try_from(&encoded[..5]) {
++            self.capture_message_callback_header(true, &header);
++        }
++        if let Some((content_type, data)) = inner_type {
++            self.capture_message_callback_inner_type(true, content_type, &data);
++        }
++        self.sendable_tls.append(encoded);
+     }
+ 
+     pub(crate) fn perhaps_write_key_update(&mut self) {
+@@ -467,16 +725,30 @@
+                 return;
+             }
+         }
++        let callback_message = if self.message_callback_events.is_some() {
++            let content_type = m.payload.content_type();
++            let version = m.version;
++            let mut data = Vec::new();
++            if content_type != ContentType::ApplicationData {
++                m.payload.encode(&mut data);
++            }
++            Some((version, content_type, data))
++        } else {
++            None
++        };
+         if !must_encrypt {
+             let msg = &m.into();
+             let iter = self
+                 .message_fragmenter
+                 .fragment_message(msg);
+             for m in iter {
+-                self.queue_tls_message(m.to_unencrypted_opaque());
++                self.queue_tls_message(m.to_unencrypted_opaque(), None);
+             }
+         } else {
+             self.send_msg_encrypt(m.into());
++        }
++        if let Some((version, content_type, data)) = callback_message {
++            self.capture_message_callback_payload(true, version, content_type, &data);
+         }
+     }
+ 
+diff --git a/src/conn.rs b/src/conn.rs
+--- a/src/conn.rs
++++ b/src/conn.rs
+@@ -1,4 +1,5 @@
+ use alloc::boxed::Box;
++use alloc::vec::Vec;
+ use core::fmt::Debug;
+ use core::mem;
+ use core::ops::{Deref, DerefMut, Range};
+@@ -48,6 +49,27 @@
+     }
+ 
+     impl Connection {
++        /// Enables or disables bounded capture of TLS message callback events.
++        pub fn set_message_callback_enabled(&mut self, enabled: bool) {
++            match self {
++                Self::Client(conn) => conn.set_message_callback_enabled(enabled),
++                Self::Server(conn) => conn.set_message_callback_enabled(enabled),
++            }
++        }
++
++        /// Drains captured TLS message callback events, or returns `None` after overflow.
++        ///
++        /// Each tuple contains write direction, protocol version, content type, message type,
++        /// and the bytes supplied by the TLS record or message layer.
++        pub fn take_message_callback_events(
++            &mut self,
++        ) -> Option<Vec<(bool, u16, u16, i32, Vec<u8>)>> {
++            match self {
++                Self::Client(conn) => conn.take_message_callback_events(),
++                Self::Server(conn) => conn.take_message_callback_events(),
++            }
++        }
++
+         /// Read TLS content from `rd`.
+         ///
+         /// See [`ConnectionCommon::read_tls()`] for more information.
+@@ -415,6 +437,18 @@
+ }
+ 
+ impl<Data> ConnectionCommon<Data> {
++    /// Drains captured TLS message callback events, or returns `None` after overflow.
++    ///
++    /// Each tuple contains write direction, protocol version, content type, message type,
++    /// and the bytes supplied by the TLS record or message layer.
++    pub fn take_message_callback_events(
++        &mut self,
++    ) -> Option<Vec<(bool, u16, u16, i32, Vec<u8>)>> {
++        self.core
++            .common_state
++            .take_message_callback_events()
++    }
++
+     /// Processes any new packets read by a previous call to
+     /// [`Connection::read_tls`].
+     ///
+@@ -971,6 +1005,14 @@
+                 message
+             });
+         self.common_state.aligned_handshake = self.hs_deframer.is_aligned();
++        if let Some(message) = message.as_ref() {
++            self.common_state.capture_message_callback_message(
++                false,
++                message.version,
++                message.typ,
++                message.payload,
++            );
++        }
+         message
+     }
+ 
+@@ -996,6 +1038,8 @@
+                     Ok(None) => return Ok(None),
+                     Err(err) => return Err(self.handle_deframe_error(err, state)),
+                 };
++                self.common_state
++                    .capture_message_callback_header(false, &message.header);
+ 
+                 let allowed_plaintext = match message.typ {
+                     // CCS messages are always plaintext.
+@@ -1054,8 +1098,26 @@
+                     self.common_state.send_close_notify();
+                 }
+ 
++                if plaintext.version == ProtocolVersion::TLSv1_3 {
++                    self.common_state.capture_message_callback_inner_type(
++                        false,
++                        plaintext.typ,
++                        &[],
++                    );
++                }
++
+                 break (plaintext, iter.bytes_consumed());
+             };
++            if message.typ != ContentType::Handshake
++                && message.typ != ContentType::ApplicationData
++            {
++                self.common_state.capture_message_callback_message(
++                    false,
++                    message.version,
++                    message.typ,
++                    message.payload,
++                );
++            }
+ 
+             if !self.hs_deframer.is_aligned() && message.typ != ContentType::Handshake {
+                 // "Handshake messages MUST NOT be interleaved with other record
+diff --git a/src/msgs/deframer/mod.rs b/src/msgs/deframer/mod.rs
+--- a/src/msgs/deframer/mod.rs
++++ b/src/msgs/deframer/mod.rs
+@@ -73,10 +73,14 @@
+         let (consumed, remainder) = mem::take(&mut self.buf).split_at_mut(end);
+         self.buf = remainder;
+         self.consumed += end;
+-
+-        Some(Ok(InboundOpaqueMessage::new(
++        let header = consumed[..HEADER_SIZE]
++            .try_into()
++            .expect("TLS record header has fixed size");
++
++        Some(Ok(InboundOpaqueMessage::new_with_header(
+             typ,
+             version,
++            header,
+             &mut consumed[HEADER_SIZE..],
+         )))
+     }
+diff --git a/src/msgs/message/inbound.rs b/src/msgs/message/inbound.rs
+--- a/src/msgs/message/inbound.rs
++++ b/src/msgs/message/inbound.rs
+@@ -11,6 +11,7 @@
+ pub struct InboundOpaqueMessage<'a> {
+     pub typ: ContentType,
+     pub version: ProtocolVersion,
++    pub header: [u8; 5],
+     pub payload: BorrowedPayload<'a>,
+ }
+ 
+@@ -19,9 +20,24 @@
+     ///
+     /// `payload` is borrowed.
+     pub fn new(typ: ContentType, version: ProtocolVersion, payload: &'a mut [u8]) -> Self {
++        let payload_len = payload.len() as u16;
++        let mut header = [0; 5];
++        header[0] = u8::from(typ);
++        header[1..3].copy_from_slice(&version.to_array());
++        header[3..5].copy_from_slice(&payload_len.to_be_bytes());
++        Self::new_with_header(typ, version, header, payload)
++    }
++
++    pub(crate) fn new_with_header(
++        typ: ContentType,
++        version: ProtocolVersion,
++        header: [u8; 5],
++        payload: &'a mut [u8],
++    ) -> Self {
+         Self {
+             typ,
+             version,
++            header,
+             payload: BorrowedPayload(payload),
+         }
+     }
+diff --git a/src/msgs/persist.rs b/src/msgs/persist.rs
 --- a/src/msgs/persist.rs
 +++ b/src/msgs/persist.rs
 @@ -199,6 +199,11 @@
@@ -154,9 +784,144 @@
      }
  
      pub(crate) fn compatible_config(
+diff --git a/src/quic.rs b/src/quic.rs
+--- a/src/quic.rs
++++ b/src/quic.rs
+@@ -204,7 +204,7 @@
+                 ..ClientExtensionsInput::from_alpn(alpn_protocols)
+             };
+ 
+-            let mut inner = ConnectionCore::for_client(config, name, exts, Protocol::Quic)?;
++            let mut inner = ConnectionCore::for_client(config, name, exts, Protocol::Quic, false)?;
+             inner.common_state.quic.version = quic_version;
+             Ok(Self {
+                 inner: inner.into(),
+@@ -293,7 +293,7 @@
+                 }),
+             };
+ 
+-            let mut core = ConnectionCore::for_server(config, exts)?;
++            let mut core = ConnectionCore::for_server(config, exts, false)?;
+             core.common_state.protocol = Protocol::Quic;
+             core.common_state.quic.version = quic_version;
+             Ok(Self { inner: core.into() })
+diff --git a/src/server/server_conn.rs b/src/server/server_conn.rs
 --- a/src/server/server_conn.rs
 +++ b/src/server/server_conn.rs
-@@ -1051,6 +1051,30 @@
+@@ -598,6 +598,7 @@
+ #[cfg(feature = "std")]
+ mod connection {
+     use alloc::boxed::Box;
++    use alloc::vec::Vec;
+     use core::fmt;
+     use core::fmt::{Debug, Formatter};
+     use core::ops::{Deref, DerefMut};
+@@ -609,6 +610,7 @@
+     };
+     use crate::common_state::{CommonState, Context, Side};
+     use crate::conn::{ConnectionCommon, ConnectionCore};
++    use crate::enums::ProtocolVersion;
+     use crate::error::Error;
+     use crate::server::hs;
+     use crate::suites::ExtractedSecrets;
+@@ -653,10 +655,19 @@
+         /// Make a new ServerConnection.  `config` controls how
+         /// we behave in the TLS protocol.
+         pub fn new(config: Arc<ServerConfig>) -> Result<Self, Error> {
++            Self::new_with_message_callback(config, false)
++        }
++
++        /// Makes a new ServerConnection with optional bounded message event capture.
++        pub fn new_with_message_callback(
++            config: Arc<ServerConfig>,
++            enabled: bool,
++        ) -> Result<Self, Error> {
+             Ok(Self {
+                 inner: ConnectionCommon::from(ConnectionCore::for_server(
+                     config,
+                     ServerExtensionsInput::default(),
++                    enabled,
+                 )?),
+             })
+         }
+@@ -831,20 +842,45 @@
+     impl Default for Acceptor {
+         /// Return an empty Acceptor, ready to receive bytes from a new client connection.
+         fn default() -> Self {
++            Self::new_with_message_callback(false)
++        }
++    }
++
++    impl Acceptor {
++        /// Returns an empty Acceptor that can capture bounded message callback events.
++        pub fn new_with_message_callback(enabled: bool) -> Self {
++            let mut common_state = CommonState::new(Side::Server);
++            common_state.set_message_callback_enabled(enabled);
++            common_state.set_message_callback_version(ProtocolVersion::TLSv1_3);
+             Self {
+                 inner: Some(
+                     ConnectionCore::new(
+                         Box::new(Accepting),
+                         ServerConnectionData::default(),
+-                        CommonState::new(Side::Server),
++                        common_state,
+                     )
+                     .into(),
+                 ),
+             }
+         }
+-    }
+-
+-    impl Acceptor {
++
++        /// Enables or disables bounded capture of TLS message callback events.
++        pub fn set_message_callback_enabled(&mut self, enabled: bool) {
++            if let Some(connection) = self.inner.as_mut() {
++                connection.set_message_callback_enabled(enabled);
++            }
++        }
++
++        /// Drains captured TLS message callback events, or returns `None` after overflow.
++        pub fn take_message_callback_events(
++            &mut self,
++        ) -> Option<Vec<(bool, u16, u16, i32, Vec<u8>)>> {
++            self.inner
++                .as_mut()
++                .map(ConnectionCommon::take_message_callback_events)
++                .unwrap_or_else(|| Some(Vec::new()))
++        }
++
+         /// Read TLS content from `rd`.
+         ///
+         /// Returns an error if this `Acceptor` has already yielded an [`Accepted`]. For more details,
+@@ -963,6 +999,7 @@
+             inner: UnbufferedConnectionCommon::from(ConnectionCore::for_server(
+                 config,
+                 ServerExtensionsInput::default(),
++                false,
+             )?),
+         })
+     }
+@@ -1027,6 +1064,18 @@
+ }
+ 
+ impl Accepted {
++    /// Enables or disables bounded capture of TLS message callback events.
++    pub fn set_message_callback_enabled(&mut self, enabled: bool) {
++        self.connection.set_message_callback_enabled(enabled);
++    }
++
++    /// Drains captured TLS message callback events, or returns `None` after overflow.
++    pub fn take_message_callback_events(
++        &mut self,
++    ) -> Option<Vec<(bool, u16, u16, i32, Vec<u8>)>> {
++        self.connection.take_message_callback_events()
++    }
++
+     /// Get the [`ClientHello`] for this connection.
+     pub fn client_hello(&self) -> ClientHello<'_> {
+         let payload = Self::client_hello_payload(&self.message);
+@@ -1051,6 +1100,30 @@
          ch
      }
  
@@ -187,9 +952,105 @@
      /// Convert the [`Accepted`] into a [`ServerConnection`].
      ///
      /// Takes the state returned from [`Acceptor::accept()`] as well as the [`ServerConfig`] and
+@@ -1058,9 +1131,20 @@
+     /// configuration-dependent validation of the received `ClientHello` message fails.
+     #[cfg(feature = "std")]
+     pub fn into_connection(
++        self,
++        config: Arc<ServerConfig>,
++    ) -> Result<ServerConnection, (Error, AcceptedAlert)> {
++        self.into_connection_with_message_callback(config, false)
++    }
++
++    /// Converts the [`Accepted`] into a [`ServerConnection`] with bounded event capture enabled.
++    #[cfg(feature = "std")]
++    pub fn into_connection_with_message_callback(
+         mut self,
+         config: Arc<ServerConfig>,
++        enabled: bool,
+     ) -> Result<ServerConnection, (Error, AcceptedAlert)> {
++        self.connection.set_message_callback_enabled(enabled);
+         if let Err(err) = self
+             .connection
+             .set_max_fragment_size(config.max_fragment_size)
+@@ -1222,8 +1306,13 @@
+     pub(crate) fn for_server(
+         config: Arc<ServerConfig>,
+         extra_exts: ServerExtensionsInput<'static>,
++        message_callback_enabled: bool,
+     ) -> Result<Self, Error> {
+         let mut common = CommonState::new(Side::Server);
++        if message_callback_enabled {
++            common.set_message_callback_enabled(true);
++            common.set_message_callback_version(ProtocolVersion::TLSv1_3);
++        }
+         common.set_max_fragment_size(config.max_fragment_size)?;
+         common.enable_secret_extraction = config.enable_secret_extraction;
+         common.fips = config.fips();
+diff --git a/src/server/tls12.rs b/src/server/tls12.rs
 --- a/src/server/tls12.rs
 +++ b/src/server/tls12.rs
-@@ -827,6 +827,7 @@
+@@ -209,6 +209,7 @@
+                 selected_kxg,
+                 server_key.get_key(),
+                 &self.randoms,
++                cx.common,
+             )?;
+             let doing_client_auth = emit_certificate_req(&mut flight, &self.config)?;
+             emit_server_hello_done(&mut flight);
+@@ -371,6 +372,7 @@
+         selected_group: &'static dyn SupportedKxGroup,
+         signing_key: &dyn sign::SigningKey,
+         randoms: &ConnectionRandoms,
++        common: &mut CommonState,
+     ) -> Result<Box<dyn ActiveKeyExchange>, Error> {
+         let kx = selected_group.start()?;
+         let kx_params = ServerKeyExchangeParams::new(&*kx);
+@@ -385,6 +387,7 @@
+             .ok_or_else(|| Error::General("incompatible signing key".to_string()))?;
+         let sigscheme = signer.scheme();
+         let sig = signer.sign(&msg)?;
++        common.set_local_signature_scheme(sigscheme);
+ 
+         let skx = ServerKeyExchangePayload::from(ServerKeyExchange {
+             params: kx_params,
+@@ -636,14 +639,14 @@
+     where
+         Self: 'm,
+     {
+-        let rc = {
++        let (rc, signature_scheme) = {
+             let sig = require_handshake_msg!(
+                 m,
+                 HandshakeType::CertificateVerify,
+                 HandshakePayload::CertificateVerify
+             )?;
+-
+-            match self.transcript.take_handshake_buf() {
++            let signature_scheme = sig.scheme;
++            let result = match self.transcript.take_handshake_buf() {
+                 Some(msgs) => {
+                     let certs = &self.client_cert;
+                     self.config
+@@ -661,7 +664,8 @@
+                         Error::General("client authentication not set up".into()),
+                     ));
+                 }
+-            }
++            };
++            (result, signature_scheme)
+         };
+ 
+         if let Err(e) = rc {
+@@ -671,6 +675,7 @@
+         }
+ 
+         trace!("client CertificateVerify OK");
++        cx.common.set_peer_signature_scheme(signature_scheme);
+         cx.common.peer_certificates = Some(self.client_cert.into_owned());
+ 
+         self.transcript.add_message(&m);
+@@ -827,6 +832,7 @@
  ) {
      let vh = transcript.current_hash();
      let verify_data = secrets.server_verify_data(&vh);
@@ -197,7 +1058,7 @@
      let verify_data_payload = Payload::new(verify_data);
  
      let f = Message {
-@@ -876,6 +877,8 @@
+@@ -876,6 +882,8 @@
                          .send_fatal_alert(AlertDescription::DecryptError, Error::DecryptError));
                  }
              };
@@ -206,14 +1067,60 @@
  
          // Save connection, perhaps
          if !self.resuming && !self.session_id.is_empty() {
+diff --git a/src/server/tls13.rs b/src/server/tls13.rs
 --- a/src/server/tls13.rs
 +++ b/src/server/tls13.rs
-@@ -1385,6 +1385,8 @@
-             }
+@@ -832,6 +832,7 @@
+ 
+         let scheme = signer.scheme();
+         let sig = signer.sign(message.as_ref())?;
++        common.set_local_signature_scheme(scheme);
+ 
+         let cv = DigitallySignedStruct::new(scheme, sig);
+ 
+@@ -1166,20 +1167,24 @@
+     where
+         Self: 'm,
+     {
+-        let rc = {
++        let (rc, signature_scheme) = {
+             let sig = require_handshake_msg!(
+                 m,
+                 HandshakeType::CertificateVerify,
+                 HandshakePayload::CertificateVerify
+             )?;
++            let signature_scheme = sig.scheme;
+             let handshake_hash = self.transcript.current_hash();
+             self.transcript.abandon_client_auth();
+             let certs = &self.client_cert;
+             let msg = construct_client_verify_message(&handshake_hash);
+ 
+-            self.config
+-                .verifier
+-                .verify_tls13_signature(msg.as_ref(), &certs[0], sig)
++            (
++                self.config
++                    .verifier
++                    .verify_tls13_signature(msg.as_ref(), &certs[0], sig),
++                signature_scheme,
++            )
          };
  
-+        cx.common.set_tls_unique_if_none(finished.bytes());
+         if let Err(e) = rc {
+@@ -1189,6 +1194,7 @@
+         }
+ 
+         trace!("client CertificateVerify OK");
++        cx.common.set_peer_signature_scheme(signature_scheme);
+         cx.common.peer_certificates = Some(self.client_cert);
+ 
+         self.transcript.add_message(&m);
+@@ -1384,6 +1390,8 @@
+                     .send_fatal_alert(AlertDescription::DecryptError, Error::DecryptError));
+             }
+         };
 +
++        cx.common.set_tls_unique_if_none(finished.bytes());
+ 
          // Note: future derivations include Client Finished, but not the
          // main application data keying.
-         self.transcript.add_message(&m);

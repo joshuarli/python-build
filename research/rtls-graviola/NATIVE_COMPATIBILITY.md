@@ -52,6 +52,14 @@ adapters. Its `_ssl.py` and `_hashlib.py` module dictionaries publish no
 OpenSSL functions. The installed prefix also has no OpenSSL headers or
 `libssl` and `libcrypto` archives.
 
+The later combined development TLS binding adds six `rtls_native_*` C exports:
+`claim`, `copy_reply`, `free`, `handle_count`, `invoke`, and `report_unraisable`.
+The ordinary Python facade uses these owned-handle operations through `ctypes`;
+they expose no OpenSSL object pointers. `nm -gU` on that build reports these
+six symbols and `PyInit__rustls`, and its undefined symbols contain no `EVP_`,
+`SSL_`, `X509_`, or `OPENSSL_` names. Its load commands still name only
+`libiconv` and `libSystem`. Final extracted-archive checks remain outstanding.
+
 In both native candidate modules, `LC_ID_DYLIB` uses an `@rpath` install name.
 Their `LC_LOAD_DYLIB` entries name only `libiconv` and `libSystem`. Neither
 module loads OpenSSL or a build-tree library.

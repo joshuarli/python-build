@@ -75,7 +75,7 @@ It eagerly exports CPython 3.15.1's integer constants from `ssl_metadata.py`,
 and `ssl_facade.py` builds the matching enum classes from those constants.
 Backend versions and capability flags remain RTLS-specific. Kernel TLS is
 unavailable: `OP_ENABLE_KTLS` is absent. The ordinary TLS `sendfile()`
-fallback is still under repair.
+fallback now transfers encrypted data through the ordinary TLS write path.
 `ssl_metadata.py` also contains the CPython protocol-message enums.
 
 
@@ -95,13 +95,32 @@ remaining failures include actionable API and socket-lifecycle defects.
 A preceding run had one additional process-pool failure; its isolated rerun
 and the complete replay passed that file, without erasing the initial failure.
 
-The complete `test_ssl` run now finishes: 219 tests, 30 failures, 36 errors,
-and 37 skips. The earlier nonblocking-send hang is repaired. Compatibility
-work continues on TLS FTP shutdown, error propagation, constructor semantics,
-cipher controls, channel binding, and metadata. PyO3 currently prevents both
-native adapters from loading in subinterpreters; `hashlib` then loses PBKDF2
-and scrypt in a worker. Safe per-interpreter bindings are an active repair,
-not a supported feature or a waived requirement.
+The combined development backend's complete `test_ssl` run executes 219 tests:
+25 failures, 15 errors, and 37 skips. This improves on the preceding checkpoint
+but remains a qualification failure. Remaining cases include actionable socket,
+constructor, context, and error behavior, deliberately unsupported features,
+and tests whose OpenSSL version guards select an inappropriate branch for
+rustls. The interpreter reports its real backend identity; it does not claim an
+OpenSSL version to bypass those guards.
+
+The combined source passes the 82-case certificate corpus, 12 isolated strict
+error-code gates, and 14 trust-source cases. Actual TLS message callbacks and
+signature metadata pass their direct contracts. The upstream debug callback
+class executes six tests with one additional skip. FTP, POP, HTTP server,
+hashing, and HMAC suites execute 513 tests with 23 skips and no failures.
+Direct external HTTPS also succeeds using all 120 roots from the pinned Mozilla
+bundle, through both a verified TLS 1.3 socket and `urllib` without proxy use.
+These checks ran on the development prefix; final archive qualification remains
+outstanding.
+
+Both adapters now have bindings that operate in separate interpreters. The TLS
+binding uses a Rust-only handle registry and copied arguments through a narrow
+C interface. Python callbacks run after native locks are released. Its contract
+checks TLS 1.2 and 1.3 verification, repeated interpreter destruction, executor
+workers, and cleanup after injected allocation and interruption failures.
+Hashing uses per-interpreter CPython C API state. The preceding PyO3 import
+restriction is repaired; final combined archive regression testing remains
+outstanding.
 
 No macOS 26 runtime or Linux qualification is claimed. No clean build-time,
 peak-memory, stripped-size, or compressed-artifact comparison is complete.
