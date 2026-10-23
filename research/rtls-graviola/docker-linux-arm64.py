@@ -724,6 +724,7 @@ def build_runtime_image(
                 [
                     "docker", "build", "--platform", DOCKER_PLATFORM, "--network", "none",
                     "--target", "archive-runtime",
+                    "--build-arg", f"TOOLCHAIN_IMAGE=alpine@{locked_digest}",
                     "--build-arg", f"RUNTIME_BASE_IMAGE=alpine@{locked_digest}",
                     "--build-arg", f"LOCKED_IMAGE_DIGEST={locked_digest}",
                     "--build-arg", f"LIBGCC_SHA256={libgcc['sha256']}",
