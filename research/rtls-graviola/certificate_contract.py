@@ -46,6 +46,15 @@ REFERENCE_EXPECTATIONS = {
     "strict_signature_sha1_disabled": {"accepted": False},
     "strict_pathlen_exceeded": {"accepted": False},
     "strict_issuer_subject_mismatch": {"accepted": False},
+    "issuer_name_root_exact_control": {"accepted": True},
+    "issuer_name_root_case_equivalent": {"accepted": True},
+    "issuer_name_root_space_equivalent": {"accepted": True},
+    "issuer_name_root_string_type_equivalent": {"accepted": True},
+    "issuer_name_intermediate_exact_control": {"accepted": True},
+    "issuer_name_intermediate_case_equivalent": {"accepted": True},
+    "issuer_name_intermediate_space_equivalent": {"accepted": True},
+    "issuer_name_intermediate_string_type_equivalent": {"accepted": True},
+    "issuer_name_different_same_key_rejected": {"accepted": False},
     "hostname_wrong_san": {"accepted": False},
     "hostname_cn_without_san": {"accepted": True},
     "hostname_wildcard_single_suffix": {"accepted": False},
@@ -70,6 +79,7 @@ REFERENCE_EXPECTATIONS = {
     "ns_cert_type_client_on_server_leaf": {"accepted": False},
     "unrelated_malformed_peer_certificate": {"accepted": True},
     "self_issued_not_self_signed_pathlen": {"accepted": True},
+    "self_issued_canonical_name_pathlen": {"accepted": True},
     "cross_signed_trusted_first_enabled": {"accepted": True},
     "cross_signed_trusted_first_disabled": {"accepted": True},
     "trusted_intermediate_partial_chain_enabled": {"accepted": True},
@@ -689,6 +699,53 @@ def pem_der(data: bytes) -> bytes:
     return base64.b64decode(re.sub(rb"\s+", b"", match.group(1)))
 
 
+COMMON_NAME_OID = b"\x06\x03\x55\x04\x03"
+ORGANIZATION_NAME_OID = b"\x06\x03\x55\x04\x0a"
+
+
+def name_variant(name: bytes, oid: bytes, variant: str) -> bytes:
+    rdns = []
+    found = False
+    for rdn in der_children(name):
+        attributes = []
+        for attribute in der_children(rdn):
+            fields = der_children(attribute)
+            if fields[0] != oid:
+                attributes.append(attribute)
+                continue
+            if found or len(fields) != 2:
+                raise ValueError("distinguished name attribute is not unique")
+            found = True
+            value_tag, _, value_offset, value_end = der_item(fields[1])
+            value = fields[1][value_offset:value_end]
+            if variant == "case":
+                value = value.swapcase()
+            elif variant == "spaces":
+                value = (
+                    value.replace(b" ", b"  ", 1)
+                    if b" " in value
+                    else b" " + value + b" "
+                )
+            elif variant == "string_type":
+                if value_tag == 0x0c:
+                    value_tag = 0x13
+                elif value_tag == 0x13:
+                    value_tag = 0x0c
+                else:
+                    raise ValueError(
+                        "distinguished name string type is not UTF8String or PrintableString"
+                    )
+            elif variant == "different":
+                value = b"unrecognized-issuer"
+            else:
+                raise ValueError(f"unknown distinguished name variant {variant!r}")
+            attributes.append(der_value(0x30, fields[0] + der_value(value_tag, value)))
+        rdns.append(der_value(0x31, b"".join(attributes)))
+    if not found:
+        raise ValueError("distinguished name attribute is missing")
+    return der_value(0x30, b"".join(rdns))
+
+
 def certificate_fields(certificate: bytes) -> tuple[list[bytes], bytes, bytes]:
     outer = der_children(certificate)
     if len(outer) != 3:
@@ -719,6 +776,20 @@ def resign_certificate(
     )
     signature = der_value(0x03, b"\x00" + signature_path.read_bytes())
     return der_value(0x30, tbs + outer[1] + signature)
+
+
+def resigned_issuer_certificate(
+    certificate: bytes,
+    issuer: bytes,
+    key: Path,
+    directory: Path,
+    openssl: str,
+) -> bytes:
+    der = pem_der(certificate)
+    fields, _, _ = certificate_fields(der)
+    issuer_offset = (1 if fields[0][0] == 0xa0 else 0) + 2
+    fields[issuer_offset] = issuer
+    return certificate_pem(resign_certificate(der, fields, key, directory, openssl))
 
 
 def certificate_pem(certificate: bytes) -> bytes:
@@ -1179,12 +1250,14 @@ def make_policy_fixtures(
         "subject_key_identifier_missing": [
             "basicConstraints = critical,CA:true,pathlen:4",
             "keyUsage = critical,digitalSignature,keyCertSign,cRLSign",
+            "subjectKeyIdentifier = none",
             "authorityKeyIdentifier = keyid:always,issuer:always",
         ],
         "authority_key_identifier_missing": [
             "basicConstraints = critical,CA:true,pathlen:4",
             "keyUsage = critical,digitalSignature,keyCertSign,cRLSign",
             "subjectKeyIdentifier = hash",
+            "authorityKeyIdentifier = none",
         ],
         "pathlen_zero": [
             "basicConstraints = critical,CA:true,pathlen:0",
@@ -1269,6 +1342,103 @@ def make_policy_fixtures(
             + keydata
         )
         return str(path)
+
+    direct_leaf = issue_certificate(
+        openssl,
+        root_state,
+        leaf_request,
+        directory / "issuer-name-root-leaf.pem",
+        "issuer_name_root_leaf",
+        normal_leaf,
+    )
+    root_issuer = certificate_fields(pem_der(direct_leaf.read_bytes()))[1]
+    root_name_variants = {
+        "issuer_name_root_exact_control": root_issuer,
+        "issuer_name_root_case_equivalent": name_variant(
+            root_issuer, COMMON_NAME_OID, "case"
+        ),
+        "issuer_name_root_space_equivalent": name_variant(
+            root_issuer, ORGANIZATION_NAME_OID, "spaces"
+        ),
+        "issuer_name_root_string_type_equivalent": name_variant(
+            root_issuer, COMMON_NAME_OID, "string_type"
+        ),
+        "issuer_name_different_same_key_rejected": name_variant(
+            root_issuer, COMMON_NAME_OID, "different"
+        ),
+    }
+    issuer_name_chains = {}
+    for name, issuer in root_name_variants.items():
+        certificate = direct_leaf.read_bytes()
+        if name != "issuer_name_root_exact_control":
+            certificate = resigned_issuer_certificate(
+                certificate, issuer, root_a_key, directory, openssl
+            )
+        leaf = write_fixture(
+            directory / (name + ".pem"), certificate
+        )
+        chainfile = write_fixture(
+            directory / (name + "-chain.pem"), leaf.read_bytes() + keydata
+        )
+        issuer_name_chains[name] = str(chainfile)
+
+    name_intermediate_key, name_intermediate_request = make_key_request(
+        openssl,
+        directory,
+        "issuer-name-intermediate",
+        "/O=RTLS Intermediate CA/CN=RTLS-Name-Intermediate",
+    )
+    name_intermediate = issue_certificate(
+        openssl,
+        root_state,
+        name_intermediate_request,
+        directory / "issuer-name-intermediate.pem",
+        "issuer_name_intermediate",
+        normal_intermediate,
+    )
+    name_intermediate_state = ca_state(
+        directory,
+        name_intermediate,
+        name_intermediate_key,
+        "issuer-name-leaf",
+    )
+    name_intermediate_leaf = issue_certificate(
+        openssl,
+        name_intermediate_state,
+        leaf_request,
+        directory / "issuer-name-intermediate-leaf.pem",
+        "issuer_name_intermediate_leaf",
+        normal_leaf,
+    )
+    intermediate_issuer = certificate_fields(
+        pem_der(name_intermediate_leaf.read_bytes())
+    )[1]
+    intermediate_name_variants = {
+        "issuer_name_intermediate_exact_control": intermediate_issuer,
+        "issuer_name_intermediate_case_equivalent": name_variant(
+            intermediate_issuer, COMMON_NAME_OID, "case"
+        ),
+        "issuer_name_intermediate_space_equivalent": name_variant(
+            intermediate_issuer, ORGANIZATION_NAME_OID, "spaces"
+        ),
+        "issuer_name_intermediate_string_type_equivalent": name_variant(
+            intermediate_issuer, COMMON_NAME_OID, "string_type"
+        ),
+    }
+    for name, issuer in intermediate_name_variants.items():
+        certificate = name_intermediate_leaf.read_bytes()
+        if name != "issuer_name_intermediate_exact_control":
+            certificate = resigned_issuer_certificate(
+                certificate, issuer, name_intermediate_key, directory, openssl
+            )
+        leaf = write_fixture(
+            directory / (name + ".pem"), certificate
+        )
+        chainfile = write_fixture(
+            directory / (name + "-chain.pem"),
+            leaf.read_bytes() + name_intermediate.read_bytes() + keydata,
+        )
+        issuer_name_chains[name] = str(chainfile)
 
     malformed_policy = intermediate_certificates["basic_constraints_noncritical"]
     _, malformed_unrelated_request = make_key_request(
@@ -1470,6 +1640,24 @@ def make_policy_fixtures(
         + self_parent.read_bytes()
         + keydata
     )
+    self_issued_subject = certificate_fields(pem_der(self_issued.read_bytes()))[2]
+    canonical_self_issued = write_fixture(
+        directory / "self-issued-canonical-name.pem",
+        resigned_issuer_certificate(
+            self_issued.read_bytes(),
+            name_variant(self_issued_subject, COMMON_NAME_OID, "case"),
+            self_parent_key,
+            directory,
+            openssl,
+        ),
+    )
+    canonical_self_issued_chain = write_fixture(
+        directory / "chain-self-issued-canonical-name.pem",
+        self_issued_leaf.read_bytes()
+        + canonical_self_issued.read_bytes()
+        + self_parent.read_bytes()
+        + keydata,
+    )
 
     constrained_key, constrained_request = make_key_request(
         openssl, directory, "name-constrained-ca", "/CN=RTLS-Name-Constrained-CA"
@@ -1623,6 +1811,14 @@ def make_policy_fixtures(
             if fixture_name == "signature_sha1":
                 case["server_ciphers"] = "DEFAULT:@SECLEVEL=0"
             path_cases.append(case)
+    for name, chainfile in issuer_name_chains.items():
+        path_cases.append(
+            {
+                "name": name,
+                "chainfile": chainfile,
+                "trustfile": trust_root,
+            }
+        )
     path_cases.extend(
         [
             {
@@ -1738,6 +1934,11 @@ def make_policy_fixtures(
             {
                 "name": "self_issued_not_self_signed_pathlen",
                 "chainfile": str(self_issued_chain),
+                "trustfile": trust_root,
+            },
+            {
+                "name": "self_issued_canonical_name_pathlen",
+                "chainfile": str(canonical_self_issued_chain),
                 "trustfile": trust_root,
             },
             {
