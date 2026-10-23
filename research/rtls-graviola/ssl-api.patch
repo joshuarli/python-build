@@ -1,0 +1,756 @@
+--- a/src/rtls/__init__.py
++++ b/src/rtls/__init__.py
+@@ -47,6 +47,8 @@
+     CERT_NONE,
+     CERT_OPTIONAL,
+     CERT_REQUIRED,
++    ENCODING_DER,
++    ENCODING_PEM,
+     # Channel binding
+     CHANNEL_BINDING_TYPES,
+     # Feature flags
+@@ -56,6 +58,7 @@
+     HAS_NPN,
+     HAS_PHA,
+     HAS_PSK,
++    HAS_PSK_TLS13,
+     HAS_SNI,
+     OP_ALL,
+     OP_CIPHER_SERVER_PREFERENCE,
+@@ -115,6 +118,7 @@
+     PROTOCOL_TLSv1,
+     PROTOCOL_TLSv1_1,
+     PROTOCOL_TLSv1_2,
++    _SSLMethod,
+     # Purpose
+     Purpose,
+     # TLSVersion enum
+@@ -185,6 +189,8 @@
+     "CERT_NONE",
+     "CERT_OPTIONAL",
+     "CERT_REQUIRED",
++    "ENCODING_PEM",
++    "ENCODING_DER",
+     "VerifyFlags",
+     "VERIFY_DEFAULT",
+     "VERIFY_CRL_CHECK_LEAF",
+@@ -232,6 +238,7 @@
+     "HAS_TLSv1",
+     "HAS_TLSv1_1",
+     "HAS_PSK",
++    "HAS_PSK_TLS13",
+     "HAS_PHA",
+     "Purpose",
+     "AlertDescription",
+--- a/src/rtls/_certificate.py
++++ b/src/rtls/_certificate.py
+@@ -2,7 +2,9 @@
+ 
+ from typing import Any
+ 
++from ._constants import ENCODING_DER, ENCODING_PEM
+ 
++
+ class TLSCertificate:
+     """Wrapper around a DER-encoded X.509 certificate.
+ 
+@@ -29,20 +31,21 @@
+         if self._parsed_cache is not None:
+             return self._parsed_cache
+ 
+-        try:
+-            from . import _rustls
++        from . import _rustls
+ 
+-            self._parsed_cache = _rustls.parse_certificate_dict(self._der_bytes)
+-        except ImportError:
+-            # Fallback: return minimal dict if Rust module not available
+-            self._parsed_cache = {}
++        self._parsed_cache = _rustls.parse_certificate_dict(self._der_bytes)
+ 
+         return self._parsed_cache
+ 
+-    def public_bytes(self) -> bytes:
+-        """Return the DER-encoded certificate bytes."""
+-        return self._der_bytes
++    def public_bytes(self, encoding: int = ENCODING_PEM) -> str | bytes:
++        if encoding == ENCODING_PEM:
++            from ._utils import DER_cert_to_PEM_cert
+ 
++            return DER_cert_to_PEM_cert(self._der_bytes)
++        if encoding == ENCODING_DER:
++            return self._der_bytes
++        raise ValueError("Unsupported format")
++
+     def __eq__(self, other: object) -> bool:
+         if isinstance(other, TLSCertificate):
+             return self._der_bytes == other._der_bytes
+--- a/src/rtls/_constants.py
++++ b/src/rtls/_constants.py
+@@ -4,16 +4,21 @@
+ import enum
+ import os
+ 
+-PROTOCOL_TLS = 2
+-PROTOCOL_TLS_CLIENT = 16
+-PROTOCOL_TLS_SERVER = 17
+-PROTOCOL_SSLv23 = PROTOCOL_TLS  # Deprecated alias
++class _SSLMethod(enum.IntEnum):
++    PROTOCOL_TLS = 2
++    PROTOCOL_TLS_CLIENT = 16
++    PROTOCOL_TLS_SERVER = 17
++    PROTOCOL_TLSv1 = 3
++    PROTOCOL_TLSv1_1 = 4
++    PROTOCOL_TLSv1_2 = 5
+ 
+-# Deprecated per-version protocols — we define the constants for compatibility
+-# but rtls only supports TLS 1.2+
+-PROTOCOL_TLSv1 = 3
+-PROTOCOL_TLSv1_1 = 4
+-PROTOCOL_TLSv1_2 = 5
++PROTOCOL_TLS = _SSLMethod.PROTOCOL_TLS
++PROTOCOL_TLS_CLIENT = _SSLMethod.PROTOCOL_TLS_CLIENT
++PROTOCOL_TLS_SERVER = _SSLMethod.PROTOCOL_TLS_SERVER
++PROTOCOL_SSLv23 = PROTOCOL_TLS
++PROTOCOL_TLSv1 = _SSLMethod.PROTOCOL_TLSv1
++PROTOCOL_TLSv1_1 = _SSLMethod.PROTOCOL_TLSv1_1
++PROTOCOL_TLSv1_2 = _SSLMethod.PROTOCOL_TLSv1_2
+ 
+ 
+ class TLSVersion(enum.IntEnum):
+@@ -35,6 +40,9 @@
+ CERT_NONE = VerifyMode.CERT_NONE
+ CERT_OPTIONAL = VerifyMode.CERT_OPTIONAL
+ CERT_REQUIRED = VerifyMode.CERT_REQUIRED
++
++ENCODING_PEM = 1
++ENCODING_DER = 2
+ 
+ 
+ class VerifyFlags(enum.IntFlag):
+@@ -124,6 +132,7 @@
+ HAS_TLSv1 = False
+ HAS_TLSv1_1 = False
+ HAS_PSK = False
++HAS_PSK_TLS13 = False
+ HAS_PHA = False  # Limited support, but safer to report False
+ 
+ 
+--- a/src/rtls/_exceptions.py
++++ b/src/rtls/_exceptions.py
+@@ -12,9 +12,11 @@
+     reason: str | None
+ 
+     def __init__(self, *args: Any, **kwargs: Any) -> None:
++        library = kwargs.pop("library", None)
++        reason = kwargs.pop("reason", None)
+         super().__init__(*args, **kwargs)
+-        self.library = kwargs.get("library") or "rtls"
+-        self.reason = kwargs.get("reason") or (str(args[0]) if args else "unknown")
++        self.library = library or "rtls"
++        self.reason = reason or (str(args[0]) if args else "unknown")
+ 
+ 
+ class SSLZeroReturnError(SSLError, _ssl.SSLZeroReturnError):
+@@ -59,9 +61,21 @@
+     verify_message: str
+ 
+     def __init__(self, *args: Any, **kwargs: Any) -> None:
+-        self.verify_code = kwargs.pop("verify_code", 0)
+-        self.verify_message = kwargs.pop("verify_message", "")
+-        super().__init__(*args, **kwargs)
++        self.verify_code = kwargs.pop("verify_code", 1)
++        message = str(args[0]) if args else ""
++        self.verify_message = kwargs.pop("verify_message", message)
++        kwargs.pop("reason", None)
++        kwargs.setdefault("library", "rtls")
++        details = f": {self.verify_message}" if self.verify_message else ""
++        normalized_message = (
++            f"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed{details}"
++        )
++        super().__init__(
++            normalized_message,
++            *args[1:],
++            reason="CERTIFICATE_VERIFY_FAILED",
++            **kwargs,
++        )
+ 
+ 
+ # Alias used by CPython
+--- a/src/rtls/_object.py
++++ b/src/rtls/_object.py
+@@ -1,10 +1,12 @@
+ from __future__ import annotations
+ 
++import weakref
+ from typing import TYPE_CHECKING, Any
+ 
+ from ._bio import MemoryBIO
+ from ._certificate import TLSCertificate
+ from ._constants import (
++    ENCODING_DER,
+     _HAS_ECH,
+     CERT_NONE,
+     SSL_ERROR_WANT_READ,
+@@ -40,6 +42,20 @@
+ }
+ 
+ 
++class _TLSPrivateObject:
++    def __init__(self, tls_object: TLSObject) -> None:
++        self._tls_object = weakref.proxy(tls_object)
++
++    def __getattr__(self, name: str) -> Any:
++        return getattr(self._tls_object, name)
++
++    def get_verified_chain(self) -> list[TLSCertificate] | None:
++        return self._tls_object._get_verified_chain()
++
++    def get_unverified_chain(self) -> list[TLSCertificate] | None:
++        return self._tls_object._get_unverified_chain()
++
++
+ class TLSObject:
+     """Sans-I/O TLS object — equivalent of ``ssl.SSLObject``.
+ 
+@@ -66,11 +82,14 @@
+         self._conn: Any = None  # RustlsClientConnection or RustlsServerConnection
+         self._handshake_done = False
+         self._shutdown = False
++        self._shutdown_sent = False
+         # Set only once the peer's close_notify and all plaintext are consumed.
+         self._peer_closed = False
+ 
+         self._pending_ct: bytes = b""
++        self._pending_plaintext = b""
+         self._maybe_buffered = False
++        self._private_object = _TLSPrivateObject(self)
+ 
+         # Build the Rust connection via the context's config builder
+         self._init_connection()
+@@ -171,12 +190,16 @@
+         read_tls → process_new_packets → read_plaintext in a single
+         Python→Rust call, handling buffer-full looping internally.
+         """
+-        if self._shutdown:
+-            raise SSLZeroReturnError("TLS/SSL connection has been closed")
+-        if self._peer_closed:
+-            return 0 if buffer is not None else b""
++        if buffer is not None and len(buffer) == 0:
++            return 0
++        if self._shutdown or self._peer_closed:
++            return self._closed_read_result(buffer)
+ 
+         max_len = n if n > 0 else 65536
++        if self._pending_plaintext:
++            data = self._pending_plaintext[:max_len]
++            self._pending_plaintext = self._pending_plaintext[len(data) :]
++            return self._read_result(data, buffer)
+ 
+         # Read all available ciphertext from the BIO
+         ciphertext = self._incoming.read()
+@@ -187,7 +210,7 @@
+                 plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
+             except SSLZeroReturnError:
+                 self._peer_closed = True
+-                return 0 if buffer is not None else b""
++                return self._closed_read_result(buffer)
+ 
+             # Stash any unconsumed ciphertext back in the BIO
+             if unconsumed:
+@@ -197,11 +220,7 @@
+             self._flush_outgoing()
+ 
+             if plaintext:
+-                if buffer is not None:
+-                    nbytes = min(len(plaintext), len(buffer))
+-                    buffer[:nbytes] = plaintext[:nbytes]
+-                    return nbytes
+-                return plaintext
++                return self._read_result(plaintext, buffer)
+ 
+         # No ciphertext available (or it produced no plaintext).
+         # Try draining any plaintext already buffered in rustls from
+@@ -210,13 +229,9 @@
+             data = self._conn.read_plaintext(max_len)
+         except SSLZeroReturnError:
+             self._peer_closed = True
+-            return 0 if buffer is not None else b""
++            return self._closed_read_result(buffer)
+         if data:
+-            if buffer is not None:
+-                nbytes = min(len(data), len(buffer))
+-                buffer[:nbytes] = data[:nbytes]
+-                return nbytes
+-            return data
++            return self._read_result(data, buffer)
+ 
+         # Truly no data available
+         if self._incoming.eof:
+@@ -225,14 +240,40 @@
+             SSL_ERROR_WANT_READ, "The read operation did not complete"
+         )
+ 
++    def _closed_read_result(self, buffer: bytearray | None) -> bytes | int:
++        if self._shutdown_sent:
++            raise SSLZeroReturnError("TLS/SSL connection has been closed")
++        if buffer is not None:
++            return 0
++        return b""
++
++    def _read_result(self, data: bytes, buffer: bytearray | None) -> bytes | int:
++        if buffer is None:
++            return data
++        nbytes = min(len(data), len(buffer))
++        buffer[:nbytes] = data[:nbytes]
++        if nbytes < len(data):
++            self._pending_plaintext = data[nbytes:] + self._pending_plaintext
++        return nbytes
++
+     def has_pending(self) -> bool:
+         """True if plaintext or clean EOF may be available without network I/O."""
+-        return self._peer_closed or bool(self._pending_ct) or self._maybe_buffered
++        return (
++            self._peer_closed
++            or bool(self._pending_ct)
++            or bool(self._pending_plaintext)
++            or self._maybe_buffered
++        )
+ 
+     def feed_decrypt(self, ciphertext: bytes, max_len: int) -> bytes:
+         """Synchronous fast-path read used by :class:`TLSSocket`."""
+         if self._shutdown or self._peer_closed:
+             raise SSLZeroReturnError("TLS/SSL connection has been closed")
++        if self._pending_plaintext:
++            data = self._pending_plaintext[:max_len]
++            self._pending_plaintext = self._pending_plaintext[len(data) :]
++            self._pending_ct += ciphertext
++            return data
+ 
+         # Absorb any ciphertext left in the incoming BIO
+         if self._incoming.pending:
+@@ -271,7 +312,7 @@
+         Returns number of bytes written. The encrypted ciphertext is
+         placed in the outgoing BIO for the transport to send.
+         """
+-        if self._shutdown:
++        if self._shutdown or self._shutdown_sent:
+             raise SSLZeroReturnError("TLS/SSL connection has been closed")
+ 
+         if not self._handshake_done:
+@@ -289,15 +330,47 @@
+         return n
+ 
+     def unwrap(self) -> None:
+-        """Perform orderly TLS shutdown (send close_notify).
+-
+-        Returns None. The close_notify alert is placed in the outgoing BIO.
+-        """
+-        if self._conn is not None and not self._shutdown:
++        if self._shutdown:
++            return
++        if self._conn is None:
++            self._shutdown = True
++            return
++        if not self._shutdown_sent:
+             self._conn.send_close_notify()
++            self._flush_outgoing()
++            self._shutdown_sent = True
++
++        if self._incoming.pending:
++            self._pump_incoming()
++            try:
++                self._conn.process_new_packets()
++            except SSLError:
++                self._flush_outgoing()
++                raise
+             self._flush_outgoing()
++
++        if self._peer_closed:
+             self._shutdown = True
++            return
++        if self._pending_plaintext or self._conn.pending():
++            raise SSLWantReadError(
++                SSL_ERROR_WANT_READ, "The shutdown operation did not complete"
++            )
+ 
++        try:
++            data = self._conn.read_plaintext(1)
++        except SSLZeroReturnError:
++            self._peer_closed = True
++            self._shutdown = True
++            return
++        if data:
++            self._pending_plaintext = data + self._pending_plaintext
++        if self._incoming.eof:
++            raise SSLEOFError("EOF occurred in violation of protocol")
++        raise SSLWantReadError(
++            SSL_ERROR_WANT_READ, "The shutdown operation did not complete"
++        )
++
+     def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
+         """Return the peer's certificate.
+ 
+@@ -323,12 +396,9 @@
+         if binary_form:
+             return der_bytes
+ 
+-        try:
+-            from . import _rustls
++        from . import _rustls
+ 
+-            return _rustls.parse_certificate_dict(der_bytes)
+-        except ImportError:
+-            return {}
++        return _rustls.parse_certificate_dict(der_bytes)
+ 
+     def cipher(self) -> tuple[str, str, int] | None:
+         """Return a 3-tuple (cipher_name, tls_version, secret_bits) or None."""
+@@ -411,35 +481,32 @@
+         return self._server_hostname
+ 
+     @property
+-    def _sslobj(self) -> TLSObject:
+-        """Return self so that ``sslobj._sslobj.get_verified_chain()`` works.
++    def _sslobj(self) -> _TLSPrivateObject:
++        return self._private_object
+ 
+-        urllib3-future's async backend does:
+-            ssl_object = writer.get_extra_info("ssl_object")  → TLSObject
+-            chain = ssl_object._sslobj.get_verified_chain()
++    def _get_verified_chain(self) -> list[TLSCertificate] | None:
++        certs = self._conn.verified_certificates()
++        if certs is None:
++            return None
++        return [TLSCertificate(bytes(der)) for der in certs]
+ 
+-        Since we ARE the ssl object AND the _sslobj, returning self makes
+-        the chain traversal work.
+-        """
+-        return self
+-
+-    def get_verified_chain(self) -> list[TLSCertificate] | None:
+-        """Return the verified peer certificate chain as TLSCertificate list.
+-
+-        Returns None if no certificates are available.
+-        """
++    def _get_unverified_chain(self) -> list[TLSCertificate] | None:
+         certs = self._conn.peer_certificates()
+-        if not certs:
+-            return None  # Defensive:
++        if certs is None:
++            return None
+         return [TLSCertificate(bytes(der)) for der in certs]
+ 
+-    def get_unverified_chain(self) -> list[TLSCertificate] | None:
+-        """Return the unverified peer certificate chain.
++    def get_verified_chain(self) -> list[bytes]:
++        certs = self._get_verified_chain()
++        if certs is None:
++            return []
++        return [cert.public_bytes(ENCODING_DER) for cert in certs]
+ 
+-        Same as get_verified_chain() for our purposes — rustls either
+-        verified it or we used CERT_NONE.
+-        """
+-        return self.get_verified_chain()
++    def get_unverified_chain(self) -> list[bytes]:
++        certs = self._get_unverified_chain()
++        if certs is None:
++            return []
++        return [cert.public_bytes(ENCODING_DER) for cert in certs]
+ 
+     @property
+     def owner(self) -> Any:
+@@ -453,8 +520,7 @@
+ 
+     @property
+     def session_reused(self) -> bool:
+-        """Whether the TLS session was reused. Always False for now."""
+-        return False
++        return self._conn.session_reused()
+ 
+     if _HAS_ECH:
+ 
+--- a/src/rtls/_socket.py
++++ b/src/rtls/_socket.py
+@@ -360,8 +360,21 @@
+         be used for unencrypted communication.
+         """
+         if self._sslobj_internal is not None:
+-            self._sslobj_internal.unwrap()
+-            self._flush_outgoing()
++            while True:
++                try:
++                    self._sslobj_internal.unwrap()
++                except SSLWantReadError:
++                    self._flush_outgoing()
++                    if (
++                        self.gettimeout() == 0
++                        or self._sslobj_internal.pending()
++                        or self._sslobj_internal._pending_plaintext
++                    ):
++                        raise
++                    self._pull_incoming()
++                else:
++                    self._flush_outgoing()
++                    break
+             self._sslobj_internal = None
+ 
+         # Create a new plain socket from our fd (detach so we don't close it)
+@@ -370,9 +383,6 @@
+ 
+     def shutdown(self, how: int) -> None:
+         """Shut down one or both halves of the connection."""
+-        if self._sslobj_internal is not None:
+-            self._sslobj_internal.unwrap()
+-            self._flush_outgoing()
+         socket.socket.shutdown(self, how)
+ 
+     def close(self) -> None:
+@@ -421,9 +431,10 @@
+ 
+     # urllib3-future compatibility
+     @property
+-    def _sslobj(self) -> TLSObject | None:
+-        """Return the underlying TLSObject for urllib3-future compatibility."""
+-        return self._sslobj_internal
++    def _sslobj(self) -> Any:
++        if self._sslobj_internal is None:
++            return None
++        return self._sslobj_internal._sslobj
+ 
+     @_sslobj.setter
+     def _sslobj(self, value: Any) -> None:
+@@ -434,14 +445,14 @@
+     def sslobj(self) -> TLSObject | None:
+         return self._sslobj_internal
+ 
+-    def get_verified_chain(self) -> list[TLSCertificate] | None:
++    def get_verified_chain(self) -> list[bytes]:
+         if self._sslobj_internal is None:
+-            return None
++            return []
+         return self._sslobj_internal.get_verified_chain()
+ 
+-    def get_unverified_chain(self) -> list[TLSCertificate] | None:
++    def get_unverified_chain(self) -> list[bytes]:
+         if self._sslobj_internal is None:
+-            return None
++            return []
+         return self._sslobj_internal.get_unverified_chain()
+ 
+     if _HAS_ECH:
+@@ -670,15 +681,25 @@
+ 
+     def unwrap(self) -> Any:
+         if self._sslobj_internal is not None:
+-            self._sslobj_internal.unwrap()
+-            self._flush_outgoing()
++            while True:
++                try:
++                    self._sslobj_internal.unwrap()
++                except SSLWantReadError:
++                    self._flush_outgoing()
++                    if (
++                        self._transport.gettimeout() == 0
++                        or self._sslobj_internal.pending()
++                        or self._sslobj_internal._pending_plaintext
++                    ):
++                        raise
++                    self._pull_incoming()
++                else:
++                    self._flush_outgoing()
++                    break
+             self._sslobj_internal = None
+         return self._transport
+ 
+     def shutdown(self, how: int) -> None:
+-        if self._sslobj_internal is not None:
+-            self._sslobj_internal.unwrap()
+-            self._flush_outgoing()
+         self._transport.shutdown(how)
+ 
+     def close(self) -> None:
+@@ -694,14 +715,14 @@
+             self._sslobj_internal = None
+         self._transport.close()
+ 
+-    def get_verified_chain(self) -> list[TLSCertificate] | None:
++    def get_verified_chain(self) -> list[bytes]:
+         if self._sslobj_internal is None:
+-            return None
++            return []
+         return self._sslobj_internal.get_verified_chain()
+ 
+-    def get_unverified_chain(self) -> list[TLSCertificate] | None:
++    def get_unverified_chain(self) -> list[bytes]:
+         if self._sslobj_internal is None:
+-            return None
++            return []
+         return self._sslobj_internal.get_unverified_chain()
+ 
+     @property
+@@ -717,8 +738,10 @@
+         return self._server_hostname
+ 
+     @property
+-    def _sslobj(self) -> TLSObject | None:
+-        return self._sslobj_internal
++    def _sslobj(self) -> Any:
++        if self._sslobj_internal is None:
++            return None
++        return self._sslobj_internal._sslobj
+ 
+     @property
+     def sslobj(self) -> TLSObject | None:
+--- a/rust/src/cert.rs
++++ b/rust/src/cert.rs
+@@ -40,7 +40,19 @@
+         .map_err(|e| format!("Failed to parse certificate: {}", e))?;
+ 
+     let version = cert.version().0 + 1;
+-    let serial = cert.raw_serial_as_string();
++    let serial_bytes = cert.raw_serial();
++    let serial_bytes = if serial_bytes.len() > 1
++        && serial_bytes[0] == 0
++        && serial_bytes[1] & 0x80 != 0
++    {
++        &serial_bytes[1..]
++    } else {
++        serial_bytes
++    };
++    let serial = serial_bytes
++        .iter()
++        .map(|byte| format!("{byte:02X}"))
++        .collect::<String>();
+     let issuer = x500_name_to_rust(cert.issuer());
+     let subject = x500_name_to_rust(cert.subject());
+     let not_before = format_asn1_time(&cert.validity().not_before);
+--- a/rust/src/connection.rs
++++ b/rust/src/connection.rs
+@@ -12,17 +12,63 @@
+ /// Categorized TLS error — carries enough info to map to the right Python
+ /// exception type *after* re-acquiring the GIL.
+ enum TlsError {
+-    CertVerification(String),
++    CertVerification { message: String, code: i32 },
+     General(String),
+     CleanEof,
++}
++
++fn verify_code_from_webpki(error: &webpki::Error) -> i32 {
++    match error {
++        webpki::Error::CertExpired { .. } => 10,
++        webpki::Error::CertNotValidForName(_) => 62,
++        webpki::Error::CertNotValidYet { .. } => 9,
++        webpki::Error::CertRevoked => 23,
++        webpki::Error::CrlExpired { .. } => 12,
++        webpki::Error::EmptyEkuExtension
++        | webpki::Error::RequiredEkuNotFoundContext(_) => 26,
++        webpki::Error::ExtensionValueInvalid => 41,
++        webpki::Error::InvalidSignatureForPublicKey => 7,
++        webpki::Error::UnknownIssuer => 20,
++        webpki::Error::UnknownRevocationStatus => 3,
++        webpki::Error::UnsupportedCriticalExtension => 34,
++        _ => 1,
++    }
++}
++
++fn verify_code_from_certificate_error(error: &rustls::CertificateError) -> i32 {
++    use rustls::CertificateError;
++
++    match error {
++        CertificateError::Expired | CertificateError::ExpiredContext { .. } => 10,
++        CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => 9,
++        CertificateError::Revoked => 23,
++        CertificateError::UnhandledCriticalExtension => 34,
++        CertificateError::UnknownIssuer => 20,
++        CertificateError::UnknownRevocationStatus => 3,
++        CertificateError::ExpiredRevocationList
++        | CertificateError::ExpiredRevocationListContext { .. } => 12,
++        CertificateError::BadSignature => 7,
++        CertificateError::NotValidForName | CertificateError::NotValidForNameContext { .. } => 62,
++        CertificateError::InvalidPurpose | CertificateError::InvalidPurposeContext { .. } => 26,
++        CertificateError::Other(other) => other
++            .0
++            .downcast_ref::<webpki::Error>()
++            .map_or(1, verify_code_from_webpki),
++        _ => 1,
++    }
+ }
+ 
+ impl From<rustls::Error> for TlsError {
+     fn from(err: rustls::Error) -> Self {
+-        match &err {
+-            rustls::Error::InvalidCertificate(_) | rustls::Error::NoCertificatesPresented => {
+-                TlsError::CertVerification(format!("{}", err))
+-            }
++        match err {
++            rustls::Error::InvalidCertificate(cert_error) => TlsError::CertVerification {
++                message: format!("invalid peer certificate: {}", cert_error),
++                code: verify_code_from_certificate_error(&cert_error),
++            },
++            rustls::Error::NoCertificatesPresented => TlsError::CertVerification {
++                message: "no certificates presented".to_string(),
++                code: 1,
++            },
+             _ => TlsError::General(format!("{}", err)),
+         }
+     }
+@@ -32,7 +78,9 @@
+     /// Convert to a Python exception (requires the GIL).
+     fn into_pyerr(self, py: Python<'_>) -> PyErr {
+         match self {
+-            TlsError::CertVerification(msg) => error::raise_cert_verification(py, &msg),
++            TlsError::CertVerification { message, code } => {
++                error::raise_cert_verification(py, &message, code)
++            }
+             TlsError::General(msg) => error::raise_ssl_error(py, &msg),
+             TlsError::CleanEof => error::raise_zero_return(py),
+         }
+--- a/rust/src/error.rs
++++ b/rust/src/error.rs
+@@ -46,14 +46,34 @@
+ }
+ 
+ /// Raise SSLCertVerificationError on the Python side.
+-pub fn raise_cert_verification(py: Python<'_>, msg: &str) -> PyErr {
+-    get_exc_type(
+-        py,
+-        "rtls._exceptions",
+-        "SSLCertVerificationError",
+-        "SSL: CERTIFICATE_VERIFY_FAILED - ",
+-        msg,
+-    )
++pub fn raise_cert_verification(py: Python<'_>, msg: &str, verify_code: i32) -> PyErr {
++    let verify_message = match verify_code {
++        3 => "unable to get certificate CRL",
++        7 => "certificate signature failure",
++        9 => "certificate is not yet valid",
++        10 => "certificate has expired",
++        12 => "CRL has expired",
++        20 => "unable to get local issuer certificate",
++        23 => "certificate revoked",
++        26 => "unsuitable certificate purpose",
++        34 => "unhandled critical extension",
++        41 => "invalid certificate extension",
++        62 => "Hostname mismatch",
++        _ => msg,
++    };
++    let exception = py
++        .import("rtls._exceptions")
++        .and_then(|module| module.getattr("SSLCertVerificationError"))
++        .and_then(|class| class.call1((msg,)))
++        .and_then(|value| {
++            value.setattr("verify_code", verify_code)?;
++            value.setattr("verify_message", verify_message)?;
++            Ok(value)
++        });
++    match exception {
++        Ok(value) => PyErr::from_value(value),
++        Err(error) => error,
++    }
+ }
+ 
+ /// Raise a general SSLError on the Python side.
