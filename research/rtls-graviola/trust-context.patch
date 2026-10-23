@@ -1,3 +1,10 @@
+diff --git a/rust/src/config.rs b/rust/src/config.rs
+index 85ab502..0fdd36c 100644
+--- a/rust/src/config.rs
++++ b/rust/src/config.rs
+@@ -167 +167 @@ impl RustlsConfigBuilder {
+-            .map_err(|msg| raise_ssl_error(py, &msg))?;
++            .map_err(|msg| raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg)))?;
 diff --git a/rust/src/lib.rs b/rust/src/lib.rs
 index aeb339c..fb99618 100644
 --- a/rust/src/lib.rs
@@ -8,233 +15,28 @@ index aeb339c..fb99618 100644
 +use trust::certificate_subject_name_der;
 @@ -22,0 +25 @@ fn _rustls(m: &Bound<'_, PyModule>) -> PyResult<()> {
 +    m.add_function(wrap_pyfunction!(certificate_subject_name_der, m)?)?;
-diff --git a/rust/src/trust.rs b/rust/src/trust.rs
-new file mode 100644
-index 0000000..1706ed9
---- /dev/null
-+++ b/rust/src/trust.rs
-@@ -0,0 +1,199 @@
-+use pyo3::prelude::*;
-+use pyo3::types::PyBytes;
-+use x509_parser::prelude::*;
-+
-+#[pyfunction]
-+pub fn certificate_subject_name_der(py: Python<'_>, der_bytes: &[u8]) -> PyResult<Py<PyBytes>> {
-+    let canonical = py
-+        .detach(|| canonical_subject_name(der_bytes))
-+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
-+    Ok(PyBytes::new(py, &canonical).into())
-+}
-+
-+fn canonical_subject_name(der_bytes: &[u8]) -> Result<Vec<u8>, String> {
-+    let (remaining, certificate) = X509Certificate::from_der(der_bytes)
-+        .map_err(|error| format!("Failed to parse certificate: {error}"))?;
-+    if !remaining.is_empty() {
-+        return Err("Unexpected data after certificate".to_string());
-+    }
-+    canonical_name(certificate.subject().as_raw())
-+}
-+
-+fn canonical_name(name_der: &[u8]) -> Result<Vec<u8>, String> {
-+    let (tag, name_content, remaining, _) = read_tlv(name_der)?;
-+    if tag != 0x30 || !remaining.is_empty() {
-+        return Err("Invalid X.509 subject name".to_string());
-+    }
-+
-+    let mut canonical = Vec::new();
-+    let mut rdns = name_content;
-+    while !rdns.is_empty() {
-+        let (tag, rdn_content, remaining, _) = read_tlv(rdns)?;
-+        if tag != 0x31 {
-+            return Err("Invalid X.509 relative distinguished name".to_string());
-+        }
-+        rdns = remaining;
-+
-+        let mut attributes = Vec::new();
-+        let mut entries = rdn_content;
-+        while !entries.is_empty() {
-+            let (tag, entry_content, remaining, _) = read_tlv(entries)?;
-+            if tag != 0x30 {
-+                return Err("Invalid X.509 name attribute".to_string());
-+            }
-+            entries = remaining;
-+
-+            let (oid_tag, _, after_oid, oid_der) = read_tlv(entry_content)?;
-+            if oid_tag != 0x06 {
-+                return Err("Invalid X.509 name attribute OID".to_string());
-+            }
-+            let (value_tag, value, trailing, value_der) = read_tlv(after_oid)?;
-+            if !trailing.is_empty() {
-+                return Err("Unexpected data in X.509 name attribute".to_string());
-+            }
-+
-+            let canonical_value = canonical_attribute_value(value_tag, value, value_der)?;
-+            let mut attribute_content = oid_der.to_vec();
-+            attribute_content.extend_from_slice(&canonical_value);
-+            let mut attribute = Vec::new();
-+            encode_tlv(0x30, &attribute_content, &mut attribute);
-+            attributes.push(attribute);
-+        }
-+
-+        attributes.sort();
-+        let mut canonical_rdn = Vec::new();
-+        for attribute in attributes {
-+            canonical_rdn.extend_from_slice(&attribute);
-+        }
-+        encode_tlv(0x31, &canonical_rdn, &mut canonical);
-+    }
-+
-+    Ok(canonical)
-+}
-+
-+fn canonical_attribute_value(tag: u8, value: &[u8], original_der: &[u8]) -> Result<Vec<u8>, String> {
-+    let text = match tag {
-+        0x0c => Some(
-+            std::str::from_utf8(value)
-+                .map_err(|_| "Invalid UTF8String in X.509 subject name".to_string())?
-+                .to_string(),
-+        ),
-+        0x13 | 0x14 | 0x16 | 0x1a => Some(value.iter().map(|byte| char::from(*byte)).collect()),
-+        0x1c => {
-+            if value.len() % 4 != 0 {
-+                return Err("Invalid UniversalString in X.509 subject name".to_string());
-+            }
-+            let mut text = String::new();
-+            for scalar in value.chunks_exact(4) {
-+                let value = u32::from_be_bytes([scalar[0], scalar[1], scalar[2], scalar[3]]);
-+                text.push(
-+                    char::from_u32(value)
-+                        .ok_or_else(|| "Invalid UniversalString in X.509 subject name".to_string())?,
-+                );
-+            }
-+            Some(text)
-+        }
-+        0x1e => {
-+            if value.len() % 2 != 0 {
-+                return Err("Invalid BMPString in X.509 subject name".to_string());
-+            }
-+            let mut text = String::new();
-+            for scalar in value.chunks_exact(2) {
-+                let value = u16::from_be_bytes([scalar[0], scalar[1]]);
-+                text.push(
-+                    char::from_u32(u32::from(value))
-+                        .ok_or_else(|| "Invalid BMPString in X.509 subject name".to_string())?,
-+                );
-+            }
-+            Some(text)
-+        }
-+        _ => None,
-+    };
-+
-+    let Some(text) = text else {
-+        return Ok(original_der.to_vec());
-+    };
-+
-+    let bytes = text.into_bytes();
-+    let mut index = 0;
-+    while index < bytes.len() && is_ascii_space(bytes[index]) {
-+        index += 1;
-+    }
-+    let mut end = bytes.len();
-+    while end > index && is_ascii_space(bytes[end - 1]) {
-+        end -= 1;
-+    }
-+    let mut utf8 = Vec::new();
-+    while index < end {
-+        if is_ascii_space(bytes[index]) {
-+            utf8.push(b' ');
-+            while index < end && is_ascii_space(bytes[index]) {
-+                index += 1;
-+            }
-+        } else {
-+            let byte = bytes[index];
-+            utf8.push(if byte.is_ascii() {
-+                byte.to_ascii_lowercase()
-+            } else {
-+                byte
-+            });
-+            index += 1;
-+        }
-+    }
-+    let mut encoded = Vec::new();
-+    encode_tlv(0x0c, &utf8, &mut encoded);
-+    Ok(encoded)
-+}
-+
-+fn is_ascii_space(byte: u8) -> bool {
-+    matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-+}
-+
-+fn read_tlv(data: &[u8]) -> Result<(u8, &[u8], &[u8], &[u8]), String> {
-+    if data.len() < 2 {
-+        return Err("Truncated DER value".to_string());
-+    }
-+    let tag = data[0];
-+    let first_length = data[1];
-+    let (header_length, value_length) = if first_length & 0x80 == 0 {
-+        (2, usize::from(first_length))
-+    } else {
-+        let length_bytes = usize::from(first_length & 0x7f);
-+        if length_bytes == 0 || length_bytes > std::mem::size_of::<usize>() {
-+            return Err("Invalid DER length".to_string());
-+        }
-+        if data.len() < 2 + length_bytes {
-+            return Err("Truncated DER length".to_string());
-+        }
-+        let mut value_length = 0usize;
-+        for byte in &data[2..2 + length_bytes] {
-+            value_length = value_length
-+                .checked_mul(256)
-+                .and_then(|length| length.checked_add(usize::from(*byte)))
-+                .ok_or_else(|| "DER length overflow".to_string())?;
-+        }
-+        (2 + length_bytes, value_length)
-+    };
-+    let end = header_length
-+        .checked_add(value_length)
-+        .filter(|end| *end <= data.len())
-+        .ok_or_else(|| "Truncated DER value".to_string())?;
-+    Ok((tag, &data[header_length..end], &data[end..], &data[..end]))
-+}
-+
-+fn encode_tlv(tag: u8, value: &[u8], output: &mut Vec<u8>) {
-+    output.push(tag);
-+    if value.len() < 128 {
-+        output.push(value.len() as u8);
-+    } else {
-+        let length_bytes = value.len().to_be_bytes();
-+        let first_nonzero = length_bytes
-+            .iter()
-+            .position(|byte| *byte != 0)
-+            .unwrap_or(length_bytes.len() - 1);
-+        let length_bytes = &length_bytes[first_nonzero..];
-+        output.push(0x80 | length_bytes.len() as u8);
-+        output.extend_from_slice(length_bytes);
-+    }
-+    output.extend_from_slice(value);
-+}
 diff --git a/src/rtls/_constants.py b/src/rtls/_constants.py
-index b22c7d4..7418782 100644
+index b22c7d4..39008d1 100644
 --- a/src/rtls/_constants.py
 +++ b/src/rtls/_constants.py
 @@ -277,2 +277,2 @@ def _get_default_verify_paths() -> DefaultVerifyPaths:
 -    cafile = os.environ.get("SSL_CERT_FILE")
 -    capath = os.environ.get("SSL_CERT_DIR")
-+    openssl_cafile = os.environ.get("SSL_CERT_FILE", "/etc/ssl/cert.pem")
-+    openssl_capath = os.environ.get("SSL_CERT_DIR", "/etc/ssl/certs")
++    cafile = os.environ.get("SSL_CERT_FILE", "/etc/ssl/cert.pem")
++    capath = os.environ.get("SSL_CERT_DIR", "/etc/ssl/certs")
 @@ -280,2 +280,2 @@ def _get_default_verify_paths() -> DefaultVerifyPaths:
 -        cafile=cafile,
 -        capath=capath,
-+        cafile=openssl_cafile if os.path.isfile(openssl_cafile) else None,
-+        capath=openssl_capath if os.path.isdir(openssl_capath) else None,
++        cafile=cafile if os.path.isfile(cafile) else None,
++        capath=capath if os.path.isdir(capath) else None,
 @@ -283 +283 @@ def _get_default_verify_paths() -> DefaultVerifyPaths:
 -        openssl_cafile=cafile or "",
-+        openssl_cafile=openssl_cafile,
++        openssl_cafile="/etc/ssl/cert.pem",
 @@ -285 +285 @@ def _get_default_verify_paths() -> DefaultVerifyPaths:
 -        openssl_capath=capath or "",
-+        openssl_capath=openssl_capath,
++        openssl_capath="/etc/ssl/certs",
 diff --git a/src/rtls/_context.py b/src/rtls/_context.py
-index 6f70f3a..15fb8b4 100644
+index 6f70f3a..d3f1bdb 100644
 --- a/src/rtls/_context.py
 +++ b/src/rtls/_context.py
 @@ -2,0 +3 @@ from __future__ import annotations
@@ -243,40 +45,46 @@ index 6f70f3a..15fb8b4 100644
 +import re
 @@ -5,0 +8 @@ import sys
 +import threading
-@@ -21,0 +25 @@ from ._constants import (
+@@ -10,0 +14 @@ from ._constants import (
++    _ASN1ObjectBase,
+@@ -20,0 +25 @@ from ._constants import (
++    Purpose,
+@@ -21,0 +27 @@ from ._constants import (
 +    VERIFY_X509_TRUSTED_FIRST,
-@@ -27,4 +30,0 @@ from ._stdlib import ssl as _stdlib_ssl
+@@ -27,4 +32,0 @@ from ._stdlib import ssl as _stdlib_ssl
 -if sys.platform == "wasi":
 -    import wassima  # noqa: F401
 -
 -
-@@ -57 +56,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -57 +58,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        # Create the Rust config builder
-@@ -60,0 +60 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -60,0 +62 @@ class TLSContext(_stdlib_ssl.SSLContext):
 +        self._builder_lock = threading.RLock()
-@@ -62 +61,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -62 +63,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        # Internal state tracking
-@@ -73 +72,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -71 +71,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+-        self._post_handshake_auth = False
+@@ -73 +73,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        self._verify_flags: int = 0
 +        self._verify_flags = int(VERIFY_X509_TRUSTED_FIRST)
 +        self._builder.set_verify_flags(self._verify_flags)
 +        self._hostname_checks_common_name = True
 +        self._builder.set_hostname_checks_common_name(True)
-@@ -75 +76,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -75 +77,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        # Cert/key data (kept for stats & reloads)
-@@ -80 +80,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -80 +81,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        # Apply protocol-specific defaults
-@@ -133,0 +134,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -133,0 +135,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
 +        if not server_side and self._check_hostname and not server_hostname:
 +            raise ValueError("check_hostname requires server_hostname")
-@@ -163,6 +164,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -163,6 +165,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        # Validate that the cert PEM contains at least one parseable certificate.
 -        # OpenSSL does this validation in SSL_CTX_use_certificate_chain_file;
 -        # rustls-pemfile silently skips invalid PEM items, so we catch it here.
 -        self._validate_cert_pem(cert_pem)
 -
 -        # Resolve password to bytes or None
-@@ -183,4 +179,5 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -183,4 +180,5 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        if self._protocol == PROTOCOL_TLS_SERVER:
 -            self._builder.set_server_cert_chain_pem(cert_pem, key_pem, pw_bytes)
 -        else:
@@ -286,18 +94,18 @@ index 6f70f3a..15fb8b4 100644
 +            staged.set_server_cert_chain_pem(cert_pem, key_pem, pw_bytes)
 +            staged.set_client_cert_chain_pem(cert_pem, key_pem, pw_bytes)
 +            self._builder = staged
-@@ -197 +194,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -197 +195,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        loaded = 0
 +        if cafile is None and capath is None and cadata is None:
 +            raise TypeError("cafile, capath and cadata cannot all be None")
-@@ -199,4 +197,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -199,4 +198,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        if cafile:
 -            with open(cafile, "rb") as f:
 -                pem_data = f.read()
 -            loaded += self._builder.add_root_certs_from_pem(pem_data)
 +        with self._builder_lock:
 +            staged = self._builder.clone_builder()
-@@ -204,10 +200,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -204,10 +201,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        if capath:
 -            for entry in os.scandir(capath):
 -                if entry.is_file() and (
@@ -311,7 +119,7 @@ index 6f70f3a..15fb8b4 100644
 +            if cafile is not None:
 +                with open(cafile, "rb") as f:
 +                    staged.add_root_certs_from_pem(f.read())
-@@ -215,9 +204,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -215,9 +205,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        if cadata:
 -            if isinstance(cadata, str):
 -                cadata = cadata.encode("ascii")
@@ -325,7 +133,7 @@ index 6f70f3a..15fb8b4 100644
 +                certificates = self._hashed_directory_certificates(capath)
 +                if certificates:
 +                    staged.add_root_certs_from_pem(certificates)
-@@ -225,2 +209,65 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -225,2 +210,66 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        self._ca_certs_loaded = True
 -        self._num_ca_certs += loaded
 +            if cadata is not None:
@@ -341,11 +149,12 @@ index 6f70f3a..15fb8b4 100644
 +            self._num_ca_certs = staged.root_ca_count()
 +
 +    @staticmethod
-+    def _hashed_directory_certificates(capath: str) -> bytes:
++    def _hashed_directory_certificates(capath: str | bytes) -> bytes:
 +        from _sha1 import sha1
 +
 +        from . import _rustls
 +
++        capath = os.fsdecode(capath)
 +        indexed_paths: dict[str, dict[int, str]] = {}
 +        with os.scandir(capath) as entries:
 +            for entry in entries:
@@ -393,10 +202,10 @@ index 6f70f3a..15fb8b4 100644
 +                index += 1
 +
 +        return b"\n".join(selected)
-@@ -229 +276 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -229 +278 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        """Honor ``SSL_CERT_FILE`` / ``SSL_CERT_DIR`` env vars.
 +        from ._utils import get_default_verify_paths
-@@ -231,11 +278,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -231,11 +280,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        Mirrors CPython's ``SSLContext.set_default_verify_paths()``, which
 -        delegates to OpenSSL's ``SSL_CTX_set_default_verify_paths`` and reads
 -        these environment variables. We do not have OpenSSL build-time default
@@ -411,7 +220,8 @@ index 6f70f3a..15fb8b4 100644
 +        paths = get_default_verify_paths()
 +        if paths.cafile is not None or paths.capath is not None:
 +            self.load_verify_locations(cafile=paths.cafile, capath=paths.capath)
-@@ -244,16 +283 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -243,17 +284,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
+-    def load_default_certs(self, purpose: Any = None) -> None:
 -        """Load the default set of CA certificates.
 -
 -        Loads the OS trust store via wassima and additionally honors
@@ -428,8 +238,11 @@ index 6f70f3a..15fb8b4 100644
 -
 -        # Mirror CPython: load_default_certs always invokes
 -        # set_default_verify_paths so SSL_CERT_FILE/SSL_CERT_DIR are honored.
++    def load_default_certs(self, purpose: Any = Purpose.SERVER_AUTH) -> None:
 +        """Load the configured default certificate paths."""
-@@ -295,8 +319,7 @@ class TLSContext(_stdlib_ssl.SSLContext):
++        if not isinstance(purpose, _ASN1ObjectBase):
++            raise TypeError(purpose)
+@@ -295,8 +323,7 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        self._verify_mode = int(value)  # type: ignore[assignment]
 -        self._builder.set_verify_mode(self._verify_mode)
 -
@@ -445,7 +258,7 @@ index 6f70f3a..15fb8b4 100644
 +            )
 +        self._builder.set_verify_mode(verify_mode)
 +        self._verify_mode = verify_mode
-@@ -310,6 +333,11 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -310,6 +337,11 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        if value and self._verify_mode == CERT_NONE:
 -            raise ValueError(
 -                "Cannot set check_hostname to True with verify_mode=CERT_NONE"
@@ -463,19 +276,22 @@ index 6f70f3a..15fb8b4 100644
 +            self._builder = staged
 +            self._verify_mode = verify_mode
 +            self._check_hostname = check_hostname
-@@ -364,2 +392,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -359,2 +391,2 @@ class TLSContext(_stdlib_ssl.SSLContext):
+-    def post_handshake_auth(self) -> bool:
+-        return self._post_handshake_auth
++    def post_handshake_auth(self) -> None:
++        return None
+@@ -364,2 +396 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        # rustls doesn't support PHA, but we store the value
 -        self._post_handshake_auth = value
-+        if value:
-+            raise NotImplementedError("RTLS does not support post-handshake authentication")
-+        self._post_handshake_auth = False
-@@ -379,4 +408 @@ class TLSContext(_stdlib_ssl.SSLContext):
++        raise NotImplementedError("RTLS does not support post-handshake authentication")
+@@ -379,4 +410 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        raise AttributeError(
 -            "rtls does not support hostname_checks_common_name"
 -            " (rustls only checks SAN, never CN)"
 -        )
 +        return self._hostname_checks_common_name
-@@ -386,4 +412,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -386,4 +414,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        raise AttributeError(
 -            "rtls does not support hostname_checks_common_name"
 -            " (rustls only checks SAN, never CN)"
@@ -483,31 +299,31 @@ index 6f70f3a..15fb8b4 100644
 +        hostname_checks_common_name = bool(value)
 +        self._builder.set_hostname_checks_common_name(hostname_checks_common_name)
 +        self._hostname_checks_common_name = hostname_checks_common_name
-@@ -397,2 +422,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -397,2 +424,3 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        self._verify_flags = int(value)
 -        self._builder.set_verify_flags(self._verify_flags)
 +        verify_flags = int(value)
 +        self._builder.set_verify_flags(verify_flags)
 +        self._verify_flags = verify_flags
-@@ -411 +437,5 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -411 +439,5 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        self._sni_callback = callback
 +        if callback is not None:
 +            if not callable(callback):
 +                raise TypeError("not a callable object")
 +            raise NotImplementedError("RTLS does not support SNI callbacks")
 +        self._sni_callback = None
-@@ -416 +446 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -416 +448 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            "x509": self._num_ca_certs,
 +            "x509": self._builder.root_cert_count(),
-@@ -424 +454 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -424 +456 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            return self._builder.get_root_certs_der()
 +            return self._builder.get_ca_certs_der()
-@@ -426,3 +456 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -426,3 +458 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -        result: list[dict] = []
 -        try:
 -            from . import _rustls
 +        from . import _rustls
-@@ -430,8 +458,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -430,8 +460,4 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            for der in self._builder.get_root_certs_der():
 -                try:
 -                    result.append(_rustls.parse_certificate_dict(der))
@@ -520,19 +336,21 @@ index 6f70f3a..15fb8b4 100644
 +            _rustls.parse_certificate_dict(der)
 +            for der in self._builder.get_ca_certs_der()
 +        ]
-@@ -468 +491,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -468 +493,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            # 1. Create a blank TLSContext (same protocol as self).
-@@ -472 +494,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -472 +496,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            # 2. Replace the blank builder with a deep copy of ours.
-@@ -475 +496,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -475 +498,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            # 3. Copy all Python-side state.
-@@ -489,0 +511 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -484 +506,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+-            clone._post_handshake_auth = self._post_handshake_auth
+@@ -489,0 +512 @@ class TLSContext(_stdlib_ssl.SSLContext):
 +            clone._hostname_checks_common_name = self._hostname_checks_common_name
-@@ -492 +513,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -492 +514,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            # 4. Inject ECH into the *clone* only.
-@@ -495 +515,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -495 +516,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -            # 5. ECH is inherently TLS 1.3 only — forcibly disable TLS 1.2.
-@@ -545,30 +564,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
+@@ -545,30 +565,0 @@ class TLSContext(_stdlib_ssl.SSLContext):
 -    @staticmethod
 -    def _validate_cert_pem(pem_data: bytes) -> None:
 -        """Validate that PEM data contains at least one parseable certificate.

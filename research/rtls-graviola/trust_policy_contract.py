@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 CERTDATA = Path(sys.argv.pop(1))
 PINNED_BUNDLE = Path(sys.argv.pop(1))
+REFERENCE_PYTHON = Path(sys.argv.pop(1))
 SCRATCH = Path(os.environ["TMPDIR"])
 ROOT_CERT = CERTDATA / "capath" / "b1930218.0"
 
@@ -25,9 +26,11 @@ class TrustPolicyContract(unittest.TestCase):
         cls.ssl = ssl
         cls.bundle = Path(ssl.__file__).with_name("python-build-cacert.pem")
         if not ROOT_CERT.is_file():
-            raise unittest.SkipTest(f"CPython test CA is unavailable: {ROOT_CERT}")
+            raise FileNotFoundError(ROOT_CERT)
         if not PINNED_BUNDLE.is_file():
-            raise unittest.SkipTest(f"Pinned CA bundle is unavailable: {PINNED_BUNDLE}")
+            raise FileNotFoundError(PINNED_BUNDLE)
+        if not REFERENCE_PYTHON.is_file():
+            raise FileNotFoundError(REFERENCE_PYTHON)
 
     def new_context(self):
         return self.ssl.SSLContext(self.ssl.PROTOCOL_TLS_CLIENT)
@@ -117,6 +120,42 @@ class TrustPolicyContract(unittest.TestCase):
         self.assertNotIn((str(self.bundle), None), loaded_paths)
         self.assertTrue(any(cafile or capath for cafile, capath in loaded_paths))
 
+    def test_default_path_tuple_matches_pinned_reference_environment(self) -> None:
+        environment = {
+            "SSL_CERT_FILE": os.fspath(ROOT_CERT),
+            "SSL_CERT_DIR": os.fspath(SCRATCH / "missing-capath"),
+        }
+        result = subprocess.run(
+            [
+                os.fspath(REFERENCE_PYTHON),
+                "-I",
+                "-B",
+                "-c",
+                "import json, ssl; p=ssl.get_default_verify_paths(); "
+                "print(json.dumps(list(p)))",
+            ],
+            check=True,
+            capture_output=True,
+            env=environment,
+            text=True,
+        )
+        import json
+
+        reference = json.loads(result.stdout)
+        with patch.dict(os.environ, environment, clear=True):
+            candidate = list(self.ssl.get_default_verify_paths())
+        self.assertEqual(
+            candidate,
+            [
+                reference[0],
+                reference[1],
+                reference[2],
+                "/etc/ssl/cert.pem",
+                reference[4],
+                "/etc/ssl/certs",
+            ],
+        )
+
     def test_empty_invalid_and_opted_out_sources_suppress_fallback(self) -> None:
         cases = (
             {"SSL_CERT_FILE": ""},
@@ -190,6 +229,7 @@ class TrustPolicyContract(unittest.TestCase):
             shutil.copyfile(ROOT_CERT, capath / "ffffffff.0")
             context = self.new_context()
             context.load_verify_locations(capath=str(capath))
+            context.load_verify_locations(capath=os.fsencode(capath))
         self.assertEqual(context.cert_store_stats()["x509_ca"], 1)
         self.assertEqual(len(context.get_ca_certs(binary_form=True)), 1)
 
@@ -209,6 +249,31 @@ class TrustPolicyContract(unittest.TestCase):
         self.assertTrue(
             context.verify_flags & self.ssl.VERIFY_X509_TRUSTED_FIRST
         )
+
+    def test_purpose_validation_matches_cpython(self) -> None:
+        from rtls._constants import _ASN1ObjectBase
+
+        for method in (
+            self.ssl.create_default_context,
+            self.ssl._create_unverified_context,
+        ):
+            for value in (None, "SERVER_AUTH"):
+                with self.subTest(method=method.__name__, value=value):
+                    with self.assertRaises(TypeError):
+                        method(purpose=value)
+            unknown = _ASN1ObjectBase(1, "UNKNOWN", "unknown", "1.2.3.4")
+            with self.subTest(method=method.__name__, value=unknown):
+                with self.assertRaises(ValueError):
+                    method(purpose=unknown)
+
+        with self.assertRaises(TypeError):
+            self.new_context().load_default_certs(None)
+
+    def test_http_client_skips_unsupported_post_handshake_auth(self) -> None:
+        import http.client
+
+        context = http.client._create_https_context(11)
+        self.assertIsNone(context.post_handshake_auth)
 
     def test_concurrent_certificate_loads_do_not_share_mutable_builders(self) -> None:
         context = self.ssl.SSLContext(self.ssl.PROTOCOL_TLS)
@@ -238,6 +303,9 @@ class TrustPolicyContract(unittest.TestCase):
 
         with self.assertRaises(NotImplementedError):
             context.post_handshake_auth = True
+        self.assertIsNone(context.post_handshake_auth)
+        with self.assertRaises(NotImplementedError):
+            context.post_handshake_auth = False
         with self.assertRaises(NotImplementedError):
             context.sni_callback = lambda *args: None
         with self.assertRaises(ValueError):

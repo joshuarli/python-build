@@ -34,14 +34,10 @@ class SSLContext(_RTLS_SSLContext):
 def create_default_context(
     purpose=Purpose.SERVER_AUTH, *, cafile=None, capath=None, cadata=None
 ):
-    if not hasattr(purpose, "oid"):
+    if not isinstance(purpose, _constants._ASN1ObjectBase):
         raise TypeError(purpose)
-    context = SSLContext(
-        PROTOCOL_TLS_CLIENT
-        if purpose == Purpose.SERVER_AUTH
-        else PROTOCOL_TLS_SERVER
-    )
     if purpose == Purpose.SERVER_AUTH:
+        context = SSLContext(PROTOCOL_TLS_CLIENT)
         context.verify_mode = CERT_REQUIRED
         context.check_hostname = True
         context.verify_flags |= (
@@ -49,6 +45,10 @@ def create_default_context(
             | VERIFY_X509_STRICT
             | VERIFY_X509_TRUSTED_FIRST
         )
+    elif purpose == Purpose.CLIENT_AUTH:
+        context = SSLContext(PROTOCOL_TLS_SERVER)
+    else:
+        raise ValueError(purpose)
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
     else:
@@ -68,7 +68,16 @@ def _create_unverified_context(
     capath=None,
     cadata=None,
 ):
-    protocol = protocol or PROTOCOL_TLS_CLIENT
+    if not isinstance(purpose, _constants._ASN1ObjectBase):
+        raise TypeError(purpose)
+    if purpose not in (Purpose.SERVER_AUTH, Purpose.CLIENT_AUTH):
+        raise ValueError(purpose)
+    if protocol is None:
+        protocol = (
+            PROTOCOL_TLS_CLIENT
+            if purpose == Purpose.SERVER_AUTH
+            else PROTOCOL_TLS_SERVER
+        )
     context = SSLContext(protocol)
     context.check_hostname = False
     if cert_reqs is not None:
