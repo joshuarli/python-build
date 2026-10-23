@@ -5,6 +5,7 @@ dependencies. Its `rust/Cargo.lock` delta adds or changes these packages:
 
 | Package | Version | License expression |
 | --- | --- | --- |
+| `rustls-webpki` (direct verified-path API) | 0.103.15 | ISC |
 | RTLS source | 2026.10.3 | MIT |
 | `rustls-graviola` | 0.4.0 | Apache-2.0 OR ISC OR MIT-0 |
 | `graviola` | 0.4.1 | Apache-2.0 OR ISC OR MIT-0 |

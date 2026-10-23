@@ -1,5 +1,39 @@
 # RTLS and Graviola research
 
+## Current implementation
+
+The isolated macOS arm64 implementation repairs the two original certificate
+failures in the native RTLS adapter. Both the pinned OpenSSL 3.5.7 reference
+and the candidate pass `no_ssl_contract.py`. This evidence covers the original
+focused harness, not the complete CPython TLS contract.
+
+`policy.rs` in the patch uses rustls-webpki 0.103.15's verified-path callback.
+The callback checks the selected leaf, intermediate certificates, and original
+trust-anchor certificate. It checks strict extension policy, issuer identifiers,
+and anchor validity and constraints. Path building may try another verified
+path after a callback rejection. Graviola and webpki retain signature validation.
+
+`TRUSTED_FIRST` changes issuer search order. Only `PARTIAL_CHAIN` permits an
+explicitly loaded intermediate to terminate a path. Without `PARTIAL_CHAIN`,
+root classification verifies the self-signature rather than comparing names.
+Invalid DER never becomes a trust anchor. Unknown verification flags raise
+`NotImplementedError`, including unsupported revocation policy.
+
+Certificate loading validates every certificate block and complete DER before
+mutating native configuration. Client and server key loads check the public-key
+match before committing. Encrypted-key decoding retains RTLS's existing
+PKCS#8 and traditional PEM support. Server verification modes now request and
+verify client certificates. `CERT_NONE` skips chain and hostname verification
+while preserving handshake-signature verification.
+
+The initial upstream regression run executed 3,269 tests, with 23 failures.
+`test_ssl` also failed during import because it imports `_ssl` directly.
+The failing files were `test_ssl`, three asyncio files, and `test_httplib`.
+The HTTP failure concerns certificate-exception `reason` metadata. This is
+unfinished compatibility work. No release candidate is qualified yet.
+
+The remainder records the earlier prototype and adoption requirements.
+
 ## Decision
 
 Keep OpenSSL in the production distribution. Keep RTLS and Graviola in this
@@ -230,11 +264,8 @@ Record every unsupported API and intentional difference before changing the
 product contract. Treat test-only success as research evidence, not release
 qualification.
 
-Stop the current replacement investigation at the certificate-policy gate.
-The socket, HTTPS, asyncio, and fallback-import boundaries are technically
-workable, but the reproduced strict-verification and malformed-chain
-discrepancies prevent adoption. Resume only if RTLS fixes those behaviors or a
-maintained adapter can make them fail closed while passing the pinned OpenSSL
-comparison. Then qualify its trust resolver before doing Linux builds,
-hashing work, or payoff measurements. The OpenSSL `no-apps no-tests` change
-stands independently; its time and artifact-size savings remain unmeasured.
+The certificate-policy gate controls production adoption. It does not stop
+repairs in this isolated experiment. Production retains OpenSSL while the
+candidate's certificate, trust-policy, hashing, and compatibility checks remain
+incomplete. The current implementation scope is macOS arm64. Linux qualification
+and performance gates are outside the current request.

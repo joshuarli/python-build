@@ -1,11 +1,8 @@
 diff --git a/rust/Cargo.lock b/rust/Cargo.lock
-index 11272fb..fe63dac 100644
+index 11272fb..42514f2 100644
 --- a/rust/Cargo.lock
 +++ b/rust/Cargo.lock
-@@ -58,29 +58,6 @@ version = "1.5.1"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
- 
+@@ -61,23 +60,0 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 -[[package]]
 -name = "aws-lc-rs"
 -version = "1.18.1"
@@ -29,22 +26,10 @@ index 11272fb..fe63dac 100644
 - "pkg-config",
 -]
 -
- [[package]]
- name = "base64ct"
- version = "1.8.3"
-@@ -121,8 +98,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "f74872d07caf508b30a21f6836e7d7016a2eaf7d9ff4f48deaa58cd8a0407630"
- dependencies = [
-  "find-msvc-tools",
+@@ -124,2 +100,0 @@ dependencies = [
 - "jobserver",
 - "libc",
-  "shlex",
- ]
- 
-@@ -142,15 +117,6 @@ dependencies = [
-  "inout",
- ]
- 
+@@ -145,9 +119,0 @@ dependencies = [
 -[[package]]
 -name = "cmake"
 -version = "0.1.58"
@@ -54,47 +39,27 @@ index 11272fb..fe63dac 100644
 - "cc",
 -]
 -
- [[package]]
- name = "const-oid"
- version = "0.9.6"
-@@ -244,24 +210,12 @@ dependencies = [
-  "syn 3.0.6",
- ]
- 
+@@ -247,6 +212,0 @@ dependencies = [
 -[[package]]
 -name = "dunce"
 -version = "1.0.5"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 -
- [[package]]
- name = "find-msvc-tools"
- version = "0.1.14"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
- 
+@@ -259,6 +218,0 @@ checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 -[[package]]
 -name = "fs_extra"
 -version = "1.3.0"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 -
- [[package]]
- name = "generic-array"
- version = "0.14.7"
-@@ -285,13 +239,24 @@ dependencies = [
- 
- [[package]]
- name = "getrandom"
+@@ -288 +242 @@ name = "getrandom"
 -version = "0.4.3"
 +version = "0.3.4"
- source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -290 +244 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 +checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
- dependencies = [
-  "cfg-if",
-  "libc",
-  "r-efi",
+@@ -294,0 +249,11 @@ dependencies = [
 + "wasip2",
 +]
 +
@@ -106,13 +71,7 @@ index 11272fb..fe63dac 100644
 +dependencies = [
 + "cfg-if",
 + "getrandom 0.3.4",
- ]
- 
- [[package]]
-@@ -319,16 +284,6 @@ dependencies = [
-  "generic-array",
- ]
- 
+@@ -322,10 +286,0 @@ dependencies = [
 -[[package]]
 -name = "jobserver"
 -version = "0.1.35"
@@ -123,54 +82,26 @@ index 11272fb..fe63dac 100644
 - "libc",
 -]
 -
- [[package]]
- name = "lazy_static"
- version = "1.5.1"
-@@ -469,12 +424,6 @@ dependencies = [
-  "spki",
- ]
- 
+@@ -472,6 +426,0 @@ dependencies = [
 -[[package]]
 -name = "pkg-config"
 -version = "0.3.34"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 -
- [[package]]
- name = "portable-atomic"
- version = "1.15.0"
-@@ -565,9 +514,9 @@ dependencies = [
- 
- [[package]]
- name = "r-efi"
+@@ -568 +517 @@ name = "r-efi"
 -version = "6.0.0"
 +version = "5.3.0"
- source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -570 +519 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 +checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
- 
- [[package]]
- name = "rand_core"
-@@ -603,6 +552,7 @@ dependencies = [
-  "pkcs8",
-  "pyo3",
-  "rustls",
+@@ -605,0 +555 @@ dependencies = [
 + "rustls-graviola",
-  "rustls-pemfile",
-  "rustls-pki-types",
-  "x509-parser",
-@@ -623,7 +573,6 @@ version = "0.23.45"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
- dependencies = [
+@@ -607,0 +558 @@ dependencies = [
++ "rustls-webpki",
+@@ -626 +576,0 @@ dependencies = [
 - "aws-lc-rs",
-  "once_cell",
-  "ring",
-  "rustls-pki-types",
-@@ -632,6 +581,16 @@ dependencies = [
-  "zeroize",
- ]
- 
+@@ -634,0 +585,10 @@ dependencies = [
 +[[package]]
 +name = "rustls-graviola"
 +version = "0.4.0"
@@ -181,21 +112,9 @@ index 11272fb..fe63dac 100644
 + "rustls",
 +]
 +
- [[package]]
- name = "rustls-pemfile"
- version = "2.2.0"
-@@ -656,7 +615,6 @@ version = "0.103.15"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
- dependencies = [
+@@ -659 +618,0 @@ dependencies = [
 - "aws-lc-rs",
-  "ring",
-  "rustls-pki-types",
-  "untrusted",
-@@ -854,6 +812,15 @@ version = "0.11.1+wasi-snapshot-preview1"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
- 
+@@ -856,0 +816,9 @@ checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 +[[package]]
 +name = "wasip2"
 +version = "1.0.4+wasi-0.2.12"
@@ -205,86 +124,59 @@ index 11272fb..fe63dac 100644
 + "wit-bindgen",
 +]
 +
- [[package]]
- name = "windows-sys"
- version = "0.52.0"
-@@ -927,6 +894,12 @@ version = "0.52.6"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
- 
+@@ -929,0 +898,6 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 +[[package]]
 +name = "wit-bindgen"
 +version = "0.57.1"
 +source = "registry+https://github.com/rust-lang/crates.io-index"
 +checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 +
- [[package]]
- name = "x509-parser"
- version = "0.16.0"
 diff --git a/rust/Cargo.toml b/rust/Cargo.toml
-index 1d1fd73..1c60b59 100644
+index 1d1fd73..cf22287 100644
 --- a/rust/Cargo.toml
 +++ b/rust/Cargo.toml
-@@ -32,7 +32,8 @@ base64ct = { version = "1", features = ["alloc"] }
- rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
- 
- [target.'cfg(not(target_os = "wasi"))'.dependencies]
+@@ -18,0 +19 @@ rustls-pemfile = "2"
++webpki = { package = "rustls-webpki", version = "=0.103.15", default-features = false, features = ["std"] }
+@@ -35 +36,2 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "tls1
 -rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
 +rustls = { version = "0.23", default-features = false, features = ["tls12", "std"] }
 +rustls-graviola = "0.4.0"
- 
- [package.metadata.maturin]
- python-source = "rtls"
 diff --git a/rust/build.rs b/rust/build.rs
 index 05f871f..8cd103c 100644
 --- a/rust/build.rs
 +++ b/rust/build.rs
-@@ -6,11 +6,11 @@ fn main() {
-     let lock = fs::read_to_string("Cargo.lock").expect("Cannot read Cargo.lock");
- 
-     let rustls_version = extract_version(&lock, "rustls");
+@@ -9 +9 @@ fn main() {
 -    let aws_lc_rs_version = extract_version(&lock, "aws-lc-rs");
 +    let graviola_version = extract_version(&lock, "graviola");
-     let ring_version = extract_version(&lock, "ring");
- 
-     println!("cargo:rustc-env=RUSTLS_VERSION={}", rustls_version);
+@@ -13 +13 @@ fn main() {
 -    println!("cargo:rustc-env=AWS_LC_RS_VERSION={}", aws_lc_rs_version);
 +    println!("cargo:rustc-env=GRAVIOLA_VERSION={}", graviola_version);
-     println!("cargo:rustc-env=RING_VERSION={}", ring_version);
-     println!("cargo:rerun-if-changed=Cargo.lock");
- }
 diff --git a/rust/src/config.rs b/rust/src/config.rs
-index e580788..419e7ab 100644
+index e580788..55b2124 100644
 --- a/rust/src/config.rs
 +++ b/rust/src/config.rs
-@@ -1,14 +1,10 @@
- use pyo3::prelude::*;
- use rustls::client::EchMode;
- #[cfg(not(target_os = "wasi"))]
+@@ -4,3 +4 @@ use rustls::client::EchMode;
 -use rustls::client::{EchConfig, EchGreaseConfig};
 -#[cfg(not(target_os = "wasi"))]
 -use rustls::crypto::aws_lc_rs as provider;
 +use rustls_graviola::suites as cipher_suite;
- #[cfg(target_os = "wasi")]
+@@ -8 +6 @@ use rustls::crypto::aws_lc_rs as provider;
 -use rustls::crypto::ring as provider;
 +use rustls::crypto::ring::{cipher_suite, kx_group};
- use rustls::crypto::SupportedKxGroup;
+@@ -10,2 +7,0 @@ use rustls::crypto::SupportedKxGroup;
 -#[cfg(not(target_os = "wasi"))]
 -use rustls::pki_types::EchConfigListBytes;
- use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
- use rustls::{ClientConfig, RootCertStore, ServerConfig, SupportedCipherSuite};
- use std::io::{BufReader, Write};
-@@ -53,16 +49,16 @@ impl rustls::KeyLog for KeyLogToFile {
- /// This differs from rustls's default (AES-256 first).
- static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
-     // TLS 1.3 suites: 128 before 256
+@@ -13 +9 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+-use rustls::{ClientConfig, RootCertStore, ServerConfig, SupportedCipherSuite};
++use rustls::{ClientConfig, ServerConfig, SupportedCipherSuite};
+@@ -56,3 +52,3 @@ static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
 -    provider::cipher_suite::TLS13_AES_128_GCM_SHA256,
 -    provider::cipher_suite::TLS13_AES_256_GCM_SHA384,
 -    provider::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
 +    cipher_suite::TLS13_AES_128_GCM_SHA256,
 +    cipher_suite::TLS13_AES_256_GCM_SHA384,
 +    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
-     // TLS 1.2 suites: grouped by cipher, ECDSA before RSA
+@@ -60,6 +56,6 @@ static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
 -    provider::cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 -    provider::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 -    provider::cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -297,13 +189,7 @@ index e580788..419e7ab 100644
 +    cipher_suite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 +    cipher_suite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 +    cipher_suite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
- ];
- 
- /// Preferred key exchange group order.
-@@ -71,20 +67,37 @@ static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
- /// NIST curves.  Placing MLKEM first also means rustls will include a
- /// key share for it in the initial ClientHello.
- #[cfg(not(target_os = "wasi"))]
+@@ -74,6 +70 @@ static PREFERRED_CIPHER_SUITES: &[SupportedCipherSuite] = &[
 -static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
 -    provider::kx_group::X25519MLKEM768,
 -    provider::kx_group::X25519,
@@ -311,17 +197,14 @@ index e580788..419e7ab 100644
 -    provider::kx_group::SECP384R1,
 -];
 +static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = rustls_graviola::kx::ALL_KX_GROUPS;
- 
- #[cfg(target_os = "wasi")]
- static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
+@@ -83,3 +74,3 @@ static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
 -    provider::kx_group::X25519,
 -    provider::kx_group::SECP256R1,
 -    provider::kx_group::SECP384R1,
 +    kx_group::X25519,
 +    kx_group::SECP256R1,
 +    kx_group::SECP384R1,
- ];
- 
+@@ -87,0 +79,22 @@ static PREFERRED_KX_GROUPS: &[&dyn SupportedKxGroup] = &[
 +fn all_cipher_suites() -> &'static [SupportedCipherSuite] {
 +    #[cfg(not(target_os = "wasi"))]
 +    {
@@ -344,35 +227,181 @@ index e580788..419e7ab 100644
 +    }
 +}
 +
- use crate::connection::{RustlsClientConnection, RustlsServerConnection};
- use crate::error::raise_ssl_error;
- use crate::verify::{
-@@ -467,7 +480,7 @@ impl RustlsConfigBuilder {
- 
-     fn get_cipher_suites(&self) -> Vec<SupportedCipherSuite> {
-         if let Some(ref names) = self.cipher_suites {
+@@ -90,4 +103,2 @@ use crate::error::raise_ssl_error;
+-use crate::verify::{
+-    NoHostnameVerifier, NoHostnameVerifierWithIntermediates, NoVerifier,
+-    ServerVerifierWithIntermediates,
+-};
++use crate::policy::{parse_certificates, validate_der, PathVerifier, SUPPORTED_VERIFY_FLAGS};
++use crate::verify::NoVerifier;
+@@ -95 +105,0 @@ use crate::verify::{
+-/// Verify mode constants (must match Python ssl module)
+@@ -97 +106,0 @@ const CERT_NONE: i32 = 0;
+-#[allow(dead_code)]
+@@ -99,4 +107,0 @@ const CERT_OPTIONAL: i32 = 1;
+-#[allow(dead_code)]
+-const CERT_REQUIRED: i32 = 2;
+-
+-/// TLS version constants
+@@ -106,17 +110,0 @@ const TLS_V1_3: u16 = 0x0304;
+-/// Verify flags constants (must match Python ssl module)
+-const VERIFY_X509_TRUSTED_FIRST: i32 = 0x8000;
+-const VERIFY_X509_PARTIAL_CHAIN: i32 = 0x80000;
+-
+-/// Check if a DER-encoded certificate is self-signed (subject == issuer).
+-/// Self-signed certs are root CAs; non-self-signed certs are intermediates.
+-/// If parsing fails, conservatively treats the cert as self-signed so it
+-/// still gets added to the root store (safe fallback — worst case it becomes
+-/// a trust anchor when it shouldn't, which is the old behavior anyway).
+-fn is_self_signed(cert_der: &CertificateDer<'_>) -> bool {
+-    use x509_parser::prelude::FromDer;
+-    match x509_parser::certificate::X509Certificate::from_der(cert_der.as_ref()) {
+-        Ok((_, cert)) => cert.subject() == cert.issuer(),
+-        Err(_) => true, // conservative fallback
+-    }
+-}
+-
+@@ -127,6 +114,0 @@ pub struct RustlsConfigBuilder {
+-    root_store: RootCertStore,
+-    /// ALL certs loaded via load_verify_locations() are stored here for
+-    /// chain building. Only self-signed certs (root CAs) are ALSO added
+-    /// to `root_store` as trust anchors. This ensures intermediates help
+-    /// with chain building but cannot act as trust anchors on their own.
+-    extra_intermediates: Vec<CertificateDer<'static>>,
+@@ -162,2 +143,0 @@ impl RustlsConfigBuilder {
+-            root_store: RootCertStore::empty(),
+-            extra_intermediates: Vec::new(),
+@@ -183,13 +162,0 @@ impl RustlsConfigBuilder {
+-    /// Add CA certs from PEM data. Returns number of certs added.
+-    ///
+-    /// Self-signed certs (subject == issuer) are added to `root_store` as
+-    /// trust anchors.  Non-self-signed certs (intermediates) are added ONLY
+-    /// to `extra_intermediates` for chain building — they must NOT become
+-    /// trust anchors, or webpki would accept a chain that terminates at
+-    /// an intermediate without reaching an actual root CA.
+-    ///
+-    /// ALL certs are also stored in `extra_intermediates` so they are
+-    /// available for chain building (matching OpenSSL's behavior where
+-    /// `load_verify_locations()` certs assist chain construction).
+-    ///
+-    /// GIL is released during PEM parsing and certificate validation.
+@@ -197,18 +164,6 @@ impl RustlsConfigBuilder {
+-        let root_store = &mut self.root_store;
+-        let root_certs_der = &mut self.root_certs_der;
+-        let extra_intermediates = &mut self.extra_intermediates;
+-        let result = py.detach(|| {
+-            let mut reader = BufReader::new(pem_data);
+-            let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut reader)
+-                .filter_map(|r| r.ok())
+-                .collect();
+-            let mut root_certs = Vec::new();
+-            for cert in &certs {
+-                root_certs_der.push(cert.to_vec());
+-                extra_intermediates.push(cert.clone());
+-                // Only add self-signed certs (subject == issuer) to root_store.
+-                // it's weak triaging for now. we'll implement the same algorithm
+-                // as qh3 self signed check soon.
+-                if is_self_signed(cert) {
+-                    root_certs.push(cert.clone());
+-                }
++        let certs = py.detach(|| parse_certificates(pem_data))
++            .map_err(|msg| raise_ssl_error(py, &msg))?;
++        let count = certs.len();
++        for cert in certs {
++            if !self.root_certs_der.iter().any(|der| der.as_slice() == cert.as_ref()) {
++                self.root_certs_der.push(cert.to_vec());
+@@ -216,5 +171,3 @@ impl RustlsConfigBuilder {
+-            let (added, _) = root_store.add_parsable_certificates(root_certs);
+-            added
+-        });
+-        self.root_cert_count += result;
+-        Ok(result)
++        }
++        self.root_cert_count = self.root_certs_der.len();
++        Ok(count)
+@@ -223,5 +175,0 @@ impl RustlsConfigBuilder {
+-    /// Add a single CA cert from DER data.
+-    ///
+-    /// Self-signed certs are added to `root_store` as trust anchors.
+-    /// Non-self-signed certs (intermediates) are ONLY stored in
+-    /// `extra_intermediates` for chain building.
+@@ -229,16 +177,5 @@ impl RustlsConfigBuilder {
+-        let root_store = &mut self.root_store;
+-        let der_copy = der_data.to_vec();
+-        let extra_intermediates = &mut self.extra_intermediates;
+-        let result: Result<(), String> = py.detach(|| {
+-            let cert = CertificateDer::from(der_copy.clone());
+-            extra_intermediates.push(cert.clone());
+-            if is_self_signed(&cert) {
+-                root_store
+-                    .add(cert)
+-                    .map_err(|e| format!("Invalid cert: {}", e))?;
+-            }
+-            Ok(())
+-        });
+-        result.map_err(pyo3::exceptions::PyValueError::new_err)?;
+-        self.root_certs_der.push(der_data.to_vec());
+-        self.root_cert_count += 1;
++        py.detach(|| validate_der(der_data)).map_err(|msg| raise_ssl_error(py, &msg))?;
++        if !self.root_certs_der.iter().any(|der| der.as_slice() == der_data) {
++            self.root_certs_der.push(der_data.to_vec());
++        }
++        self.root_cert_count = self.root_certs_der.len();
+@@ -261,8 +198,6 @@ impl RustlsConfigBuilder {
+-                let mut cert_reader = BufReader::new(cert_pem);
+-                let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cert_reader)
+-                    .filter_map(|r| r.ok())
+-                    .collect();
+-                if certs.is_empty() {
+-                    return Err("No certificates found in PEM data".to_string());
+-                }
+-                let key = load_private_key(key_pem, password).map_err(|e| e.to_string())?;
++                let certs = parse_certificates(cert_pem)?;
++                let key = load_private_key(key_pem, password)?;
++                let certified = rustls::sign::CertifiedKey::from_der(
++                    certs.clone(), key.clone_key(), &default_crypto_provider(),
++                ).map_err(|e| format!("Invalid certificate/key: {e}"))?;
++                certified.keys_match().map_err(|e| format!("Certificate/key mismatch: {e}"))?;
+@@ -295,8 +230,6 @@ impl RustlsConfigBuilder {
+-                let mut cert_reader = BufReader::new(cert_pem);
+-                let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cert_reader)
+-                    .filter_map(|r| r.ok())
+-                    .collect();
+-                if certs.is_empty() {
+-                    return Err("No certificates found in PEM data".to_string());
+-                }
+-                let key = load_private_key(key_pem, password).map_err(|e| e.to_string())?;
++                let certs = parse_certificates(cert_pem)?;
++                let key = load_private_key(key_pem, password)?;
++                let certified = rustls::sign::CertifiedKey::from_der(
++                    certs.clone(), key.clone_key(), &default_crypto_provider(),
++                ).map_err(|e| format!("Invalid certificate/key: {e}"))?;
++                certified.keys_match().map_err(|e| format!("Certificate/key mismatch: {e}"))?;
+@@ -342 +275,4 @@ impl RustlsConfigBuilder {
+-    fn set_verify_flags(&mut self, flags: i32) {
++    fn set_verify_flags(&mut self, flags: i32) -> PyResult<()> {
++        if flags & !SUPPORTED_VERIFY_FLAGS != 0 {
++            return Err(pyo3::exceptions::PyNotImplementedError::new_err("Unsupported certificate verification flags"));
++        }
+@@ -343,0 +280 @@ impl RustlsConfigBuilder {
++        Ok(())
+@@ -371,2 +307,0 @@ impl RustlsConfigBuilder {
+-        let root_store = &self.root_store;
+-        let extra_intermediates = &self.extra_intermediates;
+@@ -384,2 +318,0 @@ impl RustlsConfigBuilder {
+-            root_store: root_store.clone(),
+-            extra_intermediates: extra_intermediates.clone(),
+@@ -470 +403 @@ impl RustlsConfigBuilder {
 -            let all = provider::ALL_CIPHER_SUITES;
 +            let all = all_cipher_suites();
-             let mut selected = Vec::new();
-             for name in names {
-                 for suite in all {
-@@ -482,9 +495,9 @@ impl RustlsConfigBuilder {
-                 // suites.  TLS 1.3 suites are always included (unless TLS 1.3
-                 // is explicitly disabled via max_version / OP_NO_TLSv1_3).
-                 let tls13_defaults: &[SupportedCipherSuite] = &[
+@@ -485,3 +418,3 @@ impl RustlsConfigBuilder {
 -                    provider::cipher_suite::TLS13_AES_128_GCM_SHA256,
 -                    provider::cipher_suite::TLS13_AES_256_GCM_SHA384,
 -                    provider::cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
 +                    cipher_suite::TLS13_AES_128_GCM_SHA256,
 +                    cipher_suite::TLS13_AES_256_GCM_SHA384,
 +                    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
-                 ];
-                 let mut with_tls13 = Vec::new();
-                 for &s in tls13_defaults {
-@@ -503,44 +516,12 @@ impl RustlsConfigBuilder {
-         PREFERRED_CIPHER_SUITES.to_vec()
-     }
- 
+@@ -506,10 +438,0 @@ impl RustlsConfigBuilder {
 -    /// Resolve ECH mode for the client connection.
 -    ///
 -    /// - If explicit ECH config bytes are set → `EchMode::Enable`
@@ -383,8 +412,7 @@ index e580788..419e7ab 100644
 -    /// ECH (both GREASE and Enable) is inherently TLS 1.3 only.  Rather than
 -    /// silently breaking TLS 1.2 servers, we only activate GREASE when TLS 1.2
 -    /// has been explicitly disabled by the caller.
-     #[cfg(not(target_os = "wasi"))]
-     fn resolve_ech_mode(&self) -> Result<Option<EchMode>, String> {
+@@ -518,25 +441,2 @@ impl RustlsConfigBuilder {
 -        let hpke_suites = provider::hpke::ALL_SUPPORTED_SUITES;
 -
 -        if let Some(ref ech_bytes) = self.ech_config_list {
@@ -412,125 +440,722 @@ index e580788..419e7ab 100644
 -            Ok(Some(EchMode::Grease(grease_config)))
 +        if self.ech_config_list.is_some() {
 +            return Err("ECH is unavailable with the Graviola crypto provider".to_string());
-         }
+@@ -543,0 +444 @@ impl RustlsConfigBuilder {
 +        Ok(None)
-     }
- 
-     #[cfg(target_os = "wasi")]
-@@ -562,7 +543,7 @@ impl RustlsConfigBuilder {
-             Arc::new(rustls::crypto::CryptoProvider {
-                 cipher_suites: cipher_suites.clone(),
-                 kx_groups: PREFERRED_KX_GROUPS.to_vec(),
+@@ -565 +466 @@ impl RustlsConfigBuilder {
 -                ..provider::default_provider()
 +                ..default_crypto_provider()
-             })
-         };
- 
-@@ -590,12 +571,8 @@ impl RustlsConfigBuilder {
- 
-         let has_extra_intermediates = !effective_intermediates.is_empty();
- 
+@@ -569,25 +469,0 @@ impl RustlsConfigBuilder {
+-        // When VERIFY_X509_TRUSTED_FIRST or VERIFY_X509_PARTIAL_CHAIN is set,
+-        // skip root-vs-intermediate sorting: ALL loaded CA certs become trust
+-        // anchors. This matches OpenSSL's behavior for these flags, where
+-        // intermediates can terminate a chain without reaching a self-signed root.
+-        let skip_ca_sorting = (self.verify_flags & VERIFY_X509_TRUSTED_FIRST) != 0
+-            || (self.verify_flags & VERIFY_X509_PARTIAL_CHAIN) != 0;
+-
+-        let (effective_root_store, effective_intermediates) = if skip_ca_sorting {
+-            // Rebuild root store from ALL loaded certs (root_certs_der).
+-            let mut store = RootCertStore::empty();
+-            let all_certs: Vec<CertificateDer<'static>> = self
+-                .root_certs_der
+-                .iter()
+-                .map(|der| CertificateDer::from(der.clone()))
+-                .collect();
+-            store.add_parsable_certificates(all_certs);
+-            // No extra intermediates needed — everything is a trust anchor.
+-            (store, Vec::new())
+-        } else {
+-            (self.root_store.clone(), self.extra_intermediates.clone())
+-        };
+-
+-        let has_extra_intermediates = !effective_intermediates.is_empty();
+-
 -        // Resolve ECH mode: Enable (explicit), Grease (TLS 1.3 default), or None (TLS 1.2 only).
-         let ech_mode = self.resolve_ech_mode()?;
- 
+@@ -596,3 +471,0 @@ impl RustlsConfigBuilder {
 -        // Helper macro: given a provider, apply ECH or protocol versions, returning
 -        // the builder at the WantsVerifier stage. This avoids duplicating the
 -        // ECH-vs-versions branching across every verify_mode path.
-         macro_rules! apply_versions_or_ech {
-             ($provider:expr) => {
-                 if let Some(mode) = ech_mode.clone() {
-@@ -689,7 +666,7 @@ impl RustlsConfigBuilder {
- 
-         let provider = rustls::crypto::CryptoProvider {
-             cipher_suites,
+@@ -613 +486 @@ impl RustlsConfigBuilder {
+-        // Step 1: choose verifier → produces WantsClientCert
++        let provider = make_provider();
+@@ -615 +488 @@ impl RustlsConfigBuilder {
+-            apply_versions_or_ech!(make_provider())?
++            apply_versions_or_ech!(provider)?
+@@ -617,25 +490 @@ impl RustlsConfigBuilder {
+-                .with_custom_certificate_verifier(Arc::new(NoVerifier))
+-        } else if !self.check_hostname {
+-            let root_store = Arc::new(effective_root_store);
+-            let crypto_provider = make_provider();
+-
+-            if has_extra_intermediates {
+-                let verifier = NoHostnameVerifierWithIntermediates::new(
+-                    root_store,
+-                    effective_intermediates,
+-                    &crypto_provider,
+-                );
+-                apply_versions_or_ech!(crypto_provider)?
+-                    .dangerous()
+-                    .with_custom_certificate_verifier(Arc::new(verifier))
+-            } else {
+-                let webpki_verifier = rustls::client::WebPkiServerVerifier::builder(root_store)
+-                    .with_crls(vec![])
+-                    .build()
+-                    .map_err(|e| format!("Failed to build verifier: {}", e))?;
+-                apply_versions_or_ech!(crypto_provider)?
+-                    .dangerous()
+-                    .with_custom_certificate_verifier(Arc::new(NoHostnameVerifier::new(
+-                        webpki_verifier,
+-                    )))
+-            }
++                .with_custom_certificate_verifier(Arc::new(NoVerifier::new(make_provider().signature_verification_algorithms)))
+@@ -643,16 +492,7 @@ impl RustlsConfigBuilder {
+-            let root_store = Arc::new(effective_root_store);
+-            let crypto_provider = make_provider();
+-
+-            if has_extra_intermediates {
+-                let verifier = ServerVerifierWithIntermediates::new(
+-                    root_store,
+-                    effective_intermediates,
+-                    &crypto_provider,
+-                );
+-                apply_versions_or_ech!(crypto_provider)?
+-                    .dangerous()
+-                    .with_custom_certificate_verifier(Arc::new(verifier))
+-            } else {
+-                apply_versions_or_ech!(crypto_provider)?
+-                    .with_root_certificates((*root_store).clone())
+-            }
++            let verifier = PathVerifier::new(
++                self.root_certs_der.clone(), self.verify_flags, self.check_hostname,
++                false, &provider,
++            );
++            apply_versions_or_ech!(provider)?
++                .dangerous()
++                .with_custom_certificate_verifier(Arc::new(verifier))
+@@ -692 +532 @@ impl RustlsConfigBuilder {
 -            ..provider::default_provider()
 +            ..default_crypto_provider()
-         };
- 
-         let certs = self
+@@ -704 +544,2 @@ impl RustlsConfigBuilder {
+-        let mut config = ServerConfig::builder_with_provider(Arc::new(provider))
++        let provider = Arc::new(provider);
++        let builder = ServerConfig::builder_with_provider(provider.clone())
+@@ -706,3 +547,10 @@ impl RustlsConfigBuilder {
+-            .map_err(|e| format!("Protocol version error: {}", e))?
+-            .with_no_client_auth()
+-            .with_single_cert(certs.clone(), key.clone_key())
++            .map_err(|e| format!("Protocol version error: {}", e))?;
++        let builder = if self.verify_mode == CERT_NONE {
++            builder.with_no_client_auth()
++        } else {
++            builder.with_client_cert_verifier(Arc::new(PathVerifier::new(
++                self.root_certs_der.clone(), self.verify_flags, false,
++                self.verify_mode == CERT_OPTIONAL, &provider,
++            )))
++        };
++        let mut config = builder.with_single_cert(certs.clone(), key.clone_key())
 diff --git a/rust/src/lib.rs b/rust/src/lib.rs
-index 4ce5712..9096a47 100644
+index 4ce5712..aeb339c 100644
 --- a/rust/src/lib.rs
 +++ b/rust/src/lib.rs
-@@ -20,7 +20,7 @@ fn _rustls(m: &Bound<'_, PyModule>) -> PyResult<()> {
-     m.add_class::<RustlsServerConnection>()?;
-     m.add_function(wrap_pyfunction!(parse_certificate_dict, m)?)?;
-     m.add_function(wrap_pyfunction!(rustls_version, m)?)?;
+@@ -8,0 +9 @@ mod verify;
++mod policy;
+@@ -23 +24 @@ fn _rustls(m: &Bound<'_, PyModule>) -> PyResult<()> {
 -    m.add_function(wrap_pyfunction!(aws_lc_rs_version, m)?)?;
 +    m.add_function(wrap_pyfunction!(graviola_version, m)?)?;
-     m.add_function(wrap_pyfunction!(crypto_provider, m)?)?;
-     m.add_function(wrap_pyfunction!(crypto_provider_version, m)?)?;
-     m.add_function(wrap_pyfunction!(rand_bytes, m)?)?;
-@@ -36,9 +36,8 @@ fn rustls_version() -> String {
- 
- /// Return the aws-lc-rs version string (e.g. "1.16.2").
- #[pyfunction]
+@@ -39,3 +40,2 @@ fn rustls_version() -> String {
 -fn aws_lc_rs_version() -> String {
 -    // Set by build.rs from the actual aws-lc-rs entry in Cargo.lock
 -    env!("AWS_LC_RS_VERSION").to_string()
 +fn graviola_version() -> String {
 +    env!("GRAVIOLA_VERSION").to_string()
- }
- 
- #[pyfunction]
-@@ -46,7 +45,7 @@ fn crypto_provider() -> &'static str {
-     if cfg!(target_os = "wasi") {
-         "ring"
-     } else {
+@@ -49 +49 @@ fn crypto_provider() -> &'static str {
 -        "aws-lc-rs"
 +        "rustls-graviola"
-     }
- }
- 
-@@ -55,7 +54,7 @@ fn crypto_provider_version() -> String {
-     if cfg!(target_os = "wasi") {
-         env!("RING_VERSION").to_string()
-     } else {
+@@ -58 +58 @@ fn crypto_provider_version() -> String {
 -        env!("AWS_LC_RS_VERSION").to_string()
 +        env!("GRAVIOLA_VERSION").to_string()
-     }
- }
- 
-@@ -69,7 +68,7 @@ fn rand_bytes(py: Python<'_>, n: usize) -> PyResult<Py<PyAny>> {
-         #[cfg(target_os = "wasi")]
-         let provider = rustls::crypto::ring::default_provider();
-         #[cfg(not(target_os = "wasi"))]
+@@ -72 +72 @@ fn rand_bytes(py: Python<'_>, n: usize) -> PyResult<Py<PyAny>> {
 -        let provider = rustls::crypto::aws_lc_rs::default_provider();
 +        let provider = rustls_graviola::default_provider();
-         provider.secure_random.fill(&mut buf).map_err(|_| ())
-     })
-     .map_err(|_| pyo3::exceptions::PyOSError::new_err("Failed to generate random bytes"))?;
+diff --git a/rust/src/policy.rs b/rust/src/policy.rs
+new file mode 100644
+index 0000000..bb1a8a7
+--- /dev/null
++++ b/rust/src/policy.rs
+@@ -0,0 +1,240 @@
++use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
++use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
++use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSupportedAlgorithms};
++use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
++use rustls::{CertificateError, DigitallySignedStruct, DistinguishedName, Error, SignatureScheme};
++use std::collections::HashSet;
++use std::sync::Arc;
++use x509_parser::prelude::*;
++use x509_parser::extensions::ParsedExtension;
++
++pub const VERIFY_X509_STRICT: i32 = 0x20;
++pub const VERIFY_X509_TRUSTED_FIRST: i32 = 0x8000;
++pub const VERIFY_X509_PARTIAL_CHAIN: i32 = 0x80000;
++pub const SUPPORTED_VERIFY_FLAGS: i32 = VERIFY_X509_STRICT | VERIFY_X509_TRUSTED_FIRST | VERIFY_X509_PARTIAL_CHAIN;
++
++pub fn validate_der(der: &[u8]) -> Result<(), String> {
++    let (rest, _) = X509Certificate::from_der(der).map_err(|e| format!("Invalid certificate DER: {e}"))?;
++    if !rest.is_empty() {
++        return Err("Trailing data after certificate DER".into());
++    }
++    webpki::anchor_from_trusted_cert(&CertificateDer::from(der))
++        .map_err(|e| format!("Invalid certificate: {e}"))?;
++    Ok(())
++}
++
++pub fn parse_certificates(pem: &[u8]) -> Result<Vec<CertificateDer<'static>>, String> {
++    let mut certs = Vec::new();
++    let mut remaining = pem;
++    let begin = b"-----BEGIN CERTIFICATE-----";
++    let end = b"-----END CERTIFICATE-----";
++    while let Some(start) = remaining.windows(begin.len()).position(|w| w == begin) {
++        remaining = &remaining[start..];
++        let finish = remaining.windows(end.len()).position(|w| w == end)
++            .ok_or_else(|| "Unterminated certificate PEM".to_string())? + end.len();
++        let cert = rustls_pemfile::certs(&mut &remaining[..finish]).next()
++            .ok_or_else(|| "Empty certificate PEM".to_string())?
++            .map_err(|e| format!("Invalid certificate PEM: {e}"))?;
++        validate_der(cert.as_ref())?;
++        certs.push(cert);
++        remaining = &remaining[finish..];
++    }
++    if certs.is_empty() {
++        return Err("No certificates found in PEM data".into());
++    }
++    Ok(certs)
++}
++
++fn self_signed(der: &CertificateDer<'_>, supported: WebPkiSupportedAlgorithms) -> bool {
++    let Ok((rest, cert)) = X509Certificate::from_der(der.as_ref()) else { return false; };
++    if !rest.is_empty() || cert.signature_algorithm != cert.tbs_certificate.signature || cert.subject() != cert.issuer() { return false; }
++    let Ok(key) = webpki::EndEntityCert::try_from(der) else { return false; };
++    supported.all.iter().any(|algorithm| {
++        let id = algorithm.signature_alg_id();
++        let Ok((parameters, oid)) = x509_parser::der_parser::Oid::from_der(id.as_ref()) else { return false; };
++        if oid != cert.signature_algorithm.algorithm { return false; }
++        let parsed_parameters = if parameters.is_empty() { None } else {
++            let Ok((remaining, value)) = x509_parser::der_parser::asn1_rs::Any::from_der(parameters) else { return false; };
++            if !remaining.is_empty() { return false; }
++            Some(value)
++        };
++        if parsed_parameters != cert.signature_algorithm.parameters { return false; }
++        key.verify_signature(*algorithm, cert.tbs_certificate.as_ref(), &cert.signature_value.data).is_ok()
++    })
++}
++
++fn check_certificate(der: &[u8], is_anchor: bool, depth: usize, now: UnixTime, client: bool, strict: bool) -> Result<(), webpki::Error> {
++    let invalid = webpki::Error::ExtensionValueInvalid;
++    let (rest, cert) = X509Certificate::from_der(der).map_err(|_| invalid.clone())?;
++    if !rest.is_empty() { return Err(invalid); }
++    let mut seen = HashSet::new();
++    let mut basic = None;
++    let mut usage = None;
++    let mut san = None;
++    let mut aki = false;
++    let mut ski = false;
++    for extension in cert.extensions() {
++        if !seen.insert(extension.oid.clone()) { return Err(invalid); }
++        match extension.parsed_extension() {
++            ParsedExtension::BasicConstraints(value) => basic = Some((value, extension.critical)),
++            ParsedExtension::KeyUsage(value) => usage = Some(value),
++            ParsedExtension::SubjectAlternativeName(value) => san = Some((value, extension.critical)),
++            ParsedExtension::AuthorityKeyIdentifier(value) => {
++                if strict && extension.critical { return Err(invalid); }
++                aki = value.key_identifier.is_some();
++            }
++            ParsedExtension::SubjectKeyIdentifier(_) => {
++                if strict && extension.critical { return Err(invalid); }
++                ski = true;
++            }
++            ParsedExtension::ExtendedKeyUsage(value) if is_anchor => {
++                if !(value.any || if client { value.client_auth } else { value.server_auth }) { return Err(invalid); }
++            }
++            ParsedExtension::ParseError { .. } => return Err(invalid),
++            ParsedExtension::UnsupportedExtension { .. } if extension.critical => return Err(webpki::Error::UnsupportedCriticalExtension),
++            _ => {}
++        }
++    }
++    let ca = basic.is_some_and(|(value, _)| value.ca);
++    if is_anchor {
++        let timestamp = now.as_secs() as i64;
++        if timestamp < cert.validity().not_before.timestamp() { return Err(webpki::Error::CertNotValidYet { time: now, not_before: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_before.timestamp().max(0) as u64)) }); }
++        if timestamp > cert.validity().not_after.timestamp() { return Err(webpki::Error::CertExpired { time: now, not_after: UnixTime::since_unix_epoch(std::time::Duration::from_secs(cert.validity().not_after.timestamp().max(0) as u64)) }); }
++        if depth > 0 && basic.is_some_and(|(value, _)| !value.ca) { return Err(invalid); }
++        if depth > 0 && usage.is_some_and(|value| !value.key_cert_sign()) { return Err(invalid); }
++    }
++    if !strict { return Ok(()); }
++    if depth > 0 && !ca { return Err(invalid); }
++    if ca && (!basic.is_some_and(|(_, critical)| critical) || usage.is_none()) { return Err(invalid); }
++    if ca && !usage.is_some_and(|value| value.key_cert_sign()) { return Err(invalid); }
++    if !ca && usage.is_some_and(|value| value.key_cert_sign()) { return Err(invalid); }
++    if basic.is_some_and(|(value, _)| value.path_len_constraint.is_some()) &&
++        (!ca || !usage.is_some_and(|value| value.key_cert_sign())) { return Err(invalid); }
++    if cert.issuer().iter().next().is_none() { return Err(invalid); }
++    if cert.subject().iter().next().is_none() {
++        if ca || usage.is_some_and(|value| value.crl_sign()) || !san.is_some_and(|(_, critical)| critical) { return Err(invalid); }
++    }
++    if san.is_some_and(|(value, _)| value.general_names.is_empty()) { return Err(invalid); }
++    if cert.signature_algorithm != cert.tbs_certificate.signature { return Err(invalid); }
++    if cert.version().0 >= 2 {
++        if (!is_anchor && !aki) || (ca && !ski) { return Err(invalid); }
++    } else if !cert.extensions().is_empty() { return Err(invalid); }
++    Ok(())
++}
++
++fn check_issuer(child: &[u8], parent: &[u8]) -> Result<(), webpki::Error> {
++    let invalid = webpki::Error::UnknownIssuer;
++    let (_, child) = X509Certificate::from_der(child).map_err(|_| invalid.clone())?;
++    let (_, parent) = X509Certificate::from_der(parent).map_err(|_| invalid.clone())?;
++    for extension in child.extensions() {
++        if let ParsedExtension::AuthorityKeyIdentifier(aki) = extension.parsed_extension() {
++            if let Some(key_id) = &aki.key_identifier {
++                for extension in parent.extensions() {
++                    if let ParsedExtension::SubjectKeyIdentifier(ski) = extension.parsed_extension() {
++                        if key_id.0 != ski.0 { return Err(invalid); }
++                    }
++                }
++            }
++            if aki.authority_cert_serial.is_some_and(|serial| serial != parent.raw_serial()) { return Err(invalid); }
++            if let Some(names) = &aki.authority_cert_issuer {
++                if !names.iter().any(|name| matches!(name, x509_parser::extensions::GeneralName::DirectoryName(name) if name == parent.issuer())) { return Err(invalid); }
++            }
++        }
++    }
++    Ok(())
++}
++
++#[derive(Debug)]
++pub struct PathVerifier {
++    trusted: Vec<CertificateDer<'static>>,
++    flags: i32,
++    hostname: bool,
++    optional: bool,
++    supported: WebPkiSupportedAlgorithms,
++    hints: Vec<DistinguishedName>,
++}
++
++impl PathVerifier {
++    pub fn new(trusted: Vec<Vec<u8>>, flags: i32, hostname: bool, optional: bool, provider: &Arc<rustls::crypto::CryptoProvider>) -> Self {
++        Self { trusted: trusted.into_iter().map(CertificateDer::from).collect(), flags, hostname, optional,
++            supported: provider.signature_verification_algorithms, hints: Vec::new() }
++    }
++
++    fn verify(&self, leaf: &CertificateDer<'_>, sent: &[CertificateDer<'_>], now: UnixTime, client: bool) -> Result<(), Error> {
++        let invalid = |e: webpki::Error| Error::InvalidCertificate(CertificateError::Other(rustls::OtherError(Arc::new(e))));
++        let cert = webpki::EndEntityCert::try_from(leaf).map_err(invalid)?;
++        let mut intermediates = Vec::new();
++        if self.flags & VERIFY_X509_TRUSTED_FIRST != 0 { intermediates.extend(self.trusted.iter().cloned()); }
++        intermediates.extend_from_slice(sent);
++        if self.flags & VERIFY_X509_TRUSTED_FIRST == 0 { intermediates.extend(self.trusted.iter().cloned()); }
++        let mut last_error = webpki::Error::UnknownIssuer;
++        for root in &self.trusted {
++            if self.flags & VERIFY_X509_PARTIAL_CHAIN == 0 && !self_signed(root, self.supported) { continue; }
++            let anchor = webpki::anchor_from_trusted_cert(root).map_err(invalid)?;
++            let anchors = [anchor];
++            let policy = |path: &webpki::VerifiedPath<'_>| {
++                let strict = self.flags & VERIFY_X509_STRICT != 0;
++                check_certificate(leaf.as_ref(), false, 0, now, client, strict)?;
++                let mut previous = leaf.clone();
++                let mut depth = 1;
++                let mut non_self_issued = 0;
++                for intermediate in path.intermediate_certificates() {
++                    let der = intermediate.der();
++                    check_issuer(previous.as_ref(), der.as_ref())?;
++                    check_certificate(der.as_ref(), false, depth, now, client, strict)?;
++                    previous = der.clone();
++                    let (_, parsed) = X509Certificate::from_der(der.as_ref()).map_err(|_| webpki::Error::BadDer)?;
++                    if parsed.subject() != parsed.issuer() { non_self_issued += 1; }
++                    depth += 1;
++                }
++                check_issuer(previous.as_ref(), root.as_ref())?;
++                check_certificate(root.as_ref(), true, depth, now, client, strict)?;
++                let (_, parsed) = X509Certificate::from_der(root.as_ref()).map_err(|_| webpki::Error::BadDer)?;
++                if parsed.basic_constraints().map_err(|_| webpki::Error::ExtensionValueInvalid)?
++                    .and_then(|extension| extension.value.path_len_constraint)
++                    .is_some_and(|limit| non_self_issued > limit) { return Err(webpki::Error::PathLenConstraintViolated); }
++                Ok(())
++            };
++            let usage = if client { webpki::KeyUsage::client_auth() } else { webpki::KeyUsage::server_auth() };
++            match cert.verify_for_usage(self.supported.all, &anchors, &intermediates, now, usage, None, Some(&policy)) {
++                Ok(_) => return Ok(()),
++                Err(e) => last_error = e,
++            }
++        }
++        Err(invalid(last_error))
++    }
++}
++
++impl ServerCertVerifier for PathVerifier {
++    fn verify_server_cert(&self, leaf: &CertificateDer<'_>, intermediates: &[CertificateDer<'_>], name: &ServerName<'_>, _: &[u8], now: UnixTime) -> Result<ServerCertVerified, Error> {
++        self.verify(leaf, intermediates, now, false)?;
++        if self.hostname {
++            let cert = rustls::server::ParsedCertificate::try_from(leaf)?;
++            rustls::client::verify_server_name(&cert, name)?;
++        }
++        Ok(ServerCertVerified::assertion())
++    }
++    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, signature: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
++        verify_tls12_signature(message, cert, signature, &self.supported)
++    }
++    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, signature: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
++        verify_tls13_signature(message, cert, signature, &self.supported)
++    }
++    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> { self.supported.supported_schemes() }
++}
++
++impl ClientCertVerifier for PathVerifier {
++    fn client_auth_mandatory(&self) -> bool { !self.optional }
++    fn root_hint_subjects(&self) -> &[DistinguishedName] { &self.hints }
++    fn verify_client_cert(&self, leaf: &CertificateDer<'_>, intermediates: &[CertificateDer<'_>], now: UnixTime) -> Result<ClientCertVerified, Error> {
++        self.verify(leaf, intermediates, now, true)?;
++        Ok(ClientCertVerified::assertion())
++    }
++    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, signature: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
++        verify_tls12_signature(message, cert, signature, &self.supported)
++    }
++    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, signature: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
++        verify_tls13_signature(message, cert, signature, &self.supported)
++    }
++    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> { self.supported.supported_schemes() }
++}
+diff --git a/rust/src/verify.rs b/rust/src/verify.rs
+index 40c26dc..53ed5ac 100644
+--- a/rust/src/verify.rs
++++ b/rust/src/verify.rs
+@@ -2 +1,0 @@ use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, Server
+-use rustls::client::{verify_server_cert_signed_by_trust_anchor, verify_server_name};
+@@ -5,4 +4 @@ use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+-use rustls::server::ParsedCertificate;
+-use rustls::{DigitallySignedStruct, Error, RootCertStore, SignatureScheme};
+-use std::fmt::Debug;
+-use std::sync::Arc;
++use rustls::{DigitallySignedStruct, Error, SignatureScheme};
+@@ -10,3 +5,0 @@ use std::sync::Arc;
+-/// A certificate verifier that accepts ALL certificates unconditionally.
+-/// Used when verify_mode == CERT_NONE.
+-/// This is accessed via rustls's `dangerous()` API.
+@@ -14 +7,7 @@ use std::sync::Arc;
+-pub struct NoVerifier;
++pub struct NoVerifier {
++    supported: WebPkiSupportedAlgorithms,
++}
++
++impl NoVerifier {
++    pub fn new(supported: WebPkiSupportedAlgorithms) -> Self { Self { supported } }
++}
+@@ -18,6 +17,2 @@ impl ServerCertVerifier for NoVerifier {
+-        &self,
+-        _end_entity: &CertificateDer<'_>,
+-        _intermediates: &[CertificateDer<'_>],
+-        _server_name: &ServerName<'_>,
+-        _ocsp_response: &[u8],
+-        _now: UnixTime,
++        &self, _: &CertificateDer<'_>, _: &[CertificateDer<'_>],
++        _: &ServerName<'_>, _: &[u8], _: UnixTime,
+@@ -29,4 +24 @@ impl ServerCertVerifier for NoVerifier {
+-        &self,
+-        _message: &[u8],
+-        _cert: &CertificateDer<'_>,
+-        _dss: &DigitallySignedStruct,
++        &self, message: &[u8], cert: &CertificateDer<'_>, signature: &DigitallySignedStruct,
+@@ -34 +26 @@ impl ServerCertVerifier for NoVerifier {
+-        Ok(HandshakeSignatureValid::assertion())
++        verify_tls12_signature(message, cert, signature, &self.supported)
+@@ -38,4 +30 @@ impl ServerCertVerifier for NoVerifier {
+-        &self,
+-        _message: &[u8],
+-        _cert: &CertificateDer<'_>,
+-        _dss: &DigitallySignedStruct,
++        &self, message: &[u8], cert: &CertificateDer<'_>, signature: &DigitallySignedStruct,
+@@ -43 +32 @@ impl ServerCertVerifier for NoVerifier {
+-        Ok(HandshakeSignatureValid::assertion())
++        verify_tls13_signature(message, cert, signature, &self.supported)
+@@ -46,259 +35 @@ impl ServerCertVerifier for NoVerifier {
+-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+-        vec![
+-            SignatureScheme::RSA_PKCS1_SHA256,
+-            SignatureScheme::RSA_PKCS1_SHA384,
+-            SignatureScheme::RSA_PKCS1_SHA512,
+-            SignatureScheme::ECDSA_NISTP256_SHA256,
+-            SignatureScheme::ECDSA_NISTP384_SHA384,
+-            SignatureScheme::ECDSA_NISTP521_SHA512,
+-            SignatureScheme::RSA_PSS_SHA256,
+-            SignatureScheme::RSA_PSS_SHA384,
+-            SignatureScheme::RSA_PSS_SHA512,
+-            SignatureScheme::ED25519,
+-            SignatureScheme::ED448,
+-        ]
+-    }
+-}
+-
+-/// A certificate verifier that verifies the cert chain but does NOT
+-/// check the hostname. Used when check_hostname=False but verify_mode=CERT_REQUIRED.
+-#[derive(Debug)]
+-pub struct NoHostnameVerifier {
+-    inner: Arc<dyn ServerCertVerifier>,
+-}
+-
+-impl NoHostnameVerifier {
+-    pub fn new(inner: Arc<dyn ServerCertVerifier>) -> Self {
+-        Self { inner }
+-    }
+-}
+-
+-impl ServerCertVerifier for NoHostnameVerifier {
+-    fn verify_server_cert(
+-        &self,
+-        end_entity: &CertificateDer<'_>,
+-        intermediates: &[CertificateDer<'_>],
+-        server_name: &ServerName<'_>,
+-        ocsp_response: &[u8],
+-        now: UnixTime,
+-    ) -> Result<ServerCertVerified, Error> {
+-        // Delegate to the inner verifier — this checks the chain but
+-        // if hostname check fails we still accept it
+-        match self.inner.verify_server_cert(
+-            end_entity,
+-            intermediates,
+-            server_name,
+-            ocsp_response,
+-            now,
+-        ) {
+-            Ok(v) => Ok(v),
+-            Err(Error::InvalidCertificate(rustls::CertificateError::NotValidForName)) => {
+-                // Accept cert even though hostname doesn't match
+-                Ok(ServerCertVerified::assertion())
+-            }
+-            Err(Error::InvalidCertificate(rustls::CertificateError::NotValidForNameContext {
+-                ..
+-            })) => {
+-                // Same as above, but with context info (rustls 0.23.37+)
+-                Ok(ServerCertVerified::assertion())
+-            }
+-            Err(e) => Err(e),
+-        }
+-    }
+-
+-    fn verify_tls12_signature(
+-        &self,
+-        message: &[u8],
+-        cert: &CertificateDer<'_>,
+-        dss: &DigitallySignedStruct,
+-    ) -> Result<HandshakeSignatureValid, Error> {
+-        self.inner.verify_tls12_signature(message, cert, dss)
+-    }
+-
+-    fn verify_tls13_signature(
+-        &self,
+-        message: &[u8],
+-        cert: &CertificateDer<'_>,
+-        dss: &DigitallySignedStruct,
+-    ) -> Result<HandshakeSignatureValid, Error> {
+-        self.inner.verify_tls13_signature(message, cert, dss)
+-    }
+-
+-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+-        self.inner.supported_verify_schemes()
+-    }
+-}
+-
+-/// A certificate verifier that injects user-loaded intermediate certificates
+-/// into the chain-building process. This bridges the compatibility gap between
+-/// OpenSSL and rustls: in OpenSSL, intermediates loaded via load_verify_locations()
+-/// are used during chain building even if the server doesn't send them. In rustls,
+-/// only server-sent intermediates are normally used for chain building.
+-///
+-/// This verifier concatenates user-loaded intermediates with the server-sent ones
+-/// before passing them to webpki for path building. webpki treats the intermediates
+-/// parameter as a flat bag of DER certs to search through for potential issuers.
+-pub struct ServerVerifierWithIntermediates {
+-    roots: Arc<RootCertStore>,
+-    extra_intermediates: Vec<CertificateDer<'static>>,
+-    supported: WebPkiSupportedAlgorithms,
+-}
+-
+-impl ServerVerifierWithIntermediates {
+-    pub fn new(
+-        roots: Arc<RootCertStore>,
+-        extra_intermediates: Vec<CertificateDer<'static>>,
+-        provider: &Arc<rustls::crypto::CryptoProvider>,
+-    ) -> Self {
+-        Self {
+-            roots,
+-            extra_intermediates,
+-            supported: provider.signature_verification_algorithms,
+-        }
+-    }
+-}
+-
+-impl Debug for ServerVerifierWithIntermediates {
+-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        f.debug_struct("ServerVerifierWithIntermediates")
+-            .field("roots", &self.roots.len())
+-            .field("extra_intermediates", &self.extra_intermediates.len())
+-            .finish()
+-    }
+-}
+-
+-impl ServerCertVerifier for ServerVerifierWithIntermediates {
+-    fn verify_server_cert(
+-        &self,
+-        end_entity: &CertificateDer<'_>,
+-        intermediates: &[CertificateDer<'_>],
+-        server_name: &ServerName<'_>,
+-        _ocsp_response: &[u8],
+-        now: UnixTime,
+-    ) -> Result<ServerCertVerified, Error> {
+-        let cert = ParsedCertificate::try_from(end_entity)?;
+-
+-        // Combine server-sent intermediates with user-loaded extra intermediates.
+-        // webpki treats this as a flat bag of DER certs for chain building —
+-        // no ordering requirement, no distinction between sources.
+-        let mut all_intermediates: Vec<CertificateDer<'_>> = intermediates.to_vec();
+-        for extra in &self.extra_intermediates {
+-            all_intermediates.push(CertificateDer::from(extra.as_ref()));
+-        }
+-
+-        verify_server_cert_signed_by_trust_anchor(
+-            &cert,
+-            &self.roots,
+-            &all_intermediates,
+-            now,
+-            self.supported.all,
+-        )?;
+-
+-        verify_server_name(&cert, server_name)?;
+-
+-        Ok(ServerCertVerified::assertion())
+-    }
+-
+-    fn verify_tls12_signature(
+-        &self,
+-        message: &[u8],
+-        cert: &CertificateDer<'_>,
+-        dss: &DigitallySignedStruct,
+-    ) -> Result<HandshakeSignatureValid, Error> {
+-        verify_tls12_signature(message, cert, dss, &self.supported)
+-    }
+-
+-    fn verify_tls13_signature(
+-        &self,
+-        message: &[u8],
+-        cert: &CertificateDer<'_>,
+-        dss: &DigitallySignedStruct,
+-    ) -> Result<HandshakeSignatureValid, Error> {
+-        verify_tls13_signature(message, cert, dss, &self.supported)
+-    }
+-
+-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+-        self.supported.supported_schemes()
+-    }
+-}
+-
+-/// Same as `ServerVerifierWithIntermediates` but skips hostname checking.
+-/// Used when check_hostname=False but verify_mode=CERT_REQUIRED.
+-pub struct NoHostnameVerifierWithIntermediates {
+-    roots: Arc<RootCertStore>,
+-    extra_intermediates: Vec<CertificateDer<'static>>,
+-    supported: WebPkiSupportedAlgorithms,
+-}
+-
+-impl NoHostnameVerifierWithIntermediates {
+-    pub fn new(
+-        roots: Arc<RootCertStore>,
+-        extra_intermediates: Vec<CertificateDer<'static>>,
+-        provider: &Arc<rustls::crypto::CryptoProvider>,
+-    ) -> Self {
+-        Self {
+-            roots,
+-            extra_intermediates,
+-            supported: provider.signature_verification_algorithms,
+-        }
+-    }
+-}
+-
+-impl Debug for NoHostnameVerifierWithIntermediates {
+-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        f.debug_struct("NoHostnameVerifierWithIntermediates")
+-            .field("roots", &self.roots.len())
+-            .field("extra_intermediates", &self.extra_intermediates.len())
+-            .finish()
+-    }
+-}
+-
+-impl ServerCertVerifier for NoHostnameVerifierWithIntermediates {
+-    fn verify_server_cert(
+-        &self,
+-        end_entity: &CertificateDer<'_>,
+-        intermediates: &[CertificateDer<'_>],
+-        _server_name: &ServerName<'_>,
+-        _ocsp_response: &[u8],
+-        now: UnixTime,
+-    ) -> Result<ServerCertVerified, Error> {
+-        let cert = ParsedCertificate::try_from(end_entity)?;
+-
+-        let mut all_intermediates: Vec<CertificateDer<'_>> = intermediates.to_vec();
+-        for extra in &self.extra_intermediates {
+-            all_intermediates.push(CertificateDer::from(extra.as_ref()));
+-        }
+-
+-        verify_server_cert_signed_by_trust_anchor(
+-            &cert,
+-            &self.roots,
+-            &all_intermediates,
+-            now,
+-            self.supported.all,
+-        )?;
+-
+-        // Intentionally skip verify_server_name — hostname checking is disabled
+-        Ok(ServerCertVerified::assertion())
+-    }
+-
+-    fn verify_tls12_signature(
+-        &self,
+-        message: &[u8],
+-        cert: &CertificateDer<'_>,
+-        dss: &DigitallySignedStruct,
+-    ) -> Result<HandshakeSignatureValid, Error> {
+-        verify_tls12_signature(message, cert, dss, &self.supported)
+-    }
+-
+-    fn verify_tls13_signature(
+-        &self,
+-        message: &[u8],
+-        cert: &CertificateDer<'_>,
+-        dss: &DigitallySignedStruct,
+-    ) -> Result<HandshakeSignatureValid, Error> {
+-        verify_tls13_signature(message, cert, dss, &self.supported)
+-    }
+-
+-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+-        self.supported.supported_schemes()
+-    }
++    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> { self.supported.supported_schemes() }
 diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
 index 7193a9f..d004720 100644
 --- a/src/rtls/_rustls.pyi
 +++ b/src/rtls/_rustls.pyi
-@@ -82,7 +82,7 @@ class RustlsServerConnection:
- 
- def parse_certificate_dict(der_bytes: bytes) -> dict[str, object]: ...
- def rustls_version() -> str: ...
+@@ -85 +85 @@ def rustls_version() -> str: ...
 -def aws_lc_rs_version() -> str: ...
 +def graviola_version() -> str: ...
- def crypto_provider() -> str: ...
- def crypto_provider_version() -> str: ...
- def rand_bytes(n: int) -> bytes: ...
 diff --git a/src/rtls/_stdlib.py b/src/rtls/_stdlib.py
 index 65634fb..04abc22 100644
 --- a/src/rtls/_stdlib.py
 +++ b/src/rtls/_stdlib.py
-@@ -9,5 +9,7 @@ else:
-     try:
+@@ -10 +10 @@ else:
 -        import ssl
 +        import _ssl
-     except ModuleNotFoundError as error:
-         if error.name != "_ssl":
-             raise
+@@ -14,0 +15,2 @@ else:
 +        import socket
 +
-@@ -19,2 +21,2 @@
+@@ -19 +21 @@ else:
 -        class _SSLSocket:
 +        class _SSLSocket(socket.socket):
-             pass
-@@ -54,1 +56,3 @@
-         )
+@@ -54,0 +57,2 @@ else:
 +    else:
 +        import ssl

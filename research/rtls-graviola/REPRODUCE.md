@@ -57,10 +57,9 @@ product-style trust-source cases. It generates the expired leaf locally with
 the host `openssl` command and the CPython test CA key. All connections are
 loopback only.
 
-The OpenSSL reference command must exit successfully. The current RTLS
-candidate is expected to exit `1`: it accepts both the strict-invalid leaf
-and malformed PEM chain. That nonzero status is the recorded security gate
-failure. The script runs candidate checks with both `-I` and `-E -s`, and
+The OpenSSL reference and repaired RTLS candidate must both exit successfully.
+The candidate rejects the strict-invalid leaf and malformed PEM chain. These
+cases remain mandatory regression checks. The script runs candidate checks with both `-I` and `-E -s`, and
 prints the disposable path for inspection.
 
 The test bundle is a single CPython test CA, not the production certifi PEM.
