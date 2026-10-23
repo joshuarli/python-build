@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 
 from buildsys.product_process import run_product_process
@@ -46,10 +47,6 @@ _REQUIRED_VERIFY_FLAGS = (
     "VERIFY_X509_TRUSTED_FIRST",
 )
 _LOCKED_CRATES = ("rustls", "rustls-graviola", "graviola")
-_LOCKED_CRATE_FILTER = (
-    '[.package[] | select(.name == "rustls" or .name == "rustls-graviola" '
-    'or .name == "graviola") | {name, version}]'
-)
 _HASHLIB_SHA256_ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
 _RUNTIME_PROBE = r'''
@@ -171,16 +168,8 @@ def modern_replacement_for_legacy_check(check_name: str) -> str | None:
 
 
 def _locked_versions(lock_path: Path) -> dict[str, str]:
-    result = subprocess.run(
-        ["jaq", "--from", "toml", _LOCKED_CRATE_FILTER, str(lock_path)],
-        cwd=lock_path.parent,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if result.returncode != 0:
-        raise ValueError(f"could not read RTLS Cargo.lock with jaq: {result.stderr.strip()}")
-    packages = json.loads(result.stdout)
+    with lock_path.open("rb") as source:
+        packages = tomllib.load(source).get("package")
     if not isinstance(packages, list):
         raise ValueError("RTLS Cargo.lock has no package list")
     versions: dict[str, str] = {}
@@ -246,7 +235,7 @@ def probe_modern_tls(
     try:
         locked_versions = _locked_versions(source / "rust" / "Cargo.lock")
         expected_version_info = _rustls_version_info(locked_versions["rustls"])
-    except (OSError, subprocess.TimeoutExpired, UnicodeError, json.JSONDecodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError) as error:
         return {"ok": False, "evidence": evidence, "error": str(error)}
 
     evidence["locked_versions"] = locked_versions
