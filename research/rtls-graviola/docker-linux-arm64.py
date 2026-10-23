@@ -443,12 +443,19 @@ def create_container(
     workdir: str = "/work",
     qualification_volume: str | None = None,
     user: str | None = None,
+    account_files: tuple[Path, Path] | None = None,
+    capabilities: tuple[str, ...] = (),
 ) -> tuple[str, list[str]]:
     argv = ["docker", "create", "--name", name, "--platform", DOCKER_PLATFORM, "--network", "none"]
     execution_user = user or f"{os.getuid()}:{os.getgid()}"
     if re.fullmatch(r"[0-9]+:[0-9]+", execution_user) is None:
         raise DockerBuildError(f"invalid container uid:gid: {execution_user}")
     argv.extend(("--user", execution_user))
+    argv.extend(("--cap-drop", "ALL"))
+    if any(re.fullmatch(r"[A-Z][A-Z0-9_]*", capability) is None for capability in capabilities):
+        raise DockerBuildError(f"invalid container capability set: {capabilities!r}")
+    for capability in capabilities:
+        argv.extend(("--cap-add", capability))
     if workspace is not None:
         argv.extend(docker_mounts(workspace))
     if qualification_volume is not None:
@@ -460,6 +467,15 @@ def create_container(
                 f"type=volume,source={qualification_volume},target={QUALIFICATION_VOLUME_TARGET},volume-nocopy",
             )
         )
+    if account_files is not None:
+        if len(account_files) != 2:
+            raise DockerBuildError("qualification requires both passwd and group files")
+        for source, target in zip(account_files, ("/etc/passwd", "/etc/group")):
+            if source.is_symlink() or not source.is_file():
+                raise DockerBuildError(f"qualification account file is not a regular file: {source}")
+            if "," in str(source):
+                raise DockerBuildError(f"qualification account path cannot contain commas: {source}")
+            argv.extend(("--mount", f"type=bind,source={source.resolve(strict=True)},target={target},readonly"))
     argv.extend(("--workdir", workdir))
     for key, value in (environment or {}).items():
         argv.extend(("--env", f"{key}={value}"))
@@ -526,6 +542,8 @@ def run_container(
     workdir: str = "/work",
     qualification_volume: str | None = None,
     user: str | None = None,
+    account_files: tuple[Path, Path] | None = None,
+    capabilities: tuple[str, ...] = (),
 ) -> tuple[dict, dict, list[str], str]:
     image_record = image_info(image)
     container_id, argv = create_container(
@@ -538,6 +556,8 @@ def run_container(
         workdir=workdir,
         qualification_volume=qualification_volume,
         user=user,
+        account_files=account_files,
+        capabilities=capabilities,
     )
     try:
         before = inspect_container(container_id)
@@ -558,6 +578,21 @@ def run_container(
             "exit_code": status,
             "platform": after.get("Platform", DOCKER_PLATFORM),
             "container_architecture": lines[0],
+            "container_user": before.get("Config", {}).get("User"),
+            "cap_drop": before.get("HostConfig", {}).get("CapDrop") or [],
+            "cap_add": before.get("HostConfig", {}).get("CapAdd") or [],
+            "effective_capabilities": next(
+                (line.partition("=")[2] for line in lines if line.startswith("container_cap_eff=")),
+                None,
+            ),
+            "mounts": [
+                {
+                    "type": mount.get("Type"),
+                    "destination": mount.get("Destination"),
+                    "read_only": not mount.get("RW", True),
+                }
+                for mount in after.get("Mounts", [])
+            ],
             "log_path": str(log_path.relative_to(REPO)),
         }
         if status:
@@ -613,7 +648,10 @@ def run_build(
         "--rtls-source", rtls_path, "--hashing-source", hashing_path,
     ]
     command = [
-        "sh", "-ec", 'test "$(uname -m)" = aarch64; printf "aarch64\\n"; exec "$@"',
+        "sh", "-ec",
+        'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
+        'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
+        'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"',
         "native-arm64-guard", *driver_command,
     ]
     name = "rtls-linux-build-" + uuid.uuid4().hex[:12]
@@ -641,6 +679,10 @@ def run_build(
         "locked_image_digest": locked_digest,
         "image_id": image_record["Id"],
         "image_architecture": image_record["Architecture"],
+        "container_user": record["container_user"],
+        "cap_drop": record["cap_drop"],
+        "cap_add": record["cap_add"],
+        "effective_capabilities": record["effective_capabilities"],
         "daemon_os": daemon["daemon_os"],
         "daemon_architecture": daemon["daemon_architecture"],
         "daemon_platform": daemon["daemon_platform"],
@@ -817,7 +859,10 @@ print(json.dumps({
 }, sort_keys=True))
 """
     return [
-        "sh", "-ec", 'test "$(uname -m)" = aarch64; printf "aarch64\\n"; exec "$@"',
+        "sh", "-ec",
+        'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
+        'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
+        'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"',
         "native-arm64-runtime-guard", "/opt/python/bin/python3.15", "-I", "-S", "-B", "-c", code,
     ]
 
@@ -860,6 +905,10 @@ def run_runtime_probe(
         "locked_image_digest": locked_digest,
         "image_id": inspected_image["Id"],
         "image_architecture": inspected_image["Architecture"],
+        "container_user": record["container_user"],
+        "cap_drop": record["cap_drop"],
+        "cap_add": record["cap_add"],
+        "effective_capabilities": record["effective_capabilities"],
         "daemon_os": daemon["daemon_os"],
         "daemon_architecture": daemon["daemon_architecture"],
         "daemon_platform": daemon["daemon_platform"],
@@ -923,15 +972,19 @@ def initialize_qualification_volume(
     volume: str,
     owner_uid: int,
     owner_gid: int,
-) -> dict:
+    locked_digest: str,
+) -> tuple[dict, str, str]:
     command = [
         "sh",
         "-ec",
         'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
-        f"chown {owner_uid}:{owner_gid} {QUALIFICATION_VOLUME_TARGET}; "
-        f"chmod 0700 {QUALIFICATION_VOLUME_TARGET}",
+        'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
+        'test "$cap_eff" = 0000000000000001; printf "container_cap_eff=%s\\n" "$cap_eff"; '
+        f"chmod 0700 {QUALIFICATION_VOLUME_TARGET}; chown {owner_uid}:{owner_gid} {QUALIFICATION_VOLUME_TARGET}; "
+        "printf 'PASSWD_BEGIN\\n'; cat /etc/passwd; printf 'PASSWD_END\\n'; "
+        "printf 'GROUP_BEGIN\\n'; cat /etc/group; printf 'GROUP_END\\n'",
     ]
-    record, image_record, argv, _ = run_container(
+    record, image_record, argv, output = run_container(
         image,
         command,
         name="rtls-linux-qualification-volume-" + uuid.uuid4().hex[:12],
@@ -941,15 +994,97 @@ def initialize_qualification_volume(
         environment={"HOME": "/root", "TMPDIR": "/work/.work/tmp"},
         qualification_volume=volume,
         user="0:0",
+        capabilities=("CHOWN",),
     )
-    return {
+    def file_section(name: str) -> str:
+        begin = f"{name}_BEGIN\n"
+        end = f"\n{name}_END\n"
+        if output.count(begin) != 1 or output.count(end) != 1:
+            raise DockerBuildError(f"qualification initializer did not return one {name.lower()} file")
+        _, contents = output.split(begin, 1)
+        contents, _ = contents.split(end, 1)
+        if not contents or "\r" in contents:
+            raise DockerBuildError(f"qualification initializer returned malformed {name.lower()} data")
+        return contents + "\n"
+
+    receipt = {
         "container_id": record["container_id"],
         "network_mode": record["network_mode"],
         "exit_code": record["exit_code"],
         "image_id": image_record["Id"],
+        "image_architecture": image_record["Architecture"],
+        "platform": record["platform"],
+        "locked_image_digest": locked_digest,
+        "container_architecture": record["container_architecture"],
+        "container_user": record["container_user"],
+        "cap_drop": record["cap_drop"],
+        "cap_add": record["cap_add"],
+        "effective_capabilities": record["effective_capabilities"],
         "command": argv,
         "owner_uid": owner_uid,
         "owner_gid": owner_gid,
+    }
+    if (
+        receipt["container_user"] != "0:0"
+        or receipt["cap_drop"] != ["ALL"]
+        or receipt["cap_add"] != ["CAP_CHOWN"]
+        or receipt["effective_capabilities"] != "0000000000000001"
+    ):
+        raise DockerBuildError(
+            f"qualification volume initializer did not use the restricted chown-only identity: {receipt!r}"
+        )
+    return receipt, file_section("PASSWD"), file_section("GROUP")
+
+
+def write_qualification_account(
+    run_dir: Path,
+    identity: str,
+    owner_uid: int,
+    owner_gid: int,
+    home: str,
+    passwd_source: str,
+    group_source: str,
+) -> tuple[tuple[Path, Path], dict]:
+    if owner_uid <= 0 or owner_gid < 0:
+        raise DockerBuildError("qualification requires a non-root host UID and a nonnegative GID")
+    username = f"rtls-q-{identity}"
+    if re.fullmatch(r"rtls-q-[0-9a-f]{12}", username) is None:
+        raise DockerBuildError("qualification account identity is malformed")
+    passwd_lines = passwd_source.splitlines()
+    group_lines = group_source.splitlines()
+    for line in passwd_lines:
+        fields = line.split(":")
+        if len(fields) != 7 or not fields[2].isdigit() or not fields[3].isdigit():
+            raise DockerBuildError("toolchain image contains a malformed passwd entry")
+    for line in group_lines:
+        fields = line.split(":")
+        if len(fields) != 4 or not fields[2].isdigit():
+            raise DockerBuildError("toolchain image contains a malformed group entry")
+    passwd_lines = [
+        line for line in passwd_lines
+        if line.split(":")[0] != username and int(line.split(":")[2]) != owner_uid
+    ]
+    passwd_lines.append(f"{username}:x:{owner_uid}:{owner_gid}:RTLS qualification:{home}:/bin/sh")
+    group_lines = [line for line in group_lines if line.split(":")[0] != username]
+    if not any(int(line.split(":")[2]) == owner_gid for line in group_lines):
+        group_lines.append(f"{username}:x:{owner_gid}:")
+    account_dir = run_dir / "container-nss"
+    if account_dir.is_symlink() or account_dir.exists():
+        raise DockerBuildError(f"qualification account directory must be fresh: {account_dir}")
+    account_dir.mkdir(mode=0o755)
+    passwd_path = account_dir / "passwd"
+    group_path = account_dir / "group"
+    passwd_path.write_text("\n".join(passwd_lines) + "\n")
+    group_path.write_text("\n".join(group_lines) + "\n")
+    os.chmod(passwd_path, 0o644)
+    os.chmod(group_path, 0o644)
+    return (passwd_path, group_path), {
+        "username": username,
+        "uid": owner_uid,
+        "gid": owner_gid,
+        "home": home,
+        "passwd_sha256": sha256_file(passwd_path),
+        "group_sha256": sha256_file(group_path),
     }
 
 
@@ -958,6 +1093,9 @@ def qualify(
     image: str,
     jobs: int,
     daemon: dict,
+    revision: str,
+    dirty: bool,
+    locked_digest: str,
 ) -> tuple[Path, dict]:
     candidate_run = run_dir
     reference_run = run_dir / "reference-build"
@@ -1016,10 +1154,16 @@ def qualify(
         "LC_ALL": "C.UTF-8",
         "TZ": "UTC",
     }
+    if os.getuid() <= 0:
+        raise DockerBuildError("qualification must run as a non-root host user")
     sequence = [
         "set -eu",
         'test "$(uname -m)" = aarch64',
         'printf "aarch64\\n"',
+        f'test "$(id -u):$(id -g)" = "{os.getuid()}:{os.getgid()}"',
+        'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status)',
+        'test "$cap_eff" = 0000000000000000',
+        'printf "container_cap_eff=%s\\n" "$cap_eff"',
     ]
     for command in commands:
         sequence.append(" ".join(shlex_quote(item) for item in command))
@@ -1028,8 +1172,27 @@ def qualify(
         owner_uid = os.getuid()
         owner_gid = os.getgid()
         initialization = initialize_qualification_volume(
-            run_dir, image, volume["name"], owner_uid, owner_gid
+            run_dir, image, volume["name"], owner_uid, owner_gid, locked_digest
         )
+        initialization_record, passwd_source, group_source = initialization
+        if (
+            initialization_record["platform"] not in {None, "linux", DOCKER_PLATFORM}
+            or initialization_record["container_architecture"] != "aarch64"
+            or initialization_record["network_mode"] != "none"
+            or initialization_record["locked_image_digest"] != locked_digest
+        ):
+            raise DockerBuildError("qualification volume initializer did not use the locked native arm64 image")
+        account_files, account_record = write_qualification_account(
+            run_dir,
+            volume["identity"],
+            owner_uid,
+            owner_gid,
+            environment["HOME"],
+            passwd_source,
+            group_source,
+        )
+        environment["USER"] = account_record["username"]
+        environment["LOGNAME"] = account_record["username"]
         container, image_record, argv, _ = run_container(
             image,
             shell_command,
@@ -1039,18 +1202,35 @@ def qualify(
             workspace=REPO,
             environment=environment,
             qualification_volume=volume["name"],
+            account_files=account_files,
         )
+        if initialization_record["image_id"] != image_record["Id"]:
+            raise DockerBuildError("qualification volume initializer and runner used different images")
+        if container["container_user"] != f"{owner_uid}:{owner_gid}":
+            raise DockerBuildError("qualification container did not use the host non-root UID and GID")
+        if container["cap_drop"] != ["ALL"] or container["cap_add"]:
+            raise DockerBuildError("qualification container did not drop all Linux capabilities")
+        mount_readonly = {item["destination"]: item["read_only"] for item in container["mounts"]}
+        if mount_readonly.get("/etc/passwd") is not True or mount_readonly.get("/etc/group") is not True:
+            raise DockerBuildError("qualification account files were not mounted read-only")
         write_json(
             run_dir / "docker-qualification.json",
             {
                 "schema": 1,
                 "target_triple": TARGET,
                 "platform": DOCKER_PLATFORM,
+                "source_revision": revision,
+                "source_dirty": dirty,
+                "locked_image_digest": locked_digest,
                 **daemon,
                 "image_id": image_record["Id"],
                 "image_architecture": image_record["Architecture"],
                 "container_architecture": container["container_architecture"],
                 "container_id": container["container_id"],
+                "container_user": container["container_user"],
+                "cap_drop": container["cap_drop"],
+                "cap_add": container["cap_add"],
+                "effective_capabilities": container["effective_capabilities"],
                 "network_mode": container["network_mode"],
                 "isolation": "docker-network-none",
                 "command": argv,
@@ -1060,7 +1240,8 @@ def qualify(
                     "work_dir": volume_work_dir,
                     "owner_uid": owner_uid,
                     "owner_gid": owner_gid,
-                    "initialization": initialization,
+                    "account": account_record,
+                    "initialization": initialization_record,
                 },
                 "exit_code": container["exit_code"],
             },
@@ -1162,7 +1343,7 @@ def run_build_and_qualification(
     if phase in {"qualify", "all"}:
         if not (run_dir / "docker-build.json").is_file():
             raise DockerBuildError("qualification requires a completed sealed candidate build")
-        archive, _ = qualify(run_dir, image, jobs, daemon)
+        archive, _ = qualify(run_dir, image, jobs, daemon, revision, dirty, locked_digest)
         runtime_tag, runtime_image, archive_hash = build_runtime_image(
             run_dir, locked_digest, archive, bootstrap
         )
