@@ -1,8 +1,34 @@
 import os
-from pathlib import Path
 
 from rtls import *
 from rtls import __all__, __version__
+from rtls import SSLContext as _RTLS_SSLContext
+
+
+_PYTHON_BUILD_DEFAULT_CA_BUNDLE = os.path.join(
+    os.path.dirname(__file__), "python-build-cacert.pem"
+)
+_PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE = "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE"
+
+
+class SSLContext(_RTLS_SSLContext):
+    def load_default_certs(self, purpose=Purpose.SERVER_AUTH):
+        super().load_default_certs(purpose)
+        default_paths = get_default_verify_paths()
+        explicit_path = any(
+            name in os.environ
+            for name in (
+                default_paths.openssl_cafile_env,
+                default_paths.openssl_capath_env,
+            )
+        )
+        if (
+            not explicit_path
+            and default_paths.cafile is None
+            and default_paths.capath is None
+            and os.environ.get(_PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE) != "1"
+        ):
+            self.load_verify_locations(cafile=_PYTHON_BUILD_DEFAULT_CA_BUNDLE)
 
 
 def create_default_context(
@@ -18,19 +44,15 @@ def create_default_context(
     if purpose == Purpose.SERVER_AUTH:
         context.verify_mode = CERT_REQUIRED
         context.check_hostname = True
-        context.verify_flags |= VERIFY_X509_PARTIAL_CHAIN | VERIFY_X509_STRICT | VERIFY_X509_TRUSTED_FIRST
+        context.verify_flags |= (
+            VERIFY_X509_PARTIAL_CHAIN
+            | VERIFY_X509_STRICT
+            | VERIFY_X509_TRUSTED_FIRST
+        )
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
-    elif "SSL_CERT_FILE" in os.environ or "SSL_CERT_DIR" in os.environ:
-        cafile = os.environ.get("SSL_CERT_FILE")
-        capath = os.environ.get("SSL_CERT_DIR")
-        if cafile and os.path.isfile(cafile):
-            context.load_verify_locations(cafile=cafile)
-        if capath and os.path.isdir(capath):
-            context.load_verify_locations(capath=capath)
-    elif os.environ.get("PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE") != "1":
-        bundle = Path(__file__).with_name("python-build-cacert.pem")
-        context.load_verify_locations(cafile=str(bundle))
+    else:
+        context.load_default_certs(purpose)
     return context
 
 
@@ -48,6 +70,7 @@ def _create_unverified_context(
 ):
     protocol = protocol or PROTOCOL_TLS_CLIENT
     context = SSLContext(protocol)
+    context.check_hostname = False
     if cert_reqs is not None:
         context.verify_mode = cert_reqs
     context.check_hostname = check_hostname
@@ -65,6 +88,7 @@ from _ssl_metadata import _TLSContentType, _TLSAlertType, _TLSMessageType
 import _ssl
 from rtls import _constants
 
+HAS_PSK_TLS13 = False
 _PROTOCOL_NAMES = {
     value: name
     for name, value in vars(_constants).items()
