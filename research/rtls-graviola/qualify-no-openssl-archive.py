@@ -431,6 +431,17 @@ def _validate_linux_docker_receipt(
     argv = docker.get("command")
     if not isinstance(argv, list) or not argv or any(not isinstance(value, str) for value in argv):
         raise QualificationDriverError("Docker build receipt has no inspected container command")
+    docker_environment = [
+        argv[index + 1]
+        for index, value in enumerate(argv[:-1])
+        if value in {"--env", "-e"}
+    ]
+    if "CARGO_BUILD_TARGET" in os.environ or any(
+        value == "CARGO_BUILD_TARGET"
+        or value.startswith("CARGO_BUILD_TARGET=")
+        for value in docker_environment
+    ):
+        raise QualificationDriverError("Linux Cargo build environment forces a target override")
     if not any(
         argv[index : index + 2] == ["--network", "none"]
         or argv[index] == "--network=none"
@@ -454,6 +465,22 @@ def _linux_build_evidence(
         bootstrap = json.loads((COMMON_ROOT / "bootstrap.lock.json").read_text())
     except (OSError, json.JSONDecodeError) as error:
         raise QualificationDriverError(f"cannot read Linux bootstrap lock: {error}") from error
+    rust_bootstrap_path = REPO / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
+    try:
+        rust_bootstrap = json.loads(rust_bootstrap_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise QualificationDriverError(f"cannot read Rust bootstrap lock: {error}") from error
+    rust_lock = rust_bootstrap.get("rust") if isinstance(rust_bootstrap, dict) else None
+    target_lock = rust_bootstrap.get("target") if isinstance(rust_bootstrap, dict) else None
+    if (
+        not isinstance(rust_lock, dict)
+        or not isinstance(target_lock, dict)
+        or rust_lock.get("host") != target.triple
+        or target_lock.get("triple") != target.triple
+        or not isinstance(rust_lock.get("version"), str)
+        or rust_lock.get("version") != research_driver.RUST_VERSION
+    ):
+        raise QualificationDriverError("Rust bootstrap lock does not pin the native Linux target")
     source_revision = _load_source_revision(COMMON_ROOT)
     run_directories = []
     for path in (base_build_run_dir, build_run_dir):
@@ -535,6 +562,8 @@ def _linux_build_evidence(
         "source_revision": source_revision,
         "bootstrap": bootstrap,
         "bootstrap_identity": sha256_file(COMMON_ROOT / "bootstrap.lock.json"),
+        "rust_bootstrap": rust_bootstrap,
+        "rust_bootstrap_identity": sha256_file(rust_bootstrap_path),
         "compiler": compiler,
         "source": source_inputs,
         "commands": commands,
@@ -554,6 +583,16 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def resolve_executable(value: str, name: str) -> Path:
+    located = shutil.which(value)
+    if located is None:
+        raise QualificationDriverError(f"{name} is not available in PATH: {value!r}")
+    executable = Path(located).resolve(strict=True)
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise QualificationDriverError(f"{name} is not executable: {executable}")
+    return executable
 
 
 def write_json(path: Path, value: object) -> None:
@@ -1487,9 +1526,16 @@ def build_experimental_manifest(
         source_revision = linux_evidence["source_revision"]
         rust_target_cpu = "generic"
         rust_target_features = "+aes,+sha2,+neon"
-        if "--enable-optimizations" in configure_arguments or make_variables.get("PROFILE_TASK", ""):
+        if "--enable-optimizations" in configure_arguments:
             raise QualificationDriverError("Linux CPython build unexpectedly enables PGO")
-        if Path(configure_values.get("CC", "")).resolve() != locked_clang:
+        if any(
+            argument in {"profile-gen", "profile-use", "profile-opt"}
+            for command in linux_evidence["commands"].values()
+            for argument in command["argv"]
+        ):
+            raise QualificationDriverError("Linux CPython build command unexpectedly enables PGO")
+        configured_clang = resolve_executable(configure_values.get("CC", ""), "CPython clang")
+        if configured_clang != locked_clang:
             raise QualificationDriverError("Linux CPython configure arguments do not use receipt clang")
         cflag_tokens = shlex.split(cflags)
         if "-O3" not in cflag_tokens or target.cpu_baseline_cflag not in cflag_tokens:
@@ -1542,15 +1588,21 @@ def build_experimental_manifest(
     for name, log_path in rust_log_paths.items():
         log_text = log_path.read_text()
         linker_paths = sorted(set(re.findall(r"-C linker=([^\s]+)", log_text)))
-        if not linker_paths or any(Path(path).resolve() != locked_clang for path in linker_paths):
+        resolved_linkers = [
+            Path(path).resolve()
+            if target.is_macos
+            else resolve_executable(path, f"{name} Cargo linker")
+            for path in linker_paths
+        ]
+        if not linker_paths or any(path != locked_clang for path in resolved_linkers):
             raise QualificationDriverError(f"{name} Cargo log does not prove the locked clang linker")
         if f"-C target-cpu={rust_target_cpu}" not in log_text:
             raise QualificationDriverError(f"{name} Cargo log omits the target CPU policy")
         if not target.is_macos:
-            if target.triple not in log_text or not all(
+            if not all(
                 feature in log_text for feature in ("+aes", "+sha2", "+neon")
             ) or "-crt-static" not in log_text:
-                raise QualificationDriverError(f"{name} Cargo log omits the musl target or ARM feature policy")
+                raise QualificationDriverError(f"{name} Cargo log omits the ARM feature policy")
         extension_name = "_rustls" if name == "rtls" else "_hashlib_graviola"
         extension_commands = [
             line for line in log_text.splitlines()
@@ -1573,7 +1625,11 @@ def build_experimental_manifest(
         rust_logs[name] = {
             "path": str(log_path),
             "sha256": sha256_file(log_path),
-            "linker_paths": linker_paths,
+            "linker_paths": (
+                linker_paths
+                if target.is_macos
+                else sorted({str(path) for path in resolved_linkers})
+            ),
             "target_cpu": rust_target_cpu,
             "target_features": rust_target_features,
             "deployment_target": target.deployment_target if target.is_macos else None,
@@ -1581,6 +1637,8 @@ def build_experimental_manifest(
             "extension_command": extension_command,
             "extension_dynamic_lookup": "-C link-arg=dynamic_lookup" in extension_command,
         }
+        if not target.is_macos:
+            rust_logs[name]["linker_tokens"] = linker_paths
 
     make_log = base_build_run_dir / "logs" / "cpython-build.log"
     overlay_log = build_run_dir / "driver-overlay.log"
@@ -1588,17 +1646,68 @@ def build_experimental_manifest(
         raise QualificationDriverError("CPython configure record is missing")
     if target.is_macos and (not make_log.is_file() or not overlay_log.is_file()):
         raise QualificationDriverError("macOS build records are missing CPython or overlay logs")
-    rustc, _, kache = research_driver.rust_toolchain()
+    cargo, rustc, kache = research_driver.rust_toolchain()
     rustc_result = subprocess.run(
         [str(rustc), "-vV"], capture_output=True, text=True, timeout=30, check=True
     )
     cargo_result = subprocess.run(
-        [str(rustc.with_name("cargo")), "--version"],
+        [str(cargo), "--version"],
         capture_output=True,
         text=True,
         timeout=30,
         check=True,
     )
+    if not target.is_macos:
+        rust_lock = linux_evidence["rust_bootstrap"]["rust"]
+        rust_version = rust_lock["version"]
+        rust_host = rust_lock["host"]
+        rustc_lines = rustc_result.stdout.splitlines()
+        cargo_lines = cargo_result.stdout.splitlines()
+        observed_host = [
+            line.partition(":")[2].strip()
+            for line in rustc_lines
+            if line.startswith("host:")
+        ]
+        if (
+            not rustc_lines
+            or rustc_lines[0].split()[:2] != ["rustc", rust_version]
+            or observed_host != [rust_host]
+            or not cargo_lines
+            or cargo_lines[0].split()[:2] != ["cargo", rust_version]
+        ):
+            raise QualificationDriverError("observed Rust tools differ from the locked native Rust toolchain")
+        for name, source in zip(("rtls", "hashing"), linux_evidence["rust_sources"]):
+            expected_log = f"logs/{name}-cargo.log"
+            commands = [
+                command
+                for command in linux_evidence["commands"].values()
+                if command["log"]["path"] == expected_log
+            ]
+            if len(commands) != 1:
+                raise QualificationDriverError(f"{name} build receipt has no unique Cargo command")
+            argv = commands[0]["argv"]
+            manifest = source / ("rust/Cargo.toml" if name == "rtls" else "Cargo.toml")
+            manifest_index = argv.index("--manifest-path") if "--manifest-path" in argv else -1
+            if (
+                len(argv) < 2
+                or Path(argv[0]).resolve() != cargo.resolve()
+                or argv[1] != "build"
+                or not {"--release", "--verbose", "--offline", "--locked"}.issubset(argv)
+                or any(value == "--target" or value.startswith("--target=") for value in argv)
+                or manifest_index < 0
+                or manifest_index + 1 >= len(argv)
+                or Path(argv[manifest_index + 1]).resolve() != manifest.resolve()
+            ):
+                raise QualificationDriverError(f"{name} Cargo command does not prove a native locked release build")
+            extension_command = rust_logs[name]["extension_command"]
+            if (
+                str(rustc) not in extension_command
+                or str(kache) not in extension_command
+                or re.search(r"(?:^|\s)--target(?:=|\s|$)", extension_command)
+            ):
+                raise QualificationDriverError(f"{name} compile log does not prove native rustc and kache")
+            rust_logs[name]["cargo_command"] = argv
+            rust_logs[name]["host_target"] = observed_host[0]
     if target.is_macos:
         clang = locked_toolchain.llvm_prefix / "bin" / "clang"
         clang_result = subprocess.run(
@@ -1618,14 +1727,18 @@ def build_experimental_manifest(
             "cpu_baseline": "-march=armv8-a+crypto",
             "commands": linux_evidence["compiler"],
         }
-    toolchain_observed["rust"] = {
+    rust_observed = {
         "rustc_path": str(rustc),
         "rustc_verbose_version": rustc_result.stdout.strip(),
-        "cargo_path": str(rustc.with_name("cargo")),
+        "cargo_path": str(cargo),
         "cargo_version": cargo_result.stdout.strip(),
         "kache_path": str(kache),
         "linker_paths": sorted({path for entry in rust_logs.values() for path in entry["linker_paths"]}),
     }
+    if not target.is_macos:
+        rust_observed["native_host_target"] = rust_logs["rtls"]["host_target"]
+        rust_observed["bootstrap_lock_sha256"] = linux_evidence["rust_bootstrap_identity"]
+    toolchain_observed["rust"] = rust_observed
 
     facade_paths = (
         "lib/python3.15/ssl.py",
@@ -1941,17 +2054,6 @@ def main(argv: list[str] | None = None) -> int:
             raise QualificationDriverError(f"reference interpreter must be named python3.15: {reference_python}")
         if not certdata.is_dir() or not (certdata / "keycert3.pem").is_file() or not (certdata / "pycacert.pem").is_file():
             raise QualificationDriverError(f"certificate data directory is incomplete: {certdata}")
-        if run_dir.exists():
-            raise QualificationDriverError(f"refusing to replace qualification directory: {run_dir}")
-        if any(
-            left.is_relative_to(right) or right.is_relative_to(left)
-            for left, right in (
-                (run_dir, source_prefix),
-                (run_dir, build_run_dir),
-                (run_dir, base_build_run_dir),
-            )
-        ):
-            raise QualificationDriverError("candidate, build, and qualification paths must not overlap")
         host_target = native_target()
         if host_target.triple not in {
             "aarch64-apple-darwin",
@@ -1960,6 +2062,51 @@ def main(argv: list[str] | None = None) -> int:
             raise QualificationDriverError(
                 f"this experimental qualification supports native arm64 targets only: {host_target.triple}"
             )
+        if run_dir.exists():
+            raise QualificationDriverError(f"refusing to replace qualification directory: {run_dir}")
+        overlapping_paths = any(
+            left.is_relative_to(right) or right.is_relative_to(left)
+            for left, right in (
+                (run_dir, source_prefix),
+                (run_dir, build_run_dir),
+                (run_dir, base_build_run_dir),
+            )
+        )
+        if overlapping_paths:
+            expected_nested_output = (build_run_dir / "qualification" / "archive").resolve()
+            protected_build_paths = (
+                source_prefix,
+                *(build_run_dir / name for name in (
+                    "private",
+                    "prefix",
+                    "relocated prefix",
+                    "cpython-source",
+                    "cpython-build",
+                    "cargo-home",
+                    "cargo-target",
+                    "rtls-build",
+                    "hashing-build",
+                    "inputs",
+                    "logs",
+                )),
+            )
+            protected_overlap = any(
+                run_dir.is_relative_to(path) or path.is_relative_to(run_dir)
+                for path in protected_build_paths
+            )
+            distinct_base_overlap = base_build_run_dir != build_run_dir and (
+                run_dir.is_relative_to(base_build_run_dir)
+                or base_build_run_dir.is_relative_to(run_dir)
+            )
+            if (
+                host_target.triple != "aarch64-unknown-linux-musl"
+                or run_dir != expected_nested_output
+                or protected_overlap
+                or distinct_base_overlap
+            ):
+                raise QualificationDriverError(
+                    "candidate, build, and qualification paths must not overlap"
+                )
         research_driver = load_research_driver()
         target = research_driver.experimental_target()
         if not PRODUCT.interpreter(source_prefix).is_file():
