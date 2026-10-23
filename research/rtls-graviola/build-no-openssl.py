@@ -29,6 +29,10 @@ HASHING_SOURCE_FILES = (
     "compare-reference.py",
     "run-tests.sh",
     "src/lib.rs",
+    "src/python_ffi.rs",
+    "testdrivers/allocation_failures.py",
+    "testdrivers/subinterpreters.py",
+    "testdrivers/subinterpreter_worker.py",
 )
 OPENSSL_ENVIRONMENT = (
     "OPENSSL_INCLUDES",
