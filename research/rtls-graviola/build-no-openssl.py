@@ -1378,11 +1378,9 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
         result = subprocess.run([str(path), "--version"], capture_output=True, text=True, check=True)
         compiler[name] = {"path": str(path), "version": result.stdout.strip()}
     logs = {}
-    for path in sorted((run_dir / "logs").rglob("*.log")):
-        logs[path.relative_to(run_dir).as_posix()] = {
-            "path": path.relative_to(run_dir).as_posix(),
-            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-        }
+    for record in commands.values():
+        log = record["log"]
+        logs[log["path"]] = dict(log)
     source = {
         "sources_lock_sha256": hashlib.sha256((REPO / "sources.lock.json").read_bytes()).hexdigest(),
         "bootstrap_lock_sha256": hashlib.sha256((REPO / "bootstrap.lock.json").read_bytes()).hexdigest(),
