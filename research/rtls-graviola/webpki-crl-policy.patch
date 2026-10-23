@@ -1,0 +1,328 @@
+diff --git a/webpki/src/crl/mod.rs b/webpki/src/crl/mod.rs
+index d61deef..b8795de 100644
+--- a/webpki/src/crl/mod.rs
++++ b/webpki/src/crl/mod.rs
+@@ -12,8 +12,9 @@
+ // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+-use pki_types::{SignatureVerificationAlgorithm, UnixTime};
++use pki_types::{CertificateDer, SignatureVerificationAlgorithm, UnixTime};
+ 
++use crate::cert::Cert;
+ use crate::error::Error;
+ use crate::verify_cert::{Budget, PathNode, Role};
+ use crate::der;
+@@ -111,6 +112,38 @@ pub struct RevocationOptions<'a> {
+ }
+ 
+ impl RevocationOptions<'_> {
++    /// Checks the revocation status of a self-issued trust anchor.
++    pub fn check_trusted_certificate(
++        &self,
++        cert_der: &CertificateDer<'_>,
++        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
++        time: UnixTime,
++        name_comparison: fn(&[u8], &[u8]) -> bool,
++    ) -> Result<(), Error> {
++        if self.depth == RevocationCheckDepth::EndEntity {
++            return Ok(());
++        }
++
++        let cert = Cert::for_trust_anchor(untrusted::Input::from(cert_der.as_ref()))?;
++        if !name_comparison(cert.issuer(), cert.subject()) {
++            return Err(Error::UnknownRevocationStatus);
++        }
++
++        let mut budget = Budget::default();
++        self.check_certificate(
++            &cert,
++            Role::Issuer,
++            cert.subject,
++            cert.spki,
++            cert.key_usage,
++            supported_sig_algs,
++            &mut budget,
++            time,
++            name_comparison,
++        )
++        .map(|_| ())
++    }
++
+     #[allow(clippy::too_many_arguments)]
+     pub(crate) fn check(
+         &self,
+@@ -123,18 +156,44 @@ impl RevocationOptions<'_> {
+         time: UnixTime,
+         name_comparison: fn(&[u8], &[u8]) -> bool,
+     ) -> Result<Option<CertNotRevoked>, Error> {
+-        assert!(name_comparison(path.cert.issuer(), issuer_subject.as_slice_less_safe()));
++        self.check_certificate(
++            path.cert,
++            path.role(),
++            issuer_subject,
++            issuer_spki,
++            issuer_ku,
++            supported_sig_algs,
++            budget,
++            time,
++            name_comparison,
++        )
++    }
++
++    #[allow(clippy::too_many_arguments)]
++    fn check_certificate(
++        &self,
++        cert: &Cert<'_>,
++        role: Role,
++        issuer_subject: untrusted::Input<'_>,
++        issuer_spki: untrusted::Input<'_>,
++        issuer_ku: Option<untrusted::Input<'_>>,
++        supported_sig_algs: &[&dyn SignatureVerificationAlgorithm],
++        budget: &mut Budget,
++        time: UnixTime,
++        name_comparison: fn(&[u8], &[u8]) -> bool,
++    ) -> Result<Option<CertNotRevoked>, Error> {
++        assert!(name_comparison(cert.issuer(), issuer_subject.as_slice_less_safe()));
+ 
+         // If the policy only specifies checking EndEntity revocation state and we're looking at an
+         // issuer certificate, return early without considering the certificate's revocation state.
+-        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.depth, path.role()) {
++        if let (RevocationCheckDepth::EndEntity, Role::Issuer) = (self.depth, role) {
+             return Ok(None);
+         }
+ 
+         let crl = self
+             .crls
+             .iter()
+-            .find(|candidate_crl| candidate_crl.authoritative(path, name_comparison));
++            .find(|candidate_crl| candidate_crl.authoritative_certificate(cert, role, name_comparison));
+ 
+         use UnknownStatusPolicy::*;
+         let crl = match (crl, self.status_policy) {
+@@ -154,14 +213,14 @@ impl RevocationOptions<'_> {
+             .map_err(crl_signature_err)?;
+ 
+         if self.expiration_policy == ExpirationPolicy::Enforce {
+-            crl.check_expiration(time)?;
++            crl.check_validity(time)?;
+         }
+ 
+         // Verify that if the issuer has a KeyUsage bitstring it asserts cRLSign.
+         KeyUsageMode::CrlSign.check(issuer_ku)?;
+ 
+         // Try to find the cert serial in the verified CRL contents.
+-        let cert_serial = path.cert.serial.as_slice_less_safe();
++        let cert_serial = cert.serial.as_slice_less_safe();
+         match crl.find_serial(cert_serial)? {
+             None => Ok(Some(CertNotRevoked::assertion())),
+             Some(_) => Err(Error::CertRevoked),
+@@ -248,13 +307,13 @@ pub enum UnknownStatusPolicy {
+     Deny,
+ }
+ 
+-/// Describes how to handle the nextUpdate field of the CRL (i.e. expiration).
++/// Describes how to handle CRL validity times.
+ #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+ pub enum ExpirationPolicy {
+-    /// Enforce the verification time is before the time in the nextUpdate field.
+-    /// Treats an expired CRL as an error condition yielding [Error::CrlExpired].
++    /// Enforce the verification time is at or after thisUpdate and before nextUpdate.
++    /// Treats future-dated and expired CRLs as errors.
+     Enforce,
+-    /// Ignore the CRL nextUpdate field.
++    /// Ignore the CRL thisUpdate and nextUpdate fields.
+     Ignore,
+ }
+ 
+diff --git a/webpki/src/crl/types.rs b/webpki/src/crl/types.rs
+index 809445c..0008b73 100644
+--- a/webpki/src/crl/types.rs
++++ b/webpki/src/crl/types.rs
+@@ -9,11 +9,14 @@ use pki_types::{SignatureVerificationAlgorithm, UnixTime};
+ use crate::cert::lenient_certificate_serial_number;
+ use crate::crl::crl_signature_err;
+ use crate::der::{self, CONSTRUCTED, CONTEXT_SPECIFIC, DerIterator, FromDer, Tag};
++use crate::cert::Cert;
+ use crate::error::{DerTypeId, Error};
+ use crate::public_values_eq;
+ use crate::signed_data::{self, SignedData};
+ use crate::subject_name::GeneralName;
+-use crate::verify_cert::{Budget, PathNode, Role};
++use crate::verify_cert::{Budget, Role};
++#[cfg(test)]
++use crate::verify_cert::PathNode;
+ use crate::x509::{
+     DistributionPointName, Extension, UnknownExtensionPolicy, remember_extension,
+     set_extension_once,
+@@ -93,10 +96,20 @@ impl CertRevocationList<'_> {
+     ///       distribution point extension.
+     ///
+     /// In all other circumstances the CRL is not considered authoritative.
++    #[cfg(test)]
+     pub(crate) fn authoritative(&self, path: &PathNode<'_>, name_comparison: fn(&[u8], &[u8]) -> bool) -> bool {
++        self.authoritative_certificate(path.cert, path.role(), name_comparison)
++    }
++
++    pub(crate) fn authoritative_certificate(
++        &self,
++        cert: &Cert<'_>,
++        role: Role,
++        name_comparison: fn(&[u8], &[u8]) -> bool,
++    ) -> bool {
+         // In all cases we require that the authoritative CRL have the same issuer
+         // as the certificate. Recall we do not support indirect CRLs.
+-        if !name_comparison(self.issuer(), path.cert.issuer()) {
++        if !name_comparison(self.issuer(), cert.issuer()) {
+             return false;
+         }
+ 
+@@ -116,7 +129,7 @@ impl CertRevocationList<'_> {
+             None => return true,
+         };
+ 
+-        crl_idp.authoritative_for(path)
++        crl_idp.authoritative_certificate(cert, role)
+     }
+ 
+     /// Verify the CRL signature using the issuer certificate and a list of supported signature
+@@ -144,14 +157,18 @@ impl CertRevocationList<'_> {
+         .map_err(crl_signature_err)
+     }
+ 
+-    /// Checks the verification time is before the time in the CRL nextUpdate field.
+-    pub(crate) fn check_expiration(&self, time: UnixTime) -> Result<(), Error> {
+-        let next_update = match self {
++    /// Checks the verification time falls within the CRL's thisUpdate and nextUpdate interval.
++    pub(crate) fn check_validity(&self, time: UnixTime) -> Result<(), Error> {
++        let (this_update, next_update) = match self {
+             #[cfg(feature = "alloc")]
+-            CertRevocationList::Owned(crl) => crl.next_update,
+-            CertRevocationList::Borrowed(crl) => crl.next_update,
++            CertRevocationList::Owned(crl) => (crl.this_update, crl.next_update),
++            CertRevocationList::Borrowed(crl) => (crl.this_update, crl.next_update),
+         };
+ 
++        if time < this_update {
++            return Err(Error::CrlNotYetValid { time, this_update });
++        }
++
+         if time >= next_update {
+             return Err(Error::CrlExpired { time, next_update });
+         }
+@@ -176,6 +193,8 @@ pub struct OwnedCertRevocationList {
+ 
+     signed_data: signed_data::OwnedSignedData,
+ 
++    this_update: UnixTime,
++
+     next_update: UnixTime,
+ }
+ 
+@@ -226,6 +245,8 @@ pub struct BorrowedCertRevocationList<'a> {
+     /// List of certificates revoked by the issuer in this CRL.
+     revoked_certs: untrusted::Input<'a>,
+ 
++    this_update: UnixTime,
++
+     next_update: UnixTime,
+ }
+ 
+@@ -264,6 +285,7 @@ impl<'a> BorrowedCertRevocationList<'a> {
+                 .issuing_distribution_point
+                 .map(|idp| idp.as_slice_less_safe().to_vec()),
+             revoked_certs,
++            this_update: self.this_update,
+             next_update: self.next_update,
+         })
+     }
+@@ -376,7 +398,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
+             //    encoded as UTCTime or GeneralizedTime.
+             // We do not presently enforce the correct choice of UTCTime or GeneralizedTime based on
+             // whether the date is post 2050.
+-            UnixTime::from_der(tbs_cert_list)?;
++            let this_update = UnixTime::from_der(tbs_cert_list)?;
+ 
+             // While OPTIONAL in the ASN.1 module, RFC 5280 §5.1.2.5 says:
+             //   Conforming CRL issuers MUST include the nextUpdate field in all CRLs.
+@@ -403,6 +425,7 @@ impl<'a> FromDer<'a> for BorrowedCertRevocationList<'a> {
+                 issuer,
+                 revoked_certs,
+                 issuing_distribution_point: None,
++                this_update,
+                 next_update,
+             };
+ 
+@@ -587,17 +610,22 @@ impl<'a> IssuingDistributionPoint<'a> {
+     /// * Distribution point names relative to an issuer.
+     /// * General names of a type other than URI.
+     /// * Malformed names or invalid IDP or CRL DP extensions.
++    #[cfg(test)]
+     pub(crate) fn authoritative_for(&self, node: &PathNode<'a>) -> bool {
++        self.authoritative_certificate(node.cert, node.role())
++    }
++
++    pub(crate) fn authoritative_certificate(&self, cert: &Cert<'_>, role: Role) -> bool {
+         assert!(!self.only_contains_attribute_certs); // We check this at time of parse.
+ 
+         // Check that the scope of the CRL issuing distribution point could include the cert.
+-        if self.only_contains_ca_certs && node.role() != Role::Issuer
+-            || self.only_contains_user_certs && node.role() != Role::EndEntity
++        if self.only_contains_ca_certs && role != Role::Issuer
++            || self.only_contains_user_certs && role != Role::EndEntity
+         {
+             return false; // CRL scope excludes this cert's role.
+         }
+ 
+-        let cert_dps = match node.cert.crl_distribution_points() {
++        let cert_dps = match cert.crl_distribution_points() {
+             // If the certificate has no distribution points, then the CRL can be authoritative
+             // based on the issuer matching and the scope including the cert.
+             None => return true,
+@@ -1242,7 +1270,7 @@ mod tests {
+         //  Friday, February 2, 2024 8:26:19 PM GMT
+         let time = UnixTime::since_unix_epoch(Duration::from_secs(1_706_905_579));
+         assert!(matches!(
+-            crl.check_expiration(time),
++            crl.check_validity(time),
+             Err(Error::CrlExpired { .. })
+         ));
+     }
+@@ -1255,7 +1283,7 @@ mod tests {
+         let expiration_time = 1_666_210_326;
+         let time = UnixTime::since_unix_epoch(Duration::from_secs(expiration_time - 1000));
+ 
+-        assert!(matches!(crl.check_expiration(time), Ok(())));
++        assert!(matches!(crl.check_validity(time), Ok(())));
+     }
+ 
+     #[test]
+diff --git a/webpki/src/error.rs b/webpki/src/error.rs
+index c104d50..9bed897 100644
+--- a/webpki/src/error.rs
++++ b/webpki/src/error.rs
+@@ -71,6 +71,15 @@ pub enum Error {
+         next_update: UnixTime,
+     },
+ 
++    /// The CRL is not yet valid; i.e. the verification time is earlier than the time
++    /// in the CRL thisUpdate field.
++    CrlNotYetValid {
++        /// The validation time.
++        time: UnixTime,
++        /// The thisUpdate time of the CRL.
++        this_update: UnixTime,
++    },
++
+     /// The certificate has an Extended Key Usage extension without any EKU values.
+     EmptyEkuExtension,
+ 
+@@ -292,7 +301,7 @@ impl Error {
+             // Errors related to certificate validity
+             Self::CertNotValidYet { .. } | Self::CertExpired { .. } => 290,
+             Self::CertNotValidForName(_) => 280,
+-            Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired { .. } => 270,
++            Self::CertRevoked | Self::UnknownRevocationStatus | Self::CrlExpired { .. } | Self::CrlNotYetValid { .. } => 270,
+             Self::InvalidCrlSignatureForPublicKey | Self::InvalidSignatureForPublicKey => 260,
+             Self::SignatureAlgorithmMismatch => 250,
+             Self::EmptyEkuExtension => 245,

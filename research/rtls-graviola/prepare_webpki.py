@@ -49,6 +49,11 @@ def prepare(archive: Path, checkout: Path) -> Path:
         extracted = safe_extract(archive, Path(temporary) / "source")
         source = extracted / f"rustls-webpki-{VERSION}"
         apply_patch(source, Path(__file__).with_name("webpki-policy.patch"))
+        apply_patch(
+            source,
+            Path(__file__).with_name("webpki-crl-policy.patch"),
+            strip=2,
+        )
         os.replace(source, destination)
     return destination
 

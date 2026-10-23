@@ -65,10 +65,19 @@ cases remain mandatory regression checks. The script runs candidate checks with 
 prints the disposable path for inspection.
 
 The test bundle is a single CPython test CA, not the production certifi PEM.
-The replay verifies CA source-selection behavior but does not establish the
-production bundle contents or OpenSSL hashed-directory semantics. The RTLS
-upstream `load_default_certs()` path also imports `wassima`; the experimental
-facade supplies the bundled fallback separately.
+The replay does not establish the production bundle contents. The RTLS upstream
+`load_default_certs()` path also imports `wassima`; the experimental facade
+supplies the bundled fallback separately.
+
+`trust_policy_contract.py` uses the real locked Mozilla bundle. Its capath case
+covers the OpenSSL 3.5.7 lookup behavior for unchanged files, removal before
+first use, wrong-subject replacement before first use, addition before first
+use, and removal after a certificate is cached. It also tests colon-separated
+`SSL_CERT_DIR` paths with missing and valid components.
+
+The adapter parses each hash-indexed PEM file atomically. OpenSSL can retain a
+valid certificate before a malformed suffix, but the adapter rejects the whole
+file. The trust contract records this fail-closed difference.
 
 No Linux musl build, x86-64 verification, production release artifact,
 build-time comparison, or archive-size comparison is performed by these
@@ -93,3 +102,57 @@ harness. Each case records flags, acceptance, error category, and the required
 contract. The original missing-AKI and malformed-chain cases remain mandatory.
 The duplicate-critical-extension fixture currently records an earlier candidate
 loader rejection than the reference.
+
+## Fresh CPython build without OpenSSL
+
+`build-no-openssl.py` uses the locked macOS compiler and CPython inputs to
+build a fresh CPython 3.15.1 prefix. It omits OpenSSL from the dependency
+graph and disables CPython's `_ssl` and original `_hashlib` modules in
+`Modules/Setup.local`. The optional RTLS and Graviola adapters are installed
+after the interpreter is built. The driver requires native Apple Silicon,
+Python 3.12 or newer, the locked compiler, Rust 1.99.1, and `kache`.
+
+The Rust source acquisition is a separate network-enabled step. It archives
+the pinned RTLS commit without using working-tree files, prepares the pinned
+webpki source, applies the consolidated RTLS patch in a private source copy,
+and fetches both Cargo lockfiles. The interpreter and adapter build then run
+under the macOS sandbox with network access denied:
+
+```sh
+run_dir=.work/tmp/openssl-free-candidate
+rtls_source=.work/tmp/rtls-build-source
+git clone --depth 1 --branch 2026.10.3 \
+    https://github.com/jawah/rtls.git "$rtls_source"
+python3.15 research/rtls-graviola/build-no-openssl.py \
+    --phase fetch --run-dir "$run_dir" --rtls-source "$rtls_source"
+python3.15 research/rtls-graviola/build-no-openssl.py \
+    --phase all --run-dir "$run_dir" --rtls-source "$rtls_source"
+```
+
+The build prefix is `$run_dir/prefix`. The overlay phase relocates its Mach-O
+install names and sysconfig files, copies it to `$run_dir/relocated prefix`,
+and verifies that copy. `--phase base` can build only CPython. `--phase overlay`
+can add adapters to an existing base prefix after `--phase fetch`;
+pass that base prefix with `--prefix` and use the same run directory. RTLS is
+installed in the standard-library directory, so imports work with site
+initialization disabled. Every run directory and prefix must remain under
+`.work/`. This experiment does not change production OpenSSL settings and
+does not measure production build time or qualify release archives.
+
+Run the TLS contract against a disposable copy of the built prefix:
+
+```sh
+reference_python=/path/to/OpenSSL-reference/bin/python3.15
+research/rtls-graviola/run-built-no-ssl-contract.sh \
+    "$run_dir/relocated prefix" \
+    "$run_dir/cpython-source/Python-3.15.1/Lib/test/certdata" \
+    "$reference_python"
+```
+
+The runner copies only `Lib/test` into the disposable prefix, installs the
+test CA bundle, and executes the TLS contract with site initialization
+disabled under `-I` and `-E`. It then restores the locked bundle, runs the
+trust-policy suite, and runs CPython's `test_hashlib`, `test_hmac`, and
+`test_ssl` suites against that copy. The `test_ssl` run uses a 120-second
+per-test timeout. This keeps the candidate's installed
+`ssl.py` in the import path.

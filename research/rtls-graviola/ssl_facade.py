@@ -1,4 +1,5 @@
 import os
+import sys
 
 from rtls import *
 from rtls import __all__, __version__
@@ -53,6 +54,10 @@ def create_default_context(
         context.load_verify_locations(cafile, capath, cadata)
     else:
         context.load_default_certs(purpose)
+    if hasattr(context, "keylog_filename"):
+        keylogfile = os.environ.get("SSLKEYLOGFILE")
+        if keylogfile and not sys.flags.ignore_environment:
+            context.keylog_filename = keylogfile
     return context
 
 
@@ -79,10 +84,9 @@ def _create_unverified_context(
             else PROTOCOL_TLS_SERVER
         )
     context = SSLContext(protocol)
-    context.check_hostname = False
+    context.check_hostname = check_hostname
     if cert_reqs is not None:
         context.verify_mode = cert_reqs
-    context.check_hostname = check_hostname
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
     if certfile:

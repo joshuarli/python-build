@@ -1,0 +1,126 @@
+--- a/src/msgs/persist.rs
++++ b/src/msgs/persist.rs
+@@ -199,6 +199,11 @@
+         self.extended_ms
+     }
+ 
++    /// Return the TLS 1.2 session ID.
++    pub fn session_id(&self) -> &[u8] {
++        self.session_id.as_ref()
++    }
++
+     pub(crate) fn suite(&self) -> &'static Tls12CipherSuite {
+         self.suite
+     }
+@@ -249,6 +254,26 @@
+             server_cert_verifier: Arc::downgrade(server_cert_verifier),
+             client_creds: Arc::downgrade(client_creds),
+         }
++    }
++
++    /// Return the time at which this session was created, in seconds since the Unix epoch.
++    pub fn time(&self) -> u64 {
++        self.epoch
++    }
++
++    /// Return the lifetime advertised for this session, in seconds.
++    pub fn timeout(&self) -> u32 {
++        self.lifetime_secs
++    }
++
++    /// Return whether this session contains a non-empty ticket.
++    pub fn has_ticket(&self) -> bool {
++        !self.ticket.0.is_empty()
++    }
++
++    /// Return the ticket lifetime hint, or zero when this session has no ticket.
++    pub fn ticket_lifetime_hint(&self) -> u32 {
++        if self.has_ticket() { self.lifetime_secs } else { 0 }
+     }
+ 
+     pub(crate) fn compatible_config(
+--- a/src/client/hs.rs
++++ b/src/client/hs.rs
+@@ -94,10 +94,11 @@
+                         // If we have a ticket, we use the sessionid as a signal that
+                         // we're  doing an abbreviated handshake.  See section 3.4 in
+                         // RFC5077.
+-                        if !inner.ticket().0.is_empty() {
+-                            inner.session_id = SessionId::random(config.provider.secure_random)?;
++                        if inner.has_ticket() {
++                            Some(SessionId::random(config.provider.secure_random)?)
++                        } else {
++                            Some(inner.session_id)
+                         }
+-                        Some(inner.session_id)
+                     }
+                     _ => None,
+                 }
+--- a/src/client/tls12.rs
++++ b/src/client/tls12.rs
+@@ -92,6 +92,7 @@
+             let ClientHelloInput {
+                 config,
+                 server_name,
++                session_id,
+                 ..
+             } = self.input;
+ 
+@@ -138,7 +139,7 @@
+ 
+             // See if we're successfully resuming.
+             if let Some(resuming) = resuming_session {
+-                if resuming.session_id == server_hello.session_id {
++                if session_id == server_hello.session_id {
+                     debug!("Server agreed to resume");
+ 
+                     // Is the server telling lies about the ciphersuite?
+@@ -1220,9 +1221,14 @@
+             return;
+         };
+ 
++        let session_id = self
++            .resuming_session
++            .as_ref()
++            .map(|session| session.session_id)
++            .unwrap_or(self.session_id);
+         let session_value = persist::Tls12ClientSessionValue::new(
+             self.secrets.suite(),
+-            self.session_id,
++            session_id,
+             ticket,
+             self.secrets.master_secret(),
+             cx.common
+--- a/src/server/server_conn.rs
++++ b/src/server/server_conn.rs
+@@ -1051,6 +1051,30 @@
+         ch
+     }
+ 
++    /// Return whether the client hello offers the requested protocol version.
++    pub fn offers_protocol_version(&self, version: ProtocolVersion) -> bool {
++        let hello = Self::client_hello_payload(&self.message);
++        if let Some(versions) = &hello.supported_versions {
++            match version {
++                ProtocolVersion::TLSv1_3 => versions.tls13,
++                ProtocolVersion::TLSv1_2 => versions.tls12,
++                _ => false,
++            }
++        } else {
++            version == ProtocolVersion::TLSv1_2
++                && u16::from(hello.client_version) >= u16::from(ProtocolVersion::TLSv1_2)
++        }
++    }
++
++    /// Reject the client hello with the selected alert.
++    pub fn reject(mut self, alert: crate::AlertDescription) -> AcceptedAlert {
++        self.connection.core.common_state.send_fatal_alert(
++            alert,
++            Error::General("server name callback rejected connection".into()),
++        );
++        AcceptedAlert::from(self.connection)
++    }
++
+     /// Convert the [`Accepted`] into a [`ServerConnection`].
+     ///
+     /// Takes the state returned from [`Acceptor::accept()`] as well as the [`ServerConfig`] and

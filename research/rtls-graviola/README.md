@@ -2,115 +2,87 @@
 
 ## Current implementation
 
-The isolated macOS arm64 implementation repairs the two original certificate
-failures in the native RTLS adapter. Both the pinned OpenSSL 3.5.7 reference
-and the candidate pass `no_ssl_contract.py`. This evidence covers the original
-focused harness, not the complete CPython TLS contract.
+The isolated macOS arm64 candidate builds CPython 3.15.1 with compiled `_ssl`
+and `_hashlib` explicitly disabled in `Modules/Setup.local`. OpenSSL is absent
+from its native dependency graph. A separate fetch phase supplies checked,
+locked Rust sources; the build runs with network access denied. The installed
+`ssl` and `_hashlib` facades load their native adapters under `-I -S` after
+relocation to a path containing spaces. Production remains unchanged.
 
-`policy.rs` in the patch uses rustls-webpki 0.103.15's verified-path callback.
-The callback checks the selected leaf, intermediate certificates, and original
-trust-anchor certificate. It checks strict extension policy, issuer identifiers,
-and anchor validity and constraints. Path building may try another verified
-path after a callback rejection. Graviola and webpki retain signature validation.
+The consolidated patch reproduces the v7d development candidate. A fresh replay
+of the RTLS, webpki, and rustls source preparations matches that candidate's
+source files byte for byte. This is an OpenSSL-free development distribution,
+not a qualified release artifact. The final stripping, pruning, archive, and
+extracted-artifact qualification remain outstanding.
 
-`TRUSTED_FIRST` changes issuer search order. Only `PARTIAL_CHAIN` permits an
-explicitly loaded intermediate to terminate a path. Without `PARTIAL_CHAIN`,
-root classification verifies the self-signature rather than comparing names.
-Invalid DER never becomes a trust anchor. Unknown verification flags raise
-`NotImplementedError`, including unsupported revocation policy.
+`policy.rs` checks the actual webpki-verified leaf, intermediates, and original
+trust anchor. It validates strict extension policy, issuer identifiers, anchor
+constraints, and validity. Rejected paths can yield to another verified path.
+Maintained webpki and Graviola implementations perform signature verification.
+`TRUSTED_FIRST` controls issuer preference; only `PARTIAL_CHAIN` permits an
+explicitly trusted intermediate to terminate the path. Invalid DER cannot
+become a trust anchor, and root classification checks the self-signature.
 
-Certificate loading validates every certificate block and complete DER before
-mutating native configuration. Client and server key loads check the public-key
-match before committing. Encrypted-key decoding retains RTLS's existing
-PKCS#8 and traditional PEM support. Server verification modes now request and
-verify client certificates. `CERT_NONE` skips chain and hostname verification
-while preserving handshake-signature verification.
+The 82-case differential corpus matches pinned OpenSSL 3.5.7 acceptance under
+the same flags, including the original missing-AKI and malformed-chain defects.
+The missing-CA-SKI fixture independently reaches OpenSSL verification error 86.
+Duplicate critical extensions are rejected during candidate loading rather
+than reference verification; the harness records this earlier rejection.
+Certificate expiration includes the exact `notAfter` second. Canonical issuer
+names govern issuer selection, cycle detection, self-issued path-length checks,
+and CRL authority checks without changing signed bytes or keys.
 
-The frozen macOS arm64 candidate at `a0940b5` was built with both compiled
-`_ssl` and `_hashlib` disabled in `Modules/Setup.local`. Its native dependency
-graph excludes OpenSSL. The separate fetch phase supplies locked Rust inputs;
-the build runs with network access denied. Both native adapters load from the
-standard library under `-I -S`, after relocation to a path containing spaces.
-Their load dependencies contain no OpenSSL libraries. This is a working
-OpenSSL-free development distribution, not a qualified release candidate.
+Certificate and key ingestion validates complete PEM blocks and DER before
+committing state. Eight paired PEM tests cover malformed footer suffixes,
+allowed whitespace, surrounding text, and first-key selection. The public
+`load_cert_chain()` accepts filesystem paths, matching CPython. Four paired
+MemoryBIO tests cover contiguous buffers, byte counts, integer bounds, and EOF.
 
-The original TLS contract passes under both `-I -S` and `-E -S -s`. The
-13-case trust-source contract uses the real pinned Mozilla bundle. Native
-extension, limited-API extension, and shared-libpython embedding checks pass.
-No macOS 26 runtime or Linux qualification is claimed.
+Offline CRL checking uses authoritative PEM CRLs loaded through `cafile` and
+checks selected path certificates and anchors. Missing CRLs, revoked certificates,
+invalid signatures, expiration, and future `thisUpdate` values fail verification.
+`cadata` loads certificates only. Hashed-directory `.r0` CRLs, online fetching,
+and delta or indirect CRLs are unsupported.
 
-The broader differential corpus currently has 72 cases. After the native
-repairs, all certificate-path accept and reject outcomes match OpenSSL. The candidate rejects a duplicate critical Basic Constraints extension during
-loading, while OpenSSL rejects it at verification. The corpus records that
-intentional earlier rejection as required malformed-input handling. The
-independent review's seven additional probes also match the reference.
+The 14-case trust-source contract passes with the real locked Mozilla bundle.
+It covers explicit environment overrides, isolation flags, fallback suppression,
+and hashed directories resolved at first use, including additions and removals
+before lookup and retained certificates after caching. A malformed hashed file
+is rejected atomically; OpenSSL can retain a valid prefix of that file.
 
-The pinned webpki source has a narrow local adaptation. It excludes self-issued
-intermediates from the path-length count and exposes its existing DNS matcher
-and name-constraint checker to the RTLS policy adapter. The adapter applies
-DNS constraints to fallback common names on the actual verified path, including
-when hostname checking is disabled. The archive checksum, safe extraction, and
-patch application are enforced by `prepare_webpki.py`. Signature algorithms
-remain in webpki and Graviola.
+SNI context selection preserves the initial connection's verification policy
+and selects the callback context's certificates, trust sources, CRLs, cipher
+and signature controls. Twelve SNI contract tests pass. Sessions, ALPN, keylog
+clearing, socket I/O, and supported ECDH groups have focused upstream and
+reference checks. Accepted listening sockets are wrapped with the TLS context.
 
-The name-comparison adapter also supplies OpenSSL-compatible distinguished-name
-comparison to issuer selection, cycle detection, self-issued path-length checks,
-and CRL authority checks. It reuses the existing canonical-name transformation;
-signatures still use the original signed certificate bytes and issuer key.
-The original webpki verification entry point retains its raw comparison. Both
-runtimes accept the equivalent-case issuer fixture and reject a genuinely
-different issuer signed with the same key. The 72-case corpus passes after this
-repair; the broader name-equivalence fixtures are being added separately.
+The [hashing backend](hashing/README.md) passes complete `test_hashlib` and
+`test_hmac` suites: 240 tests, 18 skips. Native extension, limited-API extension,
+and shared-libpython embedding probes passed on the preceding candidate;
+final extracted-artifact checks must be repeated after integration.
 
-`ssl_native_compat.py`, installed as `_ssl.py`, provides Python-level metadata
-and certificate decoding for consumers such as CPython's own tests. It does
-not restore CPython's compiled `_ssl` extension or its native object layouts.
-`ssl_metadata.py` contains the CPython protocol-message enums.
+The v7d complete default-resource regression run executed 50,058 tests with
+202 failures and 2,936 skips; 547 of 556 selected files ran, with nine
+resource-denied files. Its six failing files are `test_asyncio`, `test_audit`,
+`test_ftplib`, `test_ssl`, `test_support`, and `test_tools`. The makefile-folder
+failures in `test_tools` match an existing product exclusion. The asyncio
+subprocess test constructs an unquoted shell command from the relocated path.
+The audit failure exercises unsupported finite-field DH parameters. The
+remaining failures include actionable API and socket-lifecycle defects.
+A preceding run had one additional process-pool failure; its isolated rerun
+and the complete replay passed that file, without erasing the initial failure.
 
-The separate [hashing backend](hashing/README.md) passes the complete
-`test_hashlib` and `test_hmac` run: 240 tests, 18 skips. Its differential
-checks cover algorithm discovery, HMAC/PBKDF2 aliases, buffer inputs, and
-scrypt argument and memory bounds.
+The complete `test_ssl` run now finishes: 219 tests, 30 failures, 36 errors,
+and 37 skips. The earlier nonblocking-send hang is repaired. Compatibility
+work continues on TLS FTP shutdown, error propagation, constructor semantics,
+cipher controls, channel binding, and metadata. PyO3 currently prevents both
+native adapters from loading in subinterpreters; `hashlib` then loses PBKDF2
+and scrypt in a worker. Safe per-interpreter bindings are an active repair,
+not a supported feature or a waived requirement.
 
-The frozen candidate passes 214 tests across asyncio TLS, SSL protocol, and
-HTTP client suites, with 21 skips. An earlier runtime checkpoint passed 3,269
-tests across asyncio, HTTP, and urllib, with 77 resource or platform skips.
-The complete `test_ssl` run times out in `test_nonblocking_send`; its socket
-flush retries `BlockingIOError` without yielding. That failure prevents a
-complete regression verdict. The socket repair is being checked against the
-unchanged upstream test before the next combined candidate is built.
-
-The isolated listening-socket repair in `ssl-accept.patch` passes the unchanged
-`test_httpservers` suite: 103 tests, four skips. Accepted connections now use
-the listener's TLS context. Previously the `_ssl`-absent socket base returned
-raw connections, causing the HTTPS tests to fail.
-
-The MemoryBIO repair in `ssl-memory-bio.patch` validates contiguous buffer
-inputs before mutation, counts bytes for typed buffers, enforces the native
-integer bounds, and serializes EOF with writes. All five unchanged upstream
-MemoryBIO tests pass. Four additional contract tests pass on both backends;
-they fail on the frozen candidate.
-
-Certificate validity now expires at the `notAfter` second, matching pinned
-OpenSSL 3.5.7. Three deterministic Rust tests cover leaf, intermediate, and
-anchor boundaries; all three failed before the repair and pass afterward.
-The combined verifier also passes the expanded 82-case certificate corpus.
-
-PEM footer validation rejects non-whitespace after certificate, private-key,
-and CRL end markers. Eight paired tests preserve OpenSSL-compatible footer
-whitespace and surrounding text. Private-key selection uses the first key
-block, so unrelated encryption words or later keys do not change its format.
-`load_cert_chain()` accepts file paths as `str`, `bytes`, or `PathLike` objects;
-the prototype's inline-PEM shortcut is removed to match CPython's API.
-
-The next validation wave combines socket I/O, explicit sessions, cipher and
-context controls, offline CRLs, and SSL utility compatibility. Capath review
-also found that delaying store statistics does not reproduce OpenSSL's lookup
-at first use; the directory loader still snapshots certificates too early.
-Those changes remain provisional until clean replay, differential security
-checks, and the complete TLS suite run on the combined candidate. No timing
-or artifact-size comparison has been completed. Production remains unchanged.
-
+No macOS 26 runtime or Linux qualification is claimed. No clean build-time,
+peak-memory, stripped-size, or compressed-artifact comparison is complete.
+The current scope is macOS arm64, and performance gates are waived by the user.
 The remainder records the earlier prototype and adoption requirements.
 
 ## Decision
