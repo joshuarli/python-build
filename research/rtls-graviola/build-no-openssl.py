@@ -994,9 +994,36 @@ def build_base(run_dir: Path, cache_root: Path, target, toolchain) -> Path:
         target,
         toolchain,
     )
+    enforce_candidate_exclusions(prefix)
     verify_base_prefix(prefix, run_dir)
     print(f"OK no-OpenSSL CPython base -> {prefix}", flush=True)
     return prefix
+
+
+def enforce_candidate_exclusions(prefix: Path) -> dict:
+    from buildsys.product import PRODUCT
+    from buildsys.scope import ScopeError, enforce_exclusions, verify_exclusions
+
+    test_suite = PRODUCT.stdlib(prefix) / "test"
+    if not test_suite.is_dir():
+        raise BuildError(f"CPython prerelease test suite is missing: {test_suite}")
+    try:
+        report = enforce_exclusions(prefix)
+    except ScopeError as error:
+        raise BuildError(f"cannot enforce no-OpenSSL prefix exclusions: {error}") from error
+    remaining = verify_exclusions(prefix)
+    if remaining:
+        raise BuildError(
+            "no-OpenSSL prefix retains deliberately excluded components: "
+            + ", ".join(remaining)
+        )
+    if not test_suite.is_dir():
+        raise BuildError(f"CPython prerelease test suite was removed: {test_suite}")
+    print(
+        f"PRUNE excluded CPython components ({len(report['removed'])} entries)",
+        flush=True,
+    )
+    return report
 
 
 def positive_jobs(value: str) -> int:
@@ -1106,6 +1133,7 @@ def main(argv: list[str] | None = None) -> int:
                 prefix = require_work_path(args.prefix)
                 if not prefix.is_dir():
                     raise BuildError(f"candidate prefix does not exist: {prefix}")
+                enforce_candidate_exclusions(prefix)
                 verify_base_prefix(prefix, run_dir)
             else:
                 raise BuildError(f"unsupported sandbox phase: {args.phase}")
