@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -220,18 +221,163 @@ class TrustPolicyContract(unittest.TestCase):
                 )
                 self.assertEqual(stats["x509"], 0)
 
-    def test_only_correctly_hashed_directory_entries_are_trusted(self) -> None:
+    def test_capath_lookup_uses_hashed_paths_and_caches_first_use(self) -> None:
+        import socket
+        import threading
+
+        def exchange(context, after_connect=None):
+            server_context = self.ssl.SSLContext(self.ssl.PROTOCOL_TLS_SERVER)
+            server_context.load_cert_chain(str(CERTDATA / "keycert3.pem"))
+            listener = socket.socket()
+            listener.settimeout(5)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            server_errors = []
+
+            def serve():
+                try:
+                    raw, _ = listener.accept()
+                    raw.settimeout(5)
+                    with server_context.wrap_socket(raw, server_side=True) as peer:
+                        message = peer.recv(1)
+                        if message:
+                            peer.sendall(message)
+                except (OSError, self.ssl.SSLError) as error:
+                    server_errors.append(error)
+                finally:
+                    listener.close()
+
+            thread = threading.Thread(target=serve, daemon=True)
+            thread.start()
+            accepted = False
+            try:
+                raw = socket.create_connection(listener.getsockname(), timeout=5)
+                peer = context.wrap_socket(
+                    raw,
+                    server_hostname="localhost",
+                    do_handshake_on_connect=False,
+                )
+                if after_connect is not None:
+                    after_connect()
+                try:
+                    peer.do_handshake()
+                    peer.sendall(b"x")
+                    accepted = peer.recv(1) == b"x"
+                except self.ssl.SSLError:
+                    accepted = False
+                finally:
+                    peer.close()
+            finally:
+                thread.join(6)
+            if thread.is_alive():
+                raise TimeoutError("TLS server did not finish")
+            if accepted and server_errors:
+                raise RuntimeError(f"TLS server failed after handshake: {server_errors[0]}")
+            return accepted
+
+        def context_for(capath):
+            context = self.new_context()
+            context.load_verify_locations(capath=capath)
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+            return context
+
         with tempfile.TemporaryDirectory(prefix="rtls-capath-", dir=SCRATCH) as root:
             capath = Path(root)
-            shutil.copyfile(ROOT_CERT, capath / "b1930218.0")
-            shutil.copyfile(CERTDATA / "capath" / "4e1295a3.0", capath / "4e1295a3.0")
-            shutil.copyfile(ROOT_CERT, capath / "unhashed.pem")
-            shutil.copyfile(ROOT_CERT, capath / "ffffffff.0")
-            context = self.new_context()
-            context.load_verify_locations(capath=str(capath))
-            context.load_verify_locations(capath=os.fsencode(capath))
-        self.assertEqual(context.cert_store_stats()["x509_ca"], 1)
-        self.assertEqual(len(context.get_ca_certs(binary_form=True)), 1)
+            correct = capath / "b1930218.0"
+            wrong_name = capath / "ffffffff.0"
+            shutil.copyfile(ROOT_CERT, wrong_name)
+            context = context_for(os.fsencode(capath))
+            self.assertFalse(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+
+            wrong_name.unlink()
+            correct.write_bytes(
+                ROOT_CERT.read_bytes()
+                + b"\n-----BEGIN CERTIFICATE-----\nZm9v"
+            )
+            context = context_for(str(capath))
+            self.assertFalse(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+
+            correct.unlink()
+            shutil.copyfile(ROOT_CERT, correct)
+            context = context_for(str(capath))
+            self.assertTrue(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 1)
+
+            context = context_for(str(capath))
+
+            def remove_before_lookup():
+                correct.unlink()
+
+            self.assertFalse(exchange(context, remove_before_lookup))
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+
+            context = context_for(str(capath))
+
+            def add_before_lookup():
+                shutil.copyfile(ROOT_CERT, correct)
+
+            self.assertTrue(exchange(context, add_before_lookup))
+            self.assertEqual(context.cert_store_stats()["x509"], 1)
+            correct.unlink()
+            self.assertTrue(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 1)
+
+            shutil.copyfile(CERTDATA / "capath" / "4e1295a3.0", correct)
+            context = context_for(str(capath))
+            self.assertFalse(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 1)
+
+            correct.unlink()
+            first = capath / "first"
+            second = capath / "second"
+            first.mkdir()
+            second.mkdir()
+            context = context_for(os.pathsep.join((str(first), str(second))))
+            shutil.copyfile(ROOT_CERT, second / "b1930218.0")
+            self.assertTrue(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 1)
+
+            env_valid = capath / "env-valid"
+            env_missing = capath / "env-missing"
+            env_valid.mkdir()
+            shutil.copyfile(ROOT_CERT, env_valid / "b1930218.0")
+            default_environment = {
+                "SSL_CERT_FILE": "",
+                "SSL_CERT_DIR": os.pathsep.join((str(env_missing), str(env_valid))),
+            }
+            with patch.dict(os.environ, default_environment, clear=True):
+                context = self.ssl.create_default_context()
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+            self.assertTrue(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 1)
+
+            missing_environment = {
+                "SSL_CERT_FILE": "",
+                "SSL_CERT_DIR": os.pathsep.join(
+                    (str(env_missing), str(capath / "still-missing"))
+                ),
+            }
+            with patch.dict(os.environ, missing_environment, clear=True):
+                context = self.ssl.create_default_context()
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+            self.assertFalse(exchange(context))
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+
+        with tempfile.TemporaryDirectory(prefix="rtls-missing-capath-", dir=SCRATCH) as root:
+            context = context_for(str(Path(root) / "missing"))
+            self.assertEqual(context.cert_store_stats()["x509"], 0)
+
+    def test_ca_stats_include_openssl_legacy_v1_roots(self) -> None:
+        context = self.new_context()
+        for name in ("b1930218.0", "4e1295a3.0"):
+            context.load_verify_locations(cadata=(CERTDATA / "capath" / name).read_bytes())
+        self.assertEqual(
+            context.cert_store_stats(),
+            {"x509": 2, "x509_ca": 2, "crl": 0},
+        )
+        self.assertEqual(len(context.get_ca_certs(binary_form=True)), 2)
 
     def test_failed_multi_source_load_preserves_existing_roots(self) -> None:
         with tempfile.TemporaryDirectory(prefix="rtls-cadata-", dir=SCRATCH) as root:
@@ -251,8 +397,6 @@ class TrustPolicyContract(unittest.TestCase):
         )
 
     def test_purpose_validation_matches_cpython(self) -> None:
-        from rtls._constants import _ASN1ObjectBase
-
         for method in (
             self.ssl.create_default_context,
             self.ssl._create_unverified_context,
@@ -261,7 +405,7 @@ class TrustPolicyContract(unittest.TestCase):
                 with self.subTest(method=method.__name__, value=value):
                     with self.assertRaises(TypeError):
                         method(purpose=value)
-            unknown = _ASN1ObjectBase(1, "UNKNOWN", "unknown", "1.2.3.4")
+            unknown = self.ssl._ASN1Object._make((1, "UNKNOWN", "unknown", "1.2.3.4"))
             with self.subTest(method=method.__name__, value=unknown):
                 with self.assertRaises(ValueError):
                     method(purpose=unknown)
@@ -287,7 +431,7 @@ class TrustPolicyContract(unittest.TestCase):
             )
         self.assertEqual(results, [None] * 8)
 
-    def test_hostname_flags_and_unimplemented_controls_are_explicit(self) -> None:
+    def test_hostname_flags_and_post_handshake_auth_policy(self) -> None:
         context = self.new_context()
         with self.assertRaises(ValueError):
             context.verify_mode = self.ssl.CERT_NONE
@@ -306,8 +450,6 @@ class TrustPolicyContract(unittest.TestCase):
         self.assertIsNone(context.post_handshake_auth)
         with self.assertRaises(NotImplementedError):
             context.post_handshake_auth = False
-        with self.assertRaises(NotImplementedError):
-            context.sni_callback = lambda *args: None
         with self.assertRaises(ValueError):
             context.wrap_bio(self.ssl.MemoryBIO(), self.ssl.MemoryBIO())
 
