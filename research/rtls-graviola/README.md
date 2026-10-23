@@ -2,6 +2,12 @@
 
 ## Current implementation
 
+The [qualified macOS arm64 candidate](QUALIFICATION.md) is fully OpenSSL-free.
+All 42 experimental archive checks pass, including the complete regression
+report under the declared modern policy. The report retains raw upstream
+failures, earlier unsuccessful runs, compatibility limits, artifact identity,
+and measured sizes. Production adoption remains a separate decision.
+
 The [modern TLS policy](MODERN_TLS_POLICY.md) defines the experimental support
 matrix. Legacy TLS compatibility is no longer an adoption requirement. Keep
 upstream results intact and distinguish retired capabilities from defects in
@@ -14,11 +20,11 @@ locked Rust sources; the build runs with network access denied. The installed
 `ssl` and `_hashlib` facades load their native adapters under `-I -S` after
 relocation to a path containing spaces. Production remains unchanged.
 
-The consolidated patch includes the v7d development checkpoint and the later
-repairs described below. Fresh source preparation at that checkpoint matched
-the candidate's executable RTLS, webpki, and rustls sources byte for byte. This is an OpenSSL-free development distribution,
-not a qualified release artifact. The final stripping, pruning, archive, and
-extracted-artifact qualification remain outstanding.
+The consolidated patch includes the repairs described below. Fresh preparation
+matches all 101 RTLS and 118 rustls source files in the qualified snapshot.
+The final candidate uses release Rust extensions, verified CPython PGO, and
+ThinLTO. Stripping, pruning, archive extraction, relocation, and the declared
+experimental qualification have completed.
 
 `policy.rs` checks the actual webpki-verified leaf, intermediates, and original
 trust anchor. It validates strict extension policy, issuer identifiers, anchor
@@ -86,8 +92,7 @@ fallback now transfers encrypted data through the ordinary TLS write path.
 
 The [hashing backend](hashing/README.md) passes complete `test_hashlib` and
 `test_hmac` suites: 240 tests, 18 skips. Native extension, limited-API extension,
-and shared-libpython embedding probes passed on the preceding candidate;
-final extracted-artifact checks must be repeated after integration.
+and shared-libpython embedding probes pass on the final extracted archive.
 
 The v7d complete default-resource regression run executed 50,058 tests with
 202 failures and 2,936 skips; 547 of 556 selected files ran, with nine
@@ -100,13 +105,15 @@ remaining failures include actionable API and socket-lifecycle defects.
 A preceding run had one additional process-pool failure; its isolated rerun
 and the complete replay passed that file, without erasing the initial failure.
 
-The combined development backend's complete `test_ssl` run executes 219 tests:
+The earlier isolated development backend's complete `test_ssl` run executed 219 tests:
 11 failures, six errors, and 39 skips. The remaining failures concern OpenSSL
 identity/version guards, private C type behavior, retired DH/renegotiation,
 OpenSSL option/entropy controls, and unsupported proxy-certificate flags.
-Required modern socket, constructor, context, callback, and session cases no
-longer fail in that run. The raw upstream result remains a failure and must be
-reported alongside the modern support policy.
+That isolated run skipped an environment-sensitive key-log test and did not
+expose intermittent wrong-role context failures. Both defects and the associated
+descriptor leak are now fixed. The qualifying normal-startup full run records
+219 SSL tests, 11 failures, six errors, and 38 skips, with no unexpected cases.
+The raw upstream result remains a failure and is reported alongside the policy.
 
 Both reset-socket regressions execute their full data/error assertions in the
 direct contract. The generic audit-open regression also passes after the retired
@@ -125,8 +132,9 @@ Three modern peer cases include forced X25519MLKEM768 interoperability with
 the pinned OpenSSL reference. Six retired reference-negotiated features are
 rejected without certificate failures or timeouts. Direct external HTTPS also succeeds using all 120 roots from the pinned Mozilla
 bundle, through both a verified TLS 1.3 socket and `urllib` without proxy use.
-These checks ran on the development prefix; final archive qualification remains
-outstanding.
+The final archive repeats the certificate, modern transport, hashing, and
+product qualification checks after stripping and extraction. The broader
+ownership and interface contracts also pass on the release build.
 
 Both adapters now have bindings that operate in separate interpreters. The TLS
 binding uses a Rust-only handle registry and copied arguments through a narrow
@@ -367,10 +375,10 @@ Keep production on OpenSSL until a candidate meets all of these conditions:
    extensions, and Apple M1. Inspect unresolved symbols, runtime dependencies,
    and native-extension behavior. Approve any production baseline change
    separately.
-5. Measure a clean build against the `no-apps no-tests` OpenSSL baseline.
-   Include dependency and interpreter build time, peak scratch space,
-   stripped extension sizes, and the final compressed artifact size. Keep the
-   replacement only when its compatibility cost has a measurable return.
+5. Record the trade-offs against the `no-apps no-tests` OpenSSL baseline when
+   comparable measurements are available. The owner waived performance gates
+   for this experiment. Current absolute artifact sizes are measured; clean
+   baseline build-time, memory, and scratch comparisons remain unmeasured.
 
 Record every unsupported API and intentional difference before changing the
 product contract. Treat test-only success as research evidence, not release
