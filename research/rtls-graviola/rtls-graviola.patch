@@ -9050,7 +9050,7 @@ new file mode 100644
 diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 --- a/src/rtls/_object.py
 +++ b/src/rtls/_object.py
-@@ -1,10 +1,13 @@
+@@ -1,12 +1,17 @@
  from __future__ import annotations
  
 +import weakref
@@ -9063,8 +9063,12 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +    ENCODING_DER,
      _HAS_ECH,
      CERT_NONE,
++    PROTOCOL_TLS_CLIENT,
++    PROTOCOL_TLS_SERVER,
      SSL_ERROR_WANT_READ,
-@@ -40,7 +43,64 @@
+ )
+ from ._exceptions import (
+@@ -40,7 +45,77 @@
  }
  
  
@@ -9089,6 +9093,19 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +) -> None:
 +    if server_side and server_hostname:
 +        raise ValueError("server_hostname can only be specified in client mode")
++
++
++def _validate_context_role(context: TLSContext, server_side: bool) -> None:
++    if server_side and context.protocol == PROTOCOL_TLS_CLIENT:
++        raise SSLError(
++            0,
++            "Cannot create a server socket with a PROTOCOL_TLS_CLIENT context",
++        )
++    if not server_side and context.protocol == PROTOCOL_TLS_SERVER:
++        raise SSLError(
++            0,
++            "Cannot create a client socket with a PROTOCOL_TLS_SERVER context",
++        )
 +
 +
 +def _validate_channel_binding_type(cb_type: Any) -> None:
@@ -9130,12 +9147,13 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      """Sans-I/O TLS object — equivalent of ``ssl.SSLObject``.
  
      Created by ``TLSContext.wrap_bio(incoming, outgoing, ...)``.
-@@ -57,33 +117,54 @@
+@@ -57,33 +132,55 @@
          outgoing: MemoryBIO,
          server_side: bool = False,
          server_hostname: str | None = None,
 +        session: Any = None,
      ) -> None:
++        _validate_context_role(context, server_side)
 +        _validate_constructor_session(session, server_side)
          self._context = context
 +        self._connection_verify_mode = int(context.verify_mode)
@@ -9192,7 +9210,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # After building client connection, the state machine immediately
          # has a ClientHello to send — flush it to the outgoing BIO
-@@ -99,6 +180,19 @@
+@@ -99,6 +196,19 @@
                  self._outgoing.write(data)
              else:
                  break
@@ -9212,7 +9230,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def _pump_incoming(self) -> None:
          """Move ciphertext from the incoming BIO into the Rust state machine.
-@@ -129,6 +223,67 @@
+@@ -129,6 +239,67 @@
                      break
                  offset += consumed
  
@@ -9280,7 +9298,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      def do_handshake(self) -> None:
          """Perform the TLS handshake.
  
-@@ -137,8 +292,14 @@
+@@ -137,8 +308,14 @@
          """
          if self._handshake_done:
              return
@@ -9297,7 +9315,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._pump_incoming()
  
          # Process the TLS records
-@@ -146,22 +307,24 @@
+@@ -146,22 +323,24 @@
              self._conn.process_new_packets()
          except SSLError:
              # Flush any alert that rustls wants to send
@@ -9324,7 +9342,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          """Read decrypted data from the TLS connection.
  
          Returns bytes, or if *buffer* is given, reads into it and returns count.
-@@ -171,12 +334,30 @@
+@@ -171,12 +350,30 @@
          read_tls → process_new_packets → read_plaintext in a single
          Python→Rust call, handling buffer-full looping internally.
          """
@@ -9361,7 +9379,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Read all available ciphertext from the BIO
          ciphertext = self._incoming.read()
-@@ -186,22 +367,20 @@
+@@ -186,22 +383,20 @@
              try:
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
@@ -9388,7 +9406,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # No ciphertext available (or it produced no plaintext).
          # Try draining any plaintext already buffered in rustls from
-@@ -210,29 +389,51 @@
+@@ -210,29 +405,51 @@
              data = self._conn.read_plaintext(max_len)
          except SSLZeroReturnError:
              self._peer_closed = True
@@ -9448,7 +9466,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Absorb any ciphertext left in the incoming BIO
          if self._incoming.pending:
-@@ -247,13 +448,17 @@
+@@ -247,13 +464,17 @@
              try:
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
@@ -9466,7 +9484,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
              return plaintext
  
          # drain already decrypted.
-@@ -263,6 +468,8 @@
+@@ -263,6 +484,8 @@
              self._peer_closed = True
              raise
          self._maybe_buffered = bool(plaintext)
@@ -9475,7 +9493,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          return plaintext
  
      def write(self, data: bytes | bytearray | memoryview) -> int:
-@@ -271,17 +478,18 @@
+@@ -271,17 +494,18 @@
          Returns number of bytes written. The encrypted ciphertext is
          placed in the outgoing BIO for the transport to send.
          """
@@ -9496,7 +9514,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Flush the resulting ciphertext to the outgoing BIO
          self._flush_outgoing()
-@@ -289,14 +497,49 @@
+@@ -289,14 +513,49 @@
          return n
  
      def unwrap(self) -> None:
@@ -9551,7 +9569,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
          """Return the peer's certificate.
-@@ -309,26 +552,25 @@
+@@ -309,26 +568,25 @@
          is False, returns {} (empty dict) after handshake — the cert is
          not validated so its contents are not exposed.
          """
@@ -9589,7 +9607,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def cipher(self) -> tuple[str, str, int] | None:
          """Return a 3-tuple (cipher_name, tls_version, secret_bits) or None."""
-@@ -349,15 +591,23 @@
+@@ -349,15 +607,23 @@
          return (openssl_name, version_str, bits)
  
      def shared_ciphers(self) -> list[tuple[str, str, int]] | None:
@@ -9622,7 +9640,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def version(self) -> str | None:
          """Return the negotiated TLS version string, e.g. 'TLSv1.3'."""
-@@ -366,6 +616,22 @@
+@@ -366,6 +632,22 @@
              return None
          return _VERSION_MAP.get(v, None)
  
@@ -9645,7 +9663,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      def selected_alpn_protocol(self) -> str | None:
          """Return the selected ALPN protocol as a string, or None."""
          proto = self._conn.alpn_protocol()
-@@ -386,8 +652,11 @@
+@@ -386,8 +668,11 @@
          return self._conn.pending()
  
      def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
@@ -9659,7 +9677,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def getpeername(self) -> tuple | None:
          """SSLObject doesn't have a socket, so no peername."""
-@@ -400,6 +669,16 @@
+@@ -400,6 +685,16 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -9676,7 +9694,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._context = ctx
  
      @property
-@@ -411,50 +690,65 @@
+@@ -411,50 +706,65 @@
          return self._server_hostname
  
      @property
@@ -9777,7 +9795,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      if _HAS_ECH:
  
-@@ -476,3 +770,129 @@
+@@ -476,3 +786,129 @@
              except AttributeError:
                  # Server connections don't have ech_status
                  return "not_offered"
@@ -10162,7 +10180,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._closed = False
  
          # Take over the underlying socket's fd.
-@@ -91,17 +180,55 @@
+@@ -91,47 +180,143 @@
          else:
              self.settimeout(_timeout)
  
@@ -10224,10 +10242,20 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
              self._connected = False
  
          if self._connected:
-@@ -113,25 +240,83 @@
-                     self.close()
-                     raise
- 
+-            self._create_sslobj()
+-            if self._do_handshake_on_connect:
+-                try:
++            try:
++                self._create_sslobj()
++                if self._do_handshake_on_connect:
+                     self.do_handshake()
+-                except BaseException:
+-                    self.close()
+-                    raise
++            except BaseException:
++                self.close()
++                raise
++
 +    def accept(self) -> tuple[TLSSocket, Any]:
 +        accepted, address = socket.socket.accept(self)
 +        try:
@@ -10241,7 +10269,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +            accepted.close()
 +            raise
 +        return wrapped, address
-+
+ 
      def _create_sslobj(self) -> None:
 -        """Create the internal TLSObject."""
 -        self._sslobj_internal = TLSObject(
