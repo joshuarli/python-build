@@ -1,0 +1,836 @@
+--- a/rust/src/config.rs
++++ b/rust/src/config.rs
+@@ -9 +9,5 @@
+-use rustls::{ClientConfig, ServerConfig, SupportedCipherSuite};
++use rustls::sign::{CertifiedKey, SigningKey, SingleCertAndKey};
++use rustls::{ClientConfig, NamedGroup, ServerConfig, SignatureScheme, SupportedCipherSuite};
++use rustls::{client::Resumption, server::ServerSessionMemoryCache};
++use rustls::{client::ClientSessionStore, server::StoresServerSessions};
++use std::collections::{HashMap, VecDeque};
+@@ -11 +15 @@
+-use std::sync::Arc;
++use std::sync::{Arc, Mutex};
+@@ -103 +107,4 @@
+-use crate::policy::{parse_certificates, validate_der, PathVerifier, SUPPORTED_VERIFY_FLAGS, VerificationCapture};
++use crate::policy::{
++    parse_certificates, validate_der, PathVerifier, VerificationCapture, VerifiedChain,
++    SUPPORTED_VERIFY_FLAGS,
++};
+@@ -104,0 +112,280 @@
++
++fn group_from_name(name: &str) -> Option<NamedGroup> {
++    match name.to_ascii_lowercase().as_str() {
++        "x25519" => Some(NamedGroup::X25519),
++        "secp256r1" | "prime256v1" | "p-256" | "nistp256" => {
++            Some(NamedGroup::secp256r1)
++        }
++        "secp384r1" | "p-384" | "nistp384" => Some(NamedGroup::secp384r1),
++        "x25519mlkem768" | "x25519_mlkem768" => Some(NamedGroup::X25519MLKEM768),
++        _ => None,
++    }
++}
++
++fn group_iana_name(group: NamedGroup) -> Option<&'static str> {
++    match group {
++        NamedGroup::X25519 => Some("x25519"),
++        NamedGroup::secp256r1 => Some("secp256r1"),
++        NamedGroup::secp384r1 => Some("secp384r1"),
++        NamedGroup::X25519MLKEM768 => Some("x25519_mlkem768"),
++        _ => None,
++    }
++}
++
++fn group_aliases(group: NamedGroup) -> &'static [&'static str] {
++    match group {
++        NamedGroup::secp256r1 => &["P-256", "prime256v1", "NISTP256"],
++        NamedGroup::secp384r1 => &["P-384", "NISTP384"],
++        NamedGroup::X25519 => &["X25519"],
++        NamedGroup::X25519MLKEM768 => &["X25519MLKEM768"],
++        _ => &[],
++    }
++}
++
++fn parse_groups(names: &str) -> Result<Vec<NamedGroup>, String> {
++    let mut groups = Vec::new();
++    for token in names.split(':') {
++        if token.is_empty() {
++            return Err("Empty TLS group name".to_string());
++        }
++        let (optional, name) = match token.strip_prefix('?') {
++            Some(name) if !name.is_empty() => (true, name),
++            Some(_) => return Err("Empty TLS group name".to_string()),
++            None => (false, token),
++        };
++        let group = group_from_name(name);
++        let available = group.filter(|group| {
++            PREFERRED_KX_GROUPS.iter().any(|supported| supported.name() == *group)
++        });
++        match available {
++            Some(group) if !groups.contains(&group) => groups.push(group),
++            Some(_) => {}
++            None if optional => {}
++            None => return Err(format!("Unsupported TLS group: {name}")),
++        }
++    }
++    if groups.is_empty() {
++        return Err("No supported TLS groups selected".to_string());
++    }
++    Ok(groups)
++}
++
++fn signature_scheme_name(scheme: SignatureScheme) -> Option<&'static str> {
++    match scheme {
++        SignatureScheme::ECDSA_NISTP256_SHA256 => Some("ecdsa_secp256r1_sha256"),
++        SignatureScheme::ECDSA_NISTP384_SHA384 => Some("ecdsa_secp384r1_sha384"),
++        SignatureScheme::ED25519 => Some("ed25519"),
++        SignatureScheme::RSA_PSS_SHA256 => Some("rsa_pss_rsae_sha256"),
++        SignatureScheme::RSA_PSS_SHA384 => Some("rsa_pss_rsae_sha384"),
++        SignatureScheme::RSA_PSS_SHA512 => Some("rsa_pss_rsae_sha512"),
++        SignatureScheme::RSA_PKCS1_SHA256 => Some("rsa_pkcs1_sha256"),
++        SignatureScheme::RSA_PKCS1_SHA384 => Some("rsa_pkcs1_sha384"),
++        SignatureScheme::RSA_PKCS1_SHA512 => Some("rsa_pkcs1_sha512"),
++        _ => None,
++    }
++}
++
++fn signature_scheme_from_name(name: &str) -> Option<SignatureScheme> {
++    match name.to_ascii_lowercase().as_str() {
++        "ecdsa_secp256r1_sha256" => Some(SignatureScheme::ECDSA_NISTP256_SHA256),
++        "ecdsa_secp384r1_sha384" => Some(SignatureScheme::ECDSA_NISTP384_SHA384),
++        "ed25519" => Some(SignatureScheme::ED25519),
++        "rsa_pss_rsae_sha256" => Some(SignatureScheme::RSA_PSS_SHA256),
++        "rsa_pss_rsae_sha384" => Some(SignatureScheme::RSA_PSS_SHA384),
++        "rsa_pss_rsae_sha512" => Some(SignatureScheme::RSA_PSS_SHA512),
++        "rsa_pkcs1_sha256" => Some(SignatureScheme::RSA_PKCS1_SHA256),
++        "rsa_pkcs1_sha384" => Some(SignatureScheme::RSA_PKCS1_SHA384),
++        "rsa_pkcs1_sha512" => Some(SignatureScheme::RSA_PKCS1_SHA512),
++        _ => None,
++    }
++}
++
++fn supported_signature_schemes() -> Vec<SignatureScheme> {
++    default_crypto_provider()
++        .signature_verification_algorithms
++        .supported_schemes()
++}
++
++fn parse_signature_schemes(names: &str) -> Result<Vec<SignatureScheme>, String> {
++    let supported = supported_signature_schemes();
++    let mut schemes = Vec::new();
++    for token in names.split(':') {
++        if token.is_empty() {
++            return Err("Empty TLS signature algorithm name".to_string());
++        }
++        let (optional, name) = match token.strip_prefix('?') {
++            Some(name) if !name.is_empty() => (true, name),
++            Some(_) => return Err("Empty TLS signature algorithm name".to_string()),
++            None => (false, token),
++        };
++        match signature_scheme_from_name(name).filter(|scheme| supported.contains(scheme)) {
++            Some(scheme) if !schemes.contains(&scheme) => schemes.push(scheme),
++            Some(_) => {}
++            None if optional => {}
++            None => return Err(format!("Unsupported TLS signature algorithm: {name}")),
++        }
++    }
++    if schemes.is_empty() {
++        return Err("No supported TLS signature algorithms selected".to_string());
++    }
++    Ok(schemes)
++}
++
++#[derive(Debug)]
++struct FilteredSigningKey {
++    inner: Arc<dyn SigningKey>,
++    allowed: Vec<SignatureScheme>,
++}
++
++impl SigningKey for FilteredSigningKey {
++    fn choose_scheme(
++        &self,
++        offered: &[SignatureScheme],
++    ) -> Option<Box<dyn rustls::sign::Signer>> {
++        self.allowed
++            .iter()
++            .filter(|scheme| offered.contains(scheme))
++            .find_map(|scheme| self.inner.choose_scheme(&[*scheme]))
++    }
++
++    fn public_key(&self) -> Option<rustls::pki_types::SubjectPublicKeyInfoDer<'_>> {
++        self.inner.public_key()
++    }
++
++    fn algorithm(&self) -> rustls::SignatureAlgorithm {
++        self.inner.algorithm()
++    }
++}
++
++fn certified_key(
++    certs: &[CertificateDer<'static>],
++    key: &PrivateKeyDer<'static>,
++    provider: &rustls::crypto::CryptoProvider,
++    allowed_schemes: Option<&[SignatureScheme]>,
++) -> Result<CertifiedKey, String> {
++    let mut certified = CertifiedKey::from_der(certs.to_vec(), key.clone_key(), provider)
++        .map_err(|error| format!("Failed to load certificate key: {error}"))?;
++    certified
++        .keys_match()
++        .map_err(|error| format!("Certificate/key mismatch: {error}"))?;
++    if let Some(allowed) = allowed_schemes {
++        certified.key = Arc::new(FilteredSigningKey {
++            inner: Arc::clone(&certified.key),
++            allowed: allowed.to_vec(),
++        });
++    }
++    Ok(certified)
++}
++
++const MAX_SESSION_HOSTS: usize = 256;
++const MAX_TLS13_TICKETS_PER_HOST: usize = 4;
++
++#[derive(Debug, Default)]
++struct HostSessions {
++    kx_hint: Option<NamedGroup>,
++    tls12: Option<(rustls::client::Tls12ClientSessionValue, Vec<Vec<u8>>)>,
++    tls13: VecDeque<(rustls::client::Tls13ClientSessionValue, Vec<Vec<u8>>)>,
++}
++
++#[derive(Debug, Default)]
++struct ContextSessionStore {
++    hosts: Mutex<HashMap<String, HostSessions>>,
++}
++
++impl ContextSessionStore {
++    fn get_or_insert<'a>(
++        hosts: &'a mut HashMap<String, HostSessions>,
++        server_name: &ServerName<'_>,
++    ) -> &'a mut HostSessions {
++        let key = server_name.to_str().to_string();
++        if !hosts.contains_key(&key) && hosts.len() >= MAX_SESSION_HOSTS {
++            if let Some(oldest) = hosts.keys().next().cloned() {
++                hosts.remove(&oldest);
++            }
++        }
++        hosts.entry(key).or_default()
++    }
++
++    fn captured_chain() -> Option<Vec<Vec<u8>>> {
++        crate::policy::capture_current_verified_chain().filter(|chain| !chain.is_empty())
++    }
++
++    fn restore_chain(chain: &[Vec<u8>]) -> bool {
++        crate::policy::restore_current_verified_chain(chain.to_vec())
++    }
++}
++
++impl ClientSessionStore for ContextSessionStore {
++    fn set_kx_hint(&self, server_name: ServerName<'static>, group: NamedGroup) {
++        let mut hosts = self.hosts.lock().unwrap();
++        Self::get_or_insert(&mut hosts, &server_name).kx_hint = Some(group);
++    }
++
++    fn kx_hint(&self, server_name: &ServerName<'_>) -> Option<NamedGroup> {
++        let name = server_name.to_str();
++        self.hosts
++            .lock()
++            .unwrap()
++            .get(name.as_ref())
++            .and_then(|host| host.kx_hint)
++    }
++
++    fn set_tls12_session(
++        &self,
++        server_name: ServerName<'static>,
++        value: rustls::client::Tls12ClientSessionValue,
++    ) {
++        let Some(chain) = Self::captured_chain() else {
++            return;
++        };
++        let mut hosts = self.hosts.lock().unwrap();
++        Self::get_or_insert(&mut hosts, &server_name).tls12 = Some((value, chain));
++    }
++
++    fn tls12_session(
++        &self,
++        server_name: &ServerName<'_>,
++    ) -> Option<rustls::client::Tls12ClientSessionValue> {
++        let name = server_name.to_str();
++        let hosts = self.hosts.lock().unwrap();
++        let (value, chain) = hosts.get(name.as_ref())?.tls12.as_ref()?;
++        Self::restore_chain(chain).then(|| value.clone())
++    }
++
++    fn remove_tls12_session(&self, server_name: &ServerName<'static>) {
++        let name = server_name.to_str();
++        if let Some(host) = self.hosts.lock().unwrap().get_mut(name.as_ref()) {
++            host.tls12 = None;
++        }
++    }
++
++    fn insert_tls13_ticket(
++        &self,
++        server_name: ServerName<'static>,
++        value: rustls::client::Tls13ClientSessionValue,
++    ) {
++        let Some(chain) = Self::captured_chain() else {
++            return;
++        };
++        let mut hosts = self.hosts.lock().unwrap();
++        let tickets = &mut Self::get_or_insert(&mut hosts, &server_name).tls13;
++        if tickets.len() == MAX_TLS13_TICKETS_PER_HOST {
++            tickets.pop_front();
++        }
++        tickets.push_back((value, chain));
++    }
++
++    fn take_tls13_ticket(
++        &self,
++        server_name: &ServerName<'static>,
++    ) -> Option<rustls::client::Tls13ClientSessionValue> {
++        let name = server_name.to_str();
++        let mut hosts = self.hosts.lock().unwrap();
++        let tickets = &mut hosts.get_mut(name.as_ref())?.tls13;
++        let chain = &tickets.back()?.1;
++        if !Self::restore_chain(chain) {
++            return None;
++        }
++        tickets.pop_back().map(|(value, _)| value)
++    }
++}
+@@ -105,0 +393,4 @@
++fn new_server_session_storage() -> Arc<dyn StoresServerSessions> {
++    ServerSessionMemoryCache::new(256)
++}
++
+@@ -120,0 +412,3 @@
++    groups: Option<Vec<NamedGroup>>,
++    client_sigalgs: Option<Vec<SignatureScheme>>,
++    server_sigalgs: Option<Vec<SignatureScheme>>,
+@@ -137,0 +432,3 @@
++    client_config: Mutex<Option<Arc<ClientConfig>>>,
++    client_sessions: Arc<ContextSessionStore>,
++    server_sessions: Arc<dyn StoresServerSessions>,
+@@ -150,0 +448,3 @@
++            groups: None,
++            client_sigalgs: None,
++            server_sigalgs: None,
+@@ -161,0 +462,3 @@
++            client_config: Mutex::new(None),
++            client_sessions: Arc::new(ContextSessionStore::default()),
++            server_sessions: new_server_session_storage(),
+@@ -174,0 +478 @@
++        self.invalidate_config();
+@@ -184 +488,2 @@
+-                let (rest, _) = X509Certificate::from_der(remaining).map_err(|e| format!("Invalid certificate DER: {e}"))?;
++                let (rest, _) = X509Certificate::from_der(remaining)
++                    .map_err(|e| format!("Invalid certificate DER: {e}"))?;
+@@ -186 +491,3 @@
+-                if consumed == 0 { return Err("Empty certificate DER".into()); }
++                if consumed == 0 {
++                    return Err("Empty certificate DER".into());
++                }
+@@ -191 +498,3 @@
+-            if certs.is_empty() { return Err("No certificates found in DER data".into()); }
++            if certs.is_empty() {
++                return Err("No certificates found in DER data".into());
++            }
+@@ -193 +502,2 @@
+-        }).map_err(|msg| raise_ssl_error(py, &msg))?;
++        })
++        .map_err(|msg| raise_ssl_error(py, &msg))?;
+@@ -195 +505,3 @@
+-            if !self.root_certs_der.contains(&cert) { self.root_certs_der.push(cert); }
++            if !self.root_certs_der.contains(&cert) {
++                self.root_certs_der.push(cert);
++            }
+@@ -197,0 +510 @@
++        self.invalidate_config();
+@@ -226,0 +540 @@
++                self.invalidate_config();
+@@ -258,0 +573 @@
++                self.invalidate_config();
+@@ -267,0 +583 @@
++        self.invalidate_config();
+@@ -271,0 +588 @@
++        self.invalidate_config();
+@@ -275,0 +593 @@
++        self.invalidate_config();
+@@ -280,0 +599 @@
++        self.invalidate_config();
+@@ -282,0 +602,46 @@
++    fn set_groups(&mut self, py: Python<'_>, names: &str) -> PyResult<()> {
++        self.groups = Some(parse_groups(names).map_err(|msg| raise_ssl_error(py, &msg))?);
++        self.invalidate_config();
++        Ok(())
++    }
++
++    #[pyo3(signature = (include_aliases=false))]
++    fn get_groups(&self, include_aliases: bool) -> Vec<String> {
++        let mut names = Vec::new();
++        for supported in PREFERRED_KX_GROUPS {
++            let group = supported.name();
++            if let Some(name) = group_iana_name(group) {
++                names.push(name.to_string());
++            }
++            if include_aliases {
++                names.extend(group_aliases(group).iter().map(|name| (*name).to_string()));
++            }
++        }
++        names
++    }
++
++    fn set_client_sigalgs(&mut self, py: Python<'_>, names: &str) -> PyResult<()> {
++        self.client_sigalgs = Some(
++            parse_signature_schemes(names).map_err(|msg| raise_ssl_error(py, &msg))?,
++        );
++        self.invalidate_config();
++        Ok(())
++    }
++
++    fn set_server_sigalgs(&mut self, py: Python<'_>, names: &str) -> PyResult<()> {
++        self.server_sigalgs = Some(
++            parse_signature_schemes(names).map_err(|msg| raise_ssl_error(py, &msg))?,
++        );
++        self.invalidate_config();
++        Ok(())
++    }
++
++    #[staticmethod]
++    fn supported_sigalgs() -> Vec<String> {
++        supported_signature_schemes()
++            .into_iter()
++            .filter_map(signature_scheme_name)
++            .map(str::to_string)
++            .collect()
++    }
++
+@@ -284,0 +650 @@
++        self.invalidate_config();
+@@ -288,0 +655 @@
++        self.invalidate_config();
+@@ -292,0 +660 @@
++        self.invalidate_config();
+@@ -299,0 +668 @@
++        self.invalidate_config();
+@@ -304,0 +674 @@
++        self.invalidate_config();
+@@ -308,0 +679 @@
++        self.invalidate_config();
+@@ -314,0 +686 @@
++        self.invalidate_config();
+@@ -344,0 +717,3 @@
++            groups: self.groups.clone(),
++            client_sigalgs: self.client_sigalgs.clone(),
++            server_sigalgs: self.server_sigalgs.clone(),
+@@ -355,0 +731,3 @@
++            client_config: Mutex::new(None),
++            client_sessions: Arc::new(ContextSessionStore::default()),
++            server_sessions: new_server_session_storage(),
+@@ -390,2 +768 @@
+-            let verified_chain = Arc::new(std::sync::Mutex::new(None));
+-            let config = builder.build_client_config_inner()?;
++            let config = builder.get_or_build_client_config()?;
+@@ -394,2 +771,3 @@
+-            let _capture = VerificationCapture::enter(verified_chain.clone());
+-            let conn = rustls::ClientConnection::new(Arc::new(config), sname)
++            let verified_chain: VerifiedChain = Arc::new(Mutex::new(None));
++            let capture = VerificationCapture::enter(Arc::clone(&verified_chain));
++            let conn = rustls::ClientConnection::new(config, sname)
+@@ -396,0 +775 @@
++            drop(capture);
+@@ -407 +785,0 @@
+-            let verified_chain = Arc::new(std::sync::Mutex::new(None));
+@@ -409 +787,2 @@
+-            let _capture = VerificationCapture::enter(verified_chain.clone());
++            let verified_chain: VerifiedChain = Arc::new(Mutex::new(None));
++            let capture = VerificationCapture::enter(Arc::clone(&verified_chain));
+@@ -411,0 +791 @@
++            drop(capture);
+@@ -419 +799,19 @@
+-    fn get_protocol_versions(&self) -> Vec<&'static rustls::SupportedProtocolVersion> {
++    fn invalidate_config(&mut self) {
++        *self.client_config.get_mut().unwrap() = None;
++        self.client_sessions = Arc::new(ContextSessionStore::default());
++        self.server_sessions = new_server_session_storage();
++    }
++
++    fn get_or_build_client_config(&self) -> Result<Arc<ClientConfig>, String> {
++        let mut cached = self.client_config.lock().unwrap();
++        if let Some(config) = cached.as_ref() {
++            return Ok(Arc::clone(config));
++        }
++        let config = Arc::new(self.build_client_config_inner()?);
++        *cached = Some(Arc::clone(&config));
++        Ok(config)
++    }
++
++    fn get_protocol_versions(
++        &self,
++    ) -> Result<Vec<&'static rustls::SupportedProtocolVersion>, String> {
+@@ -431,2 +829 @@
+-            // Fallback: at least allow TLS 1.2
+-            versions.push(&rustls::version::TLS12);
++            return Err("No supported TLS protocol versions selected".to_string());
+@@ -434 +831 @@
+-        versions
++        Ok(versions)
+@@ -437 +834 @@
+-    fn get_cipher_suites(&self) -> Vec<SupportedCipherSuite> {
++    fn get_cipher_suites(&self) -> Result<Vec<SupportedCipherSuite>, String> {
+@@ -449,17 +846,15 @@
+-            if !selected.is_empty() {
+-                // Match stdlib behavior: set_ciphers() only controls TLS 1.2
+-                // suites.  TLS 1.3 suites are always included (unless TLS 1.3
+-                // is explicitly disabled via max_version / OP_NO_TLSv1_3).
+-                let tls13_defaults: &[SupportedCipherSuite] = &[
+-                    cipher_suite::TLS13_AES_128_GCM_SHA256,
+-                    cipher_suite::TLS13_AES_256_GCM_SHA384,
+-                    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
+-                ];
+-                let mut with_tls13 = Vec::new();
+-                for &s in tls13_defaults {
+-                    if !selected
+-                        .iter()
+-                        .any(|existing| existing.suite() == s.suite())
+-                    {
+-                        with_tls13.push(s);
+-                    }
++            if selected.is_empty() {
++                return Err("No supported cipher suites selected".to_string());
++            }
++            let tls13_defaults: &[SupportedCipherSuite] = &[
++                cipher_suite::TLS13_AES_128_GCM_SHA256,
++                cipher_suite::TLS13_AES_256_GCM_SHA384,
++                cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
++            ];
++            let mut with_tls13 = Vec::new();
++            for &s in tls13_defaults {
++                if !selected
++                    .iter()
++                    .any(|existing| existing.suite() == s.suite())
++                {
++                    with_tls13.push(s);
+@@ -467,2 +861,0 @@
+-                with_tls13.extend(selected);
+-                return with_tls13;
+@@ -469,0 +863,2 @@
++            with_tls13.extend(selected);
++            return Ok(with_tls13);
+@@ -471,2 +866 @@
+-        // Default: Chrome-like cipher suite order (AES-128 before AES-256)
+-        PREFERRED_CIPHER_SUITES.to_vec()
++        Ok(PREFERRED_CIPHER_SUITES.to_vec())
+@@ -474,0 +869,16 @@
++    fn get_kx_groups(&self) -> Result<Vec<&'static dyn SupportedKxGroup>, String> {
++        let Some(groups) = self.groups.as_ref() else {
++            return Ok(PREFERRED_KX_GROUPS.to_vec());
++        };
++        groups
++            .iter()
++            .map(|group| {
++                PREFERRED_KX_GROUPS
++                    .iter()
++                    .find(|supported| supported.name() == *group)
++                    .copied()
++                    .ok_or_else(|| "Configured TLS group is unavailable".to_string())
++            })
++            .collect()
++    }
++
+@@ -495,2 +905,3 @@
+-        let versions = self.get_protocol_versions();
+-        let cipher_suites = self.get_cipher_suites();
++        let versions = self.get_protocol_versions()?;
++        let cipher_suites = self.get_cipher_suites()?;
++        let kx_groups = self.get_kx_groups()?;
+@@ -501 +912 @@
+-                kx_groups: PREFERRED_KX_GROUPS.to_vec(),
++                kx_groups: kx_groups.clone(),
+@@ -522,0 +934,5 @@
++        let server_sigalgs = self.server_sigalgs.clone().unwrap_or_else(|| {
++            provider
++                .signature_verification_algorithms
++                .supported_schemes()
++        });
+@@ -524 +940 @@
+-            apply_versions_or_ech!(provider)?
++            apply_versions_or_ech!(Arc::clone(&provider))?
+@@ -526 +942,4 @@
+-                .with_custom_certificate_verifier(Arc::new(NoVerifier::new(make_provider().signature_verification_algorithms, make_provider().signature_verification_algorithms.supported_schemes())))
++                .with_custom_certificate_verifier(Arc::new(NoVerifier::new(
++                    provider.signature_verification_algorithms,
++                    server_sigalgs.clone(),
++                )))
+@@ -530 +949 @@
+-                false, &provider, provider.signature_verification_algorithms.supported_schemes(),
++                false, &provider, server_sigalgs,
+@@ -532 +951 @@
+-            apply_versions_or_ech!(provider)?
++            apply_versions_or_ech!(Arc::clone(&provider))?
+@@ -537,9 +956,13 @@
+-        // Step 2: apply client auth → produces ClientConfig
+-        let mut config =
+-            if let (Some(certs), Some(key)) = (&self.client_cert_chain, &self.client_key) {
+-                wants_client_auth
+-                    .with_client_auth_cert(certs.clone(), key.clone_key())
+-                    .map_err(|e| format!("Failed to set client cert: {}", e))?
+-            } else {
+-                wants_client_auth.with_no_client_auth()
+-            };
++        let mut config = if let (Some(certs), Some(key)) =
++            (&self.client_cert_chain, &self.client_key)
++        {
++            let certified = certified_key(
++                certs,
++                key,
++                provider.as_ref(),
++                self.client_sigalgs.as_deref(),
++            )?;
++            wants_client_auth.with_client_cert_resolver(Arc::new(SingleCertAndKey::from(certified)))
++        } else {
++            wants_client_auth.with_no_client_auth()
++        };
+@@ -556,0 +980,2 @@
++        let session_store: Arc<dyn ClientSessionStore> = self.client_sessions.clone();
++        config.resumption = Resumption::store(session_store);
+@@ -563,2 +988,3 @@
+-        let versions = self.get_protocol_versions();
+-        let cipher_suites = self.get_cipher_suites();
++        let versions = self.get_protocol_versions()?;
++        let cipher_suites = self.get_cipher_suites()?;
++        let kx_groups = self.get_kx_groups()?;
+@@ -567,0 +994 @@
++            kx_groups,
+@@ -586,0 +1014,5 @@
++            let client_sigalgs = self.client_sigalgs.clone().unwrap_or_else(|| {
++                provider
++                    .signature_verification_algorithms
++                    .supported_schemes()
++            });
+@@ -589 +1021 @@
+-                self.verify_mode == CERT_OPTIONAL, &provider, provider.signature_verification_algorithms.supported_schemes(),
++                self.verify_mode == CERT_OPTIONAL, &provider, client_sigalgs,
+@@ -592,2 +1024,8 @@
+-        let mut config = builder.with_single_cert(certs.clone(), key.clone_key())
+-            .map_err(|e| format!("Failed to set server cert: {}", e))?;
++        let certified = certified_key(
++            certs,
++            key,
++            provider.as_ref(),
++            self.server_sigalgs.as_deref(),
++        )?;
++        let mut config = builder.with_cert_resolver(Arc::new(SingleCertAndKey::from(certified)));
++        config.session_storage = Arc::clone(&self.server_sessions);
+--- a/rust/src/connection.rs
++++ b/rust/src/connection.rs
+@@ -189,0 +190,10 @@
++    }
++
++    fn session_reused(&self, py: Python<'_>) -> bool {
++        let inner = &self.inner;
++        py.detach(|| {
++            matches!(
++                inner.lock().unwrap().conn.handshake_kind(),
++                Some(rustls::HandshakeKind::Resumed)
++            )
++        })
+@@ -565,0 +576,10 @@
++    fn session_reused(&self, py: Python<'_>) -> bool {
++        let inner = &self.inner;
++        py.detach(|| {
++            matches!(
++                inner.lock().unwrap().conn.handshake_kind(),
++                Some(rustls::HandshakeKind::Resumed)
++            )
++        })
++    }
++
+--- a/src/rtls/_context.py
++++ b/src/rtls/_context.py
+@@ -294,0 +295,9 @@
++
++    def set_groups(self, groups: str) -> None:
++        self._builder.set_groups(groups)
++
++    def get_groups(self, *, include_aliases: bool = False) -> list[str]:
++        return self._builder.get_groups(include_aliases)
++
++    def set_client_sigalgs(self, sigalgs: str) -> None:
++        self._builder.set_client_sigalgs(sigalgs)
+@@ -295,0 +305,3 @@
++    def set_server_sigalgs(self, sigalgs: str) -> None:
++        self._builder.set_server_sigalgs(sigalgs)
++
+--- a/src/rtls/__init__.py
++++ b/src/rtls/__init__.py
+@@ -152,0 +153,4 @@
++
++def get_sigalgs() -> list[str]:
++    return _rustls.RustlsConfigBuilder.supported_sigalgs()
++
+@@ -267,0 +272 @@
++    "get_sigalgs",
+--- a/src/rtls/_rustls.pyi
++++ b/src/rtls/_rustls.pyi
+@@ -24,0 +25,6 @@
++    def set_groups(self, names: str) -> None: ...
++    def get_groups(self, include_aliases: bool = False) -> list[str]: ...
++    def set_client_sigalgs(self, names: str) -> None: ...
++    def set_server_sigalgs(self, names: str) -> None: ...
++    @staticmethod
++    def supported_sigalgs() -> list[str]: ...
+--- a/tests/test_cpython_ssl.py
++++ b/tests/test_cpython_ssl.py
+@@ -11 +11 @@
+-  - Session-related features (session reuse) skipped (rustls doesn't expose sessions)
++  - Session objects are not exposed; context-managed resumption is tested
+@@ -719,0 +720,132 @@
++
++    def test_groups(self):
++        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++        self.assertNotIn("P-256", ctx.get_groups())
++        self.assertIn("P-256", ctx.get_groups(include_aliases=True))
++        self.assertIsNone(ctx.set_groups("P-256:P-384"))
++        self.assertIsNone(ctx.set_groups("P-256:?future_group"))
++        with self.assertRaises(ssl.SSLError):
++            ctx.set_groups("P-256:future_group")
++
++        client_context, server_context, hostname = testing_context()
++        client_context.minimum_version = ssl.TLSVersion.TLSv1_3
++        server_context.minimum_version = ssl.TLSVersion.TLSv1_3
++        server_context.set_groups("secp384r1")
++        server_params_test(
++            client_context,
++            server_context,
++            chatty=False,
++            sni_name=hostname,
++        )
++
++        client_context, server_context, hostname = testing_context()
++        client_context.minimum_version = ssl.TLSVersion.TLSv1_3
++        server_context.minimum_version = ssl.TLSVersion.TLSv1_3
++        client_context.set_groups("prime256v1")
++        server_context.set_groups("secp384r1")
++        with self.assertRaises(ssl.SSLError):
++            server_params_test(
++                client_context,
++                server_context,
++                chatty=False,
++                sni_name=hostname,
++            )
++
++    def test_get_sigalgs(self):
++        self.assertIn("rsa_pss_rsae_sha256", ssl.get_sigalgs())
++
++    def test_set_client_sigalgs(self):
++        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++        self.assertIsNone(ctx.set_client_sigalgs("rsa_pss_rsae_sha256"))
++        self.assertIsNone(
++            ctx.set_client_sigalgs("rsa_pss_rsae_sha256:?future_scheme")
++        )
++        with self.assertRaises(ssl.SSLError):
++            ctx.set_client_sigalgs("rsa_pss_rsae_sha256:future_scheme")
++
++        client_context, server_context, hostname = testing_context(
++            client_cert=SIGNED_CERTFILE
++        )
++        client_context.set_client_sigalgs("rsa_pss_rsae_sha384")
++        server_params_test(
++            client_context,
++            server_context,
++            chatty=False,
++            sni_name=hostname,
++        )
++
++    def test_client_sigalgs_mismatch(self):
++        client_context, server_context, hostname = testing_context(
++            client_cert=SIGNED_CERTFILE
++        )
++        client_context.set_client_sigalgs("rsa_pss_rsae_sha256")
++        server_context.set_client_sigalgs("rsa_pss_rsae_sha384")
++        with self.assertRaises(ssl.SSLError):
++            server_params_test(
++                client_context,
++                server_context,
++                chatty=False,
++                sni_name=hostname,
++            )
++
++    def test_set_server_sigalgs(self):
++        sigalg = "rsa_pss_rsae_sha384"
++        client_context, server_context, hostname = testing_context()
++        server_context.set_server_sigalgs(sigalg)
++        server_params_test(
++            client_context,
++            server_context,
++            chatty=False,
++            sni_name=hostname,
++        )
++
++        client_context, server_context, hostname = testing_context()
++        client_context.set_server_sigalgs(sigalg)
++        server_params_test(
++            client_context,
++            server_context,
++            chatty=False,
++            sni_name=hostname,
++        )
++
++    def test_server_sigalgs_mismatch(self):
++        client_context, server_context, hostname = testing_context()
++        client_context.set_server_sigalgs("rsa_pss_rsae_sha256")
++        server_context.set_server_sigalgs("rsa_pss_rsae_sha384")
++        with self.assertRaises(ssl.SSLError):
++            server_params_test(
++                client_context,
++                server_context,
++                chatty=False,
++                sni_name=hostname,
++            )
++
++    def test_session_resumption(self):
++        for version in (ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3):
++            with self.subTest(version=version):
++                client_context, server_context, hostname = testing_context()
++                client_context.minimum_version = version
++                client_context.maximum_version = version
++                server_context.minimum_version = version
++                server_context.maximum_version = version
++                server = ThreadedEchoServer(context=server_context, chatty=False)
++                reused = []
++                chains = []
++                with server:
++                    for _ in range(2):
++                        with client_context.wrap_socket(
++                            socket.socket(), server_hostname=hostname
++                        ) as sock:
++                            sock.connect((HOST, server.port))
++                            reused.append(sock._sslobj.session_reused)
++                            chain = sock.get_verified_chain()
++                            self.assertIsNotNone(chain)
++                            chains.append(
++                                tuple(cert.public_bytes() for cert in chain)
++                            )
++                            sock.sendall(b"ping\n")
++                            self.assertEqual(sock.recv(1024), b"ping\n")
++                            sock.sendall(b"over\n")
++                self.assertEqual(reused, [False, True])
++                self.assertEqual(chains[0], chains[1])
++                self.assertGreater(len(chains[0]), 1)
+@@ -720,0 +853,16 @@
++    def test_invalid_protocol_and_cipher_configuration(self):
++        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++        context.minimum_version = ssl.TLSVersion.TLSv1_3
++        context.maximum_version = ssl.TLSVersion.TLSv1_2
++        with self.assertRaisesRegex(
++            ssl.SSLError, "No supported TLS protocol versions selected"
++        ):
++            context._get_builder().build_client_connection("localhost")
++
++        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++        context._get_builder().set_cipher_suites([])
++        with self.assertRaisesRegex(
++            ssl.SSLError, "No supported cipher suites selected"
++        ):
++            context._get_builder().build_client_connection("localhost")
++
