@@ -5,6 +5,7 @@ import ssl
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -197,6 +198,28 @@ class SSLUtilitiesContract(unittest.TestCase):
             with self.assertRaises(ssl.SSLError) as raised:
                 ssl._ssl._test_decode_cert(str(root / "missing.pem"))
             self.assertEqual(raised.exception.args, ("Can't open file",))
+
+
+@unittest.skipUnless(getattr(ssl._ssl, "_RUSTLS_BACKEND", False), "injects failures into the experimental provider")
+class RandomProviderFailureTests(unittest.TestCase):
+    def test_unavailable_provider_is_not_reported_ready(self):
+        from rtls import _rustls
+
+        failure = ssl.SSLError(1, "random generation failed")
+        with mock.patch.object(_rustls, "rand_bytes", side_effect=failure):
+            self.assertIs(ssl.RAND_status(), False)
+            with self.assertRaises(ssl.SSLError) as raised:
+                ssl.RAND_bytes(1)
+            self.assertIs(raised.exception, failure)
+
+    def test_missing_backend_is_not_replaced(self):
+        from rtls import _rustls
+
+        with mock.patch.object(_rustls, "rand_bytes", side_effect=ImportError("missing backend")):
+            with self.assertRaisesRegex(ImportError, "missing backend"):
+                ssl.RAND_bytes(1)
+            with self.assertRaisesRegex(ImportError, "missing backend"):
+                ssl.RAND_status()
 
 
 if __name__ == "__main__":

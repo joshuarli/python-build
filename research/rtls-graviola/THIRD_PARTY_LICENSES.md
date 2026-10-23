@@ -43,3 +43,11 @@ The x509-parser verification feature exercises the already locked Ring package
 for RSA/SHA1 self-signatures when classifying implicit trust anchors. It adds a
 dependency edge without adding a package version. SHA1 remains unavailable for
 leaf, intermediate, and TLS signature verification.
+
+The modern private-key policy removes the direct `md-5`, `des`, `aes`, `cbc`,
+`cipher`, and `base64ct` dependencies and the PKCS#8 `3des` feature. The
+`md-5` 0.10.6 and `des` 0.8.1 packages leave the resolved TLS dependency
+closure. AES, CBC, cipher, and base64ct remain transitive dependencies of
+modern PKCS#8 parsing and PBES2 encryption. No package versions or new
+licenses are added by this removal. The separate hashing backend and
+trusted-root SHA1 classification are unchanged.

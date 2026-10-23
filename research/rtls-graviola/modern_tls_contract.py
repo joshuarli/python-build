@@ -33,7 +33,7 @@ MODERN_TLS13_CIPHERS = {
     "TLS_CHACHA20_POLY1305_SHA256",
 }
 MODERN_GROUPS = {
-    "x25519_mlkem768",
+    "X25519MLKEM768",
     "x25519",
     "secp256r1",
     "secp384r1",
@@ -62,6 +62,14 @@ POSITIVE_CASES = (
         "version": "TLSv1_3",
         "expected_version": "TLSv1.3",
         "allowed_ciphers": MODERN_TLS13_CIPHERS,
+    },
+    {
+        "name": "verified_tls13_hybrid",
+        "version": "TLSv1_3",
+        "expected_version": "TLSv1.3",
+        "allowed_ciphers": MODERN_TLS13_CIPHERS,
+        "groups": "X25519MLKEM768",
+        "expected_group": "X25519MLKEM768",
     },
 )
 
@@ -142,6 +150,7 @@ def _session_value(connection: Any) -> dict[str, Any]:
         "version": connection.version(),
         "cipher": cipher[0] if cipher else None,
         "server_sigalg": server_sigalg,
+        "group": connection.group(),
     }
 
 
@@ -161,6 +170,8 @@ def _reference_server(config: dict[str, Any]) -> int:
             _version_bounds(context, config["version"])
             if config.get("cipher"):
                 context.set_ciphers(config["cipher"])
+            if config.get("groups"):
+                context.set_groups(config["groups"])
             if config.get("server_sigalgs"):
                 context.set_server_sigalgs(config["server_sigalgs"])
             if config.get("dh_params"):
@@ -600,6 +611,7 @@ def _server_config(case: dict[str, Any], certdata: Path, timeout: float) -> dict
         "version": case["version"],
         "cipher": case.get("cipher"),
         "server_sigalgs": case.get("server_sigalgs"),
+        "groups": case.get("groups"),
         "dh_params": str(certdata / case["dh_params"]) if case.get("dh_params") else None,
         "certificate": str(certdata / SERVER_CERT),
         "timeout": timeout,
@@ -695,6 +707,9 @@ def _check_positive(
         return False, "reference server reported unexpected protocol " + str(server.get("version"))
     if server.get("cipher") != client.get("cipher"):
         return False, "candidate and reference server disagree on the negotiated cipher"
+    if case.get("expected_group"):
+        if client.get("group") != case["expected_group"] or server.get("group") != case["expected_group"]:
+            return False, "candidate and reference did not negotiate the required group"
     return True, "verified candidate handshake negotiated the expected modern protocol"
 
 
@@ -719,6 +734,8 @@ def _run_contract(reference: Path, certdata: Path, timeout: float) -> dict[str, 
             candidate_context = context
         else:
             candidate_context = _candidate_context(cafile, case["version"])
+        if case.get("groups"):
+            candidate_context.set_groups(case["groups"])
         server = _server_config(case, certdata, timeout)
         exchange = _candidate_exchange(candidate_context, reference, server, timeout)
         passed, detail = _check_positive(exchange, case)

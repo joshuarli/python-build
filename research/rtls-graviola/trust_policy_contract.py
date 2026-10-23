@@ -390,6 +390,128 @@ class TrustPolicyContract(unittest.TestCase):
                 context.load_verify_locations(cafile=str(cafile), cadata=b"invalid DER")
         self.assertEqual(context.get_ca_certs(binary_form=True), before)
 
+    def test_password_callback_failure_preserves_loaded_server_certificate(self) -> None:
+        import socket
+
+        server_context = self.ssl.SSLContext(self.ssl.PROTOCOL_TLS_SERVER)
+        server_context.load_cert_chain(str(CERTDATA / "keycert3.pem"))
+        failure = RuntimeError("password callback failed")
+
+        def password_callback():
+            raise failure
+
+        with self.assertRaises(RuntimeError) as caught:
+            server_context.load_cert_chain(
+                str(CERTDATA / "keycert.passwd.pem"),
+                password=password_callback,
+            )
+        self.assertIs(caught.exception, failure)
+
+        client_context = self.ssl.SSLContext(self.ssl.PROTOCOL_TLS_CLIENT)
+        client_context.check_hostname = False
+        client_context.verify_mode = self.ssl.CERT_NONE
+        client_raw, server_raw = socket.socketpair()
+        try:
+            client_raw.settimeout(5)
+            server_raw.settimeout(5)
+            client = None
+            server = None
+            try:
+                client = client_context.wrap_socket(
+                    client_raw,
+                    server_hostname="localhost",
+                    do_handshake_on_connect=False,
+                )
+                server = server_context.wrap_socket(
+                    server_raw,
+                    server_side=True,
+                    do_handshake_on_connect=False,
+                )
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    client_handshake = executor.submit(client.do_handshake)
+                    server_handshake = executor.submit(server.do_handshake)
+                    client_handshake.result(timeout=10)
+                    server_handshake.result(timeout=10)
+            finally:
+                if client is not None:
+                    client.close()
+                if server is not None:
+                    server.close()
+        finally:
+            client_raw.close()
+            server_raw.close()
+
+    def test_sslobject_subclass_methods_forward_through_class_api(self) -> None:
+        class RecordingSSLObject(self.ssl.SSLObject):
+            def read(self, len=1024, buffer=None):
+                self.read_calls += 1
+                return super().read(len, buffer)
+
+            def write(self, data):
+                self.write_calls += 1
+                return super().write(data)
+
+        client_context = self.ssl.SSLContext(self.ssl.PROTOCOL_TLS_CLIENT)
+        client_context.check_hostname = False
+        client_context.verify_mode = self.ssl.CERT_NONE
+        client_context.sslobject_class = RecordingSSLObject
+        server_context = self.ssl.SSLContext(self.ssl.PROTOCOL_TLS_SERVER)
+        server_context.load_cert_chain(str(CERTDATA / "keycert3.pem"))
+        server_context.sslobject_class = RecordingSSLObject
+
+        client_in, client_out = self.ssl.MemoryBIO(), self.ssl.MemoryBIO()
+        server_in, server_out = self.ssl.MemoryBIO(), self.ssl.MemoryBIO()
+        client = client_context.wrap_bio(
+            client_in,
+            client_out,
+            server_hostname="localhost",
+        )
+        server = server_context.wrap_bio(
+            server_in,
+            server_out,
+            server_side=True,
+        )
+        client.read_calls = client.write_calls = 0
+        server.read_calls = server.write_calls = 0
+
+        complete = [False, False]
+        endpoints = (
+            (client, client_out, server_in),
+            (server, server_out, client_in),
+        )
+        for _ in range(20):
+            for index, (endpoint, outgoing, incoming) in enumerate(endpoints):
+                if not complete[index]:
+                    try:
+                        endpoint.do_handshake()
+                    except (self.ssl.SSLWantReadError, self.ssl.SSLWantWriteError):
+                        pass
+                    else:
+                        complete[index] = True
+                data = outgoing.read()
+                if data:
+                    incoming.write(data)
+            if all(complete):
+                break
+        self.assertEqual(complete, [True, True])
+        self.assertIs(client.context, client_context)
+        self.assertIs(server.context, server_context)
+        self.assertIs(client.server_side, False)
+        self.assertIs(server.server_side, True)
+        self.assertEqual(client.server_hostname, "localhost")
+        self.assertIsNone(server.server_hostname)
+        self.assertIsInstance(client.session, (self.ssl.SSLSession, type(None)))
+
+        self.assertEqual(client.write(b"first"), 5)
+        self.assertEqual(client.write_calls, 1)
+        server_in.write(client_out.read())
+        self.assertEqual(server.read(5), b"first")
+        self.assertEqual(server.read_calls, 1)
+
+        self.assertEqual(self.ssl.SSLObject.write(client, b"second"), 6)
+        server_in.write(client_out.read())
+        self.assertEqual(self.ssl.SSLObject.read(server, 6), b"second")
+
     def test_default_client_flags_include_trusted_first(self) -> None:
         context = self.ssl.create_default_context()
         self.assertTrue(

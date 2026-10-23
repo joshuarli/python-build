@@ -76,6 +76,52 @@ class PEMBoundaryContract(unittest.TestCase):
         path = self.write("unused-key.pem", contents)
         ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(self.chain, path)
 
+    def test_password_callback_uses_selected_key_only(self):
+        protected = (CERTDATA / "keycert.passwd.pem").read_bytes()
+        key_start = protected.find(b"-----BEGIN ENCRYPTED PRIVATE KEY-----")
+        self.assertGreaterEqual(key_start, 0)
+        encrypted_key = protected[key_start:]
+        calls = []
+
+        def unexpected_password():
+            calls.append(True)
+            raise AssertionError("the selected private key is unencrypted")
+
+        cases = (
+            self.chain.read_bytes() + b"\n" + encrypted_key,
+            b"ENCRYPTED PRIVATE KEY\n" + self.chain.read_bytes(),
+        )
+        for index, contents in enumerate(cases):
+            with self.subTest(index=index):
+                path = self.write(f"selected-key-{index}.pem", contents)
+                ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(
+                    path,
+                    password=unexpected_password,
+                )
+                self.assertEqual(calls, [])
+
+    def test_invalid_certificate_precedes_password_callback(self):
+        protected = (CERTDATA / "keycert.passwd.pem").read_bytes()
+        key_start = protected.find(b"-----BEGIN ENCRYPTED PRIVATE KEY-----")
+        self.assertGreaterEqual(key_start, 0)
+        contents = (
+            b"-----BEGIN CERTIFICATE-----\n@@@\n-----END CERTIFICATE-----\n"
+            + protected[key_start:]
+        )
+        path = self.write("invalid-cert-encrypted-key.pem", contents)
+        calls = []
+
+        def password():
+            calls.append(True)
+            return "somepass"
+
+        with self.assertRaises(ssl.SSLError):
+            ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(
+                path,
+                password=password,
+            )
+        self.assertEqual(calls, [])
+
     def test_footer_whitespace_and_surrounding_text(self):
         for suffix in (" \t", "\v", "\f"):
             with self.subTest(suffix=suffix):

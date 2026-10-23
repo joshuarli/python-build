@@ -101,24 +101,29 @@ A preceding run had one additional process-pool failure; its isolated rerun
 and the complete replay passed that file, without erasing the initial failure.
 
 The combined development backend's complete `test_ssl` run executes 219 tests:
-25 failures, 15 errors, and 37 skips. This improves on the preceding checkpoint
-but remains a qualification failure. Remaining cases include actionable socket,
-constructor, context, and error behavior, deliberately unsupported features,
-and tests whose OpenSSL version guards select an inappropriate branch for
-rustls. The interpreter reports its real backend identity; it does not claim an
-OpenSSL version to bypass those guards.
-A subsequent socket repair rejects queued pre-handshake bytes when a reset
-connection appears unconnected. Both original client/server regression cases
-complete their data, error-reason, and library assertions when the upstream
-Darwin skip helper is bypassed; the ordinary run skips after its initial
-security checks. The full-suite counts above precede that repair.
+11 failures, six errors, and 39 skips. The remaining failures concern OpenSSL
+identity/version guards, private C type behavior, retired DH/renegotiation,
+OpenSSL option/entropy controls, and unsupported proxy-certificate flags.
+Required modern socket, constructor, context, callback, and session cases no
+longer fail in that run. The raw upstream result remains a failure and must be
+reported alongside the modern support policy.
+
+Both reset-socket regressions execute their full data/error assertions in the
+direct contract. The generic audit-open regression also passes after the retired
+DH entrypoint explicitly reports `NotImplementedError`, allowing the upstream
+build-without-DH branch to exercise every other open-audit assertion.
 
 The combined source passes the 82-case certificate corpus, 12 isolated strict
-error-code gates, and 14 trust-source cases. Actual TLS message callbacks and
+error-code gates, and 16 trust-source/ownership cases. Ten PEM-boundary cases
+cover first-key selection and password callback ordering. The failed-load
+identity guarantee is intentionally stronger than the reference context, which
+can become unusable after a callback failure. Actual TLS message callbacks and
 signature metadata pass their direct contracts. The upstream debug callback
 class executes six tests with one additional skip. FTP, POP, HTTP server,
 hashing, and HMAC suites execute 513 tests with 23 skips and no failures.
-Direct external HTTPS also succeeds using all 120 roots from the pinned Mozilla
+Three modern peer cases include forced X25519MLKEM768 interoperability with
+the pinned OpenSSL reference. Six retired reference-negotiated features are
+rejected without certificate failures or timeouts. Direct external HTTPS also succeeds using all 120 roots from the pinned Mozilla
 bundle, through both a verified TLS 1.3 socket and `urllib` without proxy use.
 These checks ran on the development prefix; final archive qualification remains
 outstanding.
@@ -131,6 +136,10 @@ workers, and cleanup after injected allocation and interruption failures.
 Hashing uses per-interpreter CPython C API state. The preceding PyO3 import
 restriction is repaired; final combined archive regression testing remains
 outstanding.
+
+A fresh OpenSSL-free PGO base has completed the locked 43-file profile task:
+10,590 tests, 263 skips, and success, followed by its optimized ThinLTO rebuild.
+Final modern overlay and extracted-archive qualification remain outstanding.
 
 No macOS 26 runtime or Linux qualification is claimed. No clean build-time,
 peak-memory, stripped-size, or compressed-artifact comparison is complete.

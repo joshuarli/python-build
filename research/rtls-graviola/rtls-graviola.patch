@@ -116,7 +116,21 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  ]
  
  [[package]]
-@@ -228,9 +221,19 @@
+@@ -214,23 +207,24 @@
+ checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
+ 
+ [[package]]
+-name = "des"
+-version = "0.8.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ffdd80ce8ce993de27e9f063a444a4d53ce8e8db4c1f00cc03af5ad5a9867a1e"
+-dependencies = [
+- "cipher",
+-]
+-
+-[[package]]
+ name = "digest"
+ version = "0.10.7"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
  dependencies = [
@@ -138,7 +152,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  ]
  
  [[package]]
-@@ -245,22 +248,10 @@
+@@ -245,22 +239,10 @@
  ]
  
  [[package]]
@@ -161,7 +175,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  
  [[package]]
  name = "generic-array"
-@@ -285,13 +276,24 @@
+@@ -285,13 +267,24 @@
  
  [[package]]
  name = "getrandom"
@@ -189,7 +203,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  ]
  
  [[package]]
-@@ -306,7 +308,16 @@
+@@ -306,7 +299,16 @@
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
  dependencies = [
@@ -207,7 +221,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  ]
  
  [[package]]
-@@ -320,16 +331,6 @@
+@@ -320,16 +322,6 @@
  ]
  
  [[package]]
@@ -224,16 +238,24 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  name = "lazy_static"
  version = "1.5.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
-@@ -348,7 +349,7 @@
- checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
- dependencies = [
-  "cfg-if",
-- "digest",
-+ "digest 0.10.7",
- ]
+@@ -342,16 +334,6 @@
+ checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
  
  [[package]]
-@@ -428,7 +429,7 @@
+-name = "md-5"
+-version = "0.10.6"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+-dependencies = [
+- "cfg-if",
+- "digest",
+-]
+-
+-[[package]]
+ name = "memchr"
+ version = "2.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -428,7 +410,7 @@
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
  dependencies = [
@@ -242,20 +264,28 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
   "hmac",
  ]
  
-@@ -470,12 +471,6 @@
+@@ -450,7 +432,6 @@
+  "aes",
+  "cbc",
+  "der",
+- "des",
+  "pbkdf2",
+  "scrypt",
+  "sha2",
+@@ -468,12 +449,6 @@
+  "rand_core",
+  "spki",
  ]
- 
- [[package]]
+-
+-[[package]]
 -name = "pkg-config"
 -version = "0.3.34"
 -source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
--
--[[package]]
+ 
+ [[package]]
  name = "portable-atomic"
- version = "1.15.0"
- source = "registry+https://github.com/rust-lang/crates.io-index"
-@@ -565,9 +560,9 @@
+@@ -565,9 +540,9 @@
  
  [[package]]
  name = "r-efi"
@@ -268,7 +298,17 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  
  [[package]]
  name = "rand_core"
-@@ -603,8 +598,11 @@
+@@ -593,18 +568,15 @@
+ name = "rtls"
+ version = "2026.10.3"
+ dependencies = [
+- "aes",
+- "base64ct",
+- "cbc",
+- "cipher",
+- "des",
+- "md-5",
+  "pem-rfc7468",
   "pkcs8",
   "pyo3",
   "rustls",
@@ -280,7 +320,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
   "x509-parser",
  ]
  
-@@ -620,10 +618,7 @@
+@@ -620,10 +592,7 @@
  [[package]]
  name = "rustls"
  version = "0.23.45"
@@ -292,7 +332,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
   "once_cell",
   "ring",
   "rustls-pki-types",
-@@ -633,6 +628,16 @@
+@@ -633,6 +602,16 @@
  ]
  
  [[package]]
@@ -309,7 +349,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  name = "rustls-pemfile"
  version = "2.2.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
-@@ -653,10 +658,7 @@
+@@ -653,10 +632,7 @@
  [[package]]
  name = "rustls-webpki"
  version = "0.103.15"
@@ -321,7 +361,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
   "ring",
   "rustls-pki-types",
   "untrusted",
-@@ -703,14 +705,25 @@
+@@ -703,14 +679,25 @@
  ]
  
  [[package]]
@@ -349,7 +389,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  ]
  
  [[package]]
-@@ -853,6 +866,15 @@
+@@ -853,6 +840,15 @@
  version = "0.11.1+wasi-snapshot-preview1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
@@ -365,7 +405,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  
  [[package]]
  name = "windows-sys"
-@@ -928,6 +950,12 @@
+@@ -928,6 +924,12 @@
  checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
  
  [[package]]
@@ -378,7 +418,7 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
  name = "x509-parser"
  version = "0.16.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
-@@ -939,6 +967,7 @@
+@@ -939,6 +941,7 @@
   "lazy_static",
   "nom",
   "oid-registry",
@@ -389,19 +429,27 @@ diff --git a/rust/Cargo.lock b/rust/Cargo.lock
 diff --git a/rust/Cargo.toml b/rust/Cargo.toml
 --- a/rust/Cargo.toml
 +++ b/rust/Cargo.toml
-@@ -16,8 +16,10 @@
+@@ -16,23 +16,19 @@
  pyo3 = { version = "0.28.2", features = ["extension-module", "abi3-py37"] }
  rustls = { version = "0.23", default-features = false, features = ["tls12", "std"] }
  rustls-pemfile = "2"
 +webpki = { package = "rustls-webpki", version = "=0.103.15", default-features = false, features = ["std"] }
  rustls-pki-types = "1"
 -x509-parser = "0.16"
+-pkcs8 = { version = "0.10", features = ["encryption", "pem", "std", "3des"] }
 +x509-parser = { version = "0.16", features = ["verify"] }
 +sha1 = { version = "0.11.0", default-features = false }
- pkcs8 = { version = "0.10", features = ["encryption", "pem", "std", "3des"] }
++pkcs8 = { version = "0.10", features = ["encryption", "pem", "std"] }
  pem-rfc7468 = { version = "0.7", features = ["alloc"] }
- # For traditional OpenSSL encrypted PEM key decryption (Proc-Type/DEK-Info)
-@@ -32,7 +34,8 @@
+-# For traditional OpenSSL encrypted PEM key decryption (Proc-Type/DEK-Info)
+-md-5 = "0.10"
+-aes = "0.8"
+-cbc = "0.1"
+-des = "0.8"
+-cipher = { version = "0.4", features = ["block-padding"] }
+-base64ct = { version = "1", features = ["alloc"] }
+ 
+ [target.'cfg(target_os = "wasi")'.dependencies]
  rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
  
  [target.'cfg(not(target_os = "wasi"))'.dependencies]
@@ -411,7 +459,7 @@ diff --git a/rust/Cargo.toml b/rust/Cargo.toml
  
  [package.metadata.maturin]
  python-source = "rtls"
-@@ -43,3 +46,7 @@
+@@ -43,3 +39,7 @@
  lto = true
  codegen-units = 1
  strip = "symbols"
@@ -737,7 +785,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
  ];
  
  /// Preferred key exchange group order.
-@@ -71,177 +102,622 @@
+@@ -71,177 +102,618 @@
  /// NIST curves.  Placing MLKEM first also means rustls will include a
  /// key share for it in the initial ClientHello.
  #[cfg(not(target_os = "wasi"))]
@@ -820,7 +868,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +            Some(NamedGroup::secp256r1)
 +        }
 +        "secp384r1" | "p-384" | "nistp384" => Some(NamedGroup::secp384r1),
-+        "x25519mlkem768" | "x25519_mlkem768" => Some(NamedGroup::X25519MLKEM768),
++        "x25519mlkem768" => Some(NamedGroup::X25519MLKEM768),
 +        _ => None,
 +    }
 +}
@@ -830,7 +878,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +        NamedGroup::X25519 => Some("x25519"),
 +        NamedGroup::secp256r1 => Some("secp256r1"),
 +        NamedGroup::secp384r1 => Some("secp384r1"),
-+        NamedGroup::X25519MLKEM768 => Some("x25519_mlkem768"),
++        NamedGroup::X25519MLKEM768 => Some("X25519MLKEM768"),
 +        _ => None,
 +    }
 +}
@@ -840,7 +888,6 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +        NamedGroup::secp256r1 => &["P-256", "prime256v1", "NISTP256"],
 +        NamedGroup::secp384r1 => &["P-384", "NISTP384"],
 +        NamedGroup::X25519 => &["X25519"],
-+        NamedGroup::X25519MLKEM768 => &["X25519MLKEM768"],
 +        _ => &[],
 +    }
 +}
@@ -866,9 +913,6 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
 +            None if optional => {}
 +            None => return Err(format!("Unsupported TLS group: {name}")),
 +        }
-+    }
-+    if groups.is_empty() {
-+        return Err("No supported TLS groups selected".to_string());
 +    }
 +    Ok(groups)
 +}
@@ -1481,7 +1525,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          Ok(())
      }
  
-@@ -258,14 +734,12 @@
+@@ -258,14 +730,12 @@
      ) -> PyResult<()> {
          let result = py.detach(
              || -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
@@ -1502,7 +1546,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
                  Ok((certs, key))
              },
          );
-@@ -273,6 +747,7 @@
+@@ -273,6 +743,7 @@
              Ok((certs, key)) => {
                  self.client_cert_chain = Some(certs);
                  self.client_key = Some(key);
@@ -1510,7 +1554,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
                  Ok(())
              }
              Err(msg) => Err(raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg))),
-@@ -291,22 +766,20 @@
+@@ -291,22 +762,20 @@
          password: Option<&[u8]>,
      ) -> PyResult<()> {
          let result = py.detach(
@@ -1544,7 +1588,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
                  Ok(())
              }
              Err(msg) => Err(raise_ssl_error(py, &format!("[SSL] PEM lib ({})", msg))),
-@@ -316,45 +789,179 @@
+@@ -316,45 +785,179 @@
      /// Set ALPN protocol list.
      fn set_alpn(&mut self, protocols: Vec<Vec<u8>>) {
          self.alpn_protocols = protocols;
@@ -1731,7 +1775,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      }
  
      /// Check if ECH is configured.
-@@ -367,87 +974,353 @@
+@@ -367,87 +970,353 @@
      /// per-connection clone without mutating the shared (cached) context.
      /// GIL is released during the deep copy of root store, keys, and certs.
      fn clone_builder(&self, py: Python<'_>) -> RustlsConfigBuilder {
@@ -2146,7 +2190,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          let mut versions = Vec::new();
          let min = self.min_version.unwrap_or(TLS_V1_2);
          let max = self.max_version.unwrap_or(TLS_V1_3);
-@@ -459,88 +1332,87 @@
+@@ -459,88 +1328,87 @@
              versions.push(&rustls::version::TLS13);
          }
          if versions.is_empty() {
@@ -2313,7 +2357,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
      }
  
      #[cfg(target_os = "wasi")]
-@@ -555,47 +1427,20 @@
+@@ -555,47 +1423,20 @@
      /// Returns Result<ClientConfig, String> so errors can be converted to
      /// Python exceptions after re-acquiring the GIL.
      fn build_client_config_inner(&self) -> Result<ClientConfig, String> {
@@ -2366,7 +2410,7 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          macro_rules! apply_versions_or_ech {
              ($provider:expr) => {
                  if let Some(mode) = ech_mode.clone() {
-@@ -610,110 +1455,133 @@
+@@ -610,402 +1451,215 @@
              };
          }
  
@@ -2578,18 +2622,363 @@ diff --git a/rust/src/config.rs b/rust/src/config.rs
          }
  
          Ok(config)
-@@ -733,6 +1601,7 @@
+     }
+ }
+ 
+-/// Load a private key from PEM data. Tries PKCS#8, then RSA PKCS#1, then SEC1 (EC).
+-///
+-/// Handles three encrypted key formats:
+-/// 1. PKCS#8 encrypted (`BEGIN ENCRYPTED PRIVATE KEY`) — decrypted via the `pkcs8` crate.
+-/// 2. Traditional OpenSSL encrypted (`Proc-Type: 4,ENCRYPTED` + `DEK-Info`) — decrypted
+-///    using EVP_BytesToKey-style key derivation with AES-128/256-CBC, DES-EDE3-CBC, or DES-CBC.
+-/// 3. Plaintext PEM keys — parsed directly via `rustls_pemfile`.
+-///
+-/// Pure Rust — no GIL needed (called from within allow_threads blocks).
+ fn load_private_key(
      pem_data: &[u8],
      password: Option<&[u8]>,
  ) -> Result<PrivateKeyDer<'static>, String> {
+-    // Case 1: PKCS#8 encrypted key (BEGIN ENCRYPTED PRIVATE KEY).
+-    if pem_data
+-        .windows(b"ENCRYPTED PRIVATE KEY".len())
+-        .any(|w| w == b"ENCRYPTED PRIVATE KEY")
+-    {
+-        let password = password
+-            .ok_or_else(|| "Private key is encrypted but no password was provided".to_string())?;
+-
+-        let pem_str = std::str::from_utf8(pem_data)
+-            .map_err(|e| format!("PEM data is not valid UTF-8: {}", e))?;
+-
+-        let begin_marker = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
+-        let end_marker = "-----END ENCRYPTED PRIVATE KEY-----";
+-
+-        let start = pem_str
+-            .find(begin_marker)
+-            .ok_or_else(|| "Could not find ENCRYPTED PRIVATE KEY block".to_string())?;
+-        let end = pem_str[start..]
+-            .find(end_marker)
+-            .ok_or_else(|| "Could not find end of ENCRYPTED PRIVATE KEY block".to_string())?;
+-        let key_pem = &pem_str[start..start + end + end_marker.len()];
+-
+-        let (_, der_bytes) = pem_rfc7468::decode_vec(key_pem.as_bytes())
+-            .map_err(|e| format!("Failed to decode encrypted key PEM: {}", e))?;
+-
+-        let enc_pk_info = pkcs8::EncryptedPrivateKeyInfo::try_from(der_bytes.as_slice())
+-            .map_err(|e| format!("Failed to parse encrypted PKCS#8 DER: {}", e))?;
+-
+-        let secret_doc = enc_pk_info
+-            .decrypt(password)
+-            .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
+-
+-        let decrypted_der = secret_doc.as_bytes().to_vec();
+-
 +    let pem_data = crate::policy::private_key_pem(pem_data)?;
-     // Case 1: PKCS#8 encrypted key (BEGIN ENCRYPTED PRIVATE KEY).
-     if pem_data
-         .windows(b"ENCRYPTED PRIVATE KEY".len())
-@@ -1009,3 +1878,7 @@
++    if selected_key_is_encrypted(pem_data)? {
++        let (_, der) = pem_rfc7468::decode_vec(pem_data)
++            .map_err(|error| format!("Invalid encrypted private key PEM: {error}"))?;
++        let info = pkcs8::EncryptedPrivateKeyInfo::try_from(der.as_slice())
++            .map_err(|error| format!("Invalid encrypted PKCS#8: {error}"))?;
++        validate_key_encryption(&info.encryption_algorithm)?;
++        let password = password.ok_or_else(|| "Private key is encrypted but no password was provided".to_string())?;
++        let secret = info.decrypt(password)
++            .map_err(|error| format!("Failed to decrypt private key: {error}"))?;
+         return Ok(PrivateKeyDer::Pkcs8(
+-            rustls::pki_types::PrivatePkcs8KeyDer::from(decrypted_der),
++            rustls::pki_types::PrivatePkcs8KeyDer::from(secret.as_bytes().to_vec()),
+         ));
      }
-     Ok(body)
- }
+-
+-    // Case 2: Traditional OpenSSL encrypted PEM (Proc-Type: 4,ENCRYPTED + DEK-Info header).
+-    // rustls_pemfile cannot parse these because the Proc-Type/DEK-Info headers
+-    // contain characters that break strict RFC 7468 base64 parsing.
+-    if pem_data
+-        .windows(b"Proc-Type: 4,ENCRYPTED".len())
+-        .any(|w| w == b"Proc-Type: 4,ENCRYPTED")
+-    {
+-        let password = password
+-            .ok_or_else(|| "Private key is encrypted but no password was provided".to_string())?;
+-
+-        let decrypted_der = decrypt_traditional_pem(pem_data, password)?;
+-
+-        // Determine the key type from the PEM header.
+-        let pem_str = std::str::from_utf8(pem_data)
+-            .map_err(|e| format!("PEM data is not valid UTF-8: {}", e))?;
+-
+-        if pem_str.contains("BEGIN RSA PRIVATE KEY") {
+-            return Ok(PrivateKeyDer::Pkcs1(
+-                rustls::pki_types::PrivatePkcs1KeyDer::from(decrypted_der),
+-            ));
+-        } else if pem_str.contains("BEGIN EC PRIVATE KEY") {
+-            return Ok(PrivateKeyDer::Sec1(
+-                rustls::pki_types::PrivateSec1KeyDer::from(decrypted_der),
+-            ));
+-        } else if pem_str.contains("BEGIN PRIVATE KEY") {
+-            return Ok(PrivateKeyDer::Pkcs8(
+-                rustls::pki_types::PrivatePkcs8KeyDer::from(decrypted_der),
+-            ));
+-        }
+-
+-        return Err("Unrecognized traditional encrypted PEM key type".to_string());
+-    }
+-
+-    // Case 3: Plaintext PEM key — parsed by rustls_pemfile.
+     let mut reader = BufReader::new(pem_data);
+-
+     loop {
+         match rustls_pemfile::read_one(&mut reader) {
+-            Ok(Some(rustls_pemfile::Item::Pkcs8Key(key))) => {
+-                return Ok(PrivateKeyDer::Pkcs8(key));
+-            }
+-            Ok(Some(rustls_pemfile::Item::Pkcs1Key(key))) => {
+-                return Ok(PrivateKeyDer::Pkcs1(key));
+-            }
+-            Ok(Some(rustls_pemfile::Item::Sec1Key(key))) => {
+-                return Ok(PrivateKeyDer::Sec1(key));
+-            }
+-            Ok(Some(_)) => {
+-                // Skip non-key items (certs, etc.)
+-                continue;
+-            }
+-            Ok(None) => break,
+-            Err(e) => {
+-                return Err(format!("Failed to parse PEM key: {}", e));
+-            }
+-        }
+-    }
+-
+-    Err("No private key found in PEM data".to_string())
+-}
+-
+-/// Decrypt a traditional OpenSSL encrypted PEM key.
+-///
+-/// Format:
+-/// ```text
+-/// -----BEGIN <TYPE> PRIVATE KEY-----
+-/// Proc-Type: 4,ENCRYPTED
+-/// DEK-Info: <CIPHER>,<IV-HEX>
+-///
+-/// <base64 encrypted body>
+-/// -----END <TYPE> PRIVATE KEY-----
+-/// ```
+-///
+-/// Key derivation uses OpenSSL's `EVP_BytesToKey` (MD5-based):
+-///   key = MD5(password || IV[:8]) [|| MD5(prev || password || IV[:8])] ...
+-///
+-/// Supported ciphers: AES-128-CBC, AES-256-CBC, DES-EDE3-CBC, DES-CBC.
+-fn decrypt_traditional_pem(pem_data: &[u8], password: &[u8]) -> Result<Vec<u8>, String> {
+-    use base64ct::{Base64, Encoding};
+-    use cipher::BlockDecryptMut;
+-    use cipher::KeyIvInit;
+-
+-    let pem_str =
+-        std::str::from_utf8(pem_data).map_err(|e| format!("PEM is not valid UTF-8: {}", e))?;
+-
+-    // Parse DEK-Info header to get cipher name and IV hex.
+-    let dek_line = pem_str
+-        .lines()
+-        .find(|l| l.starts_with("DEK-Info:"))
+-        .ok_or_else(|| "No DEK-Info header in encrypted PEM".to_string())?;
+-
+-    let dek_value = dek_line
+-        .strip_prefix("DEK-Info:")
+-        .ok_or_else(|| "Malformed DEK-Info".to_string())?
+-        .trim();
+-
+-    let (cipher_name, iv_hex) = dek_value
+-        .split_once(',')
+-        .ok_or_else(|| "Malformed DEK-Info: expected CIPHER,IV".to_string())?;
+-
+-    let iv = hex_decode(iv_hex.trim())?;
+-
+-    // Extract the base64 body: everything between the blank line after headers
+-    // and the END marker.
+-    let body_b64 = extract_pem_body(pem_str)?;
+-    let encrypted = Base64::decode_vec(&body_b64)
+-        .map_err(|e| format!("Failed to base64-decode encrypted key body: {}", e))?;
+-
+-    // Derive key using EVP_BytesToKey (MD5-based, single iteration, no salt param —
+-    // the IV[:8] serves as the salt).
+-    let salt = &iv[..8];
+-
+-    match cipher_name.trim() {
+-        "AES-128-CBC" => {
+-            let key = evp_bytes_to_key::<16>(password, salt);
+-            let mut buf = encrypted;
+-            let pt = cbc::Decryptor::<aes::Aes128>::new_from_slices(&key, &iv)
+-                .map_err(|e| format!("AES-128-CBC init error: {}", e))?
+-                .decrypt_padded_mut::<cipher::block_padding::Pkcs7>(&mut buf)
+-                .map_err(|e| format!("AES-128-CBC decrypt error: {}", e))?;
+-            Ok(pt.to_vec())
+-        }
+-        "AES-256-CBC" => {
+-            let key = evp_bytes_to_key::<32>(password, salt);
+-            let mut buf = encrypted;
+-            let pt = cbc::Decryptor::<aes::Aes256>::new_from_slices(&key, &iv)
+-                .map_err(|e| format!("AES-256-CBC init error: {}", e))?
+-                .decrypt_padded_mut::<cipher::block_padding::Pkcs7>(&mut buf)
+-                .map_err(|e| format!("AES-256-CBC decrypt error: {}", e))?;
+-            Ok(pt.to_vec())
+-        }
+-        "DES-EDE3-CBC" => {
+-            let key = evp_bytes_to_key::<24>(password, salt);
+-            let mut buf = encrypted;
+-            let pt = cbc::Decryptor::<des::TdesEde3>::new_from_slices(&key, &iv)
+-                .map_err(|e| format!("DES-EDE3-CBC init error: {}", e))?
+-                .decrypt_padded_mut::<cipher::block_padding::Pkcs7>(&mut buf)
+-                .map_err(|e| format!("DES-EDE3-CBC decrypt error: {}", e))?;
+-            Ok(pt.to_vec())
+-        }
+-        "DES-CBC" => {
+-            let key = evp_bytes_to_key::<8>(password, salt);
+-            let mut buf = encrypted;
+-            let pt = cbc::Decryptor::<des::Des>::new_from_slices(&key, &iv)
+-                .map_err(|e| format!("DES-CBC init error: {}", e))?
+-                .decrypt_padded_mut::<cipher::block_padding::Pkcs7>(&mut buf)
+-                .map_err(|e| format!("DES-CBC decrypt error: {}", e))?;
+-            Ok(pt.to_vec())
+-        }
+-        other => Err(format!(
+-            "Unsupported traditional PEM cipher: {}. \
+-             Supported: AES-128-CBC, AES-256-CBC, DES-EDE3-CBC, DES-CBC",
+-            other
+-        )),
+-    }
+-}
+-
+-/// OpenSSL `EVP_BytesToKey` key derivation (MD5, 1 iteration, no count).
+-///
+-/// Produces `KEY_LEN` bytes by repeatedly hashing:
+-///   D_0 = ""
+-///   D_i = MD5(D_{i-1} || password || salt)
+-///   key = D_1 || D_2 || ... truncated to KEY_LEN
+-fn evp_bytes_to_key<const KEY_LEN: usize>(password: &[u8], salt: &[u8]) -> [u8; KEY_LEN] {
+-    use md5::{Digest, Md5};
+-
+-    let mut key = [0u8; KEY_LEN];
+-    let mut prev_hash: Vec<u8> = Vec::new();
+-    let mut offset = 0;
+-
+-    while offset < KEY_LEN {
+-        let mut hasher = Md5::new();
+-        if !prev_hash.is_empty() {
+-            hasher.update(&prev_hash);
+-        }
+-        hasher.update(password);
+-        hasher.update(salt);
+-        prev_hash = hasher.finalize().to_vec();
+-
+-        let copy_len = std::cmp::min(prev_hash.len(), KEY_LEN - offset);
+-        key[offset..offset + copy_len].copy_from_slice(&prev_hash[..copy_len]);
+-        offset += copy_len;
+-    }
+-
+-    key
+-}
+-
+-/// Decode a hex string into bytes.
+-fn hex_decode(hex: &str) -> Result<Vec<u8>, String> {
+-    if !hex.len().is_multiple_of(2) {
+-        return Err("Odd-length hex string in DEK-Info IV".to_string());
+-    }
+-    (0..hex.len())
+-        .step_by(2)
+-        .map(|i| {
+-            u8::from_str_radix(&hex[i..i + 2], 16)
+-                .map_err(|e| format!("Invalid hex in DEK-Info IV: {}", e))
+-        })
+-        .collect()
+-}
+-
+-/// Extract the base64 body from a traditional encrypted PEM.
+-///
+-/// Skips the BEGIN line, Proc-Type, DEK-Info, and blank line,
+-/// then collects everything up to the END line.
+-fn extract_pem_body(pem_str: &str) -> Result<String, String> {
+-    let mut in_body = false;
+-    let mut body = String::new();
+-    let mut found_headers = false;
+-
+-    for line in pem_str.lines() {
+-        if line.starts_with("-----BEGIN ") && line.ends_with("-----") {
+-            found_headers = false;
+-            continue;
+-        }
+-        if line.starts_with("-----END ") && line.ends_with("-----") {
+-            break;
+-        }
+-        if line.starts_with("Proc-Type:") || line.starts_with("DEK-Info:") {
+-            found_headers = true;
+-            continue;
+-        }
+-        // Blank line after headers marks start of base64 body.
+-        if found_headers && !in_body && line.trim().is_empty() {
+-            in_body = true;
+-            continue;
+-        }
+-        if in_body {
+-            body.push_str(line.trim());
+-        }
+-    }
+-
+-    if body.is_empty() {
+-        return Err("No base64 body found in encrypted PEM".to_string());
+-    }
+-    Ok(body)
+-}
++            Ok(Some(rustls_pemfile::Item::Pkcs8Key(key))) => return Ok(PrivateKeyDer::Pkcs8(key)),
++            Ok(Some(rustls_pemfile::Item::Pkcs1Key(key))) => return Ok(PrivateKeyDer::Pkcs1(key)),
++            Ok(Some(rustls_pemfile::Item::Sec1Key(key))) => return Ok(PrivateKeyDer::Sec1(key)),
++            Ok(Some(_)) => continue,
++            Ok(None) => return Err("No private key found in PEM data".into()),
++            Err(error) => return Err(format!("Invalid private key PEM: {error}")),
++        }
++    }
++}
++
++fn selected_key_is_encrypted(pem_data: &[u8]) -> Result<bool, String> {
++    if pem_data.split(|byte| *byte == b'\n').any(|line| {
++        line.starts_with(b"Proc-Type:") || line.starts_with(b"DEK-Info:")
++    }) {
++        return Err("Unsupported traditional encrypted PEM; use modern encrypted PKCS#8".into());
++    }
++    Ok(pem_data.starts_with(b"-----BEGIN ENCRYPTED PRIVATE KEY-----"))
++}
++
++fn validate_key_encryption(scheme: &pkcs8::pkcs5::EncryptionScheme<'_>) -> Result<(), String> {
++    use pkcs8::pkcs5::{pbes2::{EncryptionScheme, Kdf, Pbkdf2Prf}, EncryptionScheme as Scheme};
++    let Scheme::Pbes2(parameters) = scheme else {
++        return Err("Unsupported private key encryption; PBES2 is required".into());
++    };
++    if !matches!(parameters.encryption, EncryptionScheme::Aes128Cbc { .. }
++        | EncryptionScheme::Aes192Cbc { .. } | EncryptionScheme::Aes256Cbc { .. }) {
++        return Err("Unsupported private key encryption; AES is required".into());
++    }
++    match &parameters.kdf {
++        Kdf::Pbkdf2(parameters) => {
++            if !matches!(parameters.prf, Pbkdf2Prf::HmacWithSha224 | Pbkdf2Prf::HmacWithSha256
++                | Pbkdf2Prf::HmacWithSha384 | Pbkdf2Prf::HmacWithSha512) {
++                return Err("Unsupported private key KDF; PBKDF2 requires HMAC-SHA2".into());
++            }
++            if parameters.iteration_count == 0
++                || parameters.iteration_count > pkcs8::pkcs5::pbes2::Pbkdf2Params::MAX_ITERATION_COUNT {
++                return Err("Invalid private key PBKDF2 iteration count".into());
++            }
++        }
++        Kdf::Scrypt(parameters) => {
++            let n = parameters.cost_parameter;
++            let r = u64::from(parameters.block_size);
++            let p = u64::from(parameters.parallelization);
++            let memory = n.checked_add(p).and_then(|value| value.checked_add(2))
++                .and_then(|value| value.checked_mul(r)).and_then(|value| value.checked_mul(128));
++            if n < 2 || !n.is_power_of_two() || r == 0 || p == 0
++                || memory.is_none_or(|bytes| bytes > 32 * 1024 * 1024) {
++                return Err("Invalid private key scrypt parameters or memory limit exceeded".into());
++            }
++        }
++        _ => return Err("Unsupported private key KDF".into()),
++    }
++    Ok(())
++}
 +
 +#[cfg(not(target_os = "wasi"))]
 +#[path = "native.rs"]
@@ -3736,7 +4125,7 @@ diff --git a/rust/src/native.rs b/rust/src/native.rs
 new file mode 100644
 --- /dev/null
 +++ b/rust/src/native.rs
-@@ -0,0 +1,796 @@
+@@ -0,0 +1,855 @@
 +use super::*;
 +use std::io::{Cursor, Read};
 +use std::sync::atomic::{AtomicU64, Ordering};
@@ -4111,9 +4500,12 @@ new file mode 100644
 +        "add_root_certs_from_pem" | "add_root_certs_from_cadata" => {
 +            let data = argument(arguments, 0)?.bytes()?;
 +            let (certificates, crls) = if method == "add_root_certs_from_pem" {
-+                let material = parse_trust_material(data)?;
++                let material = parse_trust_material(data).map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
 +                (material.certificates, material.crls)
-+            } else { (parse_certificates(data)?, Vec::new()) };
++            } else {
++                let certificates = parse_certificates(data).map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
++                (certificates, Vec::new())
++            };
 +            let count = certificates.len();
 +            for certificate in certificates {
 +                let der = certificate.to_vec();
@@ -4128,7 +4520,23 @@ new file mode 100644
 +            let mut remaining = argument(arguments, 0)?.bytes()?;
 +            let mut certificates = Vec::new();
 +            while !remaining.is_empty() {
-+                let (rest, _) = X509Certificate::from_der(remaining).map_err(|e| NativeError::ssl(e.to_string()))?;
++                let (rest, _) = X509Certificate::from_der(remaining).map_err(|error| {
++                    let insufficient = match &error {
++                        x509_parser::nom::Err::Incomplete(_) => true,
++                        x509_parser::nom::Err::Error(x509_parser::error::X509Error::NomError(
++                            x509_parser::nom::error::ErrorKind::Eof,
++                        ))
++                        | x509_parser::nom::Err::Failure(x509_parser::error::X509Error::NomError(
++                            x509_parser::nom::error::ErrorKind::Eof,
++                        )) => true,
++                        _ => false,
++                    };
++                    if insufficient {
++                        NativeError::ssl("not enough data: cadata does not contain a certificate")
++                    } else {
++                        NativeError::ssl(format!("Invalid certificate DER: {error}"))
++                    }
++                })?;
 +                let consumed = remaining.len() - rest.len();
 +                if consumed == 0 { return Err(NativeError::ssl("empty DER certificate")); }
 +                validate_der(&remaining[..consumed])?;
@@ -4141,12 +4549,29 @@ new file mode 100644
 +            let path = path_buf_from_bytes(argument(arguments, 0)?.bytes()?).map_err(NativeError::value)?;
 +            if !builder.capath_dirs.contains(&path) { builder.capath_dirs.push(path); }
 +        }
++        "cert_chain_key_is_encrypted" => {
++            parse_certificates(argument(arguments, 0)?.bytes()?)
++                .map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
++            let key = crate::policy::private_key_pem(argument(arguments, 1)?.bytes()?)
++                .map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
++            let encrypted = selected_key_is_encrypted(key)
++                .map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
++            return Ok(Value::Bool(encrypted));
++        }
 +        "set_client_cert_chain_pem" | "set_server_cert_chain_pem" => {
-+            let certificates = parse_certificates(argument(arguments, 0)?.bytes()?)?;
++            let certificates = parse_certificates(argument(arguments, 0)?.bytes()?)
++                .map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
 +            let password = match argument(arguments, 2)? { Value::None => None, value => Some(value.bytes()?) };
-+            let key = load_private_key(argument(arguments, 1)?.bytes()?, password)?;
-+            let certified = rustls::sign::CertifiedKey::from_der(certificates.clone(), key.clone_key(), &default_crypto_provider()).map_err(|e| NativeError::ssl(e.to_string()))?;
-+            certified.keys_match().map_err(|e| NativeError::ssl(e.to_string()))?;
++            let key = load_private_key(argument(arguments, 1)?.bytes()?, password)
++                .map_err(|error| NativeError::ssl(format!("[SSL] PEM lib ({error})")))?;
++            let certified = rustls::sign::CertifiedKey::from_der(certificates.clone(), key.clone_key(), &default_crypto_provider()).map_err(|error| match error {
++                rustls::Error::InconsistentKeys(rustls::InconsistentKeys::KeyMismatch) => NativeError::ssl("[X509: KEY_VALUES_MISMATCH] key values mismatch"),
++                other => NativeError::ssl(other.to_string()),
++            })?;
++            certified.keys_match().map_err(|error| match error {
++                rustls::Error::InconsistentKeys(rustls::InconsistentKeys::KeyMismatch) => NativeError::ssl("[X509: KEY_VALUES_MISMATCH] key values mismatch"),
++                other => NativeError::ssl(other.to_string()),
++            })?;
 +            if method == "set_client_cert_chain_pem" { builder.client_cert_chain = Some(certificates); builder.client_key = Some(key); }
 +            else { builder.add_server_certificate(certificates, key, certified.key.algorithm()); }
 +        }
@@ -4337,6 +4762,29 @@ new file mode 100644
 +        match &connection.conn {
 +            rustls::Connection::Client(_) => connection.stats.client_completed(),
 +            rustls::Connection::Server(conn) => connection.stats.server_completed(conn.handshake_kind() == Some(rustls::HandshakeKind::Resumed)),
++        }
++    }
++    if !connection.conn.is_handshaking()
++        && connection.conn.protocol_version() == Some(rustls::ProtocolVersion::TLSv1_3)
++        && connection.conn.handshake_kind() != Some(rustls::HandshakeKind::Resumed)
++        && connection.sessions.lock().unwrap().is_none()
++    {
++        if let Some(policy) = &connection.client {
++            let verified_chain = connection.verified.lock().unwrap().clone();
++            if !policy.require_verified_chain || verified_chain.is_some() {
++                let time = std::time::SystemTime::now()
++                    .duration_since(std::time::UNIX_EPOCH)
++                    .map_err(|error| NativeError::ssl(error.to_string()))?
++                    .as_secs();
++                *connection.sessions.lock().unwrap() = Some(Arc::new(
++                    SessionData::new_tls13_without_ticket(
++                        Arc::clone(&policy.context),
++                        policy.server_name.to_str().to_string(),
++                        verified_chain,
++                        time,
++                    ),
++                ));
++            }
 +        }
 +    }
 +    Ok(())
@@ -5215,7 +5663,7 @@ diff --git a/rust/src/session.rs b/rust/src/session.rs
 new file mode 100644
 --- /dev/null
 +++ b/rust/src/session.rs
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,386 @@
 +use pyo3::class::basic::CompareOp;
 +use pyo3::prelude::*;
 +use pyo3::types::{PyAny, PyBytes};
@@ -5300,8 +5748,11 @@ new file mode 100644
 +
 +enum SessionValue {
 +    Tls12(Tls12ClientSessionValue),
-+    Tls13(Option<Tls13ClientSessionValue>),
++    Tls13Ticket(Option<Tls13ClientSessionValue>),
++    Tls13WithoutTicket,
 +}
++
++const NONRESUMABLE_SESSION_TIMEOUT: u32 = 7200;
 +
 +struct SessionMetadata {
 +    id: Vec<u8>,
@@ -5358,7 +5809,7 @@ new file mode 100644
 +        };
 +        let value = match value {
 +            ClientSessionValue::Tls12(value) => SessionValue::Tls12(value),
-+            ClientSessionValue::Tls13(value) => SessionValue::Tls13(Some(value)),
++            ClientSessionValue::Tls13(value) => SessionValue::Tls13Ticket(Some(value)),
 +        };
 +        Self {
 +            context,
@@ -5369,14 +5820,36 @@ new file mode 100644
 +        }
 +    }
 +
++    pub(crate) fn new_tls13_without_ticket(
++        context: Arc<ContextIdentity>,
++        server_name: String,
++        verified_chain: Option<Vec<Vec<u8>>>,
++        time: u64,
++    ) -> Self {
++        Self {
++            context,
++            server_name,
++            verified_chain,
++            metadata: SessionMetadata {
++                id: Vec::new(),
++                time,
++                timeout: NONRESUMABLE_SESSION_TIMEOUT,
++                has_ticket: false,
++                ticket_lifetime_hint: 0,
++            },
++            value: Mutex::new(SessionValue::Tls13WithoutTicket),
++        }
++    }
++
 +    pub(crate) fn reserve_explicit(
 +        self: &Arc<Self>,
 +    ) -> Result<Arc<ExplicitSession>, SessionUseError> {
 +        let value = match &mut *self.value.lock().unwrap() {
 +            SessionValue::Tls12(value) => SessionValue::Tls12(value.clone()),
-+            SessionValue::Tls13(ticket) => SessionValue::Tls13(Some(
++            SessionValue::Tls13Ticket(ticket) => SessionValue::Tls13Ticket(Some(
 +                ticket.take().ok_or(SessionUseError::Tls13TicketAlreadyUsed)?,
 +            )),
++            SessionValue::Tls13WithoutTicket => SessionValue::Tls13WithoutTicket,
 +        };
 +        Ok(Arc::new(ExplicitSession {
 +            data: Arc::clone(self),
@@ -5414,7 +5887,7 @@ new file mode 100644
 +        }
 +        match &*self.value.lock().unwrap() {
 +            SessionValue::Tls12(value) => Some(value.clone()),
-+            SessionValue::Tls13(_) => None,
++            SessionValue::Tls13Ticket(_) | SessionValue::Tls13WithoutTicket => None,
 +        }
 +    }
 +
@@ -5424,7 +5897,8 @@ new file mode 100644
 +        }
 +        let mut value = self.value.lock().unwrap();
 +        match &mut *value {
-+            SessionValue::Tls13(ticket) => ticket.take(),
++            SessionValue::Tls13Ticket(ticket) => ticket.take(),
++            SessionValue::Tls13WithoutTicket => None,
 +            SessionValue::Tls12(_) => None,
 +        }
 +    }
@@ -5432,14 +5906,14 @@ new file mode 100644
 +
 +impl Drop for ExplicitSession {
 +    fn drop(&mut self) {
-+        let SessionValue::Tls13(ticket) = self.value.get_mut().unwrap() else {
++        let SessionValue::Tls13Ticket(ticket) = self.value.get_mut().unwrap() else {
 +            return;
 +        };
 +        let Some(ticket) = ticket.take() else {
 +            return;
 +        };
 +        let mut stored = self.data.value.lock().unwrap();
-+        if let SessionValue::Tls13(current) = &mut *stored {
++        if let SessionValue::Tls13Ticket(current) = &mut *stored {
 +            if current.is_none() {
 +                *current = Some(ticket);
 +            }
@@ -6313,10 +6787,13 @@ diff --git a/src/rtls/__init__.py b/src/rtls/__init__.py
      PEM_cert_to_DER_cert,
      RAND_add,
      RAND_bytes,
-@@ -150,6 +159,10 @@
+@@ -150,6 +159,13 @@
      match_hostname,
  )
  
++SSLContext.sslsocket_class = SSLSocket
++SSLContext.sslobject_class = SSLObject
++
 +
 +def get_sigalgs() -> list[str]:
 +    return _rustls.RustlsConfigBuilder.supported_sigalgs()
@@ -6324,7 +6801,7 @@ diff --git a/src/rtls/__init__.py b/src/rtls/__init__.py
  __version__ = "2026.10.3"
  
  __all__ = [
-@@ -157,6 +170,7 @@
+@@ -157,6 +173,7 @@
      "SSLContext",
      "SSLSocket",
      "SSLObject",
@@ -6332,7 +6809,7 @@ diff --git a/src/rtls/__init__.py b/src/rtls/__init__.py
      "MemoryBIO",
      "Certificate",
      # Exceptions
-@@ -181,6 +195,10 @@
+@@ -181,6 +198,10 @@
      "CERT_NONE",
      "CERT_OPTIONAL",
      "CERT_REQUIRED",
@@ -6343,7 +6820,7 @@ diff --git a/src/rtls/__init__.py b/src/rtls/__init__.py
      "VerifyFlags",
      "VERIFY_DEFAULT",
      "VERIFY_CRL_CHECK_LEAF",
-@@ -205,7 +223,6 @@
+@@ -205,7 +226,6 @@
      "OP_NO_COMPRESSION",
      "OP_NO_TICKET",
      "OP_IGNORE_UNEXPECTED_EOF",
@@ -6351,7 +6828,7 @@ diff --git a/src/rtls/__init__.py b/src/rtls/__init__.py
      "OP_LEGACY_SERVER_CONNECT",
      "SSL_ERROR_SSL",
      "SSL_ERROR_WANT_READ",
-@@ -228,8 +245,10 @@
+@@ -228,8 +248,10 @@
      "HAS_TLSv1",
      "HAS_TLSv1_1",
      "HAS_PSK",
@@ -6362,7 +6839,7 @@ diff --git a/src/rtls/__init__.py b/src/rtls/__init__.py
      "AlertDescription",
      "ALERT_DESCRIPTION_ACCESS_DENIED",
      "ALERT_DESCRIPTION_BAD_CERTIFICATE",
-@@ -265,6 +284,7 @@
+@@ -265,6 +287,7 @@
      "PEM_cert_to_DER_cert",
      "get_server_certificate",
      "get_default_verify_paths",
@@ -7158,7 +7635,7 @@ diff --git a/src/rtls/_constants.py b/src/rtls/_constants.py
 diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 --- a/src/rtls/_context.py
 +++ b/src/rtls/_context.py
-@@ -1,31 +1,81 @@
+@@ -1,31 +1,89 @@
  from __future__ import annotations
  
 +import operator
@@ -7213,8 +7690,14 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 +    if server_hostname is None:
 +        return None
 +    if isinstance(server_hostname, str):
-+        return server_hostname.encode("idna").decode("ascii")
-+    return server_hostname.decode("ascii")
++        encoded = server_hostname.encode("idna").decode("ascii")
++    else:
++        encoded = server_hostname.decode("ascii")
++    if "\0" in encoded:
++        raise TypeError(
++            "argument must be encoded string without null bytes, not str"
++        )
++    return encoded
 +
 +
 +_VERSION_OPTION_CHANGES = (
@@ -7243,10 +7726,12 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 +    int(PROTOCOL_TLSv1_2): "PROTOCOL_TLSv1_2",
 +}
 +_MAX_OPTION_VALUE = (1 << 64) - 1
++_HOSTFLAG_NO_PARTIAL_WILDCARDS = 0x04
++_HOSTFLAG_NEVER_CHECK_SUBJECT = 0x20
  
  
  class TLSContext(_stdlib_ssl.SSLContext):
-@@ -43,41 +93,54 @@
+@@ -43,41 +101,54 @@
      def __new__(
          cls, protocol: int = PROTOCOL_TLS, *args: Any, **kwargs: Any
      ) -> TLSContext:
@@ -7319,7 +7804,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          if protocol == PROTOCOL_TLS_CLIENT:
              self._verify_mode = CERT_REQUIRED
              self._check_hostname = True
-@@ -87,6 +150,12 @@
+@@ -87,6 +158,12 @@
              self._verify_mode = CERT_NONE
              self._check_hostname = False
  
@@ -7332,14 +7817,15 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
      def _get_builder(self) -> Any:
          """Return the RustlsConfigBuilder (used by TLSObject/TLSSocket)."""
          return self._builder
-@@ -98,9 +167,19 @@
+@@ -98,9 +175,19 @@
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
          server_hostname: str | None = None,
 +        session: Any = None,
      ) -> Any:
          """Wrap a socket with TLS, returning an TLSSocket."""
-         from ._socket import TLSSocket, TLSStreamSocket
+-        from ._socket import TLSSocket, TLSStreamSocket
++        from ._socket import TLSStreamSocket
 +        from ._object import _validate_server_hostname
 +
 +        if (
@@ -7352,7 +7838,16 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
          if not server_side and self._check_hostname and not server_hostname:
              raise ValueError("check_hostname requires server_hostname")
-@@ -117,6 +196,7 @@
+@@ -108,7 +195,7 @@
+         socket_type = (
+             TLSStreamSocket
+             if sys.platform == "wasi" or not isinstance(sock, socket.socket)
+-            else TLSSocket
++            else self.sslsocket_class
+         )
+         return socket_type(
+             sock=sock,
+@@ -117,6 +204,7 @@
              server_hostname=server_hostname,
              do_handshake_on_connect=do_handshake_on_connect,
              suppress_ragged_eofs=suppress_ragged_eofs,
@@ -7360,7 +7855,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          )
  
      def wrap_bio(  # type: ignore[override]
-@@ -125,47 +205,38 @@
+@@ -125,153 +213,187 @@
          outgoing: MemoryBIO,
          server_side: bool = False,
          server_hostname: str | None = None,
@@ -7372,13 +7867,15 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
          TLS state machine.
          """
 -        from ._object import TLSObject
+-
+-        return TLSObject(
 +        from ._object import TLSObject, _validate_server_hostname
 +
 +        _validate_server_hostname(server_side, server_hostname)
 +        if not server_side and self._check_hostname and not server_hostname:
 +            raise ValueError("check_hostname requires server_hostname")
- 
-         return TLSObject(
++
++        return self.sslobject_class(
              context=self,
              incoming=incoming,
              outgoing=outgoing,
@@ -7419,17 +7916,44 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 +        cert_pem = self._read_pem_file(certfile)
 +        key_pem = self._read_pem_file(keyfile) if keyfile is not None else cert_pem
 +
++        password_callback = password if callable(password) else None
          pw_bytes: bytes | None = None
-         if password is not None:
-             if callable(password):
-@@ -180,98 +251,117 @@
-                     f" got {type(password).__name__}"
-                 )
- 
+-        if password is not None:
+-            if callable(password):
+-                password = password()
++        if password is not None and password_callback is None:
+             if isinstance(password, str):
+                 pw_bytes = password.encode("utf-8")
+             elif isinstance(password, (bytes, bytearray)):
+                 pw_bytes = bytes(password)
+             else:
+-                raise TypeError(
+-                    "password must be str, bytes, or callable,"
+-                    f" got {type(password).__name__}"
+-                )
+-
 -        if self._protocol == PROTOCOL_TLS_SERVER:
 -            self._builder.set_server_cert_chain_pem(cert_pem, key_pem, pw_bytes)
 -        else:
 -            self._builder.set_client_cert_chain_pem(cert_pem, key_pem, pw_bytes)
++                raise TypeError("password should be a string or callable")
++
++        encrypted_key = False
++        if password_callback is not None or pw_bytes is not None:
++            encrypted_key = self._builder.cert_chain_key_is_encrypted(
++                cert_pem, key_pem
++            )
++        if encrypted_key and password_callback is not None:
++            password_value = password_callback()
++            if isinstance(password_value, str):
++                pw_bytes = password_value.encode("utf-8")
++            elif isinstance(password_value, (bytes, bytearray)):
++                pw_bytes = bytes(password_value)
++            else:
++                raise TypeError("password callback must return a string")
++        if encrypted_key and pw_bytes is not None and len(pw_bytes) > 1024:
++            raise ValueError("password cannot be longer than 1024 bytes")
++
 +        with self._builder_lock:
 +            staged = self._builder.clone_builder()
 +            staged.set_server_cert_chain_pem(cert_pem, key_pem, pw_bytes)
@@ -7437,6 +7961,9 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 +            self._builder = staged
  
          self._cert_chain_loaded = True
++
++    def load_dh_params(self, dhfile: Any) -> None:
++        raise NotImplementedError("Finite-field DH is outside the modern TLS policy")
  
      def load_verify_locations(  # type: ignore[override]
          self,
@@ -7504,8 +8031,17 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 +
 +            if cadata is not None:
 +                if isinstance(cadata, str):
-+                    cadata = cadata.encode("ascii")
-+                if b"-----BEGIN" in cadata:
++                    pem_data = cadata.encode("ascii")
++                    try:
++                        staged.add_root_certs_from_cadata(pem_data)
++                    except SSLError:
++                        if b"-----BEGIN CERTIFICATE-----" not in pem_data:
++                            raise SSLError(
++                                0,
++                                "no start line: cadata does not contain a certificate",
++                            ) from None
++                        raise
++                elif b"-----BEGIN" in cadata:
 +                    staged.add_root_certs_from_cadata(cadata)
 +                else:
 +                    staged.add_root_cert_from_der(cadata)
@@ -7613,7 +8149,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      def set_alpn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """Set ALPN protocols for negotiation."""
-@@ -292,14 +382,15 @@
+@@ -292,14 +414,15 @@
  
      @verify_mode.setter
      def verify_mode(self, value: int) -> None:
@@ -7637,7 +8173,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property
      def check_hostname(self) -> bool:
-@@ -307,12 +398,17 @@
+@@ -307,12 +430,17 @@
  
      @check_hostname.setter
      def check_hostname(self, value: bool) -> None:
@@ -7661,7 +8197,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property  # type: ignore[override]
      def options(self) -> Options:
-@@ -320,73 +416,142 @@
+@@ -320,73 +448,165 @@
  
      @options.setter
      def options(self, value: int) -> None:
@@ -7827,6 +8363,29 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
 +            f"attribute 'keylog_filename' of '{type(self).__name__}' "
 +            "objects cannot be deleted"
 +        )
++
++    @property
++    def _host_flags(self) -> int:
++        flags = _HOSTFLAG_NO_PARTIAL_WILDCARDS
++        if not self._hostname_checks_common_name:
++            flags |= _HOSTFLAG_NEVER_CHECK_SUBJECT
++        return flags
++
++    @_host_flags.setter
++    def _host_flags(self, value: int) -> None:
++        flags = operator.index(value)
++        if not 0 <= flags <= 0xFFFFFFFF:
++            raise OverflowError("unsigned int is greater than maximum")
++        unsupported = flags & ~(
++            _HOSTFLAG_NO_PARTIAL_WILDCARDS | _HOSTFLAG_NEVER_CHECK_SUBJECT
++        )
++        if unsupported or not flags & _HOSTFLAG_NO_PARTIAL_WILDCARDS:
++            raise NotImplementedError(
++                "RTLS requires no-partial-wildcard hostname checking"
++            )
++        self.hostname_checks_common_name = not bool(
++            flags & _HOSTFLAG_NEVER_CHECK_SUBJECT
++        )
  
      @property
      def hostname_checks_common_name(self) -> bool:
@@ -7848,7 +8407,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property  # type: ignore[override]
      def verify_flags(self) -> int:
-@@ -394,8 +559,9 @@
+@@ -394,8 +614,9 @@
  
      @verify_flags.setter
      def verify_flags(self, value: int) -> None:
@@ -7860,7 +8419,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      @property
      def security_level(self) -> int:  # type: ignore[override]
-@@ -408,49 +574,68 @@
+@@ -408,49 +629,68 @@
  
      @sni_callback.setter
      def sni_callback(self, callback: Callable | None) -> None:
@@ -7960,7 +8519,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
  
      def set_npn_protocols(self, protocols: list[str]) -> None:  # type: ignore[override]
          """No-op — NPN is not supported by rustls."""
-@@ -465,14 +650,11 @@
+@@ -465,14 +705,11 @@
                      f"expected bytes-like object, got {type(ech_config_list).__name__}"
                  )
  
@@ -7975,7 +8534,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
              clone._verify_mode = self._verify_mode
              clone._check_hostname = self._check_hostname
              clone._options = self._options
-@@ -481,18 +663,16 @@
+@@ -481,18 +718,16 @@
              clone._alpn_protocols = list(self._alpn_protocols)
              clone._ciphers_string = self._ciphers_string
              clone._sni_callback = self._sni_callback
@@ -7996,7 +8555,7 @@ diff --git a/src/rtls/_context.py b/src/rtls/_context.py
              from ._constants import TLSVersion
  
              clone._minimum_version = TLSVersion.TLSv1_3
-@@ -505,72 +685,10 @@
+@@ -505,72 +740,10 @@
              """Return True if ECH configs have been set."""
              return self._builder.has_ech()
  
@@ -8427,7 +8986,7 @@ new file mode 100644
 +    "add_root_certs_from_pem", "add_root_certs_from_cadata", "add_capath_directory",
 +    "add_root_cert_from_der", "set_alpn", "set_min_version", "set_max_version",
 +    "set_cipher_suites", "set_tls13_cipher_suites", "get_num_tickets", "enabled_cipher_suites", "set_groups", "set_client_sigalgs",
-+    "set_server_sigalgs", "set_verify_mode", "set_check_hostname", "set_sni_enabled",
++    "cert_chain_key_is_encrypted", "set_server_sigalgs", "set_verify_mode", "set_check_hostname", "set_sni_enabled",
 +    "set_ech_configs", "has_ech", "root_cert_count", "root_ca_count", "crl_count",
 +    "get_root_certs_der", "get_ca_certs_der", "set_verify_flags", "session_stats",
 +    "set_cipher_server_preference", "set_hostname_checks_common_name", "validate_server_hello",
@@ -8505,10 +9064,11 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      _HAS_ECH,
      CERT_NONE,
      SSL_ERROR_WANT_READ,
-@@ -40,6 +43,63 @@
+@@ -40,7 +43,64 @@
  }
  
  
+-class TLSObject:
 +def _validate_session_type(session: Any) -> None:
 +    from . import _rustls
 +
@@ -8542,53 +9102,40 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +
 +
 +class _TLSPrivateObject:
-+    def __init__(self, tls_object: TLSObject) -> None:
-+        self._tls_object = weakref.proxy(tls_object)
++    def __init__(self, connection: _TLSConnection) -> None:
++        self._connection = connection
 +
 +    def __getattr__(self, name: str) -> Any:
-+        return getattr(self._tls_object, name)
++        return getattr(self._connection, name)
 +
 +    def get_verified_chain(self) -> list[TLSCertificate] | None:
-+        return self._tls_object._get_verified_chain()
++        return self._connection._get_verified_chain()
 +
 +    def get_unverified_chain(self) -> list[TLSCertificate] | None:
-+        return self._tls_object._get_unverified_chain()
++        return self._connection._get_unverified_chain()
 +
 +    def uses_ktls_for_send(self) -> bool:
 +        return False
 +
 +    @property
 +    def session(self) -> Any:
-+        return self._tls_object.session
++        return self._connection.session
 +
 +    @session.setter
 +    def session(self, value: Any) -> None:
-+        self._tls_object.session = value
++        self._connection.session = value
 +
 +
- class TLSObject:
++class _TLSConnection:
      """Sans-I/O TLS object — equivalent of ``ssl.SSLObject``.
  
-@@ -52,38 +112,67 @@
- 
-     def __init__(
-         self,
--        context: TLSContext,
--        incoming: MemoryBIO,
--        outgoing: MemoryBIO,
-+        context: TLSContext | None = None,
-+        incoming: MemoryBIO | None = None,
-+        outgoing: MemoryBIO | None = None,
+     Created by ``TLSContext.wrap_bio(incoming, outgoing, ...)``.
+@@ -57,33 +117,54 @@
+         outgoing: MemoryBIO,
          server_side: bool = False,
          server_hostname: str | None = None,
 +        session: Any = None,
      ) -> None:
-+        if context is None or incoming is None or outgoing is None:
-+            raise TypeError(
-+                f"{self.__class__.__name__} does not have a public constructor. "
-+                "Instances are returned by SSLContext.wrap_bio()."
-+            )
-+        _validate_server_hostname(server_side, server_hostname)
 +        _validate_constructor_session(session, server_side)
          self._context = context
 +        self._connection_verify_mode = int(context.verify_mode)
@@ -8614,8 +9161,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._pending_ct: bytes = b""
 +        self._pending_plaintext = b""
          self._maybe_buffered = False
-+        self._private_object = _TLSPrivateObject(self)
- 
+-
          # Build the Rust connection via the context's config builder
 -        self._init_connection()
 -
@@ -8646,7 +9192,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # After building client connection, the state machine immediately
          # has a ClientHello to send — flush it to the outgoing BIO
-@@ -99,6 +188,19 @@
+@@ -99,6 +180,19 @@
                  self._outgoing.write(data)
              else:
                  break
@@ -8666,7 +9212,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def _pump_incoming(self) -> None:
          """Move ciphertext from the incoming BIO into the Rust state machine.
-@@ -129,6 +231,66 @@
+@@ -129,6 +223,67 @@
                      break
                  offset += consumed
  
@@ -8688,27 +9234,28 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +            callback = initial_context.sni_callback
 +            if callback is not None:
 +                owner = self._sni_owner() if self._sni_owner is not None else self
-+                alert = None
-+                try:
-+                    result = callback(owner, acceptor.server_name(), initial_context)
-+                except BaseException as error:
-+                    report_callback_error(error, callback)
-+                    alert = 40
-+                else:
-+                    if result is not None:
-+                        try:
-+                            import operator
++                alert = 40 if owner is None else None
++                if alert is None:
++                    try:
++                        result = callback(owner, acceptor.server_name(), initial_context)
++                    except BaseException as error:
++                        report_callback_error(error, callback)
++                        alert = 40
++                    else:
++                        if result is not None:
++                            try:
++                                import operator
 +
-+                            alert = operator.index(result)
-+                            if not -2147483648 <= alert <= 2147483647:
-+                                raise OverflowError("Python int too large to convert to C long")
-+                            alert &= 255
-+                        except BaseException as error:
-+                            report_callback_error(error, callback)
-+                            alert = 80
++                                alert = operator.index(result)
++                                if not -2147483648 <= alert <= 2147483647:
++                                    raise OverflowError("Python int too large to convert to C long")
++                                alert &= 255
++                            except BaseException as error:
++                                report_callback_error(error, callback)
++                                alert = 80
 +                if alert is not None:
 +                    self._outgoing.write(acceptor.reject(alert))
-+                    self._sni_failure = SSLError("[CALLBACK_FAILED] callback failed")
++                    self._sni_failure = SSLError(1, "[CALLBACK_FAILED] callback failed")
 +                    raise self._sni_failure
 +            self._shared_cipher_candidates = tuple(
 +                (
@@ -8733,7 +9280,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      def do_handshake(self) -> None:
          """Perform the TLS handshake.
  
-@@ -137,8 +299,14 @@
+@@ -137,8 +292,14 @@
          """
          if self._handshake_done:
              return
@@ -8750,7 +9297,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._pump_incoming()
  
          # Process the TLS records
-@@ -146,22 +314,24 @@
+@@ -146,22 +307,24 @@
              self._conn.process_new_packets()
          except SSLError:
              # Flush any alert that rustls wants to send
@@ -8777,7 +9324,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          """Read decrypted data from the TLS connection.
  
          Returns bytes, or if *buffer* is given, reads into it and returns count.
-@@ -171,12 +341,30 @@
+@@ -171,12 +334,30 @@
          read_tls → process_new_packets → read_plaintext in a single
          Python→Rust call, handling buffer-full looping internally.
          """
@@ -8814,7 +9361,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Read all available ciphertext from the BIO
          ciphertext = self._incoming.read()
-@@ -186,22 +374,20 @@
+@@ -186,22 +367,20 @@
              try:
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
@@ -8841,7 +9388,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # No ciphertext available (or it produced no plaintext).
          # Try draining any plaintext already buffered in rustls from
-@@ -210,29 +396,51 @@
+@@ -210,29 +389,51 @@
              data = self._conn.read_plaintext(max_len)
          except SSLZeroReturnError:
              self._peer_closed = True
@@ -8901,7 +9448,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Absorb any ciphertext left in the incoming BIO
          if self._incoming.pending:
-@@ -247,13 +455,17 @@
+@@ -247,13 +448,17 @@
              try:
                  plaintext, unconsumed = self._conn.decrypt_incoming(ciphertext, max_len)
              except SSLZeroReturnError:
@@ -8919,7 +9466,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
              return plaintext
  
          # drain already decrypted.
-@@ -263,6 +475,8 @@
+@@ -263,6 +468,8 @@
              self._peer_closed = True
              raise
          self._maybe_buffered = bool(plaintext)
@@ -8928,7 +9475,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          return plaintext
  
      def write(self, data: bytes | bytearray | memoryview) -> int:
-@@ -271,17 +485,18 @@
+@@ -271,17 +478,18 @@
          Returns number of bytes written. The encrypted ciphertext is
          placed in the outgoing BIO for the transport to send.
          """
@@ -8949,7 +9496,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
          # Flush the resulting ciphertext to the outgoing BIO
          self._flush_outgoing()
-@@ -289,14 +504,49 @@
+@@ -289,14 +497,49 @@
          return n
  
      def unwrap(self) -> None:
@@ -9004,7 +9551,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
          """Return the peer's certificate.
-@@ -309,26 +559,25 @@
+@@ -309,26 +552,25 @@
          is False, returns {} (empty dict) after handshake — the cert is
          not validated so its contents are not exposed.
          """
@@ -9042,7 +9589,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def cipher(self) -> tuple[str, str, int] | None:
          """Return a 3-tuple (cipher_name, tls_version, secret_bits) or None."""
-@@ -349,15 +598,23 @@
+@@ -349,15 +591,23 @@
          return (openssl_name, version_str, bits)
  
      def shared_ciphers(self) -> list[tuple[str, str, int]] | None:
@@ -9075,7 +9622,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def version(self) -> str | None:
          """Return the negotiated TLS version string, e.g. 'TLSv1.3'."""
-@@ -366,6 +623,22 @@
+@@ -366,6 +616,22 @@
              return None
          return _VERSION_MAP.get(v, None)
  
@@ -9098,7 +9645,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
      def selected_alpn_protocol(self) -> str | None:
          """Return the selected ALPN protocol as a string, or None."""
          proto = self._conn.alpn_protocol()
-@@ -386,8 +659,11 @@
+@@ -386,8 +652,11 @@
          return self._conn.pending()
  
      def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
@@ -9112,7 +9659,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      def getpeername(self) -> tuple | None:
          """SSLObject doesn't have a socket, so no peername."""
-@@ -400,6 +676,16 @@
+@@ -400,6 +669,16 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -9129,7 +9676,7 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
          self._context = ctx
  
      @property
-@@ -411,50 +697,65 @@
+@@ -411,50 +690,65 @@
          return self._server_hostname
  
      @property
@@ -9143,8 +9690,15 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 -        Since we ARE the ssl object AND the _sslobj, returning self makes
 -        the chain traversal work.
 -        """
+-        return self
+-
+-    def get_verified_chain(self) -> list[TLSCertificate] | None:
+-        """Return the verified peer certificate chain as TLSCertificate list.
+-
+-        Returns None if no certificates are available.
+-        """
 +    def _sslobj(self) -> _TLSPrivateObject:
-+        return self._private_object
++        return _TLSPrivateObject(self)
 +
 +    def _get_verified_chain(self) -> list[TLSCertificate] | None:
 +        if self._conn is None:
@@ -9160,11 +9714,20 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +    def _get_unverified_chain(self) -> list[TLSCertificate] | None:
 +        if self._conn is None:
 +            return None
-+        certs = self._conn.peer_certificates()
+         certs = self._conn.peer_certificates()
+-        if not certs:
+-            return None  # Defensive:
 +        if certs is None:
 +            return None
-+        return [TLSCertificate(bytes(der)) for der in certs]
-+
+         return [TLSCertificate(bytes(der)) for der in certs]
+ 
+-    def get_unverified_chain(self) -> list[TLSCertificate] | None:
+-        """Return the unverified peer certificate chain.
+-
+-        Same as get_verified_chain() for our purposes — rustls either
+-        verified it or we used CERT_NONE.
+-        """
+-        return self.get_verified_chain()
 +    def get_verified_chain(self) -> list[bytes]:
 +        certs = self._get_verified_chain()
 +        if certs is None:
@@ -9176,31 +9739,9 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 +        if certs is None:
 +            return []
 +        return [cert.public_bytes(ENCODING_DER) for cert in certs]
-+
-+    @property
-+    def owner(self) -> TLSObject:
-         return self
  
--    def get_verified_chain(self) -> list[TLSCertificate] | None:
--        """Return the verified peer certificate chain as TLSCertificate list.
--
--        Returns None if no certificates are available.
--        """
--        certs = self._conn.peer_certificates()
--        if not certs:
--            return None  # Defensive:
--        return [TLSCertificate(bytes(der)) for der in certs]
--
--    def get_unverified_chain(self) -> list[TLSCertificate] | None:
--        """Return the unverified peer certificate chain.
--
--        Same as get_verified_chain() for our purposes — rustls either
--        verified it or we used CERT_NONE.
--        """
--        return self.get_verified_chain()
--
      @property
--    def owner(self) -> Any:
+     def owner(self) -> Any:
 -        """SSLObject owner (transport). Not tracked by rtls."""
 -        return None
 -
@@ -9208,6 +9749,9 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
 -    def session(self) -> None:
 -        """TLS session for resumption. Not yet implemented."""
 -        return None
++        return self._sni_owner() if self._sni_owner is not None else None
++
++    @property
 +    def session(self) -> Any:
 +        if not self._handshake_done and self._explicit_session is None:
 +            return None
@@ -9233,10 +9777,140 @@ diff --git a/src/rtls/_object.py b/src/rtls/_object.py
  
      if _HAS_ECH:
  
+@@ -476,3 +770,129 @@
+             except AttributeError:
+                 # Server connections don't have ech_status
+                 return "not_offered"
++
++
++class TLSObject:
++    def __init__(
++        self,
++        context: TLSContext | None = None,
++        incoming: MemoryBIO | None = None,
++        outgoing: MemoryBIO | None = None,
++        server_side: bool = False,
++        server_hostname: str | None = None,
++        session: Any = None,
++    ) -> None:
++        if context is None or incoming is None or outgoing is None:
++            raise TypeError(
++                f"{self.__class__.__name__} does not have a public constructor. "
++                "Instances are returned by SSLContext.wrap_bio()."
++            )
++        _validate_server_hostname(server_side, server_hostname)
++        connection = _TLSConnection(
++            context=context,
++            incoming=incoming,
++            outgoing=outgoing,
++            server_side=server_side,
++            server_hostname=server_hostname,
++            session=session,
++        )
++        connection._sni_owner = weakref.ref(self)
++        object.__setattr__(self, "_connection", connection)
++
++    def cipher(self) -> tuple[str, str, int] | None:
++        return self._connection.cipher()
++
++    def client_sigalg(self) -> str | None:
++        return self._connection.client_sigalg()
++
++    def compression(self) -> None:
++        return self._connection.compression()
++
++    def do_handshake(self) -> None:
++        return self._connection.do_handshake()
++
++    def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
++        return self._connection.get_channel_binding(cb_type)
++
++    def get_unverified_chain(self) -> list[bytes]:
++        return self._connection.get_unverified_chain()
++
++    def get_verified_chain(self) -> list[bytes]:
++        return self._connection.get_verified_chain()
++
++    def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
++        return self._connection.getpeercert(binary_form)
++
++    def group(self) -> str | None:
++        return self._connection.group()
++
++    def pending(self) -> int:
++        return self._connection.pending()
++
++    def read(self, len: int = 1024, buffer: Any | None = None) -> bytes | int:
++        return self._connection.read(len, buffer)
++
++    def selected_alpn_protocol(self) -> str | None:
++        return self._connection.selected_alpn_protocol()
++
++    def selected_npn_protocol(self) -> None:
++        return self._connection.selected_npn_protocol()
++
++    def server_sigalg(self) -> str | None:
++        return self._connection.server_sigalg()
++
++    def shared_ciphers(self) -> list[tuple[str, str, int]] | None:
++        return self._connection.shared_ciphers()
++
++    def unwrap(self) -> None:
++        return self._connection.unwrap()
++
++    def verify_client_post_handshake(self) -> None:
++        raise NotImplementedError(
++            "RTLS does not support post-handshake authentication"
++        )
++
++    def version(self) -> str | None:
++        return self._connection.version()
++
++    def write(self, data: bytes | bytearray | memoryview) -> int:
++        return self._connection.write(data)
++
++    @property
++    def context(self) -> TLSContext:
++        return self._connection.context
++
++    @context.setter
++    def context(self, value: TLSContext) -> None:
++        self._connection.context = value
++
++    @property
++    def server_hostname(self) -> str | None:
++        return self._connection.server_hostname
++
++    @property
++    def server_side(self) -> bool:
++        return self._connection.server_side
++
++    @property
++    def session(self) -> Any:
++        return self._connection.session
++
++    @session.setter
++    def session(self, value: Any) -> None:
++        self._connection.session = value
++
++    @property
++    def session_reused(self) -> bool:
++        return self._connection.session_reused
++
++    def __getattr__(self, name: str) -> Any:
++        return getattr(self._connection, name)
++
++    def __setattr__(self, name: str, value: Any) -> None:
++        if name == "_connection":
++            object.__setattr__(self, name, value)
++        elif name in {"context", "session"}:
++            setattr(self._connection, name, value)
++        else:
++            object.__setattr__(self, name, value)
 diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
 --- a/src/rtls/_rustls.pyi
 +++ b/src/rtls/_rustls.pyi
-@@ -1,10 +1,14 @@
+@@ -1,11 +1,16 @@
  from __future__ import annotations
 +
 +from typing import Any
@@ -9249,9 +9923,11 @@ diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
 +    def add_root_certs_from_cadata(self, pem_data: bytes) -> int: ...
 +    def add_capath_directory(self, path: bytes) -> None: ...
      def add_root_cert_from_der(self, der_data: bytes) -> None: ...
++    def cert_chain_key_is_encrypted(self, cert_pem: bytes, key_pem: bytes) -> bool: ...
      def set_client_cert_chain_pem(
          self,
-@@ -22,18 +26,45 @@
+         cert_pem: bytes,
+@@ -22,18 +27,45 @@
      def set_min_version(self, version: int) -> None: ...
      def set_max_version(self, version: int) -> None: ...
      def set_cipher_suites(self, suites: list[str]) -> None: ...
@@ -9299,7 +9975,7 @@ diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
  
  class RustlsClientConnection:
      """Client-side TLS state machine. No network I/O."""
-@@ -46,6 +77,13 @@
+@@ -46,6 +78,13 @@
      def write_tls(self) -> bytes: ...
      def send_close_notify(self) -> None: ...
      def is_handshaking(self) -> bool: ...
@@ -9313,7 +9989,7 @@ diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
      def wants_read(self) -> bool: ...
      def wants_write(self) -> bool: ...
      def peer_certificates(self) -> list[bytes] | None: ...
-@@ -69,6 +107,11 @@
+@@ -69,6 +108,11 @@
      def write_tls(self) -> bytes: ...
      def send_close_notify(self) -> None: ...
      def is_handshaking(self) -> bool: ...
@@ -9325,7 +10001,7 @@ diff --git a/src/rtls/_rustls.pyi b/src/rtls/_rustls.pyi
      def wants_read(self) -> bool: ...
      def wants_write(self) -> bool: ...
      def peer_certificates(self) -> list[bytes] | None: ...
-@@ -81,8 +124,9 @@
+@@ -81,8 +125,9 @@
      ) -> tuple[bytes, bytes]: ...
  
  def parse_certificate_dict(der_bytes: bytes) -> dict[str, object]: ...
@@ -9366,7 +10042,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  )
 -from ._object import TLSObject
 +from ._object import (
-+    TLSObject,
++    _TLSConnection,
 +    _validate_channel_binding_type,
 +    _validate_constructor_session,
 +    _validate_server_hostname,
@@ -9486,19 +10162,25 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._closed = False
  
          # Take over the underlying socket's fd.
-@@ -94,14 +183,52 @@
-         # Create the MemoryBIO pair and TLSObject
+@@ -91,17 +180,55 @@
+         else:
+             self.settimeout(_timeout)
+ 
+-        # Create the MemoryBIO pair and TLSObject
++        # Create the MemoryBIO pair and _TLSConnection
          self._incoming = MemoryBIO()
          self._outgoing = MemoryBIO()
+-
+-        self._sslobj_internal: TLSObject | None = None
+-
+-        # If the socket was already connected, do handshake now
 +        self._handshake_record = bytearray()
 +        self._handshake_record_size: int | None = None
 +        self._ciphertext_condition = threading.Condition()
 +        self._ciphertext_write_in_progress = False
 +        self._pending_ciphertext = bytearray()
- 
-         self._sslobj_internal: TLSObject | None = None
--
--        # If the socket was already connected, do handshake now
++
++        self._sslobj_internal: _TLSConnection | None = None
 +        from ._context import _encode_server_hostname
 +
 +        try:
@@ -9561,9 +10243,11 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +        return wrapped, address
 +
      def _create_sslobj(self) -> None:
-         """Create the internal TLSObject."""
+-        """Create the internal TLSObject."""
+-        self._sslobj_internal = TLSObject(
++        """Create the internal _TLSConnection."""
 +        self._tls_started = True
-         self._sslobj_internal = TLSObject(
++        self._sslobj_internal = _TLSConnection(
              context=self._rtls_context,
              incoming=self._incoming,
              outgoing=self._outgoing,
@@ -9661,7 +10345,12 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          if self._sslobj_internal is None:
              self._create_sslobj()
  
-@@ -164,7 +359,8 @@
+@@ -160,11 +355,12 @@
+         self._do_handshake_loop(timeout)
+ 
+     def _do_handshake_loop(self, timeout: float | None) -> None:
+-        """Inner handshake loop - drives TLSObject.do_handshake()."""
++        """Inner handshake loop - drives _TLSConnection.do_handshake()."""
          while True:
              try:
                  self._sslobj_internal.do_handshake()
@@ -10097,7 +10786,7 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          self._rtls_context = ctx
  
      @property
-@@ -419,29 +804,59 @@
+@@ -419,57 +804,114 @@
      def server_hostname(self) -> str | None:  # type: ignore[override]
          return self._server_hostname
  
@@ -10141,12 +10830,15 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
      def _sslobj(self, value: Any) -> None:
          """Allow setting _sslobj (ssl.SSLSocket._real_close sets it to None)."""
          self._sslobj_internal = value
+-
+-    @property
+-    def sslobj(self) -> TLSObject | None:
 +        self._sslobj_socket_proxy = None
 +        if value is not None:
 +            self._tls_started = True
- 
-     @property
-     def sslobj(self) -> TLSObject | None:
++
++    @property
++    def sslobj(self) -> _TLSConnection | None:
          return self._sslobj_internal
  
 -    def get_verified_chain(self) -> list[TLSCertificate] | None:
@@ -10166,7 +10858,12 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          return self._sslobj_internal.get_unverified_chain()
  
      if _HAS_ECH:
-@@ -453,23 +868,50 @@
+ 
+         @property
+         def ech_status(self) -> str:
+-            """Return the ECH status string. See TLSObject.ech_status."""
++            """Return the ECH status string. See _TLSConnection.ech_status."""
+             if self._sslobj_internal is None:
                  return "not_offered"
              return self._sslobj_internal.ech_status
  
@@ -10248,9 +10945,10 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +        self._pending_session = session
          self._incoming = MemoryBIO()
          self._outgoing = MemoryBIO()
+-        self._sslobj_internal: TLSObject | None = None
 +        self._handshake_record = bytearray()
 +        self._handshake_record_size: int | None = None
-         self._sslobj_internal: TLSObject | None = None
++        self._sslobj_internal: _TLSConnection | None = None
          self._closed = False
 +        from ._context import _encode_server_hostname
 +
@@ -10268,7 +10966,14 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
  
          try:
              sock.getpeername()
-@@ -536,7 +999,10 @@
+@@ -530,13 +993,16 @@
+                     raise
+ 
+     def _create_sslobj(self) -> None:
+-        self._sslobj_internal = TLSObject(
++        self._sslobj_internal = _TLSConnection(
+             context=self._rtls_context,
+             incoming=self._incoming,
              outgoing=self._outgoing,
              server_side=self._server_side,
              server_hostname=self._server_hostname,
@@ -10448,12 +11153,15 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
          return self._sslobj_internal.get_unverified_chain()
  
      @property
-@@ -717,8 +1247,32 @@
+@@ -717,11 +1247,35 @@
          return self._server_hostname
  
      @property
 -    def _sslobj(self) -> TLSObject | None:
 -        return self._sslobj_internal
+-
+-    @property
+-    def sslobj(self) -> TLSObject | None:
 +    def session(self) -> Any:
 +        if self._sslobj_internal is None:
 +            return self._pending_session
@@ -10480,9 +11188,12 @@ diff --git a/src/rtls/_socket.py b/src/rtls/_socket.py
 +        if self._sslobj_internal is None:
 +            return None
 +        return self._sslobj_internal._sslobj
++
++    @property
++    def sslobj(self) -> _TLSConnection | None:
+         return self._sslobj_internal
  
-     @property
-     def sslobj(self) -> TLSObject | None:
+     def __getattr__(self, name: str) -> Any:
 diff --git a/src/rtls/_stdlib.py b/src/rtls/_stdlib.py
 --- a/src/rtls/_stdlib.py
 +++ b/src/rtls/_stdlib.py
@@ -10527,20 +11238,22 @@ diff --git a/src/rtls/_utils.py b/src/rtls/_utils.py
  import os
  import socket
  from typing import Any
-@@ -15,6 +17,13 @@
+@@ -13,7 +15,14 @@
+     Purpose,
+     _get_default_verify_paths,
  )
- from ._exceptions import SSLCertVerificationError
- 
+-from ._exceptions import SSLCertVerificationError
++from ._exceptions import SSLCertVerificationError, SSLError
++
 +_C_INT_BITS = ctypes.sizeof(ctypes.c_int) * 8
 +_C_INT_MIN = -(1 << (_C_INT_BITS - 1))
 +_C_INT_MAX = (1 << (_C_INT_BITS - 1)) - 1
 +
 +PEM_HEADER = "-----BEGIN CERTIFICATE-----"
 +PEM_FOOTER = "-----END CERTIFICATE-----"
-+
+ 
  
  def create_default_context(
-     purpose: Any = Purpose.SERVER_AUTH,
 @@ -50,27 +59,38 @@
      return context
  
@@ -10594,7 +11307,7 @@ diff --git a/src/rtls/_utils.py b/src/rtls/_utils.py
  
  
  def DER_cert_to_PEM_cert(der_cert_bytes: bytes) -> str:
-@@ -209,6 +229,11 @@
+@@ -209,19 +229,27 @@
  
  def RAND_bytes(num: int) -> bytes:
      """Generate num cryptographically secure random bytes."""
@@ -10603,10 +11316,27 @@ diff --git a/src/rtls/_utils.py b/src/rtls/_utils.py
 +        raise OverflowError("Python int too large to convert to C int")
 +    if num < 0:
 +        raise ValueError("num must be positive")
++    from . import _rustls
++
++    return _rustls.rand_bytes(num)
++
++
++def RAND_status() -> bool:
++    """Return whether the selected provider can generate secure random bytes."""
      try:
-         from . import _rustls
- 
-@@ -223,5 +248,7 @@
+-        from . import _rustls
+-
+-        return _rustls.rand_bytes(num)
+-    except ImportError:
+-        return os.urandom(num)
+-
+-
+-def RAND_status() -> bool:
+-    """Always returns True — rustls's RNG is always seeded."""
++        RAND_bytes(1)
++    except SSLError:
++        return False
+     return True
  
  
  def RAND_add(data: bytes, entropy: float) -> None:
@@ -11434,11 +12164,10 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
      def test_get_ca_certs(self):
          ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
          self.assertEqual(ctx.get_ca_certs(), [])
-@@ -1148,6 +1757,21 @@
-         self.assertIsNotNone(client.version())
+@@ -1149,6 +1758,21 @@
          self.assertIn(client.version(), ("TLSv1.2", "TLSv1.3"))
          self.assertIsNotNone(client.getpeercert())
-+
+ 
 +    def test_chain_access_before_handshake(self):
 +        client_context, server_context, hostname = testing_context()
 +        client = client_context.wrap_bio(
@@ -11453,10 +12182,87 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
 +            self.assertEqual(tls_object.get_unverified_chain(), [])
 +            self.assertIsNone(tls_object._sslobj.get_verified_chain())
 +            self.assertIsNone(tls_object._sslobj.get_unverified_chain())
- 
++
      def test_session_properties(self):
          """SSLObject.session should be None, session_reused should be False."""
-@@ -1461,6 +2085,73 @@
+         client_ctx, server_ctx, hostname = testing_context()
+@@ -1157,6 +1781,75 @@
+         client = client_ctx.wrap_bio(c_in, c_out, server_hostname=hostname)
+         self.assertIsNone(client.session)
+         self.assertFalse(client.session_reused)
++
++    def test_tls13_ticketless_session(self):
++        client_context, server_context, hostname = testing_context()
++        for context in (client_context, server_context):
++            context.minimum_version = ssl.TLSVersion.TLSv1_3
++            context.maximum_version = ssl.TLSVersion.TLSv1_3
++
++        def connected_pair(session=None):
++            c_in, c_out = ssl.MemoryBIO(), ssl.MemoryBIO()
++            s_in, s_out = ssl.MemoryBIO(), ssl.MemoryBIO()
++            client = client_context.wrap_bio(
++                c_in, c_out, server_hostname=hostname, session=session
++            )
++            server = server_context.wrap_bio(s_in, s_out, server_side=True)
++            for _ in range(5):
++                try:
++                    client.do_handshake()
++                except ssl.SSLWantReadError:
++                    pass
++                if c_out.pending:
++                    s_in.write(c_out.read())
++                try:
++                    server.do_handshake()
++                except ssl.SSLWantReadError:
++                    pass
++                if s_out.pending:
++                    c_in.write(s_out.read())
++            client.do_handshake()
++            server.do_handshake()
++            return client, server
++
++        client, _ = connected_pair()
++        session = client.session
++        self.assertIsInstance(session, ssl.SSLSession)
++        self.assertEqual(session.id, b"")
++        self.assertGreater(session.time, 0)
++        self.assertEqual(session.timeout, 7200)
++        self.assertFalse(session.has_ticket)
++        self.assertEqual(session.ticket_lifetime_hint, 0)
++        self.assertFalse(client.session_reused)
++
++        with self.assertRaisesRegex(
++            ValueError, "session can only be specified in client mode"
++        ):
++            server_context.wrap_bio(
++                ssl.MemoryBIO(),
++                ssl.MemoryBIO(),
++                server_side=True,
++                session=session,
++            )
++        other_context, _, _ = testing_context()
++        with self.assertRaisesRegex(ValueError, "Session refers to a different SSLContext"):
++            other_context.wrap_bio(
++                ssl.MemoryBIO(),
++                ssl.MemoryBIO(),
++                server_hostname=hostname,
++                session=session,
++            )
++        with self.assertRaisesRegex(ValueError, "Session is for a different server name"):
++            client_context.wrap_bio(
++                ssl.MemoryBIO(),
++                ssl.MemoryBIO(),
++                server_hostname="other.example",
++                session=session,
++            )
++
++        reused_client, _ = connected_pair(session)
++        self.assertFalse(reused_client.session_reused)
++        self.assertEqual(server_context.session_stats()["hits"], 0)
+ 
+     def test_sslobj_returns_self(self):
+         """_sslobj should return self for urllib3-future compat."""
+@@ -1461,6 +2154,73 @@
                  cert = s.getpeercert()
                  self.assertTrue(cert, "Can't get peer certificate.")
  
@@ -11530,7 +12336,7 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
      @unittest.skip("rustls server-side client cert verification differs from OpenSSL")
      def test_wrong_cert_tls12(self):
          """Connecting when the server rejects the client's certificate."""
-@@ -1534,6 +2225,59 @@
+@@ -1534,6 +2294,59 @@
                  version = s.version()
                  self.assertEqual(version, "TLSv1.3")
  
@@ -11590,7 +12396,7 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
      def test_min_max_version(self):
          """Test TLS version constraints."""
          client_context, server_context, hostname = testing_context()
-@@ -1579,6 +2323,171 @@
+@@ -1579,6 +2392,171 @@
                      self.assertIsInstance(cipher, tuple)
                      self.assertEqual(len(cipher), 3)
  
@@ -11762,7 +12568,7 @@ diff --git a/tests/test_cpython_ssl.py b/tests/test_cpython_ssl.py
      def test_recv_send(self):
          """Test basic send/recv over TLS."""
          client_context, server_context, hostname = testing_context()
-@@ -1638,6 +2547,149 @@
+@@ -1638,6 +2616,149 @@
                  uchain = s.get_unverified_chain()
                  self.assertIsNotNone(uchain)
                  self.assertGreater(len(uchain), 0)
@@ -12046,6 +12852,315 @@ new file mode 100644
 +
 +if __name__ == "__main__":
 +    unittest.main()
+diff --git a/tests/test_rtls.py b/tests/test_rtls.py
+--- a/tests/test_rtls.py
++++ b/tests/test_rtls.py
+@@ -1695,7 +1695,6 @@
+ 
+         cls.key_plain = os.path.join(cls._tmpdir, "key_plain.pem")
+         cls.key_enc_aes = os.path.join(cls._tmpdir, "key_enc_aes.pem")
+-        cls.key_enc_3des = os.path.join(cls._tmpdir, "key_enc_3des.pem")
+         cls.cert_pem = os.path.join(cls._tmpdir, "cert.pem")
+         cls.password = b"testpassword123"
+ 
+@@ -1723,29 +1722,12 @@
+                 "-topk8",
+                 "-v2",
+                 "aes-256-cbc",
++                "-v2prf",
++                "hmacWithSHA256",
+                 "-in",
+                 cls.key_plain,
+                 "-out",
+                 cls.key_enc_aes,
+-                "-passout",
+-                f"pass:{cls.password.decode()}",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Encrypt with 3DES (PKCS#8 encrypted)
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "pkcs8",
+-                "-topk8",
+-                "-v2",
+-                "des3",
+-                "-in",
+-                cls.key_plain,
+-                "-out",
+-                cls.key_enc_3des,
+                 "-passout",
+                 f"pass:{cls.password.decode()}",
+             ],
+@@ -1789,16 +1771,6 @@
+         )
+         self.assertTrue(ctx._cert_chain_loaded)
+ 
+-    def test_load_encrypted_pkcs8_3des(self):
+-        """Loading 3DES encrypted PKCS#8 key with correct password."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        ctx.load_cert_chain(
+-            certfile=self.cert_pem,
+-            keyfile=self.key_enc_3des,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+     def test_load_encrypted_pkcs8_wrong_password(self):
+         """Wrong password should raise an error."""
+         ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+@@ -1869,248 +1841,6 @@
+         ctx.load_cert_chain(
+             certfile=self.cert_pem,
+             keyfile=self.key_enc_aes,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+-
+-class TestTraditionalEncryptedKeySupport(unittest.TestCase):
+-    """Test loading traditional OpenSSL encrypted PEM keys (Proc-Type/DEK-Info)."""
+-
+-    @classmethod
+-    def setUpClass(cls):
+-        """Generate test fixtures: self-signed cert + traditional encrypted keys."""
+-        import subprocess
+-        import tempfile
+-
+-        cls._tmpdir = tempfile.mkdtemp(prefix="rtls_trad_enc_")
+-        cls.password = b"letmein"
+-
+-        # Generate plaintext EC key (SEC1 format, P-256)
+-        cls.ec_key_plain = os.path.join(cls._tmpdir, "ec_key_plain.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "ecparam",
+-                "-genkey",
+-                "-name",
+-                "prime256v1",
+-                "-out",
+-                cls.ec_key_plain,
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Traditional encrypted EC key with AES-256-CBC
+-        cls.ec_key_enc_aes256 = os.path.join(cls._tmpdir, "ec_key_enc_aes256.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "ec",
+-                "-in",
+-                cls.ec_key_plain,
+-                "-out",
+-                cls.ec_key_enc_aes256,
+-                "-aes-256-cbc",
+-                "-passout",
+-                f"pass:{cls.password.decode()}",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Traditional encrypted EC key with AES-128-CBC
+-        cls.ec_key_enc_aes128 = os.path.join(cls._tmpdir, "ec_key_enc_aes128.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "ec",
+-                "-in",
+-                cls.ec_key_plain,
+-                "-out",
+-                cls.ec_key_enc_aes128,
+-                "-aes-128-cbc",
+-                "-passout",
+-                f"pass:{cls.password.decode()}",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Traditional encrypted EC key with DES-EDE3-CBC
+-        cls.ec_key_enc_3des = os.path.join(cls._tmpdir, "ec_key_enc_3des.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "ec",
+-                "-in",
+-                cls.ec_key_plain,
+-                "-out",
+-                cls.ec_key_enc_3des,
+-                "-des3",
+-                "-passout",
+-                f"pass:{cls.password.decode()}",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Generate plaintext RSA key (PKCS#1 format)
+-        cls.rsa_key_plain = os.path.join(cls._tmpdir, "rsa_key_plain.pem")
+-        subprocess.run(
+-            ["openssl", "genrsa", "-out", cls.rsa_key_plain, "2048"],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Traditional encrypted RSA key with AES-256-CBC
+-        cls.rsa_key_enc_aes256 = os.path.join(cls._tmpdir, "rsa_key_enc_aes256.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "rsa",
+-                "-in",
+-                cls.rsa_key_plain,
+-                "-out",
+-                cls.rsa_key_enc_aes256,
+-                "-aes-256-cbc",
+-                "-passout",
+-                f"pass:{cls.password.decode()}",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Self-signed cert from EC key
+-        cls.ec_cert = os.path.join(cls._tmpdir, "ec_cert.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "req",
+-                "-new",
+-                "-x509",
+-                "-key",
+-                cls.ec_key_plain,
+-                "-out",
+-                cls.ec_cert,
+-                "-days",
+-                "365",
+-                "-subj",
+-                "/CN=test-trad-enc.example.com",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-        # Self-signed cert from RSA key
+-        cls.rsa_cert = os.path.join(cls._tmpdir, "rsa_cert.pem")
+-        subprocess.run(
+-            [
+-                "openssl",
+-                "req",
+-                "-new",
+-                "-x509",
+-                "-key",
+-                cls.rsa_key_plain,
+-                "-out",
+-                cls.rsa_cert,
+-                "-days",
+-                "365",
+-                "-subj",
+-                "/CN=test-trad-enc-rsa.example.com",
+-            ],
+-            check=True,
+-            capture_output=True,
+-        )
+-
+-    @classmethod
+-    def tearDownClass(cls):
+-        import shutil
+-
+-        shutil.rmtree(cls._tmpdir, ignore_errors=True)
+-
+-    def test_load_ec_traditional_aes256(self):
+-        """Traditional AES-256-CBC encrypted EC key."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        ctx.load_cert_chain(
+-            certfile=self.ec_cert,
+-            keyfile=self.ec_key_enc_aes256,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+-    def test_load_ec_traditional_aes128(self):
+-        """Traditional AES-128-CBC encrypted EC key."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        ctx.load_cert_chain(
+-            certfile=self.ec_cert,
+-            keyfile=self.ec_key_enc_aes128,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+-    def test_load_ec_traditional_3des(self):
+-        """Traditional DES-EDE3-CBC encrypted EC key."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        ctx.load_cert_chain(
+-            certfile=self.ec_cert,
+-            keyfile=self.ec_key_enc_3des,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+-    def test_load_rsa_traditional_aes256(self):
+-        """Traditional AES-256-CBC encrypted RSA key."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        ctx.load_cert_chain(
+-            certfile=self.rsa_cert,
+-            keyfile=self.rsa_key_enc_aes256,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+-    def test_load_traditional_wrong_password(self):
+-        """Wrong password should raise an error."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        with self.assertRaises(Exception):
+-            ctx.load_cert_chain(
+-                certfile=self.ec_cert,
+-                keyfile=self.ec_key_enc_aes256,
+-                password=b"wrongpassword",
+-            )
+-
+-    def test_load_traditional_no_password(self):
+-        """Encrypted key without password should raise an error."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        with self.assertRaises(Exception):
+-            ctx.load_cert_chain(
+-                certfile=self.ec_cert,
+-                keyfile=self.ec_key_enc_aes256,
+-                password=None,
+-            )
+-
+-    def test_load_traditional_in_memory(self):
+-        """Traditional encrypted key from in-memory bytes."""
+-        with open(self.ec_cert, "rb") as f:
+-            cert_data = f.read()
+-        with open(self.ec_key_enc_aes256, "rb") as f:
+-            key_data = f.read()
+-
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_CLIENT)
+-        ctx.load_cert_chain(
+-            certfile=cert_data,
+-            keyfile=key_data,
+-            password=self.password,
+-        )
+-        self.assertTrue(ctx._cert_chain_loaded)
+-
+-    def test_load_traditional_server_side(self):
+-        """Traditional encrypted key for server-side TLS context."""
+-        ctx = TLSContext(ssl.PROTOCOL_TLS_SERVER)
+-        ctx.load_cert_chain(
+-            certfile=self.ec_cert,
+-            keyfile=self.ec_key_enc_aes256,
+             password=self.password,
+         )
+         self.assertTrue(ctx._cert_chain_loaded)
 diff --git a/tests/test_socket_close_record_boundary.py b/tests/test_socket_close_record_boundary.py
 new file mode 100644
 --- /dev/null
