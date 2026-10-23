@@ -138,6 +138,12 @@ source against that digest; changed or incomplete source fails before build.
 The sealed overlay builds and installs from the staged snapshot, not the
 working tree. Use the same run directory and source path for both phases:
 
+The overlay builds both Rust extensions with Cargo `--release`, overriding
+release settings to `opt-level=3`, `lto=thin`, `codegen-units=1`, `debug=0`,
+and `panic=unwind`. The build keeps the `apple-m1` Rust target and macOS 26
+deployment minimum. Direct calls to `build_rust_extension` keep the debug
+profile unless the caller requests release mode.
+
 ```sh
 run_dir=.work/tmp/openssl-free-candidate
 rtls_source=.work/tmp/rtls-build-source

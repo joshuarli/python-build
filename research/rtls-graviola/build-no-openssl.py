@@ -817,6 +817,7 @@ def build_rust_extension(
     jobs: int,
     *,
     rtls: bool,
+    release: bool = False,
 ) -> Path:
     from buildsys.recipes import BuildError as RecipeBuildError, run
 
@@ -859,20 +860,34 @@ def build_rust_extension(
         environment["PYO3_BUILD_EXTENSION_MODULE"] = "1"
     else:
         environment["PYO3_USE_ABI3_FORWARD_COMPATIBILITY"] = "1"
+    if release:
+        environment.update(
+            {
+                "CARGO_PROFILE_RELEASE_OPT_LEVEL": "3",
+                "CARGO_PROFILE_RELEASE_LTO": "thin",
+                "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "1",
+                "CARGO_PROFILE_RELEASE_DEBUG": "0",
+                "CARGO_PROFILE_RELEASE_PANIC": "unwind",
+            }
+        )
     log = run_dir / "logs" / f"{name}-cargo.log"
+    command = [str(cargo), "build"]
+    if release:
+        command.append("--release")
+    command.extend(
+        (
+            "--verbose",
+            "--jobs",
+            str(jobs),
+            "--offline",
+            "--locked",
+            "--manifest-path",
+            str(manifest),
+        )
+    )
     try:
         run(
-            [
-                str(cargo),
-                "build",
-                "--verbose",
-                "--jobs",
-                str(jobs),
-                "--offline",
-                "--locked",
-                "--manifest-path",
-                str(manifest),
-            ],
+            command,
             cwd=manifest.parent,
             env=environment,
             log=log,
@@ -880,7 +895,8 @@ def build_rust_extension(
     except RecipeBuildError as error:
         raise BuildError(f"Rust {name} extension build failed: {error}") from error
     extension_name = "lib_rustls.dylib" if rtls else "lib_hashlib_graviola.dylib"
-    extension = target_dir / "debug" / extension_name
+    profile_directory = "release" if release else "debug"
+    extension = target_dir / profile_directory / extension_name
     if not extension.is_file():
         raise BuildError(f"Rust {name} extension is missing: {extension}")
     return extension
@@ -946,6 +962,7 @@ def install_adapters(
         toolchain,
         jobs,
         rtls=True,
+        release=True,
     )
     hashing_extension = build_rust_extension(
         cargo,
@@ -961,6 +978,7 @@ def install_adapters(
         toolchain,
         jobs,
         rtls=False,
+        release=True,
     )
     shutil.copytree(
         rtls_source / "src" / "rtls",
