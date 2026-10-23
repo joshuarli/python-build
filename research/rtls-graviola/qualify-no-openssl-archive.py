@@ -554,6 +554,10 @@ def _linux_build_evidence(
         "hashing_snapshot_sha256": research_driver.hashing_source_digest(hashing_source),
         "rtls_cargo_lock_sha256": sha256_file(rtls_source / "rust" / "Cargo.lock"),
         "hashing_cargo_lock_sha256": sha256_file(hashing_source / "Cargo.lock"),
+        "cpython_experimental_patches": [
+            {"name": path.relative_to(REPO).as_posix(), "sha256": sha256_file(path)}
+            for path in sorted((REPO / "research" / "rtls-graviola" / "cpython-linux-patches").glob("*.patch"))
+        ],
     }
     for name, expected in required_source_digests.items():
         if source_inputs.get(name) != expected:
@@ -1775,6 +1779,8 @@ def build_experimental_manifest(
     cpython_patches = [
         {"name": path.name, "sha256": sha256_file(path)} for path in patch_paths
     ]
+    if not target.is_macos:
+        cpython_patches.extend(linux_evidence["source"]["cpython_experimental_patches"])
     rtls_patch_names = (
         "rtls-graviola.patch",
         "webpki-policy.patch",

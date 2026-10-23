@@ -413,6 +413,7 @@ def build_cpython_reference(
     source_root = run_dir / "cpython-source"
     source = safe_extract(blob, source_root) / f"Python-{PRODUCT.version_string}"
     apply_patch_set(source, REPO / "patches" / "cpython")
+    apply_patch_set(source, REPO / "research" / "rtls-graviola" / "cpython-linux-patches")
     build_directory = run_dir / "cpython-build"
     build_directory.mkdir()
     prefix = run_dir / "prefix"

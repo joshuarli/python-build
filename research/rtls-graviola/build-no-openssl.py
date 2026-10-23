@@ -261,6 +261,8 @@ def build_cpython(
     source_root = run_dir / "cpython-source"
     source = safe_extract(cpython_blob, source_root) / "Python-3.15.1"
     apply_patch_set(source, REPO / "patches" / "cpython")
+    if not target.is_macos:
+        apply_patch_set(source, REPO / "research" / "rtls-graviola" / "cpython-linux-patches")
     build_directory = run_dir / "cpython-build"
     build_directory.mkdir()
     args, environment = configuration(
@@ -1386,6 +1388,10 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
         "sources_lock_sha256": hashlib.sha256((REPO / "sources.lock.json").read_bytes()).hexdigest(),
         "bootstrap_lock_sha256": hashlib.sha256((REPO / "bootstrap.lock.json").read_bytes()).hexdigest(),
     }
+    source["cpython_experimental_patches"] = [
+        {"name": path.relative_to(REPO).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        for path in sorted((REPO / "research" / "rtls-graviola" / "cpython-linux-patches").glob("*.patch"))
+    ]
     pins = {pin.name: pin for pin in load_lock(REPO / "sources.lock.json")}
     names = ("cpython", *tuple(name for name in dependency_order(target) if name not in {"pkgconf", "openssl"}), "certifi-ca")
     cache = Cache(repository_common_root() / ".cache")
