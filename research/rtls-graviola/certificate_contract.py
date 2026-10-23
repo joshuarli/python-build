@@ -701,6 +701,8 @@ def pem_der(data: bytes) -> bytes:
 
 COMMON_NAME_OID = b"\x06\x03\x55\x04\x03"
 ORGANIZATION_NAME_OID = b"\x06\x03\x55\x04\x0a"
+SUBJECT_KEY_IDENTIFIER_EXTENSION_OID = b"\x06\x03\x55\x1d\x0e"
+AUTHORITY_KEY_IDENTIFIER_EXTENSION_OID = b"\x06\x03\x55\x1d\x23"
 
 
 def name_variant(name: bytes, oid: bytes, variant: str) -> bytes:
@@ -776,6 +778,44 @@ def resign_certificate(
     )
     signature = der_value(0x03, b"\x00" + signature_path.read_bytes())
     return der_value(0x30, tbs + outer[1] + signature)
+
+
+def remove_certificate_extension(
+    certificate: bytes,
+    oid: bytes,
+    key: Path,
+    directory: Path,
+    openssl: str,
+) -> bytes:
+    der = pem_der(certificate)
+    fields, _, _ = certificate_fields(der)
+    extensions_index = next(
+        (index for index, field in enumerate(fields) if field[0] == 0xa3), None
+    )
+    if extensions_index is None:
+        return certificate
+    explicit_extensions = der_children(fields[extensions_index])
+    if len(explicit_extensions) != 1:
+        raise ValueError("certificate extensions field is invalid")
+    extensions = der_children(explicit_extensions[0])
+    retained = [
+        extension
+        for extension in extensions
+        if der_children(extension)[0] != oid
+    ]
+    if len(retained) == len(extensions):
+        return certificate
+    if len(retained) != len(extensions) - 1:
+        raise ValueError("certificate has duplicate target extensions")
+    fields[extensions_index] = der_value(0xa3, der_value(0x30, b"".join(retained)))
+    revised = resign_certificate(der, fields, key, directory, openssl)
+    revised_extensions = der_children(fields[extensions_index])
+    if any(
+        der_children(extension)[0] == oid
+        for extension in der_children(revised_extensions[0])
+    ):
+        raise ValueError("certificate target extension remains after removal")
+    return certificate_pem(revised)
 
 
 def resigned_issuer_certificate(
@@ -1250,14 +1290,12 @@ def make_policy_fixtures(
         "subject_key_identifier_missing": [
             "basicConstraints = critical,CA:true,pathlen:4",
             "keyUsage = critical,digitalSignature,keyCertSign,cRLSign",
-            "subjectKeyIdentifier = none",
             "authorityKeyIdentifier = keyid:always,issuer:always",
         ],
         "authority_key_identifier_missing": [
             "basicConstraints = critical,CA:true,pathlen:4",
             "keyUsage = critical,digitalSignature,keyCertSign,cRLSign",
             "subjectKeyIdentifier = hash",
-            "authorityKeyIdentifier = none",
         ],
         "pathlen_zero": [
             "basicConstraints = critical,CA:true,pathlen:0",
@@ -1279,6 +1317,20 @@ def make_policy_fixtures(
             extensions,
             "sha1" if name == "signature_sha1" else "sha256",
         )
+        missing_extension = {
+            "subject_key_identifier_missing": SUBJECT_KEY_IDENTIFIER_EXTENSION_OID,
+            "authority_key_identifier_missing": AUTHORITY_KEY_IDENTIFIER_EXTENSION_OID,
+        }.get(name)
+        if missing_extension is not None:
+            certificate.write_bytes(
+                remove_certificate_extension(
+                    certificate.read_bytes(),
+                    missing_extension,
+                    root_a_key,
+                    directory,
+                    openssl,
+                )
+            )
     leaf_key, leaf_request = make_key_request(
         openssl, directory, "leaf", "/CN=localhost"
     )
