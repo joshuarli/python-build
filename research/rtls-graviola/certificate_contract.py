@@ -48,8 +48,26 @@ REFERENCE_EXPECTATIONS = {
     "strict_issuer_subject_mismatch": {"accepted": False},
     "hostname_wrong_san": {"accepted": False},
     "hostname_cn_without_san": {"accepted": True},
+    "hostname_wildcard_single_suffix": {"accepted": False},
+    "hostname_wildcard_multi_suffix_control": {"accepted": True},
+    "hostname_wildcard_idna_public_suffix": {"accepted": False},
+    "name_constraints_allowed_cn": {"accepted": True},
+    "name_constraints_blocked_cn": {"accepted": False},
+    "name_constraints_blocked_cn_check_hostname_disabled": {"accepted": False},
+    "name_constraints_blocked_cn_common_name_disabled": {
+        "accepted": True,
+        "hostname_policy.host_flags": 36,
+    },
+    "name_constraints_blocked_cn_common_name_disabled_hostname": {
+        "accepted": False,
+        "hostname_policy.host_flags": 36,
+    },
+    "name_constraints_san_dns_precedence_allowed": {"accepted": True},
+    "name_constraints_san_dns_precedence_blocked": {"accepted": False},
     "strict_duplicate_critical_extension": {"accepted": False},
     "strict_duplicate_critical_extension_disabled": {"accepted": False},
+    "critical_aia_on_trust_root": {"accepted": False},
+    "ns_cert_type_client_on_server_leaf": {"accepted": False},
     "unrelated_malformed_peer_certificate": {"accepted": True},
     "self_issued_not_self_signed_pathlen": {"accepted": True},
     "cross_signed_trusted_first_enabled": {"accepted": True},
@@ -63,6 +81,36 @@ REFERENCE_EXPECTATIONS = {
         "identity_preserved": False,
     },
 }
+
+for anchor_kind in ("root", "partial"):
+    for anchor_eku, expected in (("any", False), ("server", True), ("client", False)):
+        REFERENCE_EXPECTATIONS[
+            "eku_"
+            + anchor_kind
+            + "_"
+            + anchor_eku
+            + "_purpose_server_auth_leaf_server_"
+            + {"any": "0", "server": "1", "client": "2"}[anchor_eku]
+        ] = {"accepted": expected}
+    REFERENCE_EXPECTATIONS[
+        "eku_"
+        + anchor_kind
+        + "_server_purpose_server_auth_leaf_client_0"
+    ] = {"accepted": False}
+    for anchor_eku, expected in (("any", False), ("client", True), ("server", False)):
+        REFERENCE_EXPECTATIONS[
+            "eku_"
+            + anchor_kind
+            + "_"
+            + anchor_eku
+            + "_purpose_client_auth_leaf_client_"
+            + {"any": "0", "client": "1", "server": "2"}[anchor_eku]
+        ] = {"accepted": expected}
+    REFERENCE_EXPECTATIONS[
+        "eku_"
+        + anchor_kind
+        + "_client_purpose_client_auth_leaf_server_0"
+    ] = {"accepted": False}
 
 
 WORKER = r'''
@@ -152,8 +200,19 @@ def load_context(certfile, keyfile=None, password=None, ciphers=None):
     return context
 
 
-def client_context(cafile, changes):
+def client_context(cafile, changes, case):
     context = ssl.create_default_context(cafile=str(cafile))
+    if "hostname_checks_common_name" in case:
+        requested = case["hostname_checks_common_name"]
+        context.hostname_checks_common_name = requested
+        if getattr(context, "hostname_checks_common_name", None) != requested:
+            raise RuntimeError("hostname_checks_common_name did not retain its assigned value")
+    if "check_hostname" in case:
+        context.check_hostname = case["check_hostname"]
+    return set_verify_flags(context, changes)
+
+
+def set_verify_flags(context, changes):
     flags = int(context.verify_flags)
     for name, enabled in changes.items():
         flag = getattr(ssl, name, None)
@@ -250,9 +309,18 @@ def run_load_case(case):
 
 
 def run_path_case(case):
+    if case.get("purpose") == "CLIENT_AUTH":
+        return run_client_auth_case(case)
     try:
-        client = client_context(case["trustfile"], case.get("flags", {}))
+        client = client_context(case["trustfile"], case.get("flags", {}), case)
         flags = verify_flags(client)
+        hostname_policy = {
+            "check_hostname": client.check_hostname,
+            "hostname_checks_common_name": getattr(
+                client, "hostname_checks_common_name", None
+            ),
+            "host_flags": getattr(client, "_host_flags", None),
+        }
     except BaseException as error:
         return {
             "accepted": None,
@@ -271,6 +339,7 @@ def run_path_case(case):
             case.get("hostname", "localhost"),
         )
         result["verify_flags"] = flags
+        result["hostname_policy"] = hostname_policy
         return result
     except BaseException as error:
         return {
@@ -280,6 +349,104 @@ def run_path_case(case):
             "phase": "handshake_execution",
             "harness_error": error_value(error),
             "verify_flags": None,
+            "hostname_policy": None,
+        }
+
+
+def client_auth_exchange(server_context, client_context):
+    listener = socket.socket()
+    listener.settimeout(5)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+    server_errors = []
+
+    def serve():
+        try:
+            raw, _ = listener.accept()
+            raw.settimeout(5)
+            with server_context.wrap_socket(raw, server_side=True):
+                pass
+        except BaseException as error:
+            server_errors.append(error)
+        finally:
+            listener.close()
+
+    thread = threading.Thread(target=serve)
+    thread.start()
+    client_error = None
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as raw:
+            raw.settimeout(5)
+            with client_context.wrap_socket(raw, server_hostname="localhost"):
+                pass
+    except ssl.SSLError as error:
+        client_error = error
+    finally:
+        thread.join(6)
+        if thread.is_alive():
+            raise TimeoutError("mutual TLS server did not finish")
+    verification_errors = [
+        error for error in server_errors if isinstance(error, ssl.SSLCertVerificationError)
+    ]
+    if verification_errors:
+        return {
+            "accepted": False,
+            "peer_sha256": None,
+            "error": error_value(verification_errors[0]),
+            "phase": "handshake",
+            "server_errors": [error_value(error) for error in server_errors],
+        }
+    if server_errors:
+        raise RuntimeError("mutual TLS server thread failed: " + str(server_errors[0]))
+    if client_error is not None:
+        raise RuntimeError("mutual TLS client handshake failed: " + str(client_error))
+    return {
+        "accepted": True,
+        "peer_sha256": None,
+        "error": None,
+        "phase": "handshake",
+        "server_errors": [],
+    }
+
+
+def run_client_auth_case(case):
+    try:
+        server = ssl.create_default_context(
+            purpose=ssl.Purpose.CLIENT_AUTH, cafile=str(case["trustfile"])
+        )
+        server.verify_mode = ssl.CERT_REQUIRED
+        server = set_verify_flags(server, case.get("flags", {}))
+        server.load_cert_chain(case["server_chainfile"])
+        client = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        client.check_hostname = False
+        client.verify_mode = ssl.CERT_NONE
+        client.load_cert_chain(case["chainfile"])
+        flags = verify_flags(server)
+    except BaseException as error:
+        return {
+            "accepted": None,
+            "peer_sha256": None,
+            "error": None,
+            "phase": "client_auth_setup",
+            "harness_error": error_value(error),
+            "verify_flags": None,
+            "hostname_policy": None,
+        }
+    try:
+        result = client_auth_exchange(server, client)
+        result["verify_flags"] = flags
+        result["hostname_policy"] = {"verifier": "server", "purpose": "CLIENT_AUTH"}
+        return result
+    except BaseException as error:
+        return {
+            "accepted": None,
+            "peer_sha256": None,
+            "error": None,
+            "phase": "client_auth_handshake_execution",
+            "harness_error": error_value(error),
+            "verify_flags": None,
+            "hostname_policy": None,
         }
 
 
@@ -728,6 +895,249 @@ def make_root_b(openssl: str, directory: Path) -> tuple[Path, Path]:
     return certificate, key
 
 
+def make_policy_root(
+    openssl: str, directory: Path, name: str, extensions: list[str]
+) -> tuple[Path, Path]:
+    config = directory / (name + "-req.cnf")
+    config.write_text(
+        "\n".join(
+            (
+                "[req]",
+                "prompt = no",
+                "distinguished_name = dn",
+                "x509_extensions = ca_ext",
+                "[dn]",
+                "CN = RTLS-" + name,
+                "[ca_ext]",
+                *extensions,
+                "",
+            )
+        )
+    )
+    key = directory / (name + ".key")
+    certificate = directory / (name + ".pem")
+    run_openssl(
+        openssl,
+        directory,
+        [
+            "req",
+            "-x509",
+            "-new",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-keyout",
+            str(key),
+            "-out",
+            str(certificate),
+            "-days",
+            "3650",
+            "-config",
+            str(config),
+        ],
+    )
+    return certificate, key
+
+
+def make_eku_policy_cases(
+    certdata: Path,
+    directory: Path,
+    openssl: str,
+    normal_intermediate: list[str],
+) -> list[dict[str, object]]:
+    root_a = certdata / "pycacert.pem"
+    root_a_key = certdata / "pycakey.pem"
+    root_state = ca_state(directory, root_a, root_a_key, "eku-partial-root")
+
+    leaf_requests = {}
+    for leaf_eku in ("server", "client"):
+        key, request = make_key_request(
+            openssl, directory, "eku-leaf-" + leaf_eku, "/CN=localhost"
+        )
+        leaf_requests[leaf_eku] = (key, request)
+
+    def leaf_extensions(eku):
+        values = [
+            "basicConstraints = critical,CA:false",
+            "keyUsage = critical,digitalSignature,keyEncipherment",
+            "extendedKeyUsage = " + ("serverAuth" if eku == "server" else "clientAuth"),
+            "subjectKeyIdentifier = hash",
+            "authorityKeyIdentifier = keyid,issuer",
+        ]
+        if eku == "server":
+            values.append("subjectAltName = DNS:localhost")
+        return values
+
+    def root_anchor(name, eku):
+        config = directory / ("eku-root-" + name + ".cnf")
+        config.write_text(
+            "\n".join(
+                (
+                    "[req]",
+                    "prompt = no",
+                    "distinguished_name = dn",
+                    "x509_extensions = ca_ext",
+                    "[dn]",
+                    "CN = RTLS-EKU-Root-" + name,
+                    "[ca_ext]",
+                    "basicConstraints = critical,CA:true,pathlen:5",
+                    "keyUsage = critical,keyCertSign,cRLSign",
+                    "subjectKeyIdentifier = hash",
+                    "authorityKeyIdentifier = keyid:always,issuer",
+                    "extendedKeyUsage = critical," + eku,
+                    "",
+                )
+            )
+        )
+        key = directory / ("eku-root-" + name + ".key")
+        certificate = directory / ("eku-root-" + name + ".pem")
+        run_openssl(
+            openssl,
+            directory,
+            [
+                "req",
+                "-x509",
+                "-new",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-keyout",
+                str(key),
+                "-out",
+                str(certificate),
+                "-days",
+                "3650",
+                "-config",
+                str(config),
+            ],
+        )
+        return certificate, key
+
+    anchors = {}
+    for anchor_eku, eku_text in (
+        ("any", "anyExtendedKeyUsage"),
+        ("server", "serverAuth"),
+        ("client", "clientAuth"),
+    ):
+        root_certificate, root_key = root_anchor(anchor_eku, eku_text)
+        root_ca = ca_state(
+            directory, root_certificate, root_key, "eku-root-" + anchor_eku
+        )
+        anchors[("root", anchor_eku)] = (root_certificate, root_key, root_ca)
+
+        partial_key, partial_request = make_key_request(
+            openssl,
+            directory,
+            "eku-partial-" + anchor_eku,
+            "/CN=RTLS-EKU-Partial-" + anchor_eku,
+        )
+        partial_certificate = issue_certificate(
+            openssl,
+            root_state,
+            partial_request,
+            directory / ("eku-partial-" + anchor_eku + ".pem"),
+            "eku_partial_" + anchor_eku,
+            normal_intermediate
+            + ["extendedKeyUsage = critical," + eku_text],
+        )
+        partial_ca = ca_state(
+            directory,
+            partial_certificate,
+            partial_key,
+            "eku-partial-ca-" + anchor_eku,
+        )
+        anchors[("partial", anchor_eku)] = (
+            partial_certificate,
+            partial_key,
+            partial_ca,
+        )
+
+    cases = []
+    scenario_rows = (
+        ("SERVER_AUTH", "server", ("any", "server", "client")),
+        ("SERVER_AUTH", "client", ("server",)),
+        ("CLIENT_AUTH", "client", ("any", "client", "server")),
+        ("CLIENT_AUTH", "server", ("client",)),
+    )
+    for anchor_kind in ("root", "partial"):
+        for purpose, leaf_eku, anchor_ekus in scenario_rows:
+            for index, anchor_eku in enumerate(anchor_ekus):
+                certificate, key, signing_ca = anchors[(anchor_kind, anchor_eku)]
+                _, request = leaf_requests[leaf_eku]
+                leaf = issue_certificate(
+                    openssl,
+                    signing_ca,
+                    request,
+                    directory
+                    / (
+                        "eku-leaf-"
+                        + anchor_kind
+                        + "-"
+                        + anchor_eku
+                        + "-"
+                        + purpose.lower()
+                        + "-"
+                        + leaf_eku
+                        + "-"
+                        + str(index)
+                        + ".pem"
+                    ),
+                    "eku_leaf_"
+                    + anchor_kind
+                    + "_"
+                    + anchor_eku
+                    + "_"
+                    + purpose.lower()
+                    + "_"
+                    + leaf_eku
+                    + "_"
+                    + str(index),
+                    leaf_extensions(leaf_eku),
+                )
+                chainfile = directory / (
+                    "eku-chain-"
+                    + anchor_kind
+                    + "-"
+                    + anchor_eku
+                    + "-"
+                    + purpose.lower()
+                    + "-"
+                    + leaf_eku
+                    + "-"
+                    + str(index)
+                    + ".pem"
+                )
+                chainfile.write_bytes(
+                    leaf.read_bytes()
+                    + (certificate.read_bytes() if anchor_kind == "partial" else b"")
+                    + leaf_requests[leaf_eku][0].read_bytes()
+                )
+                case = {
+                    "name": "eku_"
+                    + anchor_kind
+                    + "_"
+                    + anchor_eku
+                    + "_purpose_"
+                    + purpose.lower()
+                    + "_leaf_"
+                    + leaf_eku
+                    + "_"
+                    + str(index),
+                    "chainfile": str(chainfile),
+                    "trustfile": str(certificate),
+                    "purpose": purpose,
+                }
+                if purpose == "CLIENT_AUTH":
+                    case["server_chainfile"] = str(certdata / "keycert3.pem")
+                    case["flags"] = {
+                        "VERIFY_X509_STRICT": True,
+                        "VERIFY_X509_PARTIAL_CHAIN": True,
+                        "VERIFY_X509_TRUSTED_FIRST": True,
+                    }
+                cases.append(case)
+    return cases
+
+
 def make_policy_fixtures(
     certdata: Path, directory: Path, openssl: str
 ) -> tuple[list[dict[str, object]], dict[str, str]]:
@@ -1061,6 +1471,135 @@ def make_policy_fixtures(
         + keydata
     )
 
+    constrained_key, constrained_request = make_key_request(
+        openssl, directory, "name-constrained-ca", "/CN=RTLS-Name-Constrained-CA"
+    )
+    constrained_ca = issue_certificate(
+        openssl,
+        root_state,
+        constrained_request,
+        directory / "name-constrained-ca.pem",
+        "name_constrained_ca",
+        [
+            "basicConstraints = critical,CA:true,pathlen:0",
+            "keyUsage = critical,keyCertSign,cRLSign",
+            "subjectKeyIdentifier = hash",
+            "authorityKeyIdentifier = keyid:always,issuer",
+            "nameConstraints = critical,permitted;DNS:.allowed.invalid",
+        ],
+    )
+
+    def constrained_chain(name: str, common_name: str, san=None) -> str:
+        leaf_key, request = make_key_request(
+            openssl, directory, "name-constrained-leaf-" + name, "/CN=" + common_name
+        )
+        state = ca_state(
+            directory,
+            constrained_ca,
+            constrained_key,
+            "name-constrained-leaf-" + name,
+        )
+        extensions = [
+            "basicConstraints = critical,CA:false",
+            "keyUsage = critical,digitalSignature,keyEncipherment",
+            "extendedKeyUsage = serverAuth",
+            "subjectKeyIdentifier = hash",
+            "authorityKeyIdentifier = keyid,issuer",
+        ]
+        if san is not None:
+            extensions.append("subjectAltName = DNS:" + san)
+        certificate = issue_certificate(
+            openssl,
+            state,
+            request,
+            directory / ("name-constrained-leaf-" + name + ".pem"),
+            "name_constrained_leaf_" + name,
+            extensions,
+        )
+        chainfile = directory / ("chain-name-constrained-" + name + ".pem")
+        chainfile.write_bytes(
+            certificate.read_bytes() + constrained_ca.read_bytes() + leaf_key.read_bytes()
+        )
+        return str(chainfile)
+
+    constrained_chains = {
+        "allowed_cn": constrained_chain(
+            "allowed-cn", "service.allowed.invalid"
+        ),
+        "blocked_cn": constrained_chain("blocked-cn", "blocked.invalid"),
+        "blocked_cn_san": constrained_chain(
+            "blocked-cn-san", "blocked.invalid", "service.allowed.invalid"
+        ),
+    }
+
+    wildcard_ca_state = ca_state(directory, root_a, root_a_key, "wildcard-leaf")
+    wildcard_chains = {}
+    for name, common_name in (
+        ("single_suffix", "*.invalid"),
+        ("multi_suffix_control", "*.a.invalid"),
+        ("idna_public_suffix", "*.xn--p1ai"),
+    ):
+        wildcard_key, wildcard_request = make_key_request(
+            openssl, directory, "wildcard-" + name, "/CN=" + common_name
+        )
+        wildcard_cert = issue_certificate(
+            openssl,
+            wildcard_ca_state,
+            wildcard_request,
+            directory / ("wildcard-" + name + ".pem"),
+            "wildcard_leaf_" + name,
+            [
+                "basicConstraints = critical,CA:false",
+                "keyUsage = critical,digitalSignature,keyEncipherment",
+                "extendedKeyUsage = serverAuth",
+                "subjectKeyIdentifier = hash",
+                "authorityKeyIdentifier = keyid,issuer",
+            ],
+        )
+        wildcard_chain = directory / ("chain-wildcard-" + name + ".pem")
+        wildcard_chain.write_bytes(wildcard_cert.read_bytes() + wildcard_key.read_bytes())
+        wildcard_chains[name] = str(wildcard_chain)
+
+    aia_root, aia_root_key = make_policy_root(
+        openssl,
+        directory,
+        "Critical-AIA-Root",
+        [
+            "basicConstraints = critical,CA:true,pathlen:5",
+            "keyUsage = critical,keyCertSign,cRLSign",
+            "subjectKeyIdentifier = hash",
+            "authorityKeyIdentifier = keyid:always,issuer",
+            "authorityInfoAccess = critical,OCSP;URI:http://ocsp.example.invalid",
+        ],
+    )
+    aia_ca_state = ca_state(directory, aia_root, aia_root_key, "critical-aia-root")
+    aia_leaf = issue_certificate(
+        openssl,
+        aia_ca_state,
+        leaf_request,
+        directory / "critical-aia-leaf.pem",
+        "critical_aia_leaf",
+        normal_leaf,
+    )
+    aia_chain = write_fixture(
+        directory / "chain-critical-aia.pem", aia_leaf.read_bytes() + keydata
+    )
+
+    ns_cert_type_leaf = issue_certificate(
+        openssl,
+        normal_leaf_state,
+        leaf_request,
+        directory / "leaf-ns-cert-type-client.pem",
+        "ns_cert_type_client_leaf",
+        normal_leaf + ["nsCertType = client"],
+    )
+    ns_cert_type_chain = write_fixture(
+        directory / "chain-ns-cert-type-client.pem",
+        ns_cert_type_leaf.read_bytes()
+        + intermediate_certificates["normal"].read_bytes()
+        + keydata,
+    )
+
     trust_root = str(root_a)
     path_cases = []
     strict_names = [
@@ -1107,6 +1646,70 @@ def make_policy_fixtures(
                 "trustfile": trust_root,
             },
             {
+                "name": "name_constraints_allowed_cn",
+                "chainfile": constrained_chains["allowed_cn"],
+                "trustfile": trust_root,
+                "hostname": "service.allowed.invalid",
+            },
+            {
+                "name": "name_constraints_blocked_cn",
+                "chainfile": constrained_chains["blocked_cn"],
+                "trustfile": trust_root,
+                "hostname": "blocked.invalid",
+            },
+            {
+                "name": "name_constraints_blocked_cn_check_hostname_disabled",
+                "chainfile": constrained_chains["blocked_cn"],
+                "trustfile": trust_root,
+                "hostname": "blocked.invalid",
+                "check_hostname": False,
+            },
+            {
+                "name": "name_constraints_blocked_cn_common_name_disabled",
+                "chainfile": constrained_chains["blocked_cn"],
+                "trustfile": trust_root,
+                "hostname": "blocked.invalid",
+                "check_hostname": False,
+                "hostname_checks_common_name": False,
+            },
+            {
+                "name": "name_constraints_blocked_cn_common_name_disabled_hostname",
+                "chainfile": constrained_chains["blocked_cn"],
+                "trustfile": trust_root,
+                "hostname": "blocked.invalid",
+                "hostname_checks_common_name": False,
+            },
+            {
+                "name": "name_constraints_san_dns_precedence_allowed",
+                "chainfile": constrained_chains["blocked_cn_san"],
+                "trustfile": trust_root,
+                "hostname": "service.allowed.invalid",
+            },
+            {
+                "name": "name_constraints_san_dns_precedence_blocked",
+                "chainfile": constrained_chains["blocked_cn_san"],
+                "trustfile": trust_root,
+                "hostname": "blocked.invalid",
+            },
+            {
+                "name": "hostname_wildcard_single_suffix",
+                "chainfile": wildcard_chains["single_suffix"],
+                "trustfile": trust_root,
+                "hostname": "foo.invalid",
+            },
+            {
+                "name": "hostname_wildcard_multi_suffix_control",
+                "chainfile": wildcard_chains["multi_suffix_control"],
+                "trustfile": trust_root,
+                "hostname": "foo.a.invalid",
+            },
+            {
+                "name": "hostname_wildcard_idna_public_suffix",
+                "chainfile": wildcard_chains["idna_public_suffix"],
+                "trustfile": trust_root,
+                "hostname": "foo.xn--p1ai",
+            },
+            {
                 "name": "strict_duplicate_critical_extension",
                 "chainfile": str(duplicate_chain),
                 "trustfile": trust_root,
@@ -1116,6 +1719,16 @@ def make_policy_fixtures(
                 "chainfile": str(duplicate_chain),
                 "trustfile": trust_root,
                 "flags": {"VERIFY_X509_STRICT": False},
+            },
+            {
+                "name": "critical_aia_on_trust_root",
+                "chainfile": str(aia_chain),
+                "trustfile": str(aia_root),
+            },
+            {
+                "name": "ns_cert_type_client_on_server_leaf",
+                "chainfile": str(ns_cert_type_chain),
+                "trustfile": trust_root,
             },
             {
                 "name": "unrelated_malformed_peer_certificate",
@@ -1158,10 +1771,17 @@ def make_policy_fixtures(
             },
         ]
     )
+    path_cases.extend(
+        make_eku_policy_cases(
+            certdata, directory, openssl, normal_intermediate
+        )
+    )
     return path_cases, {
         "root": str(root_a),
         "root_b": str(root_b),
         "duplicate_critical_chain": str(duplicate_chain),
+        "critical_aia_root": str(aia_root),
+        "ns_cert_type_client_chain": str(ns_cert_type_chain),
         "openssl": openssl,
     }
 
@@ -1330,7 +1950,9 @@ def comparable(case: dict[str, object], include_flags: bool = True) -> dict[str,
             return {
                 key: normalized(item)
                 for key, item in value.items()
-                if key != "message" and (include_flags or key != "verify_flags")
+                if key != "message"
+                and key != "hostname_policy"
+                and (include_flags or key != "verify_flags")
             }
         if isinstance(value, list):
             return [normalized(item) for item in value]
@@ -1345,6 +1967,8 @@ def reference_matches_expectation(case: dict[str, object], expected: dict[str, o
             actual = (case.get("error") or {}).get("type")
         elif name == "after_accepted":
             actual = (case.get("after") or {}).get("accepted")
+        elif name.startswith("hostname_policy."):
+            actual = (case.get("hostname_policy") or {}).get(name.split(".", 1)[1])
         else:
             actual = case.get(name)
         if actual != value:
@@ -1442,14 +2066,24 @@ def main() -> int:
         flags_differ = comparable(reference_case.get("verify_flags")) != comparable(
             candidate_case.get("verify_flags")
         )
-        intentional_difference = name == "failed_load_identity_atomicity"
-        contract_passed = (
-            not candidate_case["accepted"]
-            and (candidate_case.get("error") or {}).get("type") == "SSLError"
-            and candidate_case["identity_preserved"]
-            if intentional_difference
-            else not oracle_differs
-        )
+        intentional_difference = name in {
+            "failed_load_identity_atomicity",
+            "load_duplicate_critical_extension",
+        }
+        if name == "failed_load_identity_atomicity":
+            contract_passed = (
+                not candidate_case["accepted"]
+                and (candidate_case.get("error") or {}).get("type") == "SSLError"
+                and candidate_case["identity_preserved"]
+            )
+        elif name == "load_duplicate_critical_extension":
+            contract_passed = (
+                reference_case["accepted"]
+                and not candidate_case["accepted"]
+                and (candidate_case.get("error") or {}).get("type") == "SSLError"
+            )
+        else:
+            contract_passed = not oracle_differs
         if name in oracle["path_case_names"] and reference_case.get("accepted") is False:
             candidate_error = candidate_case.get("error") or {}
             contract_passed = (
@@ -1477,7 +2111,9 @@ def main() -> int:
             "flags_differ": flags_differ,
             "intentional_difference": (
                 "a rejected certificate and key load preserves the previously installed identity"
-                if intentional_difference
+                if name == "failed_load_identity_atomicity"
+                else "the candidate rejects a duplicate critical extension while loading PEM, before path verification"
+                if name == "load_duplicate_critical_extension"
                 else None
             ),
             "contract_passed": contract_passed,
