@@ -4,6 +4,7 @@ import argparse
 import ast
 import hashlib
 import importlib.util
+import json
 import os
 import platform
 import re
@@ -12,11 +13,13 @@ import stat
 import subprocess
 import sys
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 TARGET_TRIPLE = "aarch64-apple-darwin"
+LINUX_TARGET_TRIPLE = "aarch64-unknown-linux-musl"
 RTLS_REVISION = "302423b49e494863d07630d50b15a9488ec85ef7"
 RTLS_ARCHIVE_SHA256 = "8f188c405d18da8d099e9923722a764f14a93c466c0d1d9c548a42d47540639a"
 RUST_VERSION = "1.99.1"
@@ -49,6 +52,56 @@ OPENSSL_ENVIRONMENT = (
 
 class BuildError(Exception):
     pass
+
+
+def experimental_target():
+    from buildsys.targets import native_target
+
+    target = native_target()
+    if target.triple == LINUX_TARGET_TRIPLE:
+        return replace(target, cpu_baseline_cflag="-march=armv8-a+crypto")
+    if target.triple != TARGET_TRIPLE:
+        raise BuildError("only native macOS arm64 and Linux arm64 musl are supported")
+    return target
+
+
+def linux_toolchain(jobs: int):
+    from buildsys.recipes import Toolchain
+
+    class CryptoToolchain(Toolchain):
+        def ldflags(self, prefix: Path, extra: str = "") -> str:
+            return super().ldflags(prefix, extra).replace("-fuse-ld=lld", "-fuse-ld=mold")
+
+    return CryptoToolchain(jobs=jobs, ld="mold", cpu_baseline="-march=armv8-a+crypto")
+
+
+def linux_isolation() -> dict:
+    interfaces = sorted(path.name for path in Path("/sys/class/net").iterdir())
+    routes = Path("/proc/net/route").read_text().splitlines()[1:]
+    default_routes = [line for line in routes if line.split()[1] == "00000000"]
+    if (
+        os.environ.get("PYTHON_BUILD_BUILD_MODE") != "sealed"
+        or os.environ.get("PYTHON_BUILD_ISOLATION") != "docker-network-none"
+        or interfaces != ["lo"]
+        or default_routes
+    ):
+        raise BuildError("Linux builds require a Docker network-none container with only loopback")
+    return {
+        "build_mode": "sealed", "mechanism": "docker-network-none",
+        "interfaces": interfaces, "default_routes": default_routes,
+    }
+
+
+def linux_cpu_features() -> list[str]:
+    feature_sets = [
+        set(line.partition(":")[2].split())
+        for line in Path("/proc/cpuinfo").read_text().splitlines()
+        if line.startswith("Features")
+    ]
+    required = {"aes", "pmull", "sha2", "asimd"}
+    if not feature_sets or any(not required.issubset(features) for features in feature_sets):
+        raise BuildError("Linux arm64 requires AES, PMULL, SHA-2, and NEON on every CPU")
+    return sorted(set.intersection(*feature_sets))
 
 
 def repository_common_root() -> Path:
@@ -225,6 +278,8 @@ def build_cpython(
         raise BuildError("CPython configure arguments still enable OpenSSL")
     for name in OPENSSL_ENVIRONMENT:
         environment.pop(name, None)
+    if not target.is_macos:
+        environment["LDFLAGS"] = environment["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
     llvm_profdata = Path(toolchain.cc).with_name("llvm-profdata")
     if pgo:
         if "--enable-optimizations" not in args:
@@ -392,13 +447,23 @@ def verify_base_prefix(prefix: Path, run_dir: Path) -> None:
         extensions = list((library / "lib-dynload").glob(f"{name}*"))
         if extensions:
             raise BuildError(f"{name} was built into the no-OpenSSL prefix: {extensions}")
-    images = macho.find_machos(prefix)
-    linked = {
-        image: dependency
-        for image in images
-        for dependency in macho.dependencies(image)
-        if is_openssl_dependency(dependency)
-    }
+    if platform.system() == "Linux":
+        from buildsys.relocate import find_elfs
+        images = find_elfs(prefix)
+        linked = {
+            image: output
+            for image in images
+            if (output := subprocess.run(["readelf", "-dW", str(image)], capture_output=True, text=True, check=True).stdout)
+            and any(is_openssl_dependency(line.split("[")[-1].rstrip("]")) for line in output.splitlines() if "(NEEDED)" in line)
+        }
+    else:
+        images = macho.find_machos(prefix)
+        linked = {
+            image: dependency
+            for image in images
+            for dependency in macho.dependencies(image)
+            if is_openssl_dependency(dependency)
+        }
     if linked:
         raise BuildError(f"the no-OpenSSL prefix links OpenSSL: {linked}")
     private = run_dir / "private"
@@ -418,7 +483,8 @@ def verify_base_prefix(prefix: Path, run_dir: Path) -> None:
             "assert importlib.util.find_spec('_hashlib') is None",
         ],
         cwd=run_dir,
-        env={"HOME": str(run_dir / "home"), "TMPDIR": str(run_dir / "tmp")},
+        env={"HOME": str(run_dir / "home"), "TMPDIR": str(run_dir / "tmp"),
+             **({"LD_LIBRARY_PATH": str(prefix / "lib")} if platform.system() == "Linux" else {})},
         capture_output=True,
         text=True,
         timeout=30,
@@ -434,7 +500,10 @@ def rust_toolchain() -> tuple[Path, Path, Path]:
     rustup_home = Path(
         os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup"))
     )
-    tool_bin = rustup_home / "toolchains" / f"{RUST_VERSION}-aarch64-apple-darwin" / "bin"
+    if platform.system() == "Linux":
+        tool_bin = Path(os.environ.get("PYTHON_BUILD_RUST_PREFIX", "/opt/rust")) / "bin"
+    else:
+        tool_bin = rustup_home / "toolchains" / f"{RUST_VERSION}-aarch64-apple-darwin" / "bin"
     cargo = tool_bin / "cargo"
     rustc = tool_bin / "rustc"
     kache = Path(shutil.which("kache") or "")
@@ -822,10 +891,13 @@ def build_rust_extension(
     from buildsys.recipes import BuildError as RecipeBuildError, run
 
     cpu_flag = target.cpu_baseline_cflag
-    if not cpu_flag.startswith("-mcpu="):
+    if target.triple == LINUX_TARGET_TRIPLE:
+        rustflags = ["-C", "target-cpu=generic", "-C", "target-feature=-crt-static,+aes,+sha2,+neon", "-C", "link-arg=-fuse-ld=mold", "-C", "link-arg=-Wl,-z,noexecstack"]
+    elif not cpu_flag.startswith("-mcpu="):
         raise BuildError(f"unsupported Rust CPU baseline flag: {cpu_flag}")
-    rustflags = ["-C", f"target-cpu={cpu_flag.removeprefix('-mcpu=')}"]
-    if rtls:
+    else:
+        rustflags = ["-C", f"target-cpu={cpu_flag.removeprefix('-mcpu=')}"]
+    if rtls and target.is_macos:
         rustflags.extend(("-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"))
     environment = os.environ.copy()
     linker_environment_key = (
@@ -856,6 +928,8 @@ def build_rust_extension(
         }
     )
     environment[linker_environment_key] = toolchain.cc
+    if not target.is_macos:
+        environment["LD_LIBRARY_PATH"] = str(python.parent.parent / "lib")
     if rtls:
         environment["PYO3_BUILD_EXTENSION_MODULE"] = "1"
     else:
@@ -894,7 +968,8 @@ def build_rust_extension(
         )
     except RecipeBuildError as error:
         raise BuildError(f"Rust {name} extension build failed: {error}") from error
-    extension_name = "lib_rustls.dylib" if rtls else "lib_hashlib_graviola.dylib"
+    suffix = "dylib" if target.is_macos else "so"
+    extension_name = f"lib_rustls.{suffix}" if rtls else f"lib_hashlib_graviola.{suffix}"
     profile_directory = "release" if release else "debug"
     extension = target_dir / profile_directory / extension_name
     if not extension.is_file():
@@ -991,7 +1066,8 @@ def install_adapters(
     )
     installed_rtls = rtls_package / "_rustls.abi3.so"
     shutil.copyfile(rtls_extension, installed_rtls)
-    macho.set_install_name(installed_rtls, "@rpath/_rustls.abi3.so")
+    if target.is_macos:
+        macho.set_install_name(installed_rtls, "@rpath/_rustls.abi3.so")
     shutil.copyfile(
         hashing_extension,
         dynload / "_hashlib_graviola.abi3.so",
@@ -1019,6 +1095,23 @@ def relocate_candidate(
     rustc: Path,
     kache: Path,
 ) -> Path:
+    if platform.system() == "Linux":
+        from buildsys.relocate import relocate
+
+        relocate(
+            prefix, run_dir / "private", configure_prefix=str(prefix),
+            builder_paths=tuple(run_dir / name for name in (
+                "private", "cpython-source", "cpython-build", "cargo-home", "cargo-target", "rtls-build",
+            )),
+            command_paths=tuple(Path(shutil.which(name) or name) for name in (
+                "clang", "clang++", "llvm-ar", "llvm-ranlib", "mold", "llvm-nm", "llvm-strip", "make",
+            )),
+        )
+        relocated = run_dir / "relocated prefix"
+        if relocated.exists():
+            raise BuildError(f"refusing to replace relocated candidate: {relocated}")
+        shutil.copytree(prefix, relocated, symlinks=True)
+        return relocated
     from buildsys import macho
     from buildsys.relocate import RelocationError, macho_relocate
 
@@ -1104,6 +1197,9 @@ def relocate_candidate(
 
 
 def verify_overlay_prefix(prefix: Path, run_dir: Path, target) -> None:
+    if not target.is_macos:
+        verify_linux_overlay(prefix, run_dir)
+        return
     from buildsys import macho
     from buildsys.product import PRODUCT
 
@@ -1211,18 +1307,164 @@ def verify_overlay_prefix(prefix: Path, run_dir: Path, target) -> None:
         )
 
 
+def verify_linux_lto(toolchain, run_dir: Path) -> None:
+    from buildsys.recipes import run
+
+    work = run_dir / "logs" / "lto-smoke"
+    work.mkdir(parents=True)
+    (work / "library.c").write_text("int answer(void) { return 42; }\n")
+    (work / "main.c").write_text("extern int answer(void); int main(void) { return answer() != 42; }\n")
+    flags = toolchain.cflags().split()
+    environment = toolchain.env()
+    run([toolchain.cc, *flags, "-c", str(work / "library.c"), "-o", str(work / "library.o")],
+        cwd=work, env=environment, log=work / "compile.log")
+    if (work / "library.o").read_bytes()[:4] != b"BC\xc0\xde":
+        raise BuildError("Linux ThinLTO compiler did not emit LLVM bitcode")
+    run([toolchain.ar, "cr", str(work / "library.a"), str(work / "library.o")],
+        cwd=work, env=environment, log=work / "archive.log")
+    run([toolchain.cc, *flags, str(work / "main.c"), str(work / "library.a"), "-fuse-ld=mold", "-o", str(work / "fixture")],
+        cwd=work, env=environment, log=work / "link.log")
+    run([str(work / "fixture")], cwd=work, env=environment, log=work / "run.log")
+
+
+def verify_linux_overlay(prefix: Path, run_dir: Path) -> None:
+    from buildsys.elf import dynamic_tags, machine_report
+    from buildsys.product import PRODUCT
+    from buildsys.relocate import find_elfs
+
+    stdlib = PRODUCT.stdlib(prefix)
+    for name in ("_ssl", "_hashlib"):
+        if any((stdlib / "lib-dynload").glob(f"{name}.cpython-*.so")):
+            raise BuildError(f"candidate contains the disabled native {name}")
+    for image in find_elfs(prefix):
+        header = subprocess.run(["readelf", "-hW", str(image)], capture_output=True, text=True, check=True).stdout
+        dynamic = subprocess.run(["readelf", "-dW", str(image)], capture_output=True, text=True, check=True).stdout
+        tags = dynamic_tags(dynamic)
+        if not machine_report(header, "aarch64")["ok"]:
+            raise BuildError(f"candidate has a non-aarch64 ELF image: {image}")
+        if any(is_openssl_dependency(name) or name == "libc.so.6" for name in tags["needed"]):
+            raise BuildError(f"candidate links OpenSSL or glibc: {image}: {tags['needed']}")
+        if any(not value.startswith("$ORIGIN") for value in tags["rpath"] + tags["runpath"]):
+            raise BuildError(f"candidate contains a nonrelative loader path: {image}")
+    result = subprocess.run(
+        [str(PRODUCT.interpreter(prefix)), "-I", "-S", "-B", "-c",
+         "import _ssl, _hashlib, ssl, hashlib, sys; "
+         f"assert sys.prefix == {str(prefix)!r}; "
+         "assert _ssl.__file__.endswith('_ssl.py') and _ssl._RUSTLS_BACKEND; "
+         "assert _hashlib.__file__.endswith('_hashlib.py'); "
+         "assert ssl.OPENSSL_VERSION.startswith('Rustls '); "
+         "assert hashlib.sha256(b'abc').hexdigest() == 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'"],
+        cwd=run_dir, capture_output=True, text=True, timeout=30,
+        env={"HOME": str(run_dir / "home"), "TMPDIR": str(run_dir / "tmp")},
+    )
+    if result.returncode:
+        raise BuildError(f"relocated Linux adapter validation failed: {result.stdout}{result.stderr}")
+
+
+def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, commands: dict) -> None:
+    compiler = {}
+    for name in ("cc", "cxx", "ar", "ranlib", "ld", "nm", "strip"):
+        path = Path(shutil.which(getattr(toolchain, name)) or getattr(toolchain, name)).resolve()
+        result = subprocess.run([str(path), "--version"], capture_output=True, text=True, check=True)
+        compiler[name] = {"path": str(path), "version": result.stdout.strip()}
+    logs = {}
+    for path in sorted((run_dir / "logs").rglob("*.log")):
+        logs[path.relative_to(run_dir).as_posix()] = {
+            "path": path.relative_to(run_dir).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    source = {
+        "sources_lock_sha256": hashlib.sha256((REPO / "sources.lock.json").read_bytes()).hexdigest(),
+        "bootstrap_lock_sha256": hashlib.sha256((REPO / "bootstrap.lock.json").read_bytes()).hexdigest(),
+    }
+    if (run_dir / "rtls-build").is_dir():
+        rtls, hashing = require_fetched_rust_inputs(run_dir)
+        source.update(
+            rtls_revision=RTLS_REVISION, rtls_snapshot_sha256=rtls_source_digest(rtls),
+            hashing_snapshot_sha256=hashing_source_digest(hashing),
+            rtls_cargo_lock_sha256=hashlib.sha256((rtls / "rust/Cargo.lock").read_bytes()).hexdigest(),
+            hashing_cargo_lock_sha256=hashlib.sha256((hashing / "Cargo.lock").read_bytes()).hexdigest(),
+        )
+    receipt = {
+        "schema_version": 1, "target": target.triple,
+        "cpu_baseline": target.cpu_baseline_cflag, "cpu_features": linux_cpu_features(), "pgo": False,
+        "source_revision": os.environ.get("PYTHON_BUILD_SOURCE_REVISION") or subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
+        ).stdout.strip(),
+        "compiler": compiler, "commands": commands, "logs": logs,
+        "source": source, "isolation": isolation,
+    }
+    (run_dir / "linux-build.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+
+
+def run_linux(args, target, toolchain) -> int:
+    from buildsys import recipes
+
+    if args.pgo:
+        raise BuildError("Linux PGO is outside the product policy")
+    if args.run_dir is None:
+        raise BuildError("Linux phases require an explicit --run-dir")
+    run_dir = require_work_path(args.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "tmp").mkdir(exist_ok=True)
+    if args.phase == "fetch":
+        if args.rtls_source is None or args.prefix is not None:
+            raise BuildError("fetch requires --rtls-source and no --prefix")
+        cargo, _, _ = rust_toolchain()
+        fetch_rust_inputs(run_dir, args.rtls_source, args.hashing_source, cargo)
+        return 0
+    isolation = linux_isolation()
+    linux_cpu_features()
+    commands = {}
+    original_run = recipes.run
+
+    def recorded_run(command, *, cwd, env, log):
+        original_run(command, cwd=cwd, env=env, log=log)
+        relative = Path(log).relative_to(run_dir).as_posix()
+        commands[relative] = {
+            "argv": list(map(str, command)),
+            "log": {"path": relative, "sha256": hashlib.sha256(Path(log).read_bytes()).hexdigest()},
+        }
+
+    recipes.run = recorded_run
+    try:
+        if args.phase == "overlay":
+            if args.prefix is None:
+                raise BuildError("overlay requires --prefix")
+            prefix = require_work_path(args.prefix)
+            verify_base_prefix(prefix, run_dir)
+        else:
+            prefix = build_base(run_dir, repository_common_root() / ".cache", target, toolchain, pgo=False)
+        if args.phase in {"overlay", "all"}:
+            cargo, rustc, kache = rust_toolchain()
+            rtls, hashing = require_fetched_rust_inputs(run_dir, args.hashing_source)
+            install_adapters(prefix, run_dir, rtls, hashing, run_dir / "cargo-home", cargo, rustc, kache, target, toolchain, args.jobs)
+            prefix = relocate_candidate(prefix, run_dir, None, toolchain, cargo, rustc, kache)
+            verify_overlay_prefix(prefix, run_dir, target)
+    finally:
+        recipes.run = original_run
+    if linux_isolation() != isolation:
+        raise BuildError("Linux network isolation changed during the build")
+    write_linux_receipt(run_dir, target, toolchain, isolation, commands)
+    print(f"NO_OPENSSL_PREFIX={prefix}", flush=True)
+    return 0
+
+
 def build_base(run_dir: Path, cache_root: Path, target, toolchain, *, pgo: bool) -> Path:
     from buildsys.bootstrap import lto_smoke_test
     from buildsys.inputs import Cache, InputError, load_lock
     from buildsys.targets import native_target
 
-    if target.triple != TARGET_TRIPLE or platform.system() != "Darwin" or platform.machine() != "arm64":
-        raise BuildError("this research build supports native macOS arm64 only")
+    if target.triple not in {TARGET_TRIPLE, LINUX_TARGET_TRIPLE}:
+        raise BuildError("this research build supports native arm64 only")
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(exist_ok=True)
     (run_dir / "tmp").mkdir(exist_ok=True)
     print("CHECK ThinLTO toolchain fixture", flush=True)
-    lto_smoke_test(toolchain, run_dir / "logs" / "lto-smoke")
+    if target.is_macos:
+        lto_smoke_test(toolchain, run_dir / "logs" / "lto-smoke")
+    else:
+        verify_linux_lto(toolchain, run_dir)
     pins = {entry.name: entry for entry in load_lock(REPO / "sources.lock.json")}
     cache = Cache(cache_root)
     from buildsys.deporder import dependency_order
@@ -1297,7 +1539,7 @@ def main(argv: list[str] | None = None) -> int:
     from buildsys.targets import UnsupportedTargetError, native_target
 
     parser = argparse.ArgumentParser(
-        description="Build a native macOS CPython prefix without OpenSSL"
+        description="Build a native arm64 CPython prefix without OpenSSL"
     )
     parser.add_argument("--phase", choices=("fetch", "base", "overlay", "all"), default="base")
     parser.add_argument("--jobs", type=positive_jobs, default=2)
@@ -1327,15 +1569,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         common_root = repository_common_root()
         require_same_locks(common_root)
-        target = native_target()
-        if target.triple != TARGET_TRIPLE:
-            raise BuildError(f"target must be {TARGET_TRIPLE}, found {target.triple}")
-        locked = load_macos_toolchain(common_root / "bootstrap.lock.json")
-        toolchain = (
-            locked.toolchain(jobs=args.jobs)
-            if args.inside_sandbox or args.phase in {"fetch", "overlay"}
-            else toolchain_for(target, common_root / "bootstrap.lock.json", jobs=args.jobs)
-        )
+        target = experimental_target()
+        if target.is_macos:
+            locked = load_macos_toolchain(common_root / "bootstrap.lock.json")
+            toolchain = (
+                locked.toolchain(jobs=args.jobs)
+                if args.inside_sandbox or args.phase in {"fetch", "overlay"}
+                else toolchain_for(target, common_root / "bootstrap.lock.json", jobs=args.jobs)
+            )
+        else:
+            locked = None
+            toolchain = linux_toolchain(args.jobs)
     except (
         BootstrapError,
         BuildError,
@@ -1346,6 +1590,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL no-OpenSSL build: {error}", file=sys.stderr)
         return 1
     try:
+        if not target.is_macos:
+            return run_linux(args, target, toolchain)
         if args.phase == "fetch" and not args.inside_sandbox:
             if args.prefix is not None or args.rtls_source is None:
                 raise BuildError("--phase fetch requires --rtls-source and does not accept --prefix")
