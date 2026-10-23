@@ -7293,15 +7293,17 @@
          # NOTE: We intentionally do NOT call ssl.SSLSocket.__init__() because
          # it raises TypeError (SSLSocket has no public constructor). All real
          # initialization goes through socket.socket.__init__() instead.
-@@ -57,6 +90,7 @@
+@@ -57,7 +90,9 @@
          self._server_hostname = server_hostname
          self._do_handshake_on_connect = do_handshake_on_connect
          self._suppress_ragged_eofs = suppress_ragged_eofs
 +        self._pending_session = session
          self._connected = False
++        self._plain_socket = False
          self._closed = False
  
-@@ -94,6 +128,11 @@
+         # Take over the underlying socket's fd.
+@@ -94,6 +129,11 @@
          # Create the MemoryBIO pair and TLSObject
          self._incoming = MemoryBIO()
          self._outgoing = MemoryBIO()
@@ -7313,7 +7315,7 @@
  
          self._sslobj_internal: TLSObject | None = None
  
-@@ -113,6 +152,20 @@
+@@ -113,6 +153,20 @@
                      self.close()
                      raise
  
@@ -7334,7 +7336,7 @@
      def _create_sslobj(self) -> None:
          """Create the internal TLSObject."""
          self._sslobj_internal = TLSObject(
-@@ -121,7 +174,10 @@
+@@ -121,7 +175,10 @@
              outgoing=self._outgoing,
              server_side=self._server_side,
              server_hostname=self._server_hostname,
@@ -7345,7 +7347,7 @@
  
      def connect(self, addr: Any) -> None:
          """Connect and perform TLS handshake."""
-@@ -164,7 +220,8 @@
+@@ -164,7 +221,8 @@
          while True:
              try:
                  self._sslobj_internal.do_handshake()
@@ -7355,7 +7357,7 @@
              except SSLWantReadError:
                  # Flush any outgoing data (handshake messages)
                  self._flush_outgoing()
-@@ -172,6 +229,12 @@
+@@ -172,29 +230,50 @@
                  self._pull_incoming(timeout)
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -7368,7 +7370,10 @@
  
      def send(self, data: bytes, flags: int = 0) -> int:  # type: ignore[override]
          """Encrypt and send data."""
-@@ -180,8 +243,13 @@
++        if self._plain_socket:
++            return socket.socket.send(self, data, flags)
+         if not data:
+             return 0
          if self._sslobj_internal is None:
              raise SSLError("SSL handshake not done")
  
@@ -7383,7 +7388,13 @@
          return n
  
      def sendall(self, data: bytes, flags: int = 0) -> None:  # type: ignore[override]
-@@ -192,9 +260,12 @@
+         """Send all data, blocking until complete."""
++        if self._plain_socket:
++            socket.socket.sendall(self, data, flags)
++            return
+         view = memoryview(data)
+         total = len(view)
+         sent = 0
          while sent < total:
              n = self.send(bytes(view[sent:]))
              sent += n
@@ -7391,15 +7402,43 @@
  
      def recv(self, buflen: int = _DEFAULT_BUFFER_SIZE, flags: int = 0) -> bytes:
          """Receive decrypted data."""
++        if self._plain_socket:
++            return socket.socket.recv(self, buflen, flags)
 +        if buflen < 0:
 +            raise ValueError("negative buffersize in recv")
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -262,10 +333,14 @@
+@@ -219,7 +298,11 @@
+ 
+             # 3. Read more ciphertext directly from the network.
+             try:
+-                chunk = socket.socket.recv(self, _SOCKET_READ_BUFFER_SIZE)
++                chunk, self._handshake_record_size = _read_tls_record(
++                    lambda size: socket.socket.recv(self, size),
++                    self._handshake_record,
++                    self._handshake_record_size,
++                )
+             except (BlockingIOError, InterruptedError):
+                 raise SSLWantReadError(
+                     SSL_ERROR_WANT_READ, "The read operation did not complete"
+@@ -250,6 +333,10 @@
+ 
+     def recv_into(self, buffer: bytearray, nbytes: int = 0, flags: int = 0) -> int:  # type: ignore[override]
+         """Receive decrypted data into a buffer."""
++        if self._plain_socket:
++            if nbytes == 0:
++                nbytes = len(buffer)
++            return socket.socket.recv_into(self, buffer, nbytes, flags)
+         if nbytes == 0:
+             nbytes = len(buffer)
+         data = self.recv(nbytes, flags)
+@@ -262,37 +349,84 @@
      ) -> bytes | int:
          """Read decrypted data. Alias matching ssl.SSLSocket.read()."""
          if buffer is not None:
++            if self._sslobj_internal is None:
++                raise ValueError("Read on closed or unwrapped SSL socket.")
 +            if n <= 0 or n > len(buffer):
 +                n = len(buffer)
              data = self.recv(n)
@@ -7408,10 +7447,15 @@
              return nbytes
 +        if n < 0:
 +            raise ValueError("size should not be negative")
++        if self._sslobj_internal is None:
++            raise ValueError("Read on closed or unwrapped SSL socket.")
          return self.recv(n)
  
      def write(self, data: bytes) -> int:  # type: ignore[override]
-@@ -274,25 +349,62 @@
+         """Write data to be encrypted. Alias matching ssl.SSLSocket.write()."""
++        if self._sslobj_internal is None:
++            raise ValueError("Write on closed or unwrapped SSL socket.")
+         return self.send(data)
  
      def _flush_outgoing(self) -> None:
          """Send any pending ciphertext from the outgoing BIO to the network."""
@@ -7488,31 +7532,46 @@
          except (BlockingIOError, InterruptedError):
              raise SSLWantReadError(
                  SSL_ERROR_WANT_READ, "The read operation did not complete"
-@@ -360,8 +472,21 @@
-         be used for unencrypted communication.
-         """
-         if self._sslobj_internal is not None:
+@@ -353,26 +487,31 @@
+     def get_channel_binding(self, cb_type: str = "tls-unique") -> bytes | None:
+         return None
+ 
+-    def unwrap(self) -> socket.socket:
+-        """Shut down the TLS layer and return the underlying socket.
+-
+-        Returns a plain ``socket.socket`` (with the same fd) that can
+-        be used for unencrypted communication.
+-        """
+-        if self._sslobj_internal is not None:
 -            self._sslobj_internal.unwrap()
 -            self._flush_outgoing()
-+            while True:
-+                try:
-+                    self._sslobj_internal.unwrap()
-+                except SSLWantReadError:
-+                    self._flush_outgoing()
-+                    if (
-+                        self.gettimeout() == 0
-+                        or self._sslobj_internal.pending()
-+                        or self._sslobj_internal._pending_plaintext
-+                    ):
-+                        raise
-+                    self._pull_incoming()
-+                else:
-+                    self._flush_outgoing()
-+                    break
-             self._sslobj_internal = None
- 
-         # Create a new plain socket from our fd (detach so we don't close it)
-@@ -370,9 +495,6 @@
+-            self._sslobj_internal = None
+-
+-        # Create a new plain socket from our fd (detach so we don't close it)
+-        fd = self.detach()
+-        return socket.socket(fileno=fd)
++    def unwrap(self) -> TLSSocket:
++        """Shut down TLS and return this socket in plain-socket mode."""
++        if self._sslobj_internal is None:
++            raise ValueError("No SSL wrapper around " + str(self))
++        while True:
++            try:
++                self._sslobj_internal.unwrap()
++            except SSLWantReadError:
++                self._flush_outgoing()
++                if (
++                    self.gettimeout() == 0
++                    or self._sslobj_internal.pending()
++                    or self._sslobj_internal._pending_plaintext
++                ):
++                    raise
++                self._pull_incoming()
++            else:
++                self._flush_outgoing()
++                break
++        self._sslobj_internal = None
++        self._plain_socket = True
++        return self
  
      def shutdown(self, how: int) -> None:
          """Shut down one or both halves of the connection."""
@@ -7522,7 +7581,7 @@
          socket.socket.shutdown(self, how)
  
      def close(self) -> None:
-@@ -409,6 +531,8 @@
+@@ -409,6 +548,8 @@
  
      @context.setter
      def context(self, ctx: TLSContext) -> None:
@@ -7531,7 +7590,7 @@
          self._rtls_context = ctx
  
      @property
-@@ -419,11 +543,34 @@
+@@ -419,11 +560,34 @@
      def server_hostname(self) -> str | None:  # type: ignore[override]
          return self._server_hostname
  
@@ -7569,7 +7628,7 @@
  
      @_sslobj.setter
      def _sslobj(self, value: Any) -> None:
-@@ -434,14 +581,14 @@
+@@ -434,14 +598,14 @@
      def sslobj(self) -> TLSObject | None:
          return self._sslobj_internal
  
@@ -7590,7 +7649,7 @@
          return self._sslobj_internal.get_unverified_chain()
  
      if _HAS_ECH:
-@@ -462,14 +609,19 @@
+@@ -462,14 +626,19 @@
      def sendto(self, *args: Any, **kwargs: Any) -> Any:
          raise ValueError("sendto not allowed on TLS sockets")
  
@@ -7613,7 +7672,7 @@
  
      def __enter__(self) -> TLSSocket:
          return self
-@@ -501,15 +653,23 @@
+@@ -501,15 +670,23 @@
          server_hostname: str | None = None,
          do_handshake_on_connect: bool = True,
          suppress_ragged_eofs: bool = True,
@@ -7637,7 +7696,7 @@
          self._sslobj_internal: TLSObject | None = None
          self._closed = False
  
-@@ -536,7 +696,10 @@
+@@ -536,7 +713,10 @@
              outgoing=self._outgoing,
              server_side=self._server_side,
              server_hostname=self._server_hostname,
@@ -7648,7 +7707,7 @@
  
      def connect(self, addr: Any) -> None:
          if self._server_side:
-@@ -575,6 +738,12 @@
+@@ -575,6 +755,12 @@
                  self._pull_incoming()
              except SSLWantWriteError:
                  self._flush_outgoing()
@@ -7661,7 +7720,7 @@
  
      def send(self, data: bytes, flags: int = 0) -> int:
          if flags:
-@@ -595,6 +764,8 @@
+@@ -595,6 +781,8 @@
      def recv(self, buflen: int = _DEFAULT_BUFFER_SIZE, flags: int = 0) -> bytes:
          if flags:
              raise ValueError("non-zero flags not allowed on TLS sockets")
@@ -7670,7 +7729,7 @@
          if buflen == 0:
              return b""
          obj = self._sslobj_internal
-@@ -632,7 +803,11 @@
+@@ -632,7 +820,11 @@
  
      def read(self, n: int = _DEFAULT_BUFFER_SIZE, buffer: Any = None) -> bytes | int:
          if buffer is None:
@@ -7682,7 +7741,7 @@
          return self.recv_into(buffer, n)
  
      def write(self, data: bytes) -> int:
-@@ -644,9 +819,11 @@
+@@ -644,9 +836,11 @@
              self._transport.sendall(data)
  
      def _pull_incoming(self) -> None:
@@ -7697,7 +7756,7 @@
          self._incoming.write(data)
  
      def getpeercert(self, binary_form: bool = False) -> dict | bytes | None:
-@@ -670,15 +847,25 @@
+@@ -670,15 +864,25 @@
  
      def unwrap(self) -> Any:
          if self._sslobj_internal is not None:
@@ -7728,7 +7787,7 @@
          self._transport.shutdown(how)
  
      def close(self) -> None:
-@@ -694,14 +881,14 @@
+@@ -694,14 +898,14 @@
              self._sslobj_internal = None
          self._transport.close()
  
@@ -7749,7 +7808,7 @@
          return self._sslobj_internal.get_unverified_chain()
  
      @property
-@@ -717,8 +904,32 @@
+@@ -717,8 +921,32 @@
          return self._server_hostname
  
      @property
@@ -8690,3 +8749,113 @@
 +
 +if __name__ == "__main__":
 +    unittest.main()
+--- /dev/null
++++ b/tests/test_socket_close_record_boundary.py
+@@ -0,0 +1,107 @@
++import select
++import socket
++import threading
++import time
++import unittest
++from pathlib import Path
++
++import rtls
++from rtls._exceptions import SSLWantReadError
++
++
++class SocketCloseRecordBoundaryTests(unittest.TestCase):
++    def test_close_notify_remains_select_readable_after_buffered_plaintext(self):
++        certdata = Path(__file__).resolve().parent / "certdata"
++        client_context = rtls.SSLContext(rtls.PROTOCOL_TLS_CLIENT)
++        client_context.check_hostname = False
++        client_context.verify_mode = rtls.CERT_NONE
++        server_context = rtls.SSLContext(rtls.PROTOCOL_TLS_SERVER)
++        server_context.load_cert_chain(
++            str(certdata / "leaf_chain.pem"), str(certdata / "leaf_key.pem")
++        )
++
++        client_transport, server_transport = socket.socketpair()
++        client_transport.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 131072)
++        server_transport.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)
++        client_transport.settimeout(3)
++        server_transport.settimeout(3)
++        client = client_context.wrap_socket(
++            client_transport,
++            server_hostname="localhost",
++            do_handshake_on_connect=False,
++        )
++        server = server_context.wrap_socket(
++            server_transport,
++            server_side=True,
++            do_handshake_on_connect=False,
++        )
++        handshake_errors = []
++
++        def handshake_server():
++            try:
++                server.do_handshake()
++            except BaseException as error:
++                handshake_errors.append(error)
++
++        handshake_thread = threading.Thread(target=handshake_server)
++        reader_thread = None
++        client_plain = None
++        read_results = []
++        try:
++            handshake_thread.start()
++            client.do_handshake()
++            handshake_thread.join(3)
++            self.assertFalse(handshake_thread.is_alive())
++            self.assertEqual(handshake_errors, [])
++
++            payload = b"x" * 32768
++            received = bytearray()
++            read_errors = []
++
++            def read_server():
++                try:
++                    deadline = time.monotonic() + 3
++                    while True:
++                        remaining = deadline - time.monotonic()
++                        if remaining <= 0:
++                            raise TimeoutError("TLS close notification was not readable")
++                        readable, _, _ = select.select([server], [], [], remaining)
++                        if not readable:
++                            raise TimeoutError("TLS close notification was not readable")
++                        data = server.recv(1024)
++                        if not data:
++                            break
++                        received.extend(data)
++                    read_results.append(server.unwrap())
++                except BaseException as error:
++                    read_errors.append(error)
++
++            reader_thread = threading.Thread(target=read_server)
++            client.sendall(payload)
++            with self.assertRaises(SSLWantReadError):
++                client._sslobj_internal.unwrap()
++            client._flush_outgoing()
++            reader_thread.start()
++            client_plain = client.unwrap()
++            reader_thread.join(3)
++
++            self.assertFalse(reader_thread.is_alive())
++            self.assertEqual(read_errors, [])
++            self.assertEqual(received, payload)
++            self.assertEqual(len(read_results), 1)
++
++            server_plain = read_results[0]
++            client_plain.sendall(b"clear")
++            self.assertEqual(server_plain.recv(5), b"clear")
++        finally:
++            if client_plain is not None:
++                client_plain.close()
++            else:
++                client.close()
++            if read_results:
++                read_results[0].close()
++            else:
++                server.close()
++            if reader_thread is not None:
++                reader_thread.join(3)
++            handshake_thread.join(3)
