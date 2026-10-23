@@ -1,0 +1,183 @@
+name: OpenSSL-free Linux arm64 research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openssl-free-linux-arm64-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.15.1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    env:
+      EXPERIMENT_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+      RTLS_SOURCE_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-rtls-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Restore verified Linux arm64 inputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .cache/objects
+            .cache/bootstrap
+          key: linux-inputs-linux-arm64-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json', 'research/rtls-graviola/linux-bootstrap.lock.json') }}
+          restore-keys: linux-inputs-linux-arm64-
+
+      - name: Run fast controller tests
+        env:
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          python3.15 build.py controller-test
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+
+      - name: Fetch the pinned RTLS source
+        env:
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          git clone --depth 1 --branch 2026.10.3 \
+            https://github.com/jawah/rtls.git "$RTLS_SOURCE_DIR"
+
+      - name: Build and qualify the native OpenSSL-free candidate
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          python3.15 research/rtls-graviola/docker-linux-arm64.py \
+            --phase all \
+            --run-dir "$EXPERIMENT_RUN_DIR" \
+            --jobs "$(nproc)" \
+            --source-revision "$GITHUB_SHA" \
+            --rtls-source "$RTLS_SOURCE_DIR"
+
+      - name: Validate qualification evidence and prepare prerelease assets
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          qualification="$EXPERIMENT_RUN_DIR/qualification/archive"
+          regression="$EXPERIMENT_RUN_DIR/qualification/regression/report.json"
+          assets="$EXPERIMENT_RUN_DIR/release-assets"
+          python3.15 .github/scripts/validate_experimental_artifact.py \
+            --directory "$qualification" \
+            --build-directory "$EXPERIMENT_RUN_DIR" \
+            --revision "$GITHUB_SHA"
+          mkdir -p "$assets"
+          cp "$qualification/EXPERIMENTALartifact.json" "$assets/"
+          cp "$qualification/qualification report.json" "$assets/"
+          cp "$qualification/experimental no-openssl candidate.tar.gz" "$assets/"
+          cp "$regression" "$assets/regression-report.json"
+          cp "$EXPERIMENT_RUN_DIR/linux-build.json" "$assets/"
+          cp "$EXPERIMENT_RUN_DIR/docker-build.json" "$assets/"
+          cp "$EXPERIMENT_RUN_DIR/docker-runtime.json" "$assets/"
+          test -d "$EXPERIMENT_RUN_DIR/logs"
+          (
+            cd "$EXPERIMENT_RUN_DIR"
+            find . -type d -name logs -prune -print0 |
+              tar --null --files-from=- --create --gzip \
+                --file="$assets/qualification-logs.tar.gz"
+          )
+          test -s "$assets/qualification-logs.tar.gz"
+          python3.15 .github/scripts/validate_experimental_artifact.py \
+            --directory "$assets" --revision "$GITHUB_SHA"
+          (
+            cd "$assets"
+            sha256sum -- * > SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: openssl-free-linux-arm64-${{ github.sha }}
+          path: ${{ env.EXPERIMENT_RUN_DIR }}/release-assets/*
+          if-no-files-found: error
+
+  publish-prerelease:
+    runs-on: ubuntu-24.04-arm
+    needs: [qualify]
+    permissions:
+      contents: write
+    env:
+      RELEASE_ASSETS_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-release-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Prepare the release asset directory
+        run: mkdir -p .work/tmp
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: openssl-free-linux-arm64-${{ github.sha }}
+          path: ${{ env.RELEASE_ASSETS_DIR }}
+
+      - name: Revalidate candidate and resolve the research tag
+        id: resolve
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG_INPUT: research-openssl-free-cp315-arm64-${{ github.sha }}
+        run: |
+          set -eu
+          (cd "$RELEASE_ASSETS_DIR" && sha256sum --check SHA256SUMS)
+          python3.15 .github/scripts/validate_experimental_artifact.py \
+            --directory "$RELEASE_ASSETS_DIR" --revision "$GITHUB_SHA"
+          python3.15 .github/scripts/resolve_release.py
+
+      - name: Create the explicit research prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ steps.resolve.outputs.tag }}
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          mkdir -p "$TMPDIR"
+          notes="$TMPDIR/openssl-free-release-notes.md"
+          cat > "$notes" <<EOF
+          Experimental OpenSSL-free CPython 3.15.1 candidate for native Linux arm64 musl.
+
+          This is a research prerelease. It is not a supported python-build product release.
+          The candidate was built and qualified on a native ubuntu-24.04-arm runner using the
+          locked Alpine arm64 toolchain. Build and runtime qualification used network-disabled
+          containers. The attached manifest, qualification report, receipts, and logs bind the
+          archive to this source revision.
+
+          Source revision: $GITHUB_SHA
+          EOF
+          gh release create "$RELEASE_TAG" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+          --title "Research: OpenSSL-free CPython $PYTHON_VERSION Linux arm64 ${GITHUB_SHA:0:12}" \
+            --notes-file "$notes" \
+            "$RELEASE_ASSETS_DIR"/*
