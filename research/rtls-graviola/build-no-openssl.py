@@ -447,6 +447,16 @@ def load_rustls_helper():
     return module
 
 
+def load_rust_license_helper():
+    path = REPO / "research" / "rtls-graviola" / "rust_licenses.py"
+    spec = importlib.util.spec_from_file_location("rtls_rust_licenses", path)
+    if spec is None or spec.loader is None:
+        raise BuildError(f"cannot load Rust license helper: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def apply_rtls_patch(checkout: Path, name: str) -> None:
     from buildsys.patches import PatchError, apply_patch
 
@@ -671,6 +681,23 @@ def install_adapters(
     (run_dir / "tmp").mkdir(parents=True, exist_ok=True)
     rtls_manifest = rtls_source / "rust" / "Cargo.toml"
     hashlib_manifest = hashing_source / "Cargo.toml"
+    license_helper = load_rust_license_helper()
+    try:
+        license_report = license_helper.install_rust_licenses(
+            prefix,
+            {"rtls": rtls_manifest, "hashing": hashlib_manifest},
+            {"rtls": rtls_source, "hashing": hashing_source},
+            cargo_home,
+            cargo,
+            run_dir / "tmp",
+        )
+    except license_helper.LicenseCollectionError as error:
+        raise BuildError(f"cannot install Rust license notices: {error}") from error
+    print(
+        "INSTALL Rust dependency license notices "
+        f"({license_report['packages']} packages, {license_report['notices']} files)",
+        flush=True,
+    )
     rtls_extension = build_rust_extension(
         cargo,
         rustc,
