@@ -26,11 +26,18 @@ PKCS#8 and traditional PEM support. Server verification modes now request and
 verify client certificates. `CERT_NONE` skips chain and hostname verification
 while preserving handshake-signature verification.
 
-The initial upstream regression run executed 3,269 tests, with 23 failures.
-`test_ssl` also failed during import because it imports `_ssl` directly.
-The failing files were `test_ssl`, three asyncio files, and `test_httplib`.
-The HTTP failure concerns certificate-exception `reason` metadata. This is
-unfinished compatibility work. No release candidate is qualified yet.
+The frozen macOS arm64 candidate at `a0940b5` was built with both compiled
+`_ssl` and `_hashlib` disabled in `Modules/Setup.local`. Its native dependency
+graph excludes OpenSSL. The separate fetch phase supplies locked Rust inputs;
+the build runs with network access denied. Both native adapters load from the
+standard library under `-I -S`, after relocation to a path containing spaces.
+Their load dependencies contain no OpenSSL libraries. This is a working
+OpenSSL-free development distribution, not a qualified release candidate.
+
+The original TLS contract passes under both `-I -S` and `-E -S -s`. The
+13-case trust-source contract uses the real pinned Mozilla bundle. Native
+extension, limited-API extension, and shared-libpython embedding checks pass.
+No macOS 26 runtime or Linux qualification is claimed.
 
 The broader differential corpus currently has 72 cases. After the native
 repairs, all certificate-path accept and reject outcomes match OpenSSL. The candidate rejects a duplicate critical Basic Constraints extension during
@@ -51,16 +58,26 @@ and certificate decoding for consumers such as CPython's own tests. It does
 not restore CPython's compiled `_ssl` extension or its native object layouts.
 `ssl_metadata.py` contains the CPython protocol-message enums.
 
-The separate [hashing backend](hashing/README.md) passes its initial complete
-`test_hashlib` and `test_hmac` run with 240 tests and 18 skips. Additional
-algorithm-discovery and input-boundary checks are in progress.
+The separate [hashing backend](hashing/README.md) passes the complete
+`test_hashlib` and `test_hmac` run: 240 tests, 18 skips. Its differential
+checks cover algorithm discovery, HMAC/PBKDF2 aliases, buffer inputs, and
+scrypt argument and memory bounds.
 
-The earlier integrated runtime checkpoint passed 3,269 tests across asyncio, HTTP, and urllib
-(77 resource or platform skips). The current native sources are consolidated
-in one context patch, `rtls-graviola.patch`. Clean source replay caught missing
-new-file hunks and misplaced zero-context method additions before qualification.
-The original upstream `test_ssl` still has unsupported features and API gaps.
-Those failures remain qualification failures.
+The frozen candidate passes 214 tests across asyncio TLS, SSL protocol, and
+HTTP client suites, with 21 skips. An earlier runtime checkpoint passed 3,269
+tests across asyncio, HTTP, and urllib, with 77 resource or platform skips.
+The complete `test_ssl` run times out in `test_nonblocking_send`; its socket
+flush retries `BlockingIOError` without yielding. That failure prevents a
+complete regression verdict. The socket repair is being checked against the
+unchanged upstream test before the next combined candidate is built.
+
+The next validation wave combines socket I/O, explicit sessions, cipher and
+context controls, offline CRLs, and SSL utility compatibility. Capath review
+also found that delaying store statistics does not reproduce OpenSSL's lookup
+at first use; the directory loader still snapshots certificates too early.
+Those changes remain provisional until clean replay, differential security
+checks, and the complete TLS suite run on the combined candidate. No timing
+or artifact-size comparison has been completed. Production remains unchanged.
 
 The remainder records the earlier prototype and adoption requirements.
 
