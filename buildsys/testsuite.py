@@ -124,7 +124,9 @@ _RESOURCE_DENIED_LIST = re.compile(
     r"((?:[ \t]+\S.*(?:\n|$))+)", re.M
 )
 _FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
-_TIMED_OUT_TEST = re.compile(r"\btest[\w.]* timed out \(")
+_TIMED_OUT_TEST = re.compile(
+    r"\btest[\w.]* timed out \(|\bTimeout \([0-9]+:[0-9]{2}:[0-9]{2}\)!"
+)
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _REGRTEST_WORKER_GRACE_SECONDS = 5 * 60
 _SUITE_PROCESS_EXIT_GRACE_SECONDS = 60
@@ -159,6 +161,8 @@ def _resource_denied_files(output: str) -> list[str]:
 
 
 def _accounting(output: str) -> dict:
+    if _TIMED_OUT_TEST.search(output):
+        raise SuiteError("suite reported a timed-out test")
     output = _ANSI_ESCAPE.sub("", output)
     summary = _SUMMARY.search(output)
     total_files = _TOTAL_FILES.search(output)

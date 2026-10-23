@@ -396,6 +396,26 @@ Total test files: run=1/1 failed=1
             run_suite(Path("python3.15"))
 
     @patch("buildsys.testsuite.run_product_process")
+    def test_embedded_worker_timeout_rejects_complete_file_accounting(self, run) -> None:
+        output = """testSourceAddress (test.test_socket.NetworkConnectionAttributesTest.testSourceAddress) ... Timeout (0:10:00)!
+Thread 0x00000001fadfff80 (most recent call first):
+  File "socket.py", line 299 in accept
+== Tests result: FAILURE ==
+1 test failed:
+    test_socket
+Total tests: run=87 failures=1
+Total test files: run=1/1 failed=1
+Result: FAILURE
+"""
+        run.return_value = self._completed(2, output)
+        with self.assertRaisesRegex(SuiteError, "timed-out test"):
+            run_suite(Path("python3.15"))
+        from buildsys.testsuite import _accounting
+
+        with self.assertRaisesRegex(SuiteError, "timed-out test"):
+            _accounting(output)
+
+    @patch("buildsys.testsuite.run_product_process")
     def test_process_deadline_allows_a_late_test_to_reach_its_timeout(
         self, run
     ) -> None:
