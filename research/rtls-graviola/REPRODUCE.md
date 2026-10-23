@@ -115,19 +115,32 @@ Python 3.12 or newer, the locked compiler, Rust 1.99.1, and `kache`.
 The Rust source acquisition is a separate network-enabled step. It archives
 the pinned RTLS commit without using working-tree files, prepares the pinned
 webpki source, applies the consolidated RTLS patch in a private source copy,
-and fetches both Cargo lockfiles. The interpreter and adapter build then run
-under the macOS sandbox with network access denied:
+and snapshots the hashing lane into `$run_dir/hashing-build`. That snapshot
+includes its Rust and Python sources, Cargo manifest and lockfile, README, and
+license records. The fetch phase runs Cargo against the snapshot and records
+its content digest in `$run_dir/inputs/hashing-source.sha256`. Before the
+sealed build, the driver checks both the snapshot and the supplied hashing
+source against that digest; changed or incomplete source fails before build.
+The sealed overlay builds and installs from the staged snapshot, not the
+working tree. Use the same run directory and source path for both phases:
 
 ```sh
 run_dir=.work/tmp/openssl-free-candidate
 rtls_source=.work/tmp/rtls-build-source
+hashing_source=research/rtls-graviola/hashing
 git clone --depth 1 --branch 2026.10.3 \
     https://github.com/jawah/rtls.git "$rtls_source"
 python3.15 research/rtls-graviola/build-no-openssl.py \
-    --phase fetch --run-dir "$run_dir" --rtls-source "$rtls_source"
+    --phase fetch --run-dir "$run_dir" --rtls-source "$rtls_source" \
+    --hashing-source "$hashing_source"
 python3.15 research/rtls-graviola/build-no-openssl.py \
-    --phase all --run-dir "$run_dir" --rtls-source "$rtls_source"
+    --phase all --run-dir "$run_dir" --rtls-source "$rtls_source" \
+    --hashing-source "$hashing_source"
 ```
+
+If the hashing source changes after fetch, fetch the new revision into a fresh
+run directory. The build then runs under the macOS sandbox with network access
+denied.
 
 The build prefix is `$run_dir/prefix`. The overlay phase relocates its Mach-O
 install names and sysconfig files, copies it to `$run_dir/relocated prefix`,

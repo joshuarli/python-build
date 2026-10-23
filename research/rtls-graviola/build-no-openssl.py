@@ -18,6 +18,18 @@ RTLS_REVISION = "302423b49e494863d07630d50b15a9488ec85ef7"
 RTLS_ARCHIVE_SHA256 = "8f188c405d18da8d099e9923722a764f14a93c466c0d1d9c548a42d47540639a"
 RUST_VERSION = "1.99.1"
 DISABLED_MODULES = ("_ssl", "_hashlib")
+HASHING_SOURCE_FILES = (
+    "Cargo.lock",
+    "Cargo.toml",
+    "README.md",
+    "REPRODUCE.md",
+    "THIRD_PARTY_LICENSES.md",
+    "_hashlib.py",
+    "build.rs",
+    "compare-reference.py",
+    "run-tests.sh",
+    "src/lib.rs",
+)
 OPENSSL_ENVIRONMENT = (
     "OPENSSL_INCLUDES",
     "OPENSSL_LDFLAGS",
@@ -325,13 +337,89 @@ def validate_adapter_sources(rtls_source: Path, hashing_source: Path) -> tuple[P
         raise BuildError(
             f"RTLS checkout must be {RTLS_REVISION}, found {result.stdout.strip()}"
         )
-    for name in ("Cargo.toml", "Cargo.lock", "_hashlib.py"):
-        if not (hashing_source / name).is_file():
-            raise BuildError(f"hashing lane input is missing: {hashing_source / name}")
+    hashing_source_digest(hashing_source)
     rtls_manifest = rtls_source / "rust" / "Cargo.toml"
     if not rtls_manifest.is_file():
         raise BuildError(f"RTLS Rust manifest is missing: {rtls_manifest}")
     return rtls_source, hashing_source
+
+
+def hashing_source_digest(source: Path) -> str:
+    source = Path(source).resolve()
+    if not source.is_dir():
+        raise BuildError(f"hashing source directory does not exist: {source}")
+    actual_files = set()
+    for path in source.rglob("*"):
+        relative = path.relative_to(source).as_posix()
+        if path.is_symlink():
+            raise BuildError(f"hashing source contains a symlink: {relative}")
+        if path.is_file():
+            actual_files.add(relative)
+        elif not path.is_dir():
+            raise BuildError(f"hashing source contains a special file: {relative}")
+    expected_files = set(HASHING_SOURCE_FILES)
+    missing = sorted(expected_files - actual_files)
+    unexpected = sorted(actual_files - expected_files)
+    if missing or unexpected:
+        raise BuildError(
+            f"hashing source file set differs from its replay contract: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+    digest = hashlib.sha256()
+    for relative in HASHING_SOURCE_FILES:
+        path = source / relative
+        name = relative.encode("utf-8")
+        size = path.stat().st_size
+        digest.update(len(name).to_bytes(4, "big"))
+        digest.update(name)
+        digest.update(size.to_bytes(8, "big"))
+        with path.open("rb") as source_file:
+            while block := source_file.read(1024 * 1024):
+                digest.update(block)
+    return digest.hexdigest()
+
+
+def stage_hashing_source(source: Path, run_dir: Path, inputs: Path) -> Path:
+    source = Path(source).resolve()
+    run_dir = Path(run_dir).resolve()
+    inputs = Path(inputs).resolve()
+    destination = run_dir / "hashing-build"
+    checksum = inputs / "hashing-source.sha256"
+    if destination.exists() or destination.is_symlink() or checksum.exists() or checksum.is_symlink():
+        raise BuildError("refusing to replace a staged hashing source snapshot")
+    before = hashing_source_digest(source)
+    with tempfile.TemporaryDirectory(dir=run_dir, prefix=".hashing-source-") as temporary:
+        staged = Path(temporary) / "hashing-build"
+        staged.mkdir()
+        for relative in HASHING_SOURCE_FILES:
+            source_file = source / relative
+            staged_file = staged / relative
+            staged_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_file, staged_file)
+        staged_digest = hashing_source_digest(staged)
+        after = hashing_source_digest(source)
+        if before != after or staged_digest != before:
+            raise BuildError("hashing source changed while its fetch snapshot was created")
+        os.replace(staged, destination)
+    checksum.write_text(before + "\n", encoding="ascii")
+    return destination
+
+
+def verify_hashing_source_snapshot(run_dir: Path, source: Path | None = None) -> Path:
+    run_dir = Path(run_dir).resolve()
+    snapshot = run_dir / "hashing-build"
+    checksum = run_dir / "inputs" / "hashing-source.sha256"
+    if checksum.is_symlink() or not checksum.is_file():
+        raise BuildError(f"hashing source snapshot digest is missing: {checksum}")
+    expected = checksum.read_text(encoding="ascii").strip()
+    if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
+        raise BuildError(f"hashing source snapshot digest is invalid: {checksum}")
+    staged_digest = hashing_source_digest(snapshot)
+    if staged_digest != expected:
+        raise BuildError("staged hashing source changed after fetch; fetch again into a fresh run directory")
+    if source is not None and hashing_source_digest(source) != expected:
+        raise BuildError("hashing source changed after fetch; fetch again into a fresh run directory")
+    return snapshot
 
 
 def load_webpki_helper():
@@ -398,6 +486,7 @@ def fetch_rust_inputs(
         )
     safe_extract(source_archive, checkout)
     apply_rtls_patch(checkout, "rtls-graviola.patch")
+    hashing_build = stage_hashing_source(hashing_source, run_dir, inputs)
     helper = load_webpki_helper()
     webpki_archive = inputs / f"rustls-webpki-{helper.VERSION}.crate"
     helper.fetch(webpki_archive)
@@ -421,7 +510,7 @@ def fetch_rust_inputs(
     environment.pop("CARGO_NET_OFFLINE", None)
     manifests = (
         ("RTLS", checkout / "rust" / "Cargo.toml"),
-        ("hashing", hashing_source / "Cargo.toml"),
+        ("hashing", hashing_build / "Cargo.toml"),
     )
     for name, manifest in manifests:
         result = subprocess.run(
@@ -439,13 +528,19 @@ def fetch_rust_inputs(
         print(f"FETCHED Rust inputs for {name}", flush=True)
 
 
-def require_fetched_rust_inputs(run_dir: Path) -> Path:
+def require_fetched_rust_inputs(
+    run_dir: Path,
+    hashing_source: Path | None = None,
+) -> tuple[Path, Path]:
     checkout = run_dir / "rtls-build"
+    hashing_build = run_dir / "hashing-build"
     cargo_home = run_dir / "cargo-home"
     required = (
         checkout / "rust" / "Cargo.lock",
         checkout / "webpki" / "Cargo.toml",
         checkout / "rustls" / "Cargo.toml",
+        hashing_build / "Cargo.lock",
+        hashing_build / "Cargo.toml",
         cargo_home / "registry",
     )
     missing = [path for path in required if not path.exists()]
@@ -454,7 +549,8 @@ def require_fetched_rust_inputs(run_dir: Path) -> Path:
             "offline Rust inputs are incomplete; run the separate --phase fetch first: "
             + ", ".join(str(path) for path in missing)
         )
-    return checkout
+    hashing_build = verify_hashing_source_snapshot(run_dir, hashing_source)
+    return checkout, hashing_build
 
 
 def build_rust_extension(
@@ -984,12 +1080,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.phase in {"all", "overlay"}:
                 if cargo is None or rustc is None or kache is None:
                     raise BuildError("Rust build tools were not passed into the sealed process")
-                rtls_build = require_fetched_rust_inputs(run_dir)
+                rtls_build, hashing_build = require_fetched_rust_inputs(run_dir)
                 install_adapters(
                     prefix,
                     run_dir,
                     rtls_build,
-                    args.hashing_source,
+                    hashing_build,
                     run_dir / "cargo-home",
                     cargo,
                     rustc,
@@ -1034,7 +1130,7 @@ def main(argv: list[str] | None = None) -> int:
             prefix = run_dir / "prefix"
         run_dir.mkdir(parents=True, exist_ok=True)
         if args.phase in {"all", "overlay"}:
-            require_fetched_rust_inputs(run_dir)
+            require_fetched_rust_inputs(run_dir, args.hashing_source)
         if not available():
             raise BuildError("sandbox-exec is unavailable")
         boundary = network_boundary(run_dir)
@@ -1064,7 +1160,6 @@ def main(argv: list[str] | None = None) -> int:
             command.extend(("--prefix", str(prefix)))
         if args.phase in {"all", "overlay"}:
             command.extend((
-                "--hashing-source", str(args.hashing_source),
                 "--cargo-bin", str(cargo),
                 "--rustc-bin", str(rustc),
                 "--kache-bin", str(kache),
