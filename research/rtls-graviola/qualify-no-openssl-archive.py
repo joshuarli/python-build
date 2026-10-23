@@ -620,6 +620,20 @@ def validate_regression_report(path: Path | None, source_prefix: Path) -> dict:
         )
 
 
+def certificate_process_succeeded(process: dict, payload: dict) -> bool:
+    return (
+        process.get("ok") is True
+        and process.get("returncode") == 0
+        and (
+            "exit_code" not in payload
+            or (
+                type(payload.get("exit_code")) is int
+                and payload["exit_code"] == 0
+            )
+        )
+    )
+
+
 def run_archive_contracts(
     extracted: Path,
     reference_python: Path,
@@ -675,7 +689,8 @@ def run_archive_contracts(
             else 0
         )
         certificate_ok = (
-            certificate_payload.get("result") == "passed"
+            certificate_process_succeeded(certificate_process, certificate_payload)
+            and certificate_payload.get("result") == "passed"
             and isinstance(candidate_identity, dict)
             and candidate_identity.get("interpreter") == str(python)
             and isinstance(cases, dict)
