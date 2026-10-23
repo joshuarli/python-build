@@ -39,14 +39,6 @@ def _test_decode_cert(path):
         certificate = _rustls.parse_certificate_dict(der)
     except ValueError as error:
         raise __getattr__("SSLError")("Error decoding PEM-encoded file") from error
-    if "subjectAltName" in certificate:
-        certificate["subjectAltName"] = tuple(
-            (
-                kind,
-                value.upper() if kind == "IP Address" and ":" in value else value,
-            )
-            for kind, value in certificate["subjectAltName"]
-        )
     return certificate
 
 

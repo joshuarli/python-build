@@ -557,6 +557,15 @@
              )?;
              san_list.append(tuple)?;
          }
+@@ -270,7 +316,7 @@
+             let mut parts = Vec::new();
+             for i in 0..8 {
+                 parts.push(format!(
+-                    "{:x}",
++                    "{:X}",
+                     u16::from_be_bytes([bytes[i * 2], bytes[i * 2 + 1]])
+                 ));
+             }
 --- a/rust/src/config.rs
 +++ b/rust/src/config.rs
 @@ -1,18 +1,22 @@
@@ -8276,17 +8285,29 @@
 +        import ssl
 --- a/src/rtls/_utils.py
 +++ b/src/rtls/_utils.py
-@@ -15,6 +15,9 @@
+@@ -3,5 +3,7 @@
+ import base64
+ import calendar
++import ctypes
++import operator
+ import os
+ import socket
+ from typing import Any
+@@ -15,6 +17,13 @@
  )
  from ._exceptions import SSLCertVerificationError
  
++_C_INT_BITS = ctypes.sizeof(ctypes.c_int) * 8
++_C_INT_MIN = -(1 << (_C_INT_BITS - 1))
++_C_INT_MAX = (1 << (_C_INT_BITS - 1)) - 1
++
 +PEM_HEADER = "-----BEGIN CERTIFICATE-----"
 +PEM_FOOTER = "-----END CERTIFICATE-----"
 +
  
  def create_default_context(
      purpose: Any = Purpose.SERVER_AUTH,
-@@ -50,27 +53,38 @@
+@@ -50,27 +59,38 @@
      return context
  
  
@@ -8339,15 +8360,26 @@
  
  
  def DER_cert_to_PEM_cert(der_cert_bytes: bytes) -> str:
-@@ -209,6 +223,8 @@
+@@ -209,6 +229,11 @@
  
  def RAND_bytes(num: int) -> bytes:
      """Generate num cryptographically secure random bytes."""
++    num = operator.index(num)
++    if num < _C_INT_MIN or num > _C_INT_MAX:
++        raise OverflowError("Python int too large to convert to C int")
 +    if num < 0:
 +        raise ValueError("num must be positive")
      try:
          from . import _rustls
  
+@@ -225,3 +248,5 @@
+ def RAND_add(data: bytes, entropy: float) -> None:
+-    """No-op — rustls handles its own entropy."""
+-    pass
++    """Report that external entropy injection is unsupported."""
++    raise NotImplementedError(
++        "RAND_add entropy injection is unsupported by the selected random source"
++    )
 --- /dev/null
 +++ b/tests/certdata/crl_intermediate_empty.pem
 @@ -0,0 +1,11 @@

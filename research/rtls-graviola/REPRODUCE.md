@@ -63,12 +63,21 @@ The candidate rejects the strict-invalid leaf and malformed PEM chain. These
 cases remain mandatory regression checks. The script runs candidate checks with both `-I` and `-E -s`, and
 prints the disposable path for inspection.
 
-The utility compatibility contract checks `RAND_bytes` negative lengths,
-`get_protocol_name()`, malformed certificate decode errors, and the
-CVE-2013-4238 certificate fields. The no-OpenSSL facade reports
-`_OPENSSL_API_VERSION` as `(0, 0, 0, 0, 0)`. The version-guarded upstream CVE
-test therefore selects its legacy OpenSSL branch, so the direct
-certificate-field contract checks the supported IPv6 SAN behavior separately.
+The utility compatibility contract checks `RAND_bytes` integer conversion and
+C `int` overflow, `get_protocol_name()`, malformed certificate decode errors,
+and the CVE-2013-4238 certificate fields. A memory-BIO handshake checks
+uppercase IPv6 SAN formatting from `SSLObject.getpeercert()`. The no-OpenSSL
+facade reports `_OPENSSL_API_VERSION` as `(0, 0, 0, 0, 0)`. The version-guarded
+upstream CVE test therefore selects its legacy OpenSSL branch, so the direct
+certificate-field contract checks IPv6 SAN formatting separately.
+
+Graviola 0.4.1 exposes system random filling but no entropy-injection API.
+`RAND_add` raises `NotImplementedError` instead of reporting a false success.
+Accordingly, upstream `test_random` passes the RNG status, positive-byte, and
+negative-length checks, then fails at its first `RAND_add` call with
+`NotImplementedError: RAND_add entropy injection is unsupported by the selected
+random source` at `test_ssl.py:509`. The pinned OpenSSL reference completes that
+test.
 
 The test bundle is a single CPython test CA, not the production certifi PEM.
 The replay does not establish the production bundle contents. The RTLS upstream
