@@ -40,21 +40,40 @@ class _MD5SHA1:
 
 
 def _rust_constructor(algorithm):
-    digest_size, block_size = {
-        "sha512_224": (28, 128),
-        "sha512_256": (32, 128),
-        "ripemd160": (20, 64),
-        "sm3": (32, 64),
-    }[algorithm]
-
     class RustHash:
-        __slots__ = ("_state", "name", "digest_size", "block_size")
+        __slots__ = ("_state", "_name", "_digest_size", "_block_size")
 
         def __init__(self, data=b"", *, usedforsecurity=True):
-            self._state, self.digest_size, self.block_size = _hashlib_graviola.hash_state_new(
-                algorithm, data
+            self._state, self._digest_size, self._block_size = (
+                _hashlib_graviola.hash_state_new(algorithm, data)
             )
-            self.name = algorithm
+            self._name = algorithm
+
+        @property
+        def name(self):
+            return self._name
+
+        @property
+        def digest_size(self):
+            return self._digest_size
+
+        @property
+        def block_size(self):
+            return self._block_size
+
+        def __setattr__(self, name, value):
+            if name in ("name", "digest_size", "block_size"):
+                raise AttributeError(
+                    f"attribute '{name}' of '_hashlib.HASH' objects is not writable"
+                )
+            object.__setattr__(self, name, value)
+
+        def __delattr__(self, name):
+            if name in ("name", "digest_size", "block_size"):
+                raise AttributeError(
+                    f"attribute '{name}' of '_hashlib.HASH' objects is not writable"
+                )
+            object.__delattr__(self, name)
 
         def update(self, data):
             _hashlib_graviola.state_update(self._state, data)
@@ -68,9 +87,9 @@ def _rust_constructor(algorithm):
         def copy(self):
             result = object.__new__(type(self))
             result._state = _hashlib_graviola.state_copy(self._state)
-            result.name = self.name
-            result.digest_size = self.digest_size
-            result.block_size = self.block_size
+            result._name = self._name
+            result._digest_size = self._digest_size
+            result._block_size = self._block_size
             return result
 
     def constructor(data=b"", *, usedforsecurity=True):
@@ -124,7 +143,7 @@ class _HMACMeta(type):
 
 
 class HMAC(metaclass=_HMACMeta):
-    __slots__ = ("_state", "digest_size", "block_size", "_algorithm")
+    __slots__ = ("_state", "_digest_size", "_block_size", "_algorithm")
 
     def __new__(cls, *args, **kwargs):
         raise TypeError("cannot create '_hashlib.HMAC' instances")
@@ -133,7 +152,7 @@ class HMAC(metaclass=_HMACMeta):
         if digestmod is None:
             raise TypeError("Missing required argument 'digestmod'.")
         algorithm = _digest_name(digestmod)
-        self._state, self.digest_size, self.block_size = _hashlib_graviola.hmac_state_new(
+        self._state, self._digest_size, self._block_size = _hashlib_graviola.hmac_state_new(
             key, algorithm
         )
         self._algorithm = algorithm
@@ -143,6 +162,28 @@ class HMAC(metaclass=_HMACMeta):
     @property
     def name(self):
         return "hmac-" + self._algorithm
+
+    @property
+    def digest_size(self):
+        return self._digest_size
+
+    @property
+    def block_size(self):
+        return self._block_size
+
+    def __setattr__(self, name, value):
+        if name in ("name", "digest_size", "block_size"):
+            raise AttributeError(
+                f"attribute '{name}' of '_hashlib.HMAC' objects is not writable"
+            )
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name):
+        if name in ("name", "digest_size", "block_size"):
+            raise AttributeError(
+                f"attribute '{name}' of '_hashlib.HMAC' objects is not writable"
+            )
+        object.__delattr__(self, name)
 
     def update(self, msg):
         _hashlib_graviola.state_update(self._state, msg)
@@ -157,8 +198,8 @@ class HMAC(metaclass=_HMACMeta):
         result = object.__new__(type(self))
         result._state = _hashlib_graviola.state_copy(self._state)
         result._algorithm = self._algorithm
-        result.digest_size = self.digest_size
-        result.block_size = self.block_size
+        result._digest_size = self._digest_size
+        result._block_size = self._block_size
         return result
 
     def __repr__(self):
@@ -220,7 +261,7 @@ _openssl_names = (
     "shake_128",
     "shake_256",
 )
-_openssl_signature = inspect.Signature(
+_openssl_fallback_signature = inspect.Signature(
     (
         inspect.Parameter("data", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=b""),
         inspect.Parameter("usedforsecurity", inspect.Parameter.KEYWORD_ONLY, default=True),
@@ -238,7 +279,10 @@ def _openssl_constructor(name):
     constructor.__name__ = "openssl_" + name
     constructor.__qualname__ = constructor.__name__
     constructor.__module__ = __name__
-    constructor.__signature__ = _openssl_signature
+    try:
+        constructor.__signature__ = inspect.signature(builtin)
+    except (TypeError, ValueError):
+        constructor.__signature__ = _openssl_fallback_signature
     return constructor
 
 

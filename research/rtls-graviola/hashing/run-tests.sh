@@ -81,4 +81,5 @@ fi
 TMPDIR="$work" "$python" -I -B -m test test_hashlib test_hmac
 TMPDIR="$work" "$python" -I -B -m unittest test.test_support.TestHashlibSupport
 TMPDIR="$work" "$python" -I -B "$lane_dir/testdrivers/allocation_failures.py"
+TMPDIR="$work" "$python" -I -B "$lane_dir/testdrivers/public_attributes.py"
 TMPDIR="$work" "$python" -E -s -B "$lane_dir/testdrivers/subinterpreters.py"
