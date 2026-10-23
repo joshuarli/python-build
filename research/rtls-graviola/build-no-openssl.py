@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import importlib.util
 import os
 import platform
+import re
 import shutil
 import stat
 import subprocess
@@ -190,9 +192,15 @@ def build_cpython(
     cache_root: Path,
     target,
     toolchain,
+    *,
+    pgo: bool,
 ) -> Path:
     from buildsys.ca_bundle import CABundleError, install_fallback_ca_bundle
-    from buildsys.cpython import configuration
+    from buildsys.cpython import (
+        CPYTHON_PGO_HASH_SEED,
+        configuration,
+        pgo_profile_task,
+    )
     from buildsys.inputs import safe_extract
     from buildsys.patches import apply_patch_set
     from buildsys.recipes import run
@@ -202,19 +210,40 @@ def build_cpython(
     apply_patch_set(source, REPO / "patches" / "cpython")
     build_directory = run_dir / "cpython-build"
     build_directory.mkdir()
-    args, environment = configuration(dependency_prefix, target)
+    args, environment = configuration(
+        dependency_prefix,
+        target,
+        pgo_jobs=toolchain.jobs if pgo else None,
+    )
     args = [
         argument
         for argument in args
-        if argument not in {"--enable-optimizations"}
-        and not argument.startswith("--with-openssl")
+        if not argument.startswith("--with-openssl")
+        and (pgo or argument != "--enable-optimizations")
     ]
     if any(argument.startswith("--with-openssl") for argument in args):
         raise BuildError("CPython configure arguments still enable OpenSSL")
     for name in OPENSSL_ENVIRONMENT:
         environment.pop(name, None)
-    environment.pop("PROFILE_TASK", None)
-    environment.pop("PYTHONHASHSEED", None)
+    llvm_profdata = Path(toolchain.cc).with_name("llvm-profdata")
+    if pgo:
+        if "--enable-optimizations" not in args:
+            raise BuildError("CPython PGO configuration omitted --enable-optimizations")
+        expected_task = pgo_profile_task(toolchain.jobs)
+        if environment.get("PROFILE_TASK") != expected_task:
+            raise BuildError(
+                f"CPython PGO task differs from {expected_task!r}: "
+                f"{environment.get('PROFILE_TASK')!r}"
+            )
+        if environment.get("PYTHONHASHSEED") != CPYTHON_PGO_HASH_SEED:
+            raise BuildError("CPython PGO hash seed differs from the shared configuration")
+        if not llvm_profdata.is_file():
+            raise BuildError(f"locked LLVM profile merger is missing: {llvm_profdata}")
+        environment["LLVM_PROFDATA"] = str(llvm_profdata)
+    else:
+        args = [argument for argument in args if argument != "--enable-optimizations"]
+        for name in ("PROFILE_TASK", "PYTHONHASHSEED", "LLVM_PROFDATA"):
+            environment.pop(name, None)
     environment.update(
         {
             "SOURCE_DATE_EPOCH": "1704067200",
@@ -222,6 +251,9 @@ def build_cpython(
         }
     )
     env = toolchain.env(environment)
+    if not pgo:
+        for name in ("PROFILE_TASK", "PYTHONHASHSEED", "LLVM_PROFDATA"):
+            env.pop(name, None)
     configure = source / "configure"
     run(
         [str(configure), f"--prefix={prefix}", *args],
@@ -234,13 +266,16 @@ def build_cpython(
     setup_local.write_text("*disabled*\n" + "".join(f"{name}\n" for name in DISABLED_MODULES))
     if tuple(setup_local.read_text().splitlines()[1:]) != DISABLED_MODULES:
         raise BuildError("Modules/Setup.local does not disable the required modules")
-    print("BUILD CPython 3.15.1 without PGO and OpenSSL modules", flush=True)
+    build_policy = "with PGO" if pgo else "without PGO"
+    print(f"BUILD CPython 3.15.1 {build_policy} and OpenSSL modules disabled", flush=True)
     run(
         [toolchain.make, "-j", str(toolchain.jobs)],
         cwd=build_directory,
         env=env,
         log=run_dir / "logs" / "cpython-build.log",
     )
+    if pgo:
+        verify_pgo_build(source, build_directory, toolchain, env)
     run(
         [toolchain.make, "install"],
         cwd=build_directory,
@@ -256,6 +291,95 @@ def build_cpython(
     except CABundleError as error:
         raise BuildError(f"cannot install the locked CA fallback: {error}") from error
     return prefix
+
+
+def verify_pgo_build(source: Path, build_directory: Path, toolchain, env: dict[str, str]) -> None:
+    profile_log = build_directory.parent / "logs" / "cpython-build.log"
+    try:
+        log_text = profile_log.read_text()
+    except OSError as error:
+        raise BuildError(f"cannot read CPython PGO build log {profile_log}: {error}") from error
+    log_text = re.sub(r"\x1b\[[0-9;]*m", "", log_text)
+    totals = re.findall(r"(?m)^Total tests: (.+?)\s*$", log_text)
+    test_files = re.findall(r"(?m)^Total test files: (.+?)\s*$", log_text)
+    results = re.findall(r"(?m)^Result: (.+?)\s*$", log_text)
+    pgo_source = source / "Lib" / "test" / "libregrtest" / "pgo.py"
+    try:
+        pgo_module = ast.parse(pgo_source.read_text())
+        pgo_tests = next(
+            ast.literal_eval(statement.value)
+            for statement in pgo_module.body
+            if isinstance(statement, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "PGO_TESTS"
+                for target in statement.targets
+            )
+        )
+    except (OSError, SyntaxError, StopIteration, ValueError) as error:
+        raise BuildError(f"cannot read CPython PGO test list {pgo_source}: {error}") from error
+    if not isinstance(pgo_tests, list) or not pgo_tests:
+        raise BuildError("CPython PGO test list is empty or malformed")
+    if len(totals) != 1 or len(test_files) != 1 or len(results) != 1:
+        raise BuildError("CPython PGO test task did not emit one complete test summary")
+    total_run = re.search(r"\brun=([0-9,]+)(?:\s|$)", totals[0])
+    test_file_run = re.search(r"\brun=(\d+)/(\d+)(?:\s|$)", test_files[0])
+    if total_run is None or test_file_run is None:
+        raise BuildError("CPython PGO test summary is malformed")
+    test_count = int(total_run.group(1).replace(",", ""))
+    executed_files, expected_files = map(int, test_file_run.groups())
+    if test_count <= 0 or expected_files != len(pgo_tests) or executed_files != expected_files:
+        raise BuildError(
+            "CPython PGO test task was empty or incomplete: "
+            f"tests={test_count}, files={executed_files}/{expected_files}, "
+            f"expected_files={len(pgo_tests)}"
+        )
+    if results[0] != "SUCCESS":
+        raise BuildError(f"CPython PGO test task did not succeed: {results[0]}")
+    profile_path = build_directory / "code.profclangd"
+    try:
+        profile_size = profile_path.stat().st_size
+    except OSError as error:
+        raise BuildError(f"CPython did not leave PGO data at {profile_path}: {error}") from error
+    if profile_size <= 0:
+        raise BuildError(f"CPython left empty PGO data at {profile_path}")
+    merger = Path(env["LLVM_PROFDATA"])
+    try:
+        profile = subprocess.run(
+            [str(merger), "show", "--topn=1", str(profile_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise BuildError(f"locked LLVM could not inspect CPython PGO data: {error}") from error
+    if profile.returncode:
+        raise BuildError(
+            "locked LLVM rejected CPython PGO data: "
+            f"{profile.stdout}{profile.stderr}"
+        )
+    profile_summary = re.sub(r"\x1b\[[0-9;]*m", "", profile.stdout)
+    functions = re.search(r"(?m)^Total functions: (\d+)$", profile_summary)
+    maximum_count = re.search(r"(?m)^Maximum function count: (\d+)$", profile_summary)
+    if (
+        functions is None
+        or maximum_count is None
+        or int(functions.group(1)) <= 0
+        or int(maximum_count.group(1)) <= 0
+    ):
+        raise BuildError(f"CPython PGO data contains no recorded profile counts: {profile_summary}")
+    with profile_path.open("rb") as profile_file:
+        profile_digest = hashlib.file_digest(profile_file, "sha256").hexdigest()
+    print(
+        f"PGO task complete: Total tests: {totals[0]}; "
+        f"Total test files: {test_files[0]}; Result: {results[0]}",
+        flush=True,
+    )
+    print(
+        f"PGO profile valid: bytes={profile_size}, sha256={profile_digest}, "
+        f"functions={functions.group(1)}, max_count={maximum_count.group(1)}",
+        flush=True,
+    )
 
 
 def verify_base_prefix(prefix: Path, run_dir: Path) -> None:
@@ -1069,7 +1193,7 @@ def verify_overlay_prefix(prefix: Path, run_dir: Path, target) -> None:
         )
 
 
-def build_base(run_dir: Path, cache_root: Path, target, toolchain) -> Path:
+def build_base(run_dir: Path, cache_root: Path, target, toolchain, *, pgo: bool) -> Path:
     from buildsys.bootstrap import lto_smoke_test
     from buildsys.inputs import Cache, InputError, load_lock
     from buildsys.targets import native_target
@@ -1103,6 +1227,7 @@ def build_base(run_dir: Path, cache_root: Path, target, toolchain) -> Path:
         cache_root,
         target,
         toolchain,
+        pgo=pgo,
     )
     enforce_candidate_exclusions(prefix)
     verify_base_prefix(prefix, run_dir)
@@ -1158,6 +1283,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--phase", choices=("fetch", "base", "overlay", "all"), default="base")
     parser.add_argument("--jobs", type=positive_jobs, default=2)
+    parser.add_argument(
+        "--pgo",
+        action="store_true",
+        help="enable CPython profile-guided optimization for base or all phases",
+    )
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--prefix", type=Path)
     parser.add_argument("--rtls-source", type=Path)
@@ -1171,6 +1301,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rustc-bin", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--kache-bin", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.pgo and args.phase not in {"base", "all"}:
+        parser.error("--pgo is only valid with --phase base or --phase all")
     if sys.version_info < (3, 12):
         print("FAIL no-OpenSSL build: run with Python 3.12 or newer", file=sys.stderr)
         return 2
@@ -1236,9 +1368,9 @@ def main(argv: list[str] | None = None) -> int:
             target = native_target()
             cache_root = common_root / ".cache"
             if args.phase == "base":
-                prefix = build_base(run_dir, cache_root, target, toolchain)
+                prefix = build_base(run_dir, cache_root, target, toolchain, pgo=args.pgo)
             elif args.phase == "all":
-                prefix = build_base(run_dir, cache_root, target, toolchain)
+                prefix = build_base(run_dir, cache_root, target, toolchain, pgo=args.pgo)
             elif args.phase == "overlay":
                 prefix = require_work_path(args.prefix)
                 if not prefix.is_dir():
@@ -1326,6 +1458,8 @@ def main(argv: list[str] | None = None) -> int:
             "--jobs",
             str(args.jobs),
         ]
+        if args.pgo:
+            command.append("--pgo")
         if args.phase == "overlay":
             command.extend(("--prefix", str(prefix)))
         if args.phase in {"all", "overlay"}:

@@ -166,6 +166,11 @@ initialization disabled. Every run directory and prefix must remain under
 `.work/`. This experiment does not change production OpenSSL settings and
 does not measure production build time or qualify release archives.
 
+The base phase omits profile-guided optimization by default. Pass `--pgo` with
+`--phase base` or `--phase all` to keep CPython's `--enable-optimizations`, run
+the pinned `-m test --pgo` training task, and validate the merged profile.
+`--pgo` is invalid with `--phase fetch` and `--phase overlay`.
+
 Run the TLS contract against a disposable copy of the built prefix:
 
 ```sh
