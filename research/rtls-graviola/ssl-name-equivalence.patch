@@ -1,0 +1,66 @@
+diff --git a/rust/src/policy.rs b/rust/src/policy.rs
+index b6c8133..7999137 100644
+--- a/rust/src/policy.rs
++++ b/rust/src/policy.rs
+@@ -91,7 +91,7 @@ pub fn parse_certificates(pem: &[u8]) -> Result<Vec<CertificateDer<'static>>, St
+ 
+ fn self_signed(der: &CertificateDer<'_>, supported: WebPkiSupportedAlgorithms) -> bool {
+     let Ok((rest, cert)) = X509Certificate::from_der(der.as_ref()) else { return false; };
+-    if !rest.is_empty() || cert.signature_algorithm != cert.tbs_certificate.signature || cert.subject() != cert.issuer() { return false; }
++    if !rest.is_empty() || cert.signature_algorithm != cert.tbs_certificate.signature || !crate::trust::names_equal(cert.subject().as_raw(), cert.issuer().as_raw()) { return false; }
+     let Ok(key) = webpki::EndEntityCert::try_from(der) else { return false; };
+     supported.all.iter().any(|algorithm| {
+         let id = algorithm.signature_alg_id();
+@@ -194,7 +194,7 @@ fn check_issuer(child: &[u8], parent: &[u8]) -> Result<(), webpki::Error> {
+             }
+             if aki.authority_cert_serial.is_some_and(|serial| serial != parent.raw_serial()) { return Err(invalid); }
+             if let Some(names) = &aki.authority_cert_issuer {
+-                if !names.iter().any(|name| matches!(name, x509_parser::extensions::GeneralName::DirectoryName(name) if name == parent.issuer())) { return Err(invalid); }
++                if !names.iter().any(|name| matches!(name, x509_parser::extensions::GeneralName::DirectoryName(name) if crate::trust::names_equal(name.as_raw(), parent.issuer().as_raw()))) { return Err(invalid); }
+             }
+         }
+     }
+@@ -328,7 +328,7 @@ impl PathVerifier {
+                     check_certificate(der.as_ref(), false, depth, now, client, strict)?;
+                     previous = der.clone();
+                     let (_, parsed) = X509Certificate::from_der(der.as_ref()).map_err(|_| webpki::Error::BadDer)?;
+-                    if parsed.subject() != parsed.issuer() { non_self_issued += 1; }
++                    if !crate::trust::names_equal(parsed.subject().as_raw(), parsed.issuer().as_raw()) { non_self_issued += 1; }
+                     depth += 1;
+                 }
+                 check_issuer(previous.as_ref(), root.as_ref())?;
+@@ -340,7 +340,7 @@ impl PathVerifier {
+                 Ok(())
+             };
+             let usage = if client { webpki::KeyUsage::client_auth() } else { webpki::KeyUsage::server_auth() };
+-            match cert.verify_for_usage(self.supported.all, &anchors, &intermediates, now, usage, None, Some(&policy)) {
++            match cert.verify_for_usage_with_name_comparison(self.supported.all, &anchors, &intermediates, now, usage, None, Some(&policy), crate::trust::name_contents_equal) {
+                 Ok(path) => {
+                     let mut chain = vec![leaf.to_vec()];
+                     chain.extend(path.intermediate_certificates().map(|cert| cert.der().to_vec()));
+diff --git a/rust/src/trust.rs b/rust/src/trust.rs
+index 1706ed9..b76d3cf 100644
+--- a/rust/src/trust.rs
++++ b/rust/src/trust.rs
+@@ -19,6 +19,21 @@ fn canonical_subject_name(der_bytes: &[u8]) -> Result<Vec<u8>, String> {
+     canonical_name(certificate.subject().as_raw())
+ }
+ 
++pub(crate) fn names_equal(left: &[u8], right: &[u8]) -> bool {
++    match (canonical_name(left), canonical_name(right)) {
++        (Ok(left), Ok(right)) => left == right,
++        _ => false,
++    }
++}
++
++pub(crate) fn name_contents_equal(left: &[u8], right: &[u8]) -> bool {
++    let mut left_der = Vec::new();
++    let mut right_der = Vec::new();
++    encode_tlv(0x30, left, &mut left_der);
++    encode_tlv(0x30, right, &mut right_der);
++    names_equal(&left_der, &right_der)
++}
++
+ fn canonical_name(name_der: &[u8]) -> Result<Vec<u8>, String> {
+     let (tag, name_content, remaining, _) = read_tlv(name_der)?;
+     if tag != 0x30 || !remaining.is_empty() {

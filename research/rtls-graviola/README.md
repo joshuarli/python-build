@@ -53,6 +53,15 @@ when hostname checking is disabled. The archive checksum, safe extraction, and
 patch application are enforced by `prepare_webpki.py`. Signature algorithms
 remain in webpki and Graviola.
 
+The name-comparison adapter also supplies OpenSSL-compatible distinguished-name
+comparison to issuer selection, cycle detection, self-issued path-length checks,
+and CRL authority checks. It reuses the existing canonical-name transformation;
+signatures still use the original signed certificate bytes and issuer key.
+The original webpki verification entry point retains its raw comparison. Both
+runtimes accept the equivalent-case issuer fixture and reject a genuinely
+different issuer signed with the same key. The 72-case corpus passes after this
+repair; the broader name-equivalence fixtures are being added separately.
+
 `ssl_native_compat.py`, installed as `_ssl.py`, provides Python-level metadata
 and certificate decoding for consumers such as CPython's own tests. It does
 not restore CPython's compiled `_ssl` extension or its native object layouts.
