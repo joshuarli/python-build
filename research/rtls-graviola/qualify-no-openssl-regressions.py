@@ -7,7 +7,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
 
@@ -16,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO))
 
 from buildsys.product import PRODUCT
+from buildsys.package import copy_product_tree
 
 
 RUNTIME_FILES = (
@@ -362,12 +362,7 @@ def run(args) -> int:
         source_test_inventory = ssl_test_case_inventory(source_prefix, scratch)
         policy = importlib.import_module("regression_policy")
         expected_ssl_test_count = policy.EXPECTED_SSL_TEST_COUNT
-        shutil.copytree(
-            source_prefix,
-            tested_prefix,
-            symlinks=True,
-            copy_function=shutil.copy2,
-        )
+        copy_product_tree(source_prefix, tested_prefix)
         tested_identity = runtime_identity(tested_prefix, scratch)
         tested_test_inventory = ssl_test_case_inventory(tested_prefix, scratch)
         inventories_equal = all(

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import tarfile
 import tempfile
 import unittest
@@ -18,6 +19,7 @@ from buildsys.package import (
     archive_path_for,
     build_manifest,
     create_archive,
+    copy_product_tree,
     publish_files,
     qualify,
     validate_build_record,
@@ -48,6 +50,34 @@ BUILD_RECORD = {
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_product_copy_materializes_referents_before_link_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            (source / "00-alias").symlink_to("99-target")
+            (source / "01-chain").symlink_to("00-alias")
+            (source / "99-target").write_bytes(b"product contents")
+            (source / "99-target").chmod(0o755)
+            os.utime(source / "00-alias", (1704067200, 1704067200), follow_symlinks=False)
+            os.utime(source, (1704067200, 1704067200))
+            original = shutil.copystat
+
+            def copy_metadata(src, dst, *, follow_symlinks=True):
+                if Path(dst).is_symlink() and not Path(dst).exists():
+                    raise FileNotFoundError("no-follow xattrs require a materialized referent")
+                return original(src, dst, follow_symlinks=follow_symlinks)
+
+            destination = root / "destination"
+            with patch("shutil.copystat", side_effect=copy_metadata):
+                copy_product_tree(source, destination)
+            self.assertEqual((destination / "00-alias").readlink(), Path("99-target"))
+            self.assertEqual((destination / "01-chain").readlink(), Path("00-alias"))
+            self.assertEqual((destination / "01-chain").read_bytes(), b"product contents")
+            self.assertEqual((destination / "99-target").stat().st_mode, (source / "99-target").stat().st_mode)
+            self.assertEqual((destination / "00-alias").lstat().st_mtime_ns, (source / "00-alias").lstat().st_mtime_ns)
+            self.assertEqual(destination.stat().st_mtime_ns, source.stat().st_mtime_ns)
+
     def test_archive_is_reproducible_and_extraction_preserves_modes_and_links(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

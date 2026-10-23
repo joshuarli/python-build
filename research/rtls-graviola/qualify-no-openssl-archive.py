@@ -65,6 +65,7 @@ from buildsys.package import (
     PackageError,
     build_manifest,
     create_archive,
+    copy_product_tree,
     qualify,
     verify_archive_extraction,
     write_manifest,
@@ -2006,7 +2007,7 @@ def main(argv: list[str] | None = None) -> int:
             "checks": {},
         }
 
-        shutil.copytree(source_prefix, package_work, symlinks=True)
+        copy_product_tree(source_prefix, package_work)
         report["checks"]["private_package_copy"] = check_result(
             True, path=str(package_work), source_preserved=True
         )

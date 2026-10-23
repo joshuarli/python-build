@@ -28,6 +28,33 @@ class PackageError(Exception):
     """A package artifact could not be prepared or published."""
 
 
+def copy_product_tree(source: Path, destination: Path) -> Path:
+    source = Path(source)
+    destination = Path(destination)
+    links: list[tuple[Path, Path]] = []
+    directories: list[tuple[Path, Path]] = []
+
+    def defer_links(directory, names):
+        directory = Path(directory)
+        directories.append((directory, destination / directory.relative_to(source)))
+        ignored = []
+        for name in names:
+            path = directory / name
+            if path.is_symlink():
+                links.append((path, destination / path.relative_to(source)))
+                ignored.append(name)
+        return ignored
+
+    shutil.copytree(source, destination, symlinks=True, ignore=defer_links)
+    for src, dst in links:
+        dst.symlink_to(src.readlink())
+    for src, dst in links:
+        shutil.copystat(src, dst, follow_symlinks=False)
+    for src, dst in reversed(directories):
+        shutil.copystat(src, dst, follow_symlinks=False)
+    return destination
+
+
 @dataclass(frozen=True)
 class ArchiveFacts:
     sha256: str

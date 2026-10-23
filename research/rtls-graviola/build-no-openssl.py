@@ -1102,6 +1102,7 @@ def relocate_candidate(
     kache: Path,
 ) -> Path:
     if platform.system() == "Linux":
+        from buildsys.package import copy_product_tree
         from buildsys.relocate import relocate
 
         relocate(
@@ -1116,7 +1117,7 @@ def relocate_candidate(
         relocated = run_dir / "relocated prefix"
         if relocated.exists():
             raise BuildError(f"refusing to replace relocated candidate: {relocated}")
-        shutil.copytree(prefix, relocated, symlinks=True)
+        copy_product_tree(prefix, relocated)
         return relocated
     from buildsys import macho
     from buildsys.relocate import RelocationError, macho_relocate
