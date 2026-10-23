@@ -4,9 +4,12 @@ This note covers native consumers of the CPython 3.15.1 TLS and hashing
 modules. It distinguishes the supported CPython C API from OpenSSL symbols
 that happen to be present in the reference extension binaries.
 
-The candidate evidence uses the frozen macOS arm64 build at revision
-`a0940b5`, relocated to a path with spaces. It contains the RTLS `ssl`
-adapter and the Graviola hashing adapter.
+The current evidence uses the macOS arm64 release candidate through
+`383fc57`, stripped, archived, and extracted under a path with spaces.
+It contains the RTLS `ssl` adapter and the RustCrypto hashing
+adapter. Native checks ran on an Apple M5 Max with macOS 27.0.1, using
+Apple M1 code generation and a macOS 26 deployment target. They do not
+establish execution on an M1 or macOS 26.
 
 ## CPython extension ABI checks pass
 
@@ -21,8 +24,8 @@ for a native extension, a limited-API extension, and shared-library embedding:
 
 These checks exercise the CPython C API through `Python.h`, `python3.15-config`,
 and `libpython3.15.dylib`. They do not exercise OpenSSL entry points. The
-checks do not qualify the full candidate or run the rest of
-`buildsys.validate_product`.
+complete `buildsys.validate_product` report also passed on the extracted
+candidate. Full regression accounting remains a separate qualification gate.
 
 ## OpenSSL symbols are not a Python extension API
 
@@ -46,19 +49,21 @@ OpenSSL library or a supported pointer interface.
 
 The candidate replaces the native `_ssl` and `_hashlib` modules with Python
 adapters. Its `_ssl.py` and `_hashlib.py` module dictionaries publish no
-`_C_API` attribute or `PyCapsule`. The native `_hashlib_graviola.abi3.so` and
-`rtls._rustls.abi3.so` each define only their module initializer. Direct
+`_C_API` attribute or `PyCapsule`. The native `_hashlib_graviola.abi3.so`
+defines only its module initializer. Direct
 `ctypes` lookup on either native module handle finds none of the tested
 OpenSSL functions. The installed prefix also has no OpenSSL headers or
 `libssl` and `libcrypto` archives.
 
-The later combined development TLS binding adds six `rtls_native_*` C exports:
+The TLS binding adds six `rtls_native_*` C exports:
 `claim`, `copy_reply`, `free`, `handle_count`, `invoke`, and `report_unraisable`.
 The ordinary Python facade uses these owned-handle operations through `ctypes`;
-they expose no OpenSSL object pointers. `nm -gU` on that build reports these
-six symbols and `PyInit__rustls`, and its undefined symbols contain no `EVP_`,
-`SSL_`, `X509_`, or `OPENSSL_` names. Its load commands still name only
-`libiconv` and `libSystem`. Final extracted-archive checks remain outstanding.
+they expose no OpenSSL object pointers. The extracted release archive reports
+these six symbols and `PyInit__rustls`. Its 79 Mach-O images have no undefined
+references in the audited OpenSSL symbol families, including `EVP_`, `SSL_`,
+`X509_`, and `OPENSSL_`. Both adapters still load only `libiconv` and
+`libSystem`. Direct handle lookups for all four functions above fail on both
+extracted adapters.
 
 In both native candidate modules, `LC_ID_DYLIB` uses an `@rpath` install name.
 Their `LC_LOAD_DYLIB` entries name only `libiconv` and `libSystem`. Neither
