@@ -1,0 +1,149 @@
+diff --git a/rust/src/config.rs b/rust/src/config.rs
+index 4e32452..f169f32 100644
+--- a/rust/src/config.rs
++++ b/rust/src/config.rs
+@@ -1435,6 +1435,7 @@ fn load_private_key(
+     pem_data: &[u8],
+     password: Option<&[u8]>,
+ ) -> Result<PrivateKeyDer<'static>, String> {
++    let pem_data = crate::policy::private_key_pem(pem_data)?;
+     // Case 1: PKCS#8 encrypted key (BEGIN ENCRYPTED PRIVATE KEY).
+     if pem_data
+         .windows(b"ENCRYPTED PRIVATE KEY".len())
+diff --git a/rust/src/crl.rs b/rust/src/crl.rs
+index 9f83c90..48333c4 100644
+--- a/rust/src/crl.rs
++++ b/rust/src/crl.rs
+@@ -1,7 +1,7 @@
+ use rustls::pki_types::CertificateDer;
+ use webpki::{CertRevocationList, OwnedCertRevocationList};
+ 
+-use crate::policy::validate_der;
++use crate::policy::{validate_der, validate_pem_footer};
+ 
+ pub struct TrustMaterial {
+     pub certificates: Vec<CertificateDer<'static>>,
+@@ -31,6 +31,7 @@ pub fn parse_trust_material(pem: &[u8]) -> Result<TrustMaterial, String> {
+         let block = &remaining[start..];
+         let finish = block.windows(end.len()).position(|window| window == end)
+             .ok_or_else(|| if is_crl { "Unterminated CRL PEM" } else { "Unterminated certificate PEM" }.to_string())? + end.len();
++        validate_pem_footer(&block[finish..])?;
+         let mut input = &block[..finish];
+         let item = rustls_pemfile::read_one(&mut input)
+             .map_err(|error| format!("Invalid {} PEM: {error}", if is_crl { "CRL" } else { "certificate" }))?
+diff --git a/rust/src/policy.rs b/rust/src/policy.rs
+index fa5f64b..bd879a6 100644
+--- a/rust/src/policy.rs
++++ b/rust/src/policy.rs
+@@ -74,6 +74,31 @@ pub fn validate_der(der: &[u8]) -> Result<(), String> {
+     Ok(())
+ }
+ 
++pub(crate) fn validate_pem_footer(suffix: &[u8]) -> Result<(), String> {
++    let line_end = suffix.iter().position(|byte| *byte == b'\n').unwrap_or(suffix.len());
++    if suffix[..line_end].iter().any(|byte| !crate::trust::is_ascii_space(*byte)) {
++        return Err("Invalid PEM footer".into());
++    }
++    Ok(())
++}
++
++pub(crate) fn private_key_pem(pem: &[u8]) -> Result<&[u8], String> {
++    let labels: &[(&[u8], &[u8])] = &[
++        (b"-----BEGIN PRIVATE KEY-----", b"-----END PRIVATE KEY-----"),
++        (b"-----BEGIN RSA PRIVATE KEY-----", b"-----END RSA PRIVATE KEY-----"),
++        (b"-----BEGIN EC PRIVATE KEY-----", b"-----END EC PRIVATE KEY-----"),
++        (b"-----BEGIN ENCRYPTED PRIVATE KEY-----", b"-----END ENCRYPTED PRIVATE KEY-----"),
++    ];
++    let (start, end) = labels.iter().filter_map(|(begin, end)| {
++        pem.windows(begin.len()).position(|window| window == *begin).map(|start| (start, *end))
++    }).min_by_key(|(start, _)| *start).ok_or_else(|| "No private key found in PEM data".to_string())?;
++    let key = &pem[start..];
++    let finish = key.windows(end.len()).position(|window| window == end)
++        .ok_or_else(|| "Unterminated private key PEM".to_string())? + end.len();
++    validate_pem_footer(&key[finish..])?;
++    Ok(&key[..finish])
++}
++
+ pub fn parse_certificates(pem: &[u8]) -> Result<Vec<CertificateDer<'static>>, String> {
+     let mut certs = Vec::new();
+     let mut remaining = pem;
+@@ -83,6 +108,7 @@ pub fn parse_certificates(pem: &[u8]) -> Result<Vec<CertificateDer<'static>>, St
+         remaining = &remaining[start..];
+         let finish = remaining.windows(end.len()).position(|w| w == end)
+             .ok_or_else(|| "Unterminated certificate PEM".to_string())? + end.len();
++        validate_pem_footer(&remaining[finish..])?;
+         let cert = rustls_pemfile::certs(&mut &remaining[..finish]).next()
+             .ok_or_else(|| "Empty certificate PEM".to_string())?
+             .map_err(|e| format!("Invalid certificate PEM: {e}"))?;
+diff --git a/rust/src/trust.rs b/rust/src/trust.rs
+index 0565e0c..d71f746 100644
+--- a/rust/src/trust.rs
++++ b/rust/src/trust.rs
+@@ -179,7 +179,7 @@ fn canonical_attribute_value(tag: u8, value: &[u8], original_der: &[u8]) -> Resu
+     Ok(encoded)
+ }
+ 
+-fn is_ascii_space(byte: u8) -> bool {
++pub(crate) fn is_ascii_space(byte: u8) -> bool {
+     matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+ }
+ 
+diff --git a/src/rtls/_context.py b/src/rtls/_context.py
+index 95e8a23..712c7f2 100644
+--- a/src/rtls/_context.py
++++ b/src/rtls/_context.py
+@@ -205,22 +205,13 @@ class TLSContext(_stdlib_ssl.SSLContext):
+ 
+     def load_cert_chain(  # type: ignore[override]
+         self,
+-        certfile: str | bytes | None = None,
+-        keyfile: str | bytes | None = None,
++        certfile: str | bytes | os.PathLike,
++        keyfile: str | bytes | os.PathLike | None = None,
+         password: str | bytes | Callable | None = None,
+     ) -> None:
+-        """Load a certificate chain for client/server authentication.
+-
+-        Accepts either:
+-          - File paths (str): reads PEM from disk
+-          - PEM data (bytes): uses directly — this makes urllib3-future's
+-            contrib/imcc module unnecessary!
+-
+-        For encrypted PKCS#8 keys (``ENCRYPTED PRIVATE KEY``), provide
+-        a password (str, bytes, or a callable returning str/bytes).
+-        """
+-        cert_pem = self._load_pem_data(certfile)
+-        key_pem = self._load_pem_data(keyfile) if keyfile else cert_pem
++        """Load PEM certificate and private key files for client/server authentication."""
++        cert_pem = self._read_pem_file(certfile)
++        key_pem = self._read_pem_file(keyfile) if keyfile is not None else cert_pem
+ 
+         pw_bytes: bytes | None = None
+         if password is not None:
+@@ -624,23 +615,9 @@ class TLSContext(_stdlib_ssl.SSLContext):
+             return self._builder.has_ech()
+ 
+     @staticmethod
+-    def _load_pem_data(source: str | bytes | None) -> bytes:
+-        """Load PEM data from a file path (str) or return raw bytes directly.
+-
+-        If a ``str`` looks like inline PEM content (contains ``-----BEGIN``),
+-        it is encoded to bytes and returned directly instead of being treated
+-        as a file path.  ``bytes`` are always returned as-is (raw PEM data).
+-        """
+-        if source is None:
+-            raise SSLError("No certificate data provided")
+-        if isinstance(source, bytes):
+-            return source
+-        if isinstance(source, str):
+-            if "-----BEGIN" in source:
+-                return source.encode("ascii")
+-            with open(source, "rb") as f:
+-                return f.read()
+-        raise TypeError(f"Expected str or bytes, got {type(source).__name__}")
++    def _read_pem_file(source: str | bytes | os.PathLike) -> bytes:
++        with open(os.fspath(source), "rb") as stream:
++            return stream.read()
+ 
+     def __repr__(self) -> str:
+         return (

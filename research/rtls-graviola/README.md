@@ -96,6 +96,13 @@ OpenSSL 3.5.7. Three deterministic Rust tests cover leaf, intermediate, and
 anchor boundaries; all three failed before the repair and pass afterward.
 The combined verifier also passes the expanded 82-case certificate corpus.
 
+PEM footer validation rejects non-whitespace after certificate, private-key,
+and CRL end markers. Eight paired tests preserve OpenSSL-compatible footer
+whitespace and surrounding text. Private-key selection uses the first key
+block, so unrelated encryption words or later keys do not change its format.
+`load_cert_chain()` accepts file paths as `str`, `bytes`, or `PathLike` objects;
+the prototype's inline-PEM shortcut is removed to match CPython's API.
+
 The next validation wave combines socket I/O, explicit sessions, cipher and
 context controls, offline CRLs, and SSL utility compatibility. Capath review
 also found that delaying store statistics does not reproduce OpenSSL's lookup
