@@ -746,15 +746,41 @@ def build_runtime_image(
 
 
 def runtime_command() -> list[str]:
-    code = (
-        "import hashlib, importlib, json, pathlib, ssl, sys; "
-        "names=('ssl','_ssl','hashlib','_hashlib','rtls._rustls','sqlite3','compression.zstd','multiprocessing','ctypes'); "
-        "modules={name:importlib.import_module(name) for name in names}; "
-        "assert sys.prefix == '/opt/python', sys.prefix; "
-        "assert ssl.OPENSSL_VERSION.startswith('Rustls '), ssl.OPENSSL_VERSION; "
-        "assert hashlib.sha256(b'abc').hexdigest() == 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'; "
-        "print(json.dumps({'ok':True,'sys_prefix':sys.prefix,'openssl_version':ssl.OPENSSL_VERSION,'sha256_abc':hashlib.sha256(b'abc').hexdigest(),'module_origins':{name:getattr(module,'__file__',None) for name,module in modules.items()}},sort_keys=True))"
-    )
+    code = r"""
+import hashlib
+import hmac
+import importlib
+import json
+import ssl
+import sys
+
+names = ('ssl', '_ssl', 'hashlib', '_hashlib', 'rtls._rustls', 'sqlite3',
+         'compression.zstd', 'multiprocessing', 'ctypes')
+modules = {name: importlib.import_module(name) for name in names}
+assert sys.prefix == '/opt/python', sys.prefix
+assert ssl.OPENSSL_VERSION.startswith('Rustls '), ssl.OPENSSL_VERSION
+assert hashlib.sha256(b'abc').hexdigest() == 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+assert hmac.digest(b'key', b'The quick brown fox jumps over the lazy dog', 'sha256').hex() == 'f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8'
+assert hashlib.pbkdf2_hmac('sha256', b'password', b'salt', 1).hex() == '120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b'
+assert hashlib.scrypt(b'', salt=b'', n=16, r=1, p=1, dklen=64).hex() == '77d6576238657b203b19ca42c18a0497f16b4844e3074ae8dfdffa3fede21442fcd0069ded0948f8326a753a0fc81f17e8d3e0fb2e0d3628cf35e20c38d18906'
+incoming, outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
+connection = ssl.create_default_context().wrap_bio(incoming, outgoing, server_hostname='localhost')
+try:
+    connection.do_handshake()
+except ssl.SSLWantReadError:
+    pass
+else:
+    raise AssertionError('TLS client completed without a server')
+assert outgoing.pending > 0
+print(json.dumps({
+    'ok': True,
+    'sys_prefix': sys.prefix,
+    'openssl_version': ssl.OPENSSL_VERSION,
+    'sha256_abc': hashlib.sha256(b'abc').hexdigest(),
+    'crypto_operations': ['sha256', 'hmac-sha256', 'pbkdf2-hmac-sha256', 'scrypt', 'tls-client-hello'],
+    'module_origins': {name: getattr(module, '__file__', None) for name, module in modules.items()},
+}, sort_keys=True))
+"""
     return [
         "sh", "-ec", 'test "$(uname -m)" = aarch64; printf "aarch64\\n"; exec "$@"',
         "native-arm64-runtime-guard", "/opt/python/bin/python3.15", "-I", "-S", "-B", "-c", code,
