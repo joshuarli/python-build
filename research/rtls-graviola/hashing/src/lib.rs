@@ -1,26 +1,19 @@
+mod python_ffi;
+
 use blake2::{Blake2b512, Blake2s256};
 use hmac::{Hmac, KeyInit, Mac, SimpleHmac};
 use md5::Md5;
-use pyo3::exceptions::{PyOverflowError, PyTypeError, PyValueError};
-use pyo3::create_exception;
-use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PySlice, PyString};
 use ripemd::Ripemd160;
 use sha1::{Digest, Sha1};
 use sha2::{Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256};
 use sha3::{Sha3_224, Sha3_256, Sha3_384, Sha3_512};
 use sm3::Sm3;
 
-create_exception!(_hashlib_graviola, UnsupportedDigestmodError, PyValueError);
-
-fn unsupported_digestmod(name: &str) -> PyErr {
-    UnsupportedDigestmodError::new_err(format!(
-        "[digital envelope routines] unsupported hash algorithm {name}"
-    ))
-}
-
-fn invalid_key_length(_: hmac::digest::InvalidLength) -> PyErr {
-    PyValueError::new_err("invalid key length")
+#[derive(Debug)]
+pub(crate) enum BackendError {
+    UnsupportedDigest(String),
+    Value(String),
+    Overflow(&'static str),
 }
 
 #[derive(Clone)]
@@ -45,58 +38,59 @@ enum HmacState {
 }
 
 impl HmacState {
-    fn new(name: &str, key: &[u8]) -> PyResult<Self> {
+    fn new(name: &str, key: &[u8]) -> Result<Self, BackendError> {
+        let invalid_length = |_: hmac::digest::InvalidLength| BackendError::Value("invalid key length".to_owned());
         match name {
             "blake2b" => SimpleHmac::<Blake2b512>::new_from_slice(key)
                 .map(Self::Blake2b)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "blake2s" => SimpleHmac::<Blake2s256>::new_from_slice(key)
                 .map(Self::Blake2s)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "md5" => Hmac::<Md5>::new_from_slice(key)
                 .map(Self::Md5)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "md5-sha1" => Ok(Self::Md5Sha1(Md5Sha1Hmac::new(key))),
             "sha1" => Hmac::<Sha1>::new_from_slice(key)
                 .map(Self::Sha1)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha224" => Hmac::<Sha224>::new_from_slice(key)
                 .map(Self::Sha224)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha256" => Hmac::<Sha256>::new_from_slice(key)
                 .map(Self::Sha256)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha384" => Hmac::<Sha384>::new_from_slice(key)
                 .map(Self::Sha384)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha512" => Hmac::<Sha512>::new_from_slice(key)
                 .map(Self::Sha512)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha512_224" => Hmac::<Sha512_224>::new_from_slice(key)
                 .map(Self::Sha512_224)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha512_256" => Hmac::<Sha512_256>::new_from_slice(key)
                 .map(Self::Sha512_256)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha3_224" => SimpleHmac::<Sha3_224>::new_from_slice(key)
                 .map(Self::Sha3_224)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha3_256" => SimpleHmac::<Sha3_256>::new_from_slice(key)
                 .map(Self::Sha3_256)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha3_384" => SimpleHmac::<Sha3_384>::new_from_slice(key)
                 .map(Self::Sha3_384)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sha3_512" => SimpleHmac::<Sha3_512>::new_from_slice(key)
                 .map(Self::Sha3_512)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "ripemd160" => Hmac::<Ripemd160>::new_from_slice(key)
                 .map(Self::Ripemd160)
-                .map_err(invalid_key_length),
+                .map_err(invalid_length),
             "sm3" => Hmac::<Sm3>::new_from_slice(key)
                 .map(Self::Sm3)
-                .map_err(invalid_key_length),
-            _ => Err(unsupported_digestmod(name)),
+                .map_err(invalid_length),
+            _ => Err(BackendError::UnsupportedDigest(name.to_owned())),
         }
     }
 
@@ -158,10 +152,10 @@ impl Md5Sha1Hmac {
         let normalized_key = if key.len() > 64 {
             let md5 = Md5::digest(key);
             let sha1 = Sha1::digest(key);
-            let mut normalized_key = Vec::with_capacity(36);
-            normalized_key.extend_from_slice(&md5);
-            normalized_key.extend_from_slice(&sha1);
-            normalized_key
+            let mut result = Vec::with_capacity(36);
+            result.extend_from_slice(&md5);
+            result.extend_from_slice(&sha1);
+            result
         } else {
             key.to_vec()
         };
@@ -211,83 +205,54 @@ impl Md5Sha1Hmac {
     }
 }
 
-#[pyclass(module = "_hashlib_graviola", name = "HMAC", immutable_type)]
 #[derive(Clone)]
-struct HmacObject {
-    algorithm: &'static str,
+pub(crate) struct HmacObject {
     state: HmacState,
-    digest_size: usize,
-    block_size: usize,
+    pub(crate) digest_size: usize,
+    pub(crate) block_size: usize,
 }
 
 impl HmacObject {
-    fn new(algorithm: &'static str, key: &[u8]) -> PyResult<Self> {
+    pub(crate) fn new(algorithm: &'static str, key: &[u8]) -> Result<Self, BackendError> {
         let state = HmacState::new(algorithm, key)?;
-        let (digest_size, block_size) = match algorithm {
-            "blake2b" => (64, 128),
-            "blake2s" => (32, 64),
-            "md5" => (16, 64),
-            "md5-sha1" => (36, 64),
-            "sha1" => (20, 64),
-            "sha224" => (28, 64),
-            "sha256" => (32, 64),
-            "sha384" => (48, 128),
-            "sha512" => (64, 128),
-            "sha512_224" => (28, 128),
-            "sha512_256" => (32, 128),
-            "sha3_224" => (28, 144),
-            "sha3_256" => (32, 136),
-            "sha3_384" => (48, 104),
-            "sha3_512" => (64, 72),
-            "ripemd160" => (20, 64),
-            "sm3" => (32, 64),
-            _ => return Err(unsupported_digestmod(algorithm)),
-        };
+        let (digest_size, block_size) = hmac_metadata(algorithm)
+            .ok_or_else(|| BackendError::UnsupportedDigest(algorithm.to_owned()))?;
         Ok(Self {
-            algorithm,
             state,
             digest_size,
             block_size,
         })
     }
-}
 
-#[pymethods]
-impl HmacObject {
-    #[getter]
-    fn name(&self) -> String {
-        format!("hmac-{}", self.algorithm)
+    pub(crate) fn update(&mut self, data: &[u8]) {
+        self.state.update(data);
     }
 
-    #[getter]
-    fn digest_size(&self) -> usize {
-        self.digest_size
-    }
-
-    #[getter]
-    fn block_size(&self) -> usize {
-        self.block_size
-    }
-
-    fn update(&mut self, py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<()> {
-        let state = &mut self.state;
-        update_buffer(py, data, |bytes| py.detach(|| state.update(bytes)))
-    }
-
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    fn digest(&self) -> Vec<u8> {
+    pub(crate) fn digest(&self) -> Vec<u8> {
         self.state.digest()
     }
+}
 
-    fn hexdigest(&self) -> String {
-        hex_digest(&self.state.digest())
-    }
-
-    fn __repr__(&self) -> String {
-        format!("<{} HMAC object @ {:p}>", self.algorithm, self)
+fn hmac_metadata(algorithm: &str) -> Option<(usize, usize)> {
+    match algorithm {
+        "blake2b" => Some((64, 128)),
+        "blake2s" => Some((32, 64)),
+        "md5" => Some((16, 64)),
+        "md5-sha1" => Some((36, 64)),
+        "sha1" => Some((20, 64)),
+        "sha224" => Some((28, 64)),
+        "sha256" => Some((32, 64)),
+        "sha384" => Some((48, 128)),
+        "sha512" => Some((64, 128)),
+        "sha512_224" => Some((28, 128)),
+        "sha512_256" => Some((32, 128)),
+        "sha3_224" => Some((28, 144)),
+        "sha3_256" => Some((32, 136)),
+        "sha3_384" => Some((48, 104)),
+        "sha3_512" => Some((64, 72)),
+        "ripemd160" => Some((20, 64)),
+        "sm3" => Some((32, 64)),
+        _ => None,
     }
 }
 
@@ -329,115 +294,56 @@ impl ExtraDigestState {
     }
 }
 
-#[pyclass(module = "_hashlib_graviola", name = "HASH")]
 #[derive(Clone)]
-struct HashObject {
-    algorithm: &'static str,
+pub(crate) struct HashObject {
     state: ExtraDigestState,
+    pub(crate) digest_size: usize,
+    pub(crate) block_size: usize,
 }
 
 impl HashObject {
-    fn new(algorithm: &'static str) -> PyResult<Self> {
+    pub(crate) fn new(algorithm: &'static str) -> Result<Self, BackendError> {
         let state = ExtraDigestState::new(algorithm)
-            .ok_or_else(|| PyValueError::new_err("unsupported hash algorithm"))?;
-        Ok(Self { algorithm, state })
-    }
-
-    fn metadata(&self) -> (usize, usize) {
-        match self.algorithm {
+            .ok_or_else(|| BackendError::UnsupportedDigest(algorithm.to_owned()))?;
+        let (digest_size, block_size) = match algorithm {
             "sha512_224" => (28, 128),
             "sha512_256" => (32, 128),
             "ripemd160" => (20, 64),
             "sm3" => (32, 64),
-            _ => unreachable!(),
+            _ => return Err(BackendError::UnsupportedDigest(algorithm.to_owned())),
+        };
+        Ok(Self {
+            state,
+            digest_size,
+            block_size,
+        })
+    }
+
+    pub(crate) fn update(&mut self, data: &[u8]) {
+        self.state.update(data);
+    }
+
+    pub(crate) fn digest(&self) -> Vec<u8> {
+        self.state.digest()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum NativeState {
+    Hash(HashObject),
+    Hmac(HmacObject),
+}
+
+impl NativeState {
+    pub(crate) fn digest(&self) -> Vec<u8> {
+        match self {
+            Self::Hash(hash) => hash.digest(),
+            Self::Hmac(hmac) => hmac.digest(),
         }
     }
 }
 
-#[pymethods]
-impl HashObject {
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.algorithm
-    }
-
-    #[getter]
-    fn digest_size(&self) -> usize {
-        self.metadata().0
-    }
-
-    #[getter]
-    fn block_size(&self) -> usize {
-        self.metadata().1
-    }
-
-    fn update(&mut self, py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<()> {
-        let state = &mut self.state;
-        update_buffer(py, data, |bytes| py.detach(|| state.update(bytes)))
-    }
-
-    fn copy(&self) -> Self {
-        self.clone()
-    }
-
-    fn digest(&self) -> Vec<u8> {
-        self.state.digest()
-    }
-
-    fn hexdigest(&self) -> String {
-        hex_digest(&self.state.digest())
-    }
-
-    fn __repr__(&self) -> String {
-        format!("<{} HASH object @ {:p}>", self.algorithm, self)
-    }
-}
-
-fn buffer_view<'py>(py: Python<'py>, object: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let memoryview = py.import("builtins")?.getattr("memoryview")?.call1((object,))?;
-    if !memoryview.getattr("c_contiguous")?.extract::<bool>()? {
-        return Err(pyo3::exceptions::PyBufferError::new_err(
-            "memoryview: underlying buffer is not C-contiguous",
-        ));
-    }
-    Ok(memoryview)
-}
-
-fn buffer_length(memoryview: &Bound<'_, PyAny>) -> PyResult<usize> {
-    memoryview.getattr("nbytes")?.extract()
-}
-
-fn buffer_bytes_from_view(memoryview: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
-    memoryview.call_method0("tobytes")?.extract()
-}
-
-fn update_buffer(
-    py: Python<'_>,
-    object: &Bound<'_, PyAny>,
-    mut update: impl FnMut(&[u8]),
-) -> PyResult<()> {
-    let view = buffer_view(py, object)?;
-    let byte_view = view.call_method1("cast", ("B",))?;
-    let length = buffer_length(&byte_view)?;
-    for start in (0..length).step_by(1 << 20) {
-        let end = (start + (1 << 20)).min(length);
-        let slice = byte_view.get_item(PySlice::new(py, start as isize, end as isize, 1))?;
-        let bytes = buffer_bytes_from_view(&slice)?;
-        update(&bytes);
-    }
-    Ok(())
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    let mut hex = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write;
-        let _ = write!(hex, "{byte:02x}");
-    }
-    hex
-}
-
-fn normalize_digest_name(name: &str) -> String {
+pub(crate) fn normalize_digest_name(name: &str) -> String {
     match name.to_ascii_lowercase().as_str() {
         "sha-1" => "sha1".to_owned(),
         "sha-224" => "sha224".to_owned(),
@@ -453,129 +359,47 @@ fn normalize_digest_name(name: &str) -> String {
         "shake-128" => "shake_128".to_owned(),
         "shake-256" => "shake_256".to_owned(),
         "ripemd-160" => "ripemd160".to_owned(),
+        "blake2b512" | "blake2b-512" => "blake2b".to_owned(),
+        "blake2s256" | "blake2s-256" => "blake2s".to_owned(),
         other => other.to_owned(),
     }
 }
 
-fn digest_name(object: &Bound<'_, PyAny>) -> PyResult<String> {
-    let name = if object.is_instance_of::<PyString>() {
-        object.extract::<String>()?
-    } else {
-        object
-            .getattr("__name__")
-            .and_then(|value| value.extract::<String>())
-            .map_err(|_| unsupported_digestmod(""))?
-    };
-    let name = name.strip_prefix("openssl_").unwrap_or(&name);
-    Ok(normalize_digest_name(name))
+pub(crate) fn new_hash(name: &str) -> Result<HashObject, BackendError> {
+    match normalize_digest_name(name).as_str() {
+        "sha512_224" => HashObject::new("sha512_224"),
+        "sha512_256" => HashObject::new("sha512_256"),
+        "ripemd160" => HashObject::new("ripemd160"),
+        "sm3" => HashObject::new("sm3"),
+        _ => Err(BackendError::UnsupportedDigest(name.to_owned())),
+    }
 }
 
-#[pyfunction(signature = (algorithm, data=None))]
-fn hash_new(
-    py: Python<'_>,
-    algorithm: &str,
-    data: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<HashObject>> {
-    let normalized = normalize_digest_name(algorithm);
-    let algorithm = match normalized.as_str() {
-        "sha512_224" => "sha512_224",
-        "sha512_256" => "sha512_256",
-        "ripemd160" => "ripemd160",
-        "sm3" => "sm3",
-        _ => return Err(unsupported_digestmod(algorithm)),
-    };
-    let mut hash = HashObject::new(algorithm)?;
-    if let Some(data) = data {
-        let state = &mut hash.state;
-        update_buffer(py, data, |bytes| py.detach(|| state.update(bytes)))?;
-    }
-    Py::new(py, hash)
-}
-
-#[pyfunction(signature = (key, msg=None, digestmod=None))]
-fn hmac_new(
-    py: Python<'_>,
-    key: &Bound<'_, PyAny>,
-    msg: Option<&Bound<'_, PyAny>>,
-    digestmod: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<HmacObject>> {
-    let name = digestmod
-        .ok_or_else(|| PyTypeError::new_err("Missing required argument 'digestmod'."))
-        .and_then(digest_name)?;
-    let algorithm = match name.as_str() {
-        "blake2b" => "blake2b",
-        "blake2s" => "blake2s",
-        "md5" => "md5",
-        "md5-sha1" => "md5-sha1",
-        "sha1" => "sha1",
-        "sha224" => "sha224",
-        "sha256" => "sha256",
-        "sha384" => "sha384",
-        "sha512" => "sha512",
-        "sha512_224" => "sha512_224",
-        "sha512_256" => "sha512_256",
-        "sha3_224" => "sha3_224",
-        "sha3_256" => "sha3_256",
-        "sha3_384" => "sha3_384",
-        "sha3_512" => "sha3_512",
-        "ripemd160" => "ripemd160",
-        "sm3" => "sm3",
-        _ => return Err(unsupported_digestmod(&name)),
-    };
-    let key_view = buffer_view(py, key)?;
-    if buffer_length(&key_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("key is too long."));
-    }
-    let mut hmac = HmacObject::new(algorithm, &buffer_bytes_from_view(&key_view)?)?;
-    if let Some(msg) = msg {
-        if !msg.is_none() {
-            let state = &mut hmac.state;
-            update_buffer(py, msg, |bytes| py.detach(|| state.update(bytes)))?;
-        }
-    }
-    Py::new(py, hmac)
-}
-
-#[pyfunction]
-fn hmac_digest(
-    py: Python<'_>,
-    key: &Bound<'_, PyAny>,
-    msg: &Bound<'_, PyAny>,
-    digest: &Bound<'_, PyAny>,
-) -> PyResult<Py<PyBytes>> {
-    let name = digest_name(digest)?;
-    let algorithm = match name.as_str() {
-        "blake2b" => "blake2b",
-        "blake2s" => "blake2s",
-        "md5" => "md5",
-        "md5-sha1" => "md5-sha1",
-        "sha1" => "sha1",
-        "sha224" => "sha224",
-        "sha256" => "sha256",
-        "sha384" => "sha384",
-        "sha512" => "sha512",
-        "sha512_224" => "sha512_224",
-        "sha512_256" => "sha512_256",
-        "sha3_224" => "sha3_224",
-        "sha3_256" => "sha3_256",
-        "sha3_384" => "sha3_384",
-        "sha3_512" => "sha3_512",
-        "ripemd160" => "ripemd160",
-        "sm3" => "sm3",
-        _ => return Err(unsupported_digestmod(&name)),
-    };
-    let key_view = buffer_view(py, key)?;
-    let msg_view = buffer_view(py, msg)?;
-    if buffer_length(&key_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("key is too long."));
-    }
-    if buffer_length(&msg_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("msg is too long."));
-    }
-    let mut hmac = HmacObject::new(algorithm, &buffer_bytes_from_view(&key_view)?)?;
-    let state = &mut hmac.state;
-    update_buffer(py, &msg_view, |bytes| py.detach(|| state.update(bytes)))?;
-    Ok(PyBytes::new(py, &hmac.state.digest()).unbind())
+pub(crate) fn new_hmac(name: &str, key: &[u8]) -> Result<HmacObject, BackendError> {
+    let normalized = normalize_digest_name(name);
+    HmacObject::new(
+        match normalized.as_str() {
+            "blake2b" => "blake2b",
+            "blake2s" => "blake2s",
+            "md5" => "md5",
+            "md5-sha1" => "md5-sha1",
+            "sha1" => "sha1",
+            "sha224" => "sha224",
+            "sha256" => "sha256",
+            "sha384" => "sha384",
+            "sha512" => "sha512",
+            "sha512_224" => "sha512_224",
+            "sha512_256" => "sha512_256",
+            "sha3_224" => "sha3_224",
+            "sha3_256" => "sha3_256",
+            "sha3_384" => "sha3_384",
+            "sha3_512" => "sha3_512",
+            "ripemd160" => "ripemd160",
+            "sm3" => "sm3",
+            _ => return Err(BackendError::UnsupportedDigest(name.to_owned())),
+        },
+        key,
+    )
 }
 
 fn pbkdf2_for<D: hmac::EagerHash>(
@@ -587,65 +411,27 @@ fn pbkdf2_for<D: hmac::EagerHash>(
     pbkdf2::pbkdf2::<Hmac<D>>(password, salt, iterations, result)
 }
 
-fn pbkdf2_sha3_224(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    result: &mut [u8],
-) -> Result<(), hmac::digest::InvalidLength> {
-    pbkdf2::pbkdf2::<SimpleHmac<Sha3_224>>(password, salt, iterations, result)
+macro_rules! pbkdf2_simple {
+    ($function:ident, $digest:ty) => {
+        fn $function(
+            password: &[u8],
+            salt: &[u8],
+            iterations: u32,
+            result: &mut [u8],
+        ) -> Result<(), hmac::digest::InvalidLength> {
+            pbkdf2::pbkdf2::<SimpleHmac<$digest>>(password, salt, iterations, result)
+        }
+    };
 }
 
-fn pbkdf2_sha3_256(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    result: &mut [u8],
-) -> Result<(), hmac::digest::InvalidLength> {
-    pbkdf2::pbkdf2::<SimpleHmac<Sha3_256>>(password, salt, iterations, result)
-}
+pbkdf2_simple!(pbkdf2_blake2b, Blake2b512);
+pbkdf2_simple!(pbkdf2_blake2s, Blake2s256);
+pbkdf2_simple!(pbkdf2_sha3_224, Sha3_224);
+pbkdf2_simple!(pbkdf2_sha3_256, Sha3_256);
+pbkdf2_simple!(pbkdf2_sha3_384, Sha3_384);
+pbkdf2_simple!(pbkdf2_sha3_512, Sha3_512);
 
-fn pbkdf2_sha3_384(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    result: &mut [u8],
-) -> Result<(), hmac::digest::InvalidLength> {
-    pbkdf2::pbkdf2::<SimpleHmac<Sha3_384>>(password, salt, iterations, result)
-}
-
-fn pbkdf2_sha3_512(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    result: &mut [u8],
-) -> Result<(), hmac::digest::InvalidLength> {
-    pbkdf2::pbkdf2::<SimpleHmac<Sha3_512>>(password, salt, iterations, result)
-}
-
-fn pbkdf2_blake2b(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    result: &mut [u8],
-) -> Result<(), hmac::digest::InvalidLength> {
-    pbkdf2::pbkdf2::<SimpleHmac<Blake2b512>>(password, salt, iterations, result)
-}
-
-fn pbkdf2_blake2s(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    result: &mut [u8],
-) -> Result<(), hmac::digest::InvalidLength> {
-    pbkdf2::pbkdf2::<SimpleHmac<Blake2s256>>(password, salt, iterations, result)
-}
-
-fn hmac_md5_sha1(
-    key: &[u8],
-    first: &[u8],
-    second: &[u8],
-) -> [u8; 36] {
+fn hmac_md5_sha1(key: &[u8], first: &[u8], second: &[u8]) -> [u8; 36] {
     let mut mac = Md5Sha1Hmac::new(key);
     mac.update(first);
     mac.update(second);
@@ -660,11 +446,11 @@ fn pbkdf2_md5_sha1(
 ) -> Result<(), hmac::digest::InvalidLength> {
     for (index, output) in result.chunks_mut(36).enumerate() {
         let counter = ((index as u32) + 1).to_be_bytes();
-        let mut u = hmac_md5_sha1(password, salt, &counter);
-        let mut block = u;
+        let mut value = hmac_md5_sha1(password, salt, &counter);
+        let mut block = value;
         for _ in 1..iterations {
-            u = hmac_md5_sha1(password, &u, &[]);
-            for (dst, byte) in block.iter_mut().zip(u) {
+            value = hmac_md5_sha1(password, &value, &[]);
+            for (dst, byte) in block.iter_mut().zip(value) {
                 *dst ^= byte;
             }
         }
@@ -673,24 +459,24 @@ fn pbkdf2_md5_sha1(
     Ok(())
 }
 
-#[pyfunction(signature = (hash_name, password, salt, iterations, dklen=None))]
-fn pbkdf2_hmac(
-    py: Python<'_>,
-    hash_name: &Bound<'_, PyAny>,
-    password: &Bound<'_, PyAny>,
-    salt: &Bound<'_, PyAny>,
+type Pbkdf2Algorithm =
+    fn(&[u8], &[u8], u32, &mut [u8]) -> Result<(), hmac::digest::InvalidLength>;
+
+pub(crate) struct Pbkdf2Parameters {
+    algorithm: Pbkdf2Algorithm,
+    iterations: u32,
+    length: usize,
+}
+
+pub(crate) fn pbkdf2_parameters(
+    hash_name: &str,
+    password_length: usize,
+    salt_length: usize,
     iterations: i64,
     dklen: Option<i64>,
-) -> PyResult<Py<PyBytes>> {
-    if !hash_name.is_instance_of::<PyString>() {
-        return Err(PyTypeError::new_err("hash_name must be a string"));
-    }
-    let input_name = hash_name.extract::<String>()?;
-    let name = normalize_digest_name(&input_name);
-    let (digest_size, algorithm): (
-        usize,
-        fn(&[u8], &[u8], u32, &mut [u8]) -> Result<(), hmac::digest::InvalidLength>,
-    ) = match name.as_str() {
+) -> Result<Pbkdf2Parameters, BackendError> {
+    let normalized = normalize_digest_name(hash_name);
+    let (digest_size, algorithm): (usize, Pbkdf2Algorithm) = match normalized.as_str() {
         "md5" => (16, pbkdf2_for::<Md5>),
         "blake2b" => (64, pbkdf2_blake2b),
         "blake2s" => (32, pbkdf2_blake2s),
@@ -709,123 +495,140 @@ fn pbkdf2_hmac(
         "ripemd160" => (20, pbkdf2_for::<Ripemd160>),
         "sm3" => (32, pbkdf2_for::<Sm3>),
         "shake_128" | "shake_256" => {
-            return Err(PyValueError::new_err("[Provider routines] xof digests not allowed"));
+            return Err(BackendError::Value(
+                "[Provider routines] xof digests not allowed".to_owned(),
+            ));
         }
-        _ => return Err(unsupported_digestmod(&input_name)),
+        _ => return Err(BackendError::UnsupportedDigest(hash_name.to_owned())),
     };
-    let password_view = buffer_view(py, password)?;
-    let salt_view = buffer_view(py, salt)?;
-    if buffer_length(&password_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("password is too long."));
+    if password_length > i32::MAX as usize {
+        return Err(BackendError::Overflow("password is too long."));
     }
-    if buffer_length(&salt_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("salt is too long."));
+    if salt_length > i32::MAX as usize {
+        return Err(BackendError::Overflow("salt is too long."));
     }
     if iterations < 1 {
-        return Err(PyValueError::new_err("iteration value must be greater than 0."));
+        return Err(BackendError::Value(
+            "iteration value must be greater than 0.".to_owned(),
+        ));
     }
     if iterations > i32::MAX as i64 {
-        return Err(PyOverflowError::new_err("iteration value is too great."));
+        return Err(BackendError::Overflow("iteration value is too great."));
     }
     let length = match dklen {
         None => digest_size,
         Some(length) if length < 1 => {
-            return Err(PyValueError::new_err("key length must be greater than 0."));
+            return Err(BackendError::Value(
+                "key length must be greater than 0.".to_owned(),
+            ));
         }
         Some(length) if length > i32::MAX as i64 => {
-            return Err(PyOverflowError::new_err("key length is too great."));
+            return Err(BackendError::Overflow("key length is too great."));
         }
         Some(length) => length as usize,
     };
-    let password = buffer_bytes_from_view(&password_view)?;
-    let salt = buffer_bytes_from_view(&salt_view)?;
-    let mut result = Vec::new();
-    result
-        .try_reserve_exact(length)
-        .map_err(|_| PyOverflowError::new_err("key length is too great."))?;
-    result.resize(length, 0);
-    let rounds = iterations as u32;
-    let derived = py.detach(|| algorithm(&password, &salt, rounds, &mut result));
-    derived.map_err(|_| PyValueError::new_err("invalid password length"))?;
-    Ok(PyBytes::new(py, &result).unbind())
+    Ok(Pbkdf2Parameters {
+        algorithm,
+        iterations: iterations as u32,
+        length,
+    })
 }
 
-#[pyfunction(name = "scrypt", signature = (password, *, salt, n, r, p, maxmem=0, dklen=64))]
-fn scrypt_impl(
-    py: Python<'_>,
-    password: &Bound<'_, PyAny>,
-    salt: &Bound<'_, PyAny>,
+pub(crate) fn pbkdf2_derive(
+    parameters: Pbkdf2Parameters,
+    password: &[u8],
+    salt: &[u8],
+) -> Result<Vec<u8>, BackendError> {
+    let mut result = Vec::new();
+    result
+        .try_reserve_exact(parameters.length)
+        .map_err(|_| BackendError::Overflow("key length is too great."))?;
+    result.resize(parameters.length, 0);
+    (parameters.algorithm)(password, salt, parameters.iterations, &mut result)
+        .map_err(|_| BackendError::Value("invalid password length".to_owned()))?;
+    Ok(result)
+}
+
+pub(crate) struct ScryptParameters {
+    params: scrypt::Params,
+    dklen: usize,
+}
+
+pub(crate) fn scrypt_parameters(
+    password_length: usize,
+    salt_length: usize,
     n: i64,
     r: i64,
     p: i64,
     maxmem: i64,
     dklen: i64,
-) -> PyResult<Py<PyBytes>> {
-    let password_view = buffer_view(py, password)?;
-    let salt_view = buffer_view(py, salt)?;
-    if buffer_length(&password_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("password is too long"));
+) -> Result<ScryptParameters, BackendError> {
+    if password_length > i32::MAX as usize {
+        return Err(BackendError::Overflow("password is too long"));
     }
-    if buffer_length(&salt_view)? > i32::MAX as usize {
-        return Err(PyOverflowError::new_err("salt is too long"));
+    if salt_length > i32::MAX as usize {
+        return Err(BackendError::Overflow("salt is too long"));
     }
     if n < 2 || !(n as u64).is_power_of_two() {
-        return Err(PyValueError::new_err("n must be a power of 2"));
+        return Err(BackendError::Value("n must be a power of 2".to_owned()));
     }
     if maxmem < 0 || maxmem > i32::MAX as i64 {
-        return Err(PyValueError::new_err("maxmem must be positive and at most 2147483647"));
+        return Err(BackendError::Value(
+            "maxmem must be positive and at most 2147483647".to_owned(),
+        ));
     }
     if dklen < 1 || dklen > i32::MAX as i64 {
-        return Err(PyValueError::new_err("dklen must be at least 1 and at most 2147483647"));
+        return Err(BackendError::Value(
+            "dklen must be at least 1 and at most 2147483647".to_owned(),
+        ));
     }
     if r < 1 || r > u32::MAX as i64 || p < 1 || p > u32::MAX as i64 {
-        return Err(PyValueError::new_err("invalid parameter combination for n, r, p, and maxmem"));
+        return Err(BackendError::Value(
+            "invalid parameter combination for n, r, p, and maxmem".to_owned(),
+        ));
     }
     let log_n = (n as u64).trailing_zeros() as u8;
-    let params = ::scrypt::Params::new(log_n, r as u32, p as u32)
-        .map_err(|_| PyValueError::new_err("invalid parameter combination for n, r, p, and maxmem"))?;
-    let memory = (128u128)
+    let params = scrypt::Params::new(log_n, r as u32, p as u32).map_err(|_| {
+        BackendError::Value("invalid parameter combination for n, r, p, and maxmem".to_owned())
+    })?;
+    let memory = 128u128
         .checked_mul(r as u128)
         .and_then(|value| {
             (n as u128)
                 .checked_add(p as u128)
                 .and_then(|sum| sum.checked_add(2))
                 .and_then(|sum| value.checked_mul(sum))
-        });
-    let memory = memory.ok_or_else(|| {
-        PyValueError::new_err("invalid parameter combination for n, r, p, and maxmem")
-    })?;
+        })
+        .ok_or_else(|| {
+            BackendError::Value("invalid parameter combination for n, r, p, and maxmem".to_owned())
+        })?;
     let limit = if maxmem == 0 {
         32u128 * 1024 * 1024
     } else {
         maxmem as u128
     };
     if memory > limit {
-        return Err(PyValueError::new_err(
-            "invalid parameter combination for n, r, p, and maxmem",
+        return Err(BackendError::Value(
+            "invalid parameter combination for n, r, p, and maxmem".to_owned(),
         ));
     }
-    let password = buffer_bytes_from_view(&password_view)?;
-    let salt = buffer_bytes_from_view(&salt_view)?;
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(dklen as usize)
-        .map_err(|_| PyOverflowError::new_err("dklen is too large"))?;
-    output.resize(dklen as usize, 0);
-    let result = py.detach(|| ::scrypt::scrypt(&password, &salt, &params, &mut output));
-    result.map_err(|_| PyValueError::new_err("invalid scrypt output length"))?;
-    Ok(PyBytes::new(py, &output).unbind())
+    Ok(ScryptParameters {
+        params,
+        dklen: dklen as usize,
+    })
 }
 
-#[pymodule]
-fn _hashlib_graviola(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<HmacObject>()?;
-    module.add_class::<HashObject>()?;
-    module.add("UnsupportedDigestmodError", module.py().get_type::<UnsupportedDigestmodError>())?;
-    module.add_function(wrap_pyfunction!(hash_new, module)?)?;
-    module.add_function(wrap_pyfunction!(hmac_new, module)?)?;
-    module.add_function(wrap_pyfunction!(hmac_digest, module)?)?;
-    module.add_function(wrap_pyfunction!(pbkdf2_hmac, module)?)?;
-    module.add_function(wrap_pyfunction!(scrypt_impl, module)?)?;
-    Ok(())
+pub(crate) fn scrypt_derive(
+    parameters: ScryptParameters,
+    password: &[u8],
+    salt: &[u8],
+) -> Result<Vec<u8>, BackendError> {
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(parameters.dklen)
+        .map_err(|_| BackendError::Overflow("dklen is too large"))?;
+    output.resize(parameters.dklen, 0);
+    scrypt::scrypt(password, salt, &parameters.params, &mut output)
+        .map_err(|_| BackendError::Value("invalid scrypt output length".to_owned()))?;
+    Ok(output)
 }

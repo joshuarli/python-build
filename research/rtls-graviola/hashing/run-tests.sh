@@ -47,7 +47,7 @@ done
 
 mkdir -p "$work"
 TMPDIR="$work" CARGO_TARGET_DIR="$cargo_target" cargo fetch --locked --manifest-path "$lane_dir/Cargo.toml"
-TMPDIR="$work" CARGO_TARGET_DIR="$cargo_target" PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 RUSTC_WRAPPER=kache cargo build --offline --locked --manifest-path "$lane_dir/Cargo.toml"
+TMPDIR="$work" CARGO_TARGET_DIR="$cargo_target" RUSTC_WRAPPER=kache cargo build --offline --locked --manifest-path "$lane_dir/Cargo.toml"
 
 cp "$lane_dir/_hashlib.py" "$stdlib/_hashlib.py"
 cp "$cargo_target/debug/lib_hashlib_graviola.dylib" "$dynload/_hashlib_graviola.abi3.so"
@@ -79,3 +79,6 @@ if [ ! -d "$stdlib/test" ]; then
     cp -R "$source_root/Lib/test" "$stdlib/test"
 fi
 TMPDIR="$work" "$python" -I -B -m test test_hashlib test_hmac
+TMPDIR="$work" "$python" -I -B -m unittest test.test_support.TestHashlibSupport
+TMPDIR="$work" "$python" -I -B "$lane_dir/testdrivers/allocation_failures.py"
+TMPDIR="$work" "$python" -E -s -B "$lane_dir/testdrivers/subinterpreters.py"

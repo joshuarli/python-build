@@ -1,4 +1,5 @@
 import _operator
+import inspect
 import _hashlib_graviola
 import _md5
 import _sha1
@@ -39,10 +40,44 @@ class _MD5SHA1:
 
 
 def _rust_constructor(algorithm):
+    digest_size, block_size = {
+        "sha512_224": (28, 128),
+        "sha512_256": (32, 128),
+        "ripemd160": (20, 64),
+        "sm3": (32, 64),
+    }[algorithm]
+
+    class RustHash:
+        __slots__ = ("_state", "name", "digest_size", "block_size")
+
+        def __init__(self, data=b"", *, usedforsecurity=True):
+            self._state, self.digest_size, self.block_size = _hashlib_graviola.hash_state_new(
+                algorithm, data
+            )
+            self.name = algorithm
+
+        def update(self, data):
+            _hashlib_graviola.state_update(self._state, data)
+
+        def digest(self):
+            return _hashlib_graviola.state_digest(self._state)
+
+        def hexdigest(self):
+            return self.digest().hex()
+
+        def copy(self):
+            result = object.__new__(type(self))
+            result._state = _hashlib_graviola.state_copy(self._state)
+            result.name = self.name
+            result.digest_size = self.digest_size
+            result.block_size = self.block_size
+            return result
+
     def constructor(data=b"", *, usedforsecurity=True):
-        return _hashlib_graviola.hash_new(algorithm, data)
+        return RustHash(data, usedforsecurity=usedforsecurity)
 
     constructor.__name__ = "openssl_" + algorithm
+    constructor.__qualname__ = constructor.__name__
     constructor.__module__ = __name__
     return constructor
 
@@ -73,20 +108,142 @@ _MISSING = object()
 openssl_md_meth_names = frozenset(_constructors)
 algorithms_available = openssl_md_meth_names
 _GIL_MINSIZE = 2048
-HMAC = _hashlib_graviola.HMAC
 UnsupportedDigestmodError = _hashlib_graviola.UnsupportedDigestmodError
 compare_digest = _operator._compare_digest
-hmac_digest = _hashlib_graviola.hmac_digest
-pbkdf2_hmac = _hashlib_graviola.pbkdf2_hmac
-scrypt = _hashlib_graviola.scrypt
+
+
+class _HMACMeta(type):
+    def __call__(cls, *args, **kwargs):
+        raise TypeError("cannot create '_hashlib.HMAC' instances")
+
+    def __setattr__(cls, name, value):
+        raise TypeError("cannot set attributes of immutable type '_hashlib.HMAC'")
+
+    def __delattr__(cls, name):
+        raise TypeError("cannot delete attributes of immutable type '_hashlib.HMAC'")
+
+
+class HMAC(metaclass=_HMACMeta):
+    __slots__ = ("_state", "digest_size", "block_size", "_algorithm")
+
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("cannot create '_hashlib.HMAC' instances")
+
+    def __init__(self, key, msg=None, digestmod=None):
+        if digestmod is None:
+            raise TypeError("Missing required argument 'digestmod'.")
+        algorithm = _digest_name(digestmod)
+        self._state, self.digest_size, self.block_size = _hashlib_graviola.hmac_state_new(
+            key, algorithm
+        )
+        self._algorithm = algorithm
+        if msg is not None:
+            _hashlib_graviola.state_update(self._state, msg)
+
+    @property
+    def name(self):
+        return "hmac-" + self._algorithm
+
+    def update(self, msg):
+        _hashlib_graviola.state_update(self._state, msg)
+
+    def digest(self):
+        return _hashlib_graviola.state_digest(self._state)
+
+    def hexdigest(self):
+        return self.digest().hex()
+
+    def copy(self):
+        result = object.__new__(type(self))
+        result._state = _hashlib_graviola.state_copy(self._state)
+        result._algorithm = self._algorithm
+        result.digest_size = self.digest_size
+        result.block_size = self.block_size
+        return result
+
+    def __repr__(self):
+        return f"<{self._algorithm} HMAC object @ {id(self):#x}>"
+
+
+def _digest_name(digestmod):
+    if isinstance(digestmod, str):
+        name = digestmod
+    else:
+        name = getattr(digestmod, "__name__", None)
+        if name is None:
+            name = getattr(digestmod, "name", None)
+        if not isinstance(name, str):
+            raise UnsupportedDigestmodError(
+                "[digital envelope routines] unsupported hash algorithm "
+            )
+        name = name.removeprefix("openssl_")
+    return _normalize_digest_name(name)
+
+
+def hmac_new(key, msg=b"", digestmod=_MISSING):
+    if digestmod is _MISSING:
+        raise TypeError("Missing required argument 'digestmod'.")
+    result = object.__new__(HMAC)
+    HMAC.__init__(result, key, msg, digestmod)
+    return result
+
+
+def hmac_digest(key, msg, digest):
+    return _hashlib_graviola.hmac_digest(key, msg, _digest_name(digest))
+
+
+def pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None):
+    return _hashlib_graviola.pbkdf2_hmac(
+        hash_name, password, salt, iterations, dklen
+    )
+
+
+def scrypt(password, *, salt, n, r, p, maxmem=0, dklen=64):
+    return _hashlib_graviola.scrypt(password, salt, n, r, p, maxmem, dklen)
 
 
 def get_fips_mode():
     return 0
 
 
-for _name, _constructor in _constructors.items():
-    globals()["openssl_" + _name] = _constructor
+_openssl_names = (
+    "md5",
+    "sha1",
+    "sha224",
+    "sha256",
+    "sha384",
+    "sha512",
+    "sha3_224",
+    "sha3_256",
+    "sha3_384",
+    "sha3_512",
+    "shake_128",
+    "shake_256",
+)
+_openssl_signature = inspect.Signature(
+    (
+        inspect.Parameter("data", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=b""),
+        inspect.Parameter("usedforsecurity", inspect.Parameter.KEYWORD_ONLY, default=True),
+        inspect.Parameter("string", inspect.Parameter.KEYWORD_ONLY, default=None),
+    )
+)
+
+
+def _openssl_constructor(name):
+    builtin = _constructors[name]
+
+    def constructor(*args, **kwargs):
+        return builtin(*args, **kwargs)
+
+    constructor.__name__ = "openssl_" + name
+    constructor.__qualname__ = constructor.__name__
+    constructor.__module__ = __name__
+    constructor.__signature__ = _openssl_signature
+    return constructor
+
+
+for _name in _openssl_names:
+    globals()["openssl_" + _name] = _openssl_constructor(_name)
 
 
 def new(name, *args, **kwargs):
@@ -121,6 +278,10 @@ def _normalize_digest_name(name):
         "sha-512": "sha512",
         "sha512-224": "sha512_224",
         "sha512-256": "sha512_256",
+        "blake2b512": "blake2b",
+        "blake2b-512": "blake2b",
+        "blake2s256": "blake2s",
+        "blake2s-256": "blake2s",
         "sha3-224": "sha3_224",
         "sha3-256": "sha3_256",
         "sha3-384": "sha3_384",
@@ -130,9 +291,3 @@ def _normalize_digest_name(name):
         "ripemd-160": "ripemd160",
     }
     return aliases.get(normalized, normalized)
-
-
-def hmac_new(key, msg=b"", digestmod=_MISSING):
-    if digestmod is _MISSING:
-        raise TypeError("Missing required argument 'digestmod'.")
-    return _hashlib_graviola.hmac_new(key, msg, digestmod)

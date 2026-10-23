@@ -27,8 +27,10 @@ and installs `_hashlib.py` in `lib/python3.15/`. It installs
 `_hashlib` and `_ssl` extensions and checks that `_ssl` resolves only to a
 Python source file containing the Rustls marker or is unavailable. If the
 candidate lacks `lib/python3.15/test`, it copies CPython's test package into
-that disposable prefix. Tests run with `-I -B` and do not add the source `Lib`
-directory to `PYTHONPATH`.
+that disposable prefix. The hashlib, hmac, and support tests run with `-I -B`
+and do not add the source `Lib` directory to `PYTHONPATH`. The interpreter
+driver runs with `-E -s -B` so its worker helper can be imported from the
+driver directory while ignoring Python environment overrides.
 
 Compare names, aliases, errors, HMAC, PBKDF2, buffer updates, and the exact
 scrypt maxmem boundary against a pinned reference prefix:
@@ -39,16 +41,22 @@ python3 research/rtls-graviola/hashing/compare-reference.py \
     .work/tmp/hashlib-candidate/bin/python3.15
 ```
 
-The recorded hash-isolation run used a private copy of
-`.work/tmp/rtls-no-ssl.bnHJ8y/python` on CPython 3.15.1 arm64 macOS. The copy
-had the original `_hashlib.cpython-315-darwin.so` and Python `_ssl.py` shim
-removed. It retained builtin digest modules and `_hmac`; the command completed
-with 240 tests run, 18 skipped, and no failures. This run establishes the
-hashing behavior in isolation, not the integrated marker-backed `_ssl.py`
-candidate.
+The verified run used a private copy of the integrated v7d candidate on
+CPython 3.15.1 arm64 macOS. Its Python `_ssl.py` marker shim remained installed,
+and the original native `_hashlib` extension was absent. `test_hashlib` and
+`test_hmac` completed with 240 tests run, 18 skipped, and no failures.
+`TestHashlibSupport` completed with 5 tests run and 4 upstream skips.
+The allocation-failure driver exercised native hash and HMAC constructor
+cleanup at CPython allocation failpoints, then verified recovery outputs.
 
-The skips include the private `_hashlib.HASH` type check because this facade
-does not expose a shared native hash type. The default runner also skips
-resource-gated tests. The pass covers CPython's Python-level hashlib and hmac
-contracts. It does not qualify native `_hashlib` consumers, TLS, other
-platforms, performance, or a production artifact.
+The subinterpreter driver verifies fixed reference outputs for hash, HMAC,
+PBKDF2, and scrypt. It begins before either `_hashlib` module is imported in
+the main interpreter, then holds two executor workers at a loopback rendezvous
+while they import and use the backend concurrently. It checks copied-state
+independence and repeats interpreter creation and destruction three times.
+The suite skips include the private `_hashlib.HASH` instantiation check; the
+facade has no shared native digest type. Resource-gated tests are skipped by
+the default test runner settings. This verifies the Python-level hash
+contracts on this macOS candidate; it does not qualify native `_hashlib`
+consumers, TLS behavior, other platforms, performance, or a production
+artifact.
