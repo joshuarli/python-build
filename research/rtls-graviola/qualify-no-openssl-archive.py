@@ -409,7 +409,8 @@ def _validate_linux_docker_receipt(
         docker.get("target_triple") != target.triple
         or docker.get("platform") != "linux/arm64"
         or docker.get("daemon_os") != "linux"
-        or docker.get("daemon_architecture") != "linux/arm64"
+        or docker.get("daemon_platform") != "linux/arm64"
+        or docker.get("daemon_architecture") not in {"aarch64", "arm64"}
         or docker.get("container_architecture") != "aarch64"
         or docker.get("image_architecture") not in {"aarch64", "arm64"}
         or not isinstance(docker.get("image_id"), str)
