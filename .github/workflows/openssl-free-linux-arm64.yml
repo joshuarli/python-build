@@ -98,8 +98,8 @@ jobs:
             --revision "$GITHUB_SHA"
           mkdir -p "$assets"
           cp "$qualification/EXPERIMENTALartifact.json" "$assets/"
-          cp "$qualification/qualification report.json" "$assets/"
-          cp "$qualification/experimental no-openssl candidate.tar.gz" "$assets/"
+          cp "$qualification/qualification-report.json" "$assets/"
+          cp "$qualification/experimental-no-openssl-candidate.tar.gz" "$assets/"
           cp "$regression" "$assets/regression-report.json"
           cp "$EXPERIMENT_RUN_DIR/linux-build.json" "$assets/"
           cp "$EXPERIMENT_RUN_DIR/docker-build.json" "$assets/"
@@ -213,3 +213,18 @@ jobs:
             --title "Research: OpenSSL-free CPython $PYTHON_VERSION Linux arm64 ${GITHUB_SHA:0:12}" \
             --notes-file "$notes" \
             "$RELEASE_ASSETS_DIR"/*
+
+      - name: Verify the published prerelease assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ steps.resolve.outputs.tag }}
+          TMPDIR: ${{ github.workspace }}/.work/tmp
+        run: |
+          set -eu
+          published="$TMPDIR/published-prerelease"
+          mkdir -p "$published"
+          gh release download "$RELEASE_TAG" --dir "$published"
+          (cd "$published" && sha256sum --check SHA256SUMS)
+          python3.15 .github/scripts/validate_experimental_artifact.py \
+            --directory "$published" --revision "$GITHUB_SHA"

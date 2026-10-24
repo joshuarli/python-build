@@ -57,11 +57,11 @@ Inspect the resulting evidence under the run directory:
 - `linux-build.json` and `docker-build.json` identify the sealed native build.
 - `qualification/regression/report.json` accounts for the upstream suite and
   retains failures under the declared [modern TLS policy](MODERN_TLS_POLICY.md).
-- `qualification/archive/qualification report.json` records checks against the
+- `qualification/archive/qualification-report.json` records checks against the
   extracted archive.
 - `qualification/archive/EXPERIMENTALartifact.json` binds sources, tools,
   licenses, and archive bytes.
-- `qualification/archive/experimental no-openssl candidate.tar.gz` contains the
+- `qualification/archive/experimental-no-openssl-candidate.tar.gz` contains the
   experimental distribution.
 - `docker-runtime.json` records execution of those archive bytes in a separate
   locked Alpine image with libgcc and no build toolchain.

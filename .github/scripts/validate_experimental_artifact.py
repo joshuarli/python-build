@@ -4,7 +4,12 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "research" / "rtls-graviola"))
+
+from artifact_layout import MANIFEST_NAME, REPORT_NAME
 
 
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
@@ -284,8 +289,8 @@ def validate(directory: Path, revision: str, build_directory: Path | None) -> No
     directory = directory.resolve(strict=True)
     build_directory = (build_directory or directory).resolve(strict=True)
     docker_runtime = validate_build_receipts(build_directory, revision)
-    report_path = directory / "qualification report.json"
-    manifest_path = directory / "EXPERIMENTALartifact.json"
+    report_path = directory / REPORT_NAME
+    manifest_path = directory / MANIFEST_NAME
     report = json.loads(report_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 

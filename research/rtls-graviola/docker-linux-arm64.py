@@ -15,6 +15,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from artifact_layout import ARCHIVE_NAME, MANIFEST_NAME, REPORT_NAME
 TARGET = "aarch64-unknown-linux-musl"
 DOCKER_PLATFORM = "linux/arm64"
 LOCK_PATH = REPO / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
@@ -23,7 +26,6 @@ REFERENCE_DRIVER = REPO / "research" / "rtls-graviola" / "build-linux-reference.
 REGRESSION_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py"
 ARCHIVE_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py"
 BUILD_DRIVER = REPO / "research" / "rtls-graviola" / "build-no-openssl.py"
-ARCHIVE_NAME = "experimental no-openssl candidate.tar.gz"
 QUALIFICATION_VOLUME_TARGET = "/work/.work/tmp/q"
 CHUNK_SIZE = 1 << 20
 
@@ -1247,8 +1249,8 @@ def qualify(
             },
         )
         archive = archive_run / ARCHIVE_NAME
-        manifest = archive_run / "EXPERIMENTALartifact.json"
-        report = archive_run / "qualification report.json"
+        manifest = archive_run / MANIFEST_NAME
+        report = archive_run / REPORT_NAME
         if not archive.is_file() or archive.is_symlink() or not manifest.is_file() or not report.is_file():
             raise DockerBuildError("archive qualifier did not write the required report, manifest, and archive")
         report_value = json.loads(report.read_text())

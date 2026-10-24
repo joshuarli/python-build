@@ -18,6 +18,9 @@ from io import StringIO
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from artifact_layout import ARCHIVE_NAME, MANIFEST_NAME, REPORT_NAME
 
 class QualificationDriverError(Exception):
     pass
@@ -1850,6 +1853,7 @@ def build_experimental_manifest(
             raise QualificationDriverError(f"RTLS source patch is missing: {name}")
         rtls_patches.append({"name": name, "sha256": sha256_file(path)})
     helper_paths = (
+        REPO / "research" / "rtls-graviola" / "artifact_layout.py",
         REPO / "research" / "rtls-graviola" / "build-no-openssl.py",
         REPO / "research" / "rtls-graviola" / "prepare_webpki.py",
         REPO / "research" / "rtls-graviola" / "prepare_rustls.py",
@@ -2279,7 +2283,7 @@ def main(argv: list[str] | None = None) -> int:
                 False, error_type=type(error).__name__, error=str(error)
             )
 
-        archive_path = run_dir / "experimental no-openssl candidate.tar.gz"
+        archive_path = run_dir / ARCHIVE_NAME
         try:
             archive_facts = create_archive(package_work, archive_path)
             extracted = verify_archive_extraction(package_work, archive_path, extracted_parent)
@@ -2304,7 +2308,7 @@ def main(argv: list[str] | None = None) -> int:
                 False, error_type=type(error).__name__, error=str(error)
             )
             report["ok"] = False
-            report_path = run_dir / "qualification report.json"
+            report_path = run_dir / REPORT_NAME
             write_report(report, report_path)
             print(f"REPORT {report_path}")
             return 1
@@ -2439,7 +2443,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         report["ok"] = report["qualification"]["ok"]
 
-        manifest_path = run_dir / "EXPERIMENTALartifact.json"
+        manifest_path = run_dir / MANIFEST_NAME
         if report["ok"]:
             report["qualification"]["checks"]["experimental_artifact_manifest"] = {
                 "status": "passed",
@@ -2461,7 +2465,7 @@ def main(argv: list[str] | None = None) -> int:
                     effective_compatibility=effective_compatibility,
                     research_driver=research_driver,
                 )
-                staged_manifest = run_dir / ".EXPERIMENTALartifact.json.pending"
+                staged_manifest = run_dir / f".{MANIFEST_NAME}.pending"
                 write_manifest(staged_manifest, manifest)
                 os.replace(staged_manifest, manifest_path)
                 report["artifact_manifest"] = {
@@ -2477,7 +2481,7 @@ def main(argv: list[str] | None = None) -> int:
                 report["qualification"]["ok"] = False
                 report["ok"] = False
 
-        report_path = run_dir / "qualification report.json"
+        report_path = run_dir / REPORT_NAME
         write_report(report, report_path)
         failures = sorted(
             name
