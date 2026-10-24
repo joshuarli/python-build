@@ -67,8 +67,9 @@ baselines and the declared dependency closure.
 The product is fully OpenSSL-free: no OpenSSL source enters any dependency
 graph, compiled `_ssl` and `_hashlib` are disabled in `Modules/Setup.local`,
 and TLS plus hashing run on the RTLS/rustls-graviola backend built with the
-pinned nightly Rust toolchain. Linux Rust extensions link musl statically
-(`+crt-static`); no glibc symbols may appear in any payload. Do not claim a
+pinned nightly Rust toolchain. Rust extensions use the musl dynamic CRT
+(`-crt-static` is mandatory: rustc cannot emit cdylib/proc-macro artifacts
+with a static CRT); no glibc symbols may appear in any payload. Do not claim a
 build-time gain without a clean before-and-after measurement.
 
 `backend/` keeps the RTLS provider patch, the hashing backend,

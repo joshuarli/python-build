@@ -1708,13 +1708,9 @@ def build_experimental_manifest(
         if f"-C target-cpu={rust_target_cpu}" not in log_text:
             raise QualificationDriverError(f"{name} Cargo log omits the target CPU policy")
         if not target.is_macos:
-            if any(feature in log_text for feature in ("-crt-static",)):
-                raise QualificationDriverError(f"{name} Cargo log disables static musl CRT linking")
-            if "+crt-static" not in log_text:
-                raise QualificationDriverError(f"{name} Cargo log omits the static musl CRT policy")
             if not all(
                 feature in log_text for feature in arch["rust_features"]
-            ):
+            ) or "-crt-static" not in log_text:
                 raise QualificationDriverError(f"{name} Cargo log omits the {arch['machine']} feature policy")
         extension_name = "_rustls" if name == "rtls" else "_hashlib_graviola"
         extension_commands = [

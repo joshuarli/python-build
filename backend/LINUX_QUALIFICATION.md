@@ -52,7 +52,7 @@ digests remain available. MD5 and SHA-1 hashing APIs remain supported.
 
 The Linux profile uses ARMv8-A with crypto extensions on arm64 and
 Broadwell on x86-64, ThinLTO, `ld.lld`, shared libpython, and the GIL.
-Rust extensions link musl statically. Every arm64 CPU must expose AES,
+Rust extensions link the musl dynamic CRT (`-crt-static`; static CRT cannot emit cdylib or proc-macro artifacts). Every arm64 CPU must expose AES,
 PMULL, SHA2, and ASIMD; every x86-64 CPU must expose AES, PCLMULQDQ, AVX,
 AVX2, BMI1, BMI2, FMA, and MOVBE.
 Linux PGO, pip, ensurepip, and venv remain disabled. Build containers have no

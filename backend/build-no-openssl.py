@@ -895,11 +895,18 @@ def require_fetched_rust_inputs(
 
 
 def rust_flags(target, *, rtls: bool) -> list[str]:
+    # Rust extensions are cdylib/proc-macro artifacts, and on a musl host
+    # those crate types REQUIRE the dynamic CRT: rustc refuses to emit them
+    # with a static CRT ("does not support these crate types", reproduced
+    # locally). So `-crt-static` is mandatory here, not a regression to
+    # dynamic linking. The product policy is musl-only with no glibc, which
+    # the ELF linkage audits enforce: the only platform libraries are musl
+    # itself and libgcc.
     if target.triple == LINUX_X86_64_TRIPLE:
-        return ["-C", "target-cpu=broadwell", "-C", "target-feature=+crt-static",
+        return ["-C", "target-cpu=broadwell", "-C", "target-feature=-crt-static",
                 "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack"]
     if target.triple == LINUX_AARCH64_TRIPLE:
-        return ["-C", "target-cpu=generic", "-C", "target-feature=+crt-static,+aes,+sha2,+neon",
+        return ["-C", "target-cpu=generic", "-C", "target-feature=-crt-static,+aes,+sha2,+neon",
                 "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack"]
     cpu_flag = target.cpu_baseline_cflag
     if not cpu_flag.startswith("-mcpu="):

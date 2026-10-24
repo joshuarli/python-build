@@ -50,7 +50,7 @@ unchanged.
 
 The candidate uses `-march=armv8-a+crypto` on arm64 (`-march=broadwell` on
 x86-64), ThinLTO, `ld.lld`, shared libpython, and the GIL, with musl linked
-statically into the Rust extensions. Linux PGO is disabled. Every arm64 CPU
+through the musl dynamic CRT into the Rust extensions. Linux PGO is disabled. Every arm64 CPU
 must expose AES, PMULL, SHA2, and ASIMD.
 No OpenSSL source enters the candidate dependency graph. The separate reference
 build uses the locked OpenSSL 3.5.7 source.

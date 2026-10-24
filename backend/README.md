@@ -171,7 +171,7 @@ Promoted: the OpenSSL-free backend is the official production
 distribution. `build.yml` builds and qualifies all three targets with the
 drivers in this directory and publishes the archives as official
 prereleases. No OpenSSL source enters the build; Linux Rust extensions link
-musl statically (`+crt-static`, `ld.lld`, no `kache` or `mold`); CPU floors
+musl through the dynamic CRT (`-crt-static` is mandatory for cdylib/proc-macro artifacts) with `ld.lld` and no `kache` or `mold`; CPU floors
 are Broadwell-class x86-64, ARMv8-A with crypto extensions, and Apple M1.
 The pinned Rust toolchain is nightly-2026-09-15.
 
