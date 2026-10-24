@@ -125,20 +125,20 @@ jobs:
           set -eu
           mkdir -p "$TMPDIR"
           if command -v nproc >/dev/null 2>&1; then JOBS="$(nproc)"; else JOBS="$(sysctl -n hw.ncpu)"; fi
-          python3.15 research/rtls-graviola/build-no-openssl.py \
+          python3.15 backend/build-no-openssl.py \
             --phase fetch \
             --run-dir "$CANDIDATE_RUN_DIR" \
             --rtls-source "$RTLS_SOURCE_DIR"
-          python3.15 research/rtls-graviola/build-no-openssl.py \
+          python3.15 backend/build-no-openssl.py \
             --phase all --pgo \
             --run-dir "$CANDIDATE_RUN_DIR" \
             --jobs "$JOBS" \
             --rtls-source "$RTLS_SOURCE_DIR"
-          python3.15 research/rtls-graviola/qualify-no-openssl-regressions.py \
+          python3.15 backend/qualify-no-openssl-regressions.py \
             --prefix "$CANDIDATE_RUN_DIR/relocated prefix" \
             --run-dir "$REGRESSION_RUN_DIR" \
             --jobs "$JOBS"
-          python3.15 research/rtls-graviola/qualify-no-openssl-archive.py \
+          python3.15 backend/qualify-no-openssl-archive.py \
             --prefix "$CANDIDATE_RUN_DIR/relocated prefix" \
             --build-run-dir "$CANDIDATE_RUN_DIR" \
             --reference-python "$GITHUB_WORKSPACE/build/stage/cpython-staged/install/bin/python3.15" \
@@ -218,7 +218,7 @@ jobs:
           path: |
             .cache/objects
             .cache/bootstrap
-          key: linux-inputs-${{ matrix.cache-scope }}-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json', 'research/rtls-graviola/linux-bootstrap.lock.json', 'research/rtls-graviola/linux-bootstrap-x86_64.json') }}
+          key: linux-inputs-${{ matrix.cache-scope }}-${{ hashFiles('sources.lock.json', 'bootstrap.lock.json', 'backend/linux-bootstrap.lock.json', 'backend/linux-bootstrap-x86_64.json') }}
           restore-keys: linux-inputs-${{ matrix.cache-scope }}-
 
       - name: Run fast controller tests
@@ -247,7 +247,7 @@ jobs:
         run: |
           set -eu
           mkdir -p "$TMPDIR"
-          python3.15 research/rtls-graviola/docker-linux.py \
+          python3.15 backend/docker-linux.py \
             --phase all \
             --target "${{ matrix.triple }}" \
             --run-dir "$EXPERIMENT_RUN_DIR" \

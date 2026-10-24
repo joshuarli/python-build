@@ -1,4 +1,4 @@
-# Run the Linux arm64 experiment
+# Run the Linux candidates
 
 See the [native qualification results](LINUX_QUALIFICATION.md) for measured
 artifact sizes, executed tests, and remaining limits.
@@ -25,7 +25,7 @@ git clone --depth 1 --branch 2026.10.3 \
 Build and qualify a fresh candidate:
 
 ```sh
-python3.15 research/rtls-graviola/docker-linux.py \
+python3.15 backend/docker-linux.py \
     --phase all \
     --target aarch64-unknown-linux-musl \
     --run-dir .work/tmp/openssl-free-linux-arm64 \

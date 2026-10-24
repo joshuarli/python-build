@@ -12,7 +12,7 @@ LABEL org.python-build.rtls.locked-image-digest=${LOCKED_IMAGE_DIGEST} \
 
 USER root
 COPY bootstrap.lock.json /opt/bootstrap/base-lock.json
-COPY research/rtls-graviola/linux-bootstrap.lock.json /opt/bootstrap/linux-bootstrap.lock.json
+COPY backend/linux-bootstrap.lock.json /opt/bootstrap/linux-bootstrap.lock.json
 COPY .cache/bootstrap/rtls-linux/ /opt/bootstrap/rtls-linux/
 
 RUN --network=none set -eu \

@@ -35,8 +35,8 @@ utilities_harness="$work_dir/ssl_utilities_contract.py"
 mkdir -p "$work_dir/tmp"
 export CARGO_HOME="$work_dir/cargo-home"
 /usr/bin/ditto "$source_prefix" "$candidate"
-cp "$repo_root/research/rtls-graviola/no_ssl_contract.py" "$harness"
-cp "$repo_root/research/rtls-graviola/ssl_utilities_contract.py" \
+cp "$repo_root/backend/no_ssl_contract.py" "$harness"
+cp "$repo_root/backend/ssl_utilities_contract.py" \
     "$utilities_harness"
 
 git clone --depth 1 --branch 2026.10.3 \
@@ -49,9 +49,9 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 git -C "$checkout" apply --unidiff-zero --check \
-    "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+    "$repo_root/backend/rtls-graviola.patch"
 git -C "$checkout" apply --unidiff-zero \
-    "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+    "$repo_root/backend/rtls-graviola.patch"
 
 rust_toolchain=${RTLS_RUST_TOOLCHAIN:-stable}
 expected_rust_version=1.100.0-nightly
@@ -80,11 +80,11 @@ export PYO3_BUILD_EXTENSION_MODULE=1
 export PYO3_PYTHON="$candidate/bin/python3.15"
 export RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup'
 webpki_archive="$work_dir/rustls-webpki.crate"
-"$python" "$repo_root/research/rtls-graviola/prepare_webpki.py" fetch "$webpki_archive"
-"$python" "$repo_root/research/rtls-graviola/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
+"$python" "$repo_root/backend/prepare_webpki.py" fetch "$webpki_archive"
+"$python" "$repo_root/backend/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
 rustls_archive="$work_dir/rustls.crate"
-"$python" "$repo_root/research/rtls-graviola/prepare_rustls.py" fetch "$rustls_archive"
-"$python" "$repo_root/research/rtls-graviola/prepare_rustls.py" prepare "$rustls_archive" "$checkout"
+"$python" "$repo_root/backend/prepare_rustls.py" fetch "$rustls_archive"
+"$python" "$repo_root/backend/prepare_rustls.py" prepare "$rustls_archive" "$checkout"
 rustup run "$rust_toolchain" cargo build \
     --manifest-path "$checkout/rust/Cargo.toml" --locked
 cp "$CARGO_TARGET_DIR/debug/lib_rustls.dylib" \
@@ -98,9 +98,9 @@ if [ -e "$module_dir/rtls" ]; then
     mv "$module_dir/rtls" "$work_dir/original-rtls"
 fi
 cp -R "$checkout/src/rtls" "$module_dir/rtls"
-cp "$repo_root/research/rtls-graviola/ssl_facade.py" "$stdlib/ssl.py"
-cp "$repo_root/research/rtls-graviola/ssl_native_compat.py" "$stdlib/_ssl.py"
-cp "$repo_root/research/rtls-graviola/ssl_metadata.py" "$stdlib/_ssl_metadata.py"
+cp "$repo_root/backend/ssl_facade.py" "$stdlib/ssl.py"
+cp "$repo_root/backend/ssl_native_compat.py" "$stdlib/_ssl.py"
+cp "$repo_root/backend/ssl_metadata.py" "$stdlib/_ssl_metadata.py"
 cp "$certdata/capath/ceff1710.0" "$stdlib/python-build-cacert.pem"
 
 extension_count=0

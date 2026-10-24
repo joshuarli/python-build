@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "research" / "rtls-graviola"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from artifact_layout import MANIFEST_NAME, REPORT_NAME
 

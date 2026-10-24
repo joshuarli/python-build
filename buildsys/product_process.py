@@ -11,6 +11,7 @@ _BASE_ENVIRONMENT_KEYS = ("LANG", "LC_ALL", "TZ")
 _ALLOWED_OVERRIDES = frozenset(
     {
         "PYTHONHOME",
+        "PYTHONMALLOC",
         "SSL_CERT_FILE",
         "SSL_CERT_DIR",
         "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE",

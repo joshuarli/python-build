@@ -7,7 +7,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SCRATCH = REPO / ".work" / "tmp"
 SCRATCH.mkdir(parents=True, exist_ok=True)
-DRIVER_PATH = REPO / "research" / "rtls-graviola" / "build-no-openssl.py"
+DRIVER_PATH = REPO / "backend" / "build-no-openssl.py"
 SPEC = importlib.util.spec_from_file_location("no_openssl_build_driver", DRIVER_PATH)
 DRIVER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = DRIVER

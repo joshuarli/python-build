@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-POLICY_SOURCE = "research/rtls-graviola/MODERN_TLS_POLICY.md"
+POLICY_SOURCE = "backend/MODERN_TLS_POLICY.md"
 EXPECTED_SSL_TEST_COUNT = 219
 _FULL_SSL_PROGRESS = re.compile(
     r"^.*\[[^\]\n]+\]\s+test_ssl (?:(?:failed \((\d+) errors?, (\d+) failures?\))|passed)(?:\s|$)",

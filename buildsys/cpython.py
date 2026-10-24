@@ -98,6 +98,10 @@ COMMON_POLICY_ARGS = (
     "--enable-experimental-jit=no",
     "--with-tail-call-interp=no",
     "--without-static-libpython",
+    # The bundled mimalloc is compiled into libpython; the explicit flag
+    # turns a missing C11 stdatomic.h into a configure failure instead of a
+    # silent fallback to the system allocator.
+    "--with-mimalloc",
     "--with-system-libmpdec",
     "--with-system-expat",
     "--with-ensurepip=no",

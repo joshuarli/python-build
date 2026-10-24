@@ -1,7 +1,7 @@
 # Reproduce the RTLS and Graviola experiments
 
 For the complete native Linux arm64 candidate, use the
-[Docker and prerelease procedure](LINUX_ARM64.md). The replay procedures below
+[Docker and prerelease procedure](LINUX.md). The replay procedures below
 retain their macOS scope.
 
 Both replay scripts run on native Apple Silicon macOS. They verify RTLS
@@ -17,7 +17,7 @@ external TLS server. Builds and disposable interpreters stay under `.work/tmp`.
 Run:
 
 ```sh
-research/rtls-graviola/run-poc.sh
+backend/run-poc.sh
 ```
 
 This builds the extension and runs `local_tls_smoke.py` with a host
@@ -43,7 +43,7 @@ to the replay:
 ```sh
 python3 build.py fetch --target aarch64-apple-darwin
 python3 build.py build --target aarch64-apple-darwin
-research/rtls-graviola/run-no-ssl-contract.sh \
+backend/run-no-ssl-contract.sh \
     build/stage/cpython-staged/install \
     build/work/cpython/Python-3.15.1/Lib/test/certdata
 ```
@@ -107,7 +107,7 @@ production build keeps OpenSSL and its existing CPU baselines.
 Run the generated corpus against the pinned reference and candidate interpreters:
 
 ```sh
-python3.15 research/rtls-graviola/certificate_contract.py \
+python3.15 backend/certificate_contract.py \
     --reference <reference-prefix>/bin/python3.15 \
     --candidate <candidate-prefix>/bin/python3.15 \
     --certdata <cpython-source>/Lib/test/certdata \
@@ -151,13 +151,13 @@ profile unless the caller requests release mode.
 ```sh
 run_dir=.work/tmp/openssl-free-candidate
 rtls_source=.work/tmp/rtls-build-source
-hashing_source=research/rtls-graviola/hashing
+hashing_source=backend/hashing
 git clone --depth 1 --branch 2026.10.3 \
     https://github.com/jawah/rtls.git "$rtls_source"
-python3.15 research/rtls-graviola/build-no-openssl.py \
+python3.15 backend/build-no-openssl.py \
     --phase fetch --run-dir "$run_dir" --rtls-source "$rtls_source" \
     --hashing-source "$hashing_source"
-python3.15 research/rtls-graviola/build-no-openssl.py \
+python3.15 backend/build-no-openssl.py \
     --phase all --run-dir "$run_dir" --rtls-source "$rtls_source" \
     --hashing-source "$hashing_source"
 ```
@@ -185,7 +185,7 @@ Run the TLS contract against a disposable copy of the built prefix:
 
 ```sh
 reference_python=/path/to/OpenSSL-reference/bin/python3.15
-research/rtls-graviola/run-built-no-ssl-contract.sh \
+backend/run-built-no-ssl-contract.sh \
     "$run_dir/relocated prefix" \
     "$run_dir/cpython-source/Python-3.15.1/Lib/test/certdata" \
     "$reference_python"
@@ -207,10 +207,10 @@ contract and the combined TLS/hashing regression:
 
 ```sh
 <candidate-prefix>/bin/python3.15 -E -s -B \
-    research/rtls-graviola/subinterpreter_contract.py <cpython-test-certdata>
+    backend/subinterpreter_contract.py <cpython-test-certdata>
 <candidate-prefix>/bin/python3.15 -E -s -B \
-    research/rtls-graviola/hashing/testdrivers/combined_tls.py \
-    research/rtls-graviola <cpython-test-certdata>
+    backend/hashing/testdrivers/combined_tls.py \
+    backend <cpython-test-certdata>
 ```
 
 Both recreate interpreters and exercise trusted and rejected TLS 1.2 and 1.3
@@ -220,7 +220,7 @@ and scrypt outputs with both native backends active.
 Run the complete default-resource regression suite on an unpruned candidate:
 
 ```sh
-python3.15 research/rtls-graviola/qualify-no-openssl-regressions.py \
+python3.15 backend/qualify-no-openssl-regressions.py \
     --prefix <relocated-candidate-prefix> \
     --run-dir .work/tmp/rtls-regression-qualification \
     --jobs 6 --timeout 600
@@ -240,9 +240,9 @@ Exercise factory environment handling under normal and isolated startup:
 
 ```sh
 <candidate-prefix>/bin/python3.15 -I -B \
-    research/rtls-graviola/ssl_factory_contract.py <cpython-test-certdata>
+    backend/ssl_factory_contract.py <cpython-test-certdata>
 <candidate-prefix>/bin/python3.15 -I -B \
-    research/rtls-graviola/test_ssl_protocol_mode.py
+    backend/test_ssl_protocol_mode.py
 ```
 
 The factory contract launches child interpreters normally and with `-E` and
@@ -257,7 +257,7 @@ assessment and candidate identity digests:
 ```sh
 reference_python=/path/to/OpenSSL-reference/bin/python3.15
 certdata=/path/to/Python-3.15.1/Lib/test/certdata
-python3.15 research/rtls-graviola/qualify-no-openssl-archive.py \
+python3.15 backend/qualify-no-openssl-archive.py \
     --prefix <relocated-candidate-prefix> \
     --build-run-dir <candidate-build-directory> \
     --base-build-run-dir <pgo-base-build-directory> \

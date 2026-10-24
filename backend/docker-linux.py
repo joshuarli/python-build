@@ -41,8 +41,8 @@ DOCKER_PLATFORM = "linux/arm64"
 MACHINE = "aarch64"
 DOCKER_ARCH = "arm64"
 APK_ARCH = "arm64"
-LOCK_PATH = REPO / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
-DOCKERFILE = REPO / "research" / "rtls-graviola" / "Dockerfile.linux"
+LOCK_PATH = REPO / "backend" / "linux-bootstrap.lock.json"
+DOCKERFILE = REPO / "backend" / "Dockerfile.linux"
 
 
 def configure(triple: str) -> None:
@@ -56,12 +56,12 @@ def configure(triple: str) -> None:
     MACHINE = selected["machine"]
     DOCKER_ARCH = selected["docker_arch"]
     APK_ARCH = selected["apk_arch"]
-    LOCK_PATH = REPO / "research" / "rtls-graviola" / selected["bootstrap_lock"]
-    DOCKERFILE = REPO / "research" / "rtls-graviola" / "Dockerfile.linux"
-REFERENCE_DRIVER = REPO / "research" / "rtls-graviola" / "build-linux-reference.py"
-REGRESSION_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py"
-ARCHIVE_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py"
-BUILD_DRIVER = REPO / "research" / "rtls-graviola" / "build-no-openssl.py"
+    LOCK_PATH = REPO / "backend" / selected["bootstrap_lock"]
+    DOCKERFILE = REPO / "backend" / "Dockerfile.linux"
+REFERENCE_DRIVER = REPO / "backend" / "build-linux-reference.py"
+REGRESSION_DRIVER = REPO / "backend" / "qualify-no-openssl-regressions.py"
+ARCHIVE_DRIVER = REPO / "backend" / "qualify-no-openssl-archive.py"
+BUILD_DRIVER = REPO / "backend" / "build-no-openssl.py"
 QUALIFICATION_VOLUME_TARGET = "/work/.work/tmp/q"
 CHUNK_SIZE = 1 << 20
 
@@ -432,7 +432,7 @@ def prepare_toolchain_image(
             context = Path(temporary)
             shutil.copy2(DOCKERFILE, context / "Dockerfile.linux")
             shutil.copy2(REPO / "bootstrap.lock.json", context / "bootstrap.lock.json")
-            lock_destination = context / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
+            lock_destination = context / "backend" / "linux-bootstrap.lock.json"
             lock_destination.parent.mkdir(parents=True)
             shutil.copy2(LOCK_PATH, lock_destination)
             cached_inputs = context / ".cache" / "bootstrap" / "rtls-linux"
@@ -707,7 +707,7 @@ def run_build(
         "TZ": "UTC",
     }
     driver_command = [
-        "python3", "research/rtls-graviola/build-no-openssl.py",
+        "python3", "backend/build-no-openssl.py",
         "--phase", "all", "--run-dir", container_run, "--jobs", str(jobs),
         "--rtls-source", rtls_path, "--hashing-source", hashing_path,
     ]
@@ -807,7 +807,7 @@ def networked_fetch(
     (run_dir / "home").mkdir(exist_ok=True)
     (run_dir / "cargo-home").mkdir(exist_ok=True)
     command = [
-        "python3", "research/rtls-graviola/build-no-openssl.py",
+        "python3", "backend/build-no-openssl.py",
         "--phase", "fetch", "--run-dir", container_run, "--jobs", str(jobs),
         "--rtls-source", host_to_container(rtls_source, REPO),
         "--hashing-source", host_to_container(hashing_source, REPO),
@@ -853,7 +853,7 @@ def build_runtime_image(
             context = Path(temporary)
             shutil.copy2(DOCKERFILE, context / "Dockerfile.linux")
             shutil.copy2(REPO / "bootstrap.lock.json", context / "bootstrap.lock.json")
-            lock_destination = context / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
+            lock_destination = context / "backend" / "linux-bootstrap.lock.json"
             lock_destination.parent.mkdir(parents=True)
             shutil.copy2(LOCK_PATH, lock_destination)
             apk = context / ".cache" / "bootstrap" / "apk" / "libgcc.apk"
@@ -1185,20 +1185,20 @@ def qualify(
     volume_work_dir = f"{QUALIFICATION_VOLUME_TARGET}/{volume_work_id}"
     commands = [
         [
-            "python3", "research/rtls-graviola/build-linux-reference.py",
+            "python3", "backend/build-linux-reference.py",
             "--candidate-run-dir", base,
             "--run-dir", f"{base}/reference-build",
             "--jobs", str(jobs),
         ],
         [
-            "python3", "research/rtls-graviola/qualify-no-openssl-regressions.py",
+            "python3", "backend/qualify-no-openssl-regressions.py",
             "--prefix", f"{base}/relocated prefix",
             "--run-dir", f"{base}/qualification/regression",
             "--work-dir", volume_work_dir,
             "--jobs", str(jobs),
         ],
         [
-            "python3", "research/rtls-graviola/qualify-no-openssl-archive.py",
+            "python3", "backend/qualify-no-openssl-archive.py",
             "--prefix", f"{base}/relocated prefix",
             "--build-run-dir", base,
             "--reference-python", f"{base}/reference-build/prefix/bin/python3.15",
@@ -1437,7 +1437,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--source-revision")
     parser.add_argument("--rtls-source", type=Path, required=True)
-    parser.add_argument("--hashing-source", type=Path, default=REPO / "research" / "rtls-graviola" / "hashing")
+    parser.add_argument("--hashing-source", type=Path, default=REPO / "backend" / "hashing")
     parser.add_argument("--archive-name", default=None)
     parser.add_argument("--manifest-name", default=None)
     args = parser.parse_args(argv)

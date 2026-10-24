@@ -66,7 +66,7 @@ TLS 1.2/1.3-only policy. No OpenSSL source enters the build and no OpenSSL or
 glibc symbols remain in the payload. CPU floors are Apple M1, x86-64
 Broadwell, and ARMv8-A with crypto extensions. The backend design, contracts,
 replay procedures, and per-architecture qualification live in
-[`research/rtls-graviola`](research/rtls-graviola/README.md).
+[`backend`](backend/README.md).
 
 ## Release assembly
 

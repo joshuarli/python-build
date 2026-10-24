@@ -32,10 +32,10 @@ dynload="$stdlib/lib-dynload"
 mkdir -p "$work_dir/tmp" "$work_dir/home"
 /usr/bin/ditto "$source_prefix" "$candidate"
 /usr/bin/ditto "$stdlib_source/test" "$stdlib/test"
-cp "$repo_root/research/rtls-graviola/no_ssl_contract.py" "$work_dir/no_ssl_contract.py"
-cp "$repo_root/research/rtls-graviola/trust_policy_contract.py" \
+cp "$repo_root/backend/no_ssl_contract.py" "$work_dir/no_ssl_contract.py"
+cp "$repo_root/backend/trust_policy_contract.py" \
     "$work_dir/trust_policy_contract.py"
-cp "$repo_root/research/rtls-graviola/ssl_utilities_contract.py" \
+cp "$repo_root/backend/ssl_utilities_contract.py" \
     "$work_dir/ssl_utilities_contract.py"
 cp "$certdata/capath/ceff1710.0" "$stdlib/python-build-cacert.pem"
 

@@ -22,9 +22,9 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 git -C "$checkout" apply --unidiff-zero --check \
-    "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+    "$repo_root/backend/rtls-graviola.patch"
 git -C "$checkout" apply --unidiff-zero \
-    "$repo_root/research/rtls-graviola/rtls-graviola.patch"
+    "$repo_root/backend/rtls-graviola.patch"
 
 mkdir -p "$work_dir/tmp"
 export TMPDIR="$work_dir/tmp"
@@ -54,14 +54,14 @@ export PYO3_BUILD_EXTENSION_MODULE=1
 export RUSTFLAGS='-C link-arg=-undefined -C link-arg=dynamic_lookup'
 
 webpki_archive="$work_dir/rustls-webpki.crate"
-python3.15 "$repo_root/research/rtls-graviola/prepare_webpki.py" fetch "$webpki_archive"
-python3.15 "$repo_root/research/rtls-graviola/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
+python3.15 "$repo_root/backend/prepare_webpki.py" fetch "$webpki_archive"
+python3.15 "$repo_root/backend/prepare_webpki.py" prepare "$webpki_archive" "$checkout"
 rustls_archive="$work_dir/rustls.crate"
-python3.15 "$repo_root/research/rtls-graviola/prepare_rustls.py" fetch "$rustls_archive"
-python3.15 "$repo_root/research/rtls-graviola/prepare_rustls.py" prepare "$rustls_archive" "$checkout"
+python3.15 "$repo_root/backend/prepare_rustls.py" fetch "$rustls_archive"
+python3.15 "$repo_root/backend/prepare_rustls.py" prepare "$rustls_archive" "$checkout"
 rustup run "$rust_toolchain" cargo build \
     --manifest-path "$checkout/rust/Cargo.toml" --locked
 cp "$CARGO_TARGET_DIR/debug/lib_rustls.dylib" "$checkout/src/rtls/_rustls.abi3.so"
 env -u PYTHONHOME -u PYTHONPATH -u PYTHONUSERBASE PYTHONNOUSERSITE=1 \
-    python3.15 "$repo_root/research/rtls-graviola/local_tls_smoke.py" "$checkout"
+    python3.15 "$repo_root/backend/local_tls_smoke.py" "$checkout"
 printf 'Prototype checkout and build tree: %s\n' "$work_dir"

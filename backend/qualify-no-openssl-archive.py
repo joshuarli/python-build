@@ -236,7 +236,7 @@ def audit_openssl_symbols(prefix: Path, target) -> dict:
 
 
 def load_research_driver():
-    path = REPO / "research" / "rtls-graviola" / "build-no-openssl.py"
+    path = REPO / "backend" / "build-no-openssl.py"
     spec = importlib.util.spec_from_file_location("no_openssl_build_driver", path)
     if spec is None or spec.loader is None:
         raise QualificationDriverError(f"cannot load research build driver: {path}")
@@ -247,7 +247,7 @@ def load_research_driver():
 
 
 def load_regression_policy():
-    path = REPO / "research" / "rtls-graviola" / "regression_policy.py"
+    path = REPO / "backend" / "regression_policy.py"
     spec = importlib.util.spec_from_file_location("modern_tls_regression_policy", path)
     if spec is None or spec.loader is None:
         raise QualificationDriverError(f"cannot load regression policy: {path}")
@@ -269,7 +269,7 @@ def load_package_driver():
 
 
 def load_regression_driver():
-    path = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py"
+    path = REPO / "backend" / "qualify-no-openssl-regressions.py"
     spec = importlib.util.spec_from_file_location("no_openssl_regression_driver", path)
     if spec is None or spec.loader is None:
         raise QualificationDriverError(f"cannot load regression driver: {path}")
@@ -511,7 +511,7 @@ def _linux_build_evidence(
         bootstrap = json.loads((COMMON_ROOT / "bootstrap.lock.json").read_text())
     except (OSError, json.JSONDecodeError) as error:
         raise QualificationDriverError(f"cannot read Linux bootstrap lock: {error}") from error
-    rust_bootstrap_path = REPO / "research" / "rtls-graviola" / linux_arch(target)["bootstrap_lock"]
+    rust_bootstrap_path = REPO / "backend" / linux_arch(target)["bootstrap_lock"]
     try:
         rust_bootstrap = json.loads(rust_bootstrap_path.read_text())
     except (OSError, json.JSONDecodeError) as error:
@@ -602,7 +602,7 @@ def _linux_build_evidence(
         "hashing_cargo_lock_sha256": sha256_file(hashing_source / "Cargo.lock"),
         "cpython_experimental_patches": [
             {"name": path.relative_to(REPO).as_posix(), "sha256": sha256_file(path)}
-            for path in sorted((REPO / "research" / "rtls-graviola" / "cpython-linux-patches").glob("*.patch"))
+            for path in sorted((REPO / "backend" / "cpython-linux-patches").glob("*.patch"))
         ],
     }
     for name, expected in required_source_digests.items():
@@ -821,7 +821,7 @@ def validate_ssl_exact_case_assessment(report: dict, expected_tests_run: int) ->
     modern_policy = report.get("modern_policy")
     if not isinstance(modern_policy, dict):
         raise QualificationDriverError("regression report has no modern_policy mapping")
-    policy_path = REPO / "research" / "rtls-graviola" / "MODERN_TLS_POLICY.md"
+    policy_path = REPO / "backend" / "MODERN_TLS_POLICY.md"
     expected_policy_digest = sha256_file(policy_path)
     if modern_policy.get("policy_sha256") != expected_policy_digest:
         raise QualificationDriverError("regression report modern policy digest differs from current policy")
@@ -1177,7 +1177,7 @@ def run_archive_contracts(
         sys.executable,
         "-I",
         "-B",
-        REPO / "research" / "rtls-graviola" / "certificate_contract.py",
+        REPO / "backend" / "certificate_contract.py",
         "--reference",
         reference_python,
         "--candidate",
@@ -1248,7 +1248,7 @@ def run_archive_contracts(
             python,
             "-I",
             "-B",
-            REPO / "research" / "rtls-graviola" / "modern_tls_contract.py",
+            REPO / "backend" / "modern_tls_contract.py",
             "--reference",
             reference_python,
             "--certdata",
@@ -1288,7 +1288,7 @@ def run_archive_contracts(
         "trust-source-contract",
         [
             python, "-I", "-B",
-            REPO / "research" / "rtls-graviola" / "trust_policy_contract.py",
+            REPO / "backend" / "trust_policy_contract.py",
             certdata, ca_bundles[0], reference_python,
         ],
         extracted,
@@ -1309,7 +1309,7 @@ def run_archive_contracts(
             sys.executable,
             "-I",
             "-B",
-            REPO / "research" / "rtls-graviola" / "hashing" / "compare-reference.py",
+            REPO / "backend" / "hashing" / "compare-reference.py",
             reference_python,
             python,
         ],
@@ -1329,7 +1329,7 @@ def run_archive_contracts(
         "handshake-error-cleanup",
         [
             python, "-I", "-B",
-            REPO / "research" / "rtls-graviola" / "test_ssl_handshake_error_cleanup.py",
+            REPO / "backend" / "test_ssl_handshake_error_cleanup.py",
             "--certdata", certdata,
         ],
         extracted,
@@ -1402,7 +1402,7 @@ def _load_source_revision(repository: Path) -> str:
 def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver, target) -> list[dict]:
     license_helper = importlib.util.spec_from_file_location(
         "no_openssl_rust_license_helper",
-        REPO / "research" / "rtls-graviola" / "rust_licenses.py",
+        REPO / "backend" / "rust_licenses.py",
     )
     if license_helper is None or license_helper.loader is None:
         raise QualificationDriverError("cannot load Cargo dependency closure helper")
@@ -1900,29 +1900,29 @@ def build_experimental_manifest(
     )
     rtls_patches = []
     for name in rtls_patch_names:
-        path = REPO / "research" / "rtls-graviola" / name
+        path = REPO / "backend" / name
         if not path.is_file():
             raise QualificationDriverError(f"RTLS source patch is missing: {name}")
         rtls_patches.append({"name": name, "sha256": sha256_file(path)})
     helper_paths = (
-        REPO / "research" / "rtls-graviola" / "artifact_layout.py",
-        REPO / "research" / "rtls-graviola" / "build-no-openssl.py",
-        REPO / "research" / "rtls-graviola" / "prepare_webpki.py",
-        REPO / "research" / "rtls-graviola" / "prepare_rustls.py",
-        REPO / "research" / "rtls-graviola" / "ssl_facade.py",
-        REPO / "research" / "rtls-graviola" / "ssl_native_compat.py",
-        REPO / "research" / "rtls-graviola" / "ssl_metadata.py",
-        REPO / "research" / "rtls-graviola" / "modern_compat.py",
-        REPO / "research" / "rtls-graviola" / "MODERN_TLS_POLICY.md",
-        REPO / "research" / "rtls-graviola" / "certificate_contract.py",
-        REPO / "research" / "rtls-graviola" / "modern_tls_contract.py",
-        REPO / "research" / "rtls-graviola" / "test_ssl_handshake_error_cleanup.py",
-        REPO / "research" / "rtls-graviola" / "trust_policy_contract.py",
-        REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py",
-        REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py",
-        REPO / "research" / "rtls-graviola" / "regression_policy.py",
-        REPO / "research" / "rtls-graviola" / "rust_licenses.py",
-        REPO / "research" / "rtls-graviola" / "hashing" / "compare-reference.py",
+        REPO / "backend" / "artifact_layout.py",
+        REPO / "backend" / "build-no-openssl.py",
+        REPO / "backend" / "prepare_webpki.py",
+        REPO / "backend" / "prepare_rustls.py",
+        REPO / "backend" / "ssl_facade.py",
+        REPO / "backend" / "ssl_native_compat.py",
+        REPO / "backend" / "ssl_metadata.py",
+        REPO / "backend" / "modern_compat.py",
+        REPO / "backend" / "MODERN_TLS_POLICY.md",
+        REPO / "backend" / "certificate_contract.py",
+        REPO / "backend" / "modern_tls_contract.py",
+        REPO / "backend" / "test_ssl_handshake_error_cleanup.py",
+        REPO / "backend" / "trust_policy_contract.py",
+        REPO / "backend" / "qualify-no-openssl-archive.py",
+        REPO / "backend" / "qualify-no-openssl-regressions.py",
+        REPO / "backend" / "regression_policy.py",
+        REPO / "backend" / "rust_licenses.py",
+        REPO / "backend" / "hashing" / "compare-reference.py",
     )
     experimental_sources = [
         {"name": path.name, "sha256": sha256_file(path)} for path in helper_paths

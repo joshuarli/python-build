@@ -282,7 +282,7 @@ def build_cpython(
     source = safe_extract(cpython_blob, source_root) / "Python-3.15.1"
     apply_patch_set(source, REPO / "patches" / "cpython")
     if not target.is_macos:
-        apply_patch_set(source, REPO / "research" / "rtls-graviola" / "cpython-linux-patches")
+        apply_patch_set(source, REPO / "backend" / "cpython-linux-patches")
     build_directory = run_dir / "cpython-build"
     build_directory.mkdir()
     args, environment = configuration(
@@ -747,7 +747,7 @@ def verify_rtls_source_snapshot(run_dir: Path) -> Path:
 
 
 def load_webpki_helper():
-    path = REPO / "research" / "rtls-graviola" / "prepare_webpki.py"
+    path = REPO / "backend" / "prepare_webpki.py"
     spec = importlib.util.spec_from_file_location("rtls_prepare_webpki", path)
     if spec is None or spec.loader is None:
         raise BuildError(f"cannot load pinned webpki preparation helper: {path}")
@@ -757,7 +757,7 @@ def load_webpki_helper():
 
 
 def load_rustls_helper():
-    path = REPO / "research" / "rtls-graviola" / "prepare_rustls.py"
+    path = REPO / "backend" / "prepare_rustls.py"
     spec = importlib.util.spec_from_file_location("rtls_prepare_rustls", path)
     if spec is None or spec.loader is None:
         raise BuildError(f"cannot load pinned rustls preparation helper: {path}")
@@ -767,7 +767,7 @@ def load_rustls_helper():
 
 
 def load_rust_license_helper():
-    path = REPO / "research" / "rtls-graviola" / "rust_licenses.py"
+    path = REPO / "backend" / "rust_licenses.py"
     spec = importlib.util.spec_from_file_location("rtls_rust_licenses", path)
     if spec is None or spec.loader is None:
         raise BuildError(f"cannot load Rust license helper: {path}")
@@ -779,7 +779,7 @@ def load_rust_license_helper():
 def apply_rtls_patch(checkout: Path, name: str) -> None:
     from buildsys.patches import PatchError, apply_patch
 
-    patch = REPO / "research" / "rtls-graviola" / name
+    patch = REPO / "backend" / name
     try:
         apply_patch(checkout, patch)
     except PatchError as error:
@@ -1105,15 +1105,15 @@ def install_adapters(
         dynload / "_hashlib_graviola.abi3.so",
     )
     shutil.copyfile(
-        REPO / "research" / "rtls-graviola" / "ssl_facade.py",
+        REPO / "backend" / "ssl_facade.py",
         stdlib / "ssl.py",
     )
     shutil.copyfile(
-        REPO / "research" / "rtls-graviola" / "ssl_native_compat.py",
+        REPO / "backend" / "ssl_native_compat.py",
         stdlib / "_ssl.py",
     )
     shutil.copyfile(
-        REPO / "research" / "rtls-graviola" / "ssl_metadata.py",
+        REPO / "backend" / "ssl_metadata.py",
         stdlib / "_ssl_metadata.py",
     )
 
@@ -1414,7 +1414,7 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
     }
     source["cpython_experimental_patches"] = [
         {"name": path.relative_to(REPO).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-        for path in sorted((REPO / "research" / "rtls-graviola" / "cpython-linux-patches").glob("*.patch"))
+        for path in sorted((REPO / "backend" / "cpython-linux-patches").glob("*.patch"))
     ]
     pins = {pin.name: pin for pin in load_lock(REPO / "sources.lock.json")}
     names = ("cpython", *tuple(name for name in dependency_order(target) if name not in {"pkgconf", "openssl"}), "certifi-ca")
@@ -1613,7 +1613,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--hashing-source",
         type=Path,
-        default=REPO / "research" / "rtls-graviola" / "hashing",
+        default=REPO / "backend" / "hashing",
     )
     parser.add_argument("--inside-sandbox", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--cargo-bin", type=Path, help=argparse.SUPPRESS)

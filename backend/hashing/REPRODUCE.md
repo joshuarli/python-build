@@ -16,7 +16,7 @@ cp -cR /path/to/candidate-prefix/. .work/tmp/hashlib-candidate/
 Build the extension, install both modules, and run the complete suites:
 
 ```sh
-research/rtls-graviola/hashing/run-tests.sh \
+backend/hashing/run-tests.sh \
     .work/tmp/hashlib-candidate \
     .work/tmp/rtls-no-ssl/cpython-source/Python-3.15.1
 ```
@@ -37,7 +37,7 @@ maxmem boundary, unsigned parameter limits, and `__index__` conversion against
 a pinned reference prefix:
 
 ```sh
-python3 research/rtls-graviola/hashing/compare-reference.py \
+python3 backend/hashing/compare-reference.py \
     .work/tmp/rtls-no-ssl/python-prefix/bin/python3.15 \
     .work/tmp/hashlib-candidate/bin/python3.15
 ```

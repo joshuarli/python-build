@@ -34,7 +34,7 @@ library and install the Python sources and library into a private candidate
 prefix through `build-no-openssl.py`. Run:
 
 ```sh
-<prefix>/bin/python3.15 research/rtls-graviola/subinterpreter_contract.py <cpython-source>/Lib/test/certdata
+<prefix>/bin/python3.15 backend/subinterpreter_contract.py <cpython-source>/Lib/test/certdata
 ```
 
 The contract injects bounded allocation failures and checks unsupported ECH

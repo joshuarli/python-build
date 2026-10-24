@@ -56,7 +56,9 @@ claim macOS 26 runtime qualification from a macOS 27 run. Linux qualification
 uses the locked Alpine image and complete APK closure in `bootstrap.lock.json`;
 package acquisition is verified before the network-disabled build.
 
-The product keeps the GIL, shared libpython, private native dependencies,
+The product keeps the GIL, shared libpython, the bundled mimalloc allocator
+(compiled in statically via explicit `--with-mimalloc`), private native
+dependencies,
 ThinLTO, macOS PGO, `-O3`, and useful headers, sysconfig, pkg-config metadata,
 and `python3.15-config`. Linux PGO is disabled. JIT, BOLT, free-threaded ABI,
 and the tail-call interpreter are disabled. Preserve the platform CPU
@@ -69,7 +71,7 @@ pinned nightly Rust toolchain. Linux Rust extensions link musl statically
 (`+crt-static`); no glibc symbols may appear in any payload. Do not claim a
 build-time gain without a clean before-and-after measurement.
 
-`research/rtls-graviola/` keeps the RTLS provider patch, the hashing backend,
+`backend/` keeps the RTLS provider patch, the hashing backend,
 and the replay procedures behind the official build. Keep its Rust
 dependencies out of the production locks and bootstrap. Keep its source pin,
 per-architecture bootstrap lockfiles, and license record together when

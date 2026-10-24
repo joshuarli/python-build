@@ -93,7 +93,7 @@ def prepare(archive: Path, checkout: Path) -> None:
     if target.exists():
         raise RuntimeError(f"rustls target already exists: {target}")
     repo_root = Path(__file__).resolve().parents[2]
-    patch = repo_root / "research" / "rtls-graviola" / "rustls-session-api.patch"
+    patch = repo_root / "backend" / "rustls-session-api.patch"
     with tempfile.TemporaryDirectory(dir=checkout, prefix=".rustls-source-") as temporary:
         source = Path(temporary) / "rustls"
         extract_archive(archive, source, RUSTLS_VERSION)

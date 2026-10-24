@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -496,6 +497,67 @@ def capability_checks(python: Path, *, cwd: Path | None = None) -> dict:
         if key not in ("sqlite", "decimal", "whichdb", "dbm_default")
     ) and data["decimal"][1]
     return data
+
+
+def mimalloc_allocator_checks(
+    python: Path, install: Path, workdir: Path, target
+) -> dict:
+    """The bundled mimalloc allocator is configured and statically linked."""
+    code = """
+        import json, sysconfig
+        print(json.dumps({
+            "with_mimalloc": sysconfig.get_config_var("WITH_MIMALLOC"),
+            "config_args": sysconfig.get_config_var("CONFIG_ARGS"),
+        }))
+    """
+    result = _python_code(python, code, cwd=workdir)
+    if result.returncode != 0:
+        raise ValidationError(f"allocator probe failed: {result.stderr.strip()}")
+    info = json.loads(result.stdout.strip().splitlines()[-1])
+    configured = (
+        info["with_mimalloc"] == 1
+        and "--with-mimalloc" in str(info["config_args"] or "")
+    )
+    domain = _python_code(
+        python, "pass", cwd=workdir, environment_overrides={"PYTHONMALLOC": "mimalloc"}
+    )
+    domain_ok = domain.returncode == 0
+    install = Path(install).resolve()
+    if target.is_macos:
+        images = [
+            PRODUCT.interpreter(install),
+            install / "lib" / f"lib{PRODUCT.shared_library_stem}.dylib",
+        ]
+        linked = [
+            dependency
+            for image in images
+            for dependency in macho.dependencies(image)
+        ]
+    else:
+        images = [
+            PRODUCT.interpreter(install),
+            install / "lib" / f"lib{PRODUCT.shared_library_stem}.so.1.0",
+        ]
+        linked = []
+        for image in images:
+            dynamic = subprocess.run(
+                ["readelf", "-dW", str(image)],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            linked.extend(
+                match.group(1)
+                for line in dynamic.splitlines()
+                if "(NEEDED)" in line
+                for match in [re.search(r"\[([^\]]+)\]", line)]
+                if match is not None
+            )
+    static = not any("mimalloc" in str(library).lower() for library in linked)
+    return {
+        "configured": configured,
+        "allocator_domain": domain_ok,
+        "statically_linked": static,
+        "ok": bool(configured and domain_ok and static),
+    }
 
 
 def multiprocessing_checks(python: Path, *, cwd: Path | None = None) -> dict:
@@ -1097,6 +1159,7 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
     if target.is_macos:
         record("macho", macho_checks, install, target)
     record("version_and_abi", lambda: version_and_abi(python, target, cwd=workdir))
+    record("mimalloc", mimalloc_allocator_checks, python, install, workdir, target)
     record("module_inventory", lambda: module_inventory(python, cwd=workdir))
     record("capabilities", lambda: capability_checks(python, cwd=workdir))
     record("multiprocessing", lambda: multiprocessing_checks(python, cwd=workdir))
@@ -1120,7 +1183,7 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
     record("exclusions", exclusion_checks)
 
     required_checks = {
-        "version_and_abi", "module_inventory", "capabilities",
+        "version_and_abi", "mimalloc", "module_inventory", "capabilities",
         "multiprocessing", "terminal", "ctypes", "tls", "extension",
         "abi3", "embedding", "relocation", "launchers", "exclusions",
     }

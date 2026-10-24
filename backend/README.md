@@ -1,11 +1,16 @@
-# RTLS and Graviola research
+# RTLS and Graviola backend
+
+This is the official TLS and hashing backend: fully OpenSSL-free CPython
+3.15.1 distributions for macOS arm64 and Linux x86-64/arm64 musl, built by
+`build.yml` with the drivers in this directory. The sections below record the
+research history and the evidence behind that decision.
 
 ## Current implementation
 
 The [native Linux arm64 candidate](LINUX_QUALIFICATION.md) is fully OpenSSL-free.
 All 53 local archive checks and the isolated minimal-runtime check pass. The
 full regression run executes 50,488 tests with no unexpected failures under
-the declared modern policy. Follow the [Docker and prerelease procedure](LINUX_ARM64.md)
+the declared modern policy. Follow the [Docker and prerelease procedure](LINUX.md)
 for the arm64-only workflow.
 
 The [qualified macOS arm64 candidate](QUALIFICATION.md) is fully OpenSSL-free.

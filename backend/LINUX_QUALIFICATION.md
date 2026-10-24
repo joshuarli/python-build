@@ -27,7 +27,7 @@ The qualified local archive has these identities:
 | Stripped hashing extension | 465,840 bytes |
 
 Outputs are under `.work/tmp/openssl-free-linux-clean/.work/tmp/linux-rc7/`.
-The [Docker procedure](LINUX_ARM64.md) describes the report and receipt paths.
+The [Docker procedure](LINUX.md) describes the report and receipt paths.
 
 The [verified prerelease](https://github.com/joshuarli/python-build/releases/tag/research-openssl-free-cp315-arm64-86f0635020fc94ce75f3449b2efb817726adf623)
 publishes `experimental-no-openssl-candidate.tar.gz` with SHA-256
