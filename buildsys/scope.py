@@ -322,13 +322,28 @@ def verify_distribution_payload(install: Path) -> list[str]:
 
 def excluded_module_names() -> list[str]:
     """Importable names the shipped tree must not expose."""
-    names = [name for name in EXCLUDED_STDLIB_DIRS]
-    names += [Path(name).stem for name in EXCLUDED_STDLIB_FILES]
+    names = enforced_module_names()
+    # Distribution-time exclusions: the regression suite, GUI demos, import
+    # fixtures, and native test extensions are still present through the
+    # pre-prune validation and are asserted absent only after packaging prune.
+    names += list(DISTRIBUTION_EXCLUDED_STDLIB_DIRS)
     # `_tkinter` is the extension; `tkinter` is the package it backs.
     names.append("_tkinter")
     # Native test extensions are pruned from the shipped payload after the
     # pre-prune regression suite exercises them.
     names += list(DISTRIBUTION_EXCLUDED_EXTENSION_STEMS)
+    return sorted(set(names))
+
+
+def enforced_module_names() -> list[str]:
+    """Importable names the build-time exclusion pass must remove.
+
+    Only these may be probed on a staged tree: distribution-time exclusions
+    are still present there by design and fail the probe otherwise.
+    """
+    names = [name for name in EXCLUDED_STDLIB_DIRS]
+    names += [Path(name).stem for name in EXCLUDED_STDLIB_FILES]
+    names.append("_tkinter")
     return sorted(set(names))
 
 
