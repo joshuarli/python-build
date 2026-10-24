@@ -69,6 +69,7 @@ from buildsys.package import (
     build_manifest,
     create_archive,
     copy_product_tree,
+    payload_size_report,
     qualify,
     verify_archive_extraction,
     write_manifest,
@@ -2374,7 +2375,7 @@ def main(argv: list[str] | None = None) -> int:
                 "size_bytes": archive_facts.size_bytes,
                 "payload_size_bytes": archive_facts.payload_size_bytes,
             }
-            size_report = package_driver.payload_size_report(extracted)
+            size_report = payload_size_report(extracted)
             write_json(run_dir / "size-report.json", size_report)
             report["checks"]["size_inventory"] = check_result(
                 True,
