@@ -47,7 +47,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     target = TARGETS[args.triple]
-    run_dir = args.run_dir.resolve(strict=True)
+    run_dir = args.run_dir.resolve()
+    if not run_dir.is_dir():
+        print(f"FAIL promote: run directory does not exist: {run_dir}", file=sys.stderr)
+        return 1
     archive_src = run_dir / "qualification" / "archive" / args.archive_name
     manifest_src = run_dir / "qualification" / "archive" / args.manifest_name
     for path in (archive_src, manifest_src):
