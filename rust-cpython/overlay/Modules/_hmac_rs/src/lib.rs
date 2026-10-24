@@ -24,6 +24,7 @@ use cpython_sys::PyMethodDefFuncPointer;
 use cpython_sys::PyModuleDef;
 use cpython_sys::PyModuleDef_HEAD_INIT;
 use cpython_sys::PyModuleDef_Init;
+use cpython_sys::PyModuleDef_Slot;
 use cpython_sys::PyObject;
 use cpython_sys::PyObject_GetBuffer;
 use cpython_sys::PyTuple_GetItem;
@@ -34,9 +35,11 @@ use cpython_sys::Py_ssize_t;
 
 use hmac::{Hmac, KeyInit, Mac, SimpleHmac};
 use md5::Md5;
+use ripemd::Ripemd160;
 use sha1::Sha1;
 use sha2::{Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256};
 use sha3::{Sha3_224, Sha3_256, Sha3_384, Sha3_512};
+use sm3::Sm3;
 
 const PYBUF_SIMPLE: c_int = 0;
 const CAPSULE_NAME: &std::ffi::CStr = c"_hmac_rs.HMACState";
@@ -56,6 +59,8 @@ enum HmacState {
     Sha3_256(SimpleHmac<Sha3_256>),
     Sha3_384(SimpleHmac<Sha3_384>),
     Sha3_512(SimpleHmac<Sha3_512>),
+    Ripemd160(Hmac<Ripemd160>),
+    Sm3(Hmac<Sm3>),
 }
 
 impl HmacState {
@@ -77,6 +82,8 @@ impl HmacState {
             "sha3_256" => SimpleHmac::<Sha3_256>::new_from_slice(key).ok().map(Self::Sha3_256),
             "sha3_384" => SimpleHmac::<Sha3_384>::new_from_slice(key).ok().map(Self::Sha3_384),
             "sha3_512" => SimpleHmac::<Sha3_512>::new_from_slice(key).ok().map(Self::Sha3_512),
+            "ripemd160" => Hmac::<Ripemd160>::new_from_slice(key).ok().map(Self::Ripemd160),
+            "sm3" => Hmac::<Sm3>::new_from_slice(key).ok().map(Self::Sm3),
             _ => None,
         }
     }
@@ -95,6 +102,8 @@ impl HmacState {
             Self::Sha3_256(mac) => mac.update(data),
             Self::Sha3_384(mac) => mac.update(data),
             Self::Sha3_512(mac) => mac.update(data),
+            Self::Ripemd160(mac) => mac.update(data),
+            Self::Sm3(mac) => mac.update(data),
         }
     }
 
@@ -112,6 +121,8 @@ impl HmacState {
             Self::Sha3_256(mac) => mac.clone().finalize().into_bytes().to_vec(),
             Self::Sha3_384(mac) => mac.clone().finalize().into_bytes().to_vec(),
             Self::Sha3_512(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Ripemd160(mac) => mac.clone().finalize().into_bytes().to_vec(),
+            Self::Sm3(mac) => mac.clone().finalize().into_bytes().to_vec(),
         }
     }
 }
@@ -371,6 +382,28 @@ pub extern "C" fn _hmac_rs_clear(_obj: *mut PyObject) -> c_int {
 
 pub extern "C" fn _hmac_rs_free(_obj: *mut c_void) {}
 
+unsafe extern "C" fn _hmac_rs_exec(_module: *mut PyObject) -> c_int {
+    let _ = _module;
+    0
+}
+
+struct HmacModuleSlots([PyModuleDef_Slot; 3]);
+
+unsafe impl Sync for HmacModuleSlots {}
+
+const PY_MOD_EXEC: c_int = 85;
+const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
+const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2 as *mut c_void;
+
+static HMAC_MODULE_SLOTS: HmacModuleSlots = HmacModuleSlots([
+    PyModuleDef_Slot { slot: PY_MOD_EXEC, value: _hmac_rs_exec as *const () as *mut c_void },
+    PyModuleDef_Slot {
+        slot: PY_MOD_MULTIPLE_INTERPRETERS,
+        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
+    },
+    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
+]);
+
 pub struct ModuleDef {
     ffi: UnsafeCell<PyModuleDef>,
 }
@@ -433,7 +466,7 @@ pub static _HMAC_RS_MODULE: ModuleDef = {
             m_doc: c"Rust HMAC state for supported fixed-output digest algorithms.".as_ptr() as *mut _,
             m_size: 0,
             m_methods: &_HMAC_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: ptr::null_mut(),
+            m_slots: HMAC_MODULE_SLOTS.0.as_ptr() as *mut _,
             m_traverse: None,
             m_clear: Some(_hmac_rs_clear),
             m_free: Some(_hmac_rs_free),
