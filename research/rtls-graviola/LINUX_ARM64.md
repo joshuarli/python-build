@@ -1,5 +1,8 @@
 # Run the Linux arm64 experiment
 
+See the [native qualification results](LINUX_QUALIFICATION.md) for measured
+artifact sizes, executed tests, and remaining limits.
+
 Use a clean checkout and a native Linux arm64 Docker daemon. On Apple Silicon,
 use the daemon's arm64 VM. The driver rejects an amd64 daemon and never requests
 amd64 emulation.

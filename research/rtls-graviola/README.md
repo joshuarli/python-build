@@ -2,6 +2,12 @@
 
 ## Current implementation
 
+The [native Linux arm64 candidate](LINUX_QUALIFICATION.md) is fully OpenSSL-free.
+All 53 local archive checks and the isolated minimal-runtime check pass. The
+full regression run executes 50,488 tests with no unexpected failures under
+the declared modern policy. Follow the [Docker and prerelease procedure](LINUX_ARM64.md)
+for the arm64-only workflow.
+
 The [qualified macOS arm64 candidate](QUALIFICATION.md) is fully OpenSSL-free.
 All 42 experimental archive checks pass, including the complete regression
 report under the declared modern policy. The report retains raw upstream
