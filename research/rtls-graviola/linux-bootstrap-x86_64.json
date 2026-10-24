@@ -124,15 +124,6 @@
       "license": "Apache-2.0"
     },
     {
-      "name": "mimalloc2",
-      "version": "2.2.7-r0",
-      "architecture": "x86_64",
-      "url": "https://cdn.alpinelinux.org/edge/community/x86_64/mimalloc2-2.2.7-r0.apk",
-      "sha256": "2de28427d316110e474108637692d06e8c956d7a5d23feea6ebeff7f9267ef4f",
-      "size": 84790,
-      "license": "MIT"
-    },
-    {
       "name": "musl",
       "version": "1.2.6-r6",
       "architecture": "x86_64",
@@ -140,15 +131,6 @@
       "sha256": "002f8b956419d67e91fd4e594f7b8d62fef13042cec45d977305df1a9ce0704f",
       "size": 415482,
       "license": "MIT"
-    },
-    {
-      "name": "onetbb",
-      "version": "2023.1.0-r0",
-      "architecture": "x86_64",
-      "url": "https://cdn.alpinelinux.org/edge/community/x86_64/onetbb-2023.1.0-r0.apk",
-      "sha256": "e451753a4eaff9be477700d765ed4b8c12017c74cb1573cf0812faf6da1303a6",
-      "size": 164604,
-      "license": "GPL-2.0-only"
     },
     {
       "name": "openssl",
