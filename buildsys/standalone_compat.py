@@ -147,6 +147,12 @@ def hashlib_algorithms():
 
 
 def test_capi_modules():
+    if os.environ.get("PYTHON_BUILD_SKIP_TESTCAPI") == "1":
+        # The shipped payload prunes the native test extensions after the
+        # pre-prune regression suite exercises them. The post-prune
+        # compatibility run skips this check; see
+        # testcapi_modules_pre_prune for the pre-prune gate.
+        raise SkipCheck("test C-API extensions are pruned from the shipped payload")
     import _testcapi
 
     assert _testcapi is not None
@@ -358,6 +364,32 @@ def _isolated_environment(target: Target) -> dict[str, str]:
     if terminfo:
         environment["TERMINFO_DIRS"] = ":".join(terminfo)
     return environment
+
+
+def testcapi_modules_pre_prune(python: Path, install: Path) -> dict:
+    """Exercise the native test C-API extensions before they are pruned.
+
+    Runs against the pre-prune tree; the post-prune compatibility run skips
+    this check via `run_standalone_compatibility(..., skip_testcapi=True)`
+    and the shipped payload asserts their absence instead.
+    """
+    process = _product_run(
+        [python, "-I", "-B", "-c", "import _testcapi, _testlimitedcapi"],
+        install,
+        SCRATCH_ROOT,
+        timeout_seconds=60,
+    )
+    if process.returncode != 0:
+        return {
+            "status": "failed",
+            "ok": False,
+            "error": (process.stderr.strip() or process.stdout.strip())[-2000:],
+        }
+    return {
+        "status": "passed",
+        "ok": True,
+        "evidence": "_testcapi and _testlimitedcapi import",
+    }
 
 
 def _getpath_check(python: Path, install: Path, environment: dict[str, str]) -> dict:
@@ -769,7 +801,9 @@ def _curses_tty_check(python: Path, install: Path, environment: dict[str, str]) 
     return {"status": "passed", "evidence": "curses initialized in a PTY"}
 
 
-def run_standalone_compatibility(python: Path, install: Path, target: Target) -> dict:
+def run_standalone_compatibility(
+    python: Path, install: Path, target: Target, *, skip_testcapi: bool = False
+) -> dict:
     """Run applicable PBS distribution behavior checks against packaged bytes."""
     python = Path(python).resolve()
     install = Path(install).resolve()
@@ -779,6 +813,8 @@ def run_standalone_compatibility(python: Path, install: Path, target: Target) ->
             f"expected product interpreter {expected_python}, got {python}"
         )
     environment = _isolated_environment(target)
+    if skip_testcapi:
+        environment["PYTHON_BUILD_SKIP_TESTCAPI"] = "1"
     source_lock = json.loads(
         (Path(__file__).resolve().parents[1] / "sources.lock.json").read_text()
     )

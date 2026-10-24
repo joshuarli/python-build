@@ -12,6 +12,7 @@ _ALLOWED_OVERRIDES = frozenset(
     {
         "PYTHONHOME",
         "PYTHONMALLOC",
+        "PYTHON_BUILD_SKIP_TESTCAPI",
         "SSL_CERT_FILE",
         "SSL_CERT_DIR",
         "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE",

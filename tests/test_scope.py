@@ -229,8 +229,46 @@ class ExclusionEnforcementTests(unittest.TestCase):
             (PRODUCT.stdlib(install) / "test").mkdir(parents=True)
             self._probe_interpreter(install, test_importable=True)
 
-            with self.assertRaisesRegex(ScopeError, "remains importable"):
+            with self.assertRaisesRegex(ScopeError, "remain importable in distribution"):
                 prune_distribution_payload(install)
+
+    def test_distribution_pruning_removes_test_extensions_and_static_assets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            install = Path(temporary) / "install"
+            library = PRODUCT.stdlib(install)
+            dynload = library / "lib-dynload"
+            dynload.mkdir(parents=True)
+            pruned_extension = dynload / "_testcapi.so"
+            pruned_extension.write_bytes(b"test")
+            kept_extension = dynload / "_ssl.so"
+            kept_extension.write_bytes(b"ssl")
+            (library / "turtledemo").mkdir()
+            (library / "turtledemo" / "__init__.py").write_text("")
+            (library / "__phello__").mkdir()
+            (library / "__phello__" / "spam.py").write_text("")
+            vendor = library / "profiling" / "sampling" / "_vendor"
+            vendor.mkdir(parents=True)
+            (vendor / "d3.min.js").write_text("")
+            collector = library / "profiling" / "sampling" / "collector.py"
+            collector.write_text("")
+            self._probe_interpreter(install, test_importable=False)
+
+            report = prune_distribution_payload(install)
+
+            relative = library.relative_to(install)
+            self.assertIn(str(relative / "lib-dynload" / "_testcapi.so"), report["removed_extensions"])
+            self.assertIn(str(relative / "turtledemo"), report["removed_stdlib_dirs"])
+            self.assertIn(str(relative / "__phello__"), report["removed_stdlib_dirs"])
+            self.assertIn(
+                str(relative / "profiling" / "sampling" / "_vendor"),
+                report["removed_subtrees"],
+            )
+            self.assertGreater(report["removed_byte_size"], 0)
+            self.assertTrue(kept_extension.is_file())
+            self.assertTrue(collector.is_file())
+            self.assertEqual(verify_distribution_payload(install), [])
+            self.assertFalse(report["excluded_importable"])
+            self.assertTrue(report["ok"])
 
     def test_distribution_pruning_rejects_a_stale_python_minor(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -76,7 +76,7 @@ from buildsys.package import (
 from buildsys.product import PRODUCT
 from buildsys.product_process import run_product_process
 from buildsys.scope import ScopeError, prune_distribution_payload
-from buildsys.standalone_compat import run_standalone_compatibility
+from buildsys.standalone_compat import run_standalone_compatibility, testcapi_modules_pre_prune
 from buildsys.targets import native_target
 from buildsys.testsuite import _accounting as account_suite_log
 from buildsys.testsuite import classify as classify_suite_findings
@@ -2282,6 +2282,22 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         try:
+            pre_prune_testcapi = testcapi_modules_pre_prune(
+                PRODUCT.interpreter(package_work), package_work
+            )
+        except Exception as error:
+            pre_prune_testcapi = {
+                "status": "failed",
+                "ok": False,
+                "error": f"{type(error).__name__}: {error}",
+            }
+        report["checks"]["pre_prune_testcapi"] = check_result(
+            pre_prune_testcapi.get("ok") is True,
+            evidence=pre_prune_testcapi.get("evidence"),
+            error=pre_prune_testcapi.get("error"),
+        )
+
+        try:
             research_driver.verify_overlay_prefix(package_work, build_run_dir, target)
             report["checks"]["no_openssl_overlay"] = check_result(True)
         except Exception as error:
@@ -2358,6 +2374,14 @@ def main(argv: list[str] | None = None) -> int:
                 "size_bytes": archive_facts.size_bytes,
                 "payload_size_bytes": archive_facts.payload_size_bytes,
             }
+            size_report = package_driver.payload_size_report(extracted)
+            write_json(run_dir / "size-report.json", size_report)
+            report["checks"]["size_inventory"] = check_result(
+                True,
+                total_files=size_report["total_files"],
+                total_bytes=size_report["total_bytes"],
+                largest_files=size_report["largest_files"][:5],
+            )
         except (PackageError, OSError) as error:
             report["checks"]["archive_roundtrip"] = check_result(
                 False, error_type=type(error).__name__, error=str(error)
@@ -2396,7 +2420,8 @@ def main(argv: list[str] | None = None) -> int:
 
             standalone_compat.SCRATCH_ROOT = compatibility_work
             compatibility = run_standalone_compatibility(
-                PRODUCT.interpreter(extracted), extracted, target
+                PRODUCT.interpreter(extracted), extracted, target,
+                skip_testcapi=True,
             )
         except Exception as error:
             compatibility = {

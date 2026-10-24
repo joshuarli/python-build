@@ -41,7 +41,7 @@ from buildsys.product import PRODUCT
 from buildsys.product_process import run_product_process
 from buildsys.relocate import find_elfs
 from buildsys.scope import ScopeError, prune_distribution_payload
-from buildsys.standalone_compat import CompatibilityError, run_standalone_compatibility
+from buildsys.standalone_compat import CompatibilityError, run_standalone_compatibility, testcapi_modules_pre_prune
 from buildsys.targets import Target, native_target
 from buildsys.testsuite import (
     SuiteError,
@@ -477,11 +477,13 @@ def _qualification(
     trust_store: dict,
     distribution_scope: dict,
     regression_suite: dict,
+    pre_prune_testcapi: dict,
 ) -> dict:
     validation = run_validation(install, workdir / "product-validation", target)
     if not target.is_macos:
         linux = _linux_validation(install)
         validation["checks"].update(linux["checks"])
+    validation["checks"]["pre_prune_testcapi"] = pre_prune_testcapi
     validation["checks"].update({
         "trust_store": {
             **trust_store,
@@ -503,7 +505,7 @@ def _qualification(
     }
     validation["ok"] = not failed
     compatibility = run_standalone_compatibility(
-        PRODUCT.interpreter(install), install, target
+        PRODUCT.interpreter(install), install, target, skip_testcapi=True
     )
     return qualify(validation, compatibility)
 
@@ -535,6 +537,16 @@ def _package() -> Path:
         _verify_install_matches_record(install, build_record)
         trust_store = install_ca_fallback(install)
         regression_suite = _regression_suite(install, workdir)
+        try:
+            pre_prune_testcapi = testcapi_modules_pre_prune(
+                PRODUCT.interpreter(install), install
+            )
+        except (CompatibilityError, OSError, subprocess.SubprocessError) as error:
+            pre_prune_testcapi = {
+                "status": "failed",
+                "ok": False,
+                "error": str(error),
+            }
         if TARGET_DESCRIPTION.is_macos:
             strip_tree_macos(install)
         else:
@@ -555,6 +567,7 @@ def _package() -> Path:
             trust_store=trust_store,
             distribution_scope=distribution_scope,
             regression_suite=regression_suite,
+            pre_prune_testcapi=pre_prune_testcapi,
         )
         if not qualification["ok"]:
             failures = sorted(

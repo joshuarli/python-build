@@ -89,6 +89,41 @@ class CompatibilityStatusTests(unittest.TestCase):
             "aarch64-apple-darwin",
         )
 
+    def test_skipped_testcapi_is_forwarded_to_the_probe_environment(self) -> None:
+        runtime_names = (
+            "compression", "ctypes_callbacks", "hashlib_algorithms",
+            "testcapi_modules", "sqlite_features", "ssl_capabilities",
+            "zstd_multithreading", "gil_and_hash_policy", "product_identity",
+            "target_abi", "linux_uapi_sysconfig", "linux_mdwe_thread_creation",
+        )
+        checks = {name: {"status": "passed"} for name in runtime_names}
+        output = json.dumps({"checks": checks, "not_applicable": {}, "ok": True})
+        process = subprocess.CompletedProcess([], 0, output, "")
+        success = {"status": "passed", "ok": True}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            install = Path(temporary)
+            python = PRODUCT.interpreter(install)
+            with (
+                patch("buildsys.standalone_compat.run_product_process", return_value=process) as runner,
+                patch("buildsys.standalone_compat._getpath_check", return_value=success),
+                patch("buildsys.standalone_compat._relocated_sysconfig_check", return_value=success),
+                patch("buildsys.standalone_compat._fallback_ca_check", return_value=success),
+                patch("buildsys.standalone_compat._curses_tty_check", return_value=success),
+            ):
+                report = run_standalone_compatibility(
+                    python, install, TARGETS["aarch64-apple-darwin"],
+                    skip_testcapi=True,
+                )
+
+        self.assertEqual(
+            runner.call_args.kwargs["environment_overrides"]["PYTHON_BUILD_SKIP_TESTCAPI"],
+            "1",
+        )
+        default_environment = _isolated_environment(TARGETS["aarch64-apple-darwin"])
+        self.assertNotIn("PYTHON_BUILD_SKIP_TESTCAPI", default_environment)
+        self.assertTrue(report["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

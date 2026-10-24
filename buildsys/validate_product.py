@@ -56,6 +56,13 @@ EXCLUDED_MODULES = (
     "_tkinter", "tkinter", "idlelib", "turtle",
     # no gdbm is built; the dbm backend is the platform's ndbm
     "_gdbm",
+    # native test extensions, pruned from the shipped payload after the
+    # pre-prune regression suite and C-API probes exercise them
+    "_ctypes_test", "_testbuffer", "_testcapi", "_testclinic",
+    "_testclinic_limited", "_testimportmultiple", "_testinternalcapi",
+    "_testlimitedcapi", "_testmultiphase", "_testsinglephase",
+    "_xxtestfuzz", "xxlimited", "xxlimited_3_13", "xxlimited_35",
+    "xxsubtype",
 )
 
 
