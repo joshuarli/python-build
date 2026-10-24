@@ -19,10 +19,21 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 TARGET_TRIPLE = "aarch64-apple-darwin"
-LINUX_TARGET_TRIPLE = "aarch64-unknown-linux-musl"
+LINUX_AARCH64_TRIPLE = "aarch64-unknown-linux-musl"
+LINUX_X86_64_TRIPLE = "x86_64-unknown-linux-musl"
+LINUX_TARGET_TRIPLE = LINUX_AARCH64_TRIPLE
+LINUX_CPU_BASELINES = {
+    LINUX_AARCH64_TRIPLE: "-march=armv8-a+crypto",
+    LINUX_X86_64_TRIPLE: "-march=broadwell",
+}
+LINUX_CPU_FEATURES = {
+    LINUX_AARCH64_TRIPLE: {"aes", "pmull", "sha2", "asimd"},
+    LINUX_X86_64_TRIPLE: {"aes", "pclmulqdq", "avx", "avx2", "bmi1", "bmi2", "fma", "movbe"},
+}
 RTLS_REVISION = "302423b49e494863d07630d50b15a9488ec85ef7"
 RTLS_ARCHIVE_SHA256 = "8f188c405d18da8d099e9923722a764f14a93c466c0d1d9c548a42d47540639a"
-RUST_VERSION = "1.99.1"
+RUST_VERSION = "1.100.0-nightly"
+RUST_CHANNEL = "nightly-2026-09-15"
 DISABLED_MODULES = ("_ssl", "_hashlib")
 HASHING_SOURCE_FILES = (
     "Cargo.lock",
@@ -58,21 +69,26 @@ def experimental_target():
     from buildsys.targets import native_target
 
     target = native_target()
-    if target.triple == LINUX_TARGET_TRIPLE:
-        return replace(target, cpu_baseline_cflag="-march=armv8-a+crypto")
+    if target.triple in LINUX_CPU_BASELINES:
+        return replace(target, cpu_baseline_cflag=LINUX_CPU_BASELINES[target.triple])
     if target.triple != TARGET_TRIPLE:
-        raise BuildError("only native macOS arm64 and Linux arm64 musl are supported")
+        raise BuildError("only native macOS arm64 and Linux musl are supported")
     return target
 
 
-def linux_toolchain(jobs: int):
+def linux_toolchain(jobs: int, target=None):
     from buildsys.recipes import Toolchain
 
-    class CryptoToolchain(Toolchain):
-        def ldflags(self, prefix: Path, extra: str = "") -> str:
-            return super().ldflags(prefix, extra).replace("-fuse-ld=lld", "-fuse-ld=mold")
+    baseline = (
+        LINUX_CPU_BASELINES[target.triple]
+        if target is not None and target.triple in LINUX_CPU_BASELINES
+        else LINUX_CPU_BASELINES[LINUX_AARCH64_TRIPLE]
+    )
 
-    return CryptoToolchain(jobs=jobs, ld="mold", cpu_baseline="-march=armv8-a+crypto")
+    class CryptoToolchain(Toolchain):
+        pass
+
+    return CryptoToolchain(jobs=jobs, cpu_baseline=baseline)
 
 
 def linux_isolation() -> dict:
@@ -92,15 +108,19 @@ def linux_isolation() -> dict:
     }
 
 
-def linux_cpu_features() -> list[str]:
+def linux_cpu_features(target=None) -> list[str]:
     feature_sets = [
         set(line.partition(":")[2].split())
         for line in Path("/proc/cpuinfo").read_text().splitlines()
-        if line.startswith("Features")
+        if line.startswith("Features") or line.startswith("flags")
     ]
-    required = {"aes", "pmull", "sha2", "asimd"}
+    triple = target.triple if target is not None else LINUX_AARCH64_TRIPLE
+    try:
+        required = LINUX_CPU_FEATURES[triple]
+    except KeyError:
+        raise BuildError(f"Linux candidate has no declared CPU feature floor: {triple}")
     if not feature_sets or any(not required.issubset(features) for features in feature_sets):
-        raise BuildError("Linux arm64 requires AES, PMULL, SHA-2, and NEON on every CPU")
+        raise BuildError(f"Linux {target.machine if target is not None else 'arm64'} requires {sorted(required)} on every CPU")
     return sorted(set.intersection(*feature_sets))
 
 
@@ -281,8 +301,7 @@ def build_cpython(
     for name in OPENSSL_ENVIRONMENT:
         environment.pop(name, None)
     if not target.is_macos:
-        environment["LDFLAGS"] = environment["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
-        environment["LDFLAGS"] += " -flto=thin"
+        environment["LDFLAGS"] = environment["LDFLAGS"] + " -flto=thin"
     llvm_profdata = Path(toolchain.cc).with_name("llvm-profdata")
     if pgo:
         if "--enable-optimizations" not in args:
@@ -499,20 +518,21 @@ def verify_base_prefix(prefix: Path, run_dir: Path) -> None:
         )
 
 
-def rust_toolchain() -> tuple[Path, Path, Path]:
+def rust_toolchain() -> tuple[Path, Path, Path | None]:
     rustup_home = Path(
         os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup"))
     )
     if platform.system() == "Linux":
         tool_bin = Path(os.environ.get("PYTHON_BUILD_RUST_PREFIX", "/opt/rust")) / "bin"
     else:
-        tool_bin = rustup_home / "toolchains" / f"{RUST_VERSION}-aarch64-apple-darwin" / "bin"
+        tool_bin = rustup_home / "toolchains" / f"{RUST_CHANNEL}-aarch64-apple-darwin" / "bin"
     cargo = tool_bin / "cargo"
     rustc = tool_bin / "rustc"
-    kache = Path(shutil.which("kache") or "")
-    if not cargo.is_file() or not rustc.is_file() or not kache.is_file():
+    kache_path = Path(shutil.which("kache") or "")
+    kache = kache_path if kache_path.is_file() else None
+    if not cargo.is_file() or not rustc.is_file():
         raise BuildError(
-            f"Rust {RUST_VERSION} and kache must already be installed before the offline build"
+            f"Rust {RUST_VERSION} must already be installed before the offline build"
         )
     result = subprocess.run(
         [str(rustc), "--version"], capture_output=True, text=True, check=True
@@ -875,9 +895,12 @@ def require_fetched_rust_inputs(
 
 
 def rust_flags(target, *, rtls: bool) -> list[str]:
-    if target.triple == LINUX_TARGET_TRIPLE:
-        return ["-C", "target-cpu=generic", "-C", "target-feature=-crt-static,+aes,+sha2,+neon",
-                "-C", "link-arg=-fuse-ld=mold", "-C", "link-arg=-Wl,-z,noexecstack"]
+    if target.triple == LINUX_X86_64_TRIPLE:
+        return ["-C", "target-cpu=broadwell", "-C", "target-feature=+crt-static",
+                "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack"]
+    if target.triple == LINUX_AARCH64_TRIPLE:
+        return ["-C", "target-cpu=generic", "-C", "target-feature=+crt-static,+aes,+sha2,+neon",
+                "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack"]
     cpu_flag = target.cpu_baseline_cflag
     if not cpu_flag.startswith("-mcpu="):
         raise BuildError(f"unsupported Rust CPU baseline flag: {cpu_flag}")
@@ -930,11 +953,12 @@ def build_rust_extension(
             "PYO3_PYTHON": str(python),
             "RUSTFLAGS": " ".join(rustflags),
             "RUSTC": str(rustc),
-            "RUSTC_WRAPPER": str(kache),
             "SDKROOT": toolchain.sdkroot,
             "TMPDIR": str(run_dir / "tmp"),
         }
     )
+    if kache is not None:
+        environment["RUSTC_WRAPPER"] = str(kache)
     environment[linker_environment_key] = toolchain.cc
     if not target.is_macos:
         environment["LD_LIBRARY_PATH"] = str(python.parent.parent / "lib")
@@ -1113,7 +1137,7 @@ def relocate_candidate(
                 "private", "cpython-source", "cpython-build", "cargo-home", "cargo-target", "rtls-build",
             )),
             command_paths=tuple(Path(shutil.which(name) or name) for name in (
-                "clang", "clang++", "llvm-ar", "llvm-ranlib", "mold", "llvm-nm", "llvm-strip", "make",
+                "clang", "clang++", "llvm-ar", "llvm-ranlib", "ld.lld", "llvm-nm", "llvm-strip", "make",
             )),
         )
         relocated = run_dir / "relocated prefix"
@@ -1331,7 +1355,7 @@ def verify_linux_lto(toolchain, run_dir: Path) -> None:
         raise BuildError("Linux ThinLTO compiler did not emit LLVM bitcode")
     run([toolchain.ar, "cr", str(work / "library.a"), str(work / "library.o")],
         cwd=work, env=environment, log=work / "archive.log")
-    run([toolchain.cc, *flags, str(work / "main.c"), str(work / "library.a"), "-fuse-ld=mold", "-o", str(work / "fixture")],
+    run([toolchain.cc, *flags, str(work / "main.c"), str(work / "library.a"), "-fuse-ld=lld", "-o", str(work / "fixture")],
         cwd=work, env=environment, log=work / "link.log")
     run([str(work / "fixture")], cwd=work, env=environment, log=work / "run.log")
 
@@ -1349,8 +1373,8 @@ def verify_linux_overlay(prefix: Path, run_dir: Path) -> None:
         header = subprocess.run(["readelf", "-hW", str(image)], capture_output=True, text=True, check=True).stdout
         dynamic = subprocess.run(["readelf", "-dW", str(image)], capture_output=True, text=True, check=True).stdout
         tags = dynamic_tags(dynamic)
-        if not machine_report(header, "aarch64")["ok"]:
-            raise BuildError(f"candidate has a non-aarch64 ELF image: {image}")
+        if not machine_report(header, target.machine)["ok"]:
+            raise BuildError(f"candidate has a non-{target.machine} ELF image: {image}")
         if any(is_openssl_dependency(name) or name == "libc.so.6" for name in tags["needed"]):
             raise BuildError(f"candidate links OpenSSL or glibc: {image}: {tags['needed']}")
         if any(not value.startswith("$ORIGIN") for value in tags["rpath"] + tags["runpath"]):
@@ -1415,7 +1439,7 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
         )
     receipt = {
         "schema_version": 1, "target": target.triple,
-        "cpu_baseline": target.cpu_baseline_cflag, "cpu_features": linux_cpu_features(), "pgo": False,
+        "cpu_baseline": target.cpu_baseline_cflag, "cpu_features": linux_cpu_features(target), "pgo": False,
         "source_revision": os.environ.get("PYTHON_BUILD_SOURCE_REVISION") or subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
         ).stdout.strip(),
@@ -1425,7 +1449,7 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
             "dependency_cflags": toolchain.cflags(),
             "dependency_ldflags": toolchain.ldflags(run_dir / "private"),
             "cpython_cflags": configure_env["CFLAGS"],
-            "cpython_ldflags": configure_env["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold") + " -flto=thin",
+            "cpython_ldflags": configure_env["LDFLAGS"] + " -flto=thin",
             "rust": rust_flags(target, rtls=True),
         },
     }
@@ -1449,7 +1473,7 @@ def run_linux(args, target, toolchain) -> int:
         fetch_rust_inputs(run_dir, args.rtls_source, args.hashing_source, cargo)
         return 0
     isolation = linux_isolation()
-    linux_cpu_features()
+    linux_cpu_features(target)
     commands = {}
     original_run = recipes.run
 
@@ -1490,8 +1514,8 @@ def build_base(run_dir: Path, cache_root: Path, target, toolchain, *, pgo: bool)
     from buildsys.inputs import Cache, InputError, load_lock
     from buildsys.targets import native_target
 
-    if target.triple not in {TARGET_TRIPLE, LINUX_TARGET_TRIPLE}:
-        raise BuildError("this research build supports native arm64 only")
+    if target.triple not in {TARGET_TRIPLE, LINUX_AARCH64_TRIPLE, LINUX_X86_64_TRIPLE}:
+        raise BuildError("this research build supports native arm64 and x86_64 only")
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(exist_ok=True)
     (run_dir / "tmp").mkdir(exist_ok=True)
@@ -1574,7 +1598,7 @@ def main(argv: list[str] | None = None) -> int:
     from buildsys.targets import UnsupportedTargetError, native_target
 
     parser = argparse.ArgumentParser(
-        description="Build a native arm64 CPython prefix without OpenSSL"
+        description="Build a native CPython prefix without OpenSSL"
     )
     parser.add_argument("--phase", choices=("fetch", "base", "overlay", "all"), default="base")
     parser.add_argument("--jobs", type=positive_jobs, default=2)
@@ -1614,7 +1638,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             locked = None
-            toolchain = linux_toolchain(args.jobs)
+            toolchain = linux_toolchain(args.jobs, target)
     except (
         BootstrapError,
         BuildError,
@@ -1649,7 +1673,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.phase in {"all", "overlay"} and args.inside_sandbox:
             cargo, rustc, kache = args.cargo_bin, args.rustc_bin, args.kache_bin
-            if not all(path is not None and path.is_file() for path in (cargo, rustc, kache)):
+            if not all(path is not None and path.is_file() for path in (cargo, rustc)):
                 raise BuildError("sealed Rust build tools were not provided")
         elif args.phase in {"all", "overlay"}:
             if args.rtls_source is None:
@@ -1679,7 +1703,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 raise BuildError(f"unsupported sandbox phase: {args.phase}")
             if args.phase in {"all", "overlay"}:
-                if cargo is None or rustc is None or kache is None:
+                if cargo is None or rustc is None:
                     raise BuildError("Rust build tools were not passed into the sealed process")
                 rtls_build, hashing_build = require_fetched_rust_inputs(run_dir)
                 install_adapters(
@@ -1765,8 +1789,9 @@ def main(argv: list[str] | None = None) -> int:
             command.extend((
                 "--cargo-bin", str(cargo),
                 "--rustc-bin", str(rustc),
-                "--kache-bin", str(kache),
             ))
+            if kache is not None:
+                command.extend(("--kache-bin", str(kache)))
         log = run_dir / f"driver-{args.phase}.log"
         result = sealed.run(command, cwd=REPO, env=env, log=log)
         output = log.read_text() if log.exists() else ""

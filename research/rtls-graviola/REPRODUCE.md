@@ -7,7 +7,7 @@ retain their macOS scope.
 Both replay scripts run on native Apple Silicon macOS. They verify RTLS
 commit `302423b49e494863d07630d50b15a9488ec85ef7`, apply
 [`rtls-graviola.patch`](rtls-graviola.patch). They build the
-checked-in Cargo lockfile with Rust `1.99.1`. The replay verifies and patches
+checked-in Cargo lockfile with Rust nightly-2026-09-15 (`1.100.0-nightly`). The replay verifies and patches
 the pinned rustls-webpki archive before Cargo builds it as a path dependency.
 Cargo downloads the remaining pinned crates. Neither script connects to an
 external TLS server. Builds and disposable interpreters stay under `.work/tmp`.
@@ -27,8 +27,8 @@ server and the host Python's OpenSSL server. The recorded run used Python
 OpenSSL-removal qualification.
 
 The scripts use `RTLS_RUST_TOOLCHAIN` (default `stable`) through rustup and
-stop unless `rustc --version` is exactly `1.99.1`. If `stable` has moved,
-install Rust `1.99.1` and set `RTLS_RUST_TOOLCHAIN=1.99.1`. `kache` is
+stop unless `rustc --version` is exactly `1.100.0-nightly`. If `stable` has moved,
+install Rust nightly-2026-09-15 and set `RTLS_RUST_TOOLCHAIN=nightly-2026-09-15`. `kache` is
 optional: it is used when available unless `RUSTC_WRAPPER` is set explicitly.
 Set `RUSTC_WRAPPER=` to disable compiler caching, or set it to a wrapper path
 to select one. The script leaves the checkout and build tree available for
@@ -128,7 +128,7 @@ build a fresh CPython 3.15.1 prefix. It omits OpenSSL from the dependency
 graph and disables CPython's `_ssl` and original `_hashlib` modules in
 `Modules/Setup.local`. The optional RTLS and Graviola adapters are installed
 after the interpreter is built. The driver requires native Apple Silicon,
-Python 3.12 or newer, the locked compiler, Rust 1.99.1, and `kache`.
+Python 3.12 or newer, the locked compiler, and Rust nightly-2026-09-15 (`kache` is unused).
 
 The Rust source acquisition is a separate network-enabled step. It archives
 the pinned RTLS commit without using working-tree files, prepares the pinned

@@ -28,6 +28,14 @@ from buildsys.relocate import RelocationError, relocate
 from buildsys.scope import ScopeError, enforce_exclusions, verify_exclusions
 from buildsys.targets import Target, UnsupportedTargetError, native_target
 
+LINUX_CPU_BASELINES = {
+    "aarch64-unknown-linux-musl": "-march=armv8-a+crypto",
+    "x86_64-unknown-linux-musl": "-march=broadwell",
+}
+LINUX_CPU_FEATURES = {
+    "aarch64-unknown-linux-musl": {"aes", "pmull", "sha2", "asimd"},
+    "x86_64-unknown-linux-musl": {"aes", "pclmulqdq", "avx", "avx2", "bmi1", "bmi2", "fma", "movbe"},
+}
 TARGET_TRIPLE = "aarch64-unknown-linux-musl"
 OPENSSL_VERSION = "3.5.7"
 OPENSSL_ENVIRONMENT = (
@@ -74,7 +82,7 @@ class LinuxReferenceToolchain(Toolchain):
         flags = super().ldflags(prefix, extra)
         if "-fuse-ld=lld" not in flags:
             raise ReferenceBuildError("Linux linker flags omitted the expected LLD selector")
-        return flags.replace("-fuse-ld=lld", "-fuse-ld=mold")
+        return flags
 
 
 def require_work_path(path: Path, label: str) -> Path:
@@ -169,7 +177,6 @@ def reference_toolchain(target: Target, jobs: int) -> LinuxReferenceToolchain:
     values = asdict(base)
     values.update(
         {
-            "ld": "mold",
             "cpu_baseline": target.cpu_baseline_cflag,
             "pkg_config_path": "",
         }
@@ -183,7 +190,7 @@ def reference_toolchain(target: Target, jobs: int) -> LinuxReferenceToolchain:
         toolchain.ar,
         toolchain.ranlib,
         toolchain.make,
-        "mold",
+        "ld.lld",
         "readelf",
     ):
         if shutil.which(command) is None:
@@ -193,23 +200,26 @@ def reference_toolchain(target: Target, jobs: int) -> LinuxReferenceToolchain:
     ).stdout
     if not re.search(r"clang version 23\.1\.3(?:\s|\()", clang):
         raise ReferenceBuildError(f"expected locked LLVM 23.1.3 clang, found {clang.splitlines()[0]!r}")
-    mold = subprocess.run(
-        ["mold", "--version"], capture_output=True, text=True, check=True
-    ).stdout.strip()
-    print(f"TOOLCHAIN clang={clang.splitlines()[0]} mold={mold}", flush=True)
+    linker = subprocess.run(
+        ["ld.lld", "--version"], capture_output=True, text=True, check=True
+    ).stdout.strip().splitlines()[0]
+    print(f"TOOLCHAIN clang={clang.splitlines()[0]} linker={linker}", flush=True)
     return toolchain
 
 
-def verify_cpu_features() -> list[str]:
+def verify_cpu_features(target: Target) -> list[str]:
     feature_sets = [
         set(line.partition(":")[2].split())
         for line in Path("/proc/cpuinfo").read_text().splitlines()
-        if line.startswith("Features")
+        if line.startswith("Features") or line.startswith("flags")
     ]
-    required = {"aes", "pmull", "sha2", "asimd"}
+    try:
+        required = LINUX_CPU_FEATURES[target.triple]
+    except KeyError:
+        raise ReferenceBuildError(f"reference builder has no CPU feature floor for {target.triple}")
     if not feature_sets or any(not required.issubset(features) for features in feature_sets):
         raise ReferenceBuildError(
-            "native Linux arm64 reference requires AES, PMULL, SHA-2, and NEON on every CPU"
+            f"native Linux {target.machine} reference requires {sorted(required)} on every CPU"
         )
     return sorted(set.intersection(*feature_sets))
 
@@ -247,7 +257,7 @@ def verify_thin_lto(toolchain: LinuxReferenceToolchain, target: Target, run_dir:
         log=run_dir / "logs" / "lto-archive.log",
     )
     run(
-        [*base, "-fuse-ld=mold", str(main_source), str(archive), "-o", str(binary)],
+        [*base, "-fuse-ld=lld", str(main_source), str(archive), "-o", str(binary)],
         cwd=fixture,
         env=toolchain.env(),
         log=run_dir / "logs" / "lto-link.log",
@@ -265,7 +275,7 @@ def verify_thin_lto(toolchain: LinuxReferenceToolchain, target: Target, run_dir:
     machine = machine_report(header, target.machine)
     if not machine["ok"]:
         raise ReferenceBuildError(f"ThinLTO smoke architecture mismatch: {machine}")
-    print(f"LTO_THIN=ok linker=mold machine={target.machine}", flush=True)
+    print(f"LTO_THIN=ok linker=lld machine={target.machine}", flush=True)
 
 
 def pkg_config_environment(
@@ -441,11 +451,9 @@ def build_cpython_reference(
 
     explicit_openssl = openssl_flags(toolchain, dependency_prefix, openssl_prefix)
     environment.update(explicit_openssl)
-    environment["CFLAGS"] = environment["CFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
-    environment["LDFLAGS"] = environment["LDFLAGS"].replace("-fuse-ld=lld", "-fuse-ld=mold")
     environment["LDFLAGS"] += " -flto=thin"
-    if "-fuse-ld=mold" not in environment["LDFLAGS"]:
-        raise ReferenceBuildError("CPython link flags do not select mold")
+    if "-fuse-ld=lld" not in environment["LDFLAGS"]:
+        raise ReferenceBuildError("CPython link flags do not select lld")
     environment.update(
         {
             "SOURCE_DATE_EPOCH": "1704067200",
@@ -498,7 +506,7 @@ def build_cpython_reference(
             toolchain.nm,
             toolchain.strip,
             toolchain.make,
-            shutil.which("mold"),
+            shutil.which("ld.lld"),
             shutil.which("pkg-config"),
         )
         if path
@@ -590,7 +598,7 @@ def verify_reference_runtime(prefix: Path, run_dir: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Build a native Linux arm64 CPython reference with locked OpenSSL"
+        description="Build a native Linux CPython reference with locked OpenSSL"
     )
     parser.add_argument("--candidate-run-dir", type=Path, required=True)
     parser.add_argument("--run-dir", type=Path, required=True)
@@ -606,14 +614,14 @@ def main(argv: list[str] | None = None) -> int:
         common_root = repository_common_root()
         require_same_locks(common_root)
         target = native_target()
-        if target.triple != TARGET_TRIPLE or platform.system() != "Linux":
+        if target.triple not in LINUX_CPU_BASELINES or platform.system() != "Linux":
             raise ReferenceBuildError(
-                f"reference builder requires native {TARGET_TRIPLE}, found {target.triple}"
+                f"reference builder requires native Linux musl, found {target.triple}"
             )
-        target = replace(target, cpu_baseline_cflag="-march=armv8-a+crypto")
+        target = replace(target, cpu_baseline_cflag=LINUX_CPU_BASELINES[target.triple])
         candidate, dependency_prefix, candidate_prefix = require_candidate(args.candidate_run_dir)
         verify_candidate_inputs(candidate_prefix, dependency_prefix)
-        cpu_features = verify_cpu_features()
+        cpu_features = verify_cpu_features(target)
         print(
             f"CPU_FEATURES={','.join(cpu_features)} BASELINE={target.cpu_baseline_cflag}",
             flush=True,

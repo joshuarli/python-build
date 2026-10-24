@@ -50,12 +50,15 @@ The normal Python imports use the RTLS and hashing adapters described in the
 [macOS implementation report](QUALIFICATION.md). CPython's built-in guaranteed
 digests remain available. MD5 and SHA-1 hashing APIs remain supported.
 
-The Linux profile uses ARMv8-A with crypto extensions, ThinLTO, mold, shared
-libpython, and the GIL. Every CPU must expose AES, PMULL, SHA2, and ASIMD.
+The Linux profile uses ARMv8-A with crypto extensions on arm64 and
+Broadwell on x86-64, ThinLTO, `ld.lld`, shared libpython, and the GIL.
+Rust extensions link musl statically. Every arm64 CPU must expose AES,
+PMULL, SHA2, and ASIMD; every x86-64 CPU must expose AES, PCLMULQDQ, AVX,
+AVX2, BMI1, BMI2, FMA, and MOVBE.
 Linux PGO, pip, ensurepip, and venv remain disabled. Build containers have no
 network interface except loopback and no default route.
 
-The inputs pin Rust 1.99.1, LLVM 23.1.3, mold 2.39.1, RTLS commit
+The inputs pin nightly Rust 2026-09-15, LLVM 23.1.3, RTLS commit
 `302423b49e494863d07630d50b15a9488ec85ef7`, rustls 0.23.45,
 rustls-webpki 0.103.15, rustls-graviola 0.4.0, and Graviola 0.4.1.
 The recorded Rust closure contains 109 packages and 215 installed license

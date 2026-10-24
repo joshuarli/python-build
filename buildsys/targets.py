@@ -81,7 +81,10 @@ TARGETS: dict[str, Target] = {
         triple="x86_64-unknown-linux-musl",
         machine="x86_64",
         family=LINUX_MUSL,
-        cpu_baseline_cflag="-march=x86-64",
+        # Broadwell is the oldest x86-64 floor the TLS backend supports;
+        # Graviola requires AES-NI/PCLMULQDQ and the AVX2/BMI2 integer
+        # instructions its constant-time code is built for.
+        cpu_baseline_cflag="-march=broadwell",
         openssl_configure_target="linux-x86_64",
         uv_arch="x86_64",
         uv_os="linux",
@@ -94,7 +97,10 @@ TARGETS: dict[str, Target] = {
         triple="aarch64-unknown-linux-musl",
         machine="aarch64",
         family=LINUX_MUSL,
-        cpu_baseline_cflag="-march=armv8-a",
+        # ARMv8-A with crypto extensions is the oldest arm64 floor the TLS
+        # backend supports; Rust and C code both require AES, PMULL, SHA2,
+        # and ASIMD on every CPU.
+        cpu_baseline_cflag="-march=armv8-a+crypto",
         openssl_configure_target="linux-aarch64",
         uv_arch="aarch64",
         uv_os="linux",

@@ -6,28 +6,29 @@
     "architecture": "aarch64"
   },
   "rust": {
-    "version": "1.99.1",
+    "version": "1.100.0-nightly",
+    "channel": "nightly-2026-09-15",
     "host": "aarch64-unknown-linux-musl",
-    "manifest_date": "2026-10-15",
+    "manifest_date": "2026-09-15",
     "license": "Apache-2.0 OR MIT",
     "components": [
       {
         "name": "cargo",
-        "file": "cargo-1.99.1-aarch64-unknown-linux-musl.tar.xz",
-        "url": "https://static.rust-lang.org/dist/2026-10-15/cargo-1.99.1-aarch64-unknown-linux-musl.tar.xz",
-        "sha256": "50f323ec9e1e60c41d42ef4dd988cc87d0a79f7b4ea10fd364df177212b89106"
+        "file": "cargo-nightly-aarch64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-aarch64-unknown-linux-musl.tar.xz",
+        "sha256": "7fce0df58a1b125f6873e2b87513da3077c36e6e9bdf46ee7a6b847d435e9413"
       },
       {
         "name": "rustc",
-        "file": "rustc-1.99.1-aarch64-unknown-linux-musl.tar.xz",
-        "url": "https://static.rust-lang.org/dist/2026-10-15/rustc-1.99.1-aarch64-unknown-linux-musl.tar.xz",
-        "sha256": "4c80eab52764172618197bd23000c739fdf561ae9415caa2a5ef62ab5c785175"
+        "file": "rustc-nightly-aarch64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-aarch64-unknown-linux-musl.tar.xz",
+        "sha256": "701a51f22ee966b31bdf6c656c71819fd5c2731cbbff29d40338b8b94d61baa3"
       },
       {
         "name": "rust-std",
-        "file": "rust-std-1.99.1-aarch64-unknown-linux-musl.tar.xz",
-        "url": "https://static.rust-lang.org/dist/2026-10-15/rust-std-1.99.1-aarch64-unknown-linux-musl.tar.xz",
-        "sha256": "2f3eb0d0610e2b7f6b2121d106e2490ac648decfa0c09b30873bdfc60de6c1ab"
+        "file": "rust-std-nightly-aarch64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-aarch64-unknown-linux-musl.tar.xz",
+        "sha256": "e767f84f4d3ed6dcbf39e92887d59d4abe860c877810cb2c8c6fc67c8273b100"
       }
     ]
   },

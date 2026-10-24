@@ -324,9 +324,10 @@ def run(args) -> int:
     if target.triple not in {
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-musl",
+        "x86_64-unknown-linux-musl",
     }:
         raise QualificationError(
-            f"this experimental regression check supports native arm64 targets only: {target.triple}"
+            f"this experimental regression check supports native macOS arm64 and Linux musl targets only: {target.triple}"
         )
     root = common_root()
     source_prefix = work_path(args.prefix, root, label="prefix", no_spaces=False)

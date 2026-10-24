@@ -1,9 +1,11 @@
 # python-build
 
 Independent build system for the locked CPython 3.15.1 source and its native
-dependencies. It produces relocatable, dynamically linked installations for
+dependencies. It produces relocatable, fully OpenSSL-free installations for
 macOS arm64 and Linux x86-64/arm64. Windows, Intel macOS, other Linux
-architectures, and every other target are unsupported.
+architectures, and every other target are unsupported. No glibc enters any
+artifact: Linux binaries use the musl loader and statically linked musl in
+the Rust extensions, with libgcc as the only other platform library.
 
 `rust-cpython/` is a separate CPython 3.16 Rust-for-CPython coverage lane. Its
 source pin does not affect this product or its production targets. Linux arm64
@@ -46,8 +48,8 @@ target descriptions and target branching.
 | Triple | Platform/compiler | Baseline and deployment |
 | --- | --- | --- |
 | `aarch64-apple-darwin` | Apple Silicon macOS 27 host; official LLVM 23.1.4 and Xcode 27 SDK | `-mcpu=apple-m1`; artifact minimum macOS 26.0 |
-| `x86_64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=x86-64`; loader `/lib/ld-musl-x86_64.so.1` |
-| `aarch64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=armv8-a`; loader `/lib/ld-musl-aarch64.so.1` |
+| `x86_64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=broadwell` (AES, PCLMULQDQ, AVX/AVX2, BMI1/BMI2, FMA, MOVBE); loader `/lib/ld-musl-x86_64.so.1` |
+| `aarch64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=armv8-a+crypto` (AES, PMULL, SHA2, ASIMD); loader `/lib/ld-musl-aarch64.so.1` |
 
 The macOS host floor and deployment minimum are separate constraints. Do not
 claim macOS 26 runtime qualification from a macOS 27 run. Linux qualification
@@ -60,17 +62,18 @@ and `python3.15-config`. Linux PGO is disabled. JIT, BOLT, free-threaded ABI,
 and the tail-call interpreter are disabled. Preserve the platform CPU
 baselines and the declared dependency closure.
 
-The OpenSSL dependency recipe passes `no-apps no-tests` and keeps
-`build_sw`/`install_sw`; the shipped product links the static libraries and
-does not use the command-line applications or test programs. Do not claim a
+The product is fully OpenSSL-free: no OpenSSL source enters any dependency
+graph, compiled `_ssl` and `_hashlib` are disabled in `Modules/Setup.local`,
+and TLS plus hashing run on the RTLS/rustls-graviola backend built with the
+pinned nightly Rust toolchain. Linux Rust extensions link musl statically
+(`+crt-static`); no glibc symbols may appear in any payload. Do not claim a
 build-time gain without a clean before-and-after measurement.
 
-`research/rtls-graviola/` keeps an experimental RTLS provider patch and its
-replay procedure. Treat it as research. Keep its Rust dependencies out of the
-production locks and bootstrap. Do not change production TLS, hashing, or CPU
-policy based on the prototype alone. Use its documented adoption gates before
-proposing a product change. Keep its source pin, lockfile, and license record
-together when refreshing the prototype.
+`research/rtls-graviola/` keeps the RTLS provider patch, the hashing backend,
+and the replay procedures behind the official build. Keep its Rust
+dependencies out of the production locks and bootstrap. Keep its source pin,
+per-architecture bootstrap lockfiles, and license record together when
+refreshing the prototype.
 
 Ships: CPython 3.15.1, shared libpython, useful standard library, extension
 build metadata, and private static native dependencies.
@@ -82,7 +85,7 @@ syntax, geopoly, rtree, dbstat, and loadable extensions. Applications must
 explicitly enable SQLite extension loading. `compression.zstd` uses a
 multithread-capable static zstd library.
 
-Default TLS trust tries OpenSSL's configured sources first. The locked
+Default TLS trust tries the platform-configured sources first. The locked
 Mozilla bundle is installed from `certifi-ca` at package time and is used only
 when no explicit override or available default source exists. Set
 `PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE=1` to disable fallback. Trust data does not

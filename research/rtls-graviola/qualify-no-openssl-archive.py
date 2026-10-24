@@ -95,6 +95,39 @@ REQUIRED_CANDIDATE_FILES = (
 )
 CERTIFICATE_CASE_COUNT = 82
 CERTIFICATE_VERIFY_CODE_COUNT = 12
+LINUX_ARCHITECTURES = {
+    "aarch64-unknown-linux-musl": {
+        "machine": "aarch64",
+        "docker_arch": "arm64",
+        "platform": "linux/arm64",
+        "cpu_baseline": "-march=armv8-a+crypto",
+        "cpu_features": {"aes", "pmull", "sha2", "asimd"},
+        "rust_cpu": "generic",
+        "rust_features": ("+aes", "+sha2", "+neon"),
+        "bootstrap_lock": "linux-bootstrap.lock.json",
+        "apk_arch": "aarch64",
+    },
+    "x86_64-unknown-linux-musl": {
+        "machine": "x86_64",
+        "docker_arch": "amd64",
+        "platform": "linux/amd64",
+        "cpu_baseline": "-march=broadwell",
+        "cpu_features": {"aes", "pclmulqdq", "avx", "avx2", "bmi1", "bmi2", "fma", "movbe"},
+        "rust_cpu": "broadwell",
+        "rust_features": (),
+        "bootstrap_lock": "linux-bootstrap-x86_64.json",
+        "apk_arch": "x86_64",
+    },
+}
+
+
+def linux_arch(target) -> dict:
+    try:
+        return LINUX_ARCHITECTURES[target.triple]
+    except KeyError:
+        raise QualificationDriverError(
+            f"Linux candidate has no declared architecture floor: {target.triple}"
+        )
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 REVISION_PATTERN = re.compile(r"[0-9a-f]{40,64}")
 OPENSSL_SYMBOL_PREFIXES = (
@@ -336,13 +369,18 @@ def _validate_linux_build_receipt(
         raise QualificationDriverError("Linux build receipt has an unsupported schema")
     if receipt.get("target") != target.triple:
         raise QualificationDriverError("Linux build receipt names a different target")
+    arch = linux_arch(target)
     if receipt.get("cpu_baseline") != target.cpu_baseline_cflag:
-        raise QualificationDriverError("Linux research build does not declare the armv8-a+crypto floor")
+        raise QualificationDriverError(
+            f"Linux research build does not declare the {arch['cpu_baseline']} floor"
+        )
     if receipt.get("pgo") is not False:
         raise QualificationDriverError("Linux research build must record PGO disabled")
     cpu_features = receipt.get("cpu_features")
-    if not isinstance(cpu_features, list) or not {"aes", "pmull", "sha2", "asimd"}.issubset(cpu_features):
-        raise QualificationDriverError("Linux build receipt does not prove the required native ARM crypto features")
+    if not isinstance(cpu_features, list) or not arch["cpu_features"].issubset(cpu_features):
+        raise QualificationDriverError(
+            f"Linux build receipt does not prove the required native {arch['machine']} CPU features"
+        )
     source_revision = receipt.get("source_revision")
     if (
         not isinstance(source_revision, str)
@@ -408,15 +446,16 @@ def _validate_linux_docker_receipt(
         raise QualificationDriverError(f"Docker build receipt is missing or invalid: {error}") from error
     if not isinstance(docker, dict) or type(docker.get("schema")) is not int or docker.get("schema") != 1:
         raise QualificationDriverError("Docker build receipt has an unsupported schema")
-    expected_image = bootstrap.get("linux_toolchain", {}).get("images", {}).get("arm64", {}).get("digest")
+    arch = linux_arch(target)
+    expected_image = bootstrap.get("linux_toolchain", {}).get("images", {}).get(arch["docker_arch"], {}).get("digest")
     if (
         docker.get("target_triple") != target.triple
-        or docker.get("platform") != "linux/arm64"
+        or docker.get("platform") != arch["platform"]
         or docker.get("daemon_os") != "linux"
-        or docker.get("daemon_platform") != "linux/arm64"
-        or docker.get("daemon_architecture") not in {"aarch64", "arm64"}
-        or docker.get("container_architecture") != "aarch64"
-        or docker.get("image_architecture") not in {"aarch64", "arm64"}
+        or docker.get("daemon_platform") != arch["platform"]
+        or docker.get("daemon_architecture") not in {arch["machine"], arch["docker_arch"]}
+        or docker.get("container_architecture") != arch["machine"]
+        or docker.get("image_architecture") not in {arch["machine"], arch["docker_arch"]}
         or not isinstance(docker.get("image_id"), str)
         or re.fullmatch(r"sha256:[0-9a-f]{64}", docker["image_id"]) is None
         or docker.get("locked_image_digest") != expected_image
@@ -430,7 +469,9 @@ def _validate_linux_docker_receipt(
         or not isinstance(docker.get("container_id"), str)
         or not docker["container_id"]
     ):
-        raise QualificationDriverError("Docker build receipt does not prove the locked native arm64 isolated run")
+        raise QualificationDriverError(
+            f"Docker build receipt does not prove the locked native {arch['machine']} isolated run"
+        )
     argv = docker.get("command")
     if not isinstance(argv, list) or not argv or any(not isinstance(value, str) for value in argv):
         raise QualificationDriverError("Docker build receipt has no inspected container command")
@@ -450,11 +491,13 @@ def _validate_linux_docker_receipt(
         or argv[index] == "--network=none"
         for index in range(len(argv))
     ) or not any(
-        argv[index : index + 2] == ["--platform", "linux/arm64"]
-        or argv[index] == "--platform=linux/arm64"
+        argv[index : index + 2] == ["--platform", arch["platform"]]
+        or argv[index] == f"--platform={arch['platform']}"
         for index in range(len(argv))
     ):
-        raise QualificationDriverError("Docker command does not request native arm64 with no network")
+        raise QualificationDriverError(
+            f"Docker command does not request native {arch['machine']} with no network"
+        )
     return docker
 
 
@@ -468,7 +511,7 @@ def _linux_build_evidence(
         bootstrap = json.loads((COMMON_ROOT / "bootstrap.lock.json").read_text())
     except (OSError, json.JSONDecodeError) as error:
         raise QualificationDriverError(f"cannot read Linux bootstrap lock: {error}") from error
-    rust_bootstrap_path = REPO / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
+    rust_bootstrap_path = REPO / "research" / "rtls-graviola" / linux_arch(target)["bootstrap_lock"]
     try:
         rust_bootstrap = json.loads(rust_bootstrap_path.read_text())
     except (OSError, json.JSONDecodeError) as error:
@@ -1380,6 +1423,7 @@ def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver, 
         "rtls": source_roots["rtls"] / "rust" / "Cargo.toml",
         "hashing": source_roots["hashing"] / "Cargo.toml",
     }
+    tool_path = f"{kache.parent}:" if kache is not None else ""
     records: dict[str, dict] = {}
     for name, manifest in manifests.items():
         environment = {
@@ -1388,7 +1432,7 @@ def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver, 
             "CARGO_TARGET_DIR": str(temporary_root / "cargo-target"),
             "CARGO_TERM_COLOR": "never",
             "HOME": str(build_run_dir / "home"),
-            "PATH": f"{kache.parent}:{rustc.parent}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "PATH": f"{tool_path}{rustc.parent}:/usr/bin:/bin:/usr/sbin:/sbin",
             "TMPDIR": str(temporary_root),
         }
         result = subprocess.run(
@@ -1586,8 +1630,9 @@ def build_experimental_manifest(
         llvm_version = llvm_versions[0]
         bootstrap_identity = linux_evidence["bootstrap_identity"]
         source_revision = linux_evidence["source_revision"]
-        rust_target_cpu = "generic"
-        rust_target_features = "+aes,+sha2,+neon"
+        arch = linux_arch(target)
+        rust_target_cpu = arch["rust_cpu"]
+        rust_target_features = ",".join(arch["rust_features"])
         if "--enable-optimizations" in configure_arguments:
             raise QualificationDriverError("Linux CPython build unexpectedly enables PGO")
         if any(
@@ -1601,7 +1646,9 @@ def build_experimental_manifest(
             raise QualificationDriverError("Linux CPython configure arguments do not use receipt clang")
         cflag_tokens = shlex.split(cflags)
         if "-O3" not in cflag_tokens or target.cpu_baseline_cflag not in cflag_tokens:
-            raise QualificationDriverError("Linux CPython configure flags omit the candidate arm64 floor")
+            raise QualificationDriverError(
+                f"Linux CPython configure flags omit the candidate {arch['cpu_baseline']} floor"
+            )
 
     pins = {entry.name: entry for entry in load_lock(COMMON_ROOT / "sources.lock.json")}
     c_names = tuple(
@@ -1661,10 +1708,14 @@ def build_experimental_manifest(
         if f"-C target-cpu={rust_target_cpu}" not in log_text:
             raise QualificationDriverError(f"{name} Cargo log omits the target CPU policy")
         if not target.is_macos:
+            if any(feature in log_text for feature in ("-crt-static",)):
+                raise QualificationDriverError(f"{name} Cargo log disables static musl CRT linking")
+            if "+crt-static" not in log_text:
+                raise QualificationDriverError(f"{name} Cargo log omits the static musl CRT policy")
             if not all(
-                feature in log_text for feature in ("+aes", "+sha2", "+neon")
-            ) or "-crt-static" not in log_text:
-                raise QualificationDriverError(f"{name} Cargo log omits the ARM feature policy")
+                feature in log_text for feature in arch["rust_features"]
+            ):
+                raise QualificationDriverError(f"{name} Cargo log omits the {arch['machine']} feature policy")
         extension_name = "_rustls" if name == "rtls" else "_hashlib_graviola"
         extension_commands = [
             line for line in log_text.splitlines()
@@ -1764,10 +1815,10 @@ def build_experimental_manifest(
             extension_command = rust_logs[name]["extension_command"]
             if (
                 str(rustc) not in extension_command
-                or str(kache) not in extension_command
                 or re.search(r"(?:^|\s)--target(?:=|\s|$)", extension_command)
+                or (kache is not None and str(kache) not in extension_command)
             ):
-                raise QualificationDriverError(f"{name} compile log does not prove native rustc and kache")
+                raise QualificationDriverError(f"{name} compile log does not prove a native locked rustc build")
             rust_logs[name]["cargo_command"] = argv
             rust_logs[name]["host_target"] = observed_host[0]
     if target.is_macos:
@@ -1786,7 +1837,7 @@ def build_experimental_manifest(
         clang = locked_clang
         toolchain_observed = {
             "family": target.family,
-            "cpu_baseline": "-march=armv8-a+crypto",
+            "cpu_baseline": target.cpu_baseline_cflag,
             "commands": linux_evidence["compiler"],
         }
     rust_observed = {
@@ -1794,9 +1845,10 @@ def build_experimental_manifest(
         "rustc_verbose_version": rustc_result.stdout.strip(),
         "cargo_path": str(cargo),
         "cargo_version": cargo_result.stdout.strip(),
-        "kache_path": str(kache),
         "linker_paths": sorted({path for entry in rust_logs.values() for path in entry["linker_paths"]}),
     }
+    if kache is not None:
+        rust_observed["kache_path"] = str(kache)
     if not target.is_macos:
         rust_observed["native_host_target"] = rust_logs["rtls"]["host_target"]
         rust_observed["bootstrap_lock_sha256"] = linux_evidence["rust_bootstrap_identity"]
@@ -1956,7 +2008,7 @@ def build_experimental_manifest(
         "build_mode": (
             "sealed macOS sandbox, network access denied during adapter builds"
             if target.is_macos
-            else "sealed native Linux arm64 Docker network-none build"
+            else f"sealed native Linux {target.machine} Docker network-none build"
         ),
         "isolation": (
             {
@@ -2041,7 +2093,7 @@ def build_experimental_manifest(
         "runtime_floor_claim": (
             "macOS 26 deployment target recorded; runtime not tested on macOS 26"
             if target.is_macos
-            else "native Linux arm64 musl runtime tested in the locked Docker image"
+            else f"native Linux {target.machine} musl runtime tested in the locked Docker image"
         ),
         "native_images": native_check.get("checks", native_check),
         "native_symbol_audit": symbol_check,
@@ -2094,7 +2146,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--certdata", type=Path, required=True)
     parser.add_argument("--regression-report", type=Path)
     parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--archive-name", default=None)
+    parser.add_argument("--manifest-name", default=None)
     arguments = parser.parse_args(argv)
+    archive_name = arguments.archive_name or ARCHIVE_NAME
+    manifest_name = arguments.manifest_name or MANIFEST_NAME
+    if Path(archive_name).name != archive_name or Path(manifest_name).name != manifest_name:
+        raise QualificationDriverError("archive and manifest names must be plain filenames")
 
     try:
         source_prefix = require_product_work_path(arguments.prefix, "candidate prefix")
@@ -2125,9 +2183,10 @@ def main(argv: list[str] | None = None) -> int:
         if host_target.triple not in {
             "aarch64-apple-darwin",
             "aarch64-unknown-linux-musl",
+            "x86_64-unknown-linux-musl",
         }:
             raise QualificationDriverError(
-                f"this experimental qualification supports native arm64 targets only: {host_target.triple}"
+                f"this experimental qualification supports native macOS arm64 and Linux musl targets only: {host_target.triple}"
             )
         if run_dir.exists():
             raise QualificationDriverError(f"refusing to replace qualification directory: {run_dir}")
@@ -2166,7 +2225,7 @@ def main(argv: list[str] | None = None) -> int:
                 or base_build_run_dir.is_relative_to(run_dir)
             )
             if (
-                host_target.triple != "aarch64-unknown-linux-musl"
+                host_target.triple not in LINUX_ARCHITECTURES
                 or run_dir != expected_nested_output
                 or protected_overlap
                 or distinct_base_overlap
@@ -2203,7 +2262,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             scope.update(
                 production_pgo="disabled by Linux product policy",
-                linux_runtime="native Linux arm64 musl Docker runtime",
+                linux_runtime=f"native Linux {target.machine} musl Docker runtime",
             )
 
         report: dict = {
@@ -2283,7 +2342,7 @@ def main(argv: list[str] | None = None) -> int:
                 False, error_type=type(error).__name__, error=str(error)
             )
 
-        archive_path = run_dir / ARCHIVE_NAME
+        archive_path = run_dir / archive_name
         try:
             archive_facts = create_archive(package_work, archive_path)
             extracted = verify_archive_extraction(package_work, archive_path, extracted_parent)
@@ -2443,7 +2502,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         report["ok"] = report["qualification"]["ok"]
 
-        manifest_path = run_dir / MANIFEST_NAME
+        manifest_path = run_dir / manifest_name
         if report["ok"]:
             report["qualification"]["checks"]["experimental_artifact_manifest"] = {
                 "status": "passed",
@@ -2465,7 +2524,7 @@ def main(argv: list[str] | None = None) -> int:
                     effective_compatibility=effective_compatibility,
                     research_driver=research_driver,
                 )
-                staged_manifest = run_dir / f".{MANIFEST_NAME}.pending"
+                staged_manifest = run_dir / f".{manifest_name}.pending"
                 write_manifest(staged_manifest, manifest)
                 os.replace(staged_manifest, manifest_path)
                 report["artifact_manifest"] = {

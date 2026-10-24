@@ -18,10 +18,46 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from artifact_layout import ARCHIVE_NAME, MANIFEST_NAME, REPORT_NAME
+ARCH_CONFIGS = {
+    "aarch64-unknown-linux-musl": {
+        "triple": "aarch64-unknown-linux-musl",
+        "platform": "linux/arm64",
+        "machine": "aarch64",
+        "docker_arch": "arm64",
+        "apk_arch": "arm64",
+        "bootstrap_lock": "linux-bootstrap.lock.json",
+    },
+    "x86_64-unknown-linux-musl": {
+        "triple": "x86_64-unknown-linux-musl",
+        "platform": "linux/amd64",
+        "machine": "x86_64",
+        "docker_arch": "amd64",
+        "apk_arch": "amd64",
+        "bootstrap_lock": "linux-bootstrap-x86_64.json",
+    },
+}
 TARGET = "aarch64-unknown-linux-musl"
 DOCKER_PLATFORM = "linux/arm64"
+MACHINE = "aarch64"
+DOCKER_ARCH = "arm64"
+APK_ARCH = "arm64"
 LOCK_PATH = REPO / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
-DOCKERFILE = REPO / "research" / "rtls-graviola" / "Dockerfile.linux-arm64"
+DOCKERFILE = REPO / "research" / "rtls-graviola" / "Dockerfile.linux"
+
+
+def configure(triple: str) -> None:
+    global TARGET, DOCKER_PLATFORM, MACHINE, DOCKER_ARCH, APK_ARCH, LOCK_PATH, DOCKERFILE
+    try:
+        selected = ARCH_CONFIGS[triple]
+    except KeyError:
+        raise DockerBuildError(f"unsupported Linux OpenSSL-free target: {triple}")
+    TARGET = selected["triple"]
+    DOCKER_PLATFORM = selected["platform"]
+    MACHINE = selected["machine"]
+    DOCKER_ARCH = selected["docker_arch"]
+    APK_ARCH = selected["apk_arch"]
+    LOCK_PATH = REPO / "research" / "rtls-graviola" / selected["bootstrap_lock"]
+    DOCKERFILE = REPO / "research" / "rtls-graviola" / "Dockerfile.linux"
 REFERENCE_DRIVER = REPO / "research" / "rtls-graviola" / "build-linux-reference.py"
 REGRESSION_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-regressions.py"
 ARCHIVE_DRIVER = REPO / "research" / "rtls-graviola" / "qualify-no-openssl-archive.py"
@@ -165,18 +201,18 @@ def load_locks() -> tuple[dict, dict, str]:
     except (OSError, json.JSONDecodeError) as error:
         raise DockerBuildError(f"cannot read the locked Linux toolchain inputs: {error}") from error
     try:
-        image = bootstrap["linux_toolchain"]["images"]["arm64"]
+        image = bootstrap["linux_toolchain"]["images"][DOCKER_ARCH]
         digest = image["digest"]
         if image["platform"] != DOCKER_PLATFORM:
             raise KeyError("unexpected platform")
         if experimental["target"] != {
             "triple": TARGET,
             "platform": DOCKER_PLATFORM,
-            "architecture": "aarch64",
+            "architecture": MACHINE,
         }:
             raise KeyError("unexpected experimental target")
     except (KeyError, TypeError) as error:
-        raise DockerBuildError("Linux bootstrap locks do not describe native arm64") from error
+        raise DockerBuildError(f"Linux bootstrap locks do not describe native {MACHINE}") from error
     return bootstrap, experimental, digest
 
 
@@ -186,10 +222,10 @@ def docker_daemon() -> dict:
         operating_system, architecture = raw.split("|", 1)
     except ValueError as error:
         raise DockerBuildError(f"cannot parse Docker daemon identity: {raw!r}") from error
-    normalized = {"aarch64": "arm64", "arm64": "arm64"}.get(architecture)
-    if operating_system != "linux" or normalized != "arm64":
+    normalized = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "amd64", "amd64": "amd64"}.get(architecture)
+    if operating_system != "linux" or normalized != DOCKER_ARCH:
         raise DockerBuildError(
-            f"a native Linux arm64 Docker daemon is required, found {operating_system}/{architecture}"
+            f"a native Linux {MACHINE} Docker daemon is required, found {operating_system}/{architecture}"
         )
     return {
         "daemon_os": operating_system,
@@ -242,19 +278,17 @@ def download_asset(item: dict, path: Path) -> None:
 
 def acquire_experimental_inputs(lock: dict) -> Path:
     common = common_root()
-    root = common / ".cache" / "bootstrap" / "rtls-linux-arm64"
+    root = common / ".cache" / "bootstrap" / f"rtls-linux-{DOCKER_ARCH}"
     require_no_symlink_below(common, root)
     require_no_symlink_below(common, root / "apk")
     require_no_symlink_below(common, root / "rust")
     root.parent.mkdir(parents=True, exist_ok=True)
     for item in lock["apk_closure"]:
-        if item["architecture"] != "aarch64":
-            raise DockerBuildError(f"experimental APK is not arm64: {item['name']}")
+        if item["architecture"] != MACHINE:
+            raise DockerBuildError(f"experimental APK is not {MACHINE}: {item['name']}")
         download_asset(item, root / "apk" / f"{item['sha256']}.apk")
     for item in lock["rust"]["components"]:
         download_asset(item, root / "rust" / item["file"])
-    kache = lock["kache"]
-    download_asset(kache, root / kache["file"])
     return root
 
 
@@ -276,14 +310,11 @@ def verify_experimental_inputs(root: Path, lock: dict) -> None:
     for item in lock["rust"]["components"]:
         if not verify_file(root / "rust" / item["file"], item["sha256"]):
             raise DockerBuildError(f"Rust component failed verification: {item['name']}")
-    kache = lock["kache"]
-    if not verify_file(root / kache["file"], kache["sha256"], kache["size"]):
-        raise DockerBuildError("Kache archive failed verification")
 
 
 def base_package_paths(common: Path, bootstrap: dict) -> list[tuple[dict, Path]]:
-    entries = bootstrap["linux_toolchain"]["apk_closure"]["aarch64"]
-    cache = common / ".cache" / "bootstrap" / "apk" / "arm64"
+    entries = bootstrap["linux_toolchain"]["apk_closure"][MACHINE]
+    cache = common / ".cache" / "bootstrap" / "apk" / DOCKER_ARCH
     require_no_symlink_below(common, cache)
     result = []
     for entry in entries:
@@ -302,8 +333,8 @@ def image_info(image: str) -> dict:
         value = json.loads(output)
     except json.JSONDecodeError as error:
         raise DockerBuildError(f"cannot parse Docker image inspection for {image}") from error
-    if value.get("Os") != "linux" or value.get("Architecture") not in {"arm64", "aarch64"}:
-        raise DockerBuildError(f"image is not native Linux arm64: {image}")
+    if value.get("Os") != "linux" or value.get("Architecture") not in {DOCKER_ARCH, MACHINE}:
+        raise DockerBuildError(f"image is not native Linux {MACHINE}: {image}")
     return value
 
 
@@ -319,7 +350,7 @@ def prepare_toolchain_image(
         "apk_closure": sorted(item[0]["sha256"] for item in package_paths),
     }
     base_hash = canonical_digest(base_material)
-    base_tag = f"python-build-rtls-arm64-base:{base_hash[:16]}"
+    base_tag = f"python-build-rtls-{DOCKER_ARCH}-base:{base_hash[:16]}"
     try:
         base_image = image_info(base_tag)
     except DockerBuildError:
@@ -329,7 +360,7 @@ def prepare_toolchain_image(
             shutil.copy2(REPO / "bootstrap.lock.json", context / "bootstrap.lock.json")
             (context / "buildsys").mkdir()
             shutil.copy2(REPO / "buildsys" / "targets.py", context / "buildsys" / "targets.py")
-            apk_dir = context / ".cache" / "bootstrap" / "apk" / "arm64"
+            apk_dir = context / ".cache" / "bootstrap" / "apk" / APK_ARCH
             apk_dir.mkdir(parents=True)
             for entry, path in package_paths:
                 shutil.copy2(path, apk_dir / f"{entry['sha256']}.apk")
@@ -346,12 +377,11 @@ def prepare_toolchain_image(
                 run_dir / "logs" / "toolchain-base-image.log",
             )
             base_image = image_info(base_tag)
-    experimental_root = common_root() / ".cache" / "bootstrap" / "rtls-linux-arm64"
+    experimental_root = common_root() / ".cache" / "bootstrap" / f"rtls-linux-{DOCKER_ARCH}"
     verify_experimental_inputs(experimental_root, experimental)
     input_items = [
         item["sha256"] for item in experimental["apk_closure"]
     ] + [item["sha256"] for item in experimental["rust"]["components"]]
-    input_items.append(experimental["kache"]["sha256"])
     input_identity = canonical_digest(
         {"lock": sha256_file(LOCK_PATH), "inputs": sorted(input_items)}
     )
@@ -363,18 +393,18 @@ def prepare_toolchain_image(
         "input_identity": input_identity,
     }
     overlay_hash = canonical_digest(overlay_material)
-    overlay_tag = f"python-build-rtls-linux-arm64:bootstrap-{overlay_hash[:20]}"
+    overlay_tag = f"python-build-rtls-linux-{DOCKER_ARCH}:bootstrap-{overlay_hash[:20]}"
     try:
         overlay_image = image_info(overlay_tag)
     except DockerBuildError:
         with tempfile.TemporaryDirectory(prefix="overlay-context-", dir=run_dir) as temporary:
             context = Path(temporary)
-            shutil.copy2(DOCKERFILE, context / "Dockerfile.linux-arm64")
+            shutil.copy2(DOCKERFILE, context / "Dockerfile.linux")
             shutil.copy2(REPO / "bootstrap.lock.json", context / "bootstrap.lock.json")
             lock_destination = context / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
             lock_destination.parent.mkdir(parents=True)
             shutil.copy2(LOCK_PATH, lock_destination)
-            cached_inputs = context / ".cache" / "bootstrap" / "rtls-linux-arm64"
+            cached_inputs = context / ".cache" / "bootstrap" / "rtls-linux"
             (cached_inputs / "apk").mkdir(parents=True)
             (cached_inputs / "rust").mkdir()
             for item in experimental["apk_closure"]:
@@ -387,8 +417,6 @@ def prepare_toolchain_image(
                     experimental_root / "rust" / item["file"],
                     cached_inputs / "rust" / item["file"],
                 )
-            kache = experimental["kache"]
-            shutil.copy2(experimental_root / kache["file"], cached_inputs / kache["file"])
             (context / ".dockerignore").write_text("")
             run_logged(
                 [
@@ -398,7 +426,10 @@ def prepare_toolchain_image(
                     "--build-arg", f"RUNTIME_BASE_IMAGE=alpine@{locked_digest}",
                     "--build-arg", f"LOCKED_IMAGE_DIGEST={locked_digest}",
                     "--build-arg", f"BOOTSTRAP_INPUTS_SHA256={input_identity}",
-                    "--tag", overlay_tag, "-f", str(context / "Dockerfile.linux-arm64"), str(context),
+                    "--build-arg", f"EXPECTED_TRIPLE={TARGET}",
+                    "--build-arg", f"EXPECTED_PLATFORM={DOCKER_PLATFORM}",
+                    "--build-arg", f"EXPECTED_MACHINE={MACHINE}",
+                    "--tag", overlay_tag, "-f", str(context / "Dockerfile.linux"), str(context),
                 ],
                 run_dir / "logs" / "experimental-toolchain-image.log",
             )
@@ -565,15 +596,15 @@ def run_container(
         before = inspect_container(container_id)
         network_mode = before.get("HostConfig", {}).get("NetworkMode")
         platform = before.get("Platform")
-        if network_mode != "none" or platform not in {None, "linux", DOCKER_PLATFORM, "linux/arm64"}:
+        if network_mode != "none" or platform not in {None, "linux", DOCKER_PLATFORM}:
             raise DockerBuildError("created container failed the native network-none inspection")
         status, output = start_container(container_id, log_path)
         after = inspect_container(container_id)
         if after.get("HostConfig", {}).get("NetworkMode") != "none":
             raise DockerBuildError("container network mode changed during execution")
         lines = output.splitlines()
-        if not lines or lines[0] != "aarch64":
-            raise DockerBuildError("container did not prove native aarch64 execution")
+        if not lines or lines[0] != MACHINE:
+            raise DockerBuildError(f"container did not prove native {MACHINE} execution")
         record = {
             "container_id": after["Id"],
             "network_mode": network_mode,
@@ -651,10 +682,10 @@ def run_build(
     ]
     command = [
         "sh", "-ec",
-        'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
+        f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
         'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"',
-        "native-arm64-guard", *driver_command,
+        f"native-{MACHINE}-guard", *driver_command,
     ]
     name = "rtls-linux-build-" + uuid.uuid4().hex[:12]
     record, image_record, argv, output = run_container(
@@ -714,7 +745,7 @@ def toolchain_probe(image: str) -> dict:
         [
             "docker", "run", "--rm", "--platform", DOCKER_PLATFORM, "--network", "none",
             "--user", f"{os.getuid()}:{os.getgid()}", "--entrypoint", "sh", image, "-ec",
-            'test "$(uname -m)" = aarch64; openssl version; git --version; rustc --version; cargo --version; kache --version; mold --version',
+            f'test "$(uname -m)" = {MACHINE}; openssl version; git --version; rustc --version; cargo --version',
         ]
     )
     lines = output.splitlines()
@@ -764,11 +795,11 @@ def build_runtime_image(
     run_dir: Path, locked_digest: str, candidate_archive: Path, bootstrap: dict
 ) -> tuple[str, dict, str]:
     libgcc = next(
-        item for item in bootstrap["linux_toolchain"]["apk_closure"]["aarch64"]
+        item for item in bootstrap["linux_toolchain"]["apk_closure"][MACHINE]
         if item["name"] == "libgcc"
     )
     common = common_root()
-    libgcc_path = common / ".cache" / "bootstrap" / "apk" / "arm64" / f"{libgcc['sha256']}.apk"
+    libgcc_path = common / ".cache" / "bootstrap" / "apk" / DOCKER_ARCH / f"{libgcc['sha256']}.apk"
     require_no_symlink_below(common, libgcc_path.parent)
     if not verify_file(libgcc_path, libgcc["sha256"], libgcc["size"]):
         raise DockerBuildError("locked libgcc APK is missing or invalid for the runtime image")
@@ -783,18 +814,18 @@ def build_runtime_image(
             "archive_sha256": archive_hash,
         }
     )
-    tag = f"python-build-rtls-linux-arm64-runtime:{image_hash[:20]}"
+    tag = f"python-build-rtls-linux-{DOCKER_ARCH}-runtime:{image_hash[:20]}"
     try:
         image = image_info(tag)
     except DockerBuildError:
         with tempfile.TemporaryDirectory(prefix="runtime-context-", dir=run_dir) as temporary:
             context = Path(temporary)
-            shutil.copy2(DOCKERFILE, context / "Dockerfile.linux-arm64")
+            shutil.copy2(DOCKERFILE, context / "Dockerfile.linux")
             shutil.copy2(REPO / "bootstrap.lock.json", context / "bootstrap.lock.json")
             lock_destination = context / "research" / "rtls-graviola" / "linux-bootstrap.lock.json"
             lock_destination.parent.mkdir(parents=True)
             shutil.copy2(LOCK_PATH, lock_destination)
-            apk = context / ".cache" / "bootstrap" / "apk" / "arm64" / "libgcc.apk"
+            apk = context / ".cache" / "bootstrap" / "apk" / "libgcc.apk"
             apk.parent.mkdir(parents=True)
             shutil.copy2(libgcc_path, apk)
             archive = context / "qualification" / "candidate.tar.gz"
@@ -810,7 +841,7 @@ def build_runtime_image(
                     "--build-arg", f"LOCKED_IMAGE_DIGEST={locked_digest}",
                     "--build-arg", f"LIBGCC_SHA256={libgcc['sha256']}",
                     "--build-arg", f"ARCHIVE_SHA256={archive_hash}",
-                    "--tag", tag, "-f", str(context / "Dockerfile.linux-arm64"), str(context),
+                    "--tag", tag, "-f", str(context / "Dockerfile.linux"), str(context),
                 ],
                 run_dir / "logs" / "archive-runtime-image.log",
             )
@@ -862,10 +893,10 @@ print(json.dumps({
 """
     return [
         "sh", "-ec",
-        'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
+        f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
         'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"',
-        "native-arm64-runtime-guard", "/opt/python/bin/python3.15", "-I", "-S", "-B", "-c", code,
+        f"native-{MACHINE}-runtime-guard", "/opt/python/bin/python3.15", "-I", "-S", "-B", "-c", code,
     ]
 
 
@@ -878,6 +909,7 @@ def run_runtime_probe(
     dirty: bool,
     daemon: dict,
     locked_digest: str,
+    archive_path: Path | None = None,
 ) -> dict:
     name = "rtls-linux-runtime-" + uuid.uuid4().hex[:12]
     record, inspected_image, argv, output = run_container(
@@ -919,7 +951,7 @@ def run_runtime_probe(
         "network_mode": record["network_mode"],
         "isolation": "docker-network-none",
         "command": argv,
-        "archive_path": f"qualification/archive/{ARCHIVE_NAME}",
+        "archive_path": f"qualification/archive/{archive_path.name}",
         "archive_sha256": archive_hash,
         "runtime_probe": probe,
         "exit_code": record["exit_code"],
@@ -979,7 +1011,7 @@ def initialize_qualification_volume(
     command = [
         "sh",
         "-ec",
-        'test "$(uname -m)" = aarch64; printf "aarch64\\n"; '
+        f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
         'test "$cap_eff" = 0000000000000001; printf "container_cap_eff=%s\\n" "$cap_eff"; '
         f"chmod 0700 {QUALIFICATION_VOLUME_TARGET}; chown {owner_uid}:{owner_gid} {QUALIFICATION_VOLUME_TARGET}; "
@@ -1098,6 +1130,8 @@ def qualify(
     revision: str,
     dirty: bool,
     locked_digest: str,
+    archive_name: str | None = None,
+    manifest_name: str | None = None,
 ) -> tuple[Path, dict]:
     candidate_run = run_dir
     reference_run = run_dir / "reference-build"
@@ -1140,6 +1174,8 @@ def qualify(
             "--certdata", f"{base}/cpython-source/Python-3.15.1/Lib/test/certdata",
             "--regression-report", f"{base}/qualification/regression/report.json",
             "--run-dir", f"{base}/qualification/archive",
+            *(["--archive-name", archive_name] if archive_name else []),
+            *(["--manifest-name", manifest_name] if manifest_name else []),
         ],
     ]
     environment = {
@@ -1160,8 +1196,8 @@ def qualify(
         raise DockerBuildError("qualification must run as a non-root host user")
     sequence = [
         "set -eu",
-        'test "$(uname -m)" = aarch64',
-        'printf "aarch64\\n"',
+        f'test "$(uname -m)" = {MACHINE}',
+        f'printf "{MACHINE}\\n"',
         f'test "$(id -u):$(id -g)" = "{os.getuid()}:{os.getgid()}"',
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status)',
         'test "$cap_eff" = 0000000000000000',
@@ -1179,11 +1215,11 @@ def qualify(
         initialization_record, passwd_source, group_source = initialization
         if (
             initialization_record["platform"] not in {None, "linux", DOCKER_PLATFORM}
-            or initialization_record["container_architecture"] != "aarch64"
+            or initialization_record["container_architecture"] != MACHINE
             or initialization_record["network_mode"] != "none"
             or initialization_record["locked_image_digest"] != locked_digest
         ):
-            raise DockerBuildError("qualification volume initializer did not use the locked native arm64 image")
+            raise DockerBuildError(f"qualification volume initializer did not use the locked native {MACHINE} image")
         account_files, account_record = write_qualification_account(
             run_dir,
             volume["identity"],
@@ -1248,8 +1284,8 @@ def qualify(
                 "exit_code": container["exit_code"],
             },
         )
-        archive = archive_run / ARCHIVE_NAME
-        manifest = archive_run / MANIFEST_NAME
+        archive = archive_run / (archive_name or ARCHIVE_NAME)
+        manifest = archive_run / (manifest_name or MANIFEST_NAME)
         report = archive_run / REPORT_NAME
         if not archive.is_file() or archive.is_symlink() or not manifest.is_file() or not report.is_file():
             raise DockerBuildError("archive qualifier did not write the required report, manifest, and archive")
@@ -1327,6 +1363,8 @@ def run_build_and_qualification(
     experimental: dict,
     locked_digest: str,
     daemon: dict,
+    archive_name: str | None = None,
+    manifest_name: str | None = None,
 ) -> None:
     if phase in {"fetch", "all"}:
         image, _, _ = run_fetch(
@@ -1335,7 +1373,7 @@ def run_build_and_qualification(
         )
     else:
         verify_experimental_inputs(
-            common_root() / ".cache" / "bootstrap" / "rtls-linux-arm64", experimental
+            common_root() / ".cache" / "bootstrap" / f"rtls-linux-{DOCKER_ARCH}", experimental
         )
         image, _, _ = prepare_toolchain_image(run_dir, bootstrap, experimental, locked_digest)
     if phase in {"build", "all"}:
@@ -1345,29 +1383,37 @@ def run_build_and_qualification(
     if phase in {"qualify", "all"}:
         if not (run_dir / "docker-build.json").is_file():
             raise DockerBuildError("qualification requires a completed sealed candidate build")
-        archive, _ = qualify(run_dir, image, jobs, daemon, revision, dirty, locked_digest)
+        archive, _ = qualify(
+            run_dir, image, jobs, daemon, revision, dirty, locked_digest,
+            archive_name, manifest_name,
+        )
         runtime_tag, runtime_image, archive_hash = build_runtime_image(
             run_dir, locked_digest, archive, bootstrap
         )
         run_runtime_probe(
-            run_dir, runtime_tag, runtime_image, archive_hash, revision, dirty, daemon, locked_digest
+            run_dir, runtime_tag, runtime_image, archive_hash, revision, dirty, daemon, locked_digest,
+            archive,
         )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Acquire and qualify a native Linux arm64 OpenSSL-free candidate in Docker"
+        description="Acquire and qualify a native Linux OpenSSL-free candidate in Docker"
     )
     parser.add_argument("--phase", choices=("fetch", "build", "qualify", "all"), default="all")
+    parser.add_argument("--target", default="aarch64-unknown-linux-musl", choices=sorted(ARCH_CONFIGS))
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--source-revision")
     parser.add_argument("--rtls-source", type=Path, required=True)
     parser.add_argument("--hashing-source", type=Path, default=REPO / "research" / "rtls-graviola" / "hashing")
+    parser.add_argument("--archive-name", default=None)
+    parser.add_argument("--manifest-name", default=None)
     args = parser.parse_args(argv)
     try:
         if args.jobs <= 0:
             raise DockerBuildError("--jobs must be positive")
+        configure(args.target)
         daemon = docker_daemon()
         run_dir = require_work_dir(args.run_dir, fresh=args.phase == "all")
         revision, dirty = source_identity(args.source_revision)
@@ -1387,9 +1433,11 @@ def main(argv: list[str] | None = None) -> int:
             experimental,
             locked_digest,
             daemon,
+            args.archive_name,
+            args.manifest_name,
         )
     except (DockerBuildError, OSError, subprocess.SubprocessError, KeyError, ValueError) as error:
-        print(f"FAIL native Linux arm64 Docker qualification: {error}", file=sys.stderr)
+        print(f"FAIL native Linux {MACHINE} Docker qualification: {error}", file=sys.stderr)
         return 1
     return 0
 

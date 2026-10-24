@@ -30,16 +30,33 @@ def require_digest(value: object, name: str) -> str:
     return value
 
 
-def is_arm64(value: object) -> bool:
-    return isinstance(value, str) and value in {"arm64", "aarch64"}
+LINUX_ARCHITECTURES = {
+    "aarch64-unknown-linux-musl": {
+        "machine": "aarch64",
+        "docker_arch": "arm64",
+        "platform": "linux/arm64",
+        "cpu_baseline": "-march=armv8-a+crypto",
+        "cpu_features": {"aes", "pmull", "sha2", "asimd"},
+    },
+    "x86_64-unknown-linux-musl": {
+        "machine": "x86_64",
+        "docker_arch": "amd64",
+        "platform": "linux/amd64",
+        "cpu_baseline": "-march=broadwell",
+        "cpu_features": {"aes", "pclmulqdq", "avx", "avx2", "bmi1", "bmi2", "fma", "movbe"},
+    },
+}
 
 
 def validate_docker_receipt(receipt: dict, name: str, revision: str) -> None:
     if receipt.get("schema") != 1:
         raise ValueError(f"{name} has an unsupported schema")
-    if receipt.get("target_triple") != "aarch64-unknown-linux-musl":
-        raise ValueError(f"{name} has the wrong target")
-    if receipt.get("platform") != "linux/arm64":
+    triple = receipt.get("target_triple")
+    try:
+        arch = LINUX_ARCHITECTURES[triple]
+    except KeyError:
+        raise ValueError(f"{name} has an unsupported target") from None
+    if receipt.get("platform") != arch["platform"]:
         raise ValueError(f"{name} has the wrong platform")
     if receipt.get("source_revision") != revision:
         raise ValueError(f"{name} has the wrong source revision")
@@ -47,14 +64,14 @@ def validate_docker_receipt(receipt: dict, name: str, revision: str) -> None:
         raise ValueError(f"{name} does not prove a clean source tree")
     if receipt.get("daemon_os") != "linux":
         raise ValueError(f"{name} did not run on Linux")
-    if receipt.get("daemon_platform") != "linux/arm64":
-        raise ValueError(f"{name} did not use a native Linux arm64 daemon")
-    if not is_arm64(receipt.get("daemon_architecture")):
-        raise ValueError(f"{name} did not report an arm64 Docker daemon")
-    if receipt.get("container_architecture") != "aarch64":
-        raise ValueError(f"{name} did not run an arm64 container")
-    if receipt.get("image_architecture") not in {"aarch64", "arm64"}:
-        raise ValueError(f"{name} did not use an arm64 image")
+    if receipt.get("daemon_platform") != arch["platform"]:
+        raise ValueError(f"{name} did not use a native Linux {arch['machine']} daemon")
+    if receipt.get("daemon_architecture") not in {arch["machine"], arch["docker_arch"]}:
+        raise ValueError(f"{name} did not report a {arch['machine']} Docker daemon")
+    if receipt.get("container_architecture") != arch["machine"]:
+        raise ValueError(f"{name} did not run a {arch['machine']} container")
+    if receipt.get("image_architecture") not in {arch["machine"], arch["docker_arch"]}:
+        raise ValueError(f"{name} did not use a {arch['machine']} image")
     if not isinstance(receipt.get("image_id"), str) or re.fullmatch(
         r"sha256:[0-9a-f]{64}", receipt["image_id"]
     ) is None:
@@ -70,6 +87,11 @@ def validate_docker_receipt(receipt: dict, name: str, revision: str) -> None:
     command = receipt["command"]
     if any(not isinstance(argument, str) for argument in command):
         raise ValueError(f"{name} has an invalid command record")
+    triple = receipt.get("target_triple")
+    try:
+        arch = LINUX_ARCHITECTURES[triple]
+    except KeyError:
+        raise ValueError(f"{name} has an unsupported target") from None
     if not any(
         command[index : index + 2] == ["--network", "none"]
         or command[index] == "--network=none"
@@ -77,16 +99,16 @@ def validate_docker_receipt(receipt: dict, name: str, revision: str) -> None:
     ):
         raise ValueError(f"{name} command did not disable networking")
     if not any(
-        command[index : index + 2] == ["--platform", "linux/arm64"]
-        or command[index] == "--platform=linux/arm64"
+        command[index : index + 2] == ["--platform", arch["platform"]]
+        or command[index] == f"--platform={arch['platform']}"
         for index in range(len(command))
     ):
-        raise ValueError(f"{name} command did not request the native arm64 platform")
+        raise ValueError(f"{name} command did not request the native {arch['machine']} platform")
     bootstrap_path = Path(__file__).resolve().parents[2] / "bootstrap.lock.json"
     bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
-    expected_image = bootstrap["linux_toolchain"]["images"]["arm64"]["digest"]
+    expected_image = bootstrap["linux_toolchain"]["images"][arch["docker_arch"]]["digest"]
     if receipt.get("locked_image_digest") != expected_image:
-        raise ValueError(f"{name} does not use the locked arm64 image")
+        raise ValueError(f"{name} does not use the locked {arch['machine']} image")
     if not isinstance(receipt.get("container_id"), str) or not receipt["container_id"]:
         raise ValueError(f"{name} does not record a container identity")
 
@@ -197,11 +219,16 @@ def validate_qualification_receipt(
     initialization = volume.get("initialization")
     if not isinstance(initialization, dict):
         raise ValueError(f"{name} does not record qualification volume initialization")
+    triple = docker_build.get("target_triple")
+    try:
+        arch = LINUX_ARCHITECTURES[triple]
+    except KeyError:
+        raise ValueError(f"{name} has an unsupported target") from None
     if (
-        initialization.get("image_architecture") not in {"aarch64", "arm64"}
-        or initialization.get("platform") not in {"linux", "linux/arm64"}
+        initialization.get("image_architecture") not in {arch["machine"], arch["docker_arch"]}
+        or initialization.get("platform") not in {"linux", arch["platform"]}
         or initialization.get("locked_image_digest") != receipt.get("locked_image_digest")
-        or initialization.get("container_architecture") != "aarch64"
+        or initialization.get("container_architecture") != arch["machine"]
         or initialization.get("network_mode") != "none"
         or initialization.get("image_id") != receipt.get("image_id")
         or initialization.get("container_user") != "0:0"
@@ -227,7 +254,7 @@ def validate_qualification_receipt(
         raise ValueError(f"{name} volume initializer does not record its command")
     if (
         not command_has_option(init_command, "--network", "none")
-        or not command_has_option(init_command, "--platform", "linux/arm64")
+        or not command_has_option(init_command, "--platform", arch["platform"])
         or not command_has_option(init_command, "--user", "0:0")
         or not command_has_option(init_command, "--cap-drop", "ALL")
         or not command_has_option(init_command, "--cap-add", "CHOWN")
@@ -253,12 +280,17 @@ def validate_build_receipts(directory: Path, revision: str) -> dict:
 
     if linux_build.get("schema_version") != 1:
         raise ValueError("Linux build receipt has an unsupported schema")
-    if linux_build.get("target") != "aarch64-unknown-linux-musl":
-        raise ValueError("Linux build receipt has the wrong target")
-    if linux_build.get("cpu_baseline") != "-march=armv8-a+crypto":
+    triple = linux_build.get("target")
+    try:
+        arch = LINUX_ARCHITECTURES[triple]
+    except KeyError:
+        raise ValueError("Linux build receipt has an unsupported target") from None
+    if linux_build.get("cpu_baseline") != arch["cpu_baseline"]:
         raise ValueError("Linux build receipt has the wrong CPU baseline")
-    if not {"aes", "pmull", "sha2", "asimd"}.issubset(linux_build.get("cpu_features", [])):
-        raise ValueError("Linux build receipt does not prove the required ARM crypto features")
+    if not arch["cpu_features"].issubset(linux_build.get("cpu_features", [])):
+        raise ValueError(
+            f"Linux build receipt does not prove the required {arch['machine']} CPU features"
+        )
     if linux_build.get("source_revision") != revision:
         raise ValueError("Linux build receipt has the wrong source revision")
     if linux_build.get("pgo") is not False:
@@ -283,14 +315,20 @@ def validate_build_receipts(directory: Path, revision: str) -> dict:
     return docker_runtime
 
 
-def validate(directory: Path, revision: str, build_directory: Path | None) -> None:
+def validate(
+    directory: Path,
+    revision: str,
+    build_directory: Path | None,
+    manifest_name: str = MANIFEST_NAME,
+    report_name: str = REPORT_NAME,
+) -> None:
     if REVISION_PATTERN.fullmatch(revision) is None:
         raise ValueError("expected source revision is not a full commit hash")
     directory = directory.resolve(strict=True)
     build_directory = (build_directory or directory).resolve(strict=True)
     docker_runtime = validate_build_receipts(build_directory, revision)
-    report_path = directory / REPORT_NAME
-    manifest_path = directory / MANIFEST_NAME
+    report_path = directory / report_name
+    manifest_path = directory / manifest_name
     report = json.loads(report_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
@@ -300,8 +338,8 @@ def validate(directory: Path, revision: str, build_directory: Path | None) -> No
         raise ValueError("artifact source revision differs from the dispatched commit")
     if manifest.get("build", {}).get("source", {}).get("revision") != revision:
         raise ValueError("build record source revision differs from the dispatched commit")
-    if manifest.get("target", {}).get("triple") != "aarch64-unknown-linux-musl":
-        raise ValueError("artifact target is not native Linux arm64 musl")
+    if manifest.get("target", {}).get("triple") not in LINUX_ARCHITECTURES:
+        raise ValueError("artifact target is not a supported native Linux musl target")
     if manifest.get("product", {}).get("version") != "3.15.1":
         raise ValueError("artifact is not CPython 3.15.1")
     bundled = manifest.get("components", {}).get("bundled", [])
@@ -357,8 +395,13 @@ def main() -> int:
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--build-directory", type=Path)
     parser.add_argument("--revision", required=True)
+    parser.add_argument("--manifest-name", default=MANIFEST_NAME)
+    parser.add_argument("--report-name", default=REPORT_NAME)
     args = parser.parse_args()
-    validate(args.directory, args.revision, args.build_directory)
+    validate(
+        args.directory, args.revision, args.build_directory,
+        args.manifest_name, args.report_name,
+    )
     return 0
 
 

@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "target": {
+    "triple": "x86_64-unknown-linux-musl",
+    "platform": "linux/amd64",
+    "architecture": "x86_64"
+  },
+  "rust": {
+    "version": "1.100.0-nightly",
+    "channel": "nightly-2026-09-15",
+    "host": "x86_64-unknown-linux-musl",
+    "manifest_date": "2026-09-15",
+    "license": "Apache-2.0 OR MIT",
+    "components": [
+      {
+        "name": "cargo",
+        "file": "cargo-nightly-x86_64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-09-15/cargo-nightly-x86_64-unknown-linux-musl.tar.xz",
+        "sha256": "a905fe818906ad0f63a619ebf97a3146ff7d9f183fa9805dcfd22bcd40b19510"
+      },
+      {
+        "name": "rustc",
+        "file": "rustc-nightly-x86_64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-09-15/rustc-nightly-x86_64-unknown-linux-musl.tar.xz",
+        "sha256": "faa179147ef1f008a2473c1eaecdc1793142e3413034194959560b1c12ba557c"
+      },
+      {
+        "name": "rust-std",
+        "file": "rust-std-nightly-x86_64-unknown-linux-musl.tar.xz",
+        "url": "https://static.rust-lang.org/dist/2026-09-15/rust-std-nightly-x86_64-unknown-linux-musl.tar.xz",
+        "sha256": "0954607004e948289bda9049114caa89db9fc23ef01d127074820037023d67c2"
+      }
+    ]
+  },
+  "apk_closure": [
+    {
+      "name": "bash",
+      "version": "5.3.9-r2",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/bash-5.3.9-r2.apk",
+      "sha256": "8c82fc6267127e862a54a3217599e00071cae762035565a425771bda80bc6e53",
+      "size": 480929,
+      "license": "GPL-3.0-or-later"
+    },
+    {
+      "name": "eudev-libs",
+      "version": "3.2.14-r8",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/eudev-libs-3.2.14-r8.apk",
+      "sha256": "2de3504a1985170c6d93918bb86140bc14c18f8beda6cf6f6591b3cc1827e575",
+      "size": 26134,
+      "license": "GPL-2.0-or-later"
+    },
+    {
+      "name": "git",
+      "version": "2.56.0-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/git-2.56.0-r0.apk",
+      "sha256": "556a7e05dd090e94c1c670f3bce0565cad21b9289d5ba0f5d872c8b4af581860",
+      "size": 3724110,
+      "license": "GPL-2.0-only"
+    },
+    {
+      "name": "git-init-template",
+      "version": "2.56.0-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/git-init-template-2.56.0-r0.apk",
+      "sha256": "47774f26cd2e0a21d43c846f69879b1be30bb527d57e958eb69240e270859161",
+      "size": 10828,
+      "license": "GPL-2.0-only"
+    },
+    {
+      "name": "libcrypto3",
+      "version": "3.5.9-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libcrypto3-3.5.9-r0.apk",
+      "sha256": "3f49f0ca1256cda3b5c336dc8387b9b9b0134fab48602ee6adec70cacfe3be74",
+      "size": 1980202,
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "hwloc",
+      "version": "2.12.2-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/hwloc-2.12.2-r0.apk",
+      "sha256": "4c8f0a9f0c7d5cd794ca686bbedfbc111b489960bb879c5c93deab215698813f",
+      "size": 153134,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "libgcc",
+      "version": "15.2.0-r9",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libgcc-15.2.0-r9.apk",
+      "sha256": "01c9609197de10519ceb204a09d1efa54baad145f65bf00ba0908086692ca3fe",
+      "size": 80348,
+      "license": "GPL-2.0-or-later AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "libstdc++",
+      "version": "15.2.0-r9",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libstdc++-15.2.0-r9.apk",
+      "sha256": "adfebfc0c4b80c293be8cc802a7fb73d7f5854f01b47ff1f40282d18f255b357",
+      "size": 961408,
+      "license": "GPL-2.0-or-later AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "libxml2",
+      "version": "2.13.9-r2",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libxml2-2.13.9-r2.apk",
+      "sha256": "4b2f986159c659f014b942fe8a5d70c67af475153ca826c3dd53389eea46a300",
+      "size": 495342,
+      "license": "MIT"
+    },
+    {
+      "name": "libssl3",
+      "version": "3.5.9-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/libssl3-3.5.9-r0.apk",
+      "sha256": "69f7a9a244bdb4a0a88123d5b9367aef28528795177d8187bd9647256d2e5f7c",
+      "size": 381865,
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "mimalloc2",
+      "version": "2.2.7-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/community/x86_64/mimalloc2-2.2.7-r0.apk",
+      "sha256": "2de28427d316110e474108637692d06e8c956d7a5d23feea6ebeff7f9267ef4f",
+      "size": 84790,
+      "license": "MIT"
+    },
+    {
+      "name": "musl",
+      "version": "1.2.6-r6",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/musl-1.2.6-r6.apk",
+      "sha256": "002f8b956419d67e91fd4e594f7b8d62fef13042cec45d977305df1a9ce0704f",
+      "size": 415482,
+      "license": "MIT"
+    },
+    {
+      "name": "onetbb",
+      "version": "2023.1.0-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/community/x86_64/onetbb-2023.1.0-r0.apk",
+      "sha256": "e451753a4eaff9be477700d765ed4b8c12017c74cb1573cf0812faf6da1303a6",
+      "size": 164604,
+      "license": "GPL-2.0-only"
+    },
+    {
+      "name": "openssl",
+      "version": "3.5.9-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/openssl-3.5.9-r0.apk",
+      "sha256": "68a170a5df42368882ff5816960c78c5640f0e57435b4275574dfe64d236c084",
+      "size": 340244,
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "pcre2",
+      "version": "10.49-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/pcre2-10.49-r0.apk",
+      "sha256": "84902f21a0c62429d59e06e5a1f572619eee7da3770c07070bdb66dea395b85c",
+      "size": 323100,
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "xz-libs",
+      "version": "5.8.4-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/xz-libs-5.8.4-r0.apk",
+      "sha256": "c32448d77e4b41bc48ffd5bc66ff4ba7a3e17bd4278238d90d6a30f82194cf49",
+      "size": 118500,
+      "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "xz",
+      "version": "5.8.4-r0",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/xz-5.8.4-r0.apk",
+      "sha256": "a87eb30f63697adc2e335b0cf02fa4424a61fd9cf9ce9de6593e1d2991511049",
+      "size": 64572,
+      "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.2-r1",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/zlib-1.3.2-r1.apk",
+      "sha256": "c0d67cf86cee987735024635ebbfc4a38ab7bfb94eeef78ed4cd357a1f16d8bb",
+      "size": 56208,
+      "license": "Zlib"
+    },
+    {
+      "name": "zstd-libs",
+      "version": "1.5.7-r2",
+      "architecture": "x86_64",
+      "url": "https://cdn.alpinelinux.org/edge/main/x86_64/zstd-libs-1.5.7-r2.apk",
+      "sha256": "5025e2207b44a131f1b2262761187d88500829c2171d566d37a1225246fe542e",
+      "size": 374521,
+      "license": "BSD-3-Clause OR GPL-2.0-or-later"
+    }
+  ]
+}

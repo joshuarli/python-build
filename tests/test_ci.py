@@ -108,9 +108,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(self.workflow.count("runs-on: xcode-27"), 2)
         self.assertIn("runs-on: ubuntu-24.04", self.workflow)
         self.assertIn("runs-on: ubuntu-24.04-arm", self.workflow)
-        self.assertIn("python3.15 build.py qualify --target aarch64-apple-darwin", self.workflow)
-        self.assertIn("target: checked", self.workflow)
-        self.assertIn("python3.15 build/record_runtime.py", self.workflow)
+        self.assertIn("aarch64-apple-darwin", self.workflow)
+        self.assertIn("x86_64-unknown-linux-musl", self.workflow)
+        self.assertIn("aarch64-unknown-linux-musl", self.workflow)
+        self.assertIn("research/rtls-graviola/build-no-openssl.py", self.workflow)
+        self.assertIn("research/rtls-graviola/docker-linux.py", self.workflow)
+        self.assertIn("build/promote_openssl_free.py", self.workflow)
         self.assertIn('gh release create "$RELEASE_TAG" --target "$GITHUB_SHA"', self.workflow)
         self.assertNotIn("GH_TOKEN", self.workflow.split("  publish:", 1)[0])
         self.assertNotIn("3.14", self.workflow)
@@ -119,6 +122,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("python-build-standalone size", self.workflow)
         self.assertNotIn("brew update", self.workflow)
         self.assertNotIn("brew upgrade", self.workflow)
+        self.assertNotIn("openssl-free-linux-arm64", self.workflow)
 
     def test_linux_smoke_images_match_locked_architecture_digests(self):
         lock = json.loads((ROOT / "bootstrap.lock.json").read_text())
@@ -129,9 +133,10 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_build_jobs_bind_artifacts_to_the_checked_out_revision(self):
         self.assertIn("PYTHON_BUILD_SOURCE_REVISION: ${{ github.sha }}", self.workflow)
-        self.assertIn("PYTHON_BUILD_SOURCE_DIRTY=0", self.workflow)
-        self.assertIn("--revision \"$GITHUB_SHA\"", self.workflow)
-        self.assertIn("--execution native", self.workflow)
+        self.assertIn("PYTHON_BUILD_SOURCE_DIRTY", self.workflow)
+        self.assertIn('--source-revision "$GITHUB_SHA"', self.workflow)
+        self.assertIn('--revision "$GITHUB_SHA"', self.workflow)
+        self.assertIn("build/promote_openssl_free.py", self.workflow)
 
     def test_uv_smokes_verify_exact_assets_and_fresh_install_paths(self) -> None:
         self.assertIn("UV_VERSION: \"0.13.4\"", self.workflow)

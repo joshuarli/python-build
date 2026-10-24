@@ -50,7 +50,7 @@ completed 10,590 tests across all 43 selected files.
 | Shared qualification correction | `buildsys/testsuite.py`, `tests/test_testsuite.py` |
 
 TLS uses rustls 0.23.45, rustls-webpki 0.103.15, rustls-graviola 0.4.0, and
-Graviola 0.4.1 with Rust 1.99.1 and LLVM 23.1.4. Hashlib uses CPython's
+Graviola 0.4.1 with Rust nightly-2026-09-15 and LLVM 23.1.4. Hashlib uses CPython's
 built-in guaranteed digests and narrowly selected RustCrypto implementations
 for the missing native interfaces, HMAC, PBKDF2, scrypt, and additional
 compatible digests. MD5 and SHA-1 hashing APIs remain supported. Their

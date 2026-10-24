@@ -162,10 +162,15 @@ The remainder records the earlier prototype and adoption requirements.
 
 ## Decision
 
-Keep OpenSSL in the production distribution. Keep RTLS and Graviola in this
-separate research lane until they pass the compatibility, trust-policy, and
-payoff gates below. The prototype does not add a production dependency, change
-the product CPU baseline, or change the product TLS API.
+Promoted: the OpenSSL-free backend is the official production
+distribution. `build.yml` builds and qualifies all three targets with the
+drivers in this directory and publishes the archives as official
+prereleases. No OpenSSL source enters the build; Linux Rust extensions link
+musl statically (`+crt-static`, `ld.lld`, no `kache` or `mold`); CPU floors
+are Broadwell-class x86-64, ARMv8-A with crypto extensions, and Apple M1.
+The pinned Rust toolchain is nightly-2026-09-15.
+
+The sections below record the research history behind that decision.
 
 The current OpenSSL recipe passes `no-apps no-tests` and retains its existing
 `build_sw` and `install_sw` targets. The distribution uses the static
@@ -219,7 +224,7 @@ retained.
 
 ## What the local prototype proves
 
-On native Apple Silicon macOS 27, the patched adapter built with Rust 1.99.1,
+On native Apple Silicon macOS 27, the patched adapter built with Rust nightly-2026-09-15 (`1.100.0-nightly`),
 rustls 0.23.45, `rustls-graviola` 0.4.0, and Graviola 0.4.1. The earlier
 Python 3.15.0 smoke completed verified TLS 1.3 loopback exchanges between a
 Graviola client and both Graviola and OpenSSL servers.

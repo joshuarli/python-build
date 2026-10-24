@@ -3,9 +3,10 @@
 See the [native qualification results](LINUX_QUALIFICATION.md) for measured
 artifact sizes, executed tests, and remaining limits.
 
-Use a clean checkout and a native Linux arm64 Docker daemon. On Apple Silicon,
-use the daemon's arm64 VM. The driver rejects an amd64 daemon and never requests
-amd64 emulation.
+Use a clean checkout and a native Linux Docker daemon of the target
+architecture. On Apple Silicon, use the daemon's arm64 VM for arm64 builds.
+The driver rejects a daemon whose architecture does not match `--target` and
+never uses emulation.
 
 Add `.work/` to Git's local exclusions before creating scratch files:
 
@@ -24,25 +25,33 @@ git clone --depth 1 --branch 2026.10.3 \
 Build and qualify a fresh candidate:
 
 ```sh
-python3.15 research/rtls-graviola/docker-linux-arm64.py \
+python3.15 research/rtls-graviola/docker-linux.py \
     --phase all \
+    --target aarch64-unknown-linux-musl \
     --run-dir .work/tmp/openssl-free-linux-arm64 \
     --jobs 6 \
     --source-revision "$(git rev-parse HEAD)" \
     --rtls-source .work/tmp/rtls-linux-source
 ```
 
+For x86-64, pass `--target x86_64-unknown-linux-musl` with a native amd64
+daemon; per-architecture inputs live in `linux-bootstrap.lock.json` (arm64)
+and `linux-bootstrap-x86_64.json` (x86-64).
+
 The command fails if the checkout is dirty or the run directory is populated.
 Use a new run directory after a failed build. Keep the failed run for diagnosis.
 
-The fetch phase verifies the production C inputs and the separate
-[experimental Linux bootstrap lock](linux-bootstrap.lock.json). The native
+The fetch phase verifies the production C inputs and the per-architecture
+experimental bootstrap lock (`linux-bootstrap.lock.json` for arm64,
+`linux-bootstrap-x86_64.json` for x86-64). The native
 build consumes these inputs with networking disabled. Rust sources stay pinned
 by the experiment's source checks and Cargo locks. Production locks remain
 unchanged.
 
-The candidate uses `-march=armv8-a+crypto`, ThinLTO, mold, shared libpython, and
-the GIL. Linux PGO is disabled. Every CPU must expose AES, PMULL, SHA2, and ASIMD.
+The candidate uses `-march=armv8-a+crypto` on arm64 (`-march=broadwell` on
+x86-64), ThinLTO, `ld.lld`, shared libpython, and the GIL, with musl linked
+statically into the Rust extensions. Linux PGO is disabled. Every arm64 CPU
+must expose AES, PMULL, SHA2, and ASIMD.
 No OpenSSL source enters the candidate dependency graph. The separate reference
 build uses the locked OpenSSL 3.5.7 source.
 
@@ -73,37 +82,32 @@ qualification, even if an archive or partial report exists.
 
 ## Run the prerelease workflow
 
-After pushing the tested revision, dispatch the dedicated workflow:
+After pushing the tested revision, dispatch the official build workflow:
 
 ```sh
-gh workflow run openssl-free-linux-arm64.yml --ref main
-gh run list --workflow openssl-free-linux-arm64.yml
+gh workflow run build.yml --ref main
+gh run list --workflow build.yml
 gh run watch <run-id> --exit-status
 ```
 
-Both jobs use native `ubuntu-24.04-arm` runners. The qualification job runs the
-same Docker driver. The publication job rechecks archive and receipt hashes
-before creating `research-openssl-free-cp315-arm64-<commit>` as a prerelease.
-The prerelease does not become GitHub's latest release. The production build
-workflow and published production artifacts remain unchanged.
+Linux jobs run on native `ubuntu-24.04` (amd64) and `ubuntu-24.04-arm`
+runners using the same Docker driver; the macOS job runs natively on
+`xcode-27`. Assembly validates the three artifacts and publishes them as an
+official date-tagged prerelease.
 
 ## Verify a published prerelease
 
-Download the research tag into a fresh directory:
+Download the release tag into a fresh directory:
 
 ```sh
-gh release download <research-tag> --dir .work/tmp/published-candidate
+gh release download <tag> --dir .work/tmp/published-candidate
 ```
 
-Check the downloaded bytes and the manifest's source identity:
+Check the downloaded bytes against the published checksums:
 
 ```sh
 (cd .work/tmp/published-candidate && shasum -a 256 -c SHA256SUMS)
-python3.15 .github/scripts/validate_experimental_artifact.py \
-    --directory .work/tmp/published-candidate \
-    --revision <full-source-commit>
 ```
 
-Use `experimental-no-openssl-candidate.tar.gz` and `qualification-report.json`
-as the canonical filenames. The workflow repeats this download check against
-the public release assets before reporting publication success.
+Per-target manifests (`artifact-<triple>.json`) bind the archive bytes to
+the qualified source revision.

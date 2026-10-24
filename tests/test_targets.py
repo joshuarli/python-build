@@ -22,11 +22,11 @@ class TargetRegistryTests(unittest.TestCase):
         self.assertIn("aarch64-unknown-linux-musl", TARGETS)
         self.assertEqual(
             target_for_triple("x86_64-unknown-linux-musl").cpu_baseline_cflag,
-            "-march=x86-64",
+            "-march=broadwell",
         )
         self.assertEqual(
             target_for_triple("aarch64-unknown-linux-musl").cpu_baseline_cflag,
-            "-march=armv8-a",
+            "-march=armv8-a+crypto",
         )
 
     def test_macos_arm64_is_described(self) -> None:

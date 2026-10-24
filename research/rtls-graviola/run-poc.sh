@@ -31,9 +31,9 @@ export TMPDIR="$work_dir/tmp"
 export CARGO_HOME="$work_dir/cargo-home"
 export CARGO_TARGET_DIR="$work_dir/target"
 rust_toolchain=${RTLS_RUST_TOOLCHAIN:-stable}
-expected_rust_version=1.99.1
+expected_rust_version=1.100.0-nightly
 rust_version_output=$(rustup run "$rust_toolchain" rustc --version) || {
-    printf '%s\n' 'Install rustup and Rust 1.99.1 to replay this prototype.' >&2
+    printf '%s\n' 'Install rustup and Rust 1.100.0-nightly to replay this prototype.' >&2
     exit 1
 }
 rust_version=$(printf '%s\n' "$rust_version_output" | awk '{print $2}')
