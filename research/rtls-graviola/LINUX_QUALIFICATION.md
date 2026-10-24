@@ -5,7 +5,11 @@
 The isolated CPython 3.15.1 distribution is fully OpenSSL-free. The native
 Docker run at `af1e789b87b5a6ae892910ca53c29e3b0ead6568` passes all 53 archive
 checks and the separate minimal-runtime check. The prerelease workflow uses
-this same build and qualification procedure. Production defaults, production
+this same build and qualification procedure. The native ARM64
+[CI run](https://github.com/joshuarli/python-build/actions/runs/40046301806)
+also passes all 53 checks at source
+`86f0635020fc94ce75f3449b2efb817726adf623`.
+Production defaults, production
 locks, CPU floors, and the production release workflow remain unchanged.
 
 The local run uses an arm64 Linux VM on an Apple M5 Max through OrbStack.
@@ -24,6 +28,19 @@ The qualified local archive has these identities:
 
 Outputs are under `.work/tmp/openssl-free-linux-clean/.work/tmp/linux-rc7/`.
 The [Docker procedure](LINUX_ARM64.md) describes the report and receipt paths.
+
+The [verified prerelease](https://github.com/joshuarli/python-build/releases/tag/research-openssl-free-cp315-arm64-86f0635020fc94ce75f3449b2efb817726adf623)
+publishes `experimental-no-openssl-candidate.tar.gz` with SHA-256
+`33b2282a9aca7e163d0f8d3a06234d074cde5eec71b09a0f0ace8b38cae52f32`.
+The compressed archive is 13,047,754 bytes; its payload is 44,400,640 bytes.
+CI downloads the published assets and verifies their checksums, source
+identity, manifest, and native Docker receipts. An independent download
+passes the same checks. The release tag points to the exact source commit.
+
+The first preview at `46606f7` is superseded. GitHub normalized spaces in its
+asset filenames, invalidating the downloaded checksum paths. Commit `86f0635`
+uses canonical filenames without spaces and adds the public download gate.
+The earlier local run predates that filename change.
 
 ## Implementation
 
@@ -110,6 +127,12 @@ cached bytes and verifies every locked hash and size. The workflow can restore
 the existing arm64 input cache. A cold fetch needs a durable source for those
 same bytes. Production bootstrap pins are unchanged.
 
-Build-time, peak-memory, and size comparisons against the trimmed OpenSSL
-baseline are unmeasured. The sizes above are actual candidate measurements.
-No performance gate or claimed speedup determines this result.
+The corresponding stripped OpenSSL reference extensions measure 7,962,320
+bytes for TLS and 6,521,368 bytes for hashing. Their combined size is
+14,483,688 bytes, compared with 4,212,256 bytes for the candidate extensions.
+Both use CPython 3.15.1, the same ARM crypto floor, ThinLTO, and LLVM 23.1.3
+`--strip-unneeded`. The reference uses OpenSSL 3.5.7 with `no-apps no-tests`.
+
+Build-time, peak-memory, and complete distribution-size comparisons against
+that baseline are unmeasured. No performance gate or claimed speedup determines
+this result.

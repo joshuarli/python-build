@@ -86,3 +86,24 @@ same Docker driver. The publication job rechecks archive and receipt hashes
 before creating `research-openssl-free-cp315-arm64-<commit>` as a prerelease.
 The prerelease does not become GitHub's latest release. The production build
 workflow and published production artifacts remain unchanged.
+
+## Verify a published prerelease
+
+Download the research tag into a fresh directory:
+
+```sh
+gh release download <research-tag> --dir .work/tmp/published-candidate
+```
+
+Check the downloaded bytes and the manifest's source identity:
+
+```sh
+(cd .work/tmp/published-candidate && shasum -a 256 -c SHA256SUMS)
+python3.15 .github/scripts/validate_experimental_artifact.py \
+    --directory .work/tmp/published-candidate \
+    --revision <full-source-commit>
+```
+
+Use `experimental-no-openssl-candidate.tar.gz` and `qualification-report.json`
+as the canonical filenames. The workflow repeats this download check against
+the public release assets before reporting publication success.
