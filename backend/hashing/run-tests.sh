@@ -7,7 +7,7 @@ if [ "$#" -ne 2 ]; then
 fi
 
 lane_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-repo_root=$(CDPATH= cd -- "$lane_dir/../../.." && pwd)
+repo_root=$(CDPATH= cd -- "$lane_dir/../.." && pwd)
 prefix=$(CDPATH= cd -- "$1" && pwd)
 source_root=$(CDPATH= cd -- "$2" && pwd)
 python="$prefix/bin/python3.15"

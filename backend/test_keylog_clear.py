@@ -17,7 +17,7 @@ def handshake(client_context, server_context, server_hostname):
 
 class KeyLogClearTests(unittest.TestCase):
     def test_clearing_stops_logging_for_new_handshakes(self):
-        work_root = Path(__file__).resolve().parents[2] / ".work" / "tmp"
+        work_root = Path(__file__).resolve().parents[1] / ".work" / "tmp"
         work_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="rtls-keylog-", dir=work_root) as directory:
             path = Path(directory) / "secrets.log"

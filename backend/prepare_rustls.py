@@ -92,7 +92,7 @@ def prepare(archive: Path, checkout: Path) -> None:
     target = checkout / "rustls"
     if target.exists():
         raise RuntimeError(f"rustls target already exists: {target}")
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[1]
     patch = repo_root / "backend" / "rustls-session-api.patch"
     with tempfile.TemporaryDirectory(dir=checkout, prefix=".rustls-source-") as temporary:
         source = Path(temporary) / "rustls"

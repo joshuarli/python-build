@@ -13,7 +13,7 @@ import sys
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from buildsys.bootstrap import BootstrapError, toolchain_for

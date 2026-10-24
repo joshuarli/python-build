@@ -17,7 +17,7 @@ import tempfile
 from io import StringIO
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from artifact_layout import ARCHIVE_NAME, MANIFEST_NAME, REPORT_NAME

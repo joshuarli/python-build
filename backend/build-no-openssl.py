@@ -16,7 +16,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 TARGET_TRIPLE = "aarch64-apple-darwin"
 LINUX_AARCH64_TRIPLE = "aarch64-unknown-linux-musl"
