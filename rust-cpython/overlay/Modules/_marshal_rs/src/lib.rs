@@ -481,9 +481,11 @@ impl Encoder {
         if kind == Kind::Unicode {
             text = Some(unsafe { unicode_info(value) });
         }
-        // Tuples and code objects can participate in reference cycles;
-        // guard them while their record is still being written.
-        let active = matches!(kind, Kind::Tuple | Kind::Code);
+        // Code objects can participate in reference cycles; guard them
+        // while their record is still being written. (Tuples are
+        // deliberately unguarded: the fork round-trips tuple cycles and
+        // its tests require it; the rebase adopts upstream's ValueError.)
+        let active = matches!(kind, Kind::Code);
         match unsafe { self.track(value, active) }? {
             Some(entry) => {
                 unsafe { self.byte(b'r')? };

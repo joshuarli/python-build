@@ -114,6 +114,17 @@ typedef struct {
     const char *end;
     char *buf;
     _Py_hashtable_t *hashtable;
+    /* Version-6 two-pass reference tagging (upstream 3.16 semantics):
+       refs holds one record per tracked object in first-occurrence order
+       (type-byte offset shifted left by one, ORed with 1 once shared);
+       refpos holds the output offsets of provisional TYPE_REF arguments
+       that w_resolve_refs() fixes up. Empty for older versions. */
+    size_t *refs;
+    size_t nrefs;
+    size_t refs_allocated;
+    size_t *refpos;
+    size_t nrefpos;
+    size_t refpos_allocated;
     int version;
     int allow_code;
     int force_refs;
@@ -252,6 +263,10 @@ w_short_pstring(const void *s, Py_ssize_t n, WFILE *p)
 static PyObject *
 _PyMarshal_WriteObjectToString(PyObject *x, int version, int allow_code);
 
+static PyObject *
+marshal_write_object_to_string_no_audit(PyObject *x, int version,
+                                        int allow_code, int force_refs);
+
 #define _r_digits(bitsize)                                                \
 static void                                                               \
 _r_digits##bitsize(const uint ## bitsize ## _t *digits, Py_ssize_t n,     \
@@ -377,6 +392,128 @@ w_float_str(double v, WFILE *p)
     PyMem_Free(buf);
 }
 
+/* Version-6 reference tagging (upstream 3.16 semantics): an object is
+   flagged if and only if it is written more than once, so output depends
+   only on the object graph and never on ambient reference counts. The
+   hashtable maps an object to its index in refs plus flags, refs records
+   the type-byte offset of each first occurrence, and refpos records the
+   TYPE_REF arguments that w_resolve_refs() fixes up at the end.
+   Tuple cycles keep the fork's round-trip behavior (not ACTIVE here);
+   see test_reference_loop_tuple. The source rebase adopts upstream's
+   ValueError for them. */
+#define W_ENTRY_ACTIVE ((uintptr_t)1)
+#define W_ENTRY_SHARED ((uintptr_t)2)
+#define W_ENTRY_SHIFT 2
+#define W_REF_SHARED ((size_t)1)
+#define W_MAX_REFS ((size_t)0x7fffffff)
+
+static int
+w_refs_grow(size_t **array, size_t *allocated, size_t needed)
+{
+    if (needed <= *allocated) {
+        return 0;
+    }
+    size_t cap = *allocated ? *allocated * 2 : 256;
+    if (cap < needed) {
+        cap = needed;
+    }
+    size_t *grown = PyMem_Realloc(*array, cap * sizeof(size_t));
+    if (grown == NULL) {
+        return -1;
+    }
+    *array = grown;
+    *allocated = cap;
+    return 0;
+}
+
+static int
+w_ref_v6(PyObject *v, WFILE *p)
+{
+    _Py_hashtable_entry_t *entry = _Py_hashtable_get_entry(p->hashtable, v);
+    if (entry != NULL) {
+        uintptr_t w = (uintptr_t)entry->value;
+        if (w & W_ENTRY_ACTIVE) {
+            PyErr_Format(PyExc_ValueError,
+                         "cannot marshal recursion %T objects", v);
+            p->error = WFERR_UNMARSHALLABLE;
+            return 1;
+        }
+        if (!(w & W_ENTRY_SHARED)) {
+            entry->value = (void *)(w | W_ENTRY_SHARED);
+            p->refs[w >> W_ENTRY_SHIFT] |= W_REF_SHARED;
+        }
+        w >>= W_ENTRY_SHIFT;
+        /* TYPE_REF with a provisional index; w_resolve_refs() fixes it. */
+        if (p->end - p->ptr < 5 && !w_reserve(p, 5)) {
+            return 1;
+        }
+        if (w_refs_grow(&p->refpos, &p->refpos_allocated, p->nrefpos + 1)) {
+            p->error = WFERR_NOMEMORY;
+            return 1;
+        }
+        p->refpos[p->nrefpos++] = (size_t)(p->ptr - p->buf) + 1;
+        w_byte(TYPE_REF, p);
+        w_long((long)w, p);
+        return 1;
+    }
+    size_t w = p->nrefs;
+    if (w >= W_MAX_REFS) {
+        PyErr_SetString(PyExc_ValueError, "too many objects");
+        p->error = WFERR_UNMARSHALLABLE;
+        return 1;
+    }
+    if (w_refs_grow(&p->refs, &p->refs_allocated, w + 1)) {
+        p->error = WFERR_NOMEMORY;
+        return 1;
+    }
+    p->refs[w] = (size_t)(p->ptr - p->buf) << 1;
+    uintptr_t value = (uintptr_t)w << W_ENTRY_SHIFT;
+    // Corresponding code should call w_complete() after
+    // writing the object.
+    if (PyCode_Check(v) || PySlice_Check(v) || PyFrozenDict_CheckExact(v)) {
+        value |= W_ENTRY_ACTIVE;
+    }
+    if (_Py_hashtable_set(p->hashtable, Py_NewRef(v), (void *)value) < 0) {
+        Py_DECREF(v);
+        p->error = WFERR_NOMEMORY;
+        return 1;
+    }
+    p->nrefs++;
+    return 0;
+}
+
+/* Flag exactly the objects seen more than once and fix up every
+   provisional TYPE_REF argument to the reader's reference index. */
+static void
+w_resolve_refs(WFILE *p)
+{
+    if (p->error != WFERR_OK || p->refpos == NULL) {
+        return;
+    }
+    uint32_t index = 0;
+    for (size_t i = 0; i < p->nrefs; i++) {
+        size_t shared = p->refs[i] & W_REF_SHARED;
+        char *type = p->buf + (p->refs[i] >> 1);
+        assert(!(*type & FLAG_REF));
+        *type |= (char)(-(int)shared & FLAG_REF);
+        p->refs[i] = index;
+        index += (uint32_t)shared;
+    }
+    for (size_t i = 0; i < p->nrefpos; i++) {
+        char *at = p->buf + p->refpos[i];
+        uint32_t entry = ((uint32_t)(unsigned char)at[0])
+                       | ((uint32_t)(unsigned char)at[1] << 8)
+                       | ((uint32_t)(unsigned char)at[2] << 16)
+                       | ((uint32_t)(unsigned char)at[3] << 24);
+        assert(entry < p->nrefs);
+        uint32_t resolved = (uint32_t)p->refs[entry];
+        at[0] = (char)(resolved & 0xff);
+        at[1] = (char)((resolved >> 8) & 0xff);
+        at[2] = (char)((resolved >> 16) & 0xff);
+        at[3] = (char)((resolved >> 24) & 0xff);
+    }
+}
+
 static int
 w_ref(PyObject *v, char *flag, WFILE *p)
 {
@@ -384,6 +521,9 @@ w_ref(PyObject *v, char *flag, WFILE *p)
 
     if (p->version < 3 || p->hashtable == NULL)
         return 0; /* not writing object references */
+
+    if (p->version == Py_MARSHAL_VERSION)
+        return w_ref_v6(v, p);
 
     /* If it has only one reference, it definitely isn't shared.
      * But we use TYPE_REF always for interned string, to PYC file stable
@@ -436,6 +576,16 @@ static void
 w_complete(PyObject *v, WFILE *p)
 {
     if (p->version < 3 || p->hashtable == NULL) {
+        return;
+    }
+    if (p->version == Py_MARSHAL_VERSION) {
+        _Py_hashtable_entry_t *entry = _Py_hashtable_get_entry(p->hashtable, v);
+        if (entry == NULL) {
+            return;
+        }
+        uintptr_t w = (uintptr_t)entry->value;
+        assert(w & W_ENTRY_ACTIVE);
+        entry->value = (void *)(w & ~W_ENTRY_ACTIVE);
         return;
     }
     if (!p->force_refs && _PyObject_IsUniquelyReferenced(v)) {
@@ -773,7 +923,12 @@ w_clear_refs(WFILE *wf)
 {
     if (wf->hashtable != NULL) {
         _Py_hashtable_destroy(wf->hashtable);
+        wf->hashtable = NULL;
     }
+    PyMem_Free(wf->refs);
+    wf->refs = NULL;
+    PyMem_Free(wf->refpos);
+    wf->refpos = NULL;
 }
 
 /* version currently has no effect for writing ints. */
@@ -805,6 +960,24 @@ PyMarshal_WriteObjectToFile(PyObject *x, FILE *fp, int version)
         return; /* caller must check PyErr_Occurred() */
     }
     memset(&wf, 0, sizeof(wf));
+    wf.version = version;
+    if (version == Py_MARSHAL_VERSION) {
+        /* Object references resolve once the whole object is written,
+           so version-6 output cannot stream piece by piece: buffer it,
+           then write it out at once. */
+        PyObject *str = marshal_write_object_to_string_no_audit(
+            x, version, /*allow_code=*/1, /*force_refs=*/0);
+        if (str == NULL) {
+            return; /* caller must check PyErr_Occurred() */
+        }
+        size_t size = (size_t)PyBytes_GET_SIZE(str);
+        int ok = size == 0 || fwrite(PyBytes_AS_STRING(str), 1, size, fp) == size;
+        Py_DECREF(str);
+        if (!ok) {
+            PyErr_SetFromErrno(PyExc_OSError);
+        }
+        return;
+    }
     wf.fp = fp;
     wf.ptr = wf.buf = buf;
     wf.end = wf.ptr + sizeof(buf);
@@ -1925,6 +2098,7 @@ marshal_write_object_to_string_no_audit(PyObject *x, int version, int allow_code
         return NULL;
     }
     w_object(x, &wf);
+    w_resolve_refs(&wf);
     w_clear_refs(&wf);
     if (wf.str != NULL) {
         const char *base = PyBytes_AS_STRING(wf.str);
