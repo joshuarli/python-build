@@ -1019,7 +1019,7 @@ libpython3.so:	libpython$(LDVERSION).so
 	$(BLDSHARED_EXE) $(BLDSHARED_ARGS) $(NO_AS_NEEDED) -o $@ -Wl,-h$@ $^
 
 libpython$(LDVERSION).dylib: $(LIBRARY_OBJS) cpython-rust-staticlib
-	 llvm-nm -g -j $(LIBRARY_OBJS) $(RUST_STATICLIB_A) | grep -E '^__*Py|^_rtls_native_|^_rust_eh_personality$' | sort -u > libpython-exported-symbols.txt; \
+	 llvm-nm -g -j $(LIBRARY_OBJS) $(RUST_STATICLIB_A) | grep -E '^__*Py|^_rtls_native_|^_rust_eh_personality$$' | sort -u > libpython-exported-symbols.txt; \
 	 $(CC) -dynamiclib $(PY_CORE_LDFLAGS) -undefined dynamic_lookup -Wl,-install_name,$(prefix)/lib/libpython$(LDVERSION).dylib -Wl,-compatibility_version,$(VERSION) -Wl,-current_version,$(VERSION) -Wl,-exported_symbols_list,libpython-exported-symbols.txt -o $@ $(LIBRARY_OBJS) $(DTRACE_OBJS) $(RUST_STATICLIB_A) $(MODLIBS) $(SHLIBS) $(LIBC) $(LIBM); \
 
 
