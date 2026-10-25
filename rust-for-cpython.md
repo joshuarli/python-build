@@ -629,6 +629,11 @@ Contract changes made (none this preflight): listed here for the owner.
 
 ## Non-goals
 
+- No OpenSSL anywhere in any route, ever. TLS rides the rustls-based
+  `_ssl_rs` engine and hashing rides `_hashlib_rs`/`_hmac_rs`; the C
+  `_ssl`/`_hashopenssl` modules stay deleted and disabled. This is settled
+  ground, not a migration: any lane reintroducing an OpenSSL dependency
+  fails its acceptance.
 - No redesign around the proposed upstream CPython Rust API (3.17+ plans
   are not merged guarantees).
 - No CPU optimization before D2 acceptance; no workload-latency work in D2.
