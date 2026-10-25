@@ -34,10 +34,11 @@ is now committed on main.
 
 Current steering decision (2026-10-25): coverage stays accepted and closed
 to rework; D2 accepted with the two loud pre-existing deviations below.
-U8 done and merged. Next work in order: Linux x86-64 U6 re-qual on merged
-main (parked: needs native host), U7 rebase to peeled a1 as its own item,
-then Phase 3 memory-first climb. Width stays at 1 lane for U7; expands to
-at most 16 only for the Phase 3 batch.
+U8 done and merged. U7 parked as a multi-lane wave (blockers B1–B5
+recorded on the item; retry needs P1–P3 + a Linux host). Next work in
+order: U2 retry on the current pin (2.4.0 + a1's own `04a01eac…` test
+value, no `Lib/test/` modification), then Phase 3 memory-first climb.
+Width 1 lane; expands to at most 16 only for the Phase 3 batch.
 
 Next substantive milestone: U0 pristine 3.16.0a1+ comparison build plus U1
 marshal exact-byte differential with a pass/fail gate.
@@ -520,13 +521,18 @@ edits need coordinator review even when append-only.
   Rust-boundary semantics byte-identical to pristine a1 across all
   1,112,063 non-surrogate codepoints. Blocked: fork
   `test_unicodedata.py::UnicodeFunctionsTest::test_function_checksum`
-  hardcodes a Unicode-17 SHA1; Unicode-18 data can never satisfy it.
-  Reverted to `=2.2.0` per P3, suites re-verified green. Footprint logged:
-  lane-2.4.0 22.6 MB vs lane-2.2.0 20.7 MB vs pristine 18.2 MB import+RSS.
-  Retry condition CORRECTED 2026-10-25 (scout: a1 and HEAD checksums are
-  byte-identical, so no pin move unblocks this): a UCD/test update to
-  Unicode 18 blessed by the owner (touches `Lib/test/`, outside lane
-  authority). Owns: `rust-cpython/overlay/Modules/_unicodedata_rs/`.
+  hardcodes a Unicode-17 SHA1 (`00b13fa9…`; verified from the fork
+  tarball); Unicode-18 data can never satisfy it. Upstream already
+  published the correct Unicode-18 value with the data: pristine a1's
+  `UnicodeFunctionsTest.expectedchecksum` is `04a01eac…`, green in the
+  U0 record (a1 UCD is 18.0.0, confirmed from the U0 install). Retry
+  condition CORRECTED again 2026-10-25: NO rebase and NO invented value
+  needed — U2 adopts ICU4X 2.4.0 (semantics already proven byte-identical
+  to pristine a1 across all 1,112,063 non-surrogate codepoints) and runs
+  a1's own test file (`04a01eac…`, cross-validated by U0) against the
+  lane build, without modifying any `Lib/test/` file in the tree
+  (byte-identical overlay test shadow only if the harness needs it,
+  flagged for review). Owns: `rust-cpython/overlay/Modules/_unicodedata_rs/`.
   Proof when unparked: full `test_unicodedata` (+ locale/re/str suites
   per the register) green on both hosts plus footprint comparison
   logged (not gating).
@@ -570,8 +576,22 @@ edits need coordinator review even when append-only.
   owed. Proof: run/skip/deny lists equal D1 modulo the recorded
   VSOCK/resource entries; per-item probes still reach Rust in the main
   interpreter with `None` from own-GIL children.)
-- U7: source rebase (lane running on `lane/u7-rebase` since 2026-10-25;
-  owner runs unattended under AFK). Re-pin the fork from
+- U7: source rebase (PARKED 2026-10-25 as a multi-lane wave, not a
+  single lane: attempt on `lane/u7-rebase` stopped clean per the ~20-file
+  bound with zero tree changes. Triage: 595 overlay files, 88 true
+  shadows, 47 differ fork-vs-a1; blockers B1 (missing `cpython-sys` /
+  `cpython-build-helper` bindgen glue), B2 (`Makefile.pre.in` Parser
+  object drift), B3 (`build.py` fetch-order + `cargo_lock_sha256`
+  semantics — pristine upstream has no Cargo workspace), B4 (~47 manual
+  merges incl. reworked `Python/marshal.c`), B5 (a1's C writer is already
+  two-phase occurrence-based — U1's overlay port may be partially
+  redundant, needs a design call). Named prerequisites: P1 lock/fetch
+  semantics, P2 U1-writer design call, P3 vendoring + header port.
+  Retry: re-scope as a wave when a native Linux host exists (proof needs
+  both hosts) or test-file drift forces it. Re-pin target stays peeled
+  a1 `22d79d9` (`sha256=7dcd8a1f…`, `size=44114970`); a1 still resolves
+  U8 for free and keeps U4 closed; it does NOT resolve U2 (see U2 —
+  no pin move was ever needed). HEAD remains a deferred separate step.
   `b812b4a` to peeled `v3.16.0a1` `22d79d9` (2026-10-13; smallest newer
   upstream that builds sealed per G2 — the only candidate with a proven
   sealed build, the U0 record; scouted 2026-10-25: fork branch still at
@@ -868,6 +888,13 @@ upstream speedups secondhand.
   `cf690004e` (HEAD rebase would reopen U4), zlib/bz2 selection
   unchanged (U3 KEEP stands). U7 target set to peeled a1 `22d79d9`;
   HEAD deferred as a separate owner call.
+- 2026-10-25 U7 attempt stopped per bounds (zero changes): 47 differing
+  shadows + B1–B5 infra/design blockers make it a wave, not a lane;
+  parked with P1–P3 + Linux-host retry condition. Same day: fork-vs-a1
+  test-file check resolved U2's value question — fork expects `00b13fa9…`
+  (U17), a1 expects `04a01eac…` (U18, green in U0) — so U2 retries on the
+  current pin with 2.4.0 + a1's own test value, no rebase, no invented
+  checksum, no `Lib/test/` modification.
 - Pre-preflight history (substantive only): 71/71 coverage integrated at
   `9329e1c`/`4710c23`; openssl-less hashing+TLS lanes merged (`ca4d541`);
   macOS promote bridge takes an explicit archive dir (`e8fdad6`).
