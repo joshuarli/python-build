@@ -36,7 +36,7 @@
 +#else
 +#define PYB_PGO_TAG ""
 +#endif
-+#define PYB_BANNER_LINE2 \
++#define PYB_BUILD_IDENTITY \
 +    "[python-build " PYB_TARGET_TRIPLE \
 +    ": OpenSSL-free TLS+hashing (RTLS/rustls-graviola), mimalloc static," \
 +    " ThinLTO" PYB_PGO_TAG "; src " PYB_SRC_REV \
@@ -50,15 +50,15 @@
      initialized = 1;
  #ifdef Py_GIL_DISABLED
 -    const char *buildinfo_format = "%.80s free-threading build (%.80s) %.80s";
-+    const char *buildinfo_format = "%.80s free-threading build (%.80s) %.80s\n%.200s";
++    const char *buildinfo_format = "%.80s free-threading build (%.80s) %.80s %.200s";
  #else
 -    const char *buildinfo_format = "%.80s (%.80s) %.80s";
-+    const char *buildinfo_format = "%.80s (%.80s) %.80s\n%.200s";
++    const char *buildinfo_format = "%.80s (%.80s) %.80s %.200s";
  #endif
      PyOS_snprintf(version, sizeof(version), buildinfo_format,
 -                  PY_VERSION, Py_GetBuildInfo(), Py_GetCompiler());
 +                  PY_VERSION, Py_GetBuildInfo(), Py_GetCompiler(),
-+                  PYB_BANNER_LINE2);
++                  PYB_BUILD_IDENTITY);
  }
  
  const char *

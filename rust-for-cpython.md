@@ -692,6 +692,11 @@ decision; coverage still holds.
 Contract changes written up, docs updated, edge cases from D2 folded into
 register lines, exclusion/scope coherence re-checked.
 
+Deferred by owner decision: investigate the intermittent `_marshal_rs`
+capsule import failure in `test_audit`, also observed in the product
+regression gate. Parallel `.pyc` churn is suspected, not established.
+Reproduce under the gate's process environment before choosing a fix.
+
 ### Phase 5 — close
 
 Delete what is dead and prove liveness (`dead-code-archaeology` lens),
