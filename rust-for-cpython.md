@@ -649,17 +649,28 @@ completed at 22:02Z and 22:12Z.
 The shared unicodedata kernel now omits the eight sampled code points newly
 assigned in Unicode 18, so both pinned Unicode versions receive identical
 benchmark inputs and outputs. A fresh memory-only calibration passed, and
-the refreshed 71-route goals had no mismatches. The rejected SSL certificate
-the repeated TLS identity derivation and a process-wide `OnceLock` crypto
-provider cache; its replicated gate was NEUTRAL. Both mechanisms are closed
-to repetition, and the unique rejected branch remains for the finding. The
-earlier HMAC lane was a neutral no-op with no source delta. The prepared HMAC
-lane will test whether placing its generic state behind `_hashlib_rs`, already
-loaded by `_hashlib`, reduces resident code while preserving the Rust route.
-No climber started: `perf-gate-ready -s` returned 75 at 22:22Z with swap at
-75%; later checks remained constrained after the hot process exited, most
-recently at 73% swap. The next launch requires that check to pass. Prior
-startup/export-list attempts showed no RSS movement and are closed to
+the refreshed 71-route goals had no mismatches. The rejected SSL candidate
+cached TLS identity derivation and a process-wide `OnceLock` crypto provider;
+its replicated gate was NEUTRAL. Both mechanisms are closed to repetition,
+and the unique rejected branch remains for the finding. The earlier HMAC
+lane was a neutral no-op with no source delta. The shared-state HMAC attempt
+was rejected. It moved HMAC state behind a capsule API in `_hashlib_rs`; the
+two-run control comparison put HMAC load at 2.77x OVER (2664/960 KiB),
+despite a 0.70x MET working peak. `hashlib` load was 0.89x MET and its
+working peak 1.22x UNCLEAR. Against the incumbent, HMAC load was neutral
+(median 1.031x, 95% interval 0.971–1.106); all seven workload guards were
+neutral and there were no output mismatches. The candidate's aggregate
+`test_hashlib`, `test_hmac`, `test_imaplib`, and `test_support` result
+matched accepted main: 553 run, 23 skipped, with the same three passing
+suites and 14 pre-existing `test_support` errors. No qualification gate or
+commit followed. This is the second failed HMAC lane, so HMAC joins the
+unresolved memory debt.
+`perf-gate-ready -s` returned 75 at 22:22Z with swap at 75%; later checks
+remained constrained after the hot process exited, most recently at 73% swap.
+At the owner's direction, memory-only work may proceed without that host
+admission check; memory samples, output checks, clean builds, full relevant
+suites, workload guards, and replicated memory verdicts remain required.
+Prior startup/export-list attempts showed no RSS movement and are closed to
 repetition without a distinct mechanism.
 
 No lane starts until D1 and D2 acceptance pass. Debt entries remain
