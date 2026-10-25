@@ -35,10 +35,11 @@ is now committed on main.
 Current steering decision (2026-10-25): coverage stays accepted and closed
 to rework; D2 accepted with the two loud pre-existing deviations below.
 U8 done and merged. U7 parked as a multi-lane wave (blockers B1–B5
-recorded on the item; retry needs P1–P3 + a Linux host). Next work in
-order: U2 retry on the current pin (2.4.0 + a1's own `04a01eac…` test
-value, no `Lib/test/` modification), then Phase 3 memory-first climb.
-Width 1 lane; expands to at most 16 only for the Phase 3 batch.
+recorded on the item; retry needs P1–P3 + a Linux host). U2 done and
+merged (proof above; integrated --all attributed clean). Next work in
+order: Phase 3 memory-first climb on the qualified tree (macOS-only per
+the perf skill; Linux re-qual of the U8+U2 tree still needs a native
+host). Width expands to the perf skill's lanes only for Phase 3.
 
 Next substantive milestone: U0 pristine 3.16.0a1+ comparison build plus U1
 marshal exact-byte differential with a pass/fail gate.
@@ -158,14 +159,23 @@ Known baseline failures (never mistake for a regression):
 - Nine resource-denied files per platform (`test_zipfile64`,
   `test_socketserver`, `test_peg_generator`, etc.; see the register).
 
-Loop timings (measured 2026-10-25, macOS arm64):
+Loop timings (measured 2026-10-25/26, macOS arm64):
 - narrow controller check (`python3 -m unittest tests.test_nix_build_image`):
   ~0.1s.
 - `py_compile` of lane entry points: ~0.05s.
 - full controller `discover -s tests`: exceeds 120s (earlier full run
   ~290s); run at milestones only, in the background.
-- coverage `test --all --jobs 4`: hours-scale; runs at integration and
-  close only. Focused `test --suite <name>` per item is the item loop.
+- coverage `test --all --jobs 4`: 9m07s for 50,158 tests (measured
+  2026-10-26 on the U2 integration tree; earlier "hours-scale" estimate
+  retired). Runs at integration and close only — it is the manual gate,
+  never part of the item loop. Focused `test --suite <name>` per item
+  (~20-90s) is the item loop; a C-touching rebuild costs ~10-20 min, so
+  chain build + all suites + footprint into one background round.
+- Work-tree test-file swaps do not survive a rebuild (`build` re-extracts
+  source): swap after the last build, verify by md5, restore after, and
+  record the md5s. `-m test <out-of-tree path>` is rejected (run=0), so
+  the swap is the only harness-compatible route; `Lib/test/` in the repo
+  tree is never touched.
 
 Reference numbers for D2: host python3 marshal probe — an object appearing
 twice serializes with a back-reference (27 bytes) vs twice unshared
@@ -516,23 +526,30 @@ edits need coordinator review even when append-only.
   Known divergence, not gated: tuple cycles round-trip via the fork
   reader while pristine raises. Resolved by the source rebase, parked as
   an owner decision in Reference.)
-- U2: unicodedata / ICU4X 2.4 evaluation. (PARKED 2026-10-24 with
-  evidence on `lane/u2-parity`: 2.4.0 trial resolved and built sealed;
-  Rust-boundary semantics byte-identical to pristine a1 across all
-  1,112,063 non-surrogate codepoints. Blocked: fork
-  `test_unicodedata.py::UnicodeFunctionsTest::test_function_checksum`
-  hardcodes a Unicode-17 SHA1 (`00b13fa9…`; verified from the fork
-  tarball); Unicode-18 data can never satisfy it. Upstream already
-  published the correct Unicode-18 value with the data: pristine a1's
-  `UnicodeFunctionsTest.expectedchecksum` is `04a01eac…`, green in the
-  U0 record (a1 UCD is 18.0.0, confirmed from the U0 install). Retry
-  condition CORRECTED again 2026-10-25: NO rebase and NO invented value
-  needed — U2 adopts ICU4X 2.4.0 (semantics already proven byte-identical
-  to pristine a1 across all 1,112,063 non-surrogate codepoints) and runs
-  a1's own test file (`04a01eac…`, cross-validated by U0) against the
-  lane build, without modifying any `Lib/test/` file in the tree
-  (byte-identical overlay test shadow only if the harness needs it,
-  flagged for review). Owns: `rust-cpython/overlay/Modules/_unicodedata_rs/`.
+- U2: unicodedata / ICU4X 2.4 evaluation. (DONE 2026-10-26 on
+  `lane/u2-retry`, merged to main. Retry path: re-applied 2.4.0 pins
+  (exact 5-crate lock delta, `build.py fetch --locked` stable, license
+  record updated), shadowed a1's three generated UCD headers
+  byte-identical (`unicodedata_db.h`, `unicodename_db.h`,
+  `Objects/unicodetype_db.h`; struct/index/name-table shapes verified
+  identical), and ported a1's 3-state GB9c `update_incb_state` verbatim.
+  Root causes fixed, all in owned files: stale 3.2.0 frozen-bidi entries,
+  the older 4-state grapheme machine, U17 name/case tables. Proof ran
+  a1's own test file out-of-tree (no `Lib/test/` modification):
+  lane 73 run / 0 failures / 7 skipped, SUCCESS — identical counts to
+  pristine a1; `unidata_version` now 18.0.0 on both. Neighbors
+  `test_locale`, `test_re`, `test_str` green on fork files (no U17→U18
+  conflict). Footprint import+RSS: lane 20.6 MB vs pristine 16.9 MB
+  (logged, not gating). Integrated `test --all --jobs 4` on the merged
+  tree: 50,158 run / 9 failures / 2,731 skipped in 9m07s — 3 failed
+  files, all attributed: `test_ssl` 4F+6E and `test_support` 14E (the
+  OD5-dispensed sets, counts exact), `test_unicodedata` 5 failures all
+  fork-file staleness (U17 checksums, old bidi expectation, one renamed
+  unassigned char), each green under a1's file. `test_audit` flaked once
+  in the full run (parallel `.pyc` churn) and passed alone plus on rerun;
+  kept visible, not quarantined. Owns:
+  `rust-cpython/overlay/Modules/_unicodedata_rs/` plus the three db
+  shadows and the GB9c port in `rust-cpython/overlay/Modules/unicodedata.c`.
   Proof when unparked: full `test_unicodedata` (+ locale/re/str suites
   per the register) green on both hosts plus footprint comparison
   logged (not gating).
@@ -888,6 +905,13 @@ upstream speedups secondhand.
   `cf690004e` (HEAD rebase would reopen U4), zlib/bz2 selection
   unchanged (U3 KEEP stands). U7 target set to peeled a1 `22d79d9`;
   HEAD deferred as a separate owner call.
+- 2026-10-26 U2 done on `lane/u2-retry` (5ca8af5, merged): 2.4.0 + three
+  byte-identical a1 db shadows + GB9c port; a1-file proof 73/0/7 both
+  interpreters; integrated --all 50,158/9/2,731 in 9m07s with only
+  attributed failures (ssl/support dispensed, unicodedata fork-drift,
+  audit flake kept visible). Verification rules learned: swap test files
+  after the last build (md5 both ways), chain build+suites+footprint in
+  one round, full --all stays a manual integration-only gate.
 - 2026-10-25 U7 attempt stopped per bounds (zero changes): 47 differing
   shadows + B1–B5 infra/design blockers make it a wave, not a lane;
   parked with P1–P3 + Linux-host retry condition. Same day: fork-vs-a1
