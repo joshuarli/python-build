@@ -1,111 +1,200 @@
-# Rust-for-CPython stdlib coverage
+# Rust-for-CPython campaign
 
-## Objective
+Status: coverage complete (71/71 targets qualified, macOS arm64 + Linux x86-64);
+upstream-parity stage defined and unstarted; performance phase deferred in full.
 
-Port important public stdlib behavior to Rust on the pinned experimental
-CPython 3.16 fork, as quickly as correctness permits. Coverage is the sole
-goal of this phase. Performance, memory, allocation, and size optimization
-are deferred to [rust-for-cpython-perf.md](rust-for-cpython-perf.md). **Do not
-start that document until every checklist item here is complete.** A correct
-Rust port can be kept regardless of its unmeasured performance.
+Goal: keep every named public stdlib behavior on maintained Rust on the
+pinned experimental CPython 3.16 fork, prove it against CPython suites,
+reconcile the pinned fork with upstream 3.16.0a1+ semantics, and only then
+climb memory and CPU performance.
 
-The production CPython 3.14.6 build is outside this lane. Supported
-experimental targets are native macOS arm64 and Linux x86-64; Linux arm64
-remains in scope but its builder is not implemented yet. Windows, Intel
-macOS, and every other platform are unsupported. Public APIs on supported
-hosts must still preserve their behavior, including lexical Windows path
-parsing where exposed.
+Deliverables:
+- D1: 71/71 stdlib coverage targets qualified on macOS arm64 and Linux
+  x86-64 (accepted; see Phase 1 and the parity register).
+- D2: upstream-parity stage against 3.16.0a1-or-newer: exact-byte marshal
+  differential, ICU/Unicode 18 evaluation, compression-backend evaluation,
+  UUID re-baseline, and a compat sweep (re, datetime, pickle, csv,
+  io/zipfile/shutil, ssl) — each with pristine-baseline comparison and full
+  suite gates (defined, unstarted).
+- D3: memory-first then CPU performance for all 71 routes (deferred; Phase 3
+  holds the full normative contract, unchanged in force).
+- D4: this single campaign doc (done by this preflight; supersedes the
+  former two-doc layout).
 
-## Coverage loop
+Last accepted checkpoint: `920fa8b` (clinic-exact openssl-free `_hashlib`
+shim; `test_hmac` + `test_hashlib` SUCCESS, 234 run/18 skipped, in the
+integrated lane stage).
 
-1. Use the passing full-suite baseline below and pick one unchecked module.
-   Identify its complete relevant CPython test modules or packages before
-   editing. Include neighboring suites when public behavior crosses modules.
-   Run a pristine focused suite only when its expected platform skips need
-   clarification; do not rebuild the same baseline for every lane.
-2. Look for a maintained Rust library implementing the format or algorithm.
-   Use one where its license, compatibility, maintenance, and dependency
-   closure fit this lane. Vetted Rust crates are preauthorized for this
-   isolated lane when committed with pinned `Cargo.lock` entries and license
-   information; other dependencies still require consultation.
-   Keep CPython's public API and object/callback semantics at the boundary.
-3. Make a module-level port in an isolated, committed worktree.
-   Prefer adapting a library over writing another codec, parser, or container
-   from scratch. Keep the candidate's real Rust, Python, C, and Cargo source
-   files under `rust-cpython/overlay/` in Git. Generated interpreters and
-   compiler logs are rebuildable.
-4. Build with `python3 rust-cpython/build.py build`, which now defaults to
-   a non-PGO, non-LTO CPython `--with-pydebug` build and Cargo `dev`
-   profile. Run `python3 rust-cpython/build.py test --suite test_NAME`
-   for every identified full suite. Import the public module and exercise a
-   representative call in a CPython subinterpreter; private extensions must
-   either load there or leave a compatible Python fallback. Assert that
-   `_interpreters.run_string()` returns `None`, since a child exception is
-   returned as a value. Do not write or
-   run Rust tests, pyperformance, or benchmarks during this phase.
-5. Inspect failures at the Python API, fix the Rust boundary, and rerun the
-   affected suites. Agents may use focused tests while developing, but the
-   final candidate must pass every relevant unchanged module suite. The
-   coordinator integrates independent modules, runs `build.py test --all`
-   across all default-resource test modules on the combined tree, and repairs
-   or reverts failures before checking any items from that batch. Put the
-   focused suite verdict in the module commit
-   and the integrated verdict beside the checked checklist item. Then select
-   the next batch.
+Provisional work: none on the integration branch. The `lane-integrate`
+worktree's stage build verified the D2 prerequisite shim; its overlay file
+is now committed on main.
 
-A failed candidate may stay on its own branch while being repaired. Do not
-mark partial implementations complete or create per-attempt reports, scout
-commits, or resource ledgers. A short finding is enough when a route is
-abandoned. The coordinator owns lane assignment, path isolation, and
-integration; the repo-local skill allows up to 16 module agents.
+Current steering decision (2026-10-25): coverage stays accepted and closed
+to rework; next substantive work is the D2 parity stage, marshal first. No
+perf lane starts until D2 is accepted. Width starts at 1 lane (single
+investigation) and expands to at most 16 only for the D2 compat sweep.
 
-Baseline on macOS arm64 (2026-09-25): the pinned fork's debug build passed
-`python3 rust-cpython/build.py test --all --jobs 4` under default resources.
-The runner found 505 test files, ran 496, denied nine for resources, and
-reported 50,158 individual tests run, 2,703 skipped, and zero failures.
+Next substantive milestone: U0 pristine 3.16.0a1+ comparison build plus U1
+marshal exact-byte differential with a pass/fail gate.
 
-Baseline on Linux x86-64 (Ubuntu 24.04, glibc 2.39, 2026-09-28): the pristine
-fork's debug build (empty overlay) ran 496/505 files with the same nine
-resource denials and reported 50,782 tests run, 2,828 skipped. Its only
-failure is `test_socket`'s `ThreadedVSOCKSocketStreamTest.testStream` (two
-errors): the host kernel lacks `CONFIG_VSOCKETS_LOOPBACK`, so a VSOCK connect
-to the local CID fails with `ENODEV` for any interpreter, including the host's
-Python 3.12. That test is a host baseline failure, not a coverage failure.
-On the Ubuntu lane host it clears with `sudo modprobe vsock_loopback`
-(the module registers the `VMADDR_CID_LOCAL` transport; persist via
-`/etc/modules-load.d/`), followed by rerunning `test_socket`. Containers
-share the host kernel, so no image or Dockerfile change can supply it.
+## Charter
 
-## Coverage checklist
+- Decide, log the call, and keep going. Within the execution grant, decide
+  and proceed without waiting. Park an item that needs authority outside
+  the grant with evidence, the missing prerequisite, and a retry condition.
+  Run until every deliverable is met or every remaining item is parked
+  behind a hard stop.
+- Hard stops are few: an irreversible or outside-the-repo action, a boundary
+  below that forbids it, or a loop that cannot check anything. Pushing is
+  always forbidden. Lane commits require the owner's instruction; without
+  it use disjoint patch handoffs and do not claim a committed handoff.
+- Fix on the way what is egregious, in its own commit, to thresholds stated
+  in numbers: a loop command over 10 minutes gets one bounded repair tied
+  to the next substantive delivery; a regression of more than 2x against
+  the baseline is parked as a blocker, not worked around; a test red on the
+  baseline that blocks an item is recorded in Baseline, not fixed
+  opportunistically. Record anything else seen and leave it.
+- Parity before optimization. No optimization or size work until D1 and D2
+  acceptance pass. Memory and CPU numbers are logged during D2 but never
+  gate it.
+- Keep bookkeeping minimal: reuse existing results and logs. Record the
+  revision and relevant inputs needed to qualify evidence. No provenance
+  ledger, no second progress register, no per-attempt report files.
+- Size lanes and validation waves by ownership, measured resources, and
+  acceptance capacity. For this lane the coordinator skill below supersedes
+  `orchestrate`. Memory budget: measure the lane host before expanding
+  past 4 concurrent builders; reduce width when review or validation
+  queues grow.
+- The parent reviews direction, not just worker completion. After a method
+  change, update current rulings here and notify affected lanes. Do not
+  silently replace owner requirements or waive a failed acceptance check.
+- Worktrees and all working state live under `.work/` in the repo, never
+  `/tmp` or `$TMPDIR`. Lane worktrees live at `.work/wt/<lane>`.
+- Follow the coordinator skill's worktree lifecycle (branch + worktree per
+  lane, private build/stage/logs per worktree, shared `.cache/objects`
+  linked, remove completed worktrees after integration). During winddown,
+  retain a worktree only when it is clean, named in the handoff, and
+  explicitly allowed by the closeout guard.
+- Every commit is a Conventional Commit with the area as scope; the item ID
+  belongs in the body, never the subject. Code comments never cite this doc.
+- Parent steering checkpoint applies after each validation wave, on resume
+  or context recovery, and before dispatch after a recurring rejection or
+  bottleneck; after five attempted items with no completed wave. Record the
+  ruling and next delivery here, not in a second artifact.
 
-These are 71 named public-behavior targets, not claims that every line of
-each stdlib module must be Rust. Work through them, choosing library-backed
-modules with a tractable complete CPython test suite first. A checked item
-requires public calls for the named behavior to reach maintained Rust code
-on a supported host, and every relevant unchanged CPython test module or package to pass
-in full on the debug candidate. Baseline platform and resource skips are
-acceptable; failures, errors, new skips, and skips caused by an unimplemented
-feature of the claimed module are not.
-Record the exact Rust-owned behavior, platform, candidate commit, suite
-command, pass and skip counts, and any expected platform skips in the module
-commit and completed checklist line. A private extension, a narrow proof, or
-passing a subset of a module's tests does not complete an item.
+## Decisions
 
-Earlier scanner and codec experiments were partial and do not qualify any
-module. The strict count is now **71 complete targets**. Do not carry
-their performance ranking into this coverage phase.
+Owner-decided (2026-10-25, from the owner's direction; overrule by saying so):
+- OD1: one campaign doc. `rust-for-cpython-perf.md` is merged here and
+  removed (recoverable from git history). The normative perf contract
+  survives verbatim in force as Phase 3.
+- OD2: coverage and parity first; all performance goals deferred until D1
+  and D2 are accepted. CPU, timing, and quiet-host results cannot qualify,
+  reject, or delay D2 changes.
+- OD3: add the D2 upstream-parity stage scoped to marshal, unicodedata,
+  compression, uuid, and the compat sweep, in the brief's sequence
+  (pristine baseline, then semantics, then full suites, then backend
+  evaluations). No redesign of the 71-route architecture around the
+  proposed upstream Rust API.
+- OD4: coverage items stay accepted as qualified; upstream changes do not
+  reopen them except through a D2 item with a reproducer.
 
-The combined macOS arm64 debug run at `9329e1c`, with the uuid, codec
-(`encodings.utf_8`), socket, and stdlib-module-list shared-overlay repairs
-included, passed 50,158 tests with 2,703 skipped and zero failures;
-496/505 files ran and nine were resource-denied. Run, skip, and
-resource-denial counts match the pre-repair `1ffb365` run exactly, so the
-repairs introduce no macOS regression. Each checked line records its
-focused-suite result and combined qualification.
-The same 71 targets are separately qualified on Linux x86-64; see
-[Linux x86-64 qualification](#linux-x86-64-qualification).
+Prescribed (settled from code and evidence; reversal needs counter-evidence):
+- P1: marshal goes first. `rust-cpython/overlay/Modules/_marshal_rs/src/lib.rs:349`
+  reads `ob_refcnt_full == 1` to set `FLAG_REF`, while upstream 3.16 tags by
+  multi-occurrence. Both sides can be valid marshal yet differ byte-for-byte;
+  the campaign's own checklist already admits the divergence (Phase 1,
+  `marshal` line). Reversal: a byte-differential proving identity.
+- P2: keep every Rust route until paired memory evidence says otherwise.
+  The 3.16 native C uuid fast paths and zlib-rs/bzip2-rs backends are
+  evaluation candidates, not replacements, until equivalence plus
+  memory-neutral-or-better proof. Reversal: accepted U3/U4 verdicts.
+- P3: ICU 2.2.0 stays until U2 qualifies 2.4/Unicode 18 on semantics and
+  load footprint (`rust-cpython/overlay/Modules/_unicodedata_rs/Cargo.toml:9-10`
+  pins `=2.2.0`). A data upgrade that moves `load_footprint` OVER is
+  rejected pending a smaller mechanism. Reversal: U2 acceptance.
+- P4: the lane coordinator skill supersedes `orchestrate` for D1/D2 lane
+  mechanics; `orchestrate`'s campaign reference still governs waves,
+  steering, and closeout. Reversal: owner says otherwise.
 
-### Priority 0: common application paths
+Delegated (executor decides inside the bound, logs the call):
+- G1: lane width 1–16 and wave grouping, bounded by measured host memory,
+  review capacity, and the provisional-work cap (at most 4 unintegrated
+  branches). Default to fewer, wider lanes on shared files.
+- G2: pristine-baseline scope for U0 (newer alpha vs current `b812b4a`),
+  bounded by fetch cost; smallest newer upstream that builds sealed wins.
+- G3: per-module port tactics inside D2 (adapt a library vs edit the
+  boundary), bounded by the license/closure rule in the coverage loop.
+
+## Baseline
+
+Source pin (`rust-cpython/sources.lock.json:2-9`): Rust-for-CPython/cpython
+`3.x-rust-in-cpython` at `b812b4a7`, version 3.16.0a0. Upstream 3.16.0a1
+released 2026-10-13; next alpha 2026-11-10. The fork branch still points at
+`b812b4a`; accumulating changes live in main python/cpython.
+
+Accepted coverage numbers (macOS arm64, debug, default resources):
+`test --all --jobs 4`, 505 files found, 496 run, 9 resource-denied,
+50,158 run / 2,703 skipped / zero failures. Linux x86-64: 50,782 run /
+2,828 skipped, same denials; only failure is the host-baseline VSOCK test
+below.
+
+Known baseline failures (never mistake for a regression):
+- `test_socket.ThreadedVSOCKSocketStreamTest.testStream`: host kernel lacks
+  `CONFIG_VSOCKETS_LOOPBACK` (`ENODEV`). Clears with `sudo modprobe
+  vsock_loopback`. Applies to any interpreter on that host.
+- Nine resource-denied files per platform (`test_zipfile64`,
+  `test_socketserver`, `test_peg_generator`, etc.; see the register).
+
+Loop timings (measured 2026-10-25, macOS arm64):
+- narrow controller check (`python3 -m unittest tests.test_nix_build_image`):
+  ~0.1s.
+- `py_compile` of lane entry points: ~0.05s.
+- full controller `discover -s tests`: exceeds 120s (earlier full run
+  ~290s); run at milestones only, in the background.
+- coverage `test --all --jobs 4`: hours-scale; runs at integration and
+  close only. Focused `test --suite <name>` per item is the item loop.
+
+Reference numbers for D2: host python3 marshal probe — an object appearing
+twice serializes with a back-reference (27 bytes) vs twice unshared
+(42 bytes). Occurrence-based tagging is the behavior to match byte-for-byte.
+
+## Sequence
+
+Ordering: P0 ground → parity/completeness → hardening → optimization →
+close. An item names its ID, size, prerequisites, owned files, and proof.
+Prerequisites crossing workstreams are written on the item. A failing item
+is time-boxed to 3 attempts, then parked with evidence, the named
+prerequisite, and a retry condition.
+
+### P0 — ground (no new behavior)
+
+- GROUND-1: record the U0 pristine revision and its full-suite counts
+  before any D2 edit. Proof: the counts committed in the U0 message.
+- GROUND-2: loop repair only if the loop is the bottleneck (over
+  10 minutes for a focused item loop). No open-ended infrastructure.
+
+### Phase 1 — coverage (accepted; do not rework)
+
+Parity register: 71 targets, each qualified by the full unchanged CPython
+suites named on its line, on a debug candidate, with baseline skips only.
+Public calls for the named behavior reach maintained Rust on macOS arm64;
+Linux x86-64 qualification follows in Reference. Failed candidates were
+repaired or reverted before batch acceptance; the combined-tree integrated
+suite is the acceptance per batch.
+
+Coverage loop (binds D2 ports as well): baseline → relevant-suite list →
+maintained library with fitting license/closure (vetted crates
+preauthorized when pinned in `Cargo.lock` with license record; other
+dependencies need consultation) → isolated committed worktree with real
+source under `rust-cpython/overlay/` (no patch manifests, no ignored dirs
+as sole copy; new crates via `overlay/Modules/Setup.local`) → debug build
+(`python3 rust-cpython/build.py build`) → every relevant full suite
+(`test --suite ...` per line; subinterpreter probe: public call works,
+`_interpreters.run_string()` returns `None`) → fix at the Rust boundary →
+coordinator integrates, runs `test --all`, repairs or reverts.
+
+Priority 0: common application paths
 
 - [x] `urllib.parse` — quote, unquote, and query parsing reach Rust
   (`5ec48ce`). Full `test_urlparse`, `test_urllib`, `test_http_cookies`,
@@ -181,10 +270,10 @@ The same 71 targets are separately qualified on Linux x86-64; see
   234 run/17 skipped; `test_imaplib` and `test_support` regression suites
   also passed; integrated full suite passed.
 - [x] `uuid` — parse, format, and common generation reach Rust (`6517691`).
-  Full `test_uuid` and `test_os`: 667 run/120 skipped; integrated full
-  suite passed.
+  Full `test_uuid` and `test_os`: 667 run/120 skipped; integrated full suite
+  passed.
 - [x] `datetime` — public ISO parsing and formatting plus date and datetime
-  timedelta arithmetic reach Rust (`da628d1`). Full `test_datetime`,
+  timedelta arithmetic reach Rust (`da6281d`). Full `test_datetime`,
   `test_strptime`, `test_time`, `test_calendar`, `test_locale`,
   `test_zoneinfo`, and `test_pickle`: 2,776 run/235 skipped; integrated full
   suite passed.
@@ -237,7 +326,7 @@ The same 71 targets are separately qualified on Linux x86-64; see
   transitions reach Rust (`5126933`). Full `test_concurrent_futures` and
   `test_interpreters`: 570 run/30 skipped; integrated full suite passed.
 
-### Priority 1: broad supporting surface
+Priority 1: broad supporting surface
 
 - [x] `configparser` — default simple INI read and write reach Rust
   (`94e1f1c`). Full `test_configparser` and `test_logging`: 642 run/9
@@ -382,71 +471,209 @@ The same 71 targets are separately qualified on Linux x86-64; see
   full default-resource suites: 1,113 run/34 skipped; `test_urllib2net` and
   `test_urllibnet` were resource-denied. Integrated full suite passed.
 
-## Linux x86-64 qualification
+### Phase 2 — upstream parity (defined, unstarted)
 
-All 71 targets are qualified on native Linux x86-64 (Ubuntu 24.04, glibc
-2.39, locked LLVM 23.1.2; `x86_64-unknown-linux-gnu`) at commit `4710c23`,
-on top of the macOS integration `1ffb365`. Linux needed four shared-overlay
-repairs. None of them changes a claimed Rust-owned behavior:
+Prerequisite for every U-item: U0. Sequenced after: U1, then U2–U5 in any
+order the parent chooses, then U6. Each item owns its route files plus the
+differential test it adds; shared `Cargo.toml`/`Cargo.lock`/`Setup.local`
+edits need coordinator review even when append-only.
 
-- `b0888dd`: the Linux builder compiles the root lock's mpdecimal 4.0.0 into
-  a private static library, so `_decimal` and its Rust route are built.
-  Ubuntu 24.04 has no first-party libmpdec. The `uuid` Python fallback
-  used by own-GIL children now formats strings and applies versions as
-  pristine CPython does. `encodings.utf_8` imports `_codecs_rs` at
-  startup; a lazy import added syscalls to the first file read, which
-  `test_io.test_fileio`'s Linux-only strace checks reject.
-- `499308e`: socket `send`/`recv` reach Rust from the C socket methods
-  instead of Python wrappers. Remote debuggers saw the wrapper frame and
-  `test_external_inspection` failed.
-- `4710c23`: `Python/stdlib_module_names.h` is regenerated with the fork's
-  generator to list the 69 overlay crates. `faulthandler` had reported the
-  startup-loaded `_codecs_rs` as a third-party extension.
+- U0: disposable pristine 3.16.0a1-or-newer comparison build (no overlay).
+  Owns: nothing in the overlay; a build record under `.work/tmp/`.
+  Proof: `test --all` counts recorded here as the new expected baseline
+  (run/skip/deny lists), before any U1–U5 edit.
+- U1: marshal exact-byte differential. Replace the `ob_refcnt_full`
+  heuristic with occurrence-based reference tagging; add a differential
+  test that dumps shared objects, interned strings, code objects, and
+  repeated serialization after altering unrelated references, and asserts
+  byte identity with pristine. Owns:
+  `rust-cpython/overlay/Modules/_marshal_rs/`. Proof: differential test
+  plus full `test_marshal`, `test_py_compile`, `test_compile`,
+  `test_importlib` green.
+- U2: unicodedata / ICU4X 2.4 evaluation. Port or reconcile Unicode 18
+  semantics; trial ICU 2.4 data; qualify semantics AND `load_footprint`
+  (embedding larger property data can move the footprint). Owns:
+  `rust-cpython/overlay/Modules/_unicodedata_rs/`. Proof: full
+  `test_unicodedata` (+ locale/re/str suites per the register) green on
+  both hosts plus footprint comparison logged (not gating).
+- U3: compression-backend evaluation. Trial upstream
+  `--with-zlib=zlib-rs` / `--with-bzip2=bzip2-rs` configure backends
+  against the custom `_zlib_rs`/`_bz2_rs` dispatch on equivalence suites
+  plus a transition-cost note (maintenance, Python-to-Rust crossings).
+  Keep the current route regardless of outcome until acceptance. Owns:
+  build flags and `rust-cpython/overlay/Modules/_zlib_rs/`,
+  `_bz2_rs/`, `_gzip_rs/`. Proof: `test_zlib`, `test_bz2`, `test_gzip`,
+  `test_zipfile`, `test_tarfile` green on both backends; decision record.
+- U4: uuid re-baseline. Measure the Rust route against 3.16's native C
+  `UUID`/`uuid4`/`uuid7` on correctness suites plus paired memory; keep the
+  Rust path until paired memory evidence decides. Owns:
+  `rust-cpython/overlay/Modules/_uuid_rs/`, `rust-cpython/overlay/Lib/uuid.py`.
+  Proof: full `test_uuid` green; memory comparison logged (not gating).
+- U5: compat sweep. Verify and extend differential tests for: `re` (nested
+  classes, set ops, property escapes, unsupported-pattern fallback to the
+  CPython route); `datetime`/`_strptime` (`%Nf`, fast numeric paths);
+  `pickle` (weak-reference graphs, supported-graph vs fallback);
+  `csv` (`Sniffer.sniff`); `io`/`zipfile`/`shutil` (`BytesIO.peek`,
+  `ZipFile.remove`/`repack`, `copytree(copy_dir_stat=)`); `ssl`
+  (ECH-conditional behavior, compromised-intermediate rejection — the
+  Rust-backed TLS path must not silently diverge from OpenSSL-specific
+  verification semantics; security behavior has priority). Owns: each
+  route's overlay files. Proof: the named suites green on lane and
+  pristine with matching counts.
+- U6: integrated re-qualification. Run all 71 register suite sets plus the
+  full default-resource suite on the combined tree against the U0 baseline.
+  Proof: run/skip/deny lists equal U0 modulo the recorded VSOCK/resource
+  entries; per-item probes still reach Rust in the main interpreter with
+  `None` from own-GIL children.
 
-The uuid, codec (`encodings.utf_8`), socket, and stdlib-list overlay changes
-above also apply to macOS arm64 (the mpdecimal static-library build step is
-Linux-only). The macOS integrated suite was rerun with them included at
-`9329e1c`: 50,158 run/2,703 skipped, zero failures, matching the pre-repair
-counts exactly.
+### Phase 3 — performance (deferred in full; normative contract preserved)
 
-A per-item public-call probe ran in the main interpreter and in an
-isolated own-GIL child. In all 71 targets the named public behavior reached
-Rust in the main interpreter, and every child run returned `None` from
-`_interpreters.run_string()`. In 60 targets the Rust function was observed
-being called; 10 C-level routes loaded their Rust module. `io` uses the
-statically linked Rust library, which the probe cannot observe.
+No lane starts until D1 and D2 acceptance pass. Debt entries remain
+unresolved goals; removing a Rust route to meet a goal needs the owner's
+decision; coverage still holds.
 
-Integrated default-resource suite (`python3 rust-cpython/build.py test --all
---jobs 4`): 50,782 run/2,828 skipped, 496/505 files, nine resource-denied.
-The only failure is the baseline VSOCK host test. Run and skip counts and
-the skipped and denied file lists equal the pristine Linux baseline.
+- Goals: every one of the 71 routes, judged on its own, must use no more
+  CPU and no more memory than the pristine control, and should reach 0.9x
+  of it (ratio band 0.9x–1.0x). Per-module kernels in
+  `rust-cpython/perf_modules.py` (deterministic inputs, output digest both
+  interpreters must match, fresh process per sample): kernel CPU per
+  iteration, fixed load footprint, working peak footprint; floors 64 KiB
+  (load) / 256 KiB (peak) before ratios. Status from `python3
+  rust-cpython/perf.py goals` (two runs of five alternating rounds):
+  OVER / BEYOND / MET / UNCLEAR per the interval rules in `perf.py`;
+  MISMATCH on output divergence. Done per module is MET or BEYOND on all
+  three metrics; OVER largest-ratio first; BEYOND stops the climb.
+  Seven baseline-set application workloads guard every gated step; a win
+  that regresses a guard is rejected. Two failed lanes on a route record
+  debt in the ledger.
+- Sequencing inside the phase: the memory-first objective governs — every
+  module load/working goal and eligible absolute workload RSS goal passes
+  before CPU lanes start; debt entries stay unresolved; CPU, timing, and
+  quietness do not gate memory work. Memory-only path uses the explicit
+  `--memory-only` harness policy (no timing rounds, no CPU prerequisites);
+  memory samples, floors, replication, output checks, verified clean
+  builds, and complete suites still bind. Host quietness is not a
+  prerequisite for memory work.
+- Harness: matched fast-iteration builds (`rust-cpython/perf.py`,
+  `stage-perf-<name>/`, no PGO/ThinLTO/debug-info, same compiler/flags/SDK
+  both sides; only the overlay differs). Timing baselines need a quiet
+  host via the repository host lease. Width: up to 31 Codex subagents plus
+  the root coordinator (Codex: `gpt-6-luna` at `xhigh` for coordinator and
+  every subagent; Claude workflow: Sonnet 5.5 at `high`, `xhigh` for named
+  lanes); shared-host work through the perf host lease; harness changes
+  need fresh memory-only calibration.
+- Hill-climb loop: one lane tests one hypothesis about one module route
+  (profile, edit, incremental build, primary suite, exploratory bench,
+  then clean build, every relevant suite, gated verdict with application
+  guards, goal row). `perf.py bench` decides in code
+  (`rust-cpython/perf_verdict.py`): REJECT on any replicated regression,
+  INCONCLUSIVE on unquiet host/unstable/single-run, ACCEPT on replicated
+  target improvement, NEUTRAL otherwise; `--gate` needs committed
+  overlays, incumbent-containing challenger, memory pass, two runs, seven
+  guards. The coordinator integrates accepted lanes in batches, gates the
+  batch, promotes to `perf-rust`, re-measures.
+- Release-grade confirmation (later): repeat key comparisons on matched
+  `-O3` PGO + ThinLTO builds; repository workloads first; wall + process
+  CPU, RSS/unique memory, allocation passes separately; control
+  self-calibration; paired quiet-host counterbalanced runs with raw data;
+  stale-`.pyc` control; per-workload judgment.
+- Ledger: one row per integration in the coordinator's log (history to
+  date recoverable from git history of the former perf doc). Rejected
+  candidates are revisited only with a distinct mechanism.
 
-Each row ran `python3 rust-cpython/build.py test --jobs 4 --suite ...` with
-the complete suites named on that item's checklist line or in its
-implementation commit. Some sets were never fully recorded; these were
-run with the following suites:
+### Phase 4 — hardening
 
-- `io`: `test_io`, `test_bz2`, `test_codecs`, `test_csv`, `test_fileinput`, `test_gzip`, `test_interpreters`, `test_lzma`, `test_pathlib`, `test_shutil`, `test_socket`, `test_ssl`, `test_tarfile`, `test_tokenize`, `test_zipfile`
-- `asyncio`: `test_asyncio`, `test_context`, `test_contextlib`, `test_contextlib_async`, `test_coroutines`, `test_interpreters`, `test_selectors`, `test_unittest`
-- `socket`: `test_socket`, `test_asyncio`, `test_httplib`, `test_selectors`, `test_socketserver`, `test_ssl`, `test_urllib2_localnet`
-- `ssl`: `test_ssl`, `test__interpreters`, `test_asyncio`, `test_embed`, `test_ftplib`, `test_httplib`, `test_httpservers`, `test_imaplib`, `test_interpreters`, `test_logging`, `test_poplib`, `test_smtplib`, `test_socket`, `test_support`, `test_urllib`, `test_urllib2`, `test_urllib2_localnet`, `test_venv`, `test_xmlrpc`
-- `subprocess`: `test_subprocess`, `test__interpreters`, `test_asyncio`, `test_audit`, `test_concurrent_futures`, `test_interpreters`, `test_multiprocessing_fork`, `test_multiprocessing_forkserver`, `test_multiprocessing_main_handling`, `test_multiprocessing_spawn`, `test_os`, `test_pty`, `test_signal`
-- `multiprocessing`: `test_multiprocessing_fork`, `test_multiprocessing_forkserver`, `test_multiprocessing_main_handling`, `test_multiprocessing_spawn`, `test_concurrent_futures`, `test_logging`
-- `itertools`: `test_itertools`, `test_asyncio`, `test_collections`, `test_email`, `test_fnmatch`, `test_heapq`, `test_math`, `test_statistics`, `test_zipfile`
-- `threading`: `test_threading`, `test_threading_local`, `test_interpreters`, `test__interpreters`, `test_concurrent_futures`
-- `difflib` (chosen for Linux): `test_difflib`, `test_doctest`, `test_unittest`, `test_pydoc`, `test_filecmp`, `test_interpreters`, `test_tools`, `test_peg_generator`
-- `urllib.request` (chosen for Linux): `test_urllib2`, `test_urllib`, `test_urllib2_localnet`, `test_urllib2net`, `test_urllibnet`, `test_urllib_response`, `test_urlparse`, `test_robotparser`, `test_http_cookiejar`, `test_httplib`, `test_httpservers`, `test_interpreters`
+Contract changes written up, docs updated, edge cases from D2 folded into
+register lines, exclusion/scope coherence re-checked.
 
-"VSOCK host failure only" marks sets that include `test_socket`. Their only
-failure was the baseline `ThreadedVSOCKSocketStreamTest.testStream`.
-The same 71 suite sets were also run on the pristine Linux build, and every
-row's run and skip counts matched it. Skips in `test_os` vary between runs
-on this host. The first `uuid` comparison differed by two `test_os` skips,
-and a rerun matched at 667 run/84 skipped on both builds. Verbose skip lists
-for the `unicodedata` suites (191) and `test_os` (63) are also identical.
+### Phase 5 — close
+
+Delete what is dead and prove liveness (`dead-code-archaeology` lens),
+run the final full suites on both hosts, fix findings to the thresholds
+in the Charter, write the final report. No terminal re-audits to
+rediscover known obligations.
+
+## Acceptance
+
+- D1: `python3 rust-cpython/build.py test --all --jobs 4` on macOS arm64
+  and Linux x86-64 matches Baseline counts (modulo VSOCK/resource
+  entries); all 71 probes reach Rust with `None` from own-GIL children.
+  Already met; rerun at U6 and close.
+- D2: U0 baseline recorded; U1 differential test exists and passes with
+  byte identity; U2–U5 suite sets green on lane and pristine with matching
+  counts; U6 integrated counts equal U0. Security-sensitive U5-ssl behavior
+  verified, not assumed.
+- D3: `perf.py goals` reads MET or BEYOND for all 71 modules' load/working
+  goals and every eligible workload absolute RSS neutral-or-better; CPU
+  goals per the band after. (Deferred; commands retained, not run.)
+- D4: this doc is the only campaign plan; no `rust-for-cpython-perf.md`
+  in the tree.
+- Failure behavior is explicit: distinct user-visible suite failures fail
+  the item; interruption/parks record evidence + prerequisite + retry
+  condition; recovery after interruption resumes from the last accepted
+  checkpoint, never by redefining acceptance.
+
+## Execution boundary
+
+Authorized: branches and worktrees under `.work/wt/`; isolated builds and
+sealed-network Linux runs per `rust-cpython/build.py`; fetching pinned
+sources; running CPython suites; editing `rust-cpython/overlay/`,
+`rust-cpython/*.py` lane tooling, and this doc; local commits only when
+the owner explicitly authorizes them for the lane.
+Forbidden: pushing anywhere; changing production `buildsys/` artifacts or
+the 3.15.1 product; adding platforms, production dependencies, or product
+versions; removing a Rust route to meet a goal (needs OD-level decision);
+substituting Nixpkgs LLVM/Rust/libc or store paths into payloads; network
+access during sealed builds; warm-host timing claims as qualification.
+Contract changes made (none this preflight): listed here for the owner.
+
+## Non-goals
+
+- No redesign around the proposed upstream CPython Rust API (3.17+ plans
+  are not merged guarantees).
+- No CPU optimization before D2 acceptance; no workload-latency work in D2.
+- No Linux arm64 lane builder (out of scope for the experimental lane).
+- No second plan, dashboard, supervisor service, or provenance platform.
+- No upstream rebase beyond the U0 comparison build without a new owner
+  decision (fetch cost and sealed-build policy).
+
+## Reference
+
+Code map (verified 2026-10-25 at `920fa8b` unless noted):
+- pin: `rust-cpython/sources.lock.json:2-9` (b812b4a, 3.16.0a0).
+- lane entry: `rust-cpython/build.py:624-663` (overlay copy),
+  `rust-cpython/build.py:1417` (CLI), coordinator skill at
+  `.agents/skills/rust-cpython-coordinator/SKILL.md`.
+- marshal writer: `rust-cpython/overlay/Modules/_marshal_rs/src/lib.rs:31`
+  (`FLAG_REF`), `:349` (`ob_refcnt_full == 1` decision),
+  `:959-960` (reader tag handling).
+- unicode data: `rust-cpython/overlay/Modules/_unicodedata_rs/Cargo.toml:9-10`
+  (`icu_normalizer`/`icu_properties =2.2.0`).
+- compression routes: `rust-cpython/overlay/Modules/_zlib_rs/`,
+  `_bz2_rs/`, `_gzip_rs/`, `_zip_rs/`; no `--with-zlib`/`--with-bzip2`
+  backend selection in `rust-cpython/build.py` (checked).
+- hashing/TLS lanes (recent integration context):
+  `rust-cpython/overlay/Lib/_hashlib.py` (clinic-exact shim, `920fa8b`),
+  `rust-cpython/overlay/Lib/_ssl.py`, `rtls/` provider tree.
+- perf tooling (deferred): `rust-cpython/perf.py`, `perf_modules.py`,
+  `perf_verdict.py`; Codex skills at
+  `.agents/skills/rust-cpython-perf/SKILL.md` and
+  `.agents/skills/rust-cpython-perf-climber/SKILL.md`; Claude skills under
+  `.claude/skills/`.
+
+Linux x86-64 qualification (accepted, `4710c23` over macOS `1ffb365`;
+rerun included at `9329e1c` with identical macOS counts): four
+shared-overlay repairs, none changing claimed Rust-owned behavior —
+`b0888dd` (mpdecimal static lib; uuid own-GIL fallback; `encodings.utf_8`
+eager `_codecs_rs` import), `499308e` (socket send/recv from C methods),
+`4710c23` (`stdlib_module_names.h` regeneration). Per-item main/own-GIL
+probes: 71/71 reach Rust in main; 60 observed calls, 10 C-level module
+loads, `io` via static lib. Suite sets per row as recorded below; pristine
+comparisons matched on every row; `test_os` skips vary ±2 between runs
+(rerun matched 667/84).
 
 | Target | Suites | Run | Skipped | Notes |
-| --- | --- | ---: | ---: | --- |
+| --- | --- | --- | ---: | --- |
 | `urllib.parse` | 8 suites | 2,635 | 420 |  |
 | `json` | `test_interpreters`, `test_json` | 402 | 11 |  |
 | `pickle` | 7 suites | 4,169 | 119 |  |
@@ -474,7 +701,6 @@ for the `unicodedata` suites (191) and `test_os` (63) are also identical.
 | `io` | 15 suites | 6,099 | 805 | VSOCK host failure only |
 | `logging` | `test__interpreters`, `test_logging` | 354 | 10 |  |
 | `asyncio` | 8 suites | 4,497 | 87 |  |
-| `http.client` | 7 suites | 538 | 10 |  |
 | `ipaddress` | `test_concurrent_futures`, `test_ipaddress`, `test_socket` | 1,363 | 298 | VSOCK host failure only |
 | `socket` | 7 suites | 4,033 | 376 | denied: `test_socketserver`; VSOCK host failure only |
 | `ssl` | 19 suites | 5,532 | 389 | VSOCK host failure only |
@@ -517,4 +743,37 @@ for the `unicodedata` suites (191) and `test_os` (63) are also identical.
 | `threading` | 5 suites | 906 | 38 |  |
 | `typing` | `test_annotationlib`, `test_dataclasses`, `test_inspect`, `test_typing` | 1,522 | 0 |  |
 | `warnings` | 5 suites | 1,803 | 24 |  |
-| `urllib.request` | 12 suites | 899 | 24 | denied: `test_urllib2net`, `test_urllibnet` |
+
+Upstream background (brief of 2026-10-25; plans, not merged guarantees):
+3.16.0a1 (2026-10-13) adds `--with-zlib=zlib-rs` / `--with-bzip2=bzip2-rs`
+backends, Unicode 18, native C uuid paths (~15x/30x/6.8x claimed), `%Nf`
+and fast numeric datetime paths, weakref pickle support, `Sniffer`
+rework, `BytesIO.peek`/`ZipFile.remove`/`repack`/`copy_dir_stat`, ECH
+with OpenSSL 4+ and eMudhra rejection, and the Sep-30 language-summit
+Rust roadmap (3.16 optional zlib + internal API; 3.17 possible
+io/json/XML/memoryview/parser; 3.18+ earliest build requirement).
+ICU4X 2.4.0 (2026-10-22) embeds Unicode 18 data. The fork branch has no
+newer head; deltas accumulate in python/cpython main.
+
+## Decision log and campaign log
+
+- 2026-10-25 preflight: combined the two docs into this one; deferred all
+  perf goals behind D2; added the D2 parity stage from the upstream brief.
+  Superseded: the two-doc layout and any perf-first scheduling. Preserved:
+  all 71 register lines, suite sets, counts, and the full perf normative
+  contract above. Removed `rust-for-cpython-perf.md` (in git history).
+- 2026-10-25: `920fa8b` clinic-exact `_hashlib` shim accepted in lane
+  stage (`test_hmac` + `test_hashlib` 234/18 SUCCESS); `0e0be06` nix test
+  fixture follows the `backend/` graduation. Both on main, unpushed.
+- Pre-preflight history (substantive only): 71/71 coverage integrated at
+  `9329e1c`/`4710c23`; openssl-less hashing+TLS lanes merged (`ca4d541`);
+  macOS promote bridge takes an explicit archive dir (`e8fdad6`).
+  Infrastructure, attribution waves, and rejected candidates stay in git
+  history, not here.
+
+## For the owner afterwards
+
+- Overrulable without rework: OD1–OD4 above; P1–P4 reversal conditions.
+- To launch: the one-line prompt in the preflight report.
+- Cherry-picks: U1 differential test (reusable for any future rebase); U3
+  backend-equivalence harness; U0 build record as the new baseline anchor.
