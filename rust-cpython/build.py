@@ -681,6 +681,7 @@ def _llvm_ready(toolchain) -> Path:
         release_tag=toolchain.llvm_release_tag,
         source_commit=toolchain.llvm_source_commit,
         workflow=toolchain.llvm_workflow,
+        workflow_path=toolchain.llvm_workflow_path,
     )
     return extract_llvm_archive(
         archive,
@@ -717,6 +718,7 @@ def _fetch_llvm_archive(toolchain, llvm_cache: Cache) -> Path:
             release_tag=toolchain.llvm_release_tag,
             source_commit=toolchain.llvm_source_commit,
             workflow=toolchain.llvm_workflow,
+            workflow_path=toolchain.llvm_workflow_path,
         )
         return extract_llvm_archive(
             archive,

@@ -2585,6 +2585,7 @@ LIBSUBDIRS=	asyncio \
 		profiling/sampling/_vendor/d3-flame-graph/4.1.3 \
 		pydoc_data \
 		re \
+		rtls \
 		site-packages \
 		sqlite3 \
 		string \
