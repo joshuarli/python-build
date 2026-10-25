@@ -1,18 +1,18 @@
 # Third-party license evidence
 
 The ICU4X dependencies and checksums are pinned in `overlay/Cargo.lock`.
-ICU4X 2.2.0 property and normalization data is generated from ICU 78.1rc,
-which carries Unicode 17.0 data matching this CPython source's UCD version.
+ICU4X 2.4.0 property and normalization data carries Unicode 18.0 data,
+matching pristine upstream 3.16.0a1 (`unidata_version == '18.0.0'`, U0 record).
 
 | Crate | Version | Declared license |
 | --- | --- | --- |
 | `displaydoc` | 0.2.7 | MIT OR Apache-2.0 |
-| `icu_collections` | 2.2.0 | Unicode-3.0 |
+| `icu_collections` | 2.4.0 | Unicode-3.0 |
 | `icu_locale_core` | 2.3.0 | Unicode-3.0 |
-| `icu_normalizer` | 2.2.0 | Unicode-3.0 |
-| `icu_normalizer_data` | 2.2.0 | Unicode-3.0 |
-| `icu_properties` | 2.2.0 | Unicode-3.0 |
-| `icu_properties_data` | 2.2.0 | Unicode-3.0 |
+| `icu_normalizer` | 2.4.0 | Unicode-3.0 |
+| `icu_normalizer_data` | 2.4.0 | Unicode-3.0 |
+| `icu_properties` | 2.4.0 | Unicode-3.0 |
+| `icu_properties_data` | 2.4.0 | Unicode-3.0 |
 | `icu_provider` | 2.3.1 | Unicode-3.0 |
 | `litemap` | 0.8.3 | Unicode-3.0 |
 | `potential_utf` | 0.1.6 | Unicode-3.0 |
