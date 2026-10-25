@@ -33,8 +33,14 @@ const MAX_DEPTH: usize = 128;
 const MAX_RECORD_SIZE: usize = 1 << 28;
 const MARSHAL_SHIFT: u32 = 15;
 const MARSHAL_MASK: u32 = (1 << MARSHAL_SHIFT) - 1;
-/// Set on a table entry while its code object is still being written.
-const PENDING: u32 = 0x8000_0000;
+/// Set on a table entry while its object is still being written. A second
+/// occurrence before `complete` clears it is a recursive reference.
+const ACTIVE: u32 = 0x8000_0000;
+/// Set on a table entry and its `refs` record once the object is seen more
+/// than once. Only shared objects carry FLAG_REF in the final record.
+const SHARED: u32 = 0x4000_0000;
+/// Low bits of a table value holding the index into the `refs` array.
+const INDEX_MASK: u32 = 0x3fff_ffff;
 
 /// The fixed-order fields of a code object, shared with `Python/marshal.c`.
 #[repr(C)]
@@ -152,8 +158,11 @@ struct Slot {
 }
 
 /// Writes one marshal record into a `bytes` object that grows in place.
-/// Objects that may be shared are tracked by identity in an open-addressing
-/// table, as CPython's writer does: an object referenced once needs no entry.
+/// Every non-singleton object is tracked by identity, as upstream CPython's
+/// writer does: the first occurrence is written without FLAG_REF while its
+/// type-byte offset is recorded, and `resolve` flags exactly the objects
+/// seen more than once. Output depends only on the object graph, never on
+/// ambient reference counts.
 struct Encoder {
     bytes: *mut PyObject,
     buffer: *mut u8,
@@ -162,6 +171,16 @@ struct Encoder {
     slots: *mut Slot,
     mask: usize,
     entries: u32,
+    /// One record per tracked object, in first-occurrence order: the type
+    /// byte offset shifted left by one, ORed with 1 once shared.
+    refs: *mut usize,
+    refs_len: usize,
+    refs_cap: usize,
+    /// Output offsets of provisional TYPE_REF arguments, fixed up by
+    /// `resolve` to the reader's reference indices.
+    refpos: *mut usize,
+    refpos_len: usize,
+    refpos_cap: usize,
     allow_code: bool,
 }
 
@@ -181,6 +200,12 @@ impl Encoder {
             slots: ptr::null_mut(),
             mask: 0,
             entries: 0,
+            refs: ptr::null_mut(),
+            refs_len: 0,
+            refs_cap: 0,
+            refpos: ptr::null_mut(),
+            refpos_len: 0,
+            refpos_cap: 0,
             allow_code,
         })
     }
@@ -237,12 +262,12 @@ impl Encoder {
         unsafe { self.put(&(value as u16).to_le_bytes()) }
     }
 
-    unsafe fn counted(&mut self, tag: u8, flag: u8, value: &[u8]) -> Result<(), ()> {
+    unsafe fn counted(&mut self, tag: u8, value: &[u8]) -> Result<(), ()> {
         if value.len() > i32::MAX as usize || value.len() > MAX_RECORD_SIZE {
             return Err(());
         }
         unsafe {
-            self.byte(tag | flag)?;
+            self.byte(tag)?;
             self.i32(value.len() as i32)?;
             self.put(value)
         }
@@ -287,9 +312,106 @@ impl Encoder {
         Ok(())
     }
 
-    /// `Ok(Some(index))` when the object was already written; `Ok(None)`
-    /// after recording it, in which case its record carries FLAG_REF.
-    unsafe fn track(&mut self, object: *mut PyObject, pending: bool) -> Result<Option<u32>, ()> {
+    unsafe fn refs_push(&mut self, value: usize) -> Result<(), ()> {
+        if self.refs_len == self.refs_cap {
+            let cap = if self.refs_cap == 0 { 256 } else { self.refs_cap * 2 };
+            let grown = unsafe {
+                PyMem_Realloc(
+                    self.refs.cast::<c_void>(),
+                    (cap * std::mem::size_of::<usize>()) as _,
+                )
+            }
+            .cast::<usize>();
+            if grown.is_null() {
+                return Err(());
+            }
+            self.refs = grown;
+            self.refs_cap = cap;
+        }
+        unsafe {
+            *self.refs.add(self.refs_len) = value;
+        }
+        self.refs_len += 1;
+        Ok(())
+    }
+
+    unsafe fn refpos_push(&mut self, value: usize) -> Result<(), ()> {
+        if self.refpos_len == self.refpos_cap {
+            let cap = if self.refpos_cap == 0 { 256 } else { self.refpos_cap * 2 };
+            let grown = unsafe {
+                PyMem_Realloc(
+                    self.refpos.cast::<c_void>(),
+                    (cap * std::mem::size_of::<usize>()) as _,
+                )
+            }
+            .cast::<usize>();
+            if grown.is_null() {
+                return Err(());
+            }
+            self.refpos = grown;
+            self.refpos_cap = cap;
+        }
+        unsafe {
+            *self.refpos.add(self.refpos_len) = value;
+        }
+        self.refpos_len += 1;
+        Ok(())
+    }
+
+    /// Flag exactly the objects seen more than once and fix up every
+    /// provisional TYPE_REF argument to the reader's reference index.
+    unsafe fn resolve(&mut self) -> Result<(), ()> {
+        let mut index: u32 = 0;
+        for entry in 0..self.refs_len {
+            let record = unsafe { *self.refs.add(entry) };
+            if record & 1 != 0 {
+                let offset = record >> 1;
+                if offset >= self.length {
+                    return Err(());
+                }
+                unsafe {
+                    *self.buffer.add(offset) |= FLAG_REF;
+                }
+                unsafe {
+                    *self.refs.add(entry) = index as usize;
+                }
+                index = index.checked_add(1).ok_or(())?;
+            }
+        }
+        for slot in 0..self.refpos_len {
+            let position = unsafe { *self.refpos.add(slot) };
+            if position + 4 > self.length {
+                return Err(());
+            }
+            let provisional = unsafe { self.buffer.add(position) };
+            let mut arg = [0u8; 4];
+            unsafe {
+                ptr::copy_nonoverlapping(provisional, arg.as_mut_ptr(), 4);
+            }
+            let entry = u32::from_le_bytes(arg) as usize;
+            if entry >= self.refs_len {
+                return Err(());
+            }
+            let resolved = unsafe { *self.refs.add(entry) };
+            if resolved > u32::MAX as usize {
+                return Err(());
+            }
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    (resolved as u32).to_le_bytes().as_ptr(),
+                    provisional,
+                    4,
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// `Ok(Some(entry))` when the object was already recorded, in which
+    /// case the caller writes a TYPE_REF with the provisional entry index;
+    /// `Ok(None)` on the first occurrence, written plainly while its type
+    /// byte offset is recorded. `Err` on a recursive reference.
+    unsafe fn track(&mut self, object: *mut PyObject, active: bool) -> Result<Option<u32>, ()> {
         if self.slots.is_null() || (self.entries as usize + 1) * 4 > (self.mask + 1) * 3 {
             unsafe { self.grow_table() }?;
         }
@@ -297,17 +419,28 @@ impl Encoder {
         let slot = unsafe { self.probe(key) };
         if unsafe { (*slot).key } == key {
             let value = unsafe { (*slot).value };
-            if value & PENDING != 0 {
+            if value & ACTIVE != 0 {
                 return Err(());
             }
-            return Ok(Some(value));
+            let entry = value & INDEX_MASK;
+            unsafe {
+                (*slot).value = value | SHARED;
+                let record = self.refs.add(entry as usize);
+                *record |= 1;
+            }
+            return Ok(Some(entry));
         }
-        if self.entries >= 0x7fff_ffff {
+        if self.entries >= INDEX_MASK {
+            return Err(());
+        }
+        let entry = self.refs_len;
+        if entry >= INDEX_MASK as usize {
             return Err(());
         }
         unsafe {
+            self.refs_push(self.length << 1)?;
             (*slot).key = key;
-            (*slot).value = self.entries | if pending { PENDING } else { 0 };
+            (*slot).value = entry as u32 | if active { ACTIVE } else { 0 };
             Py_IncRef(object);
         }
         self.entries += 1;
@@ -320,7 +453,7 @@ impl Encoder {
         }
         let slot = unsafe { self.probe(object as usize) };
         if unsafe { (*slot).key } == object as usize {
-            unsafe { (*slot).value &= !PENDING };
+            unsafe { (*slot).value &= !ACTIVE };
         }
     }
 
@@ -344,37 +477,29 @@ impl Encoder {
         }
         let kind = kind_of(ty).ok_or(())?;
 
-        // Anything referenced more than once may be shared, and interned
-        // strings always get a reference.
-        let unique = unsafe { (*value.cast::<_object>()).__bindgen_anon_1.ob_refcnt_full } == 1;
         let mut text = None;
-        let mut shared = !unique;
         if kind == Kind::Unicode {
-            let info = unsafe { unicode_info(value) };
-            shared |= info.interned;
-            text = Some(info);
+            text = Some(unsafe { unicode_info(value) });
         }
-        let mut flag = 0;
-        let mut tracked = false;
-        if shared {
-            match unsafe { self.track(value, kind == Kind::Code) }? {
-                Some(index) => {
-                    unsafe { self.byte(b'r')? };
-                    return unsafe { self.i32(index as i32) };
-                }
-                None => {
-                    flag = FLAG_REF;
-                    tracked = true;
-                }
+        // Tuples and code objects can participate in reference cycles;
+        // guard them while their record is still being written.
+        let active = matches!(kind, Kind::Tuple | Kind::Code);
+        match unsafe { self.track(value, active) }? {
+            Some(entry) => {
+                unsafe { self.byte(b'r')? };
+                unsafe { self.i32(entry as i32) }?;
+                unsafe { self.refpos_push(self.length - 4) }?;
+                return Ok(());
             }
+            None => {}
         }
 
         unsafe {
             match kind {
-                Kind::Int => self.write_int(value, flag)?,
+                Kind::Int => self.write_int(value)?,
                 Kind::Float => {
                     let number = (*value.cast::<PyFloatObject>()).ob_fval;
-                    self.byte(b'g' | flag)?;
+                    self.byte(b'g')?;
                     self.put(&number.to_le_bytes())?;
                 }
                 Kind::Complex => {
@@ -386,7 +511,7 @@ impl Encoder {
                     if imaginary == -1.0 && !PyErr_Occurred().is_null() {
                         return Err(());
                     }
-                    self.byte(b'y' | flag)?;
+                    self.byte(b'y')?;
                     self.put(&real.to_le_bytes())?;
                     self.put(&imaginary.to_le_bytes())?;
                 }
@@ -397,28 +522,24 @@ impl Encoder {
                         return Err(());
                     }
                     let data = slice::from_raw_parts(data.cast::<u8>(), length as usize);
-                    self.counted(b's', flag, data)?;
+                    self.counted(b's', data)?;
                 }
                 Kind::Unicode => match text {
-                    Some(info) => self.write_unicode(value, flag, info)?,
+                    Some(info) => self.write_unicode(value, info)?,
                     None => return Err(()),
                 },
-                Kind::Tuple => self.write_sequence(value, depth, flag, true)?,
-                Kind::List => self.write_sequence(value, depth, flag, false)?,
-                Kind::Dict => self.write_dict(value, depth, flag)?,
-                Kind::Set | Kind::FrozenSet => self.write_set(value, depth, flag, kind)?,
-                Kind::Code => {
-                    self.write_code(value, depth, flag)?;
-                    if tracked {
-                        self.complete(value);
-                    }
-                }
+                Kind::Tuple => self.write_sequence(value, depth, true)?,
+                Kind::List => self.write_sequence(value, depth, false)?,
+                Kind::Dict => self.write_dict(value, depth)?,
+                Kind::Set | Kind::FrozenSet => self.write_set(value, depth, kind)?,
+                Kind::Code => self.write_code(value, depth)?,
             }
+            self.complete(value);
         }
         Ok(())
     }
 
-    unsafe fn write_int(&mut self, value: *mut PyObject, flag: u8) -> Result<(), ()> {
+    unsafe fn write_int(&mut self, value: *mut PyObject) -> Result<(), ()> {
         // A compact int is one digit and a sign in its tag.
         let long_value = unsafe { &(*value.cast::<_longobject>()).long_value };
         if long_value.lv_tag < 16 {
@@ -426,7 +547,7 @@ impl Encoder {
             let small = sign * long_value.ob_digit[0] as i64;
             if (i32::MIN as i64..=i32::MAX as i64).contains(&small) {
                 unsafe {
-                    self.byte(b'i' | flag)?;
+                    self.byte(b'i')?;
                     return self.i32(small as i32);
                 }
             }
@@ -439,7 +560,7 @@ impl Encoder {
             }
             if (i32::MIN as i64..=i32::MAX as i64).contains(&small) {
                 unsafe {
-                    self.byte(b'i' | flag)?;
+                    self.byte(b'i')?;
                     return self.i32(small as i32);
                 }
             }
@@ -450,14 +571,14 @@ impl Encoder {
             return Err(());
         }
         let export = unsafe { export.assume_init() };
-        let result = unsafe { self.write_long_digits(&export, flag) };
+        let result = unsafe { self.write_long_digits(&export) };
         if !export.digits.is_null() {
             unsafe { PyLong_FreeExport(&export as *const PyLongExport as *mut PyLongExport) };
         }
         result
     }
 
-    unsafe fn write_long_digits(&mut self, export: &PyLongExport, flag: u8) -> Result<(), ()> {
+    unsafe fn write_long_digits(&mut self, export: &PyLongExport) -> Result<(), ()> {
         unsafe {
             if export.digits.is_null() {
                 let negative = export.value < 0;
@@ -471,7 +592,7 @@ impl Encoder {
                         break;
                     }
                 }
-                self.byte(b'l' | flag)?;
+                self.byte(b'l')?;
                 self.i32(if negative { -count } else { count })?;
                 let mut rest = magnitude;
                 loop {
@@ -517,7 +638,7 @@ impl Encoder {
             if shorts > i32::MAX as usize || shorts * 2 > MAX_RECORD_SIZE {
                 return Err(());
             }
-            self.byte(b'l' | flag)?;
+            self.byte(b'l')?;
             self.i32(if export.negative != 0 { -(shorts as i32) } else { shorts as i32 })?;
             for index in 0..count - 1 {
                 let mut rest = digit(index);
@@ -537,11 +658,11 @@ impl Encoder {
         }
     }
 
-    unsafe fn write_unicode(&mut self, value: *mut PyObject, flag: u8, info: UnicodeInfo) -> Result<(), ()> {
+    unsafe fn write_unicode(&mut self, value: *mut PyObject, info: UnicodeInfo) -> Result<(), ()> {
         let interned = info.interned;
         if !info.data.is_null() {
             let bytes = unsafe { slice::from_raw_parts(info.data.cast::<u8>(), info.length) };
-            return unsafe { self.write_ascii(bytes, interned, flag) };
+            return unsafe { self.write_ascii(bytes, interned) };
         }
         let encoded = unsafe {
             PyUnicode_AsEncodedString(value, c"utf-8".as_ptr(), c"surrogatepass".as_ptr())
@@ -554,19 +675,19 @@ impl Encoder {
         }
         let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), length as usize) };
         if bytes.is_ascii() {
-            return unsafe { self.write_ascii(bytes, interned, flag) };
+            return unsafe { self.write_ascii(bytes, interned) };
         }
-        unsafe { self.counted(if interned { b't' } else { b'u' }, flag, bytes) }
+        unsafe { self.counted(if interned { b't' } else { b'u' }, bytes) }
     }
 
-    unsafe fn write_ascii(&mut self, bytes: &[u8], interned: bool, flag: u8) -> Result<(), ()> {
+    unsafe fn write_ascii(&mut self, bytes: &[u8], interned: bool) -> Result<(), ()> {
         unsafe {
             if bytes.len() < 256 {
-                self.byte(if interned { b'Z' } else { b'z' } | flag)?;
+                self.byte(if interned { b'Z' } else { b'z' })?;
                 self.byte(bytes.len() as u8)?;
                 self.put(bytes)
             } else {
-                self.counted(if interned { b'A' } else { b'a' }, flag, bytes)
+                self.counted(if interned { b'A' } else { b'a' }, bytes)
             }
         }
     }
@@ -575,7 +696,6 @@ impl Encoder {
         &mut self,
         value: *mut PyObject,
         depth: usize,
-        flag: u8,
         tuple: bool,
     ) -> Result<(), ()> {
         let length = unsafe { (*value.cast::<PyVarObject>()).ob_size };
@@ -584,10 +704,10 @@ impl Encoder {
         }
         unsafe {
             if tuple && length < 256 {
-                self.byte(b')' | flag)?;
+                self.byte(b')')?;
                 self.byte(length as u8)?;
             } else {
-                self.byte(if tuple { b'(' } else { b'[' } | flag)?;
+                self.byte(if tuple { b'(' } else { b'[' })?;
                 self.i32(length as i32)?;
             }
         }
@@ -608,8 +728,8 @@ impl Encoder {
         Ok(())
     }
 
-    unsafe fn write_dict(&mut self, value: *mut PyObject, depth: usize, flag: u8) -> Result<(), ()> {
-        unsafe { self.byte(b'{' | flag) }?;
+    unsafe fn write_dict(&mut self, value: *mut PyObject, depth: usize) -> Result<(), ()> {
+        unsafe { self.byte(b'{') }?;
         let mut position = 0;
         loop {
             let mut key = ptr::null_mut();
@@ -629,7 +749,6 @@ impl Encoder {
         &mut self,
         value: *mut PyObject,
         depth: usize,
-        flag: u8,
         kind: Kind,
     ) -> Result<(), ()> {
         let iterator = unsafe { PyObject_GetIter(value) };
@@ -647,6 +766,7 @@ impl Encoder {
             let item = PyRef(item);
             let mut standalone = unsafe { Encoder::new(self.allow_code) }?;
             unsafe { standalone.write_object(item.as_ptr(), 0) }?;
+            unsafe { standalone.resolve() }?;
             let key = PyRef(unsafe { standalone.finish() }?);
             let pair = unsafe { PyTuple_New(2) };
             let pair = unsafe { PyRef::from_raw(pair) }?;
@@ -666,7 +786,7 @@ impl Encoder {
             return Err(());
         }
         unsafe {
-            self.byte(if kind == Kind::Set { b'<' } else { b'>' } | flag)?;
+            self.byte(if kind == Kind::Set { b'<' } else { b'>' })?;
             self.i32(count as i32)?;
         }
         for index in 0..count {
@@ -680,7 +800,7 @@ impl Encoder {
         Ok(())
     }
 
-    unsafe fn write_code(&mut self, value: *mut PyObject, depth: usize, flag: u8) -> Result<(), ()> {
+    unsafe fn write_code(&mut self, value: *mut PyObject, depth: usize) -> Result<(), ()> {
         if !self.allow_code {
             return Err(());
         }
@@ -692,7 +812,7 @@ impl Encoder {
         // The bytecode is a new reference; everything else is borrowed from
         // the code object.
         let _bytecode = PyRef(parts.objs[0]);
-        unsafe { self.byte(b'c' | flag) }?;
+        unsafe { self.byte(b'c') }?;
         for number in parts.ints.iter().take(5) {
             unsafe { self.i32(*number) }?;
         }
@@ -718,6 +838,12 @@ impl Drop for Encoder {
                     }
                 }
                 PyMem_Free(self.slots.cast::<c_void>());
+            }
+            if !self.refs.is_null() {
+                PyMem_Free(self.refs.cast::<c_void>());
+            }
+            if !self.refpos.is_null() {
+                PyMem_Free(self.refpos.cast::<c_void>());
             }
             if !self.bytes.is_null() {
                 Py_DecRef(self.bytes);
@@ -1113,7 +1239,10 @@ unsafe extern "C" fn api_dumps(value: *mut PyObject, allow_code: c_int) -> *mut 
     let result = unsafe {
         match Encoder::new(allow_code != 0) {
             Ok(mut encoder) => match encoder.write_object(value, 0) {
-                Ok(()) => encoder.finish(),
+                Ok(()) => match encoder.resolve() {
+                    Ok(()) => encoder.finish(),
+                    Err(()) => Err(()),
+                },
                 Err(()) => Err(()),
             },
             Err(()) => Err(()),

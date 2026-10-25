@@ -1989,15 +1989,6 @@ typedef struct {
     PyObject *objs[10];
 } _PyMarshalRustCode;
 
-/* Nonzero when the writer must track the object as a possibly shared
-   reference: anything referenced more than once, and interned strings. */
-PyAPI_FUNC(int)
-_PyMarshal_RustShared(PyObject *value)
-{
-    return !_PyObject_IsUniquelyReferenced(value)
-           || (PyUnicode_CheckExact(value) && PyUnicode_CHECK_INTERNED(value));
-}
-
 /* Bit 0: the string is ASCII and *data/*len describe its bytes.
    Bit 1: the string is interned. */
 PyAPI_FUNC(int)
@@ -2343,8 +2334,16 @@ marshal_dumps_importlib_bytecode(PyObject *module, PyObject *code)
     if (PySys_Audit("marshal.dumps", "Oi", code, Py_MARSHAL_VERSION) < 0) {
         return NULL;
     }
-    /* Same selective references as public marshal.dumps, without importing
-       the Rust extension. */
+    /* Same writer decision as public marshal.dumps, so importlib-written
+       bytecode is byte-identical to a fresh dumps of the same object:
+       the Rust two-pass writer first, the C writer only when Rust
+       declines the value. */
+    PyObject *candidate = NULL;
+    int rust_status = marshal_rust_dumps(code, Py_MARSHAL_VERSION, 1,
+                                         &candidate);
+    if (rust_status != 0) {
+        return rust_status > 0 ? candidate : NULL;
+    }
     return marshal_write_object_to_string_no_audit(code, Py_MARSHAL_VERSION,
                                                     1, 0);
 }
