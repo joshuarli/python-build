@@ -1238,7 +1238,7 @@ def relocate_candidate(
 
 def verify_overlay_prefix(prefix: Path, run_dir: Path, target) -> None:
     if not target.is_macos:
-        verify_linux_overlay(prefix, run_dir)
+        verify_linux_overlay(prefix, run_dir, target)
         return
     from buildsys import macho
     from buildsys.product import PRODUCT
@@ -1367,7 +1367,7 @@ def verify_linux_lto(toolchain, run_dir: Path) -> None:
     run([str(work / "fixture")], cwd=work, env=environment, log=work / "run.log")
 
 
-def verify_linux_overlay(prefix: Path, run_dir: Path) -> None:
+def verify_linux_overlay(prefix: Path, run_dir: Path, target) -> None:
     from buildsys.elf import dynamic_tags, machine_report
     from buildsys.product import PRODUCT
     from buildsys.relocate import find_elfs
