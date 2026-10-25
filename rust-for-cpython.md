@@ -680,12 +680,12 @@ remained constrained after the hot process exited, most recently at 73% swap.
 At the owner's direction, memory-only work may proceed without that host
 admission check; memory samples, output checks, clean builds, full relevant
 suites, workload guards, and replicated memory verdicts remain required.
-The datetime lane has a scoped source-identity exception: the only
+Non-Unicode memory lanes have a scoped source-identity exception: the only
 `rust-cpython` difference since verified incumbent `perf-rust@373ac78` is
-the accepted `k_unicodedata` input fixture at `64578ff`. The datetime kernel
+the accepted `k_unicodedata` input fixture at `64578ff`. Other module kernels
 and workload definitions are unchanged, and fresh calibration plus all 71
 module goals ran against that incumbent and fixture with no output
-mismatches. Reuse `perf-rust@373ac78` for datetime without rebuilding or
+mismatches. Reuse `perf-rust@373ac78` for these lanes without rebuilding or
 recalibrating it; all candidate checks and acceptance gates still apply.
 Prior startup/export-list attempts showed no RSS movement and are closed to
 repetition without a distinct mechanism.
