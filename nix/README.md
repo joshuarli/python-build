@@ -39,7 +39,7 @@ an otherwise unchanged RTLS fetch/build/qualification run:
 ```sh
 PYTHON_BUILD_NIX_BASE_IMAGE='python-build-nix-arm64:base-<context-hash>' \
 PYTHON_BUILD_NIX_TOOLCHAIN_IMAGE='python-build-nix-arm64:rtls-<context-hash>' \
-python3.15 research/rtls-graviola/docker-linux.py \
+python3.15 backend/docker-linux.py \
   --phase all \
   --target aarch64-unknown-linux-musl \
   --run-dir .work/tmp/nix-prototype-arm64 \
@@ -48,7 +48,7 @@ python3.15 research/rtls-graviola/docker-linux.py \
 ```
 
 Obtain the exact tags from the script's JSON output; the example tags are
-placeholders. Follow `research/rtls-graviola/LINUX_ARM64.md` for the required
+placeholders. Follow `backend/LINUX.md` for the required
 clean checkout, source fetch, and work-directory preparation. For amd64 use
 `x86_64-unknown-linux-musl`, `--arch amd64`, and a native amd64 Docker daemon.
 
@@ -62,7 +62,7 @@ still run. A successful image build **does not qualify the CPython release**.
   deterministic context assembly). No Nixpkgs compiler or libc enters Docker.
 - `bootstrap.lock.json` pins the exact Alpine image digests, LLVM/APK package
   closure, versions, URLs, hashes, and architectures.
-- `research/rtls-graviola/linux-bootstrap*.json` pins the supplemental APKs
+- `backend/linux-bootstrap*.json` pins the supplemental APKs
   and the native-musl Rust toolchain archives.
 - The two Nix derivations copy the original, unchanged `Dockerfile` and
   `Dockerfile.linux`, plus exactly those verified input bytes, into isolated

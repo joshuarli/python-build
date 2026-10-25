@@ -36,7 +36,7 @@ def canonical_digest(value: object) -> str:
 def inputs(arch: str) -> tuple[dict, dict, str]:
     machine, platform, triple, lock_name = TARGETS[arch]
     base = json.loads((ROOT / "bootstrap.lock.json").read_text())
-    lock_path = ROOT / "research/rtls-graviola" / lock_name
+    lock_path = ROOT / "backend" / lock_name
     experiment = json.loads(lock_path.read_text())
     assert experiment["target"] == {
         "triple": triple, "platform": platform, "architecture": machine,

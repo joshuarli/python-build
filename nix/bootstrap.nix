@@ -7,11 +7,11 @@ let
   targets = {
     amd64 = {
       machine = "x86_64";
-      experimentalLock = ../research/rtls-graviola/linux-bootstrap-x86_64.json;
+      experimentalLock = ../backend/linux-bootstrap-x86_64.json;
     };
     arm64 = {
       machine = "aarch64";
-      experimentalLock = ../research/rtls-graviola/linux-bootstrap.lock.json;
+      experimentalLock = ../backend/linux-bootstrap.lock.json;
     };
   };
 
@@ -54,12 +54,12 @@ let
     assert lock.target.architecture == target.machine;
     pkgs.runCommand "python-build-nix-rtls-${arch}-context" { } ''
       set -eu
-      mkdir -p "$out/research/rtls-graviola" \
+      mkdir -p "$out/backend" \
         "$out/.cache/bootstrap/rtls-linux/apk" \
         "$out/.cache/bootstrap/rtls-linux/rust"
-      cp ${../research/rtls-graviola/Dockerfile.linux} "$out/Dockerfile.linux"
+      cp ${../backend/Dockerfile.linux} "$out/Dockerfile.linux"
       cp ${../bootstrap.lock.json} "$out/bootstrap.lock.json"
-      cp ${target.experimentalLock} "$out/research/rtls-graviola/linux-bootstrap.lock.json"
+      cp ${target.experimentalLock} "$out/backend/linux-bootstrap.lock.json"
       : > "$out/.dockerignore"
       ${apkCopies lock.apk_closure ".cache/bootstrap/rtls-linux/apk"}
       ${rustCopies lock.rust.components ".cache/bootstrap/rtls-linux/rust"}
