@@ -6,6 +6,15 @@ rust-version.workspace = true
 
 [dependencies]
 cpython-sys = { path = "../cpython-sys" }
+rustls = { path = "./rustls", version = "=0.23.45", default-features = false, features = ["tls12", "std"] }
+webpki = { package = "rustls-webpki", path = "./webpki", version = "=0.103.15", default-features = false, features = ["std"] }
+rustls-graviola = "=0.4.0"
+rustls-pki-types = "=1.15.1"
+rustls-pemfile = "=2.2.0"
+x509-parser = { version = "=0.16.0", features = ["verify"] }
+sha1 = { version = "=0.11.0", default-features = false }
+pkcs8 = { version = "=0.10.2", features = ["encryption", "pem", "std"] }
+pem-rfc7468 = { version = "=0.7.0", features = ["alloc"] }
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }
