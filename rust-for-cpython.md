@@ -570,7 +570,8 @@ edits need coordinator review even when append-only.
   owed. Proof: run/skip/deny lists equal D1 modulo the recorded
   VSOCK/resource entries; per-item probes still reach Rust in the main
   interpreter with `None` from own-GIL children.)
-- U7: source rebase (queued, own item per OD5). Re-pin the fork from
+- U7: source rebase (lane running on `lane/u7-rebase` since 2026-10-25;
+  owner runs unattended under AFK). Re-pin the fork from
   `b812b4a` to peeled `v3.16.0a1` `22d79d9` (2026-10-13; smallest newer
   upstream that builds sealed per G2 — the only candidate with a proven
   sealed build, the U0 record; scouted 2026-10-25: fork branch still at
