@@ -665,6 +665,16 @@ matched accepted main: 553 run, 23 skipped, with the same three passing
 suites and 14 pre-existing `test_support` errors. No qualification gate or
 commit followed. This is the second failed HMAC lane, so HMAC joins the
 unresolved memory debt.
+The first datetime lane committed stack-built ISO formatters (`cdec889`) and
+passed its clean build plus all seven suites (2,776 run / 235 skipped). Its
+two-run gate was NEUTRAL: load footprint was 0.528x vs incumbent, but the
+independent runs classified as better and neutral. All ten workload rows
+were neutral, with no output mismatches. The rigorous control goal remained
+UNCLEAR at 1.25x load (80/0 KiB), treated as OVER by the lane rule; working
+peak was MET. Do not rerun this gate. The candidate is not integrated and
+counts as one failed datetime lane. The next memory lane targets SSL with a
+distinct mechanism; the provider-cache and TLS-identity attempts remain
+closed.
 `perf-gate-ready -s` returned 75 at 22:22Z with swap at 75%; later checks
 remained constrained after the hot process exited, most recently at 73% swap.
 At the owner's direction, memory-only work may proceed without that host
