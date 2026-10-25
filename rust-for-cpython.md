@@ -912,6 +912,23 @@ upstream speedups secondhand.
   audit flake kept visible). Verification rules learned: swap test files
   after the last build (md5 both ways), chain build+suites+footprint in
   one round, full --all stays a manual integration-only gate.
+- 2026-10-26 linker/toolchain ticket (yea-authorized) CLOSED with pushback:
+  the libpython export-list half was built and measured — 6702→2066
+  exports, all imports green — but vmmap shows resident sections
+  byte-identical (LINKEDIT 1248K, DATA_CONST 320K before and after):
+  startup residency is dyld fixup chains walked at bind time, not the
+  export trie. Reverted (dead mechanism; it had already cost two
+  pre-integration breakages: Xcode nm vs Rust objects, ctypes dlsym of
+  rtls natives). The panic-sysroot half is parked, not started: the
+  same vmmap evidence bounds its win to a fraction of the gap (unwinder
+  TEXT is clean/unresident; only its relocs are resident), not worth a
+  sysroot rebuild + full requalification now. Workload debt (5 regs:
+  python_startup +4.7%, django first-requests +1.1–2.3% peak RSS):
+  two failed attempts recorded (startup-mem NEUTRAL with source-proof;
+  toolchain ticket with no RSS movement). Mechanism: fixup-chain
+  residency proportional to 8 MB Rust TEXT; moves only with LTO or a
+  staticlib diet, both out of lane scope. Module lanes continue against
+  per-module targets.
 - 2026-10-25 U7 attempt stopped per bounds (zero changes): 47 differing
   shadows + B1–B5 infra/design blockers make it a wave, not a lane;
   parked with P1–P3 + Linux-host retry condition. Same day: fork-vs-a1
