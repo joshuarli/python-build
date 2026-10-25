@@ -38,7 +38,8 @@ from buildsys.patches import PatchError, apply_patch_set  # noqa: E402
 from buildsys.recipes import BuildError, run  # noqa: E402
 from buildsys.relocate import RelocationError, macho_relocate, relocate  # noqa: E402
 from buildsys.scope import (
-    ScopeError, enforce_exclusions, probe_in_process, verify_exclusions,
+    ScopeError, enforce_exclusions, enforced_module_names, probe_in_process,
+    verify_exclusions,
 )  # noqa: E402
 from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
 
@@ -212,7 +213,9 @@ def build(
     remaining = verify_exclusions(install)
     if remaining:
         raise ScopeError("excluded components still present: " + ", ".join(remaining))
-    importable = probe_in_process(PRODUCT.interpreter(install))
+    importable = probe_in_process(
+        PRODUCT.interpreter(install), modules=enforced_module_names()
+    )
     leaked = sorted(name for name, present in importable.items() if present)
     if leaked:
         raise ScopeError(f"excluded modules are still importable: {', '.join(leaked)}")
