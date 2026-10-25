@@ -650,15 +650,16 @@ The shared unicodedata kernel now omits the eight sampled code points newly
 assigned in Unicode 18, so both pinned Unicode versions receive identical
 benchmark inputs and outputs. A fresh memory-only calibration passed, and
 the refreshed 71-route goals had no mismatches. The rejected SSL certificate
-key cache lane was NEUTRAL; its unmerged branch is retained. The next SSL
-hypothesis targets repeated default crypto-provider construction in the
-client and server config builders. The HMAC lane will test whether placing
-its generic state behind `_hashlib_rs`, already loaded by `_hashlib`, reduces
-resident code while preserving the Rust route. Both worktrees are prepared,
-but no climber started: `perf-gate-ready -s` returned 75 at 22:22Z with swap
-75% used. The next launch requires that check to pass. Prior startup/export-list
-attempts showed no RSS movement and are closed to repetition without a
-distinct mechanism.
+the repeated TLS identity derivation and a process-wide `OnceLock` crypto
+provider cache; its replicated gate was NEUTRAL. Both mechanisms are closed
+to repetition, and the unique rejected branch remains for the finding. The
+HMAC lane will test whether placing its generic state behind `_hashlib_rs`,
+already loaded by `_hashlib`, reduces resident code while preserving the Rust
+route. Its worktree is prepared, but no climber started: `perf-gate-ready -s`
+returned 75 at 22:22Z with swap 75% used, then remained constrained after
+cleanup at 74% swap with a hot process tree. The next launch requires that
+check to pass. Prior startup/export-list attempts showed no RSS movement and
+are closed to repetition without a distinct mechanism.
 
 No lane starts until D1 and D2 acceptance pass. Debt entries remain
 unresolved goals; removing a Rust route to meet a goal needs the owner's
