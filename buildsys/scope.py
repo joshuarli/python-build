@@ -321,12 +321,22 @@ def verify_distribution_payload(install: Path) -> list[str]:
 
 
 def excluded_module_names() -> list[str]:
-    """Importable names the shipped tree must not expose."""
+    """Importable names the shipped tree must not expose.
+
+    `__phello__` is deliberately absent from this list: CPython 3.15 freezes
+    it into the interpreter, so no file removal can make it unimportable.
+    Pruning its fixture files is still enforced on the filesystem; only the
+    importability assertion is impossible.
+    """
     names = enforced_module_names()
     # Distribution-time exclusions: the regression suite, GUI demos, import
     # fixtures, and native test extensions are still present through the
     # pre-prune validation and are asserted absent only after packaging prune.
-    names += list(DISTRIBUTION_EXCLUDED_STDLIB_DIRS)
+    names += [
+        name
+        for name in DISTRIBUTION_EXCLUDED_STDLIB_DIRS
+        if name != "__phello__"
+    ]
     # `_tkinter` is the extension; `tkinter` is the package it backs.
     names.append("_tkinter")
     # Native test extensions are pruned from the shipped payload after the
