@@ -653,13 +653,14 @@ the refreshed 71-route goals had no mismatches. The rejected SSL certificate
 the repeated TLS identity derivation and a process-wide `OnceLock` crypto
 provider cache; its replicated gate was NEUTRAL. Both mechanisms are closed
 to repetition, and the unique rejected branch remains for the finding. The
-HMAC lane will test whether placing its generic state behind `_hashlib_rs`,
-already loaded by `_hashlib`, reduces resident code while preserving the Rust
-route. Its worktree is prepared, but no climber started: `perf-gate-ready -s`
-returned 75 at 22:22Z with swap 75% used, then remained constrained after
-cleanup at 74% swap with a hot process tree. The next launch requires that
-check to pass. Prior startup/export-list attempts showed no RSS movement and
-are closed to repetition without a distinct mechanism.
+earlier HMAC lane was a neutral no-op with no source delta. The prepared HMAC
+lane will test whether placing its generic state behind `_hashlib_rs`, already
+loaded by `_hashlib`, reduces resident code while preserving the Rust route.
+No climber started: `perf-gate-ready -s` returned 75 at 22:22Z with swap at
+75%; later checks remained constrained after the hot process exited, most
+recently at 73% swap. The next launch requires that check to pass. Prior
+startup/export-list attempts showed no RSS movement and are closed to
+repetition without a distinct mechanism.
 
 No lane starts until D1 and D2 acceptance pass. Debt entries remain
 unresolved goals; removing a Rust route to meet a goal needs the owner's
