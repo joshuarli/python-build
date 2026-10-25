@@ -1,0 +1,64 @@
+--- a/Modules/getbuildinfo.c
++++ b/Modules/getbuildinfo.c
+@@ -55,8 +55,7 @@
+         gitid = "main";
+     }
+     PyOS_snprintf(buildinfo, sizeof(buildinfo),
+-                  "%s%s%s, %.20s, %.9s", gitid, sep, revision,
+-                  DATE, TIME);
++                  "%s%s%s", gitid, sep, revision);
+     return buildinfo;
+ }
+
+--- a/Python/getversion.c
++++ b/Python/getversion.c
+@@ -6,8 +6,31 @@
+ #include "patchlevel.h"
+
+ static int initialized = 0;
+-static char version[300];
++static char version[600];
+
++#if defined(__APPLE__) && defined(__aarch64__)
++#define PYB_TARGET_TRIPLE "aarch64-apple-darwin"
++#elif defined(__linux__) && defined(__x86_64__)
++#define PYB_TARGET_TRIPLE "x86_64-unknown-linux-musl"
++#elif defined(__linux__) && defined(__aarch64__)
++#define PYB_TARGET_TRIPLE "aarch64-unknown-linux-musl"
++#else
++#define PYB_TARGET_TRIPLE "unknown-target"
++#endif
++#ifndef PYB_SRC_REV
++#define PYB_SRC_REV "unknown"
++#endif
++#ifdef __APPLE__
++#define PYB_PGO_TAG "+PGO"
++#else
++#define PYB_PGO_TAG ""
++#endif
++#define PYB_BANNER_LINE2 \
++    "[python-build " PYB_TARGET_TRIPLE \
++    ": OpenSSL-free TLS+hashing (RTLS/rustls-graviola), mimalloc static," \
++    " ThinLTO" PYB_PGO_TAG "; src " PYB_SRC_REV \
++    "; github.com/joshuarli/python-build/releases]"
++
+ void _Py_InitVersion(void)
+ {
+     if (initialized) {
+@@ -15,12 +38,13 @@ void _Py_InitVersion(void)
+     }
+     initialized = 1;
+ #ifdef Py_GIL_DISABLED
+-    const char *buildinfo_format = "%.80s free-threading build (%.80s) %.80s";
++    const char *buildinfo_format = "%.80s free-threading build (%.80s) %.80s\n%.200s";
+ #else
+-    const char *buildinfo_format = "%.80s (%.80s) %.80s";
++    const char *buildinfo_format = "%.80s (%.80s) %.80s\n%.200s";
+ #endif
+     PyOS_snprintf(version, sizeof(version), buildinfo_format,
+-                  PY_VERSION, Py_GetBuildInfo(), Py_GetCompiler());
++                  PY_VERSION, Py_GetBuildInfo(), Py_GetCompiler(),
++                  PYB_BANNER_LINE2);
+ }
+ 
+ const char *

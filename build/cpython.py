@@ -142,6 +142,20 @@ def build(
             "PKG_CONFIG": "pkg-config",
         }
     )
+    source_revision = env.get("PYTHON_BUILD_SOURCE_REVISION") or env.get("GITHUB_SHA")
+    if not source_revision:
+        source_revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=REPO, check=True,
+            capture_output=True, text=True, timeout=15,
+        ).stdout.strip()
+    if env.get("GITHUB_SHA") and env["GITHUB_SHA"] != source_revision:
+        raise BuildError(
+            f"checkout revision {source_revision} does not match GITHUB_SHA "
+            f"{env['GITHUB_SHA']}"
+        )
+    if not re.fullmatch(r"[0-9a-f]{40,64}", source_revision):
+        raise BuildError(f"invalid source revision {source_revision!r}")
+    env["CFLAGS"] = env.get("CFLAGS", "") + f" -DPYB_SRC_REV='\"{source_revision[:12]}\"'"
     build_mode = env.get("PYTHON_BUILD_BUILD_MODE", "development")
     isolation_mechanism = env.get("PYTHON_BUILD_ISOLATION", "host-process")
     if build_mode not in {"development", "sealed"}:
@@ -338,13 +352,7 @@ def build(
     recipe_identity = hashlib.sha256(
         json.dumps(recipe_material, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    source_revision = env.get("PYTHON_BUILD_SOURCE_REVISION") or env.get("GITHUB_SHA")
     source_dirty_value = env.get("PYTHON_BUILD_SOURCE_DIRTY")
-    if not source_revision:
-        source_revision = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=REPO, check=True,
-            capture_output=True, text=True, timeout=15,
-        ).stdout.strip()
     if source_dirty_value is None:
         source_dirty_value = "1" if subprocess.run(
             ["git", "status", "--porcelain"], cwd=REPO, check=True,
@@ -352,13 +360,6 @@ def build(
         ).stdout.strip() else "0"
     if source_dirty_value not in {"0", "1"}:
         raise BuildError("PYTHON_BUILD_SOURCE_DIRTY must be 0 or 1")
-    if env.get("GITHUB_SHA") and env["GITHUB_SHA"] != source_revision:
-        raise BuildError(
-            f"checkout revision {source_revision} does not match GITHUB_SHA "
-            f"{env['GITHUB_SHA']}"
-        )
-    if not re.fullmatch(r"[0-9a-f]{40,64}", source_revision):
-        raise BuildError(f"invalid source revision {source_revision!r}")
     source_dirty = source_dirty_value == "1"
     build_record = {
         "schema_version": 1,
