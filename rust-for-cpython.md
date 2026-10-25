@@ -1,7 +1,8 @@
 # Rust-for-CPython campaign
 
 Status: coverage complete (71/71 targets qualified, macOS arm64 + Linux x86-64);
-upstream-parity stage defined and unstarted; performance phase deferred in full.
+upstream-parity stage executed (U0–U6 done; D2 acceptance parked on three
+owner decisions below); performance phase deferred in full.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -169,8 +170,14 @@ prerequisite, and a retry condition.
 
 ### P0 — ground (no new behavior)
 
-- GROUND-1: record the U0 pristine revision and its full-suite counts
-  before any D2 edit. Proof: the counts committed in the U0 message.
+- GROUND-1: U0 recorded 2026-10-24: pristine v3.16.0a1
+  (`7b243d1d…e68c4e6`, 44,088,359 bytes), macOS arm64 debug —
+  551/560 files, 50,969 run / 2,892 skipped / zero failures, 9
+  resource-denied (`test_curses`, `test_peg_generator`, `test_smtpnet`,
+  `test_socketserver`, `test_urllib2net`, `test_urllibnet`,
+  `test_winsound`, `test_xpickle`, `test_zipfile64`). Record:
+  `.work/tmp/u0-pristine/baseline.json`; interpreter:
+  `.work/tmp/u0-pristine/install/bin/python3.16d` (done).
 - GROUND-2: loop repair only if the loop is the bottleneck (over
   10 minutes for a focused item loop). No open-ended infrastructure.
 
@@ -489,42 +496,68 @@ edits need coordinator review even when append-only.
   byte identity with pristine. Owns:
   `rust-cpython/overlay/Modules/_marshal_rs/`. Proof: differential test
   plus full `test_marshal`, `test_py_compile`, `test_compile`,
-  `test_importlib` green.
-- U2: unicodedata / ICU4X 2.4 evaluation. Port or reconcile Unicode 18
-  semantics; trial ICU 2.4 data; qualify semantics AND `load_footprint`
-  (embedding larger property data can move the footprint). Owns:
-  `rust-cpython/overlay/Modules/_unicodedata_rs/`. Proof: full
-  `test_unicodedata` (+ locale/re/str suites per the register) green on
-  both hosts plus footprint comparison logged (not gating).
-- U3: compression-backend evaluation. Trial upstream
-  `--with-zlib=zlib-rs` / `--with-bzip2=bzip2-rs` configure backends
-  against the custom `_zlib_rs`/`_bz2_rs` dispatch on equivalence suites
-  plus a transition-cost note (maintenance, Python-to-Rust crossings).
-  Keep the current route regardless of outcome until acceptance. Owns:
-  build flags and `rust-cpython/overlay/Modules/_zlib_rs/`,
-  `_bz2_rs/`, `_gzip_rs/`. Proof: `test_zlib`, `test_bz2`, `test_gzip`,
-  `test_zipfile`, `test_tarfile` green on both backends; decision record.
-- U4: uuid re-baseline. Measure the Rust route against 3.16's native C
-  `UUID`/`uuid4`/`uuid7` on correctness suites plus paired memory; keep the
-  Rust path until paired memory evidence decides. Owns:
-  `rust-cpython/overlay/Modules/_uuid_rs/`, `rust-cpython/overlay/Lib/uuid.py`.
-  Proof: full `test_uuid` green; memory comparison logged (not gating).
-- U5: compat sweep. Verify and extend differential tests for: `re` (nested
-  classes, set ops, property escapes, unsupported-pattern fallback to the
-  CPython route); `datetime`/`_strptime` (`%Nf`, fast numeric paths);
-  `pickle` (weak-reference graphs, supported-graph vs fallback);
-  `csv` (`Sniffer.sniff`); `io`/`zipfile`/`shutil` (`BytesIO.peek`,
-  `ZipFile.remove`/`repack`, `copytree(copy_dir_stat=)`); `ssl`
-  (ECH-conditional behavior, compromised-intermediate rejection — the
-  Rust-backed TLS path must not silently diverge from OpenSSL-specific
-  verification semantics; security behavior has priority). Owns: each
-  route's overlay files. Proof: the named suites green on lane and
-  pristine with matching counts.
-- U6: integrated re-qualification. Run all 71 register suite sets plus the
-  full default-resource suite on the combined tree against the U0 baseline.
-  Proof: run/skip/deny lists equal U0 modulo the recorded VSOCK/resource
-  entries; per-item probes still reach Rust in the main interpreter with
-  `None` from own-GIL children.
+  `test_importlib` green. (Done 2026-10-24 on `lane/u1-marshal`: two-pass
+  port, importlib path routed through the same writer decision; 13/13
+  corpus byte-identical, all six register suites green. Follow-up: the
+  importlib path imported the capsule mid-write, breaking `test_audit` —
+  fixed by porting two-pass into the overlay C writer (v6-gated, older
+  versions byte-identical), so no import happens on `.pyc` writes.
+  Known divergence, not gated: tuple cycles round-trip via the fork
+  reader while pristine raises. Resolved by the source rebase, parked as
+  an owner decision in Reference.)
+- U2: unicodedata / ICU4X 2.4 evaluation. (PARKED 2026-10-24 with
+  evidence on `lane/u2-parity`: 2.4.0 trial resolved and built sealed;
+  Rust-boundary semantics byte-identical to pristine a1 across all
+  1,112,063 non-surrogate codepoints. Blocked: fork
+  `test_unicodedata.py::UnicodeFunctionsTest::test_function_checksum`
+  hardcodes a Unicode-17 SHA1; Unicode-18 data can never satisfy it.
+  Reverted to `=2.2.0` per P3, suites re-verified green. Footprint logged:
+  lane-2.4.0 22.6 MB vs lane-2.2.0 20.7 MB vs pristine 18.2 MB import+RSS.
+  Retry condition: UCD/test update to Unicode 18 via the owner rebase
+  decision.) Owns: `rust-cpython/overlay/Modules/_unicodedata_rs/`.
+  Proof when unparked: full `test_unicodedata` (+ locale/re/str suites
+  per the register) green on both hosts plus footprint comparison
+  logged (not gating).
+- U3: compression-backend evaluation. (DONE 2026-10-24, decision KEEP,
+  no flag change: a1 needs pkg-config `libz_rs >= 0.6.0` + `libbz2_rs`
+  built from source — sealed-lib production plus new pinned sources and a
+  non-SPDX license sit outside the grant; the lane already ships the same
+  implementations (`libz-rs-sys 0.6.7`, `libbz2-rs-sys`), so a switch only
+  changes the integration layer. Equivalence: `test_zlib`, `test_bz2`,
+  `test_gzip`, `test_zipfile`, `test_tarfile` 1,624 run / 9 skipped,
+  SUCCESS.)
+- U4: uuid re-baseline. (DONE 2026-10-24, keep Rust route: a1 has no
+  native C uuid fast paths — uuid4/uuid7 still pure Python — so the item
+  reduced to delta reconciliation. `test_uuid` behavior identical to
+  pristine (11-test delta is all `test_os` environment drift: fork
+  predates 8 upstream tests, lacks `os.pipe2`). Memory logged: lane
+  23.2 MB vs pristine 21.3 MB import+RSS (not gating).)
+- U5: compat sweep. (DONE 2026-10-24 with two parks, one blocker; commit
+  `f63f61b` on `lane/u2-parity`: microsecond UTC normalization in
+  `time_richcompare` and the `ZipFile.repack` open-handle guard, both
+  probe-identical to pristine with register suites 2,188/170 SUCCESS.
+  Lane-vs-pristine suite deltas fully attributed to upstream-added tests,
+  zero lane-only failures. PARKED: (a) `re` locale-ignorecase negated
+  bytes sets — fork `_sre/sre_lib.h` predates upstream's case-closure
+  fix, `_sre` is not a route file, needs an owner backport decision;
+  (b) `test_ssl` BLOCKER — 4 failures + 6 errors, all pre-existing RTLS
+  policy gaps on clean main (no OpenSSL version/options/DH/reason-codes,
+  option-default deltas, one cert-SAN IPv6 rendering divergence); all
+  loud, none silent (bad-cert rejection and verify paths pass). Fixing is
+  an RTLS policy redesign outside the grant — owner decision required
+  before D2 acceptance.)
+- U6: integrated re-qualification. (DONE 2026-10-25 on merged
+  `lane/integrated-parity` (U1 + U5): full default-resource suite
+  50,158 run / 4 failures / 2,731 skipped — run count exactly D1's;
+  failures are only the two pre-existing owner-dispensed sets
+  (`test_ssl` 4F+6E RTLS policy gaps, `test_support` 14E hashlib-shim
+  gaps, all loud, none integration-caused, zero new). The U1 C-port
+  fixed `test_audit` back to green. Parity probe: 13/13 byte-identical
+  plus the known cycle NOTE. D2 acceptance now waits only on the
+  parked owner decisions in Non-goals; Phase 3 stays deferred until
+  then. Proof: run/skip/deny lists equal D1 modulo the recorded
+  VSOCK/resource entries; per-item probes still reach Rust in the main
+  interpreter with `None` from own-GIL children.)
 
 ### Phase 3 — performance (deferred in full; normative contract preserved)
 
@@ -640,7 +673,19 @@ Contract changes made (none this preflight): listed here for the owner.
 - No Linux arm64 lane builder (out of scope for the experimental lane).
 - No second plan, dashboard, supervisor service, or provenance platform.
 - No upstream rebase beyond the U0 comparison build without a new owner
-  decision (fetch cost and sealed-build policy).
+  decision (fetch cost and sealed-build policy). Parked for the owner:
+  rebasing the lane pin from `b812b4a` to a newer upstream resolves the
+  U1 tuple-cycle divergence and lets U6 run upstream test files, at the
+  cost of a full re-fetch, rebuild, and re-qualification.
+  (b) `test_ssl` RTLS policy gaps (no OpenSSL version/options/DH/
+  reason-codes, option defaults, one SAN rendering divergence) — all
+  pre-existing on clean main and loud, never silent. `test_support`
+  hashlib-disable expectations (14 errors, OpenSSL-fallback assumed
+  absent) belong to the same dispensation: pre-existing on clean main,
+  in hashing-lane files U1/U5 do not own. Accept deviations, redesign
+  RTLS policy, or defer ssl+hashlib-fallback from D2.
+  (c) `re` locale-ignorecase fix lives in `_sre`, not a route file —
+  backport upstream's case-closure fix or accept the divergence.
 
 ## Reference
 
@@ -758,7 +803,15 @@ with OpenSSL 4+ and eMudhra rejection, and the Sep-30 language-summit
 Rust roadmap (3.16 optional zlib + internal API; 3.17 possible
 io/json/XML/memoryview/parser; 3.18+ earliest build requirement).
 ICU4X 2.4.0 (2026-10-22) embeds Unicode 18 data. The fork branch has no
-newer head; deltas accumulate in python/cpython main.
+newer head; deltas accumulate in python/cpython main. Recon 2026-10-24
+against the U0 tree: (a) `--with-zlib=zlib-rs` needs pkg-config
+`libz_rs >= 0.6.0` (or `zlib.h` plus `-lz_rs`) — a system library the lane
+must fetch and pin before any sealed U3 trial; same pattern for
+`bzip2-rs`. (b) 3.16.0a1 has NO native C `UUID`/`uuid4`/`uuid7` fast paths
+(`uuid4`/`uuid7` are still pure Python in `Lib/uuid.py`; `_uuidmodule.c`
+only carries platform helpers) — U4 reconciles the 169-line overlay delta
+and re-checks for C entry points at rebase time instead of chasing the
+upstream speedups secondhand.
 
 ## Decision log and campaign log
 
