@@ -523,8 +523,10 @@ edits need coordinator review even when append-only.
   hardcodes a Unicode-17 SHA1; Unicode-18 data can never satisfy it.
   Reverted to `=2.2.0` per P3, suites re-verified green. Footprint logged:
   lane-2.4.0 22.6 MB vs lane-2.2.0 20.7 MB vs pristine 18.2 MB import+RSS.
-  Retry condition: UCD/test update to Unicode 18 via the owner rebase
-  decision.) Owns: `rust-cpython/overlay/Modules/_unicodedata_rs/`.
+  Retry condition CORRECTED 2026-10-25 (scout: a1 and HEAD checksums are
+  byte-identical, so no pin move unblocks this): a UCD/test update to
+  Unicode 18 blessed by the owner (touches `Lib/test/`, outside lane
+  authority). Owns: `rust-cpython/overlay/Modules/_unicodedata_rs/`.
   Proof when unparked: full `test_unicodedata` (+ locale/re/str suites
   per the register) green on both hosts plus footprint comparison
   logged (not gating).
@@ -569,15 +571,27 @@ edits need coordinator review even when append-only.
   VSOCK/resource entries; per-item probes still reach Rust in the main
   interpreter with `None` from own-GIL children.)
 - U7: source rebase (queued, own item per OD5). Re-pin the fork from
-  `b812b4a` to a newer upstream, resolving the U1 tuple-cycle divergence
-  and the U2 checksum hardcode and letting U6 run upstream test files.
-  Cost: full re-fetch, rebuild, and re-qualification on both hosts.
-  Owns: `rust-cpython/sources.lock.json` + full overlay reconciliation.
+  `b812b4a` to peeled `v3.16.0a1` `22d79d9` (2026-10-13; smallest newer
+  upstream that builds sealed per G2 — the only candidate with a proven
+  sealed build, the U0 record; scouted 2026-10-25: fork branch still at
+  `b812b4a`, no newer fork head exists). The a1 pin resolves U8 for free
+  (a1 already carries the case-closure fix) and keeps U4 scope closed
+  (a1 predates the Oct-21 C-uuid landing `cf690004e`); it does NOT resolve
+  U2 (a1's `test_unicodedata` checksum is byte-identical to HEAD's —
+  U2 needs a UCD/test update to Unicode 18, not a pin move). Rebasing to
+  main HEAD (`2468c35`, +382 commits) is a deferred second step: it
+  reopens U4 against native C `UUID`/`uuid4`/`uuid7` and needs its own
+  sealed trial. Cost of either: full re-fetch, rebuild, and
+  re-qualification on both hosts. Owns:
+  `rust-cpython/sources.lock.json` + full overlay reconciliation.
   Proof: new U0 record, U1 differential green, full suites both hosts.
-- U8: `re` locale-ignorecase backport (queued, own item per OD5).
-  Backport upstream's case-closure fix into fork `_sre/sre_lib.h`
-  (`_sre` is not a route file). Proof: locale-ignorecase probe +
-  full `test_re` green.
+- U8: `re` locale-ignorecase backport (lane running on
+  `lane/u8-sre-backport`). Backport upstream's case-closure fix into fork
+  `_sre/sre_lib.h` (`_sre` is not a route file). NOTE 2026-10-25: scout
+  confirms a1 already carries the fix, so the U7 a1 re-pin subsumes this
+  item; the lane still finishes because the rebase timeline is parked
+  behind Linux-host re-qual and the fix keeps the current pin exact.
+  Proof: locale-ignorecase probe + full `test_re` green.
 
 ### Phase 3 — performance (launching memory-first per OD5; normative contract preserved)
 
@@ -843,6 +857,15 @@ upstream speedups secondhand.
 - 2026-10-25: `8d61d20` integrated parity merged to main (= origin/main
   = `lane/integrated-parity`); D2 accepted with the two loud deviations
   per OD5; U7 rebase + U8 backport queued; Phase 3 memory-first launching.
+- 2026-10-25 U7 scout (read-only, no tree changes): no newer fork head
+  (`3.x-rust-in-cpython` still `b812b4a`); main HEAD `2468c35` is +382
+  commits over peeled a1 `22d79d9`. a1-vs-HEAD: `_sre/sre_lib.h`
+  identical (a1 already has the U8 fix), `Python/marshal.c` logic
+  identical (wasi→wasm line only), unicodedata checksum identical (U2
+  needs a test update, not a pin move), C-uuid landed post-a1 in
+  `cf690004e` (HEAD rebase would reopen U4), zlib/bz2 selection
+  unchanged (U3 KEEP stands). U7 target set to peeled a1 `22d79d9`;
+  HEAD deferred as a separate owner call.
 - Pre-preflight history (substantive only): 71/71 coverage integrated at
   `9329e1c`/`4710c23`; openssl-less hashing+TLS lanes merged (`ca4d541`);
   macOS promote bridge takes an explicit archive dir (`e8fdad6`).
