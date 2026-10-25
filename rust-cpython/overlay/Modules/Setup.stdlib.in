@@ -193,7 +193,8 @@
 # needs -lssl and -lcrypt
 @MODULE__SSL_TRUE@_ssl _ssl.c
 # needs -lcrypt
-@MODULE__HASHLIB_TRUE@_hashlib _hashopenssl.c
+# OpenSSL-free lane: the Rust _hashlib_rs extension replaces _hashlib.
+# @MODULE__HASHLIB_TRUE@_hashlib _hashopenssl.c
 
 # Linux: -luuid, BSD/AIX: libc's uuid_create()
 @MODULE__UUID_TRUE@_uuid _uuidmodule.c

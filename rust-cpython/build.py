@@ -681,6 +681,7 @@ def _llvm_ready(toolchain) -> Path:
         release_tag=toolchain.llvm_release_tag,
         source_commit=toolchain.llvm_source_commit,
         workflow=toolchain.llvm_workflow,
+        workflow_path=toolchain.llvm_workflow_path,
     )
     return extract_llvm_archive(
         archive,
@@ -717,6 +718,7 @@ def _fetch_llvm_archive(toolchain, llvm_cache: Cache) -> Path:
             release_tag=toolchain.llvm_release_tag,
             source_commit=toolchain.llvm_source_commit,
             workflow=toolchain.llvm_workflow,
+            workflow_path=toolchain.llvm_workflow_path,
         )
         return extract_llvm_archive(
             archive,
@@ -736,10 +738,13 @@ def _environment(toolchain, *, offline: bool, build_dir: Path | None = None) -> 
         build_dir = BUILD
     rustup = shutil.which("rustup")
     rustup_directory = str(Path(rustup).parent) if rustup else "/usr/bin"
+    kache = shutil.which("kache")
     cargo_bin = CARGO_HOME / "bin"
     llvm_bin = toolchain.llvm_prefix / "bin"
     path_parts = [
-        str(cargo_bin), str(llvm_bin), rustup_directory,
+        str(cargo_bin), str(llvm_bin),
+        *([str(Path(kache).parent)] if kache else []),
+        rustup_directory,
         *(() if IS_LINUX else ("/opt/homebrew/bin",)),
         "/usr/bin", "/bin", "/usr/sbin", "/sbin",
     ]

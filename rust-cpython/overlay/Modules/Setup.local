@@ -71,3 +71,6 @@ _itertools_rs
 _posixpath_rs
 _ssl_rs
 _tempfile_rs
+
+*disabled*
+_ssl

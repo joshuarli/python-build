@@ -80,7 +80,12 @@ __block_openssl_constructor = {
 }
 
 _rust_hash_algorithms = frozenset({'md5', 'sha1', 'sha224', 'sha256',
-                                  'sha384', 'sha512'})
+                                  'sha384', 'sha512', 'sha512_224',
+                                  'sha512_256', 'ripemd160', 'sm3'})
+_rust_only_algorithms = frozenset({'sha512_224', 'sha512_256',
+                                   'ripemd160', 'sm3'})
+_rust_extra_algorithms = frozenset({'sha512_224', 'sha512_256',
+                                    'ripemd160', 'sm3', 'md5-sha1'})
 _rust_hash_module = None
 
 
@@ -100,10 +105,10 @@ def _get_rust_hash_module():
     return _rust_hash_module
 
 
-def _rust_hash_constructor(name, openssl_constructor):
+def _rust_hash_constructor(name, builtin_constructor):
     """Route fixed-output public constructors through Rust when available."""
     def constructor(*args, **kwargs):
-        backend_hash = openssl_constructor(*args, **kwargs)
+        backend_hash = builtin_constructor(*args, **kwargs)
         rust_module = _get_rust_hash_module()
         if rust_module is None:
             return backend_hash
@@ -113,12 +118,78 @@ def _rust_hash_constructor(name, openssl_constructor):
             data = kwargs.get('data', kwargs.get('string', b''))
         return rust_module.new(name, data)
 
-    constructor.__name__ = openssl_constructor.__name__
-    constructor.__qualname__ = openssl_constructor.__qualname__
-    constructor.__module__ = openssl_constructor.__module__
-    constructor.__doc__ = openssl_constructor.__doc__
-    constructor.__wrapped__ = openssl_constructor
+    constructor.__name__ = builtin_constructor.__name__
+    constructor.__qualname__ = builtin_constructor.__qualname__
+    constructor.__module__ = builtin_constructor.__module__
+    constructor.__doc__ = builtin_constructor.__doc__
+    constructor.__wrapped__ = builtin_constructor
     return constructor
+
+
+def _get_rust_constructor(name):
+    """Prefer the Rust digest object for fixed-output algorithms it covers."""
+    if name in _rust_hash_algorithms and name not in _rust_only_algorithms:
+        return _rust_hash_constructor(name, __get_builtin_constructor(name))
+    return __get_builtin_constructor(name)
+
+
+def _normalize_digest_name(name):
+    normalized = name.lower()
+    aliases = {
+        'sha-1': 'sha1',
+        'sha-224': 'sha224',
+        'sha-256': 'sha256',
+        'sha-384': 'sha384',
+        'sha-512': 'sha512',
+        'sha512-224': 'sha512_224',
+        'sha512-256': 'sha512_256',
+        'blake2b512': 'blake2b',
+        'blake2b-512': 'blake2b',
+        'blake2s256': 'blake2s',
+        'blake2s-256': 'blake2s',
+        'sha3-224': 'sha3_224',
+        'sha3-256': 'sha3_256',
+        'sha3-384': 'sha3_384',
+        'sha3-512': 'sha3_512',
+        'shake-128': 'shake_128',
+        'shake-256': 'shake_256',
+        'ripemd-160': 'ripemd160',
+    }
+    return aliases.get(normalized, normalized)
+
+
+class _MD5SHA1:
+    name = 'md5-sha1'
+    digest_size = 36
+    block_size = 64
+    __slots__ = ('_md5', '_sha1')
+
+    def __init__(self, data=b'', *, usedforsecurity=True):
+        import _md5
+        import _sha1
+        usedforsecurity = bool(usedforsecurity)
+        self._md5 = _md5.md5(data, usedforsecurity=usedforsecurity)
+        self._sha1 = _sha1.sha1(data, usedforsecurity=usedforsecurity)
+
+    def update(self, data):
+        self._md5.update(data)
+        self._sha1.update(data)
+
+    def digest(self):
+        return self._md5.digest() + self._sha1.digest()
+
+    def hexdigest(self):
+        return self._md5.hexdigest() + self._sha1.hexdigest()
+
+    def copy(self):
+        result = object.__new__(type(self))
+        result._md5 = self._md5.copy()
+        result._sha1 = self._sha1.copy()
+        return result
+
+
+def _md5_sha1(data=b'', *, usedforsecurity=True):
+    return _MD5SHA1(data, usedforsecurity=usedforsecurity)
 
 def __get_builtin_constructor(name):
     if not isinstance(name, str):
@@ -170,37 +241,6 @@ def __get_builtin_constructor(name):
     raise ValueError(f'unsupported hash algorithm {name}')
 
 
-def __get_openssl_constructor(name):
-    # This function is only used until the module has been initialized.
-    assert isinstance(name, str), "invalid call to __get_openssl_constructor()"
-    if name in __block_openssl_constructor:
-        # Prefer our builtin blake2 implementation.
-        return __get_builtin_constructor(name)
-    try:
-        # Fetch the OpenSSL hash function if it exists,
-        # independently of the context security policy.
-        f = getattr(_hashlib, 'openssl_' + name)
-        # Check if the context security policy blocks the digest or not
-        # by allowing the C module to raise a ValueError. The function
-        # will be defined but the hash will not be available at runtime.
-        #
-        # We use "usedforsecurity=False" to prevent falling back to the
-        # built-in function in case the security policy does not allow it.
-        #
-        # Note that this only affects the explicit named constructors,
-        # and not the algorithms exposed through hashlib.new() which
-        # can still be resolved to a built-in function even if the
-        # current security policy does not allow it.
-        #
-        f(usedforsecurity=False)
-        if name in _rust_hash_algorithms:
-            return _rust_hash_constructor(name, f)
-        # Use the C function directly (very fast)
-        return f
-    except (AttributeError, ValueError):
-        return __get_builtin_constructor(name)
-
-
 def __py_new(name, *args, **kwargs):
     """new(name, data=b'', **kwargs) - Return a new hashing object using the
     named algorithm; optionally initialized with data (which must be
@@ -209,17 +249,68 @@ def __py_new(name, *args, **kwargs):
     return __get_builtin_constructor(name)(*args, **kwargs)
 
 
-def __hash_new(name, *args, **kwargs):
+def _rust_extra_new(name, normalized, args, kwargs):
+    # Names without a builtin constructor share new()'s argument errors.
+    if len(args) > 1:
+        raise TypeError(
+            f"new() takes at most 2 positional arguments ({len(args) + 1} given)")
+    if args and 'data' in kwargs:
+        raise TypeError(
+            "new() got multiple values for argument "
+            "given by name ('data') and position")
+    for keyword in kwargs:
+        if keyword not in ('data', 'string', 'usedforsecurity'):
+            raise TypeError(
+                f"new() got an unexpected keyword argument '{keyword}'")
+    if 'string' in kwargs:
+        if args or 'data' in kwargs:
+            raise TypeError(
+                "'data' and 'string' are mutually exclusive "
+                "and support for 'string' keyword parameter "
+                "is slated for removal in a future version.")
+        import warnings
+        warnings.warn(
+            "the 'string' keyword parameter is deprecated since "
+            "Python 3.15 and slated for removal in Python 3.19; "
+            "use the 'data' keyword parameter or pass the data "
+            "to hash as a positional argument instead",
+            DeprecationWarning, stacklevel=3)
+        data = kwargs['string']
+    elif args:
+        data = args[0]
+    else:
+        data = kwargs.get('data', b'')
+    usedforsecurity = kwargs.get('usedforsecurity', True)
+    bool(usedforsecurity)
+    rust_module = _get_rust_hash_module()
+    if rust_module is None:
+        raise ValueError(f"unsupported hash algorithm {name}")
+    if normalized == 'md5-sha1':
+        return _md5_sha1(data, usedforsecurity=usedforsecurity)
+    return rust_module.new(normalized, data)
+
+
+def __rust_new(name, *args, **kwargs):
     """new(name, data=b'') - Return a new hashing object using the named algorithm;
     optionally initialized with data (which must be a bytes-like object).
     """
+    if not isinstance(name, str):
+        raise TypeError(
+            f"new() argument 'name' must be str, not {type(name).__name__}")
     if name in __block_openssl_constructor:
         # __block_openssl_constructor is expected to contain strings only
         assert isinstance(name, str), f"unexpected name: {name}"
         # Prefer our builtin blake2 implementation.
         return __get_builtin_constructor(name)(*args, **kwargs)
-    try:
-        backend_hash = _hashlib.new(name, *args, **kwargs)
+    normalized = _normalize_digest_name(name)
+    if normalized not in _rust_extra_algorithms:
+        try:
+            constructor = __get_builtin_constructor(normalized)
+        except ValueError:
+            if 'usedforsecurity' in kwargs:
+                bool(kwargs['usedforsecurity'])
+            raise ValueError(f"unsupported hash algorithm {name}") from None
+        backend_hash = constructor(*args, **kwargs)
         if backend_hash.name in _rust_hash_algorithms:
             rust_module = _get_rust_hash_module()
             if rust_module is not None:
@@ -229,39 +320,35 @@ def __hash_new(name, *args, **kwargs):
                     data = kwargs.get('data', kwargs.get('string', b''))
                 return rust_module.new(backend_hash.name, data)
         return backend_hash
-    except ValueError:
-        # If the _hashlib module (OpenSSL) doesn't support the named
-        # hash, try using our builtin implementations.
-        # This allows for SHA224/256 and SHA384/512 support even though
-        # the OpenSSL library prior to 0.9.8 doesn't provide them.
-        return __get_builtin_constructor(name)(*args, **kwargs)
+    return _rust_extra_new(name, normalized, args, kwargs)
 
+
+_rust_hash_module_available = _get_rust_hash_module() is not None
+if _rust_hash_module_available:
+    algorithms_available = algorithms_available.union(_rust_extra_algorithms)
+
+new = __rust_new
+__get_hash = _get_rust_constructor
 
 try:
-    import _hashlib
-    new = __hash_new
-    __get_hash = __get_openssl_constructor
-    algorithms_available = algorithms_available.union(
-            _hashlib.openssl_md_meth_names)
+    from _hashlib_rs import pbkdf2_hmac as _rust_pbkdf2_hmac
 except ImportError:
-    _hashlib = None
-    new = __py_new
-    __get_hash = __get_builtin_constructor
+    _rust_pbkdf2_hmac = None
 
 try:
-    # OpenSSL's PKCS5_PBKDF2_HMAC requires OpenSSL 1.0+ with HMAC and SHA
-    from _hashlib import pbkdf2_hmac
+    from _hashlib_rs import scrypt as _rust_scrypt
+except ImportError:
+    _rust_scrypt = None
+
+if _rust_pbkdf2_hmac is not None:
+    def pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None):
+        return _rust_pbkdf2_hmac(hash_name, password, salt, iterations, dklen)
     __all__ += ('pbkdf2_hmac',)
-except ImportError:
-    pass
 
-
-try:
-    # OpenSSL's scrypt requires OpenSSL 1.1+
-    from _hashlib import scrypt
+if _rust_scrypt is not None:
+    def scrypt(password, *, salt, n, r, p, maxmem=0, dklen=64):
+        return _rust_scrypt(password, salt, n, r, p, maxmem, dklen)
     __all__ += ('scrypt',)
-except ImportError:
-    pass
 
 
 def file_digest(fileobj, digest, /, *, _bufsize=2**18):
@@ -345,4 +432,4 @@ def {__func_name}(data=__UNSET, *, usedforsecurity=True, string=__UNSET):
 
 # Cleanup locals()
 del __always_supported, __func_name, __get_hash
-del __py_new, __hash_new, __get_openssl_constructor
+del __py_new, _get_rust_constructor

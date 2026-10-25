@@ -62,7 +62,43 @@ _RUST_HMAC_SPECS = {
     "sha3256": ("sha3_256", 32, 136),
     "sha3384": ("sha3_384", 48, 104),
     "sha3512": ("sha3_512", 64, 72),
+    "ripemd160": ("ripemd160", 20, 64),
+    "sm3": ("sm3", 32, 64),
 }
+
+# Builtin constructor name used to honor test algorithm blocks for the
+# digests the Rust extension covers. Names without a builtin cannot be
+# blocked by the test helpers, so the Rust implementation stays
+# authoritative for them.
+_RUST_HMAC_BUILTIN_PROBE = {
+    "md5": "md5",
+    "sha1": "sha1",
+    "sha224": "sha224",
+    "sha256": "sha256",
+    "sha384": "sha384",
+    "sha512": "sha512",
+    "sha512_224": None,
+    "sha512_256": None,
+    "sha3_224": "sha3_224",
+    "sha3_256": "sha3_256",
+    "sha3_384": "sha3_384",
+    "sha3_512": "sha3_512",
+    "ripemd160": None,
+    "sm3": None,
+}
+
+
+def _rust_hmac_usable(name):
+    """Defer to the builtin constructors when the test suite blocks one."""
+    builtin = _RUST_HMAC_BUILTIN_PROBE.get(name)
+    if builtin is None:
+        return True
+    import hashlib
+    try:
+        hashlib.__get_builtin_constructor(builtin)
+    except ValueError:
+        return False
+    return True
 
 
 def _rust_hmac_spec(digestmod):
@@ -163,6 +199,9 @@ class HMAC:
                 return
             except _hmac.UnknownHashError:  # pragma: no cover
                 pass
+        if isinstance(digestmod, str) and self._init_rust_hmac(
+                key, msg, digestmod):
+            return
         self._init_old(key, msg, digestmod)
 
     def _init_rust_hmac(self, key, msg, digestmod):
@@ -172,13 +211,15 @@ class HMAC:
         rust_hmac = _get_rust_hmac()
         if rust_hmac is None:
             return False
-        try:
-            _hashopenssl.hmac_new(key, None, digestmod=digestmod)
-        except _hashopenssl.UnsupportedDigestmodError:
-            return False
         name, digest_size, block_size = spec
+        if not _rust_hmac_usable(name):
+            return False
+        try:
+            raw_state = rust_hmac.new(key, name)
+        except ValueError:
+            return False
         state = _RustHMACState(
-            rust_hmac, rust_hmac.new(key, name), name, digest_size, block_size
+            rust_hmac, raw_state, name, digest_size, block_size
         )
         if msg is not None:
             state.update(msg)
@@ -326,17 +367,13 @@ def digest(key, msg, digest):
             A hashlib constructor returning a new hash object. *OR*
             A module supporting PEP 247.
     """
+    if isinstance(digest, str):
+        spec = _rust_hmac_spec(digest)
+        rust_hmac = _get_rust_hmac() if spec is not None else None
+    else:
+        spec = None
+        rust_hmac = None
     if _hashopenssl and isinstance(digest, (str, _functype)):
-        if isinstance(digest, str):
-            spec = _rust_hmac_spec(digest)
-            rust_hmac = _get_rust_hmac() if spec is not None else None
-            if rust_hmac is not None:
-                try:
-                    _hashopenssl.hmac_digest(key, b"", digest)
-                except (OverflowError, _hashopenssl.UnsupportedDigestmodError):
-                    pass
-                else:
-                    return rust_hmac.compute_digest(key, msg, spec[0])
         try:
             return _hashopenssl.hmac_digest(key, msg, digest)
         except OverflowError:
@@ -358,6 +395,12 @@ def digest(key, msg, digest):
             # so we fallback to the pure Python implementation even
             # if streaming HMAC may have been used for small keys
             # and large messages.
+            pass
+
+    if rust_hmac is not None and _rust_hmac_usable(spec[0]):
+        try:
+            return rust_hmac.compute_digest(key, msg, spec[0])
+        except ValueError:
             pass
 
     return _compute_digest_fallback(key, msg, digest)

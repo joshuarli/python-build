@@ -1,0 +1,30 @@
+The `_ssl_rs` TLS engine builds on the pinned `rustls 0.23.45` and
+`rustls-webpki 0.103.15` sources vendored under `rustls/` and `webpki/`.
+The vendored trees carry the maintained session-API and certificate-policy
+patches; their test-only dev-dependencies were pruned at vendoring time.
+The workspace resolves every `rustls` and `rustls-webpki` requirement to
+these trees (see the workspace `[patch.crates-io]`), so the engine, its
+Graviola provider, and its verifier share one copy. No OpenSSL, AWS-LC, or
+C/C++ TLS source enters the host build closure below.
+
+Direct TLS dependencies (pinned in the overlay `Cargo.lock`):
+
+| Package | Version | License expression |
+| --- | --- | --- |
+| `rustls` (vendored, locally patched session API) | 0.23.45 | Apache-2.0 OR ISC OR MIT |
+| `rustls-webpki` (vendored, locally patched policy) | 0.103.15 | ISC |
+| `rustls-graviola` | 0.4.0 | Apache-2.0 OR ISC OR MIT-0 |
+| `graviola` (via `rustls-graviola`) | 0.4.1 | Apache-2.0 OR ISC OR MIT-0 |
+| `rustls-pki-types` | 1.15.1 | MIT OR Apache-2.0 |
+| `rustls-pemfile` | 2.2.0 | Apache-2.0 OR ISC OR MIT |
+| `x509-parser` (signature-verification feature) | 0.16.0 | MIT OR Apache-2.0 |
+| `ring` (via `x509-parser` verification) | 0.17.14 | Apache-2.0 AND ISC |
+| `pkcs8` (encryption, pem, std) | 0.10.2 | Apache-2.0 OR MIT |
+| `pem-rfc7468` (alloc) | 0.7.0 | Apache-2.0 OR MIT |
+| `sha1` | 0.11.0 | MIT OR Apache-2.0 |
+
+The vendored `rustls/` and `webpki/` directories retain their upstream
+license notices (`LICENSE-*`, `LICENSE`, `NOTICE` where shipped).
+`ring` and `untrusted` enter only through `x509-parser`'s verification
+feature for RSA/SHA1 self-signed trust-anchor classification; SHA1 remains
+unavailable for leaf, intermediate, and TLS signature verification.
