@@ -34,7 +34,7 @@ class NixBuilderTests(unittest.TestCase):
     def test_input_identity_matches_original_docker_driver_contract(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            exp = root / "research/rtls-graviola"
+            exp = root / "backend"
             exp.mkdir(parents=True)
             (root / "bootstrap.lock.json").write_text(json.dumps({"linux_toolchain": {
                 "images": {"arm64": {"platform": "linux/arm64"}},
