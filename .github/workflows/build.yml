@@ -161,6 +161,7 @@ jobs:
           set -eu
           python3.15 build/promote_openssl_free.py \
             --run-dir "$CANDIDATE_RUN_DIR" \
+            --archive-dir "$ARCHIVE_RUN_DIR" \
             --triple aarch64-apple-darwin \
             --revision "$GITHUB_SHA" \
             --archive-name "$ARCHIVE_NAME" \

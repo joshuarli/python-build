@@ -44,6 +44,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dist", type=Path, default=Path("dist"))
     parser.add_argument("--archive-name", required=True)
     parser.add_argument("--manifest-name", required=True)
+    parser.add_argument(
+        "--archive-dir",
+        type=Path,
+        default=None,
+        help="directory holding the qualified archive and manifest "
+        "(defaults to <run-dir>/qualification/archive, the Linux layout)",
+    )
     args = parser.parse_args(argv)
 
     target = TARGETS[args.triple]
@@ -51,8 +58,13 @@ def main(argv: list[str] | None = None) -> int:
     if not run_dir.is_dir():
         print(f"FAIL promote: run directory does not exist: {run_dir}", file=sys.stderr)
         return 1
-    archive_src = run_dir / "qualification" / "archive" / args.archive_name
-    manifest_src = run_dir / "qualification" / "archive" / args.manifest_name
+    archive_home = (
+        args.archive_dir.resolve()
+        if args.archive_dir is not None
+        else run_dir / "qualification" / "archive"
+    )
+    archive_src = archive_home / args.archive_name
+    manifest_src = archive_home / args.manifest_name
     for path in (archive_src, manifest_src):
         if path.is_symlink() or not path.is_file():
             print(f"FAIL promote: missing qualified file: {path}", file=sys.stderr)
