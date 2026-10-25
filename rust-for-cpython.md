@@ -1,8 +1,9 @@
 # Rust-for-CPython campaign
 
 Status: coverage complete (71/71 targets qualified, macOS arm64 + Linux x86-64);
-upstream-parity stage executed (U0–U6 done; D2 acceptance parked on three
-owner decisions below); performance phase deferred in full.
+upstream-parity stage executed (U0–U6 done; D2 accepted 2026-10-25 with
+two loud pre-existing deviations, rebase + backport queued as separate
+items); performance phase launching memory-first.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -16,24 +17,27 @@ Deliverables:
   differential, ICU/Unicode 18 evaluation, compression-backend evaluation,
   UUID re-baseline, and a compat sweep (re, datetime, pickle, csv,
   io/zipfile/shutil, ssl) — each with pristine-baseline comparison and full
-  suite gates (defined, unstarted).
-- D3: memory-first then CPU performance for all 71 routes (deferred; Phase 3
-  holds the full normative contract, unchanged in force).
+  suite gates (done; accepted with two loud deviations per OD5; U7/U8 queued).
+- D3: memory-first then CPU performance for all 71 routes (launching
+  memory-first per OD5; Phase 3 holds the full normative contract,
+  unchanged in force).
 - D4: this single campaign doc (done by this preflight; supersedes the
   former two-doc layout).
 
-Last accepted checkpoint: `920fa8b` (clinic-exact openssl-free `_hashlib`
-shim; `test_hmac` + `test_hashlib` SUCCESS, 234 run/18 skipped, in the
-integrated lane stage).
+Last accepted checkpoint: `8d61d20` (integrated parity on main:
+U1 C-writer two-pass + U5 datetime/zipfile reconciliations; U6
+50,158 run / 4F+6E+14E, all pre-existing and loud, zero new).
 
 Provisional work: none on the integration branch. The `lane-integrate`
 worktree's stage build verified the D2 prerequisite shim; its overlay file
 is now committed on main.
 
 Current steering decision (2026-10-25): coverage stays accepted and closed
-to rework; next substantive work is the D2 parity stage, marshal first. No
-perf lane starts until D2 is accepted. Width starts at 1 lane (single
-investigation) and expands to at most 16 only for the D2 compat sweep.
+to rework; D2 accepted with the two loud pre-existing deviations below.
+Next work in order: Linux x86-64 U6 re-qual on merged main, U7 source
+rebase as its own item, U8 `re` locale-ignorecase backport, then Phase 3
+memory-first climb. Width stays at 1 lane for U7/U8; expands to at most
+16 only for the Phase 3 batch.
 
 Next substantive milestone: U0 pristine 3.16.0a1+ comparison build plus U1
 marshal exact-byte differential with a pass/fail gate.
@@ -99,6 +103,12 @@ Owner-decided (2026-10-25, from the owner's direction; overrule by saying so):
   proposed upstream Rust API.
 - OD4: coverage items stay accepted as qualified; upstream changes do not
   reopen them except through a D2 item with a reproducer.
+- OD5 (2026-10-25, after `lane/integrated-parity` merged to main at
+  `8d61d20`): D2 accepted with two loud pre-existing deviations
+  (`test_ssl` 4F+6E RTLS policy gaps, `test_support` 14E hashlib-shim
+  gaps, all on clean main, none integration-caused). U7 source rebase and
+  U8 `re` locale-ignorecase backport run as separate sequenced items.
+  Phase 3 launches memory-first, macOS-only per the perf skill.
 
 Prescribed (settled from code and evidence; reversal needs counter-evidence):
 - P1: marshal goes first. `rust-cpython/overlay/Modules/_marshal_rs/src/lib.rs:349`
@@ -553,13 +563,23 @@ edits need coordinator review even when append-only.
   (`test_ssl` 4F+6E RTLS policy gaps, `test_support` 14E hashlib-shim
   gaps, all loud, none integration-caused, zero new). The U1 C-port
   fixed `test_audit` back to green. Parity probe: 13/13 byte-identical
-  plus the known cycle NOTE. D2 acceptance now waits only on the
-  parked owner decisions in Non-goals; Phase 3 stays deferred until
-  then. Proof: run/skip/deny lists equal D1 modulo the recorded
+  plus the known cycle NOTE. D2 ACCEPTED 2026-10-25 (OD5) with those two
+  sets as known deviations; Linux x86-64 re-qual on merged main still
+  owed. Proof: run/skip/deny lists equal D1 modulo the recorded
   VSOCK/resource entries; per-item probes still reach Rust in the main
   interpreter with `None` from own-GIL children.)
+- U7: source rebase (queued, own item per OD5). Re-pin the fork from
+  `b812b4a` to a newer upstream, resolving the U1 tuple-cycle divergence
+  and the U2 checksum hardcode and letting U6 run upstream test files.
+  Cost: full re-fetch, rebuild, and re-qualification on both hosts.
+  Owns: `rust-cpython/sources.lock.json` + full overlay reconciliation.
+  Proof: new U0 record, U1 differential green, full suites both hosts.
+- U8: `re` locale-ignorecase backport (queued, own item per OD5).
+  Backport upstream's case-closure fix into fork `_sre/sre_lib.h`
+  (`_sre` is not a route file). Proof: locale-ignorecase probe +
+  full `test_re` green.
 
-### Phase 3 — performance (deferred in full; normative contract preserved)
+### Phase 3 — performance (launching memory-first per OD5; normative contract preserved)
 
 No lane starts until D1 and D2 acceptance pass. Debt entries remain
 unresolved goals; removing a Rust route to meet a goal needs the owner's
@@ -820,9 +840,9 @@ upstream speedups secondhand.
   Superseded: the two-doc layout and any perf-first scheduling. Preserved:
   all 71 register lines, suite sets, counts, and the full perf normative
   contract above. Removed `rust-for-cpython-perf.md` (in git history).
-- 2026-10-25: `920fa8b` clinic-exact `_hashlib` shim accepted in lane
-  stage (`test_hmac` + `test_hashlib` 234/18 SUCCESS); `0e0be06` nix test
-  fixture follows the `backend/` graduation. Both on main, unpushed.
+- 2026-10-25: `8d61d20` integrated parity merged to main (= origin/main
+  = `lane/integrated-parity`); D2 accepted with the two loud deviations
+  per OD5; U7 rebase + U8 backport queued; Phase 3 memory-first launching.
 - Pre-preflight history (substantive only): 71/71 coverage integrated at
   `9329e1c`/`4710c23`; openssl-less hashing+TLS lanes merged (`ca4d541`);
   macOS promote bridge takes an explicit archive dir (`e8fdad6`).
