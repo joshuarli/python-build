@@ -34,10 +34,10 @@ is now committed on main.
 
 Current steering decision (2026-10-25): coverage stays accepted and closed
 to rework; D2 accepted with the two loud pre-existing deviations below.
-Next work in order: Linux x86-64 U6 re-qual on merged main, U7 source
-rebase as its own item, U8 `re` locale-ignorecase backport, then Phase 3
-memory-first climb. Width stays at 1 lane for U7/U8; expands to at most
-16 only for the Phase 3 batch.
+U8 done and merged. Next work in order: Linux x86-64 U6 re-qual on merged
+main (parked: needs native host), U7 rebase to peeled a1 as its own item,
+then Phase 3 memory-first climb. Width stays at 1 lane for U7; expands to
+at most 16 only for the Phase 3 batch.
 
 Next substantive milestone: U0 pristine 3.16.0a1+ comparison build plus U1
 marshal exact-byte differential with a pass/fail gate.
@@ -585,13 +585,14 @@ edits need coordinator review even when append-only.
   re-qualification on both hosts. Owns:
   `rust-cpython/sources.lock.json` + full overlay reconciliation.
   Proof: new U0 record, U1 differential green, full suites both hosts.
-- U8: `re` locale-ignorecase backport (lane running on
-  `lane/u8-sre-backport`). Backport upstream's case-closure fix into fork
-  `_sre/sre_lib.h` (`_sre` is not a route file). NOTE 2026-10-25: scout
-  confirms a1 already carries the fix, so the U7 a1 re-pin subsumes this
-  item; the lane still finishes because the rebase timeline is parked
-  behind Linux-host re-qual and the fix keeps the current pin exact.
-  Proof: locale-ignorecase probe + full `test_re` green.
+- U8: `re` locale-ignorecase backport (DONE 2026-10-25 on
+  `lane/u8-sre-backport`, merged to main: upstream `6671d27327dd`
+  GH-156445 rewrite of `SRE(charset_loc_ignore)` via overlay C-shadow;
+  fork-plus-hunk byte-identical to pristine a1. NOTE: the U7 a1 re-pin
+  subsumes this item; it finished first because the rebase timeline is
+  parked behind Linux-host re-qual. Proof: 15-case probe lane-vs-pristine
+  OK plus `test_re` 169/3, `test_locale` 69/69, `test_str` 139/6, all
+  SUCCESS matching the register.)
 
 ### Phase 3 — performance (launching memory-first per OD5; normative contract preserved)
 
