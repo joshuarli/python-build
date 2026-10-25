@@ -148,6 +148,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("verify_uv_python.py", self.workflow)
         self.assertNotIn("uv/install.sh", self.workflow)
 
+    def test_uv_smokes_pin_verified_uv_hashes(self) -> None:
+        expected = {
+            "e0b1d4743ce64c55d9f0f4a444afa6b81125680070ee04e853fcd0f6c1ebf8f1",
+            "28d4385f9f9d1d1c7654d85b3855e0e2615b2f6cc13136a2edff858bbdc16ff1",
+            "253a17cadcb659ae77a0fe3b9a2f1c14297528d480c421899e61e64d64f24e8f",
+        }
+        for digest in expected:
+            with self.subTest(digest=digest[:12]):
+                self.assertRegex(digest, r"\A[0-9a-f]{64}\Z")
+                self.assertIn(digest, self.workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
