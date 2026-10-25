@@ -130,7 +130,13 @@ jobs:
             --run-dir "$CANDIDATE_RUN_DIR" \
             --rtls-source "$RTLS_SOURCE_DIR"
           python3.15 backend/build-no-openssl.py \
-            --phase all --pgo \
+            --phase base --pgo \
+            --run-dir "$CANDIDATE_RUN_DIR" \
+            --jobs "$JOBS" \
+            --rtls-source "$RTLS_SOURCE_DIR"
+          python3.15 backend/build-no-openssl.py \
+            --phase overlay \
+            --prefix "$CANDIDATE_RUN_DIR/prefix" \
             --run-dir "$CANDIDATE_RUN_DIR" \
             --jobs "$JOBS" \
             --rtls-source "$RTLS_SOURCE_DIR"
