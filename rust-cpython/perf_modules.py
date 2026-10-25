@@ -844,7 +844,8 @@ def k_unicodedata():
     def setup():
         import unicodedata
         text = ("Ångström café naïve ﬁne Ⅻ ｶﾀｶﾅ ḉ " * 200)
-        chars = [chr(code) for code in range(0x20, 0x3000, 3)]
+        unicode_18_additions = {0x05C9, 0x0B54, 0x1ADE, 0x1AED, 0x1AF0, 0x209F, 0x20C3, 0x2E61}
+        chars = [chr(code) for code in range(0x20, 0x3000, 3) if code not in unicode_18_additions]
 
         def run():
             categories = [unicodedata.category(ch) for ch in chars]

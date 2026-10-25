@@ -3,7 +3,7 @@
 Status: coverage complete (71/71 targets qualified, macOS arm64 + Linux x86-64);
 upstream-parity stage executed (U0–U6 done; D2 accepted 2026-10-25 with
 two loud pre-existing deviations, rebase + backport queued as separate
-items); performance phase launching memory-first.
+items); Phase 3 is active on the macOS memory-first climb.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -18,9 +18,8 @@ Deliverables:
   UUID re-baseline, and a compat sweep (re, datetime, pickle, csv,
   io/zipfile/shutil, ssl) — each with pristine-baseline comparison and full
   suite gates (done; accepted with two loud deviations per OD5; U7/U8 queued).
-- D3: memory-first then CPU performance for all 71 routes (launching
-  memory-first per OD5; Phase 3 holds the full normative contract,
-  unchanged in force).
+- D3: memory-first then CPU performance for all 71 routes (in progress;
+  Phase 3 holds the full normative contract, unchanged in force).
 - D4: this single campaign doc (done by this preflight; supersedes the
   former two-doc layout).
 
@@ -36,13 +35,14 @@ Current steering decision (2026-10-25): coverage stays accepted and closed
 to rework; D2 accepted with the two loud pre-existing deviations below.
 U8 done and merged. U7 parked as a multi-lane wave (blockers B1–B5
 recorded on the item; retry needs P1–P3 + a Linux host). U2 done and
-merged (proof above; integrated --all attributed clean). Next work in
-order: Phase 3 memory-first climb on the qualified tree (macOS-only per
-the perf skill; Linux re-qual of the U8+U2 tree still needs a native
-host). Width expands to the perf skill's lanes only for Phase 3.
+merged (proof above; integrated --all attributed clean). Current work is
+Phase 3 memory-first on macOS. Linux re-qualification of U8+U2 and the U7
+rebase remain downstream prerequisites for closeout; Linux work requires a
+native host.
 
-Next substantive milestone: U0 pristine 3.16.0a1+ comparison build plus U1
-marshal exact-byte differential with a pass/fail gate.
+Next substantive milestone: clear every macOS module memory goal and eligible
+workload RSS regression, then begin CPU performance work. U7 remains parked
+until its recorded P1–P3 prerequisites and a native Linux host are available.
 
 ## Charter
 
@@ -632,7 +632,26 @@ edits need coordinator review even when append-only.
   OK plus `test_re` 169/3, `test_locale` 69/69, `test_str` 139/6, all
   SUCCESS matching the register.)
 
-### Phase 3 — performance (launching memory-first per OD5; normative contract preserved)
+### Phase 3 — performance (memory-first in progress; normative contract preserved)
+
+Current macOS memory checkpoint: `perf-rust@373ac78` against `@control`
+(`9de0511`) has 31 routes OVER, 39 MET, and 1 BEYOND across all 71 module
+memory goals, with no output mismatches. The six remaining workload peak-RSS
+regressions are `python_startup` (+4.60%), `django_wsgi_first_request`
+(+2.55%), `django_asgi_request` (+1.59%), `django_orm_10k` (+1.76%),
+`django_template_realistic` (+1.41%), and `django_wsgi_request` (+1.78%);
+the other 18 workloads are neutral or improved. The largest module deficits
+are SSL working peak (3.66x control), HMAC load footprint (2.60x), and
+datetime load footprint (2.12x).
+
+The shared unicodedata kernel now omits the eight sampled code points newly
+assigned in Unicode 18, so both pinned Unicode versions receive identical
+benchmark inputs and outputs. A fresh memory-only calibration passed, and
+the refreshed 71-route goals had no mismatches. The rejected SSL certificate
+key cache lane was NEUTRAL; its unmerged branch is retained. The next SSL
+hypothesis targets repeated default crypto-provider construction in the
+client and server config builders. Prior startup/export-list attempts showed
+no RSS movement and are closed to repetition without a distinct mechanism.
 
 No lane starts until D1 and D2 acceptance pass. Debt entries remain
 unresolved goals; removing a Rust route to meet a goal needs the owner's
