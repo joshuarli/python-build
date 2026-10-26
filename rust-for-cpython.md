@@ -684,8 +684,22 @@ incumbent: load footprint 0.989x (95% interval 0.931–1.020); working peak
 outputs matched. Against control, SSL remained OVER at 1.32x load and 3.44x
 working peak. The candidate was not qualified and its changes were restored.
 This is the second failed SSL lane, so SSL joins unresolved memory debt; do
-not repeat the shared-storage mechanism. The next module lane returns to
-datetime with a distinct hypothesis.
+not repeat the shared-storage mechanism. The next module lane returned to
+datetime with a distinct hypothesis; its result follows.
+The second datetime attempt tested packing Rust date and datetime arithmetic
+fields into one `c_long` across the private C/Rust boundary. The focused
+`test_datetime` suite passed (1,160 run / 33 skipped), but the two-run
+incumbent comparison was NEUTRAL: load was 0.750x [0.667, 0.944] and working
+peak was 1.000x [1.000, 1.000]. Its candidate control goal remained UNCLEAR
+at 1.50x load (96/0 KiB; treated as OVER) and MET at 1.00x working peak
+(32/0 KiB). Workload guards were neutral, with one gzip run worse inside a
+pooled neutral result. The candidate was restored without clean/full
+qualification. This is datetime's second failed hypothesis and adds it to
+unresolved memory debt; do not repeat the tuple-marshaling or stack-built
+formatter mechanisms. The current map puts SSL peak at 3.66x and HMAC load
+at 2.60x; both routes are parked as greater-than-2x blockers after two
+distinct attempts. Datetime remains debt after two attempts. The next
+eligible route is decimal load at 1.55x.
 `perf-gate-ready -s` returned 75 at 22:22Z with swap at 75%; later checks
 remained constrained after the hot process exited, most recently at 73% swap.
 At the owner's direction, memory-only work may proceed without that host
