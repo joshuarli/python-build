@@ -9,9 +9,10 @@ lanes are running.
 **Resume:** After package hardening, resume the macOS memory-first climb from
 this document. First run `git status --short`.
 
-**State:** `main` is at `dc1c5d3`. Accepted `perf-rust` remains verified at
-`373ac7812b`; it does not include the provisional decimal change now on
-`main`. No performance stage has been promoted.
+**State:** `main` was at `73d2a28` when this handoff was committed; the
+provisional decimal change is `dc1c5d3`. Accepted `perf-rust` remains
+verified at `373ac7812b` and does not include that change. No performance
+stage has been promoted.
 
 **Direction:** Finish the package-hardening task before resuming Phase 3. On
 resume, re-read the current instructions and run the steering checkpoint.
@@ -62,10 +63,10 @@ and workload RSS checks, followed by CPU performance. Continue with U7 after
 its recorded prerequisites and a native Linux host, requalify U8 and U2 on
 Linux, resolve the `_marshal_rs` flake, and run the final suites on both hosts.
 
-**Verified:** Main is clean. `perf.py status` reports a free host lease. No
-campaign build, suite, or measurement process remains. Memory work may still
-use the owner's host-admission override; its sampling and correctness checks
-remain required.
+**Verified:** At the handoff commit, the main worktree was clean.
+`perf.py status` reports a free host lease. No campaign build, suite, or
+measurement process remains. Memory work may still use the owner's
+host-admission override; its sampling and correctness checks remain required.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
