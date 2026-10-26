@@ -1,9 +1,10 @@
 # Rust-for-CPython campaign
 
-Status: coverage complete (71/71 targets qualified, macOS arm64 + Linux x86-64);
-upstream-parity stage executed (U0–U6 done; D2 accepted 2026-10-25 with
-two loud pre-existing deviations, rebase + backport queued as separate
-items); Phase 3 is active on the macOS memory-first climb.
+Status: winding down (2026-10-26); coverage complete (71/71 targets
+qualified, macOS arm64 + Linux x86-64); upstream parity D2 accepted with two
+loud pre-existing deviations. No new Phase 3 lanes or waves will start. The
+active decimal and threading memory lanes may finish their current checks;
+remaining performance work will be parked for a later resume.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
