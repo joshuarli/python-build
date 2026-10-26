@@ -7,11 +7,11 @@ Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 
 **Continue:** Finish the macOS memory goals before starting CPU work.
 
-**State:** `perf-rust@0849f68` is the verified source and
-`perf-upstream@9de0519` is the control. No batch 12 source change was accepted;
-the provisional decimal change at `dc1c5d3` remains neutral at its final gate.
-Recent memory attempts were restored after neutral results. No CPU work has
-started.
+**State:** `perf-rust@dd4586b` is the verified runtime and
+`perf-upstream@9de0519` is the control. Commit `9e60680` changes only the
+measurement scratch location and its test. The fresh memory calibration at
+`20261026T125500Z` passed. No performance candidate has been accepted, and
+no CPU work has started.
 
 The candidate full suite ran 50,158 tests with 9 failures and 2,771 skips.
 The failures are the three accepted D2 files: `test_ssl` (6 errors, 4
@@ -20,16 +20,28 @@ The pristine control also had incidental `test_os` (2 failures) and
 `test_mailbox` (1 failure); focused reruns passed on both stages. Do not hide
 these full-run results or treat the D2 deviations as newly fixed.
 
-**Direction:** Finish every module memory goal and eligible workload RSS goal
-before starting CPU work. The unresolved module rows are `_strptime`,
-`base64`, `contextlib`, `csv`, `datetime`, `hmac`, `http.client`, `inspect`,
-`marshal`, `re`, `sqlite3`, `ssl`, `struct`, `threading`, `tokenize`,
-`typing`, `urllib.request`, `warnings`, `xml.etree.ElementTree`, and
-`zipfile`. The unresolved workload rows are `python_startup_peak_rss`,
-`django_wsgi_first_request_peak_rss`, `django_wsgi_request_peak_rss`,
-`django_asgi_request_peak_rss`, and `django_template_realistic_peak_rss`.
-The latest complete workload run also marks `django_orm_10k_peak_rss` OVER.
-The current map has no output mismatches.
+**Direction:** Finish all 71 module load and working-peak goals and every
+eligible workload RSS goal before starting CPU work. The fresh module report
+at `20261026T130556Z` has no output mismatches. It reports 17 OVER routes,
+13 UNCLEAR routes, 40 MET routes, and one BEYOND route.
+
+The OVER routes are `_strptime`, `base64`, `compression.zstd`, `contextlib`,
+`csv`, `datetime`, `hmac`, `html.parser`, `http.client`, `inspect`, `re`,
+`ssl`, `threading`, `tokenize`, `typing`, `urllib.request`, and `zlib`.
+The UNCLEAR routes are `binascii`, `collections`, `decimal`, `functools`,
+`ipaddress`, `marshal`, `multiprocessing`, `socket`, `sqlite3`, `struct`,
+`uuid`, `warnings`, and `xml.etree.ElementTree`. UNCLEAR rows remain open.
+`compression.zstd` has BEYOND load footprint and OVER working peak.
+
+The latest complete workload report remains `20261026T102759Z`. It has six
+RSS debts: startup, WSGI first request, WSGI request, ASGI request, ORM, and
+realistic template. All output digests matched. A fresh all-workload memory
+comparison remains required after candidate integration.
+
+Three isolated memory lanes are active. `base64-core-nostd-mem` is building
+the direct-FFI `_base64` change. `elementtree-bytes-mem` has a private bytes
+sink edit and awaits its build. `zstd-peak-mem` is preparing a working-peak
+profile. No candidate comparison has completed in this batch.
 
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
 charter's 2x retry threshold. Both routes have two failed hypotheses. Keep
@@ -1198,6 +1210,11 @@ upstream speedups secondhand.
 
 ## Decision log and campaign log
 
+- 2026-10-26 resumed after the Python packaging hardening work. Commit
+  `9e60680` moved runtime aliases under `.work/tmp`; the fresh calibration
+  passed. The refreshed 71-route memory goals report 17 OVER and 13 UNCLEAR
+  routes with no output mismatches. Base64, ElementTree, and zstd memory lanes
+  are active. No CPU work has started.
 - 2026-10-26 winddown: finished batch 12 without promoting a source change;
   parked the memory climb with marshal and workload RSS debt open. Removed
   completed lane worktrees, allowed the 17 retained parked worktrees, preserved
