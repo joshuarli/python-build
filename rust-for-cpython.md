@@ -28,10 +28,10 @@ its changes were restored after a neutral result.
 **Cleanup:** The decimal and threading worktrees were removed; their verdicts
 and compact build report remain in `rust-cpython/results/`. The four bench
 results are under `rust-cpython/results/perf-bench/`, and the build report is
-`rust-cpython/results/perf-decimal-nostd-mem.json`. The clean, retained
-worktrees below are separate bootstrap or RTLS product experiments. The
-integrated `lane/ci-smoke-uv` worktree was removed after confirming its head
-is an ancestor of `main`; its branch remains.
+`rust-cpython/results/perf-decimal-nostd-mem.json`. The retained worktrees
+below hold separate product or Rust-for-CPython work. The integrated
+`lane/ci-smoke-uv` worktree was removed after confirming its head is an
+ancestor of `main`; its branch remains.
 
 | Worktree | Branch and head | Retention reason |
 | --- | --- | --- |
@@ -49,14 +49,13 @@ is an ancestor of `main`; its branch remains.
 | `.work/wt/openssl-free-subinterpreters` | `experiment/openssl-free-subinterpreters@2c65ebc` | RTLS core across interpreters |
 | `.work/wt/openssl-free-tls-controls` | `experiment/openssl-free-tls-controls@9042e06` | TLS session controls |
 | `.work/wt/openssl-free-trust` | `experiment/openssl-free-trust@66efaff` | Trust-path compatibility |
+| `.work/wt/lane-integrate` | `lane/integrated-openssl-less@cea9c89` | Pending `_hashlib.py` overlay |
+| `.work/wt/openssl-free-build` | `experiment/openssl-free-build@1cbc85c` | Relocation and sysconfig validation changes |
+| `.work/wt/openssl-free-dhm` | `experiment/openssl-free-dhm@59f4bc8` | MbedTLS source preparation experiment |
 
-The owner directed that three other product worktrees with uncommitted state
-be preserved untouched:
-`.work/wt/lane-integrate` has an untracked `_hashlib.py`,
-`.work/wt/openssl-free-build` has relocation and product-validation edits, and
-`.work/wt/openssl-free-dhm` has an untracked MbedTLS preparation script. The
-closeout guard rejects dirty retained worktrees, so it remains active pending
-future cleanup of those separate changes.
+The last three worktrees were committed on their own branches so closeout can
+retain them without merging their changes into `main`. Their changes have not
+been qualified.
 
 **Not started:** Finish package hardening first. Then resume all memory goals
 and workload RSS checks, followed by CPU performance. Continue with U7 after
@@ -1073,8 +1072,8 @@ upstream speedups secondhand.
   after a NEUTRAL final gate; restored threading after its neutral result.
   Removed both lane worktrees and retained their evidence. The owner
   prioritized package hardening before the next macOS memory-first wave; no
-  performance stage was promoted. Closeout is pending cleanup of three dirty
-  product worktrees outside this campaign.
+  performance stage was promoted. Three separate retained worktrees have
+  local commits and remain outside `main` pending closeout allowances.
 - 2026-10-25 preflight: combined the two docs into this one; deferred all
   perf goals behind D2; added the D2 parity stage from the upstream brief.
   Superseded: the two-doc layout and any perf-first scheduling. Preserved:
