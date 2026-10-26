@@ -110,16 +110,18 @@ at 1.045x [1.005, 1.093], and its control load goal remains UNCLEAR at
 1.06x. The struct byteorder removal passed 3,235 tests with 311 skips; its
 load and working-peak comparisons were neutral. Both zipfile memory-level
 changes passed 956 tests with 91 skips and were neutral. All edits were
-restored. The current full unresolved map is listed above. No CPU timing was
-collected.
+restored. Removing the `regex` `perf` feature was also neutral for `re`:
+`test_re` passed 169 tests with 4 skips on both candidate and incumbent, and
+load remained OVER at 1.160x [1.141, 1.210]. Its working peak is MET. All
+memory attempts were restored. The current full unresolved map is listed
+above. No CPU timing was collected.
 
-**Open lanes:** `lane/re-mem` is active. `lane/marshal-audit` has an unbuilt,
-unverified change that routes importlib bytecode writes through the existing C
-writer. `lane/datetime-mem` and `lane/ssl-mem` remain parked after neutral or
-rejected results. The decimal no_std implementation at `dc1c5d3` remains
-provisional and neutral at its final gate. The U7 rebase is parked behind
-P1–P3 and a native Linux host. Native Linux requalification of U8 and U2
-remains open.
+**Open lanes:** `lane/re-mem` ended neutral and its source is restored.
+`lane/marshal-audit` has a tested but uncommitted C-writer change.
+`lane/datetime-mem` and `lane/ssl-mem` remain parked after neutral or rejected
+results. The decimal no_std implementation at `dc1c5d3` remains provisional
+and neutral at its final gate. The U7 rebase is parked behind P1–P3 and a
+native Linux host. Native Linux requalification of U8 and U2 remains open.
 
 **Cleanup:** `git worktree prune` completed. The three batch 12 worktrees were
 removed after their evidence was copied and verified. Seventeen parked
@@ -170,7 +172,8 @@ remains gated on the memory phase.
 **Verified:** D1 and D2 remain accepted with documented deviations. The saved
 memory calibration receipt remains reusable because the harness inputs and
 control identity are unchanged. Batch 12 and batch 15 results are recorded
-above; all attempted source edits were restored. No CPU timing was collected.
+above. Performance edits were restored; the marshal audit candidate remains
+isolated and uncommitted. No CPU timing was collected.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -974,10 +977,14 @@ decision; coverage still holds.
 Contract changes written up, docs updated, edge cases from D2 folded into
 register lines, exclusion/scope coherence re-checked.
 
-Deferred by owner decision: investigate the intermittent `_marshal_rs`
-capsule import failure in `test_audit`, also observed in the product
-regression gate. Parallel `.pyc` churn is suspected, not established.
-Reproduce under the gate's process environment before choosing a fix.
+The earlier `test_audit` failure included an unexpected `_marshal_rs` import
+event while importing `email`. The importlib `.pyc` writer reaches
+`marshal_rust_dumps`, which lazily calls `PyCapsule_Import("_marshal_rs._api")`.
+That path can emit the observed event. The isolated candidate keeps the
+`marshal.dumps` audit event and sends importlib bytecode writes through the
+existing C writer. A clean build verified 58 Rust extensions. All six
+assigned suites passed with 1,602 run and 29 skipped. The change remains
+uncommitted and needs integration plus final workload guards.
 
 ### Phase 5 — close
 
