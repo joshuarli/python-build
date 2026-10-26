@@ -486,6 +486,7 @@ class WorkloadProfileTests(unittest.TestCase):
                 (stage / "marker").write_text("same")
             with self.assertRaisesRegex(RuntimeError, "stop"):
                 with perf._runtime_prefix_aliases(*stages) as homes:
+                    self.assertEqual(homes[0].parent.parent, perf.SCRATCH)
                     self.assertEqual(len(str(homes[0])), len(str(homes[1])))
                     self.assertNotEqual(homes[0], homes[1])
                     for home, stage in zip(homes, stages):

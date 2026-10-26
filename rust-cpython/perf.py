@@ -41,6 +41,7 @@ from typing import Any
 
 LANE = Path(__file__).resolve().parent
 REPO = LANE.parent
+SCRATCH = REPO / ".work" / "tmp"
 
 
 def _lane_build():
@@ -1101,7 +1102,8 @@ def test(*, name: str, suites: list[str], all_suites: bool = False,
 @contextlib.contextmanager
 def _runtime_prefix_aliases(baseline: Path, candidate: Path) -> Iterator[tuple[Path, Path]]:
     """Give both unchanged installation trees equal-length visible home paths."""
-    with tempfile.TemporaryDirectory(prefix="rust-memory-home-", dir="/tmp") as temporary:
+    SCRATCH.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="rust-memory-home-", dir=SCRATCH) as temporary:
         root = Path(temporary)
         homes = (root / "baseline", root / "subject0")
         for home, stage in zip(homes, (baseline, candidate)):
