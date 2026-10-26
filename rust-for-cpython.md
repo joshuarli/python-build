@@ -1,10 +1,71 @@
 # Rust-for-CPython campaign
 
-Status: winding down (2026-10-26); coverage complete (71/71 targets
-qualified, macOS arm64 + Linux x86-64); upstream parity D2 accepted with two
-loud pre-existing deviations. No new Phase 3 lanes or waves will start. The
-active decimal and threading memory lanes may finish their current checks;
-remaining performance work will be parked for a later resume.
+Status: paused (2026-10-26) for the owner-prioritized package-hardening
+work. Coverage D1 and upstream parity D2 remain accepted. No performance
+lanes are running.
+
+## Paused handoff — 2026-10-26
+
+**Resume:** After package hardening, resume the macOS memory-first climb from
+this document. First run `git status --short`.
+
+**State:** `main` is at `dc1c5d3`. Accepted `perf-rust` remains verified at
+`373ac7812b`; it does not include the provisional decimal change now on
+`main`. No performance stage has been promoted.
+
+**Direction:** Finish the package-hardening task before resuming Phase 3. On
+resume, re-read the current instructions and run the steering checkpoint.
+Reconcile the main source and accepted stage identities before starting a
+lane.
+
+**Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
+unmerged after neutral or rejected results. Their worktrees are absent.
+`lane/decimal-nostd-mem@247118c` is merged provisionally as `dc1c5d3`, but its
+final gate was neutral. `lane/threading-nostd-mem` had no source commit and
+its changes were restored after a neutral result.
+
+**Cleanup:** The decimal and threading worktrees were removed; their verdicts
+and compact build report remain in `rust-cpython/results/`. The four bench
+results are under `rust-cpython/results/perf-bench/`, and the build report is
+`rust-cpython/results/perf-decimal-nostd-mem.json`. The clean, retained
+worktrees below are separate bootstrap or RTLS product experiments. The
+integrated `lane/ci-smoke-uv` worktree was removed after confirming its head
+is an ancestor of `main`; its branch remains.
+
+| Worktree | Branch and head | Retention reason |
+| --- | --- | --- |
+| `.work/wt/bootstrap-closure` | `codex/bootstrap-closure@dc4c488` | Locked compiler and bootstrap provisioning |
+| `.work/wt/openssl-free-crl` | `experiment/openssl-free-crl@2e845cc` | RTLS certificate revocation support |
+| `.work/wt/openssl-free-error-map` | `experiment/openssl-free-error-map@b3be70b` | RTLS SSL error mapping |
+| `.work/wt/openssl-free-hashing` | `experiment/openssl-free-hashing@d193fbc` | Rust hash adapter compatibility |
+| `.work/wt/openssl-free-linux-docker` | `openssl-free-linux-docker@a505b5a` | Native Linux qualification container |
+| `.work/wt/openssl-free-modern-keys` | `experiment/openssl-free-modern-keys@a4a96e2` | Bounded modern key parsing |
+| `.work/wt/openssl-free-options` | `experiment/openssl-free-options@041f7da` | TLS option compatibility |
+| `.work/wt/openssl-free-sha1-anchor` | `experiment/openssl-free-sha1-anchor@a3ff9d6` | RSA SHA-1 implicit-anchor validation |
+| `.work/wt/openssl-free-sni` | `experiment/openssl-free-sni@dbfcd71` | Secure SNI overlay |
+| `.work/wt/openssl-free-ssl-api` | `experiment/openssl-free-ssl-api@96aba73` | SSL API and handshake alert handling |
+| `.work/wt/openssl-free-ssl-utilities` | `experiment/openssl-free-ssl-utilities@b283f8d` | SSL utility callback behavior |
+| `.work/wt/openssl-free-subinterpreters` | `experiment/openssl-free-subinterpreters@2c65ebc` | RTLS core across interpreters |
+| `.work/wt/openssl-free-tls-controls` | `experiment/openssl-free-tls-controls@9042e06` | TLS session controls |
+| `.work/wt/openssl-free-trust` | `experiment/openssl-free-trust@66efaff` | Trust-path compatibility |
+
+The owner directed that three other product worktrees with uncommitted state
+be preserved untouched:
+`.work/wt/lane-integrate` has an untracked `_hashlib.py`,
+`.work/wt/openssl-free-build` has relocation and product-validation edits, and
+`.work/wt/openssl-free-dhm` has an untracked MbedTLS preparation script. The
+closeout guard rejects dirty retained worktrees, so it remains active pending
+future cleanup of those separate changes.
+
+**Not started:** Finish package hardening first. Then resume all memory goals
+and workload RSS checks, followed by CPU performance. Continue with U7 after
+its recorded prerequisites and a native Linux host, requalify U8 and U2 on
+Linux, resolve the `_marshal_rs` flake, and run the final suites on both hosts.
+
+**Verified:** Main is clean. `perf.py status` reports a free host lease. No
+campaign build, suite, or measurement process remains. Memory work may still
+use the owner's host-admission override; its sampling and correctness checks
+remain required.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -19,7 +80,7 @@ Deliverables:
   UUID re-baseline, and a compat sweep (re, datetime, pickle, csv,
   io/zipfile/shutil, ssl) — each with pristine-baseline comparison and full
   suite gates (done; accepted with two loud deviations per OD5; U7/U8 queued).
-- D3: memory-first then CPU performance for all 71 routes (in progress;
+- D3: memory-first then CPU performance for all 71 routes (paused;
   Phase 3 holds the full normative contract, unchanged in force).
 - D4: this single campaign doc (done by this preflight; supersedes the
   former two-doc layout).
@@ -28,22 +89,22 @@ Last accepted checkpoint: `8d61d20` (integrated parity on main:
 U1 C-writer two-pass + U5 datetime/zipfile reconciliations; U6
 50,158 run / 4F+6E+14E, all pre-existing and loud, zero new).
 
-Provisional work: none on the integration branch. The `lane-integrate`
-worktree's stage build verified the D2 prerequisite shim; its overlay file
-is now committed on main.
+Provisional work: `dc1c5d3` merges the tested no_std decimal implementation
+from `lane/decimal-nostd-mem`. Its final memory gate was NEUTRAL and its
+control goal remains UNCLEAR. The merge follows the owner's winddown request.
+It is not a performance acceptance, and `perf-rust` was not promoted.
 
-Current steering decision (2026-10-25): coverage stays accepted and closed
+Current steering decision (2026-10-26): coverage stays accepted and closed
 to rework; D2 accepted with the two loud pre-existing deviations below.
 U8 done and merged. U7 parked as a multi-lane wave (blockers B1–B5
 recorded on the item; retry needs P1–P3 + a Linux host). U2 done and
-merged (proof above; integrated --all attributed clean). Current work is
-Phase 3 memory-first on macOS. Linux re-qualification of U8+U2 and the U7
-rebase remain downstream prerequisites for closeout; Linux work requires a
-native host.
+merged (proof above; integrated --all attributed clean). Phase 3 is paused
+on macOS. Linux re-qualification of U8+U2 and the U7 rebase remain
+downstream prerequisites for closeout; Linux work requires a native host.
 
-Next substantive milestone: clear every macOS module memory goal and eligible
-workload RSS regression, then begin CPU performance work. U7 remains parked
-until its recorded P1–P3 prerequisites and a native Linux host are available.
+Next substantive milestone: finish package hardening. Resume the memory-first
+climb after that work. U7 remains parked until its recorded P1–P3 prerequisites
+and a native Linux host are available.
 
 ## Charter
 
@@ -633,7 +694,7 @@ edits need coordinator review even when append-only.
   OK plus `test_re` 169/3, `test_locale` 69/69, `test_str` 139/6, all
   SUCCESS matching the register.)
 
-### Phase 3 — performance (memory-first in progress; normative contract preserved)
+### Phase 3 — performance (paused; normative contract preserved)
 
 Current macOS memory checkpoint: `perf-rust@373ac78` against `@control`
 (`9de0511`) has 31 routes OVER, 39 MET, and 1 BEYOND across all 71 module
@@ -646,6 +707,8 @@ are SSL working peak (3.66x control), HMAC load footprint (2.60x), and
 datetime load footprint (2.12x). The workload memory gate was repeated at
 2026-10-25 21:57Z; the module goal rerun and rigorous UNCLEAR resolution
 completed at 22:02Z and 22:12Z.
+This map predates the provisional decimal change on `main`; that change's
+final memory gate was NEUTRAL and `perf-rust` remains at the accepted source.
 
 The shared unicodedata kernel now omits the eight sampled code points newly
 assigned in Unicode 18, so both pinned Unicode versions receive identical
@@ -698,9 +761,9 @@ pooled neutral result. The candidate was restored without clean/full
 qualification. This is datetime's second failed hypothesis and adds it to
 unresolved memory debt; do not repeat the tuple-marshaling or stack-built
 formatter mechanisms. The current map puts SSL peak at 3.66x and HMAC load
-at 2.60x; both routes are parked as greater-than-2x blockers after two
-distinct attempts. Datetime remains debt after two attempts. The next
-eligible route is decimal load at 1.55x.
+at 2.60x. Both routes are parked as greater-than-2x blockers after two
+distinct attempts. Datetime remains debt after two attempts. Decimal load at
+1.55x was the next eligible route.
 The first decimal attempt replaced BigUint radix conversion with base-10
 digit-vector arithmetic. `test_decimal` passed (735 run / 9 skipped), but
 the paired comparison was NEUTRAL: load footprint pooled 0.719x [0.545,
@@ -709,9 +772,28 @@ the paired comparison was NEUTRAL: load footprint pooled 0.719x [0.545,
 matching outputs. The extension image shrank from 462,832 to 389,360 bytes,
 but the load result did not replicate; no clean qualification or full suite
 followed, and the source was restored. Decimal remains OVER at 1.55x load.
-The next distinct hypothesis removes the Rust standard-library runtime from
+The next distinct hypothesis removed the Rust standard-library runtime from
 `_decimal_rs` with stack-bounded arithmetic and direct C-API bindings, using
 the C caller's 128-digit input guard.
+The lane removed `num-bigint` and the runtime `cpython-sys` dependency. A
+clean build verified 58 Rust extensions. All four decimal suites passed
+with 1,194 run / 14 skipped, and the subinterpreter addition and
+multiplication check passed. The exploratory memory result was ACCEPT at
+0.663x load footprint [0.500, 0.785]. The clean committed gate was NEUTRAL
+at 0.781x [0.647, 1.036]. Working peak was neutral at 1.000x.
+`django_orm_10k` RSS was neutral at 0.999x [0.997, 1.001]. All eight
+workload guards were neutral and outputs matched. The control load goal
+remained UNCLEAR at 1.071x [0.733, 1.400]. The source is merged
+provisionally as `dc1c5d3` by owner direction. Do not count it as a
+performance acceptance or promote `perf-rust`.
+
+The threading no_std hypothesis removed the runtime `cpython-sys`
+dependency and added direct CPython bindings. Its clean build verified 58
+extensions. All five threading, interpreter, and futures suites passed with
+906 run / 38 skipped. The subinterpreter `Barrier.wait()` check passed. The
+exploratory load comparison was NEUTRAL at 1.375x [1.000, 1.643]. Working
+peak was neutral at 1.000x. The change was restored. Threading remains OVER
+at 1.400x load, with working peak MET at 1.000x.
 `perf-gate-ready -s` returned 75 at 22:22Z with swap at 75%; later checks
 remained constrained after the hot process exited, most recently at 73% swap.
 At the owner's direction, memory-only work may proceed without that host
@@ -986,6 +1068,12 @@ upstream speedups secondhand.
 
 ## Decision log and campaign log
 
+- 2026-10-26 winddown: merged decimal no_std provisionally as `dc1c5d3`
+  after a NEUTRAL final gate; restored threading after its neutral result.
+  Removed both lane worktrees and retained their evidence. The owner
+  prioritized package hardening before the next macOS memory-first wave; no
+  performance stage was promoted. Closeout is pending cleanup of three dirty
+  product worktrees outside this campaign.
 - 2026-10-25 preflight: combined the two docs into this one; deferred all
   perf goals behind D2; added the D2 parity stage from the upstream brief.
   Superseded: the two-doc layout and any perf-first scheduling. Preserved:
