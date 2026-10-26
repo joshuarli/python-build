@@ -33,9 +33,10 @@ The OVER modules are `contextlib`, `hmac`, `http.client`, `ssl`,
 `zlib`, `codecs`, `logging`, `_strptime`, `html.parser`, `binascii`,
 `tokenize`, and `warnings`.
 
-The SSL working peak (3.69x), HMAC load footprint (2.93x), and marshal
-working peak (2.34x) exceed the charter's 2x retry threshold. Keep them as
-blockers and do not repeat the failed mechanisms.
+The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
+charter's 2x retry threshold. Both routes have two failed hypotheses. Keep
+them as blockers and do not repeat those mechanisms. The earlier marshal
+working-peak estimate of 2.34x is superseded by the rigorous rerun below.
 
 Two bounded attempts were neutral and have been reverted. CSV input and field
 borrowing plus direct output construction measured load footprint 1.413x
@@ -44,11 +45,35 @@ borrowing plus direct output construction measured load footprint 1.413x
 on this host. ElementTree output slabs measured load footprint 1.086x
 [1.027, 1.105] and working peak 0.977x [0.707, 1.095]; both XML suites
 passed with 480 run, 12 skipped, and no failures. Do not repeat these
-mechanisms. The next profile-supported hypothesis targets `http.client`'s
-1.382x load footprint: sample and cProfile traces reach `_http_client_rs` and
-`httparse`. The lane is exploring a conservative Rust parser that removes
-`httparse`, with CPython fallback for anything outside the fast path's proven
-grammar.
+mechanisms.
+
+Batch 11 ended with neutral HTTP and LZMA comparisons. The HTTP profile reached
+`_http_client_rs` and `httparse`. The candidate replaced `httparse` with local
+byte parsing and CPython fallback. Its clean build verified 58 Rust
+extensions. All seven HTTP suites passed with 538 run, 14 skipped, and no
+failures. The memory comparison was neutral: load footprint 1.024x
+[1.003, 1.044], working peak 1.000x. The unchanged setup was also neutral at
+1.006x load [0.981, 1.029] and 1.000x working peak. The source change was
+reverted. Its verdict is at
+`rust-cpython/results/perf-bench/20261026T045033Z-perf-rust-vs-perf-http-client-mem/verdict.json`.
+
+The LZMA profile reached the decoder's output-buffer growth path. The
+candidate changed capacity growth from 2x to 1.5x. `test_lzma` passed with
+123 run, one skip matching the incumbent on this host, and no failures. The
+memory comparison was neutral: load footprint 1.067x [0.923, 1.484], working
+peak 0.797x [0.521, 2.250]. The source change was reverted. Lowering the
+initial capacity estimate remains a distinct hypothesis. Its verdict is at
+`rust-cpython/results/perf-bench/20261026T044928Z-perf-rust-vs-perf-lzma-mem/verdict.json`.
+
+The rigorous memory-goal rerun at
+`rust-cpython/results/perf-bench/20261026T045322Z-goals-perf-upstream-vs-perf-rust/verdict.json`
+keeps `marshal` OVER at 1.114x load footprint [1.057, 1.184]. Its working
+peak is UNCLEAR at 1.938x [1.344, 2.406]. The harness treats an UNCLEAR row
+with a pooled median above 1.01x as OVER. `io` working peak is UNCLEAR at
+1.072x [0.933, 1.842], and `plistlib` working peak is UNCLEAR at 1.053x
+[0.869, 1.174]. Both also count as OVER under that rule. `plistlib` load
+footprint remains BEYOND at 0.160x [0.134, 0.197]. These three routes are the
+next eligible memory targets.
 
 The all-workload memory gate rejected three rows: `python_startup` peak RSS
 1.038x, `django_wsgi_first_request` 1.015x, and `django_asgi_request` 1.014x.
@@ -56,16 +81,10 @@ The other eligible workload rows were neutral or improved. `compileall_source`
 has a documented marshal output difference and was not timed. No CPU lane may
 start until all module memory goals and eligible workload RSS goals pass.
 
-**Active batch 11:** `lane/http-client-mem@bf829af` in
-`.work/wt/http-client-mem` targets `http.client` load footprint, OVER at
-1.382x; working peak is MET at 1.000x and is a guard. The profile supports
-examining the `httparse` dependency; the candidate must keep parser
-validation, CPython fallback, and all seven HTTP suites intact.
-`lane/lzma-mem@bae46d4` in `.work/wt/lzma-mem` targets `lzma` working peak,
-OVER at 1.413x [1.033, 1.916]; load footprint is BEYOND at 0.118x and is a
-guard. It is profiling the 256 KiB decode path's output-buffer growth.
-Independent build/test work may overlap; paired memory measurements are
-serialized.
+**Next batch:** Profile `marshal` load footprint and working peak, `io` working
+peak, and `plistlib` working peak. Keep each route's Rust path and complete
+suite set intact. Independent build/test work may overlap; paired memory
+measurements are serialized.
 
 **Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
 unmerged after neutral or rejected results; their worktrees are absent.
@@ -76,8 +95,9 @@ profile-supported hypothesis.
 
 **Cleanup:** `git worktree prune` completed. The neutral CSV and ElementTree
 worktrees and their unmerged branches were retired after preserving their
-verdicts and reports under `rust-cpython/results/`. Two Rust performance
-worktrees are active. The 17 retained product/bootstrap worktrees are clean,
+verdicts and reports under `rust-cpython/results/`. The neutral HTTP and LZMA
+worktrees and branches were also retired after preserving their verdicts.
+The 17 retained product/bootstrap worktrees are clean,
 allowed by the closeout helper, and retained at the owner's direction;
 no campaign scratch was safe to remove. Performance verdicts and reports
 remain under `rust-cpython/results/`.
