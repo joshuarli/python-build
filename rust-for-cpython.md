@@ -1,7 +1,7 @@
 # Rust-for-CPython campaign
 
-Status: active (2026-10-26), macOS memory-first performance phase. Coverage D1
-and upstream parity D2 remain accepted.
+Status: winding down (2026-10-26), macOS memory-first performance phase.
+Coverage D1 and upstream parity D2 remain accepted.
 
 ## Current checkpoint — 2026-10-26
 
