@@ -672,9 +672,20 @@ independent runs classified as better and neutral. All ten workload rows
 were neutral, with no output mismatches. The rigorous control goal remained
 UNCLEAR at 1.25x load (80/0 KiB), treated as OVER by the lane rule; working
 peak was MET. Do not rerun this gate. The candidate is not integrated and
-counts as one failed datetime lane. The next memory lane targets SSL with a
-distinct mechanism; the provider-cache and TLS-identity attempts remain
-closed.
+counts as one failed datetime lane. The provider-cache and TLS-identity
+attempts remain closed. The second SSL attempt used one native certificate-
+chain setter and shared parsed certificate chains and private-key bytes
+through `Arc` across client and server builder fields and per-connection
+server snapshots. It kept per-connection `CertifiedKey` derivation. Its
+focused `test_ssl` result was 211 run / 37 skipped with the documented 4
+failures and 6 errors. The two-run comparison was NEUTRAL against the
+incumbent: load footprint 0.989x (95% interval 0.931–1.020); working peak
+1.031x (95% interval 0.942–1.065). All workload guards were neutral and
+outputs matched. Against control, SSL remained OVER at 1.32x load and 3.44x
+working peak. The candidate was not qualified and its changes were restored.
+This is the second failed SSL lane, so SSL joins unresolved memory debt; do
+not repeat the shared-storage mechanism. The next module lane returns to
+datetime with a distinct hypothesis.
 `perf-gate-ready -s` returned 75 at 22:22Z with swap at 75%; later checks
 remained constrained after the hot process exited, most recently at 73% swap.
 At the owner's direction, memory-only work may proceed without that host
