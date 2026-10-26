@@ -12,7 +12,8 @@ and upstream parity D2 remain accepted.
 campaign checkpoint. `perf-rust` is clean-built and verified at 5227de3;
 `perf-upstream@9de0519` is the control. No performance change has been
 promoted since the provisional decimal commit `dc1c5d3`.
-The hardening gates are implemented in `f57d3ad`; final product artifact
+The hardening gates are implemented in `f57d3ad`; their focused Linux package,
+ELF, and Mach-O validation tests pass (31 tests). Final product artifact
 qualification has not yet run.
 
 The candidate full suite ran 50,158 tests with 9 failures and 2,771 skips.
