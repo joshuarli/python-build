@@ -44,6 +44,23 @@ skips. Its load was 0.952 [0.636, 1.033], and its working peak was
 comparisons were neutral, and their source changes were restored or left
 unintegrated.
 
+**Batch 28:** The `ipaddress` local byte parser passed a clean build with 58
+verified Rust extensions and the focused suites (1,363 run, 284 skipped).
+Its two-run worktree gate was ACCEPT: load footprint 0.953 [0.923, 0.976],
+working peak neutral, with all seven workload guards neutral. The primary-path
+full suite reproduced the accepted D2 failures in `test_ssl` (6 errors, 4
+failures), `test_support` (14 errors), and `test_unicodedata` (5 failures);
+there were no new failing suites, and the baseline's intermittent `test_os`
+failure did not recur. The primary-path gate was NEUTRAL: load footprint
+1.000 [0.970, 1.033], working peak 1.000, with all seven workload guards
+neutral. Against control, `ipaddress` remains OVER at 1.07x load
+(1,024/952 KiB) and MET at 1.00x working peak. The change was not integrated;
+the incumbent remains `perf-rust@cfc8c514` and `ipaddress` remains debt.
+Primary evidence is in
+`rust-cpython/results/perf-bench/20261026T224839Z-perf-rust-vs-perf-merge/`
+and
+`rust-cpython/results/perf-bench/20261026T225011Z-goals-perf-upstream-vs-perf-merge/`.
+
 **Phase 4:** The accepted `_marshal_rs` stage passed `test_audit` three times
 in a row, with 33 tests and 4 skips each time. Its integrated marshal,
 importlib, compile, and audit suites passed 1,602 tests with 29 skips.
