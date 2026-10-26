@@ -8,10 +8,10 @@ and upstream parity D2 remain accepted.
 **Resume:** Continue the macOS memory-first climb. First run `git status
 --short`, then `python3 rust-cpython/perf.py status`.
 
-**State:** The source baseline `main@5227de3` is clean. `perf-rust` is
-clean-built and verified at that revision; `perf-upstream@9de0519` is the
-control. No performance change has been promoted since the provisional
-decimal commit `dc1c5d3`.
+**State:** The source baseline `main@5227de3` is clean; `c522792` adds this
+campaign checkpoint. `perf-rust` is clean-built and verified at 5227de3;
+`perf-upstream@9de0519` is the control. No performance change has been
+promoted since the provisional decimal commit `dc1c5d3`.
 The hardening gates are implemented in `f57d3ad`; final product artifact
 qualification has not yet run.
 
@@ -45,6 +45,12 @@ The other eligible workload rows were neutral or improved. `compileall_source`
 has a documented marshal output difference and was not timed. No CPU lane may
 start until all module memory goals and eligible workload RSS goals pass.
 
+**Active batch 9:** `lane/csv-mem@c522792` in `.work/wt/csv-mem` tests
+borrowing CSV input and field text instead of cloning it into Rust strings.
+`lane/elementtree-mem@c522792` in `.work/wt/elementtree-mem` tests reclaimable
+serializer output slabs, preserving write boundaries and fallback behavior.
+Both lanes use memory-only verdicts and complete module suites.
+
 **Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
 unmerged after neutral or rejected results; their worktrees are absent.
 `lane/decimal-nostd-mem@247118c` is provisionally merged as `dc1c5d3`, but
@@ -52,8 +58,8 @@ its final gate was neutral. `lane/threading-nostd-mem` had no source commit
 and its changes were restored after a neutral result. Retry only with a new,
 profile-supported hypothesis.
 
-**Cleanup:** `git worktree prune` completed. No Rust performance lane
-worktrees remain. The 17 retained product/bootstrap worktrees are clean,
+**Cleanup:** `git worktree prune` completed. Two Rust performance lane
+worktrees are active. The 17 retained product/bootstrap worktrees are clean,
 allowed by the closeout helper, and retained at the owner's direction;
 no campaign scratch was safe to remove. Performance verdicts and reports
 remain under `rust-cpython/results/`.
@@ -88,10 +94,10 @@ hosts; and close out. Do not start CPU work before the memory phase passes.
 
 **Verified:** D1/D2 remain accepted with documented deviations. The saved
 memory calibration receipt remains reusable because the harness inputs and
-control identity are unchanged. The campaign host lease is free; no campaign
-build, suite, or measurement process was live at this checkpoint. Memory
-sampling and correctness checks remain required despite the owner's
-host-admission override.
+control identity are unchanged. `perf.py doctor` and both lane setup checks
+passed. The owner's host-admission override permits memory work without the
+perf gate; exclusive memory sampling, replication, output checks, and suites
+still bind.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
