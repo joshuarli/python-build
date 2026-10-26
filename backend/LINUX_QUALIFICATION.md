@@ -26,7 +26,9 @@ The qualified local archive has these identities:
 | Stripped RTLS extension | 3,746,416 bytes |
 | Stripped hashing extension | 465,840 bytes |
 
-Outputs are under `.work/tmp/openssl-free-linux-clean/.work/tmp/linux-rc7/`.
+The qualification archive and reports are preserved under
+`.work/tmp/retained/linux-rc7/qualification/`, with run receipts under
+`.work/tmp/retained/linux-rc7/`.
 The [Docker procedure](LINUX.md) describes the report and receipt paths.
 
 The [verified prerelease](https://github.com/joshuarli/python-build/releases/tag/research-openssl-free-cp315-arm64-86f0635020fc94ce75f3449b2efb817726adf623)
