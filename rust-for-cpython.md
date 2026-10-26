@@ -1,37 +1,64 @@
 # Rust-for-CPython campaign
 
-Status: paused (2026-10-26) for the owner-prioritized package-hardening
-work. Coverage D1 and upstream parity D2 remain accepted. No performance
-lanes are running.
+Status: active (2026-10-26), macOS memory-first performance phase. Coverage D1
+and upstream parity D2 remain accepted.
 
-## Paused handoff — 2026-10-26
+## Current checkpoint — 2026-10-26
 
-**Resume:** After package hardening, resume the macOS memory-first climb from
-this document. First run `git status --short`.
+**Resume:** Continue the macOS memory-first climb. First run `git status
+--short`, then `python3 rust-cpython/perf.py status`.
 
-**State:** `main` was at `73d2a28` when this handoff was committed; the
-provisional decimal change is `dc1c5d3`. Accepted `perf-rust` remains
-verified at `373ac7812b` and does not include that change. No performance
-stage has been promoted.
+**State:** The source baseline `main@5227de3` is clean. `perf-rust` is
+clean-built and verified at that revision; `perf-upstream@9de0519` is the
+control. No performance change has been promoted since the provisional
+decimal commit `dc1c5d3`.
+The hardening gates are implemented in `f57d3ad`; final product artifact
+qualification has not yet run.
 
-**Direction:** Finish the package-hardening task before resuming Phase 3. On
-resume, re-read the current instructions and run the steering checkpoint.
-Reconcile the main source and accepted stage identities before starting a
-lane.
+The candidate full suite ran 50,158 tests with 9 failures and 2,771 skips.
+The failures are the three accepted D2 files: `test_ssl` (6 errors, 4
+failures), `test_support` (14 errors), and `test_unicodedata` (5 failures).
+The pristine control also had incidental `test_os` (2 failures) and
+`test_mailbox` (1 failure); focused reruns passed on both stages. Do not hide
+these full-run results or treat the D2 deviations as newly fixed.
+
+**Direction:** The first memory map classified 6 modules OVER, 27 UNCLEAR,
+37 MET, and 1 BEYOND. A rigorous rerun moved 8 of the unclear modules to MET;
+the remaining 19 have pooled ratios above the 1.01x floor and count as OVER.
+The effective map is 25 OVER, 45 MET, 1 BEYOND, with no output mismatches.
+The OVER modules are `contextlib`, `hmac`, `http.client`, `ssl`,
+`urllib.request`, `xml.etree.ElementTree`, `marshal`, `bisect`, `lzma`,
+`csv`, `plistlib`, `datetime`, `io`, `typing`, `decimal`, `re`, `base64`,
+`zlib`, `codecs`, `logging`, `_strptime`, `html.parser`, `binascii`,
+`tokenize`, and `warnings`.
+
+The SSL working peak (3.69x), HMAC load footprint (2.93x), and marshal
+working peak (2.34x) exceed the charter's 2x retry threshold. Keep them as
+blockers and do not repeat the failed mechanisms. The next bounded hypotheses
+are to remove CSV input and field copies around the existing parser, then
+release ElementTree's buffered output during emission while preserving
+per-write boundaries and all-or-nothing fallback behavior.
+
+The all-workload memory gate rejected three rows: `python_startup` peak RSS
+1.038x, `django_wsgi_first_request` 1.015x, and `django_asgi_request` 1.014x.
+The other eligible workload rows were neutral or improved. `compileall_source`
+has a documented marshal output difference and was not timed. No CPU lane may
+start until all module memory goals and eligible workload RSS goals pass.
 
 **Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
-unmerged after neutral or rejected results. Their worktrees are absent.
-`lane/decimal-nostd-mem@247118c` is merged provisionally as `dc1c5d3`, but its
-final gate was neutral. `lane/threading-nostd-mem` had no source commit and
-its changes were restored after a neutral result.
+unmerged after neutral or rejected results; their worktrees are absent.
+`lane/decimal-nostd-mem@247118c` is provisionally merged as `dc1c5d3`, but
+its final gate was neutral. `lane/threading-nostd-mem` had no source commit
+and its changes were restored after a neutral result. Retry only with a new,
+profile-supported hypothesis.
 
-**Cleanup:** The decimal and threading worktrees were removed; their verdicts
-and compact build report remain in `rust-cpython/results/`. The four bench
-results are under `rust-cpython/results/perf-bench/`, and the build report is
-`rust-cpython/results/perf-decimal-nostd-mem.json`. The retained worktrees
-below hold separate product or Rust-for-CPython work. The integrated
-`lane/ci-smoke-uv` worktree was removed after confirming its head is an
-ancestor of `main`; its branch remains.
+**Cleanup:** `git worktree prune` completed. No Rust performance lane
+worktrees remain. The 17 retained product/bootstrap worktrees are clean,
+allowed by the closeout helper, and retained at the owner's direction;
+no campaign scratch was safe to remove. Performance verdicts and reports
+remain under `rust-cpython/results/`.
+
+**Retained worktrees:**
 
 | Worktree | Branch and head | Retention reason |
 | --- | --- | --- |
@@ -53,19 +80,18 @@ ancestor of `main`; its branch remains.
 | `.work/wt/openssl-free-build` | `experiment/openssl-free-build@1cbc85c` | Relocation and sysconfig validation changes |
 | `.work/wt/openssl-free-dhm` | `experiment/openssl-free-dhm@59f4bc8` | MbedTLS source preparation experiment |
 
-The last three worktrees were committed on their own branches so closeout can
-retain them without merging their changes into `main`. The closeout helper
-records them as retained. Their changes have not been qualified.
+**Not started:** Finish all macOS module memory goals and workload RSS debt,
+then CPU performance. Next perform the U7 rebase after prerequisites P1–P3
+and a native Linux host are available; requalify U8 and U2 natively on Linux;
+resolve the deferred `_marshal_rs` import flake; run final suites on both
+hosts; and close out. Do not start CPU work before the memory phase passes.
 
-**Not started:** Finish package hardening first. Then resume all memory goals
-and workload RSS checks, followed by CPU performance. Continue with U7 after
-its recorded prerequisites and a native Linux host, requalify U8 and U2 on
-Linux, resolve the `_marshal_rs` flake, and run the final suites on both hosts.
-
-**Verified:** At the handoff commit, the main worktree was clean.
-`perf.py status` reports a free host lease. No campaign build, suite, or
-measurement process remains. Memory work may still use the owner's
-host-admission override; its sampling and correctness checks remain required.
+**Verified:** D1/D2 remain accepted with documented deviations. The saved
+memory calibration receipt remains reusable because the harness inputs and
+control identity are unchanged. The campaign host lease is free; no campaign
+build, suite, or measurement process was live at this checkpoint. Memory
+sampling and correctness checks remain required despite the owner's
+host-admission override.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -80,7 +106,7 @@ Deliverables:
   UUID re-baseline, and a compat sweep (re, datetime, pickle, csv,
   io/zipfile/shutil, ssl) — each with pristine-baseline comparison and full
   suite gates (done; accepted with two loud deviations per OD5; U7/U8 queued).
-- D3: memory-first then CPU performance for all 71 routes (paused;
+- D3: memory-first then CPU performance for all 71 routes (active on macOS;
   Phase 3 holds the full normative contract, unchanged in force).
 - D4: this single campaign doc (done by this preflight; supersedes the
   former two-doc layout).
@@ -98,13 +124,15 @@ Current steering decision (2026-10-26): coverage stays accepted and closed
 to rework; D2 accepted with the two loud pre-existing deviations below.
 U8 done and merged. U7 parked as a multi-lane wave (blockers B1–B5
 recorded on the item; retry needs P1–P3 + a Linux host). U2 done and
-merged (proof above; integrated --all attributed clean). Phase 3 is paused
-on macOS. Linux re-qualification of U8+U2 and the U7 rebase remain
-downstream prerequisites for closeout; Linux work requires a native host.
+merged (proof above; integrated --all attributed clean). Phase 3 resumed on
+macOS after the package-hardening gates landed. Linux re-qualification of
+U8+U2 and the U7 rebase remain downstream prerequisites for closeout; Linux
+work requires a native host.
 
-Next substantive milestone: finish package hardening. Resume the memory-first
-climb after that work. U7 remains parked until its recorded P1–P3 prerequisites
-and a native Linux host are available.
+Next substantive milestone: bring every module memory goal and eligible
+workload RSS row to MET/BEYOND or neutral/improved, then continue with CPU
+performance. U7 remains parked until its recorded P1–P3 prerequisites and a
+native Linux host are available.
 
 ## Charter
 
@@ -694,9 +722,9 @@ edits need coordinator review even when append-only.
   OK plus `test_re` 169/3, `test_locale` 69/69, `test_str` 139/6, all
   SUCCESS matching the register.)
 
-### Phase 3 — performance (paused; normative contract preserved)
+### Phase 3 — performance (active, memory-first; normative contract preserved)
 
-Current macOS memory checkpoint: `perf-rust@373ac78` against `@control`
+Historical macOS memory checkpoint before the decimal merge: `perf-rust@373ac78` against `@control`
 (`9de0511`) has 31 routes OVER, 39 MET, and 1 BEYOND across all 71 module
 memory goals, with no output mismatches. The six remaining workload peak-RSS
 regressions are `python_startup` (+4.60%), `django_wsgi_first_request`
