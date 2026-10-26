@@ -2487,9 +2487,6 @@ marshal_loads_impl(PyObject *module, Py_buffer *bytes, int allow_code)
     return result;
 }
 
-/* Importlib's bytecode cache must not import an extension while importing
-   ordinary Python modules.  These entry points retain marshal's audit events
-   and allow code objects without loading the public Rust codec. */
 static PyObject *
 marshal_loads_importlib_bytecode(PyObject *module, PyObject *data)
 {
@@ -2507,16 +2504,6 @@ marshal_dumps_importlib_bytecode(PyObject *module, PyObject *code)
 {
     if (PySys_Audit("marshal.dumps", "Oi", code, Py_MARSHAL_VERSION) < 0) {
         return NULL;
-    }
-    /* Same writer decision as public marshal.dumps, so importlib-written
-       bytecode is byte-identical to a fresh dumps of the same object:
-       the Rust two-pass writer first, the C writer only when Rust
-       declines the value. */
-    PyObject *candidate = NULL;
-    int rust_status = marshal_rust_dumps(code, Py_MARSHAL_VERSION, 1,
-                                         &candidate);
-    if (rust_status != 0) {
-        return rust_status > 0 ? candidate : NULL;
     }
     return marshal_write_object_to_string_no_audit(code, Py_MARSHAL_VERSION,
                                                     1, 0);
