@@ -7,7 +7,7 @@ Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 
 **Continue:** Finish the macOS memory goals before starting CPU work.
 
-**State:** `perf-rust@bad6ae0` is the verified source and
+**State:** `perf-rust@0849f68` is the verified source and
 `perf-upstream@9de0519` is the control. No batch 12 source change was accepted;
 the provisional decimal change at `dc1c5d3` remains neutral at its final gate.
 Recent memory attempts were restored after neutral results. No CPU work has
@@ -28,6 +28,7 @@ before starting CPU work. The unresolved module rows are `_strptime`,
 `zipfile`. The unresolved workload rows are `python_startup_peak_rss`,
 `django_wsgi_first_request_peak_rss`, `django_wsgi_request_peak_rss`,
 `django_asgi_request_peak_rss`, and `django_template_realistic_peak_rss`.
+The latest complete workload run also marks `django_orm_10k_peak_rss` OVER.
 The current map has no output mismatches.
 
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
@@ -116,8 +117,23 @@ load remained OVER at 1.160x [1.141, 1.210]. Its working peak is MET. All
 memory attempts were restored. The current full unresolved map is listed
 above. No CPU timing was collected.
 
-**Open lanes:** `lane/re-mem` ended neutral and its source is restored.
-`lane/marshal-audit` has a tested but uncommitted C-writer change.
+**Batch 16:** Replacing `csv::Writer` with `csv_core::Writer` passed
+`test_csv` with 134 run and 4 skips, matching the accepted stage. The paired
+comparison was neutral: load footprint 0.983x [0.931, 1.053] and working
+peak 1.000x [0.946, 1.000]. The candidate's control goals were UNCLEAR at
+1.19x load and 1.34x working peak. The source and manifest changes were
+restored. Do not repeat this writer mechanism.
+
+The `_marshal_rs` audit fix is integrated at `0849f68`. A clean build
+verified 58 extensions, and the six marshal, importlib, compile, and audit
+suites passed with 1,602 run and 29 skipped. The rigorous marshal goal is
+still OVER: load footprint is UNCLEAR at 1.06x, and working peak is OVER at
+2.41x. The complete workload memory gate remains REJECTED on six rows:
+startup, WSGI first request, WSGI request, ASGI request, ORM, and template.
+`compileall_source` remains untimed because its output differs from control.
+
+**Open lanes:** `lane/re-mem` and `lane/csv-core-mem` ended neutral, and both
+source attempts are restored. The marshal audit fix is integrated.
 `lane/datetime-mem` and `lane/ssl-mem` remain parked after neutral or rejected
 results. The decimal no_std implementation at `dc1c5d3` remains provisional
 and neutral at its final gate. The U7 rebase is parked behind P1–P3 and a
@@ -165,15 +181,14 @@ the rc7 qualification evidence was preserved at
 **Not started:** Complete every macOS module memory goal and eligible workload
 RSS row, then proceed to CPU performance. After P1–P3 and a native Linux host
 are available, perform the U7 rebase and requalify U8 and U2 natively on Linux.
-Complete Phase 4 hardening, including resolution of the deferred `_marshal_rs`
-import flake, then run final suites on both hosts and close out. CPU work
-remains gated on the memory phase.
+The `_marshal_rs` audit fix is integrated. Run the final full suites on both
+hosts, then close out. CPU work remains gated on the memory phase.
 
 **Verified:** D1 and D2 remain accepted with documented deviations. The saved
 memory calibration receipt remains reusable because the harness inputs and
-control identity are unchanged. Batch 12 and batch 15 results are recorded
-above. Performance edits were restored; the marshal audit candidate remains
-isolated and uncommitted. No CPU timing was collected.
+control identity are unchanged. Batch 12, batch 15, and batch 16 results are
+recorded above. The marshal audit fix passed its integrated suites. No CPU
+timing was collected.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -982,9 +997,10 @@ event while importing `email`. The importlib `.pyc` writer reaches
 `marshal_rust_dumps`, which lazily calls `PyCapsule_Import("_marshal_rs._api")`.
 That path can emit the observed event. The isolated candidate keeps the
 `marshal.dumps` audit event and sends importlib bytecode writes through the
-existing C writer. A clean build verified 58 Rust extensions. All six
-assigned suites passed with 1,602 run and 29 skipped. The change remains
-uncommitted and needs integration plus final workload guards.
+existing C writer. The change is integrated at `0849f68`. The clean build
+verified 58 Rust extensions. All six assigned suites passed with 1,602 run
+and 29 skipped. The complete workload memory comparison still has six RSS
+debts, listed above.
 
 ### Phase 5 — close
 
@@ -1005,7 +1021,7 @@ rediscover known obligations.
   verified, not assumed.
 - D3: `perf.py goals` reads MET or BEYOND for all 71 modules' load/working
   goals and every eligible workload absolute RSS neutral-or-better; CPU
-  goals per the band after. (Deferred; commands retained, not run.)
+  goals per the band after. (In progress; see current debt above.)
 - D4: this doc is the only campaign plan; no `rust-for-cpython-perf.md`
   in the tree.
 - Failure behavior is explicit: distinct user-visible suite failures fail
