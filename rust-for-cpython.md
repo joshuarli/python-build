@@ -81,10 +81,13 @@ The other eligible workload rows were neutral or improved. `compileall_source`
 has a documented marshal output difference and was not timed. No CPU lane may
 start until all module memory goals and eligible workload RSS goals pass.
 
-**Next batch:** Profile `marshal` load footprint and working peak, `io` working
-peak, and `plistlib` working peak. Keep each route's Rust path and complete
-suite set intact. Independent build/test work may overlap; paired memory
-measurements are serialized.
+**Active batch 12:** Three lanes branch from `772436c` and target distinct
+routes. `lane/marshal-mem` in `.work/wt/marshal-mem` targets load footprint
+and working peak. `lane/io-mem` in `.work/wt/io-mem` targets working peak.
+`lane/plistlib-mem` in `.work/wt/plistlib-mem` targets working peak while
+load footprint remains a BEYOND guard. Each lane profiles the incumbent
+before editing and keeps its route's full suite set. Independent build/test
+work may overlap; paired memory measurements are serialized.
 
 **Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
 unmerged after neutral or rejected results; their worktrees are absent.
@@ -97,7 +100,8 @@ profile-supported hypothesis.
 worktrees and their unmerged branches were retired after preserving their
 verdicts and reports under `rust-cpython/results/`. The neutral HTTP and LZMA
 worktrees and branches were also retired after preserving their verdicts.
-The 17 retained product/bootstrap worktrees are clean,
+Three Rust performance worktrees are active. The 17 retained
+product/bootstrap worktrees are clean,
 allowed by the closeout helper, and retained at the owner's direction;
 no campaign scratch was safe to remove. Performance verdicts and reports
 remain under `rust-cpython/results/`.
