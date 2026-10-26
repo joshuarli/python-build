@@ -700,6 +700,17 @@ formatter mechanisms. The current map puts SSL peak at 3.66x and HMAC load
 at 2.60x; both routes are parked as greater-than-2x blockers after two
 distinct attempts. Datetime remains debt after two attempts. The next
 eligible route is decimal load at 1.55x.
+The first decimal attempt replaced BigUint radix conversion with base-10
+digit-vector arithmetic. `test_decimal` passed (735 run / 9 skipped), but
+the paired comparison was NEUTRAL: load footprint pooled 0.719x [0.545,
+0.911] vs incumbent, with one run better and one neutral; working peak was
+1.000x. `django_orm_10k` peak RSS was 0.995x [0.993, 0.997], neutral, with
+matching outputs. The extension image shrank from 462,832 to 389,360 bytes,
+but the load result did not replicate; no clean qualification or full suite
+followed, and the source was restored. Decimal remains OVER at 1.55x load.
+The next distinct hypothesis removes the Rust standard-library runtime from
+`_decimal_rs` with stack-bounded arithmetic and direct C-API bindings, using
+the C caller's 128-digit input guard.
 `perf-gate-ready -s` returned 75 at 22:22Z with swap at 75%; later checks
 remained constrained after the hot process exited, most recently at 73% swap.
 At the owner's direction, memory-only work may proceed without that host
