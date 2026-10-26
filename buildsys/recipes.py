@@ -135,6 +135,8 @@ class Toolchain:
             parts += [
                 "-fuse-ld=lld",
                 "-Wl,-z,noexecstack",
+                "-Wl,-z,relro",
+                "-Wl,-z,now",
                 "-Wl,--build-id=sha1",
             ]
         if extra:

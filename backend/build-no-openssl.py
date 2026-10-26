@@ -904,10 +904,12 @@ def rust_flags(target, *, rtls: bool) -> list[str]:
     # itself and libgcc.
     if target.triple == LINUX_X86_64_TRIPLE:
         return ["-C", "target-cpu=broadwell", "-C", "target-feature=-crt-static",
-                "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack"]
+                "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack",
+                "-C", "link-arg=-Wl,-z,relro", "-C", "link-arg=-Wl,-z,now"]
     if target.triple == LINUX_AARCH64_TRIPLE:
         return ["-C", "target-cpu=generic", "-C", "target-feature=-crt-static,+aes,+sha2,+neon",
-                "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack"]
+                "-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-z,noexecstack",
+                "-C", "link-arg=-Wl,-z,relro", "-C", "link-arg=-Wl,-z,now"]
     cpu_flag = target.cpu_baseline_cflag
     if not cpu_flag.startswith("-mcpu="):
         raise BuildError(f"unsupported Rust CPU baseline flag: {cpu_flag}")

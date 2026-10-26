@@ -29,6 +29,10 @@ provide qualification evidence; emulated timing is not performance evidence.
 Linux artifact manifests list the target musl interpreter and platform
 libraries observed in the payload. The minimal runtime qualification image
 installs only the pinned Alpine `libgcc` runtime package when required.
+Qualification checks the final binary bytes: Linux interpreters must be
+ET_DYN, every ELF must have full RELRO with eager binding and no writable
+executable load segment or text relocation, and every macOS executable must
+carry `MH_PIE`.
 
 `qualify` applies required installed-tree fixes, runs the CPython regression
 suite on a disposable pre-prune copy, validates the packaged payload and

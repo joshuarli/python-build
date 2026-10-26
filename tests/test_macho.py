@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 from buildsys.macho import (
     CPU_TYPE_ARM64, CPU_TYPE_X86_64, LC_BUILD_VERSION, LC_ID_DYLIB,
-    LC_LOAD_DYLIB, LC_RPATH, MH_DYLIB, MH_EXECUTE, MachOError, build_version,
+    LC_LOAD_DYLIB, LC_RPATH, MH_DYLIB, MH_EXECUTE, MH_PIE, MachOError, build_version,
     dependencies, dylib_id, find_machos, format_version, inspect, is_macho,
     read_header, rpaths,
 )
@@ -59,7 +59,7 @@ def build_version_command(platform: int = 1, minos=(26, 0), sdk=(26, 5)) -> byte
 
 
 def make_macho(commands, *, cputype: int = CPU_TYPE_ARM64,
-               filetype: int = MH_EXECUTE, flags: int = 0x00200000) -> bytes:
+               filetype: int = MH_EXECUTE, flags: int = MH_PIE) -> bytes:
     body = b"".join(commands)
     header = struct.pack(
         "<IiiIIIII", MH_MAGIC_64, cputype, 3, filetype, len(commands), len(body), flags, 0
@@ -98,6 +98,10 @@ class HeaderTests(unittest.TestCase):
         self.assertEqual(header.kind, "execute")
         self.assertTrue(header.pie)
         self.assertTrue(header.is_64)
+
+    def test_reads_non_pie_flag(self) -> None:
+        with TempImage(make_macho([], flags=0)) as path:
+            self.assertFalse(read_header(path).pie)
 
     def test_distinguishes_x86_64(self) -> None:
         with TempImage(make_macho([], cputype=CPU_TYPE_X86_64)) as path:

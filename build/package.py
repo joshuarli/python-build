@@ -20,10 +20,14 @@ from buildsys.bootstrap import load_macos_toolchain
 from buildsys.ca_bundle import CABundleError, install_fallback_ca_bundle
 from buildsys.elf import (
     dynamic_tags,
+    dynamic_relocation_report,
+    full_relro_report,
     gnu_stack_report,
     hardening_report,
     linkage_report,
     machine_report,
+    pie_report,
+    writable_executable_loads_report,
 )
 from buildsys.inputs import InputError, load_lock
 from buildsys.package import (
@@ -170,6 +174,11 @@ def _linux_validation(install: Path) -> dict:
         raise PackagingError("packaged tree contains no ELF files")
     forbidden = []
     stack_violations = []
+    pie_violations = []
+    relro_violations = {}
+    writable_executable_violations = {}
+    textrel_violations = {}
+    executable_pie_reports = {}
     elf_report = []
     machine_violations = []
     linkage_violations = []
@@ -180,16 +189,19 @@ def _linux_validation(install: Path) -> dict:
         "libgcc_s.so.1",
         "libatomic.so.1",
     }
+    interpreter = PRODUCT.interpreter(install)
+    interpreter_relative = str(interpreter.relative_to(install))
     for elf in elfs:
-        header = _run(["readelf", "-h", str(elf)]).stdout
+        relative = str(elf.relative_to(install))
+        header = _run(["readelf", "-hW", str(elf)]).stdout
         machine = machine_report(header, TARGET_DESCRIPTION.machine)
         if not machine["ok"]:
-            machine_violations.append(str(elf.relative_to(install)))
-        dynamic = _run(["readelf", "-d", str(elf)]).stdout
+            machine_violations.append(relative)
+        dynamic = _run(["readelf", "-dW", str(elf)]).stdout
         tags = dynamic_tags(dynamic)
         needed = tags["needed"]
         if any(name.startswith("libc.so.6") or "GLIBC" in name for name in needed):
-            forbidden.append(str(elf.relative_to(install)))
+            forbidden.append(relative)
         search_paths = [
             item
             for encoded in (*tags["rpath"], *tags["runpath"])
@@ -200,17 +212,36 @@ def _linux_validation(install: Path) -> dict:
             system_libraries=system_libraries,
         )
         if not linkage["ok"]:
-            linkage_violations.append(str(elf.relative_to(install)))
+            linkage_violations.append(relative)
         program_headers = _run(["readelf", "-lW", str(elf)]).stdout
         stack = gnu_stack_report(program_headers)
         if not stack["ok"]:
-            stack_violations.append(str(elf.relative_to(install)))
+            stack_violations.append(relative)
+        relro = full_relro_report(program_headers, dynamic)
+        if not relro["ok"]:
+            relro_violations[relative] = relro
+        load_permissions = writable_executable_loads_report(program_headers)
+        if not load_permissions["ok"]:
+            writable_executable_violations[relative] = load_permissions
+        dynamic_relocations = dynamic_relocation_report(dynamic)
+        if not dynamic_relocations["ok"]:
+            textrel_violations[relative] = dynamic_relocations
         requested = re.search(
             r"Requesting program interpreter:\s*([^\]]+)", program_headers
         )
+        pie = pie_report(header)
+        executable = (
+            requested is not None
+            or relative == interpreter_relative
+            or bool(elf.stat().st_mode & 0o111)
+            or pie["elf_type"] == "ET_EXEC"
+        )
+        if executable:
+            executable_pie_reports[relative] = pie
+            if not pie["ok"]:
+                pie_violations.append(relative)
         if requested is not None:
             path = requested.group(1).strip()
-            relative = str(elf.relative_to(install))
             interpreter_paths[relative] = path
             if path != TARGET_DESCRIPTION.musl_loader:
                 loader_violations.append(relative)
@@ -220,6 +251,9 @@ def _linux_validation(install: Path) -> dict:
             "needed": needed,
             "linkage": linkage,
             "gnu_stack": stack,
+            "full_relro": relro,
+            "writable_executable_loads": load_permissions,
+            "dynamic_relocations": dynamic_relocations,
         })
     platform_libraries = sorted({
         library
@@ -243,9 +277,25 @@ def _linux_validation(install: Path) -> dict:
         "ok": not stack_violations,
         "violations": stack_violations,
     }
+    checks["elf_pie"] = {
+        "ok": interpreter_relative in executable_pie_reports and not pie_violations,
+        "interpreter": interpreter_relative,
+        "reports": executable_pie_reports,
+        "violations": pie_violations,
+    }
+    checks["elf_relro"] = {
+        "ok": not relro_violations,
+        "violations": relro_violations,
+    }
+    checks["elf_writable_executable"] = {
+        "ok": not writable_executable_violations,
+        "violations": writable_executable_violations,
+    }
+    checks["elf_text_relocations"] = {
+        "ok": not textrel_violations,
+        "violations": textrel_violations,
+    }
 
-    interpreter = PRODUCT.interpreter(install)
-    interpreter_relative = str(interpreter.relative_to(install))
     actual_loader = interpreter_paths.get(interpreter_relative)
     checks["elf_interpreters"] = {
         "ok": actual_loader == TARGET_DESCRIPTION.musl_loader and not loader_violations,

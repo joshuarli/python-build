@@ -16,6 +16,7 @@ from buildsys.macho import (
     LC_RPATH,
     MH_DYLIB,
     MH_EXECUTE,
+    MH_PIE,
 )
 from buildsys.product import PRODUCT
 from buildsys.targets import TARGETS
@@ -49,11 +50,11 @@ def _build_version_command(platform: int = 1, minos: tuple[int, int] = (26, 0)) 
     return _command(LC_BUILD_VERSION, struct.pack("<IIII", platform, packed, packed, 0))
 
 
-def _image(commands: list[bytes], filetype: int) -> bytes:
+def _image(commands: list[bytes], filetype: int, flags: int = 0) -> bytes:
     body = b"".join(commands)
     header = struct.pack(
         "<IiiIIIII", 0xFEEDFACF, CPU_TYPE_ARM64, 0, filetype,
-        len(commands), len(body), 0x00200000, 0,
+        len(commands), len(body), flags, 0,
     )
     return header + body
 
@@ -84,6 +85,8 @@ class MachOValidationTests(unittest.TestCase):
         minos: tuple[int, int] = (26, 0),
         dependency: str | None = None,
         rpath: str = "@loader_path/../lib",
+        executable_flags: int = MH_PIE,
+        library_flags: int = 0,
     ) -> None:
         executable_commands = [_build_version_command(platform, minos)]
         if dependency is None:
@@ -93,13 +96,15 @@ class MachOValidationTests(unittest.TestCase):
             _dylib_command(LC_LOAD_DYLIB, "/usr/lib/libSystem.B.dylib"),
             _rpath_command(rpath),
         ))
-        self.python.write_bytes(_image(executable_commands, MH_EXECUTE))
+        self.python.write_bytes(
+            _image(executable_commands, MH_EXECUTE, executable_flags)
+        )
         self.libpython.write_bytes(_image([
             _build_version_command(platform, minos),
             _dylib_command(LC_ID_DYLIB, f"@rpath/{self.libpython.name}"),
             _dylib_command(LC_LOAD_DYLIB, "/usr/lib/libSystem.B.dylib"),
             _rpath_command("@loader_path"),
-        ], MH_DYLIB))
+        ], MH_DYLIB, library_flags))
 
     def _report(self) -> dict:
         return macho_checks(self.install, TARGETS["aarch64-apple-darwin"])
@@ -110,6 +115,14 @@ class MachOValidationTests(unittest.TestCase):
         self.assertTrue(report["ok"], report)
         self.assertEqual(report["image_count"], 2)
         self.assertEqual(report["missing_product_images"], [])
+
+    def test_executable_requires_pie_but_shared_library_does_not(self) -> None:
+        self._write_images(executable_flags=0, library_flags=0)
+
+        report = self._report()
+
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["non_pie_executables"], ["bin/python3.15"])
 
     def test_non_macos_platform_fails(self) -> None:
         self._write_images(platform=2)

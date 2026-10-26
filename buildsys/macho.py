@@ -44,6 +44,7 @@ CPU_NAMES = {
 
 # filetype values.
 MH_OBJECT, MH_EXECUTE, MH_DYLIB, MH_BUNDLE = 1, 2, 6, 8
+MH_PIE = 0x00200000
 FILETYPE_NAMES = {
     MH_OBJECT: "object", MH_EXECUTE: "execute", MH_DYLIB: "dylib",
     MH_BUNDLE: "bundle", 0x5: "core", 0xb: "dylib_stub",
@@ -103,7 +104,7 @@ class MachOHeader:
 
     @property
     def pie(self) -> bool:
-        return bool(self.flags & 0x200000)  # MH_PIE
+        return bool(self.flags & MH_PIE)
 
 
 @dataclass(frozen=True)

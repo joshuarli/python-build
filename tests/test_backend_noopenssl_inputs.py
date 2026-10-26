@@ -80,5 +80,20 @@ class RtlsSourceSnapshotTests(unittest.TestCase):
             DRIVER.verify_rtls_source_snapshot(self.run_dir)
 
 
+class RustLinkHardeningTests(unittest.TestCase):
+    def test_linux_extensions_request_relro_and_eager_binding(self):
+        from buildsys.targets import TARGETS
+
+        for triple in (
+            "x86_64-unknown-linux-musl",
+            "aarch64-unknown-linux-musl",
+        ):
+            with self.subTest(triple=triple):
+                flags = DRIVER.rust_flags(TARGETS[triple], rtls=False)
+                self.assertIn("-C", flags)
+                self.assertIn("link-arg=-Wl,-z,relro", flags)
+                self.assertIn("link-arg=-Wl,-z,now", flags)
+
+
 if __name__ == "__main__":
     unittest.main()

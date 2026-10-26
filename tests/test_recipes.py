@@ -25,6 +25,8 @@ class RecipeTests(unittest.TestCase):
         flags = Toolchain().ldflags(Path('/private'))
         self.assertIn('-fuse-ld=lld', flags)
         self.assertIn('-flto=thin', flags)
+        self.assertIn('-Wl,-z,relro', flags)
+        self.assertIn('-Wl,-z,now', flags)
 
     def test_sqlite_build_enables_the_standalone_feature_profile(self):
         import runpy

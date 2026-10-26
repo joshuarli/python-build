@@ -201,6 +201,7 @@ def macho_checks(install: Path, target) -> dict:
     unresolved_rpaths: list[str] = []
     bad_signature: list[str] = []
     missing_version: list[str] = []
+    non_pie_executables: list[str] = []
     executable_images: list[Path] = []
     for image in images:
         try:
@@ -222,6 +223,8 @@ def macho_checks(install: Path, target) -> dict:
         name = str(image.relative_to(install))
         try:
             header = macho.read_header(image)
+            if header.kind == "execute" and not header.pie:
+                non_pie_executables.append(name)
             version_commands = [
                 command for command in macho.load_commands(image)
                 if command.cmd in (macho.LC_BUILD_VERSION, macho.LC_VERSION_MIN_MACOSX)
@@ -307,6 +310,7 @@ def macho_checks(install: Path, target) -> dict:
         universal_images or malformed_images or bad_arch or bad_platform or bad_minos
         or bad_deps or unresolved_deps or bad_rpaths or unresolved_rpaths
         or bad_signature or missing_version or missing_images
+        or non_pie_executables
     )
     return {
         "image_count": len(images),
@@ -321,6 +325,7 @@ def macho_checks(install: Path, target) -> dict:
         "unexpected_rpaths": bad_rpaths,
         "unresolved_rpaths": unresolved_rpaths,
         "missing_build_version": missing_version,
+        "non_pie_executables": non_pie_executables,
         "invalid_signatures": bad_signature,
         "ok": not failures,
     }

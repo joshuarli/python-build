@@ -3,11 +3,16 @@ from __future__ import annotations
 import unittest
 
 from buildsys.elf import (
+    dynamic_relocation_report,
     dynamic_tags,
+    full_relro_report,
+    gnu_relro_report,
     gnu_stack_report,
     hardening_report,
     linkage_report,
     machine_report,
+    pie_report,
+    writable_executable_loads_report,
 )
 from buildsys.product import PRODUCT
 from pathlib import Path
@@ -102,6 +107,80 @@ class GNUStackReportTests(unittest.TestCase):
         self.assertFalse(missing["ok"])
         self.assertFalse(duplicate["ok"])
         self.assertFalse(malformed["ok"])
+
+
+class FinalElfHardeningTests(unittest.TestCase):
+    def test_interpreter_requires_et_dyn(self) -> None:
+        pie = pie_report("  Type: DYN (Position-Independent Executable file)\n")
+        executable = pie_report("  Type: EXEC (Executable file)\n")
+        missing = pie_report("  Machine: AArch64\n")
+
+        self.assertEqual(pie["elf_type"], "ET_DYN")
+        self.assertTrue(pie["ok"])
+        self.assertFalse(executable["ok"])
+        self.assertFalse(missing["ok"])
+
+    def test_full_relro_requires_read_only_segment_and_eager_binding(self) -> None:
+        program_headers = (
+            "  LOAD 0x0 0x1000 0x1000 0x100 0x100 R E 0x1000\n"
+            "  GNU_RELRO 0x1000 0x3000 0x3000 0x100 0x100 R 0x1\n"
+        )
+        bind_now_tags = " 0x0000000000000018 (BIND_NOW) 0x0\n"
+        flags_now = (
+            " 0x000000000000001e (FLAGS) BIND_NOW\n"
+            " 0x000000006ffffffb (FLAGS_1) Flags: NOW PIE\n"
+        )
+        numeric_flags_now = (
+            " 0x000000000000001e (FLAGS) 0x8\n"
+            " 0x000000006ffffffb (FLAGS_1) Flags: 0x1\n"
+        )
+
+        self.assertTrue(full_relro_report(program_headers, bind_now_tags)["ok"])
+        self.assertTrue(full_relro_report(program_headers, flags_now)["ok"])
+        self.assertTrue(full_relro_report(program_headers, numeric_flags_now)["ok"])
+        self.assertFalse(full_relro_report("", bind_now_tags)["ok"])
+        self.assertFalse(full_relro_report(program_headers, "")["ok"])
+        self.assertFalse(
+            full_relro_report(
+                "  GNU_RELRO 0x1000 0x3000 0x3000 0x100 0x100 RW 0x1\n",
+                bind_now_tags,
+            )["ok"]
+        )
+        self.assertFalse(
+            full_relro_report(
+                "  GNU_RELRO 0x1000 0x3000 0x3000 0x100 0x0 R 0x1\n",
+                bind_now_tags,
+            )["ok"]
+        )
+
+    def test_relro_segment_must_be_unique_and_writable_loads_must_not_execute(self) -> None:
+        duplicated = gnu_relro_report(
+            "  GNU_RELRO 0x0 0x1000 0x1000 0x100 0x100 R 0x1\n"
+            "  GNU_RELRO 0x1000 0x3000 0x3000 0x100 0x100 R 0x1\n"
+        )
+        safe_loads = writable_executable_loads_report(
+            "  LOAD 0x0 0x1000 0x1000 0x100 0x100 R E 0x1000\n"
+            "  LOAD 0x1000 0x3000 0x3000 0x100 0x100 RW 0x1000\n"
+        )
+        writable_executable = writable_executable_loads_report(
+            "  LOAD 0x0 0x1000 0x1000 0x100 0x100 RWE 0x1000\n"
+        )
+        malformed = writable_executable_loads_report(
+            "  LOAD 0x0 0x1000 0x1000 0x100 0x100 ? 0x1000\n"
+        )
+
+        self.assertFalse(duplicated["ok"])
+        self.assertTrue(safe_loads["ok"])
+        self.assertFalse(writable_executable["ok"])
+        self.assertFalse(malformed["ok"])
+
+    def test_text_relocations_are_rejected(self) -> None:
+        direct_textrel = " 0x0000000000000016 (TEXTREL) 0x0\n"
+        flag_textrel = " 0x000000000000001e (FLAGS) TEXTREL\n"
+
+        self.assertFalse(dynamic_relocation_report(direct_textrel)["ok"])
+        self.assertFalse(dynamic_relocation_report(flag_textrel)["ok"])
+        self.assertFalse(dynamic_relocation_report("")["ok"])
 
 
 class HardeningReportTests(unittest.TestCase):

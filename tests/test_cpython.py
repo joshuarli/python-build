@@ -34,6 +34,9 @@ class CPythonTests(unittest.TestCase):
         self.assertIn('-fstack-protector-strong', env['CFLAGS'])
         self.assertIn('-D_FORTIFY_SOURCE=2', env['CFLAGS'])
         self.assertIn('-fuse-ld=lld', env['LDFLAGS'])
+        self.assertIn('-Wl,-z,relro', env['LDFLAGS'])
+        self.assertIn('-Wl,-z,now', env['LDFLAGS'])
+        self.assertEqual(env['LINKFORSHARED'], '-pie -Xlinker -export-dynamic')
         # $ORIGIN rpaths are applied by a post-install ELF edit, not baked
         # into configure-time LDFLAGS (see buildsys/cpython.py for why).
         self.assertNotIn('ORIGIN', env['LDFLAGS'])
@@ -115,6 +118,9 @@ class MacOSCPythonTests(unittest.TestCase):
         self.assertNotIn('build-id', flags)
         self.assertNotIn('FORTIFY', flags)
         self.assertNotIn('stack-protector', flags)
+        self.assertNotIn('relro', flags)
+        self.assertNotIn('now', flags)
+        self.assertNotIn('LINKFORSHARED', self.env)
 
     def test_musl_thread_stack_policy_does_not_cross_over(self):
         self.assertNotIn('THREAD_STACK_SIZE', ' '.join(self.args))

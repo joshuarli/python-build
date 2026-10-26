@@ -122,6 +122,8 @@ def _interpreter_flags(prefix: Path, target: Target) -> tuple[str, str]:
         ldflags.extend((
             "-fuse-ld=lld",
             "-Wl,-z,noexecstack",
+            "-Wl,-z,relro",
+            "-Wl,-z,now",
             "-Wl,--build-id=sha1",
         ))
     return " ".join(cflags), " ".join(ldflags)
@@ -160,6 +162,7 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
         # relative to the interpreter rather than the build prefix.
         "LDFLAGS": ldflags,
         "CFLAGS": cflags,
+        "LINKFORSHARED": "-pie -Xlinker -export-dynamic",
     }
     args = [
         *COMMON_POLICY_ARGS,
