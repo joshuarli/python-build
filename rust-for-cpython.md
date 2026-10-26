@@ -5,43 +5,54 @@ Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 
 ## Current checkpoint — 2026-10-26
 
-**Continue:** Finish the macOS memory goals before starting CPU work.
+**Continue:** Clear the macOS memory goals before CPU work. The current map has
+26 module debts and six workload RSS debts.
 
-**State:** `perf-rust-clean@752fa631d1` is the verified runtime and
-`perf-upstream@9de0511946` is the control. The memory calibration at
-`20261026T125500Z` passed. No performance candidate has been accepted, and
-no CPU work has started.
+**State:** `perf-rust@cfc8c514` is the incumbent and
+`perf-upstream@9de0511946` is the control. Calibration `20261026T125500Z`
+passed. No CPU work has started.
 
-The current clean full suite ran 50,158 tests with 10 failures, 20 errors,
+The last clean full-suite run recorded 50,158 tests, 10 failures, 20 errors,
 and 2,771 skips. `test_ssl` had 6 errors and 4 failures. `test_support` had 14
-errors. Both remain the documented D2 deviations. `test_unicodedata` had 5
-failures from the known fork test-file mismatch after U2. `test_os` had one
-intermittent failure; its focused rerun passed.
+errors. Those remain the accepted D2 deviations. `test_unicodedata` had 5
+failures from the fork test-file mismatch after U2. `test_os` had one
+intermittent failure, and its focused rerun passed.
 
-**Memory goals:** The complete report at `20261026T165808Z` found 10 OVER,
-21 UNCLEAR, and 40 MET routes. Rigorous reports at `20261026T164802Z` and
-`20261026T171308Z` resolved all 21 UNCLEAR routes. Rows with pooled medians
-above 1.01x count as OVER. The current map has 26 OVER and 45 MET routes.
+**Memory goals:** Reports `20261026T203158Z` and `20261026T204809Z` resolved
+the full 71-route map to 26 OVER and 45 MET or BEYOND, with no mismatches.
+The OVER routes are `_strptime`, `base64`, `collections`, `csv`, `decimal`,
+`functools`, `html.parser`, `ipaddress`, `marshal`, `re`, `socket`,
+`sqlite3`, `struct`, `typing`, `urllib.request`, `uuid`,
+`xml.etree.ElementTree`, `zipfile`, `zlib`, `ssl`, `hmac`, `datetime`,
+`http.client`, `threading`, `contextlib`, and `tokenize`.
 
-The OVER routes are `_strptime`, `asyncio`, `binascii`, `bz2`, `collections`,
-`contextlib`, `datetime`, `decimal`, `fractions`, `functools`, `hmac`,
-`html.parser`, `http.client`, `ipaddress`, `marshal`, `re`, `socket`,
-`sqlite3`, `ssl`, `struct`, `threading`, `tokenize`, `typing`,
-`urllib.request`, `uuid`, and `xml.etree.ElementTree`.
-
-**Workload RSS:** The complete report at `20261026T165458Z` leaves six debts.
-Startup is 1.047x. WSGI first request is 1.025x, and WSGI request is 1.015x.
-ASGI request is 1.013x. ORM and realistic template are both 1.015x. The other
-17 timed workloads are neutral or improved, with matching output digests.
+**Workload RSS:** Report `20261026T205702Z` leaves six debts. Startup is
+1.046x. Django WSGI first request is 1.023x, WSGI request is 1.015x, ASGI
+request is 1.016x, ORM is 1.014x, and realistic template is 1.013x. Other
+eligible workloads are neutral or improved with matching output digests.
 `compileall_source` remains untimed because its marshal output differs from
 control.
 
-**Latest batch:** Three memory candidates for `base64`, `ipaddress`, and
-`zlib` passed their combined focused suites (6,546 tests, 427 skips, 26
-files). The primary-path gate at `20261026T163934Z` was NEUTRAL. Load-footprint
-ratios for `base64`, `ipaddress`, and `zlib` were 0.946x, 0.977x, and 0.990x.
-Working-peak rows and all seven workload guards were neutral. No source change
-was accepted.
+**Batch 27:** No source change was accepted. The base64 local-codec candidate
+passed 2,123 tests with 19 skips. Its load was 1.011 [0.989, 1.045] and its
+working peak was neutral against the incumbent. The small and large Base64
+workloads were 0.999 and 1.000. The tokenize import cleanup passed 518 tests
+with 1 skip. Its load was 1.035 [1.016, 1.059], and its working peak was
+neutral. The zipfile deflate memory-level candidate passed 956 tests with 91
+skips. Its load was 0.952 [0.636, 1.033], and its working peak was
+1.000 [0.422, 2.500]. The ZIP workload guards were neutral. All three
+comparisons were neutral, and their source changes were restored or left
+unintegrated.
+
+**Phase 4:** The accepted `_marshal_rs` stage passed `test_audit` three times
+in a row, with 33 tests and 4 skips each time. Its integrated marshal,
+importlib, compile, and audit suites passed 1,602 tests with 29 skips.
+
+**Linux and closeout:** The available Docker contexts have no native x86-64
+Linux host; OrbStack reports `linux/aarch64`. Do not use emulation for Linux
+qualification. Native Linux requalification of U8 and U2 remains open. U7
+remains parked behind P1–P3 and a native Linux host. Final suites on both
+hosts and campaign closeout remain open.
 
 The base64 direct-FFI attempt was blocked before suites or memory measurement:
 Cargo builds `_base64` as both a cdylib and an rlib dependency, and the
@@ -195,22 +206,22 @@ still OVER: load footprint is UNCLEAR at 1.06x, and working peak is OVER at
 startup, WSGI first request, WSGI request, ASGI request, ORM, and template.
 `compileall_source` remains untimed because its output differs from control.
 
-**Open lanes:** `lane/re-mem` and `lane/csv-core-mem` ended neutral, and both
-source attempts are restored. The marshal audit fix is integrated.
-`lane/datetime-mem` and `lane/ssl-mem` remain parked after neutral or rejected
-results. The decimal no_std implementation at `dc1c5d3` remains provisional
-and neutral at its final gate. The U7 rebase is parked behind P1–P3 and a
-native Linux host. Native Linux requalification of U8 and U2 remains open.
+**Open lanes:** The base64 local-codec, tokenize import-cleanup, and zipfile
+memory-level candidates ended neutral. Their changes are not in the incumbent.
+The marshal audit fix is integrated. `lane/datetime-mem` and `lane/ssl-mem`
+remain parked after neutral or rejected results. The decimal no_std change at
+`dc1c5d3` remains neutral at its final gate. U7 remains parked behind P1–P3
+and a native Linux host. Native Linux requalification of U8 and U2 remains
+open.
 
-**Cleanup:** `git worktree prune` completed. The three batch 12 worktrees were
-removed after their evidence was copied and verified. Seventeen parked
-product/bootstrap worktrees remain clean under `.work/wt/`; they are listed
-below and allowed by the closeout helper. The owner-directed
-`openssl-free-build`, `openssl-free-dhm`, and `lane-integrate` trees were
-preserved. Stale Linux qualification build caches reclaimed about 15 GiB;
-the rc7 qualification evidence was preserved at
-`.work/tmp/retained/linux-rc7/` and its durable location recorded in
-`backend/LINUX_QUALIFICATION.md`.
+**Cleanup:** The prior cleanup removed three batch 12 worktrees and recorded
+17 product and bootstrap worktrees. That inventory predates the current Rust
+memory lanes. The owner-directed `openssl-free-build`, `openssl-free-dhm`, and
+`lane-integrate` worktrees remain preserved. The closeout guard still lists
+those trees as unaccounted, so campaign closeout remains open. Stale Linux
+qualification build caches reclaimed about 15 GiB. The rc7 qualification
+evidence was preserved at `.work/tmp/retained/linux-rc7/`, and its durable
+location is recorded in `backend/LINUX_QUALIFICATION.md`.
 
 **Retained worktrees at the prior cleanup checkpoint:**
 
@@ -242,16 +253,17 @@ the rc7 qualification evidence was preserved at
 `lane/ssl-mem`.
 
 **Not started:** Complete every macOS module memory goal and eligible workload
-RSS row, then proceed to CPU performance. After P1–P3 and a native Linux host
-are available, perform the U7 rebase and requalify U8 and U2 natively on Linux.
-The `_marshal_rs` audit fix is integrated. Run the final full suites on both
-hosts, then close out. CPU work remains gated on the memory phase.
+RSS row, then proceed to CPU performance. A native x86-64 Linux host is
+unavailable in this environment. After P1–P3 and that host are available,
+perform the U7 rebase and requalify U8 and U2 natively. The `_marshal_rs`
+audit fix is integrated. Run final full suites on both hosts, then complete
+closeout. CPU work remains gated on the memory phase.
 
 **Verified:** D1 and D2 remain accepted with documented deviations. The saved
-memory calibration receipt remains reusable because the harness inputs and
-control identity are unchanged. Batch 12, batch 15, and batch 16 results are
-recorded above. The marshal audit fix passed its integrated suites. No CPU
-timing was collected.
+memory calibration remains reusable because its harness inputs and control
+identity are unchanged. Batches 12, 15, 16, and 27 are recorded above. The
+marshal audit fix passed its integrated suites and three consecutive audit
+runs. No CPU timing was collected.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
