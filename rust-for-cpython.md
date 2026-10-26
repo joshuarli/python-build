@@ -81,6 +81,15 @@ import event did not recur. Its integrated six-suite marshal/importlib/compile
 run remains 1,602 run and 29 skipped. No candidate has been accepted, and no
 CPU work has started.
 
+Batch 18 also produced no accepted source change. The direct-FFI/no_std
+contextlib attempt was neutral (load 1.003x); `_strptime` field checks were
+neutral (0.987x); two warnings changes were neutral (latest load 1.030x); HMAC
+no_std was neutral (0.994x); and regex no_std was neutral (1.007x). The
+SQLite C ABI experiment was rejected after `django_orm_10k` peak RSS regressed
+1.74% against control. Deferring the HTTP parser extension import was rejected
+with `http.client` load at 1.411x. All attempts were restored. Do not repeat
+these mechanisms without new evidence.
+
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
 charter's 2x retry threshold. Both routes have two failed hypotheses. Keep
 them as blockers and do not repeat those mechanisms. The earlier marshal
