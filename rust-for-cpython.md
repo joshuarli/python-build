@@ -1,19 +1,17 @@
 # Rust-for-CPython campaign
 
-Status: paused (2026-10-26), macOS memory-first performance phase.
+Status: active (2026-10-26), macOS memory-first performance phase.
 Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 
 ## Current checkpoint — 2026-10-26
 
-**Resume:** Continue the macOS memory-first climb after the hardening follow-up.
-Run `git status --short && python3 rust-cpython/perf.py status` first.
+**Continue:** Finish the macOS memory goals before starting CPU work.
 
-**State:** `perf-rust@5227de3` is the verified source and
+**State:** `perf-rust@bad6ae0` is the verified source and
 `perf-upstream@9de0519` is the control. No batch 12 source change was accepted;
 the provisional decimal change at `dc1c5d3` remains neutral at its final gate.
-The binary hardening gates are implemented in `f57d3ad`. The focused checks
-previously recorded 31 passing tests; repeat them after the latest review noted
-a package-test gap. Final artifact qualification was pending at this handoff.
+Recent memory attempts were restored after neutral results. No CPU work has
+started.
 
 The candidate full suite ran 50,158 tests with 9 failures and 2,771 skips.
 The failures are the three accepted D2 files: `test_ssl` (6 errors, 4
@@ -22,16 +20,15 @@ The pristine control also had incidental `test_os` (2 failures) and
 `test_mailbox` (1 failure); focused reruns passed on both stages. Do not hide
 these full-run results or treat the D2 deviations as newly fixed.
 
-**Direction:** Finish memory qualification for every module and eligible RSS
-row before starting CPU work. The first memory map classified 6 modules OVER, 27 UNCLEAR,
-37 MET, and 1 BEYOND. A rigorous rerun moved 8 of the unclear modules to MET;
-the remaining 19 have pooled ratios above the 1.01x floor and count as OVER.
-The effective map is 25 OVER, 45 MET, 1 BEYOND, with no output mismatches.
-The OVER modules are `contextlib`, `hmac`, `http.client`, `ssl`,
-`urllib.request`, `xml.etree.ElementTree`, `marshal`, `bisect`, `lzma`,
-`csv`, `plistlib`, `datetime`, `io`, `typing`, `decimal`, `re`, `base64`,
-`zlib`, `codecs`, `logging`, `_strptime`, `html.parser`, `binascii`,
-`tokenize`, and `warnings`.
+**Direction:** Finish every module memory goal and eligible workload RSS goal
+before starting CPU work. The unresolved module rows are `_strptime`,
+`base64`, `contextlib`, `csv`, `datetime`, `hmac`, `http.client`, `inspect`,
+`marshal`, `re`, `sqlite3`, `ssl`, `struct`, `threading`, `tokenize`,
+`typing`, `urllib.request`, `warnings`, `xml.etree.ElementTree`, and
+`zipfile`. The unresolved workload rows are `python_startup_peak_rss`,
+`django_wsgi_first_request_peak_rss`, `django_wsgi_request_peak_rss`,
+`django_asgi_request_peak_rss`, and `django_template_realistic_peak_rss`.
+The current map has no output mismatches.
 
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
 charter's 2x retry threshold. Both routes have two failed hypotheses. Keep
@@ -104,11 +101,25 @@ The plistlib candidate was neutral against the incumbent: load footprint
 [0.869, 1.174], counted as OVER. All three candidate edits were restored;
 none was committed.
 
-**Open lanes:** No Rust performance lane is active. `lane/datetime-mem` and
-`lane/ssl-mem` remain parked after neutral or rejected results, with no
-worktrees. The decimal no_std implementation at `dc1c5d3` remains provisional
-and neutral at its final gate. The U7 rebase is parked behind P1–P3 and a
-native Linux host. Native Linux requalification of U8 and U2 remains open.
+**Batch 15:** Memory attempts on `base64`, `inspect`, `struct`, and `zipfile`
+did not produce an accepted change. Base64 direct-slice conversion passed
+2,712 tests with 22 skips; load and working-peak comparisons were neutral.
+Its control load goal remains UNCLEAR at 1.12x. Inline storage for inspect
+signatures passed 2,688 tests with 12 skips; the load comparison was neutral
+at 1.045x [1.005, 1.093], and its control load goal remains UNCLEAR at
+1.06x. The struct byteorder removal passed 3,235 tests with 311 skips; its
+load and working-peak comparisons were neutral. Both zipfile memory-level
+changes passed 956 tests with 91 skips and were neutral. All edits were
+restored. The current full unresolved map is listed above. No CPU timing was
+collected.
+
+**Open lanes:** `lane/re-mem` is active. `lane/marshal-audit` has an unbuilt,
+unverified change that routes importlib bytecode writes through the existing C
+writer. `lane/datetime-mem` and `lane/ssl-mem` remain parked after neutral or
+rejected results. The decimal no_std implementation at `dc1c5d3` remains
+provisional and neutral at its final gate. The U7 rebase is parked behind
+P1–P3 and a native Linux host. Native Linux requalification of U8 and U2
+remains open.
 
 **Cleanup:** `git worktree prune` completed. The three batch 12 worktrees were
 removed after their evidence was copied and verified. Seventeen parked
@@ -120,7 +131,7 @@ the rc7 qualification evidence was preserved at
 `.work/tmp/retained/linux-rc7/` and its durable location recorded in
 `backend/LINUX_QUALIFICATION.md`.
 
-**Retained worktrees:**
+**Retained worktrees at the prior cleanup checkpoint:**
 
 | Worktree | Branch and head | Retention reason |
 | --- | --- | --- |
@@ -158,9 +169,8 @@ remains gated on the memory phase.
 
 **Verified:** D1 and D2 remain accepted with documented deviations. The saved
 memory calibration receipt remains reusable because the harness inputs and
-control identity are unchanged. Batch 12 suite results and memory comparisons
-are recorded above; all attempted source edits were restored. No CPU timing
-was collected.
+control identity are unchanged. Batch 12 and batch 15 results are recorded
+above; all attempted source edits were restored. No CPU timing was collected.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
