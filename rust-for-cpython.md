@@ -61,8 +61,25 @@ frame path that avoids the decoder context window buffer, so the lane closed
 BLOCKED without a candidate. `compression.zstd` remains BEYOND for load
 footprint and OVER for working peak at 1.281x. Its profile is retained at
 `rust-cpython/results/perf-profile/20261026T134144Z-perf-rust-module-compression_zstd-sample/report.txt`.
-The `collections` rigorous-goal/profile lane is active. No candidate has been
-accepted, and no CPU work has started.
+
+The `collections` load goal was rechecked rigorously and remains OVER at
+1.688x [1.312, 2.000]; working peak is MET. A `no_std` direct-FFI change to
+`_collections_rs` built cleanly with 58 verified extensions and passed the
+seven assigned suites (666 run, 3 skipped), matching the incumbent. Its
+replicated memory comparison was neutral: load footprint 1.118 [0.950, 1.363],
+working peak 1.000, and all seven workload guards were neutral with matching
+digests. The route sample reached `_collections_rs::subtract_iterable_method`
+28 times; cProfile attributed 5.251 of 5.331 kernel seconds to the extension.
+Both source and Cargo changes were restored. Goal, explore, and profile
+evidence are retained under `rust-cpython/results/perf-bench/20261026T134636Z-goals-perf-upstream-vs-perf-rust/`,
+`rust-cpython/results/perf-bench/20261026T140152Z-perf-rust-vs-perf-collections-memory/`,
+and `rust-cpython/results/perf-profile/20261026T134703Z-perf-rust-module-collections-sample/`.
+
+The accepted `perf-rust` stage passed the focused `test_audit` suite three
+consecutive times (33 run, 4 skipped each run); the deferred `_marshal_rs`
+import event did not recur. Its integrated six-suite marshal/importlib/compile
+run remains 1,602 run and 29 skipped. No candidate has been accepted, and no
+CPU work has started.
 
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
 charter's 2x retry threshold. Both routes have two failed hypotheses. Keep
