@@ -51,8 +51,17 @@ The ElementTree bytes-sink candidate built cleanly and passed both XML suites
 incumbent was neutral: load footprint 0.985 [0.933, 1.070], working peak
 1.015 [0.857, 1.492], with all observed workload guards neutral. Its
 single-module control-goal check remained OVER at 1.11x load and 1.47x working
-peak. Both source edits were restored. The zstd peak-memory profile and the
-collections rigorous-goal/profile lane are active. No candidate has been
+peak. Both source edits were restored. Verdicts are retained under
+`rust-cpython/results/perf-bench/20261026T133548Z-perf-rust-vs-perf-elementtree-bytes-mem/`
+and `rust-cpython/results/perf-bench/20261026T134037Z-goals-perf-upstream-vs-perf-elementtree-bytes-mem/`.
+
+The zstd profile showed libzstd frame processing but no memory-allocation
+hotspot. The proposed stream replacement would bypass the exact-size full
+frame path that avoids the decoder context window buffer, so the lane closed
+BLOCKED without a candidate. `compression.zstd` remains BEYOND for load
+footprint and OVER for working peak at 1.281x. Its profile is retained at
+`rust-cpython/results/perf-profile/20261026T134144Z-perf-rust-module-compression_zstd-sample/report.txt`.
+The `collections` rigorous-goal/profile lane is active. No candidate has been
 accepted, and no CPU work has started.
 
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
