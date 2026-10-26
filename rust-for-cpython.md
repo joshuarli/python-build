@@ -54,8 +54,8 @@ ancestor of `main`; its branch remains.
 | `.work/wt/openssl-free-dhm` | `experiment/openssl-free-dhm@59f4bc8` | MbedTLS source preparation experiment |
 
 The last three worktrees were committed on their own branches so closeout can
-retain them without merging their changes into `main`. Their changes have not
-been qualified.
+retain them without merging their changes into `main`. The closeout helper
+records them as retained. Their changes have not been qualified.
 
 **Not started:** Finish package hardening first. Then resume all memory goals
 and workload RSS checks, followed by CPU performance. Continue with U7 after
@@ -1072,8 +1072,8 @@ upstream speedups secondhand.
   after a NEUTRAL final gate; restored threading after its neutral result.
   Removed both lane worktrees and retained their evidence. The owner
   prioritized package hardening before the next macOS memory-first wave; no
-  performance stage was promoted. Three separate retained worktrees have
-  local commits and remain outside `main` pending closeout allowances.
+  performance stage was promoted. Three separate worktrees remain outside
+  `main` under recorded closeout allowances.
 - 2026-10-25 preflight: combined the two docs into this one; deferred all
   perf goals behind D2; added the D2 parity stage from the upstream brief.
   Superseded: the two-doc layout and any perf-first scheduling. Preserved:
