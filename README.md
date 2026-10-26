@@ -45,6 +45,32 @@ python3 build.py compare-reference --target aarch64-apple-darwin
 python3 build.py reproduce --target aarch64-apple-darwin
 ```
 
+## Hardening verification
+
+The final-byte PIE, RELRO, stack, and relocation gates passed on local `dist`
+archives from revision `7919f20`: macOS arm64 archive
+`17c6abab5aa980de5bbcfa48c8bf10865dc30ea907b33ab7d41f5a3c33c7a918` passed
+the Mach-O validator across 79 images with no non-PIE executables; Linux arm64
+archive `fcd4d2861a221286d1db38c3fdf81e60a078cb0ac3cf8d3dfb2e1e929b1ce204`
+passed the ELF validator across 79 images, including ET_DYN executables, full
+RELRO, a non-executable stack, and no writable-executable segments or text
+relocations.
+
+Fresh native `qualify` runs at revision `95d7ccd` also passed for macOS arm64
+and Linux arm64. Their archive digests are
+`3b52ab9384ce61cfb2b2580f46ed73e080ee7866a4f4a7920f952f5db28b599e` and
+`14e22ab8453c14e1ba1385089fb7b325bd8565808da906b4c4391e0158e7138e`,
+respectively. The macOS manifest reports no non-PIE executables among 64
+Mach-O images. All 64 Linux ELF images passed PIE, RELRO, NX stack, writable-
+executable segment, and text-relocation checks; stack-protector and fortify
+evidence passed. Both complete regression runs had no unexpected failures.
+These fresh archives were qualified in an isolated worktree and did not
+replace the local `dist` files.
+
+No Linux x86-64 archive was present locally, and the available Docker runtime
+is arm64. Linux x86-64 final-byte qualification remains for a native amd64
+runner; no emulated result is claimed.
+
 Controller tests run with:
 
 ```sh
