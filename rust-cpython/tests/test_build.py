@@ -43,6 +43,100 @@ class RustLauncherTests(unittest.TestCase):
             self.assertEqual(result.stdout, "cargo\npinned-rustc\n")
 
 
+class LinuxToolchainProvenanceTests(unittest.TestCase):
+    def test_workflow_path_is_loaded_separately_from_builder_id(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            toolchain = perf.lb.lane_linux.load_linux_toolchain(
+                LANE / "linux-toolchain.lock.json", Path(temporary)
+            )
+        self.assertEqual(
+            toolchain.llvm_workflow,
+            "https://github.com/llvm/llvm-project/.github/workflows/release-binaries.yml@refs/tags/llvmorg-23.1.2",
+        )
+        self.assertEqual(
+            toolchain.llvm_workflow_path,
+            ".github/workflows/release-tasks.yml",
+        )
+        with mock.patch.dict(os.environ, {"LIBCLANG_PATH": "/ambient/libclang"}):
+            self.assertEqual(
+                toolchain.env()["LIBCLANG_PATH"],
+                "/usr/lib/llvm-18/lib",
+            )
+
+
+class LinuxLLVMRuntimeTests(unittest.TestCase):
+    def test_icu_runtime_is_provisioned_after_llvm_extraction(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary) / "llvm"
+            toolchain = SimpleNamespace(
+                llvm_input=lambda: "archive",
+                llvm_attestation_input=lambda: "attestation",
+                llvm_archive_url="https://example.invalid/llvm.tar.xz",
+                llvm_archive_sha256="archive-sha256",
+                llvm_release_tag="llvmorg-23.1.2",
+                llvm_source_commit="source-commit",
+                llvm_workflow="workflow-id",
+                llvm_workflow_path="workflow-path",
+                llvm_prefix=prefix,
+                llvm_archive_root="llvm-root",
+                llvm_archive_size=1,
+                llvm_version="23.1.2",
+                icu_input=lambda: "icu",
+            )
+            events = []
+            cache = mock.Mock()
+            cache.require.side_effect = lambda item: item
+            with mock.patch.object(perf.lb, "IS_LINUX", True), \
+                    mock.patch.object(perf.lb, "CACHE_ROOT", Path(temporary)), \
+                    mock.patch.object(perf.lb, "Cache", return_value=cache), \
+                    mock.patch.object(perf.lb, "verify_llvm_attestation_metadata"), \
+                    mock.patch.object(
+                        perf.lb,
+                        "extract_llvm_archive",
+                        side_effect=lambda *args, **kwargs: events.append("extract") or prefix,
+                    ), \
+                    mock.patch.object(
+                        perf.lb.lane_linux,
+                        "provision_icu_runtime",
+                        side_effect=lambda *args: events.append("icu"),
+                    ):
+                result = perf.lb._llvm_ready(toolchain)
+        self.assertEqual(result, prefix)
+        self.assertEqual(events, ["extract", "icu"])
+
+
+class LinuxSetupTests(unittest.TestCase):
+    def test_ssl_rs_is_shared_in_the_generated_linux_setup(self):
+        contents = (
+            "*shared*\n"
+            "_bz2 _bz2module.c\n"
+            "\n"
+            "*static*\n"
+            "_random_rs\n"
+            "_ssl_rs\n"
+            "_tempfile_rs\n"
+            "\n"
+            "*disabled*\n"
+            "_ssl\n"
+        )
+        expected = (
+            "*shared*\n"
+            "_bz2 _bz2module.c\n"
+            "_ssl_rs _ssl_rs/Cargo.toml _ssl_rs/src/lib.rs\n"
+            "\n"
+            "*static*\n"
+            "_random_rs\n"
+            "_tempfile_rs\n"
+            "\n"
+            "*disabled*\n"
+            "_ssl\n"
+        )
+        self.assertEqual(
+            perf.lb.lane_linux.setup_local_with_shared_ssl_rs(contents),
+            expected,
+        )
+
+
 class MacOSDependencyProbeTests(unittest.TestCase):
     def test_mpdecimal_metadata_is_visible_to_configure(self):
         with tempfile.TemporaryDirectory() as temporary:

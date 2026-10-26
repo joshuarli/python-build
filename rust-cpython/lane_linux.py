@@ -103,6 +103,7 @@ class LinuxToolchain:
     llvm_attestation_sha256: str
     llvm_attestation_size: int
     llvm_workflow: str
+    llvm_workflow_path: str
     llvm_archive_root: str
     make: Path
     make_version: str
@@ -126,6 +127,10 @@ class LinuxToolchain:
     @property
     def clang(self) -> Path:
         return self.llvm_prefix / "bin" / "clang"
+
+    @property
+    def libclang_path(self) -> Path:
+        return Path("/usr/lib/llvm-18/lib")
 
     def llvm_input(self) -> Input:
         return Input(
@@ -185,6 +190,7 @@ class LinuxToolchain:
             "NM": str(binary / "llvm-nm"),
             "STRIP": str(binary / "llvm-strip"),
             "READELF": str(binary / "llvm-readelf"),
+            "LIBCLANG_PATH": str(self.libclang_path),
         })
         # As on macOS, LD is not exported; `-fuse-ld=lld` in LDFLAGS selects
         # the locked linker through the clang driver.
@@ -214,6 +220,7 @@ class LinuxToolchain:
                 "attestation_sha256": self.llvm_attestation_sha256,
                 "attestation_size": self.llvm_attestation_size,
                 "workflow": self.llvm_workflow,
+                "workflow_path": self.llvm_workflow_path,
             },
             "linker": str(self.llvm_prefix / "bin" / "ld.lld"),
             "llvm_profdata": str(self.llvm_profdata),
@@ -272,6 +279,7 @@ def load_linux_toolchain(path: Path, cache_root: Path) -> LinuxToolchain:
         llvm_attestation_sha256=_require(provenance, "attestation_sha256", "provenance"),
         llvm_attestation_size=_require(provenance, "attestation_size", "provenance"),
         llvm_workflow=_require(provenance, "workflow", "provenance"),
+        llvm_workflow_path=_require(provenance, "workflow_path", "provenance"),
         llvm_archive_root=_require(archive, "archive_root", "llvm.archive"),
         make=Path(_require(make, "path", "make")),
         make_version=_require(make, "version", "make"),
@@ -333,6 +341,8 @@ def problems(toolchain: LinuxToolchain) -> list[str]:
         icu_marker = None
     if icu_marker != {"sha256": toolchain.icu_runtime["sha256"]}:
         found.append("ICU 70 runtime for ld.lld is not provisioned; run fetch")
+    if not (toolchain.libclang_path / "libclang.so.1").is_file():
+        found.append(f"{toolchain.libclang_path / 'libclang.so.1'} is missing")
     if f"GNU Make {toolchain.make_version}" not in _tool_output([str(toolchain.make), "--version"]):
         found.append(f"{toolchain.make} does not report GNU Make {toolchain.make_version}")
     if _tool_output([str(toolchain.pkgconf), "--version"]) != toolchain.pkgconf_version:
@@ -393,6 +403,31 @@ def provision_icu_runtime(toolchain: LinuxToolchain, deb: Path) -> Path:
                 soname.symlink_to(name)
     marker.write_text(json.dumps(expected, sort_keys=True) + "\n")
     return library
+
+
+def setup_local_with_shared_ssl_rs(contents: str) -> str:
+    lines = contents.splitlines()
+    try:
+        shared = lines.index("*shared*")
+        static = lines.index("*static*")
+        disabled = lines.index("*disabled*")
+    except ValueError as error:
+        raise LinuxHostError("Setup.local lacks a required module section") from error
+    if not shared < static < disabled:
+        raise LinuxHostError("Setup.local module sections are out of order")
+    ssl_entries = [
+        index for index in range(static + 1, disabled)
+        if lines[index].strip() == "_ssl_rs"
+    ]
+    if len(ssl_entries) != 1:
+        raise LinuxHostError("Setup.local must declare exactly one static _ssl_rs module")
+    lines.pop(ssl_entries[0])
+    ssl_entry = "_ssl_rs _ssl_rs/Cargo.toml _ssl_rs/src/lib.rs"
+    insertion = static
+    while insertion > shared + 1 and not lines[insertion - 1].strip():
+        insertion -= 1
+    lines.insert(insertion, ssl_entry)
+    return "\n".join(lines) + "\n"
 
 
 def package_report(toolchain: LinuxToolchain) -> dict[str, str]:

@@ -669,9 +669,6 @@ def _llvm_layout():
 
 def _llvm_ready(toolchain) -> Path:
     llvm_cache = Cache(CACHE_ROOT / "llvm")
-    if IS_LINUX:
-        deb = llvm_cache.require(toolchain.icu_input())
-        lane_linux.provision_icu_runtime(toolchain, deb)
     archive = llvm_cache.require(toolchain.llvm_input())
     attestation = llvm_cache.require(toolchain.llvm_attestation_input())
     verify_llvm_attestation_metadata(
@@ -683,7 +680,7 @@ def _llvm_ready(toolchain) -> Path:
         workflow=toolchain.llvm_workflow,
         workflow_path=toolchain.llvm_workflow_path,
     )
-    return extract_llvm_archive(
+    prefix = extract_llvm_archive(
         archive,
         toolchain.llvm_prefix,
         archive_root=toolchain.llvm_archive_root,
@@ -692,6 +689,10 @@ def _llvm_ready(toolchain) -> Path:
         version=toolchain.llvm_version,
         layout=_llvm_layout(),
     )
+    if IS_LINUX:
+        deb = llvm_cache.require(toolchain.icu_input())
+        lane_linux.provision_icu_runtime(toolchain, deb)
+    return prefix
 
 
 def _fetch_llvm(toolchain) -> Path:
@@ -1248,7 +1249,10 @@ def _configure_source(source: Path, toolchain, target, jobs: int,
         # CPython reads local module declarations from the build directory.
         build_setup_local = BUILD / "Modules" / "Setup.local"
         build_setup_local.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(setup_local, build_setup_local)
+        setup_contents = setup_local.read_text()
+        if IS_LINUX:
+            setup_contents = lane_linux.setup_local_with_shared_ssl_rs(setup_contents)
+        build_setup_local.write_text(setup_contents)
     make = [str(toolchain.make), f"-j{jobs}"]
     _require_command(make, cwd=BUILD, env=env,
                      log=LOGS / "cpython-build.log", sealed=sandbox)
