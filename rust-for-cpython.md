@@ -1,20 +1,19 @@
 # Rust-for-CPython campaign
 
-Status: winding down (2026-10-26), macOS memory-first performance phase.
-Coverage D1 and upstream parity D2 remain accepted.
+Status: paused (2026-10-26), macOS memory-first performance phase.
+Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 
 ## Current checkpoint — 2026-10-26
 
-**Resume:** Continue the macOS memory-first climb. First run `git status
---short`, then `python3 rust-cpython/perf.py status`.
+**Resume:** Continue the macOS memory-first climb after the hardening follow-up.
+Run `git status --short && python3 rust-cpython/perf.py status` first.
 
-**State:** The `perf-rust` source remains clean-built and verified at
-`5227de3`; campaign records have advanced docs-only after `c522792`.
-`perf-upstream@9de0519` is the control. No performance change has been
-promoted since the provisional decimal commit `dc1c5d3`.
-The hardening gates are implemented in `f57d3ad`; their focused Linux package,
-ELF, and Mach-O validation tests pass (31 tests). Final product artifact
-qualification has not yet run.
+**State:** `perf-rust@5227de3` is the verified source and
+`perf-upstream@9de0519` is the control. No batch 12 source change was accepted;
+the provisional decimal change at `dc1c5d3` remains neutral at its final gate.
+The binary hardening gates are implemented in `f57d3ad`. The focused checks
+previously recorded 31 passing tests; repeat them after the latest review noted
+a package-test gap. Final artifact qualification was pending at this handoff.
 
 The candidate full suite ran 50,158 tests with 9 failures and 2,771 skips.
 The failures are the three accepted D2 files: `test_ssl` (6 errors, 4
@@ -23,7 +22,8 @@ The pristine control also had incidental `test_os` (2 failures) and
 `test_mailbox` (1 failure); focused reruns passed on both stages. Do not hide
 these full-run results or treat the D2 deviations as newly fixed.
 
-**Direction:** The first memory map classified 6 modules OVER, 27 UNCLEAR,
+**Direction:** Finish memory qualification for every module and eligible RSS
+row before starting CPU work. The first memory map classified 6 modules OVER, 27 UNCLEAR,
 37 MET, and 1 BEYOND. A rigorous rerun moved 8 of the unclear modules to MET;
 the remaining 19 have pooled ratios above the 1.01x floor and count as OVER.
 The effective map is 25 OVER, 45 MET, 1 BEYOND, with no output mismatches.
@@ -65,15 +65,14 @@ peak 0.797x [0.521, 2.250]. The source change was reverted. Lowering the
 initial capacity estimate remains a distinct hypothesis. Its verdict is at
 `rust-cpython/results/perf-bench/20261026T044928Z-perf-rust-vs-perf-lzma-mem/verdict.json`.
 
-The rigorous memory-goal rerun at
+The rigorous memory-goal run at
 `rust-cpython/results/perf-bench/20261026T045322Z-goals-perf-upstream-vs-perf-rust/verdict.json`
 keeps `marshal` OVER at 1.114x load footprint [1.057, 1.184]. Its working
 peak is UNCLEAR at 1.938x [1.344, 2.406]. The harness treats an UNCLEAR row
 with a pooled median above 1.01x as OVER. `io` working peak is UNCLEAR at
 1.072x [0.933, 1.842], and `plistlib` working peak is UNCLEAR at 1.053x
 [0.869, 1.174]. Both also count as OVER under that rule. `plistlib` load
-footprint remains BEYOND at 0.160x [0.134, 0.197]. These three routes are the
-next eligible memory targets.
+footprint remains BEYOND at 0.160x [0.134, 0.197].
 
 The all-workload memory gate rejected three rows: `python_startup` peak RSS
 1.038x, `django_wsgi_first_request` 1.015x, and `django_asgi_request` 1.014x.
@@ -81,30 +80,45 @@ The other eligible workload rows were neutral or improved. `compileall_source`
 has a documented marshal output difference and was not timed. No CPU lane may
 start until all module memory goals and eligible workload RSS goals pass.
 
-**Active batch 12:** Three lanes branch from `772436c` and target distinct
-routes. `lane/marshal-mem` in `.work/wt/marshal-mem` targets load footprint
-and working peak. `lane/io-mem` in `.work/wt/io-mem` targets working peak.
-`lane/plistlib-mem` in `.work/wt/plistlib-mem` targets working peak while
-load footprint remains a BEYOND guard. Each lane profiles the incumbent
-before editing and keeps its route's full suite set. Independent build/test
-work may overlap; paired memory measurements are serialized.
+**Batch 12:** Complete with no accepted source changes. The IO
+candidate was neutral against the incumbent: load footprint 1.098x
+[0.601, 1.827], working peak 1.506x [0.796, 1.966]. Its assigned suites ran
+6,083 tests with 844 skips; only `test_ssl` failed, matching the accepted
+incumbent's exact outcome. Against the upstream control, IO load footprint is
+MET at 0.831x [0.735, 1.341] and working peak remains OVER at 1.072x
+[0.933, 1.842].
 
-**Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
-unmerged after neutral or rejected results; their worktrees are absent.
-`lane/decimal-nostd-mem@247118c` is provisionally merged as `dc1c5d3`, but
-its final gate was neutral. `lane/threading-nostd-mem` had no source commit
-and its changes were restored after a neutral result. Retry only with a new,
-profile-supported hypothesis.
+The marshal candidate did not reach a memory comparison. Its six assigned
+suites ran 1,602 tests with 29 skips; `test_audit` failed because the expected
+import events omitted `_marshal_rs`, while the actual events included it from
+the candidate build tree. This is the deferred audit/import flake. The
+candidate was restored, and `stage-perf-marshal-mem` remains marked
+`suite-failed` with the unqualified stage. Marshal load remains OVER at
+1.114x [1.057, 1.184]; working peak remains UNCLEAR at 1.938x
+[1.344, 2.406], counted as OVER.
 
-**Cleanup:** `git worktree prune` completed. The neutral CSV and ElementTree
-worktrees and their unmerged branches were retired after preserving their
-verdicts and reports under `rust-cpython/results/`. The neutral HTTP and LZMA
-worktrees and branches were also retired after preserving their verdicts.
-Three Rust performance worktrees are active. The 17 retained
-product/bootstrap worktrees are clean,
-allowed by the closeout helper, and retained at the owner's direction;
-no campaign scratch was safe to remove. Performance verdicts and reports
-remain under `rust-cpython/results/`.
+The plistlib candidate was neutral against the incumbent: load footprint
+0.688x [0.500, 0.900], working peak 0.963x [0.804, 1.000]. Its suite passed
+71 tests with no skips or failures. Its upstream load footprint is BEYOND at
+0.160x [0.134, 0.197], while working peak remains UNCLEAR at 1.053x
+[0.869, 1.174], counted as OVER. All three candidate edits were restored;
+none was committed.
+
+**Open lanes:** No Rust performance lane is active. `lane/datetime-mem` and
+`lane/ssl-mem` remain parked after neutral or rejected results, with no
+worktrees. The decimal no_std implementation at `dc1c5d3` remains provisional
+and neutral at its final gate. The U7 rebase is parked behind P1–P3 and a
+native Linux host. Native Linux requalification of U8 and U2 remains open.
+
+**Cleanup:** `git worktree prune` completed. The three batch 12 worktrees were
+removed after their evidence was copied and verified. Seventeen parked
+product/bootstrap worktrees remain clean under `.work/wt/`; they are listed
+below and allowed by the closeout helper. The owner-directed
+`openssl-free-build`, `openssl-free-dhm`, and `lane-integrate` trees were
+preserved. Stale Linux qualification build caches reclaimed about 15 GiB;
+the rc7 qualification evidence was preserved at
+`.work/tmp/retained/linux-rc7/` and its durable location recorded in
+`backend/LINUX_QUALIFICATION.md`.
 
 **Retained worktrees:**
 
@@ -128,18 +142,25 @@ remain under `rust-cpython/results/`.
 | `.work/wt/openssl-free-build` | `experiment/openssl-free-build@1cbc85c` | Relocation and sysconfig validation changes |
 | `.work/wt/openssl-free-dhm` | `experiment/openssl-free-dhm@59f4bc8` | MbedTLS source preparation experiment |
 
-**Not started:** Finish all macOS module memory goals and workload RSS debt,
-then CPU performance. Next perform the U7 rebase after prerequisites P1–P3
-and a native Linux host are available; requalify U8 and U2 natively on Linux;
-resolve the deferred `_marshal_rs` import flake; run final suites on both
-hosts; and close out. Do not start CPU work before the memory phase passes.
+**Parked refs:** These branches have no worktree and remain for later review:
+`experiment/openssl-free-artifact`, `experiment/openssl-free-cert-tests`,
+`experiment/openssl-free-pgo`, `experiment/openssl-free-regressions`,
+`openssl-free-linux-ci`, `openssl-free-linux-qualification`,
+`openssl-free-linux-reference`, `tmp/u6-build`, `lane/datetime-mem`, and
+`lane/ssl-mem`.
 
-**Verified:** D1/D2 remain accepted with documented deviations. The saved
+**Not started:** Complete every macOS module memory goal and eligible workload
+RSS row, then proceed to CPU performance. After P1–P3 and a native Linux host
+are available, perform the U7 rebase and requalify U8 and U2 natively on Linux.
+Complete Phase 4 hardening, including resolution of the deferred `_marshal_rs`
+import flake, then run final suites on both hosts and close out. CPU work
+remains gated on the memory phase.
+
+**Verified:** D1 and D2 remain accepted with documented deviations. The saved
 memory calibration receipt remains reusable because the harness inputs and
-control identity are unchanged. `perf.py doctor` and both lane setup checks
-passed. The owner's host-admission override permits memory work without the
-perf gate; exclusive memory sampling, replication, output checks, and suites
-still bind.
+control identity are unchanged. Batch 12 suite results and memory comparisons
+are recorded above; all attempted source edits were restored. No CPU timing
+was collected.
 
 Goal: keep every named public stdlib behavior on maintained Rust on the
 pinned experimental CPython 3.16 fork, prove it against CPython suites,
@@ -1144,6 +1165,11 @@ upstream speedups secondhand.
 
 ## Decision log and campaign log
 
+- 2026-10-26 winddown: finished batch 12 without promoting a source change;
+  parked the memory climb with marshal and workload RSS debt open. Removed
+  completed lane worktrees, allowed the 17 retained parked worktrees, preserved
+  the three owner-directed trees, and recorded the deferred hardening
+  qualification and `_marshal_rs` flake.
 - 2026-10-26 winddown: merged decimal no_std provisionally as `dc1c5d3`
   after a NEUTRAL final gate; restored threading after its neutral result.
   Removed both lane worktrees and retained their evidence. The owner
