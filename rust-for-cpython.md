@@ -33,15 +33,27 @@ The UNCLEAR routes are `binascii`, `collections`, `decimal`, `functools`,
 `uuid`, `warnings`, and `xml.etree.ElementTree`. UNCLEAR rows remain open.
 `compression.zstd` has BEYOND load footprint and OVER working peak.
 
-The latest complete workload report remains `20261026T102759Z`. It has six
-RSS debts: startup, WSGI first request, WSGI request, ASGI request, ORM, and
-realistic template. All output digests matched. A fresh all-workload memory
-comparison remains required after candidate integration.
+The latest complete absolute workload report remains `20261026T102759Z`. It
+has six RSS debts: startup, WSGI first request, WSGI request, ASGI request,
+ORM, and realistic template. All output digests matched. The ElementTree
+explore compared all observed workload guards with neutral results against
+the incumbent; it does not replace the complete absolute workload comparison
+needed to close the debts.
 
-Three isolated memory lanes are active. `base64-core-nostd-mem` is building
-the direct-FFI `_base64` change. `elementtree-bytes-mem` has a private bytes
-sink edit and awaits its build. `zstd-peak-mem` is preparing a working-peak
-profile. No candidate comparison has completed in this batch.
+The base64 direct-FFI attempt was blocked before suites or memory measurement:
+Cargo builds `_base64` as both a cdylib and an rlib dependency, and the
+no-default-features cdylib requires a global allocator and panic handler. The
+route's direct-slice change and this no_std attempt produced no accepted
+candidate.
+
+The ElementTree bytes-sink candidate built cleanly and passed both XML suites
+(480 run, 12 skipped, no failures). Its replicated comparison against the
+incumbent was neutral: load footprint 0.985 [0.933, 1.070], working peak
+1.015 [0.857, 1.492], with all observed workload guards neutral. Its
+single-module control-goal check remained OVER at 1.11x load and 1.47x working
+peak. Both source edits were restored. The zstd peak-memory profile and the
+collections rigorous-goal/profile lane are active. No candidate has been
+accepted, and no CPU work has started.
 
 The SSL working peak (3.69x) and HMAC load footprint (2.93x) exceed the
 charter's 2x retry threshold. Both routes have two failed hypotheses. Keep
