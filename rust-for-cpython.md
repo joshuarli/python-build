@@ -8,8 +8,8 @@ and upstream parity D2 remain accepted.
 **Resume:** Continue the macOS memory-first climb. First run `git status
 --short`, then `python3 rust-cpython/perf.py status`.
 
-**State:** The source baseline `main@5227de3` is clean; `c522792` adds this
-campaign checkpoint. `perf-rust` is clean-built and verified at 5227de3;
+**State:** `main@bf829af` contains docs-only campaign updates after
+`c522792`. The `perf-rust` source is clean-built and verified at 5227de3;
 `perf-upstream@9de0519` is the control. No performance change has been
 promoted since the provisional decimal commit `dc1c5d3`.
 The hardening gates are implemented in `f57d3ad`; their focused Linux package,
@@ -35,10 +35,20 @@ The OVER modules are `contextlib`, `hmac`, `http.client`, `ssl`,
 
 The SSL working peak (3.69x), HMAC load footprint (2.93x), and marshal
 working peak (2.34x) exceed the charter's 2x retry threshold. Keep them as
-blockers and do not repeat the failed mechanisms. The next bounded hypotheses
-are to remove CSV input and field copies around the existing parser, then
-release ElementTree's buffered output during emission while preserving
-per-write boundaries and all-or-nothing fallback behavior.
+blockers and do not repeat the failed mechanisms.
+
+Two bounded attempts were neutral and have been reverted. CSV input and field
+borrowing plus direct output construction measured load footprint 1.413x
+[0.719, 2.197] and working peak 1.009x [0.838, 1.451] against the incumbent.
+`test_csv` passed with 134 run and 4 skips on both the candidate and incumbent
+on this host. ElementTree output slabs measured load footprint 1.086x
+[1.027, 1.105] and working peak 0.977x [0.707, 1.095]; both XML suites
+passed with 480 run, 12 skipped, and no failures. Do not repeat these
+mechanisms. The next profile-supported hypothesis targets `http.client`'s
+1.382x load footprint: sample and cProfile traces reach `_http_client_rs` and
+`httparse`. The lane is exploring a conservative Rust parser that removes
+`httparse`, with CPython fallback for anything outside the fast path's proven
+grammar.
 
 The all-workload memory gate rejected three rows: `python_startup` peak RSS
 1.038x, `django_wsgi_first_request` 1.015x, and `django_asgi_request` 1.014x.
@@ -46,11 +56,12 @@ The other eligible workload rows were neutral or improved. `compileall_source`
 has a documented marshal output difference and was not timed. No CPU lane may
 start until all module memory goals and eligible workload RSS goals pass.
 
-**Active batch 9:** `lane/csv-mem@c522792` in `.work/wt/csv-mem` tests
-borrowing CSV input and field text instead of cloning it into Rust strings.
-`lane/elementtree-mem@c522792` in `.work/wt/elementtree-mem` tests reclaimable
-serializer output slabs, preserving write boundaries and fallback behavior.
-Both lanes use memory-only verdicts and complete module suites.
+**Active batch 10:** `lane/http-client-mem@bf829af` in
+`.work/wt/http-client-mem` targets `http.client` load footprint and working
+peak. The incumbent goal is 1.382x load footprint and 1.000x working peak
+against control. The profile supports examining the `httparse` dependency;
+the candidate must keep parser validation, CPython fallback, and all seven
+HTTP suites intact. Memory measurements are paired and serialized.
 
 **Open lanes:** `lane/datetime-mem@cdec889` and `lane/ssl-mem@8d5a0e6` remain
 unmerged after neutral or rejected results; their worktrees are absent.
@@ -59,8 +70,10 @@ its final gate was neutral. `lane/threading-nostd-mem` had no source commit
 and its changes were restored after a neutral result. Retry only with a new,
 profile-supported hypothesis.
 
-**Cleanup:** `git worktree prune` completed. Two Rust performance lane
-worktrees are active. The 17 retained product/bootstrap worktrees are clean,
+**Cleanup:** `git worktree prune` completed. The neutral CSV and ElementTree
+worktrees and their unmerged branches were retired after preserving their
+verdicts and reports under `rust-cpython/results/`. One Rust performance lane
+worktree is active. The 17 retained product/bootstrap worktrees are clean,
 allowed by the closeout helper, and retained at the owner's direction;
 no campaign scratch was safe to remove. Performance verdicts and reports
 remain under `rust-cpython/results/`.
