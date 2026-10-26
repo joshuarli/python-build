@@ -7,38 +7,41 @@ Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 
 **Continue:** Finish the macOS memory goals before starting CPU work.
 
-**State:** `perf-rust@dd4586b` is the verified runtime and
-`perf-upstream@9de0519` is the control. Commit `9e60680` changes only the
-measurement scratch location and its test. The fresh memory calibration at
+**State:** `perf-rust-clean@752fa631d1` is the verified runtime and
+`perf-upstream@9de0511946` is the control. The memory calibration at
 `20261026T125500Z` passed. No performance candidate has been accepted, and
 no CPU work has started.
 
-The candidate full suite ran 50,158 tests with 9 failures and 2,771 skips.
-The failures are the three accepted D2 files: `test_ssl` (6 errors, 4
-failures), `test_support` (14 errors), and `test_unicodedata` (5 failures).
-The pristine control also had incidental `test_os` (2 failures) and
-`test_mailbox` (1 failure); focused reruns passed on both stages. Do not hide
-these full-run results or treat the D2 deviations as newly fixed.
+The current clean full suite ran 50,158 tests with 10 failures, 20 errors,
+and 2,771 skips. `test_ssl` had 6 errors and 4 failures. `test_support` had 14
+errors. Both remain the documented D2 deviations. `test_unicodedata` had 5
+failures from the known fork test-file mismatch after U2. `test_os` had one
+intermittent failure; its focused rerun passed.
 
-**Direction:** Finish all 71 module load and working-peak goals and every
-eligible workload RSS goal before starting CPU work. The fresh module report
-at `20261026T130556Z` has no output mismatches. It reports 17 OVER routes,
-13 UNCLEAR routes, 40 MET routes, and one BEYOND route.
+**Memory goals:** The complete report at `20261026T165808Z` found 10 OVER,
+21 UNCLEAR, and 40 MET routes. Rigorous reports at `20261026T164802Z` and
+`20261026T171308Z` resolved all 21 UNCLEAR routes. Rows with pooled medians
+above 1.01x count as OVER. The current map has 26 OVER and 45 MET routes.
 
-The OVER routes are `_strptime`, `base64`, `compression.zstd`, `contextlib`,
-`csv`, `datetime`, `hmac`, `html.parser`, `http.client`, `inspect`, `re`,
-`ssl`, `threading`, `tokenize`, `typing`, `urllib.request`, and `zlib`.
-The UNCLEAR routes are `binascii`, `collections`, `decimal`, `functools`,
-`ipaddress`, `marshal`, `multiprocessing`, `socket`, `sqlite3`, `struct`,
-`uuid`, `warnings`, and `xml.etree.ElementTree`. UNCLEAR rows remain open.
-`compression.zstd` has BEYOND load footprint and OVER working peak.
+The OVER routes are `_strptime`, `asyncio`, `binascii`, `bz2`, `collections`,
+`contextlib`, `datetime`, `decimal`, `fractions`, `functools`, `hmac`,
+`html.parser`, `http.client`, `ipaddress`, `marshal`, `re`, `socket`,
+`sqlite3`, `ssl`, `struct`, `threading`, `tokenize`, `typing`,
+`urllib.request`, `uuid`, and `xml.etree.ElementTree`.
 
-The latest complete absolute workload report remains `20261026T102759Z`. It
-has six RSS debts: startup, WSGI first request, WSGI request, ASGI request,
-ORM, and realistic template. All output digests matched. The ElementTree
-explore compared all observed workload guards with neutral results against
-the incumbent; it does not replace the complete absolute workload comparison
-needed to close the debts.
+**Workload RSS:** The complete report at `20261026T165458Z` leaves six debts.
+Startup is 1.047x. WSGI first request is 1.025x, and WSGI request is 1.015x.
+ASGI request is 1.013x. ORM and realistic template are both 1.015x. The other
+17 timed workloads are neutral or improved, with matching output digests.
+`compileall_source` remains untimed because its marshal output differs from
+control.
+
+**Latest batch:** Three memory candidates for `base64`, `ipaddress`, and
+`zlib` passed their combined focused suites (6,546 tests, 427 skips, 26
+files). The primary-path gate at `20261026T163934Z` was NEUTRAL. Load-footprint
+ratios for `base64`, `ipaddress`, and `zlib` were 0.946x, 0.977x, and 0.990x.
+Working-peak rows and all seven workload guards were neutral. No source change
+was accepted.
 
 The base64 direct-FFI attempt was blocked before suites or memory measurement:
 Cargo builds `_base64` as both a cdylib and an rlib dependency, and the
@@ -46,8 +49,8 @@ no-default-features cdylib requires a global allocator and panic handler. The
 route's direct-slice change and this no_std attempt produced no accepted
 candidate.
 
-The ElementTree bytes-sink candidate built cleanly and passed both XML suites
-(480 run, 12 skipped, no failures). Its replicated comparison against the
+The earlier ElementTree bytes-sink candidate built cleanly and passed both XML
+suites (480 run, 12 skipped, no failures). Its replicated comparison against the
 incumbent was neutral: load footprint 0.985 [0.933, 1.070], working peak
 1.015 [0.857, 1.492], with all observed workload guards neutral. Its
 single-module control-goal check remained OVER at 1.11x load and 1.47x working
@@ -58,14 +61,15 @@ and `rust-cpython/results/perf-bench/20261026T134037Z-goals-perf-upstream-vs-per
 The zstd profile showed libzstd frame processing but no memory-allocation
 hotspot. The proposed stream replacement would bypass the exact-size full
 frame path that avoids the decoder context window buffer, so the lane closed
-BLOCKED without a candidate. `compression.zstd` remains BEYOND for load
-footprint and OVER for working peak at 1.281x. Its profile is retained at
+BLOCKED without a candidate. The current goal report now puts
+`compression.zstd` within both memory ceilings. Its profile is retained at
 `rust-cpython/results/perf-profile/20261026T134144Z-perf-rust-module-compression_zstd-sample/report.txt`.
 
-The `collections` load goal was rechecked rigorously and remains OVER at
-1.688x [1.312, 2.000]; working peak is MET. A `no_std` direct-FFI change to
-`_collections_rs` built cleanly with 58 verified extensions and passed the
-seven assigned suites (666 run, 3 skipped), matching the incumbent. Its
+The earlier `collections` load check measured 1.688x [1.312, 2.000]. The
+current rigorous report measures 1.37x. Working peak remains MET. A `no_std`
+direct-FFI change to `_collections_rs` built cleanly with 58 verified
+extensions and passed the seven assigned suites (666 run, 3 skipped),
+matching the incumbent. Its
 replicated memory comparison was neutral: load footprint 1.118 [0.950, 1.363],
 working peak 1.000, and all seven workload guards were neutral with matching
 digests. The route sample reached `_collections_rs::subtract_iterable_method`
@@ -75,7 +79,7 @@ evidence are retained under `rust-cpython/results/perf-bench/20261026T134636Z-go
 `rust-cpython/results/perf-bench/20261026T140152Z-perf-rust-vs-perf-collections-memory/`,
 and `rust-cpython/results/perf-profile/20261026T134703Z-perf-rust-module-collections-sample/`.
 
-The accepted `perf-rust` stage passed the focused `test_audit` suite three
+The accepted `perf-rust-clean` stage passed the focused `test_audit` suite three
 consecutive times (33 run, 4 skipped each run); the deferred `_marshal_rs`
 import event did not recur. Its integrated six-suite marshal/importlib/compile
 run remains 1,602 run and 29 skipped. No candidate has been accepted, and no
