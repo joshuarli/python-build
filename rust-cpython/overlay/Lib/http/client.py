@@ -79,6 +79,8 @@ import sys
 import collections.abc
 from urllib.parse import urlsplit
 
+lazy import ssl
+
 try:
     import _http_client_rs as _rust_http_client
 except ImportError:
@@ -1525,42 +1527,37 @@ class HTTPConnection:
             response.close()
             raise
 
-try:
-    import ssl
-except ImportError:
-    pass
-else:
-    class HTTPSConnection(HTTPConnection):
-        "This class allows communication via SSL."
+class HTTPSConnection(HTTPConnection):
+    "This class allows communication via SSL."
 
-        default_port = HTTPS_PORT
+    default_port = HTTPS_PORT
 
-        def __init__(self, host, port=None,
-                     *, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
-                     source_address=None, context=None, blocksize=8192,
-                     max_response_headers=None):
-            super(HTTPSConnection, self).__init__(host, port, timeout,
-                                                  source_address,
-                                                  blocksize=blocksize,
-                                                  max_response_headers=max_response_headers)
-            if context is None:
-                context = _create_https_context(self._http_vsn)
-            self._context = context
+    def __init__(self, host, port=None,
+                 *, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+                 source_address=None, context=None, blocksize=8192,
+                 max_response_headers=None):
+        super(HTTPSConnection, self).__init__(host, port, timeout,
+                                              source_address,
+                                              blocksize=blocksize,
+                                              max_response_headers=max_response_headers)
+        if context is None:
+            context = _create_https_context(self._http_vsn)
+        self._context = context
 
-        def connect(self):
-            "Connect to a host on a given (SSL) port."
+    def connect(self):
+        "Connect to a host on a given (SSL) port."
 
-            super().connect()
+        super().connect()
 
-            if self._tunnel_host:
-                server_hostname = self._tunnel_host
-            else:
-                server_hostname = self.host
+        if self._tunnel_host:
+            server_hostname = self._tunnel_host
+        else:
+            server_hostname = self.host
 
-            self.sock = self._context.wrap_socket(self.sock,
-                                                  server_hostname=server_hostname)
+        self.sock = self._context.wrap_socket(self.sock,
+                                              server_hostname=server_hostname)
 
-    __all__.append("HTTPSConnection")
+__all__.append("HTTPSConnection")
 
 class HTTPException(Exception):
     # Subclasses that define an __init__ must call Exception.__init__
