@@ -6,25 +6,28 @@ Coverage D1 and upstream parity D2 remain accepted with documented deviations.
 ## Current checkpoint — 2026-10-26
 
 **Continue:** Clear the macOS memory goals before CPU work. The current map has
-26 module debts and six workload RSS debts.
+25 known module debts and six workload RSS debts.
 
-**State:** `perf-rust@cfc8c514` is the incumbent and
-`perf-upstream@9de0511946` is the control. Calibration `20261026T125500Z`
-passed. No CPU work has started.
+**State:** `main@9538f3f` contains the accepted `http.client` memory change.
+Use `perf-http-client-lazy-ssl-mem@9538f3f` as the next comparison baseline.
+The existing `perf-rust@cfc8c514` stage remains the `@incumbent` alias, and
+`perf-upstream@9de0511946` remains the control. Calibration
+`20261026T125500Z` passed. No CPU work has started.
 
-The last clean full-suite run recorded 50,158 tests, 10 failures, 20 errors,
-and 2,771 skips. `test_ssl` had 6 errors and 4 failures. `test_support` had 14
-errors. Those remain the accepted D2 deviations. `test_unicodedata` had 5
-failures from the fork test-file mismatch after U2. `test_os` had one
-intermittent failure, and its focused rerun passed.
+The latest full-suite runs each reported 50,158 tests, 9 failures, and 2,770
+skips. Only `test_ssl` (6 errors and 4 failures), `test_support` (14 errors),
+and `test_unicodedata` (5 failures) failed. These are the accepted D2
+deviations. `test_os` had one earlier intermittent failure; it did not recur.
 
 **Memory goals:** Reports `20261026T203158Z` and `20261026T204809Z` resolved
 the full 71-route map to 26 OVER and 45 MET or BEYOND, with no mismatches.
-The OVER routes are `_strptime`, `base64`, `collections`, `csv`, `decimal`,
-`functools`, `html.parser`, `ipaddress`, `marshal`, `re`, `socket`,
-`sqlite3`, `struct`, `typing`, `urllib.request`, `uuid`,
-`xml.etree.ElementTree`, `zipfile`, `zlib`, `ssl`, `hmac`, `datetime`,
-`http.client`, `threading`, `contextlib`, and `tokenize`.
+The accepted `http.client` stage now reads BEYOND on load and MET on working
+peak against control. The remaining 25 known OVER routes are `_strptime`,
+`base64`, `collections`, `csv`, `decimal`, `functools`, `html.parser`,
+`ipaddress`, `marshal`, `re`, `socket`, `sqlite3`, `struct`, `typing`,
+`urllib.request`, `uuid`, `xml.etree.ElementTree`, `zipfile`, `zlib`, `ssl`,
+`hmac`, `datetime`, `threading`, `contextlib`, and `tokenize`. The other
+70 routes retain the last complete map until the next full goal run.
 
 **Workload RSS:** Report `20261026T205702Z` leaves six debts. Startup is
 1.046x. Django WSGI first request is 1.023x, WSGI request is 1.015x, ASGI
@@ -60,6 +63,20 @@ Primary evidence is in
 `rust-cpython/results/perf-bench/20261026T224839Z-perf-rust-vs-perf-merge/`
 and
 `rust-cpython/results/perf-bench/20261026T225011Z-goals-perf-upstream-vs-perf-merge/`.
+
+**Batch 29:** Commit `9538f3f` defers `http.client`'s `ssl` import until TLS
+use. The retained primary stage built cleanly with 58 verified Rust
+extensions. Its full suite matched the accepted D2 deviations: 50,158 tests,
+9 failures, and 2,770 skips, with no new failing suite. The primary-path gate
+ACCEPTED load footprint at 0.463 [0.462, 0.469] and neutral working peak at
+1.000. All seven workload peak-RSS guards were neutral, and outputs matched.
+Against control, load is BEYOND at 0.65x (2,640/4,120 KiB) and working peak
+is MET at 1.00x (160/128 KiB). The accepted stage is
+`perf-http-client-lazy-ssl-mem`; `http.client` leaves the memory debt list.
+CPU was not measured. Evidence is in
+`rust-cpython/results/perf-bench/20261027T012140Z-perf-rust-vs-perf-http-client-lazy-ssl-mem/verdict.json`
+and
+`rust-cpython/results/perf-bench/20261027T012241Z-goals-perf-upstream-vs-perf-http-client-lazy-ssl-mem/verdict.json`.
 
 **Phase 4:** The accepted `_marshal_rs` stage passed `test_audit` three times
 in a row, with 33 tests and 4 skips each time. Its integrated marshal,
