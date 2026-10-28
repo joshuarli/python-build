@@ -1,32 +1,31 @@
 from __future__ import annotations
 
-import gzip
 import hashlib
 import json
 import os
-from pathlib import Path
 import runpy
 import shutil
 import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from buildsys.comparison import compare_completed_artifact
+from buildsys.deporder import dependency_order
+from buildsys.inputs import canonical_json, load_lock
 from buildsys.package import (
     ArchiveFacts,
     PackageError,
     archive_path_for,
     build_manifest,
-    create_archive,
     copy_product_tree,
+    create_archive,
     publish_files,
     qualify,
     validate_build_record,
     verify_archive_extraction,
 )
-from buildsys.inputs import canonical_json, load_lock
-from buildsys.deporder import dependency_order
 from buildsys.product import PRODUCT, Product
 from buildsys.targets import target_for_triple
 
@@ -351,15 +350,13 @@ class StagedBuildVerificationTests(unittest.TestCase):
             stdout='{"CFLAGS":"-O3"}\n',
             stderr="interpreter startup failed",
         )
-        with tempfile.TemporaryDirectory() as temporary:
-            with patch.dict(
-                verifier.__globals__,
-                {"run_product_process": Mock(return_value=probe)},
-            ):
-                with self.assertRaisesRegex(
-                    driver["PackagingError"], "interpreter could not report"
-                ):
-                    verifier(Path(temporary), {"effective_flags": {"CFLAGS": "-O3"}})
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(
+            verifier.__globals__,
+            {"run_product_process": Mock(return_value=probe)},
+        ), self.assertRaisesRegex(
+            driver["PackagingError"], "interpreter could not report"
+        ):
+            verifier(Path(temporary), {"effective_flags": {"CFLAGS": "-O3"}})
 
     def test_relocated_prefix_is_the_only_allowed_configuration_difference(self) -> None:
         driver = runpy.run_path(str(REPO / "build" / "package.py"))
@@ -456,9 +453,8 @@ class PublicationTests(unittest.TestCase):
                     raise OSError("injected publication failure")
                 return original_replace(source, destination)
 
-            with patch("buildsys.package.os.replace", side_effect=fail_during_publication):
-                with self.assertRaises(OSError):
-                    publish_files({archive: staged_archive, manifest: staged_manifest})
+            with patch("buildsys.package.os.replace", side_effect=fail_during_publication), self.assertRaises(OSError):
+                publish_files({archive: staged_archive, manifest: staged_manifest})
 
             self.assertEqual(archive.read_bytes(), b"accepted archive")
             self.assertEqual(manifest.read_bytes(), b"accepted manifest")
@@ -484,12 +480,11 @@ class PublicationTests(unittest.TestCase):
                     raise OSError("injected publication failure")
                 return original_replace(source, destination)
 
-            with patch("buildsys.package.os.replace", side_effect=fail_during_publication):
-                with self.assertRaises(OSError):
-                    publish_files({
-                        dist / "product.tar.gz": staged_archive,
-                        dist / "artifact.json": staged_manifest,
-                    })
+            with patch("buildsys.package.os.replace", side_effect=fail_during_publication), self.assertRaises(OSError):
+                publish_files({
+                    dist / "product.tar.gz": staged_archive,
+                    dist / "artifact.json": staged_manifest,
+                })
 
             self.assertTrue(dist.is_dir())
             self.assertEqual(list(dist.iterdir()), [])

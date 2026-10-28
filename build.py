@@ -19,8 +19,11 @@ from pathlib import Path
 from typing import NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from buildsys.targets import (  # noqa: E402
-    TARGETS, UnsupportedTargetError, docker_execution_mode, native_target,
+from buildsys.targets import (
+    TARGETS,
+    UnsupportedTargetError,
+    docker_execution_mode,
+    native_target,
 )
 
 SUPPORTED = set(TARGETS)
@@ -95,7 +98,8 @@ def _qualification_available(target=None) -> bool:
     if not shutil.which("docker"):
         return False
     probe = subprocess.run(
-        ["docker", "buildx", "version"], capture_output=True, timeout=30
+        ["docker", "buildx", "version"], capture_output=True, timeout=30,
+        check=False,
     )
     return probe.returncode == 0
 
@@ -144,7 +148,7 @@ def _macos_report(report: dict) -> None:
     clang = locked.llvm_prefix / "bin" / "clang"
     report["macos"]["clang"] = str(clang) if clang.is_file() else None
     report["macos"]["clang_reported"] = (
-        subprocess.run([str(clang), "--version"], capture_output=True, text=True)
+        subprocess.run([str(clang), "--version"], capture_output=True, text=True, check=False)
         .stdout.splitlines()[0] if clang.is_file() else None
     )
     profdata = locked.llvm_profdata
@@ -152,7 +156,7 @@ def _macos_report(report: dict) -> None:
         str(profdata) if profdata.is_file() else None
     )
     report["macos"]["llvm_profdata_reported"] = (
-        subprocess.run([str(profdata), "--version"], capture_output=True, text=True)
+        subprocess.run([str(profdata), "--version"], capture_output=True, text=True, check=False)
         .stdout.splitlines()[0] if profdata.is_file() else None
     )
 
@@ -187,14 +191,15 @@ def build(args: argparse.Namespace) -> int:
     if args.pgo_jobs is not None and not _NATIVE.is_macos:
         _fail("--pgo-jobs is only supported for the macOS PGO build")
     result = subprocess.run(
-        [sys.executable, "build/deps.py"], cwd=Path(__file__).parent
+        [sys.executable, "build/deps.py"], cwd=Path(__file__).parent,
+        check=False,
     )
     if result.returncode != 0:
         return result.returncode
     cpython_command = [sys.executable, "build/cpython.py"]
     if args.pgo_jobs is not None:
         cpython_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
-    return subprocess.run(cpython_command, cwd=Path(__file__).parent).returncode
+    return subprocess.run(cpython_command, cwd=Path(__file__).parent, check=False).returncode
 
 
 def qualify_linux(target: str) -> int:
@@ -202,7 +207,8 @@ def qualify_linux(target: str) -> int:
     if description.family != "linux-musl":
         _fail(f"target {target} does not use Linux container qualification")
     if not shutil.which("docker") or subprocess.run(
-        ["docker", "buildx", "version"], capture_output=True, timeout=30
+        ["docker", "buildx", "version"], capture_output=True, timeout=30,
+        check=False,
     ).returncode != 0:
         _fail("Linux qualification requires Docker Buildx")
     try:
@@ -236,6 +242,7 @@ def qualify_linux(target: str) -> int:
     fetch = subprocess.run(
         [sys.executable, "build/fetch.py", "--target", target],
         cwd=Path(__file__).parent,
+        check=False,
     )
     if fetch.returncode != 0:
         return fetch.returncode
@@ -260,7 +267,8 @@ def qualify_linux(target: str) -> int:
             ".",
         ]
         result = subprocess.run(
-            command, cwd=Path(__file__).parent, env=environment
+            command, cwd=Path(__file__).parent, env=environment,
+            check=False,
         )
         if result.returncode != 0:
             return result.returncode
@@ -340,6 +348,7 @@ def main(argv: list[str] | None = None) -> int:
         result = subprocess.run(
             [sys.executable, "build/fetch.py", "--target", args.target],
             cwd=Path(__file__).parent,
+            check=False,
         )
         return result.returncode
     if args.command == "build":
@@ -350,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
         result = subprocess.run(
             [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
             cwd=Path(__file__).parent,
+            check=False,
         )
         return result.returncode
     if args.command == "qualify":
@@ -365,24 +375,27 @@ def main(argv: list[str] | None = None) -> int:
         sealed_command = [sys.executable, "build/sealed.py"]
         if args.pgo_jobs is not None:
             sealed_command.extend(["--pgo-jobs", str(args.pgo_jobs)])
-        result = subprocess.run(sealed_command, cwd=Path(__file__).parent)
+        result = subprocess.run(sealed_command, cwd=Path(__file__).parent, check=False)
         if result.returncode != 0:
             return result.returncode
         result = subprocess.run(
             [sys.executable, "build/package.py", "--target", args.target],
             cwd=Path(__file__).parent,
+            check=False,
         )
         return result.returncode
     if args.command == "compare-reference":
         result = subprocess.run(
             [sys.executable, "build/compare.py", "--target", args.target],
             cwd=Path(__file__).parent,
+            check=False,
         )
         return result.returncode
     if args.command == "package":
         result = subprocess.run(
             [sys.executable, "build/package.py", "--target", args.target],
             cwd=Path(__file__).parent,
+            check=False,
         )
         return result.returncode
     if args.command == "reproduce":
@@ -397,6 +410,7 @@ def main(argv: list[str] | None = None) -> int:
             [sys.executable, "build/reproduce.py", "--target", args.target]
             + (["--pgo-jobs", str(args.pgo_jobs)] if args.pgo_jobs is not None else []),
             cwd=Path(__file__).parent,
+            check=False,
         )
         return result.returncode
     _fail(f"command not implemented: {args.command}")

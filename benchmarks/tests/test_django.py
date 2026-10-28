@@ -1,7 +1,7 @@
 """Focused contract tests for the deterministic Django macro workloads."""
 
-import importlib.util
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -12,7 +12,6 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DJANGO_AVAILABLE = importlib.util.find_spec("django") is not None

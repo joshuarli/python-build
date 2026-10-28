@@ -10,7 +10,6 @@ from catalog_service.ingest import from_mapping
 from catalog_service.model import CatalogEntry, EntryKind
 from catalog_service.normalize import content_identifier
 
-
 _TEXT_TYPES = frozenset({"text/markdown", "text/plain", "application/json"})
 
 

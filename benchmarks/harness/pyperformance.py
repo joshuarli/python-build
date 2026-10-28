@@ -11,20 +11,19 @@ replaces time samples with memory samples.
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass, replace
 import gzip
 import importlib
 import json
 import math
 import os
-from pathlib import Path
 import re
-from statistics import median
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
+from pathlib import Path
+from statistics import median
 from typing import Any, Literal
-
 
 PYPERFORMANCE_VERSION = "1.14.0"
 PYPERF_VERSION = "2.10.0"
@@ -1198,20 +1197,20 @@ def compare_pyperformance_runs(
 
 
 __all__ = [
-    "GROUPS",
-    "PYPERF_VERSION",
-    "PYPERFORMANCE_VERSION",
     "EXTERNAL_SOURCE_PATHS",
+    "GROUPS",
+    "PYPERFORMANCE_VERSION",
+    "PYPERF_VERSION",
     "UPSTREAM_EXCLUSIONS",
-    "BenchmarkSpec",
     "BenchmarkFailure",
+    "BenchmarkSpec",
     "PyPerformanceError",
     "PyperfBenchmark",
     "PyperfResult",
     "PyperformanceRun",
     "baseline_loop_counts",
-    "load_benchmarks",
     "compare_pyperformance_runs",
+    "load_benchmarks",
     "parse_raw_json",
     "run_pyperformance",
     "select_benchmarks",

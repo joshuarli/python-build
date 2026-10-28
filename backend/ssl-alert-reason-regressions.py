@@ -4,7 +4,6 @@ import ssl
 import threading
 import time
 
-
 EXPECTED = {
     40: (
         "SSLV3_ALERT_HANDSHAKE_FAILURE",

@@ -112,7 +112,7 @@ def linux_cpu_features(target=None) -> list[str]:
     feature_sets = [
         set(line.partition(":")[2].split())
         for line in Path("/proc/cpuinfo").read_text().splitlines()
-        if line.startswith("Features") or line.startswith("flags")
+        if line.startswith(("Features", "flags"))
     ]
     triple = target.triple if target is not None else LINUX_AARCH64_TRIPLE
     try:
@@ -427,6 +427,7 @@ def verify_pgo_build(source: Path, build_directory: Path, toolchain, env: dict[s
             text=True,
             env=env,
             timeout=120,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
         raise BuildError(f"locked LLVM could not inspect CPython PGO data: {error}") from error
@@ -499,10 +500,10 @@ def verify_base_prefix(prefix: Path, run_dir: Path) -> None:
             "-S",
             "-B",
             "-c",
-            "import importlib.util, sys; "
+            ("import importlib.util, sys; "
             "assert sys.version_info[:3] == (3, 15, 1); "
             "assert importlib.util.find_spec('_ssl') is None; "
-            "assert importlib.util.find_spec('_hashlib') is None",
+            "assert importlib.util.find_spec('_hashlib') is None"),
         ],
         cwd=run_dir,
         env={"HOME": str(run_dir / "home"), "TMPDIR": str(run_dir / "tmp"),
@@ -510,6 +511,7 @@ def verify_base_prefix(prefix: Path, run_dir: Path) -> None:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     if result.returncode:
         raise BuildError(
@@ -811,6 +813,7 @@ def fetch_rust_inputs(
             stdout=output,
             stderr=subprocess.PIPE,
             text=True,
+            check=False,
         )
     if result.returncode:
         raise BuildError(f"cannot archive pinned RTLS source: {result.stderr[-4000:]}")
@@ -857,6 +860,7 @@ def fetch_rust_inputs(
             env=environment,
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode:
             raise BuildError(
@@ -936,7 +940,8 @@ def build_rust_extension(
     rtls: bool,
     release: bool = False,
 ) -> Path:
-    from buildsys.recipes import BuildError as RecipeBuildError, run
+    from buildsys.recipes import BuildError as RecipeBuildError
+    from buildsys.recipes import run
 
     rustflags = rust_flags(target, rtls=rtls)
     environment = os.environ.copy()
@@ -1328,19 +1333,20 @@ def verify_overlay_prefix(prefix: Path, run_dir: Path, target) -> None:
             "-S",
             "-B",
             "-c",
-            "import hashlib, importlib.util, ssl, sys, _hashlib, _ssl; "
+            ("import hashlib, importlib.util, ssl, sys, _hashlib, _ssl; "
             f"assert sys.prefix == {str(prefix)!r}; "
             "assert _ssl.__file__.endswith('_ssl.py'); "
             "assert _ssl._RUSTLS_BACKEND is True; "
             "assert _hashlib.__file__.endswith('_hashlib.py'); "
             "assert importlib.util.find_spec('_hashlib_graviola') is not None; "
-            "assert ssl.SSLContext; assert hashlib.sha256(b'candidate').digest()",
+            "assert ssl.SSLContext; assert hashlib.sha256(b'candidate').digest()"),
         ],
         cwd=run_dir,
         env={"HOME": str(run_dir / "home"), "TMPDIR": str(run_dir / "tmp")},
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     if result.returncode:
         raise BuildError(
@@ -1390,14 +1396,15 @@ def verify_linux_overlay(prefix: Path, run_dir: Path, target) -> None:
             raise BuildError(f"candidate contains a nonrelative loader path: {image}")
     result = subprocess.run(
         [str(PRODUCT.interpreter(prefix)), "-I", "-S", "-B", "-c",
-         "import _ssl, _hashlib, ssl, hashlib, sys; "
+         ("import _ssl, _hashlib, ssl, hashlib, sys; "
          f"assert sys.prefix == {str(prefix)!r}; "
          "assert _ssl.__file__.endswith('_ssl.py') and _ssl._RUSTLS_BACKEND; "
          "assert _hashlib.__file__.endswith('_hashlib.py'); "
          "assert ssl.OPENSSL_VERSION.startswith('Rustls '); "
-         "assert hashlib.sha256(b'abc').hexdigest() == 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'"],
+         "assert hashlib.sha256(b'abc').hexdigest() == 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'")],
         cwd=run_dir, capture_output=True, text=True, timeout=30,
         env={"HOME": str(run_dir / "home"), "TMPDIR": str(run_dir / "tmp")},
+        check=False,
     )
     if result.returncode:
         raise BuildError(f"relocated Linux adapter validation failed: {result.stdout}{result.stderr}")
@@ -1521,7 +1528,6 @@ def run_linux(args, target, toolchain) -> int:
 def build_base(run_dir: Path, cache_root: Path, target, toolchain, *, pgo: bool) -> Path:
     from buildsys.bootstrap import lto_smoke_test
     from buildsys.inputs import Cache, InputError, load_lock
-    from buildsys.targets import native_target
 
     if target.triple not in {TARGET_TRIPLE, LINUX_AARCH64_TRIPLE, LINUX_X86_64_TRIPLE}:
         raise BuildError("this research build supports native arm64 and x86_64 only")
@@ -1699,9 +1705,7 @@ def main(argv: list[str] | None = None) -> int:
             run_dir = require_work_path(args.run_dir)
             target = native_target()
             cache_root = common_root / ".cache"
-            if args.phase == "base":
-                prefix = build_base(run_dir, cache_root, target, toolchain, pgo=args.pgo)
-            elif args.phase == "all":
+            if args.phase == "base" or args.phase == "all":
                 prefix = build_base(run_dir, cache_root, target, toolchain, pgo=args.pgo)
             elif args.phase == "overlay":
                 prefix = require_work_path(args.prefix)
@@ -1753,7 +1757,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise BuildError(f"candidate prefix does not exist: {prefix}")
         else:
             if args.prefix is not None:
-                raise BuildError(f"--prefix is only valid with --phase overlay")
+                raise BuildError("--prefix is only valid with --phase overlay")
             work_parent = REPO / ".work" / "tmp"
             work_parent.mkdir(parents=True, exist_ok=True)
             run_dir = require_work_path(

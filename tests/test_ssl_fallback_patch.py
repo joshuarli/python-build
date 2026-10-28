@@ -12,7 +12,6 @@ from pathlib import Path
 
 from buildsys.patches import apply_patch
 
-
 REPO = Path(__file__).resolve().parent.parent
 PATCH = REPO / "patches" / "package" / "0001-ssl-default-ca-bundle-fallback.patch"
 HARNESS = r"""

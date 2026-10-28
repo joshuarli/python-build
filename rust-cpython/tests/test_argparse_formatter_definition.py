@@ -5,7 +5,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 SOURCE = Path(__file__).resolve().parents[1] / "overlay" / "Lib" / "argparse.py"
 
 
@@ -23,6 +22,7 @@ class ArgparseFormatterDefinitionTests(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, "-I", "-S", "-B", "-c", loader + body],
             capture_output=True, text=True,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

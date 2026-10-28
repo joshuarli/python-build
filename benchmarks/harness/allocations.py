@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import json
 import os
-from collections import Counter
-from pathlib import Path
 import subprocess
 import tempfile
-from typing import Any, Mapping, Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
 
 from .process import ProcessResult, run_command
-
 
 _NATIVE_ORIGINS_SCRIPT = r'''
 import json
@@ -378,10 +378,10 @@ def run_allocation_pass(
         )
         process_stats = json.loads(process_stats_path.read_text(encoding="utf-8"))
         if not isinstance(process_stats, dict):
-            raise ValueError("Memray stats JSON must contain an object")
+            raise TypeError("Memray stats JSON must contain an object")
         metadata = process_stats.get("metadata") or {}
         if not isinstance(metadata, dict):
-            raise ValueError("Memray stats metadata must contain an object")
+            raise TypeError("Memray stats metadata must contain an object")
         if not native:
             native_report = {"status": "disabled", "origins": None}
         elif metadata.get("has_native_traces") is False:

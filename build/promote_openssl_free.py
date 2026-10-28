@@ -16,8 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from buildsys.targets import TARGETS  # noqa: E402
-from buildsys.uvmirror import (  # noqa: E402
+from buildsys.targets import TARGETS
+from buildsys.uvmirror import (
     UvMirrorError,
     record_runtime_container,
     validate_artifact,

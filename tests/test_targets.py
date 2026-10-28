@@ -4,8 +4,12 @@ from __future__ import annotations
 import unittest
 
 from buildsys.targets import (
-    MACOS, TARGETS, UnsupportedTargetError, docker_execution_mode,
-    native_target, target_for_triple,
+    MACOS,
+    TARGETS,
+    UnsupportedTargetError,
+    docker_execution_mode,
+    native_target,
+    target_for_triple,
 )
 
 LINUX_TRIPLES = ("x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl")

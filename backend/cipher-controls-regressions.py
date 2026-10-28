@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import socket
+import ssl
 import sysconfig
 import threading
 import unittest
 from pathlib import Path
 
-import ssl
 from rtls._ciphers import parse_cipher_string
-
 
 TEST_CERT = Path(sysconfig.get_path("stdlib")) / "test" / "certdata" / "keycert3.pem"
 TLS12_NAMES = {
@@ -51,7 +50,7 @@ def _handshake(client_selector: str, server_selector: str):
             with server_context.wrap_socket(connection, server_side=True) as tls:
                 server_result.append(("ok", tls.cipher()))
                 server_result.append(tls.recv(1))
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             server_result.append(("error", type(error).__name__, str(error)))
         finally:
             listener.close()
@@ -63,7 +62,7 @@ def _handshake(client_selector: str, server_selector: str):
         with client_context.wrap_socket(raw_socket, server_hostname="localhost") as tls:
             result = ("ok", tls.cipher())
             tls.sendall(b"x")
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         result = ("error", type(error).__name__, str(error))
     server.join(5)
     if server.is_alive():

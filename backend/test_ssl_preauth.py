@@ -1,8 +1,7 @@
 import socket
+import ssl
 import struct
 import unittest
-
-import ssl
 
 
 class PreHandshakeDataTests(unittest.TestCase):

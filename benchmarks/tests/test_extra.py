@@ -4,7 +4,6 @@ import contextlib
 import io
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -81,14 +80,12 @@ class ExtraWorkloadTests(unittest.TestCase):
         self.assertNotEqual(first_target, second_target)
 
     def test_pip_install_requires_exact_pins(self) -> None:
-        with patch.dict(os.environ, {"BENCH_PIP_PACKAGES": "Django>=6"}):
-            with self.assertRaisesRegex(extra.WorkloadError, "pinned as name==version"):
-                extra._pinned_packages()
+        with patch.dict(os.environ, {"BENCH_PIP_PACKAGES": "Django>=6"}), self.assertRaisesRegex(extra.WorkloadError, "pinned as name==version"):
+            extra._pinned_packages()
 
     def test_cli_rejects_zero_iterations(self) -> None:
-        with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as raised:
-                extra.main(["python_startup", "--iterations", "0"])
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            extra.main(["python_startup", "--iterations", "0"])
         self.assertEqual(raised.exception.code, 2)
 
 

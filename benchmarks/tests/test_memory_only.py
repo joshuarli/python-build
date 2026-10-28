@@ -1,13 +1,13 @@
 """Memory-only workloads require output and RSS evidence without timing evidence."""
 
-from copy import deepcopy
-from dataclasses import replace
 import json
 import sys
-from pathlib import Path
 import tempfile
-from types import SimpleNamespace
 import unittest
+from copy import deepcopy
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from benchmarks import bench
@@ -220,10 +220,9 @@ class MemoryOnlyTests(unittest.TestCase):
             return SimpleNamespace(cleanup_complete=True, remaining_pids=(), returncode=0,
                                    timed_out=False, stdout=json.dumps(payload).encode(), stderr=b"",
                                    memory={"peak_rss_bytes": 1000000, "samples": [{}]})
-        with tempfile.TemporaryDirectory() as temp, patch.object(runner, "run_command", side_effect=completed):
-            with self.assertRaisesRegex(RuntimeError, "correctness digest differs"):
-                runner.run_workload(workload, Path("/base"), Path("/cand"), profile="quick",
-                                    site_packages=None, output_dir=Path(temp), memory_only=True)
+        with tempfile.TemporaryDirectory() as temp, patch.object(runner, "run_command", side_effect=completed), self.assertRaisesRegex(RuntimeError, "correctness digest differs"):
+            runner.run_workload(workload, Path("/base"), Path("/cand"), profile="quick",
+                                site_packages=None, output_dir=Path(temp), memory_only=True)
 
     def test_noisy_memory_rounds_remain_unchanged(self):
         workload = Workload("zipimport_cold", "startup", "zlib", "import", 3, 1, noise_class="noisy")

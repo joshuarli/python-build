@@ -1,18 +1,17 @@
-from pathlib import Path
 import socket
 import tempfile
 import unittest
+from pathlib import Path
 
 from test.test_ssl import HOST, ThreadedEchoServer, testing_context
 
 
 def handshake(client_context, server_context, server_hostname):
     server = ThreadedEchoServer(context=server_context, chatty=False)
-    with server:
-        with client_context.wrap_socket(
-            socket.socket(), server_hostname=server_hostname
-        ) as client:
-            client.connect((HOST, server.port))
+    with server, client_context.wrap_socket(
+        socket.socket(), server_hostname=server_hostname
+    ) as client:
+        client.connect((HOST, server.port))
 
 
 class KeyLogClearTests(unittest.TestCase):

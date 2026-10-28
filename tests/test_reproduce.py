@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from buildsys.reproduce import compare_trees
 from buildsys.product import PRODUCT
+from buildsys.reproduce import compare_trees
 
 
 class CompareTreesTests(unittest.TestCase):

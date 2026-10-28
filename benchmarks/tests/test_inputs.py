@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from zipfile import ZipFile
 
 from benchmarks.harness.inputs import (
-    InputError,
     LINUX_CP315_LOCK_PATH,
     MACOS_CP315_LOCK_PATH,
     MACOS_CP316_LOCK_PATH,
+    InputError,
     fetch_inputs,
     load_lock,
     prepare_site,

@@ -32,7 +32,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .inputs import Input
+from .inputs import Input, InputError
 from .recipes import Toolchain
 
 
@@ -392,7 +392,7 @@ def load_linux_bootstrap(path: Path) -> LinuxBootstrap:
 
 def _run_output(command: list[str]) -> tuple[str, str | None]:
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         return "", str(error)
     output = (result.stdout + result.stderr).strip()
@@ -552,7 +552,7 @@ def load_macos_toolchain(path: Path) -> MacOSToolchain:
 
 def _tool_output(command: list[str]) -> str:
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         return f"<failed: {error}>"
     return (result.stdout + result.stderr).strip()
@@ -771,7 +771,8 @@ def lto_smoke_test(toolchain: Toolchain, workdir: Path) -> dict:
     ]
     for command, description in steps:
         result = subprocess.run(
-            command, capture_output=True, text=True, env=toolchain.env()
+            command, capture_output=True, text=True, env=toolchain.env(),
+            check=False,
         )
         if result.returncode != 0:
             raise BootstrapError(
@@ -792,7 +793,8 @@ def lto_smoke_test(toolchain: Toolchain, workdir: Path) -> dict:
         )
 
     run = subprocess.run(
-        [str(binary)], capture_output=True, text=True, env=toolchain.env()
+        [str(binary)], capture_output=True, text=True, env=toolchain.env(),
+        check=False,
     )
     if run.returncode != 0 or run.stdout.strip() != "42":
         raise BootstrapError(

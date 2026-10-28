@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from contextlib import redirect_stdout
-from datetime import datetime, timezone
 import io
 import json
-from subprocess import CompletedProcess
 import tempfile
 import unittest
-from types import SimpleNamespace
+from contextlib import redirect_stdout
+from datetime import UTC, datetime
 from pathlib import Path
+from subprocess import CompletedProcess
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from benchmarks import bench as benchmark_cli
@@ -116,7 +116,7 @@ class BaselineSnapshotTests(unittest.TestCase):
             run = self.make_run(Path(temp))
             snapshot = build_baseline_snapshot(
                 run,
-                recorded_at=datetime(2026, 9, 24, tzinfo=timezone.utc),
+                recorded_at=datetime(2026, 9, 24, tzinfo=UTC),
             )
 
         self.assertEqual(snapshot["schema_version"], 1)
@@ -183,10 +183,8 @@ class BaselineSnapshotTests(unittest.TestCase):
         def run(argv, **kwargs):
             return CompletedProcess(argv, 0, stdout=outputs.get(" ".join(argv), ""), stderr="")
 
-        with patch("benchmarks.bench.platform.system", return_value="Darwin"):
-            with patch("benchmarks.bench.platform.machine", return_value="arm64"):
-                with patch("benchmarks.bench.subprocess.run", side_effect=run):
-                    host = benchmark_cli._macos_host_provenance()
+        with patch("benchmarks.bench.platform.system", return_value="Darwin"), patch("benchmarks.bench.platform.machine", return_value="arm64"), patch("benchmarks.bench.subprocess.run", side_effect=run):
+            host = benchmark_cli._macos_host_provenance()
 
         self.assertEqual(host["macos_version"], "26.5.2")
         self.assertEqual(host["hardware_model"], "MacBookPro18,3")
@@ -216,14 +214,13 @@ class BaselineSnapshotTests(unittest.TestCase):
                 baseline_kind="custom",
                 candidate_kind="custom",
             )
-            with patch.object(benchmark_cli, "ROOT", root):
-                with patch("buildsys.targets.native_target") as native_target:
-                    native_target.return_value.triple = "aarch64-apple-darwin"
-                    with patch(
-                        "benchmarks.harness.inputs.resolve_pbs",
-                        return_value=SimpleNamespace(path=reference),
-                    ) as resolve_pbs:
-                        benchmark_cli._resolve_preset(args)
+            with patch.object(benchmark_cli, "ROOT", root), patch("buildsys.targets.native_target") as native_target:
+                native_target.return_value.triple = "aarch64-apple-darwin"
+                with patch(
+                    "benchmarks.harness.inputs.resolve_pbs",
+                    return_value=SimpleNamespace(path=reference),
+                ) as resolve_pbs:
+                    benchmark_cli._resolve_preset(args)
 
         self.assertEqual(args.baseline, str(reference))
         self.assertEqual(args.baseline_label, "Astral PBS 20260610")
@@ -290,12 +287,10 @@ class BaselineSnapshotTests(unittest.TestCase):
             root = Path(temp)
             run = self.make_run(root)
             benchmark_directory = root / "benchmarks"
-            with patch.object(benchmark_cli, "BENCH", benchmark_directory):
-                with patch.object(benchmark_cli, "_run_container", return_value=run):
-                    with redirect_stdout(io.StringIO()):
-                        status = benchmark_cli.main(
-                            ["run", "--baseline", "baseline", "--candidate", "candidate"]
-                        )
+            with patch.object(benchmark_cli, "BENCH", benchmark_directory), patch.object(benchmark_cli, "_run_container", return_value=run), redirect_stdout(io.StringIO()):
+                status = benchmark_cli.main(
+                    ["run", "--baseline", "baseline", "--candidate", "candidate"]
+                )
 
             snapshots = list((benchmark_directory / "baselines").glob("*.json"))
             saved = json.loads(snapshots[0].read_text())

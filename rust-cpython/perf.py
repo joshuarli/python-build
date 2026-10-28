@@ -35,7 +35,7 @@ import tempfile
 import time
 import tomllib
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ def _lane_build():
 lb = _lane_build()
 LaneError = lb.LaneError
 
-import perf_verdict  # noqa: E402  (lane directory is on sys.path via build.py)
+import perf_verdict
 
 CONTROL = "perf-upstream"
 INCUMBENT = "perf-rust"
@@ -138,7 +138,7 @@ def _paths(name: str, lane: Path = LANE) -> dict[str, Path]:
 
 
 def _git(*args: str, cwd: Path = LANE) -> str:
-    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise LaneError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout.strip()
@@ -247,7 +247,7 @@ def host_lease(kind: str, what: str, *, timings: dict[str, float] | None = None)
             fcntl.flock(turnstile, fcntl.LOCK_UN)
         holder.write_text(json.dumps({
             "pid": os.getpid(), "kind": kind, "what": what, "worktree": str(REPO),
-            "started": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "started": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }) + "\n")
         try:
             yield
@@ -259,13 +259,13 @@ def _cpu_idle_percent() -> float | None:
     # `top`'s first sample averages since boot; the next two each cover one
     # second, so a single-second blip does not decide quietness alone.
     result = subprocess.run(["/usr/bin/top", "-l", "3", "-n", "0", "-s", "1"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, check=False)
     matches = [float(value) for value in re.findall(r"CPU usage:.*?([\d.]+)% idle", result.stdout)]
     return sum(matches[1:]) / len(matches[1:]) if len(matches) >= 3 else None
 
 
 def _on_ac_power() -> bool | None:
-    result = subprocess.run(["/usr/bin/pmset", "-g", "batt"], capture_output=True, text=True)
+    result = subprocess.run(["/usr/bin/pmset", "-g", "batt"], capture_output=True, text=True, check=False)
     if result.returncode != 0:
         return None
     return "'AC Power'" in result.stdout
@@ -276,7 +276,7 @@ def _host_sample(min_idle: float, *, wait_seconds: float = 0) -> dict[str, Any]:
     while True:
         idle = _cpu_idle_percent()
         sample = {
-            "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "cpu_idle_percent": idle,
             "ac_power": _on_ac_power(),
             "load_average": list(os.getloadavg()),
@@ -1165,7 +1165,7 @@ def _gate_checks(baseline: dict[str, Any], candidate: dict[str, Any]) -> None:
         incumbent = baseline["report"]["git"]["commit"]
         challenger = candidate["report"]["git"]["commit"]
         result = subprocess.run(["git", "merge-base", "--is-ancestor", incumbent, challenger],
-                                cwd=LANE, capture_output=True)
+                                cwd=LANE, capture_output=True, check=False)
         if result.returncode != 0:
             raise LaneError(f"challenger {challenger[:10]} does not contain incumbent {incumbent[:10]}; "
                             "rebase on the incumbent commit and rebuild")
@@ -1242,7 +1242,7 @@ def _run_bench(baseline: dict[str, Any], candidate: dict[str, Any], workload: st
     log = output.with_suffix(".log")
     output.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w") as stream:
-        result = subprocess.run(command, cwd=REPO, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=REPO, stdout=stream, stderr=subprocess.STDOUT, check=False)
     if result.returncode != 0:
         if "correctness digest differs" in log.read_text(errors="replace"):
             return None
@@ -1273,7 +1273,7 @@ def _module_sample(python: Path, route: str, iterations: int, scratch: Path, *,
         launch = runtime_executable
     result = subprocess.run([str(launch), "-s", "-P", str(LANE / "perf_modules.py"), "measure", route,
                              "--iterations", str(iterations)],
-                            cwd=scratch, env=env, capture_output=True, text=True, timeout=900)
+                            cwd=scratch, env=env, capture_output=True, text=True, timeout=900, check=False)
     if result.returncode != 0:
         tail = (result.stderr.strip().splitlines() or ["no output"])[-1]
         raise LaneError(f"module kernel {route} failed under {python}: {tail}")
@@ -1391,7 +1391,7 @@ def _measure(*, baseline_ref: str, candidate_ref: str, workloads: list[str], mod
                                       baseline_executable=str(launches[0]),
                                       candidate_executable=str(launches[1]),
                                       executable_path_length=len(str(launches[0])))
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         slug = ("calibrate-" + baseline["name"] if self_compare
                 else f"{slug_prefix}{baseline['name']}-vs-{candidate['name']}")
         directory = LANE / "results" / "perf-bench" / f"{stamp}-{slug}"
@@ -1593,7 +1593,7 @@ def profile(*, ref: str, workload: str | None, module: str | None, tool: str, it
     if workload == "python_startup":
         tool = "importtime"
     side = resolve(ref)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     directory = LANE / "results" / "perf-profile" / f"{stamp}-{side['name']}-{workload}-{tool}"
     directory.mkdir(parents=True)
     python = str(side["python"])
@@ -1601,7 +1601,11 @@ def profile(*, ref: str, workload: str | None, module: str | None, tool: str, it
             tempfile.TemporaryDirectory(prefix="perf-profile-") as temp:
         site = None
         if spec.packages:
-            from benchmarks.harness.inputs import MACOS_CP316_LOCK_PATH, load_lock, prepare_site
+            from benchmarks.harness.inputs import (
+                MACOS_CP316_LOCK_PATH,
+                load_lock,
+                prepare_site,
+            )
 
             prepared = prepare_site(side["python"], Path(temp) / "site", groups={"django"},
                                     lock=load_lock(MACOS_CP316_LOCK_PATH))
@@ -1653,7 +1657,7 @@ def _print_sample(report: Path) -> None:
 
 def _profile_module(*, ref: str, route: str, tool: str, iterations: int | None, seconds: int) -> int:
     side = resolve(ref)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     slug = route.replace(".", "_")
     directory = LANE / "results" / "perf-profile" / f"{stamp}-{side['name']}-module-{slug}-{tool}"
     directory.mkdir(parents=True)

@@ -11,7 +11,6 @@ from pathlib import Path
 
 from benchmarks.workloads import tooling
 
-
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "benchmarks" / "workloads" / "fixtures" / "tooling"
 
@@ -75,8 +74,7 @@ class CompileallWorkloadTests(unittest.TestCase):
             ],
             cwd=ROOT,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
         )
         lines = completed.stdout.splitlines()
@@ -101,9 +99,9 @@ class CompileallWorkloadTests(unittest.TestCase):
                 "0",
             ],
             cwd=ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(completed.returncode, 2)
         self.assertIn("iterations must be positive", completed.stderr)

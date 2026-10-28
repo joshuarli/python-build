@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
-import tempfile
 from unittest.mock import patch
 
 from buildsys.sandbox import (
-    SandboxError, SealedRun, available, describe, network_boundary_selftest,
+    SandboxError,
+    SealedRun,
+    available,
+    describe,
+    network_boundary_selftest,
 )
 
 DARWIN = sys.platform == "darwin"
@@ -123,11 +127,10 @@ class BoundaryTests(unittest.TestCase):
     def test_malformed_profile_cannot_satisfy_boundary_check(self) -> None:
         if not available():
             self.skipTest("sandbox-exec is not present")
-        with tempfile.TemporaryDirectory() as temporary:
-            with patch.object(SealedRun, "profile", return_value="(version 1)\n("):
-                report = network_boundary_selftest(
-                    Path(sys.executable), Path(temporary)
-                )
+        with tempfile.TemporaryDirectory() as temporary, patch.object(SealedRun, "profile", return_value="(version 1)\n("):
+            report = network_boundary_selftest(
+                Path(sys.executable), Path(temporary)
+            )
         self.assertFalse(report["ok"])
         self.assertNotEqual(report["sandboxed_returncode"], 0)
 

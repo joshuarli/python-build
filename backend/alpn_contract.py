@@ -25,7 +25,7 @@ class AlpnContract(unittest.TestCase):
                         initial.set_alpn_protocols(["first"] if switch_context else ["second", "first"])
                         selected.set_alpn_protocols(["second", "first"])
                         if switch_context:
-                            initial.sni_callback = lambda connection, hostname, context: setattr(
+                            initial.sni_callback = lambda connection, hostname, context, selected=selected: setattr(
                                 connection, "context", selected
                             )
                         client_connection, server_connection = self.handshake(

@@ -3,7 +3,6 @@ import json
 import ssl
 from pathlib import Path
 
-
 CONTENT_HANDSHAKE = 22
 CONTENT_CHANGE_CIPHER_SPEC = 20
 CONTENT_HEADER = 0x100
@@ -33,7 +32,7 @@ def collect_handshake(certdata: Path, version: ssl.TLSVersion) -> dict:
     def callback(side):
         def record(connection, direction, protocol_version, content_type, message_type, data):
             if not isinstance(connection, ssl.SSLObject):
-                raise AssertionError(type(connection))
+                raise TypeError(type(connection))
             if direction not in {"read", "write"}:
                 raise AssertionError(direction)
             if type(data) is not bytes:

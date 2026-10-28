@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 TAG_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
@@ -17,7 +17,7 @@ def resolve_release_tag(
     checkout_sha: str,
     now: datetime | None = None,
 ) -> str:
-    tag = requested.strip() or (now or datetime.now(timezone.utc)).strftime("%Y%m%d")
+    tag = requested.strip() or (now or datetime.now(UTC)).strftime("%Y%m%d")
     if not TAG_PATTERN.fullmatch(tag):
         raise ValueError(f"invalid release tag: {tag!r}")
     if not SHA_PATTERN.fullmatch(github_sha):
@@ -43,7 +43,8 @@ def _git(*arguments: str) -> str:
 def _existing_tag_sha(tag: str) -> str | None:
     ref = f"refs/tags/{tag}"
     found = subprocess.run(
-        ["git", "show-ref", "--verify", "--quiet", ref], capture_output=True
+        ["git", "show-ref", "--verify", "--quiet", ref], capture_output=True,
+        check=False,
     )
     if found.returncode == 1:
         return None

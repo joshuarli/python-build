@@ -2,25 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
 import statistics
 import tempfile
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
-
 
 BASELINE_SCHEMA_VERSION = 1
 
 
 def _mapping(value: Any, where: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise ValueError(f"{where} must be a JSON object")
+        raise TypeError(f"{where} must be a JSON object")
     return value
 
 
@@ -248,7 +247,7 @@ def build_baseline_snapshot(
             recorded_at = None
     snapshot: dict[str, Any] = {
         "schema_version": BASELINE_SCHEMA_VERSION,
-        "recorded_at_utc": (recorded_at or datetime.now(timezone.utc)).isoformat(),
+        "recorded_at_utc": (recorded_at or datetime.now(UTC)).isoformat(),
         "comparison_role": "self_control_calibration" if reference.get("kind") == "self" else "interpreter_baseline",
         "source": {
             key: provenance.get(key)

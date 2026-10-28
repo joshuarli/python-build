@@ -1,8 +1,7 @@
 import os
 import socket
-import unittest
-
 import ssl
+import unittest
 
 
 class TLSProtocolModeTests(unittest.TestCase):

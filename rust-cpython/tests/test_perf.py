@@ -7,22 +7,21 @@ run no benchmarks, and never touch the real host lease.
 from __future__ import annotations
 
 import fcntl
-import itertools
-from contextlib import ExitStack, nullcontext
 import json
 import os
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from unittest import mock
 
 LANE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(LANE))
 
-import perf  # noqa: E402
-import perf_verdict as pv  # noqa: E402
-import builtin_modules  # noqa: E402
+import builtin_modules
+import perf
+import perf_verdict as pv
 
 
 def summary(wall_ci, *, wall_ratios=(1.0, 1.0, 1.0), cpu=None, status="pass", memory=None):
@@ -108,10 +107,10 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
             patch("_run_bench", side_effect=workload)
             patch("_measure_module", side_effect=module)
             patches.enter_context(mock.patch.object(pv, "run_observation", side_effect=lambda x, **kw: x))
-            arguments = dict(baseline_ref="@incumbent", candidate_ref="@control",
-                             workloads=["first", "tail"], modules=["json", "csv"], gate=False,
-                             runs=len(classes), profile="standard", timing_only=False, min_idle=0,
-                             self_compare=False, record_baselines=False, memory_only=True)
+            arguments = {"baseline_ref": "@incumbent", "candidate_ref": "@control",
+                             "workloads": ["first", "tail"], "modules": ["json", "csv"], "gate": False,
+                             "runs": len(classes), "profile": "standard", "timing_only": False, "min_idle": 0,
+                             "self_compare": False, "record_baselines": False, "memory_only": True}
             arguments.update(options)
             try:
                 record = perf._measure(**arguments)
@@ -143,11 +142,11 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         self.assertEqual(record["decision"]["mismatches"], ["tail"])
 
     def test_control_comparison_omits_incomplete_absolute_goals(self):
-        record, calls = self.measure(baseline_ref="@control", candidate_ref="@incumbent")
+        record, _calls = self.measure(baseline_ref="@control", candidate_ref="@incumbent")
         self.assertEqual(record["decision"]["decision"], pv.REJECT)
         self.assertEqual(record["goals"], {})
         self.assertEqual(record["incomplete_entities"], ["tail", "json", "csv"])
-        record, calls = self.measure(bad_module=True, baseline_ref="@control",
+        record, _calls = self.measure(bad_module=True, baseline_ref="@control",
                                      candidate_ref="@incumbent")
         self.assertEqual(record["decision"]["decision"], pv.REJECT)
         self.assertEqual(set(record["goals"]), {"json"})
@@ -169,7 +168,7 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         expected = [("workload", "first"), ("workload", "tail")] * 2
         expected += [("calibrate", "json"), ("calibrate", "csv")]
         expected += [("module", "json"), ("module", "csv")] * 2
-        record, calls = self.measure(("neutral", "neutral"), expected_events=expected)
+        record, _calls = self.measure(("neutral", "neutral"), expected_events=expected)
         self.assertTrue(record["sampling_complete"])
         self.assertEqual(record["incomplete_entities"], [])
         self.assertEqual(record["module_iterations"], {"json": 37, "csv": 37})
@@ -484,16 +483,15 @@ class WorkloadProfileTests(unittest.TestCase):
             for stage in stages:
                 stage.mkdir()
                 (stage / "marker").write_text("same")
-            with self.assertRaisesRegex(RuntimeError, "stop"):
-                with perf._runtime_prefix_aliases(*stages) as homes:
-                    self.assertEqual(homes[0].parent.parent, perf.SCRATCH)
-                    self.assertEqual(len(str(homes[0])), len(str(homes[1])))
-                    self.assertNotEqual(homes[0], homes[1])
-                    for home, stage in zip(homes, stages):
-                        self.assertEqual(home.resolve(), stage.resolve())
-                        self.assertEqual((home / "marker").stat().st_ino,
-                                         (stage / "marker").stat().st_ino)
-                    raise RuntimeError("stop")
+            with self.assertRaisesRegex(RuntimeError, "stop"), perf._runtime_prefix_aliases(*stages) as homes:
+                self.assertEqual(homes[0].parent.parent, perf.SCRATCH)
+                self.assertEqual(len(str(homes[0])), len(str(homes[1])))
+                self.assertNotEqual(homes[0], homes[1])
+                for home, stage in zip(homes, stages):
+                    self.assertEqual(home.resolve(), stage.resolve())
+                    self.assertEqual((home / "marker").stat().st_ino,
+                                     (stage / "marker").stat().st_ino)
+                raise RuntimeError("stop")
             self.assertTrue(all(not home.exists() for home in homes))
             self.assertTrue(all(stage.exists() for stage in stages))
 
@@ -905,8 +903,8 @@ class CPlacementIncrementalTests(unittest.TestCase):
                 ('@MODULE__STRUCT_TRUE@', '_struct', '_struct.c',
                  '# Keep the original C module in the interpreter and restore the configured mode.\n'),
                 ('@MODULE_BINASCII_TRUE@', 'binascii', 'binascii.c',
-                 '# Keep the original C module in the interpreter while preserving its optional\n'
-                 '# configuration and restoring the configured mode for subsequent modules.\n')):
+                 ('# Keep the original C module in the interpreter while preserving its optional\n'
+                 '# configuration and restoring the configured mode for subsequent modules.\n'))):
             row = f'{guard}{name} {source}\n'
             original = ('*@MODULE_BUILDTYPE@*\n' + row + '@MODULE_ARRAY_TRUE@array arraymodule.c\n').encode()
             wrapped = ('*@MODULE_BUILDTYPE@*\n' + comment + guard + '*static*\n' + row +
@@ -1551,11 +1549,10 @@ class LeaseTests(unittest.TestCase):
 
     def test_wait_timing_covers_only_lock_acquisition(self):
         timings = {}
-        with mock.patch.object(perf.time, "monotonic", side_effect=[10.0, 16.5]):
-            with perf.host_lease("measure", "bench", timings=timings):
-                self.assertEqual(timings, {"lease_wait": 6.5})
-                self.assertFalse(self._try("host.lock", fcntl.LOCK_SH))
-                self.assertFalse(self._try("turnstile.lock", fcntl.LOCK_EX))
+        with mock.patch.object(perf.time, "monotonic", side_effect=[10.0, 16.5]), perf.host_lease("measure", "bench", timings=timings):
+            self.assertEqual(timings, {"lease_wait": 6.5})
+            self.assertFalse(self._try("host.lock", fcntl.LOCK_SH))
+            self.assertFalse(self._try("turnstile.lock", fcntl.LOCK_EX))
         self.assertTrue(self._try("host.lock", fcntl.LOCK_EX))
 
     def test_builds_share_and_block_measurement(self):
@@ -1589,7 +1586,7 @@ class SelectionTests(unittest.TestCase):
     def test_every_checklist_route_has_a_kernel(self):
         text = (LANE.parent / "rust-for-cpython.md").read_text()
         import re
-        routes = re.findall(r"^- \[x\] `([^`]+)`", text, re.M)
+        routes = re.findall(r"^- \[x\] `([^`]+)`", text, re.MULTILINE)
         self.assertEqual(len(routes), 71)
         self.assertEqual(sorted(routes), sorted(perf.module_routes()))
 

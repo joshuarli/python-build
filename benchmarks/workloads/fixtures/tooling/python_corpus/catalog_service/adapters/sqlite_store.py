@@ -9,7 +9,6 @@ from pathlib import Path
 from catalog_service.codec import decode_entry, encode_entry
 from catalog_service.model import CatalogEntry
 
-
 _SCHEMA_VERSION = 2
 _CREATE_ENTRIES = """
 CREATE TABLE IF NOT EXISTS catalog_entries (

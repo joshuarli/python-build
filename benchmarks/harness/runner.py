@@ -15,13 +15,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-from benchmarks.harness.process import (
-    CGROUP_TREE_CPU_COVERAGE, LINUX_ROOT_CPU_COVERAGE,
-    MAC_REAPED_CPU_COVERAGE, run_command,
-)
 from benchmarks.harness.environment import interpreter_environment
+from benchmarks.harness.process import (
+    CGROUP_TREE_CPU_COVERAGE,
+    LINUX_ROOT_CPU_COVERAGE,
+    MAC_REAPED_CPU_COVERAGE,
+    run_command,
+)
 from benchmarks.workloads.registry import Workload
-
 
 PROFILE_ROUNDS = {
     "quick": (2, 2),
@@ -85,7 +86,7 @@ def _measurement_payload(stdout: str, workload: Workload, iterations: int) -> di
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"{workload.name}: invalid correctness payload: {lines[-1]!r}") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("operation_count"), int):
-        raise RuntimeError(f"{workload.name}: missing operation count")
+        raise RuntimeError(f"{workload.name}: missing operation count")  # noqa: TRY004
     if payload["operation_count"] < iterations or not isinstance(payload.get("digest"), str):
         raise RuntimeError(f"{workload.name}: failed correctness payload")
     if not payload["digest"]:
@@ -149,7 +150,7 @@ def _memory_dict(value: Any) -> dict[str, Any]:
     if dataclasses.is_dataclass(value):
         value = dataclasses.asdict(value)
     if not isinstance(value, dict):
-        raise RuntimeError("memory sampler returned unexpected type")
+        raise TypeError("memory sampler returned unexpected type")
     return {
         "peak_pss": value.get("peak_pss_bytes"),
         "peak_rss": value.get("peak_rss_bytes"),

@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -23,16 +22,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from buildsys.bootstrap import (  # noqa: E402
-    BootstrapError, load_macos_toolchain, problems,
+from buildsys.bootstrap import (
+    BootstrapError,
+    load_macos_toolchain,
+    problems,
 )
-from buildsys.inputs import Cache, InputError  # noqa: E402
-from buildsys.llvm import (  # noqa: E402
+from buildsys.inputs import Cache, InputError
+from buildsys.llvm import (
     extract_llvm_archive,
     verify_llvm_attestation_metadata,
 )
-from buildsys.sandbox import SealedRun, available, describe, network_boundary_selftest  # noqa: E402
-from buildsys.targets import UnsupportedTargetError, native_target  # noqa: E402
+from buildsys.sandbox import SealedRun, available, describe, network_boundary_selftest
+from buildsys.targets import UnsupportedTargetError, native_target
 
 
 def _positive_int(value: str) -> int:

@@ -6,13 +6,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from buildsys.targets import TARGETS, native_target  # noqa: E402
+from buildsys.targets import TARGETS, native_target
 
 
 class CLITests(unittest.TestCase):
     def invoke(self, *args):
         return subprocess.run([sys.executable, str(ROOT / 'build.py'), *args],
-                              cwd=ROOT, text=True, capture_output=True)
+                              cwd=ROOT, text=True, capture_output=True, check=False)
 
     def test_unsupported_target_fails_before_building(self):
         result = self.invoke('build', '--target', 'riscv64-unknown-linux-musl')

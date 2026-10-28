@@ -29,34 +29,39 @@ LANE = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(LANE))
 
-import lane_linux  # noqa: E402
-from buildsys import macho  # noqa: E402
-from buildsys.bootstrap import (  # noqa: E402
+import lane_linux
+
+from buildsys import macho
+from buildsys.bootstrap import (
     BootstrapError,
     load_macos_toolchain,
-    problems as toolchain_problems,
     sdk_version,
 )
-from buildsys.inputs import (  # noqa: E402
+from buildsys.bootstrap import (
+    problems as toolchain_problems,
+)
+from buildsys.inputs import (
     Cache,
     Input,
     InputError,
     load_lock,
     safe_extract,
 )
-from buildsys.llvm import (  # noqa: E402
+from buildsys.llvm import (
     LINUX_X86_64_LAYOUT,
     MACOS_AARCH64_LAYOUT,
     extract_llvm_archive,
     verify_llvm_attestation_metadata,
 )
-from buildsys.sandbox import (  # noqa: E402
-    SealedRun,
+from buildsys.sandbox import (
     SandboxError,
-    available as sandbox_available,
+    SealedRun,
     network_boundary_selftest,
 )
-from buildsys.targets import target_for_triple  # noqa: E402
+from buildsys.sandbox import (
+    available as sandbox_available,
+)
+from buildsys.targets import target_for_triple
 
 MACOS_TARGET = "aarch64-apple-darwin"
 LINUX_TARGET = lane_linux.TARGET
@@ -259,6 +264,7 @@ def _command(
     try:
         result = subprocess.run(
             argv, capture_output=True, text=True, env=env, timeout=timeout,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
         return {"argv": argv, "returncode": None, "output": str(error)}
@@ -562,6 +568,7 @@ def _require_nightly() -> str:
         capture_output=True,
         text=True,
         env=env,
+        check=False,
     )
     if result.returncode != 0:
         raise LaneError(
@@ -800,7 +807,8 @@ def _run_logged(
         return sealed.run(argv, cwd=cwd, env=env, log=log)
     with log.open("w") as output:
         return subprocess.run(
-            argv, cwd=cwd, env=env, stdout=output, stderr=subprocess.STDOUT
+            argv, cwd=cwd, env=env, stdout=output, stderr=subprocess.STDOUT,
+            check=False,
         )
 
 
@@ -918,7 +926,7 @@ def _platform_flags(toolchain, target, prefix: Path | None = None) -> dict[str, 
     if prefix is None:
         prefix = STAGE
     if IS_LINUX:
-        flags = " ".join(("-O0", "-g3", target.cpu_baseline_cflag, "-fPIC"))
+        flags = f"-O0 -g3 {target.cpu_baseline_cflag} -fPIC"
         return {
             "CFLAGS": flags,
             "CXXFLAGS": flags,
@@ -977,7 +985,7 @@ def _sealed_sandbox():
     return sandbox
 
 
-def _linux_sandbox() -> "lane_linux.SealedRun":
+def _linux_sandbox() -> lane_linux.SealedRun:
     sandbox = lane_linux.SealedRun(write_paths=[LANE], home=LANE / ".home")
     try:
         proof = lane_linux.network_boundary_selftest(Path(sys.executable), WORK / "sandbox-probe")
@@ -1100,6 +1108,7 @@ print(json.dumps({
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
     if result.returncode != 0:
         raise LaneError(
@@ -1167,6 +1176,7 @@ def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     ]
     result = subprocess.run(
         command, cwd=source, env=env, capture_output=True, text=True, timeout=120,
+        check=False,
     )
     if result.returncode != 0:
         raise LaneError(f"cargo metadata failed: {(result.stderr or result.stdout).strip()}")

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import socket
+import ssl
 import sysconfig
 import unittest
 from pathlib import Path
 
-import ssl
 from test.test_ssl import HOST, ThreadedEchoServer
-
 
 TLS13_AES128 = "TLS_AES_128_GCM_SHA256"
 TLS13_AES256 = "TLS_AES_256_GCM_SHA384"
@@ -32,13 +31,12 @@ def _context(server_side: bool, version: ssl.TLSVersion) -> ssl.SSLContext:
 
 def _negotiate(client_context: ssl.SSLContext, server_context: ssl.SSLContext):
     server = ThreadedEchoServer(context=server_context, chatty=False)
-    with server:
-        with client_context.wrap_socket(socket.socket()) as connection:
-            try:
-                connection.connect((HOST, server.port))
-            except ssl.SSLError as error:
-                return error
-            return connection.cipher()
+    with server, client_context.wrap_socket(socket.socket()) as connection:
+        try:
+            connection.connect((HOST, server.port))
+        except ssl.SSLError as error:
+            return error
+        return connection.cipher()
 
 
 class CipherSuiteControlTests(unittest.TestCase):

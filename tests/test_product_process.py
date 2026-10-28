@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from buildsys.product_process import product_environment, run_product_process
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRATCH_ROOT = ROOT / ".work" / "tmp"
 
@@ -133,25 +132,23 @@ class ProductProcessTests(unittest.TestCase):
             run_product_process([], self.install, self.cwd, timeout_seconds=1)
 
         for timeout in (0, -1, float("nan"), float("inf"), True, "1"):
-            with self.subTest(timeout=timeout):
-                with self.assertRaises(ValueError):
-                    run_product_process(
-                        ["/usr/bin/env"],
-                        self.install,
-                        self.cwd,
-                        timeout_seconds=timeout,
-                    )
+            with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                run_product_process(
+                    ["/usr/bin/env"],
+                    self.install,
+                    self.cwd,
+                    timeout_seconds=timeout,
+                )
 
         for executable, error in (("", ValueError), (object(), TypeError)):
-            with self.subTest(executable=executable):
-                with self.assertRaises(error):
-                    run_product_process(
-                        ["/dev/null"],
-                        self.install,
-                        self.cwd,
-                        executable=executable,
-                        timeout_seconds=1,
-                    )
+            with self.subTest(executable=executable), self.assertRaises(error):
+                run_product_process(
+                    ["/dev/null"],
+                    self.install,
+                    self.cwd,
+                    executable=executable,
+                    timeout_seconds=1,
+                )
 
     def test_runner_propagates_launch_and_timeout_errors(self) -> None:
         with self.assertRaises(FileNotFoundError):

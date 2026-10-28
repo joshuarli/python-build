@@ -8,6 +8,12 @@ BENCH_PYPERFORMANCE_SELECTION ?= all
 BENCH_PYPERFORMANCE_ARGS = $(if $(strip $(BENCH_PYPERFORMANCE_SELECTION)),--pyperformance-selection $(BENCH_PYPERFORMANCE_SELECTION),)
 
 .PHONY: bench bench-full bench-host-check bench-inputs bench-product
+.PHONY: lint
+
+RUFF_VERSION ?= 0.17.3
+
+lint:
+	uvx "ruff@$(RUFF_VERSION)" check . --exclude rust-cpython/overlay --exclude .work
 
 ifeq ($(BENCH_TARGET),aarch64-apple-darwin)
 # The locked wheelhouse is Linux/musl-only; macOS uses dependency-free smoke workloads.

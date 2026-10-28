@@ -23,25 +23,32 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from buildsys import macho  # noqa: E402
-from buildsys.bootstrap import (  # noqa: E402
-    BootstrapError, load_macos_toolchain, toolchain_for,
+from buildsys import macho
+from buildsys.bootstrap import (
+    BootstrapError,
+    load_macos_toolchain,
+    toolchain_for,
 )
-from buildsys.cpython import (  # noqa: E402
-    configuration, resolve_build_jobs, resolve_pgo_jobs,
+from buildsys.cpython import (
+    configuration,
+    resolve_build_jobs,
+    resolve_pgo_jobs,
 )
-from buildsys.deporder import dependency_order  # noqa: E402
-from buildsys.inputs import Cache, InputError, load_lock, safe_extract  # noqa: E402
-from buildsys.product import PRODUCT  # noqa: E402
-from buildsys.product_process import run_product_process  # noqa: E402
-from buildsys.patches import PatchError, apply_patch_set  # noqa: E402
-from buildsys.recipes import BuildError, run  # noqa: E402
-from buildsys.relocate import RelocationError, macho_relocate, relocate  # noqa: E402
+from buildsys.deporder import dependency_order
+from buildsys.inputs import Cache, InputError, load_lock, safe_extract
+from buildsys.patches import PatchError, apply_patch_set
+from buildsys.product import PRODUCT
+from buildsys.product_process import run_product_process
+from buildsys.recipes import BuildError, run
+from buildsys.relocate import RelocationError, macho_relocate, relocate
 from buildsys.scope import (
-    ScopeError, enforce_exclusions, enforced_module_names, probe_in_process,
+    ScopeError,
+    enforce_exclusions,
+    enforced_module_names,
+    probe_in_process,
     verify_exclusions,
-)  # noqa: E402
-from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
+)
+from buildsys.targets import Target, UnsupportedTargetError, native_target
 
 CONFIGURE_PREFIX = "/install"
 JOBS = str(resolve_build_jobs())
@@ -52,6 +59,7 @@ def _tool_version(command: str, env: dict[str, str]) -> str:
         result = subprocess.run(
             [command, "--version"], capture_output=True, text=True,
             env=env, timeout=30,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as error:
         raise BuildError(f"cannot identify build tool {command}: {error}") from error
@@ -259,9 +267,9 @@ def build(
 
     effective_flags = run_product_process(
         [str(PRODUCT.interpreter(install)), "-I", "-B", "-c",
-         "import json,sysconfig; print(json.dumps({key: sysconfig.get_config_var(key) "
+         ("import json,sysconfig; print(json.dumps({key: sysconfig.get_config_var(key) "
          "for key in ('CFLAGS','CFLAGS_NODIST','PY_CFLAGS','PY_CFLAGS_NODIST',"
-         "'LDFLAGS','LTOFLAGS','CONFIG_ARGS')}))"],
+         "'LDFLAGS','LTOFLAGS','CONFIG_ARGS')}))")],
         install,
         build_directory,
         timeout_seconds=30,

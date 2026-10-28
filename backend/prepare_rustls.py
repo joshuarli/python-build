@@ -4,11 +4,11 @@ import argparse
 import hashlib
 import os
 import re
-import tempfile
-from pathlib import Path, PurePosixPath
 import subprocess
 import tarfile
+import tempfile
 import urllib.request
+from pathlib import Path, PurePosixPath
 
 RUSTLS_VERSION = "0.23.45"
 RUSTLS_ARCHIVE_SHA256 = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"

@@ -25,12 +25,12 @@ import textwrap
 from pathlib import Path
 
 from . import macho
+from .bootstrap import load_macos_toolchain
 from .package import copy_product_tree
 from .product import PRODUCT
 from .product_process import product_environment, run_product_process
 from .relocate import stale_sysconfig_values
 from .scope import probe_in_process, verify_exclusions
-from .bootstrap import load_macos_toolchain
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -71,7 +71,7 @@ class ValidationError(Exception):
 
 
 def _run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(command, capture_output=True, text=True, **kwargs)
+    return subprocess.run(command, capture_output=True, text=True, **kwargs, check=False)
 
 
 def _product_run(
@@ -1161,7 +1161,7 @@ def run_validation(install: Path, workdir: Path, target) -> dict:
     def record(name: str, function, *args) -> None:
         try:
             checks[name] = function(*args)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             checks[name] = {
                 "ok": False,
                 "error_type": type(error).__name__,

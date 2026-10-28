@@ -51,7 +51,7 @@ def supported_host() -> bool:
 
 def _tool_output(argv: list[str]) -> str:
     try:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         return str(error)
     return (result.stdout + result.stderr).strip()
@@ -78,6 +78,7 @@ def _dpkg_versions(packages: list[str]) -> dict[str, str]:
     result = subprocess.run(
         [dpkg, "-W", "-f=${Package}=${Version}\\n", *names],
         capture_output=True, text=True,
+        check=False,
     )
     found: dict[str, str] = {}
     for line in result.stdout.splitlines():
@@ -197,7 +198,7 @@ class LinuxToolchain:
         env.pop("LD", None)
         return env
 
-    def toolchain(self) -> "LinuxToolchain":
+    def toolchain(self) -> LinuxToolchain:
         """Match `MacOSToolchain.toolchain().env()` call sites."""
         return self
 
@@ -381,6 +382,7 @@ def provision_icu_runtime(toolchain: LinuxToolchain, deb: Path) -> Path:
             ["tar", "-x", "-C", str(staged), "--no-same-owner",
              *[f"./{member}" for member in members]],
             stdin=fsys.stdout, capture_output=True, text=True,
+            check=False,
         )
         assert fsys.stdout is not None
         fsys.stdout.close()
@@ -483,8 +485,8 @@ class SealedRun:
             log.parent.mkdir(parents=True, exist_ok=True)
             with log.open("w") as out:
                 return subprocess.run(full, cwd=cwd, env=env, stdout=out,
-                                      stderr=subprocess.STDOUT)
-        return subprocess.run(full, cwd=cwd, env=env, capture_output=True, text=True)
+                                      stderr=subprocess.STDOUT, check=False)
+        return subprocess.run(full, cwd=cwd, env=env, capture_output=True, text=True, check=False)
 
 
 _PROBE = """
@@ -524,7 +526,7 @@ def network_boundary_selftest(python: Path, workdir: Path) -> dict[str, Any]:
     thread = threading.Thread(target=accept_loop, daemon=True)
     thread.start()
     outside = subprocess.run([str(python), str(probe), str(port)],
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, check=False)
     sealed = SealedRun(write_paths=[workdir], home=workdir / "home")
     inside = sealed.run([str(python), str(probe), str(port)], cwd=workdir,
                         env=sealed.environment())
@@ -556,7 +558,7 @@ def describe() -> dict[str, str]:
 
 def _readelf(toolchain: LinuxToolchain, *arguments: str) -> str:
     readelf = toolchain.llvm_prefix / "bin" / "llvm-readelf"
-    result = subprocess.run([str(readelf), *arguments], capture_output=True, text=True)
+    result = subprocess.run([str(readelf), *arguments], capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise LinuxHostError(f"llvm-readelf {' '.join(arguments)} failed: {result.stderr.strip()}")
     return result.stdout
@@ -578,7 +580,7 @@ def elf_dynamic(toolchain: LinuxToolchain, path: Path) -> dict[str, list[str]]:
 def elf_defined_symbols(toolchain: LinuxToolchain, path: Path) -> list[str]:
     nm = toolchain.llvm_prefix / "bin" / "llvm-nm"
     result = subprocess.run([str(nm), "-g", "--defined-only", str(path)],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise LinuxHostError(f"llvm-nm failed on {path}: {result.stderr.strip()}")
     return [line.split()[-1] for line in result.stdout.splitlines() if line.split()]
@@ -605,7 +607,7 @@ def _git_archive(input_: Input, workdir: Path) -> Path:
         ["git", "init", "-q", str(repository)],
         ["git", "-C", str(repository), "fetch", "-q", "--depth", "1", remote, commit],
     ):
-        result = subprocess.run(argv, capture_output=True, text=True, env=git_env, timeout=1800)
+        result = subprocess.run(argv, capture_output=True, text=True, env=git_env, timeout=1800, check=False)
         if result.returncode != 0:
             raise InputError(f"{input_.name}: {' '.join(argv[:4])} failed: {result.stderr.strip()}")
     output = workdir / "archive.tar.gz"
@@ -615,7 +617,7 @@ def _git_archive(input_: Input, workdir: Path) -> Path:
              f"--prefix={match['repo']}-{commit}/", commit],
             stdout=subprocess.PIPE, env=git_env,
         )
-        gzip = subprocess.run(["gzip", "-n", "-c"], stdin=archive.stdout, stdout=handle)
+        gzip = subprocess.run(["gzip", "-n", "-c"], stdin=archive.stdout, stdout=handle, check=False)
         assert archive.stdout is not None
         archive.stdout.close()
         if archive.wait() != 0 or gzip.returncode != 0:

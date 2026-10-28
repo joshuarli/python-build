@@ -1,8 +1,9 @@
+import gc
+import sys
 from concurrent import interpreters
 from concurrent.futures import InterpreterPoolExecutor
 from pathlib import Path
-import gc
-import sys
+
 import rtls
 
 root = Path(__file__).parent.resolve()

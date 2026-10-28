@@ -30,18 +30,7 @@ import os
 import sys
 import time
 
-_FIELDS = (
-    "ri_user_time ri_system_time ri_pkg_idle_wkups ri_interrupt_wkups ri_pageins "
-    "ri_wired_size ri_resident_size ri_phys_footprint ri_proc_start_abstime "
-    "ri_proc_exit_abstime ri_child_user_time ri_child_system_time "
-    "ri_child_pkg_idle_wkups ri_child_interrupt_wkups ri_child_pageins "
-    "ri_child_elapsed_abstime ri_diskio_bytesread ri_diskio_byteswritten "
-    "ri_cpu_time_qos_default ri_cpu_time_qos_maintenance ri_cpu_time_qos_background "
-    "ri_cpu_time_qos_utility ri_cpu_time_qos_legacy ri_cpu_time_qos_user_initiated "
-    "ri_cpu_time_qos_user_interactive ri_billed_system_time ri_serviced_system_time "
-    "ri_logical_writes ri_lifetime_max_phys_footprint ri_instructions ri_cycles "
-    "ri_billed_energy ri_serviced_energy ri_interval_max_phys_footprint ri_runnable_time"
-).split()
+_FIELDS = ["ri_user_time", "ri_system_time", "ri_pkg_idle_wkups", "ri_interrupt_wkups", "ri_pageins", "ri_wired_size", "ri_resident_size", "ri_phys_footprint", "ri_proc_start_abstime", "ri_proc_exit_abstime", "ri_child_user_time", "ri_child_system_time", "ri_child_pkg_idle_wkups", "ri_child_interrupt_wkups", "ri_child_pageins", "ri_child_elapsed_abstime", "ri_diskio_bytesread", "ri_diskio_byteswritten", "ri_cpu_time_qos_default", "ri_cpu_time_qos_maintenance", "ri_cpu_time_qos_background", "ri_cpu_time_qos_utility", "ri_cpu_time_qos_legacy", "ri_cpu_time_qos_user_initiated", "ri_cpu_time_qos_user_interactive", "ri_billed_system_time", "ri_serviced_system_time", "ri_logical_writes", "ri_lifetime_max_phys_footprint", "ri_instructions", "ri_cycles", "ri_billed_energy", "ri_serviced_energy", "ri_interval_max_phys_footprint", "ri_runnable_time"]
 
 
 class _RUsageInfoV4(ctypes.Structure):
@@ -165,7 +154,7 @@ def k_tomllib():
         import tomllib
         lines = ['title = "catalog"', "[owner]", 'name = "example"', "dob = 1979-05-27T07:32:00Z"]
         for i in range(200):
-            lines += [f"[[items]]", f"id = {i}", f'name = "item-{i}"', f"price = {i}.5",
+            lines += ["[[items]]", f"id = {i}", f'name = "item-{i}"', f"price = {i}.5",
                       f"tags = [\"a\", \"b\", \"{i}\"]"]
         text = "\n".join(lines) + "\n"
 
@@ -666,9 +655,9 @@ def k_subprocess():
         data = _blob(65536)
 
         def run():
-            launched = [subprocess.run(["/usr/bin/true"]).returncode for _ in range(10)]
-            launched.append(subprocess.run(["/usr/bin/true"], close_fds=False).returncode)
-            echoed = subprocess.run(["/bin/cat"], input=data, capture_output=True).stdout
+            launched = [subprocess.run(["/usr/bin/true"], check=False).returncode for _ in range(10)]
+            launched.append(subprocess.run(["/usr/bin/true"], close_fds=False, check=False).returncode)
+            echoed = subprocess.run(["/bin/cat"], input=data, capture_output=True, check=False).stdout
             return sum(launched), len(echoed)
         return run
     return ("subprocess",), setup
@@ -1291,7 +1280,7 @@ def k_threading():
 def k_typing():
     def setup():
         import typing
-        aliases = [list[int], dict[str, list[int]], typing.Optional[int], typing.Union[int, str],
+        aliases = [list[int], dict[str, list[int]], typing.Optional[int], typing.Union[int, str],  # noqa: UP045, UP007
                    typing.Callable[[int], str], tuple[int, ...], typing.Literal["a", "b"],
                    typing.Annotated[int, "meta"]] * 400
 

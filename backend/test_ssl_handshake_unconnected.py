@@ -1,8 +1,7 @@
 import errno
 import socket
-import unittest
-
 import ssl
+import unittest
 
 
 class UnconnectedHandshakeTests(unittest.TestCase):

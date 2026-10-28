@@ -6,12 +6,13 @@ All public sizes are bytes; procfs labels its values in KiB (`kB`).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import os
-from pathlib import Path, PurePosixPath
 import re
 import tempfile
-from typing import Mapping, TypeVar
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path, PurePosixPath
+from typing import TypeVar
 
 
 class SmapsRollupError(ValueError):

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import importlib.util
 import hashlib
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -73,20 +73,16 @@ class NixBuilderTests(unittest.TestCase):
             builder.require_native("amd64")
             with self.assertRaisesRegex(RuntimeError, "native Linux arm64"):
                 builder.require_native("arm64")
-        with mock.patch.object(builder, "output", return_value="darwin|arm64"):
-            with self.assertRaisesRegex(RuntimeError, "native Linux"):
-                builder.require_native("arm64")
+        with mock.patch.object(builder, "output", return_value="darwin|arm64"), self.assertRaisesRegex(RuntimeError, "native Linux"):
+            builder.require_native("arm64")
 
     def test_context_uses_locked_flake_without_mutating_checkout(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.object(builder, "ROOT", Path(tmp)), mock.patch.object(
-                builder.subprocess, "check_output", return_value=tmp + "\n"
-            ) as run:
-                self.assertEqual(builder.nix_context("rtls-amd64"), Path(tmp))
-                argv = run.call_args.args[0]
-                self.assertIn("--no-update-lock-file", argv)
-                self.assertIn("--no-link", argv)
-                self.assertIn(".#rtls-amd64", argv)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(builder, "ROOT", Path(tmp)), mock.patch.object(                 builder.subprocess, "check_output", return_value=tmp + "\n"             ) as run:
+            self.assertEqual(builder.nix_context("rtls-amd64"), Path(tmp))
+            argv = run.call_args.args[0]
+            self.assertIn("--no-update-lock-file", argv)
+            self.assertIn("--no-link", argv)
+            self.assertIn(".#rtls-amd64", argv)
 
 
 if __name__ == "__main__":

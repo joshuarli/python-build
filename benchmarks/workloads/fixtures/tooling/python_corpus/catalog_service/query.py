@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import shlex
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from catalog_service.errors import InvalidQueryError
 from catalog_service.normalize import normalize_text

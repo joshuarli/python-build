@@ -12,13 +12,13 @@ import datetime as dt
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
+from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -284,8 +284,11 @@ def _run_internal(args: argparse.Namespace) -> Path:
     if not 1 <= args.memory_interval_ms <= 1000:
         raise ValueError("--memory-interval-ms must be between 1 and 1000")
     from benchmarks.harness.environment import (
-        collect_host_provenance, discover_cpu_topology, measure_install_size,
-        select_physical_cpus, interpreter_environment,
+        collect_host_provenance,
+        discover_cpu_topology,
+        interpreter_environment,
+        measure_install_size,
+        select_physical_cpus,
     )
     from benchmarks.harness.report import compare_workload, save_summary
 
@@ -414,7 +417,9 @@ def _run_internal(args: argparse.Namespace) -> Path:
         perf_comparison = None
         if perf_site is not None:
             from benchmarks.harness.pyperformance import (
-                baseline_loop_counts, compare_pyperformance_runs, run_pyperformance,
+                baseline_loop_counts,
+                compare_pyperformance_runs,
+                run_pyperformance,
                 select_benchmarks,
             )
 
@@ -461,7 +466,7 @@ def _run_internal(args: argparse.Namespace) -> Path:
             (perf_dir / "comparison.json").write_text(json.dumps(perf_comparison, indent=2, sort_keys=True) + "\n")
         locked_inputs = _used_input_provenance(lock, used_input_groups)
         provenance = {
-            "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "timestamp_utc": dt.datetime.now(dt.UTC).isoformat(),
             "git_commit": _git_commit(),
             "baseline": base_identity,
             "candidate": cand_identity,
@@ -520,7 +525,7 @@ def _git_commit() -> str | None:
         return supplied
     try:
         completed = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-                                   capture_output=True, text=True)
+                                   capture_output=True, text=True, check=False)
     except FileNotFoundError:
         return None
     return completed.stdout.strip() if completed.returncode == 0 else None
@@ -601,8 +606,8 @@ def _run_container(args: argparse.Namespace) -> Path:
 def _resolve_preset(args: argparse.Namespace) -> None:
     if args.preset != "pbs":
         return
-    from buildsys.targets import native_target
     from benchmarks.harness.inputs import resolve_pbs
+    from buildsys.targets import native_target
 
     target = native_target().triple
     if not args.baseline:
@@ -714,7 +719,6 @@ def main(argv: list[str] | None = None) -> int:
                               "docker": shutil.which("docker"), "image": IMAGE}, indent=2))
         elif args.command == "fetch":
             from benchmarks.harness.inputs import fetch_inputs, fetch_pbs, load_lock
-
             from buildsys.targets import native_target
 
             target = args.target or native_target().triple
@@ -724,7 +728,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(fetch_inputs(load_lock(LINUX_CP316_LOCK_PATH), groups={"django"}))
                 return 0
             if target == "aarch64-apple-darwin":
-                from benchmarks.harness.inputs import MACOS_CP315_LOCK_PATH, MACOS_CP316_LOCK_PATH
+                from benchmarks.harness.inputs import (
+                    MACOS_CP315_LOCK_PATH,
+                    MACOS_CP316_LOCK_PATH,
+                )
 
                 print(fetch_inputs(load_lock(MACOS_CP315_LOCK_PATH), groups={"macros"}))
                 print(fetch_inputs(load_lock(MACOS_CP316_LOCK_PATH), groups={"django"}))
@@ -793,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
                 if args.evidence.exists():
                     raise ValueError(f"refusing to overwrite compact evidence: {args.evidence}")
             if args.output is None:
-                stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
                 args.output = BENCH / "results" / stamp
             if args.command == "_run" or args.local:
                 result = _run_internal(args)
@@ -811,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
                 elif args.evidence is None:
                     print(_update_baseline(result))
         return 0
-    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, RuntimeError, TypeError, subprocess.CalledProcessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

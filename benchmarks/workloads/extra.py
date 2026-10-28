@@ -21,8 +21,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 class WorkloadError(RuntimeError):
@@ -80,8 +81,7 @@ def _run_child(command: list[str], *, timeout: int = 300) -> subprocess.Complete
         completed = subprocess.run(
             command,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
@@ -223,8 +223,7 @@ def pip_install_wheelhouse(iterations: int) -> dict[str, int | float | str]:
                 completed = subprocess.run(
                     command,
                     stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                     text=True,
                     timeout=600,
                     check=False,
@@ -380,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
     except WorkloadError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         print(f"error: {type(error).__name__}: {error}", file=sys.stderr)
         return 2
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))

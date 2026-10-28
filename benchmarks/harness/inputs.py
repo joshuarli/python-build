@@ -7,22 +7,23 @@ to install packages and never needs pip or venv.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from email.parser import Parser
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tarfile
 import tempfile
-from typing import Any, Iterable, Mapping
+import zipfile
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from email.parser import Parser
+from pathlib import Path, PurePosixPath
+from typing import Any
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
-import zipfile
-from benchmarks.harness.environment import interpreter_environment
 
+from benchmarks.harness.environment import interpreter_environment
 
 BENCHMARKS = Path(__file__).resolve().parents[1]
 REPOSITORY = BENCHMARKS.parent
@@ -153,7 +154,7 @@ def _parse_input(raw: Mapping[str, Any]) -> LockedInput:
             raise InputError(f"wheel tags do not match filename: {filename}")
     elif tags:
         raise InputError(f"source input must not declare wheel tags: {filename}")
-    groups = tuple(sorted(set(str(group) for group in raw["groups"])))
+    groups = tuple(sorted({str(group) for group in raw["groups"]}))
     if not groups:
         raise InputError(f"benchmark input has no group: {filename}")
     license_name = str(raw["license"]).strip()

@@ -1,11 +1,10 @@
+import gc
+import socket
+import sys
 from concurrent import interpreters
 from concurrent.futures import InterpreterPoolExecutor, ThreadPoolExecutor
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-import gc
-import socket
-import sys
-
 
 TLS_EXPECTED = ("TLSv1.2", "rejected", "TLSv1.3", "rejected")
 UNEXPECTED_MAIN_IMPORTS = {"ssl", "_ssl", "_hashlib", "_hashlib_graviola"}.intersection(sys.modules)
@@ -14,8 +13,8 @@ if UNEXPECTED_MAIN_IMPORTS:
 
 
 def worker(label, port, tls_source, certdata):
-    import ssl
     import _ssl
+    import ssl
 
     from subinterpreter_worker import calculate
 
@@ -87,7 +86,7 @@ def main():
         try:
             with ThreadPoolExecutor(max_workers=2) as threads:
                 results = run_pair(
-                    lambda label, port, source, data: threads.submit(
+                    lambda label, port, source, data, workers=workers: threads.submit(
                         execute,
                         workers[0 if label == "worker-0" else 1],
                         label,

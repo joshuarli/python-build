@@ -10,10 +10,8 @@ reaped-child CPU separately.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
 import os
 import resource
-from pathlib import Path
 import shutil
 import signal
 import subprocess
@@ -22,8 +20,16 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
-from typing import IO
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import IO, Self
 
+from .macos_resource import (
+    MacProcessInfo,
+    MacProcessMemory,
+    read_process_memory,
+    read_process_table,
+)
 from .memory import (
     CgroupV2CpuScope,
     CgroupV2CpuSnapshot,
@@ -35,10 +41,6 @@ from .memory import (
     parse_smaps_rollup,
     sum_rollups,
 )
-from .macos_resource import (
-    MacProcessInfo, MacProcessMemory, read_process_memory, read_process_table,
-)
-
 
 MAC_REAPED_CPU_COVERAGE = (
     "wait4 root plus reaped descendants; detached or unreaped children excluded"
@@ -335,8 +337,9 @@ class ProcessSampler:
         self._lock = threading.Lock()
         self._finished_result: ProcessResult | None = None
 
-    def __enter__(self) -> ProcessSampler:
-        return self.start()
+    def __enter__(self) -> Self:
+        self.start()
+        return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         if self._finished_result is None and self._process is not None:
@@ -353,8 +356,8 @@ class ProcessSampler:
         if sys.platform != "darwin" and not self.proc_root.is_dir():
             raise RuntimeError(f"procfs is not available at {self.proc_root}")
 
-        self._stdout_file = tempfile.TemporaryFile(mode="w+b")
-        self._stderr_file = tempfile.TemporaryFile(mode="w+b")
+        self._stdout_file = tempfile.TemporaryFile(mode="w+b")  # noqa: SIM115
+        self._stderr_file = tempfile.TemporaryFile(mode="w+b")  # noqa: SIM115
         argv = list(self.command)
         if self.sample_interval_seconds is not None and sys.platform != "darwin":
             self._cgroup_scope = CgroupV2MemoryScope.detect_and_create(
@@ -428,7 +431,7 @@ class ProcessSampler:
             stderr=self._stderr_file,
             cwd=self.cwd,
             env=self.env,
-            preexec_fn=preexec_fn,
+            preexec_fn=preexec_fn,  # noqa: PLW1509
             start_new_session=True,
             close_fds=True,
         )

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from collections import deque
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
-
+from collections import deque
+from pathlib import Path
 
 TARGET = "aarch64-apple-darwin"
 NOTICE_PREFIXES = ("LICENSE", "COPYING", "NOTICE")
@@ -68,6 +67,7 @@ def _cargo_metadata(
         env=environment,
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode:
         raise LicenseCollectionError(

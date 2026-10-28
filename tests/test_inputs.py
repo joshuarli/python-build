@@ -1,12 +1,11 @@
 import hashlib
 import io
 import json
-import os
-from pathlib import Path
 import tarfile
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from unittest.mock import patch
 
 from buildsys.inputs import (
@@ -153,9 +152,8 @@ class CacheTests(unittest.TestCase):
             incoming = root / "incoming"
             incoming.write_bytes(b"payload")
             cache = Cache(root / "cache")
-            with patch("buildsys.inputs.os.replace", side_effect=OSError("interrupted")):
-                with self.assertRaises(OSError):
-                    cache.store(incoming, make_input())
+            with patch("buildsys.inputs.os.replace", side_effect=OSError("interrupted")), self.assertRaises(OSError):
+                cache.store(incoming, make_input())
             self.assertEqual(list((cache.root / "objects").iterdir()), [])
 
     def test_concurrent_publication(self):
@@ -226,9 +224,8 @@ class CacheTests(unittest.TestCase):
             with patch(
                 "buildsys.inputs.urllib.request.urlopen",
                 return_value=io.BytesIO(b"wrong payload"),
-            ):
-                with self.assertRaises(InputError):
-                    cache.fetch(make_input())
+            ), self.assertRaises(InputError):
+                cache.fetch(make_input())
 
             self.assertEqual(stored.read_bytes(), b"corrupt")
             with self.assertRaises(InputError):

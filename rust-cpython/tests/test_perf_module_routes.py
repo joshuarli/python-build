@@ -1,7 +1,7 @@
 """Public module kernels must exercise successful native operations."""
 
-import importlib.util
 import builtins
+import importlib.util
 import sys
 import unittest
 from pathlib import Path
@@ -46,6 +46,7 @@ class ModuleRouteTests(unittest.TestCase):
 
     def test_re_compiles_and_searches_through_rust_and_keeps_pattern_search(self):
         import re
+
         import _re_rs
 
         _, setup = self.kernels.k_re()
@@ -80,6 +81,7 @@ class ModuleRouteTests(unittest.TestCase):
 
     def test_pickle_encodes_and_decodes_supported_values_and_keeps_fallbacks(self):
         import pickle
+
         import _pickle_rs
 
         _, setup = self.kernels.k_pickle()

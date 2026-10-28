@@ -10,11 +10,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from buildsys.testsuite import (
-    CASE_EXCLUSIONS, FILE_EXCLUSIONS, SuiteError, classify, report_payload,
-    run_suite, verify_excluded_failures,
-)
 from buildsys.targets import target_for_triple
+from buildsys.testsuite import (
+    CASE_EXCLUSIONS,
+    FILE_EXCLUSIONS,
+    SuiteError,
+    classify,
+    report_payload,
+    run_suite,
+    verify_excluded_failures,
+)
 
 
 class ExclusionRegisterTests(unittest.TestCase):

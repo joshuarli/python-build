@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from benchmarks.harness import allocations
@@ -107,15 +107,14 @@ class AllocationPassTests(unittest.TestCase):
                 stats_path.write_text(json.dumps(stats), encoding="utf-8")
                 return _process_result(command)
 
-            with patch.object(allocations, "run_command", side_effect=run):
-                with redirect_stdout(visible_stdout):
-                    report = allocations.run_allocation_pass(
-                        ["/opt/python/bin/python3.14", "-m", "workload", "--rows", "40"],
-                        memray_pythonpath=memray_prefix,
-                        output_json=output_path,
-                        operations=40,
-                        env={"PYTHONPATH": str(repo_prefix)},
-                    )
+            with patch.object(allocations, "run_command", side_effect=run), redirect_stdout(visible_stdout):
+                report = allocations.run_allocation_pass(
+                    ["/opt/python/bin/python3.14", "-m", "workload", "--rows", "40"],
+                    memray_pythonpath=memray_prefix,
+                    output_json=output_path,
+                    operations=40,
+                    env={"PYTHONPATH": str(repo_prefix)},
+                )
 
             self.assertEqual(report["status"], "complete")
             self.assertEqual(report["profiler_version"], "1.20.0")
@@ -184,14 +183,13 @@ class AllocationPassTests(unittest.TestCase):
                 )
 
     def test_invalid_operation_count_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            with self.assertRaisesRegex(ValueError, "positive integer"):
-                allocations.run_allocation_pass(
-                    ["python", "-c", "pass"],
-                    memray_pythonpath=temporary,
-                    output_json=Path(temporary) / "allocations.json",
-                    operations=0,
-                )
+        with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(ValueError, "positive integer"):
+            allocations.run_allocation_pass(
+                ["python", "-c", "pass"],
+                memray_pythonpath=temporary,
+                output_json=Path(temporary) / "allocations.json",
+                operations=0,
+            )
 
     def test_target_failure_is_not_published_as_a_completed_profile(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -202,13 +200,12 @@ class AllocationPassTests(unittest.TestCase):
                     return _process_result(command, stdout='{"version":"1.20.0"}\n')
                 return _process_result(command, returncode=3, stderr="target failed")
 
-            with patch.object(allocations, "run_command", side_effect=run):
-                with self.assertRaises(subprocess.CalledProcessError):
-                    allocations.run_allocation_pass(
-                        ["python", "-m", "workload"],
-                        memray_pythonpath=temporary,
-                        output_json=output_path,
-                    )
+            with patch.object(allocations, "run_command", side_effect=run), self.assertRaises(subprocess.CalledProcessError):
+                allocations.run_allocation_pass(
+                    ["python", "-m", "workload"],
+                    memray_pythonpath=temporary,
+                    output_json=output_path,
+                )
             self.assertFalse(output_path.exists())
 
     def test_fork_following_keeps_process_peaks_separate(self) -> None:

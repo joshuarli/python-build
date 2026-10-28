@@ -7,11 +7,11 @@ would show up as a suspiciously-easy match rather than real evidence.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import os
-from pathlib import Path
 import stat
+from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)

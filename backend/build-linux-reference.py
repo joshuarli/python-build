@@ -22,8 +22,8 @@ from buildsys.cpython import configuration
 from buildsys.inputs import Cache, InputError, load_lock, safe_extract
 from buildsys.patches import PatchError, apply_patch_set
 from buildsys.product import PRODUCT
-from buildsys.recipes import BuildError as RecipeBuildError
 from buildsys.recipes import RECIPE_LAYOUTS, Recipe, Toolchain, build_recipe, run
+from buildsys.recipes import BuildError as RecipeBuildError
 from buildsys.relocate import RelocationError, relocate
 from buildsys.scope import ScopeError, enforce_exclusions, verify_exclusions
 from buildsys.targets import Target, UnsupportedTargetError, native_target
@@ -211,7 +211,7 @@ def verify_cpu_features(target: Target) -> list[str]:
     feature_sets = [
         set(line.partition(":")[2].split())
         for line in Path("/proc/cpuinfo").read_text().splitlines()
-        if line.startswith("Features") or line.startswith("flags")
+        if line.startswith(("Features", "flags"))
     ]
     try:
         required = LINUX_CPU_FEATURES[target.triple]

@@ -19,8 +19,8 @@ from buildsys import macho
 from buildsys.bootstrap import load_macos_toolchain
 from buildsys.ca_bundle import CABundleError, install_fallback_ca_bundle
 from buildsys.elf import (
-    dynamic_tags,
     dynamic_relocation_report,
+    dynamic_tags,
     full_relro_report,
     gnu_stack_report,
     hardening_report,
@@ -45,7 +45,11 @@ from buildsys.product import PRODUCT
 from buildsys.product_process import run_product_process
 from buildsys.relocate import find_elfs
 from buildsys.scope import ScopeError, prune_distribution_payload
-from buildsys.standalone_compat import CompatibilityError, run_standalone_compatibility, testcapi_modules_pre_prune
+from buildsys.standalone_compat import (
+    CompatibilityError,
+    run_standalone_compatibility,
+    testcapi_modules_pre_prune,
+)
 from buildsys.targets import Target, native_target
 from buildsys.testsuite import (
     SuiteError,
@@ -67,7 +71,7 @@ class PackagingError(Exception):
 
 def _run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
     try:
-        result = subprocess.run(command, capture_output=True, text=True, **kwargs)
+        result = subprocess.run(command, capture_output=True, text=True, **kwargs, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         raise PackagingError(f"could not run {command}: {error}") from error
     if result.returncode != 0:
@@ -319,8 +323,8 @@ def _linux_validation(install: Path) -> dict:
     }
     configured = run_product_process([
         str(interpreter), "-I", "-B", "-c",
-        "import json,sysconfig; print(json.dumps({k: sysconfig.get_config_var(k) "
-        "for k in ('CFLAGS','CFLAGS_NODIST','PY_CFLAGS','PY_CFLAGS_NODIST','CPPFLAGS')}))",
+        ("import json,sysconfig; print(json.dumps({k: sysconfig.get_config_var(k) "
+        "for k in ('CFLAGS','CFLAGS_NODIST','PY_CFLAGS','PY_CFLAGS_NODIST','CPPFLAGS')}))"),
     ], install, install, timeout_seconds=30)
     if configured.returncode != 0:
         raise PackagingError(
@@ -468,9 +472,9 @@ def _verify_install_matches_record(install: Path, record: dict) -> None:
     interpreter = PRODUCT.interpreter(install)
     probe = run_product_process([
         str(interpreter), "-I", "-B", "-c",
-        "import json,sysconfig; keys=('CFLAGS','CFLAGS_NODIST','PY_CFLAGS',"
+        ("import json,sysconfig; keys=('CFLAGS','CFLAGS_NODIST','PY_CFLAGS',"
         "'PY_CFLAGS_NODIST','LDFLAGS','LTOFLAGS','CONFIG_ARGS'); "
-        "print(json.dumps({key:sysconfig.get_config_var(key) for key in keys}))",
+        "print(json.dumps({key:sysconfig.get_config_var(key) for key in keys}))"),
     ], install, install, timeout_seconds=30)
     if probe.returncode != 0:
         raise PackagingError(
@@ -669,7 +673,7 @@ def main(argv: list[str] | None = None) -> int:
     ) as error:
         print(f"FAIL package: {error}")
         return 1
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         print(f"FAIL package: {type(error).__name__}: {error}")
         return 1
     print(f"OK    package -> {archive}")

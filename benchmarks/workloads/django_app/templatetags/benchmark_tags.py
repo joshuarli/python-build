@@ -2,7 +2,6 @@ from datetime import date, datetime
 
 from django import template
 
-
 register = template.Library()
 _MONTH_ABBREVIATIONS = (
     "Jan",

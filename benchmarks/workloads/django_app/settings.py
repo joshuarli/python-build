@@ -2,7 +2,6 @@
 
 import os
 
-
 SECRET_KEY = "python-build-django-benchmark-only"
 DEBUG = False
 ALLOWED_HOSTS = ["testserver"]

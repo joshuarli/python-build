@@ -106,24 +106,24 @@ class SuiteError(Exception):
 _SUMMARY = re.compile(
     r"^Total tests: run=([\d,]+)(?: \(filtered\))?"
     r"(?: failures=([\d,]+))?(?: skipped=([\d,]+))?$",
-    re.M,
+    re.MULTILINE,
 )
 _TOTAL_FILES = re.compile(
     r"^Total test files: run=(\d+)(?:/(\d+))?( \(filtered\))?(?: .*)?$",
-    re.M,
+    re.MULTILINE,
 )
-_RESULT_STATE = re.compile(r"^== Tests result: (.+) ==$", re.M)
+_RESULT_STATE = re.compile(r"^== Tests result: (.+) ==$", re.MULTILINE)
 _FILE_FAILURE_COUNT = re.compile(
-    r"^Total test files: .*? failed=(\d+)(?: |$)", re.M
+    r"^Total test files: .*? failed=(\d+)(?: |$)", re.MULTILINE
 )
 _FAILED_FILE_LIST = re.compile(
-    r"^(\d+) tests? failed:\s*\n((?:[ \t]+\S.*(?:\n|$))+)", re.M
+    r"^(\d+) tests? failed:\s*\n((?:[ \t]+\S.*(?:\n|$))+)", re.MULTILINE
 )
 _RESOURCE_DENIED_LIST = re.compile(
     r"^(\d+) tests? skipped \(resource denied\):\s*\n"
-    r"((?:[ \t]+\S.*(?:\n|$))+)", re.M
+    r"((?:[ \t]+\S.*(?:\n|$))+)", re.MULTILINE
 )
-_FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.M)
+_FAILED_CASE = re.compile(r"^(?:FAIL|ERROR): ([^\s(]+)", re.MULTILINE)
 _TIMED_OUT_TEST = re.compile(
     r"\btest[\w.]* timed out \(|\bTimeout \([0-9]+:[0-9]{2}:[0-9]{2}\)!"
 )

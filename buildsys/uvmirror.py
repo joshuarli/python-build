@@ -301,7 +301,7 @@ def assemble(
             raise UvMirrorError(f"{triple}: compressed archive exceeds its reviewed size budget")
         if manifest["payload"]["size_bytes"] > limits["payload_size_bytes"]:
             raise UvMirrorError(f"{triple}: unpacked payload exceeds its reviewed size budget")
-        target = TARGETS[triple]
+        _target = TARGETS[triple]
         if manifest.get("toolchain", {}).get("llvm_version") != LLVM_VERSIONS[triple]:
             raise UvMirrorError(f"{triple}: toolchain identity changed")
         prepared[triple] = (source, Path(dist) / triple / "artifact.json", manifest)

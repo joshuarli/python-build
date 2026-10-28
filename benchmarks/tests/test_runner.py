@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from types import SimpleNamespace
 import math
 import os
 import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from benchmarks.harness import runner

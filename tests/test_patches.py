@@ -26,9 +26,8 @@ class PatchProvenanceTests(unittest.TestCase):
 
 class ApplyPatchTests(unittest.TestCase):
     def test_unknown_patch_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(PatchError):
-                apply_patch(Path(tmp), PATCH_DIR / "does-not-exist.patch")
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(PatchError):
+            apply_patch(Path(tmp), PATCH_DIR / "does-not-exist.patch")
 
     def test_mismatched_source_is_rejected_not_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

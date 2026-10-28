@@ -12,7 +12,6 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-
 RESULT_SCHEMA_VERSION = 1
 IDENTITY_FIELDS = ("name", "category", "operation", "operation_count")
 MEMORY_METRICS = (

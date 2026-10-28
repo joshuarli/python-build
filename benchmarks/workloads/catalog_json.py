@@ -13,7 +13,6 @@ import sys
 import time
 from pathlib import Path
 
-
 _CORPUS = Path(__file__).resolve().parent / "fixtures" / "tooling" / "python_corpus"
 _EXPECTED_INPUT = "9c3c7d7b1dd6d58e72b446ce4684ee93edc031aca5bdd6b8c6d852bc079b8bc4"
 _EXPECTED_OUTPUT = "e73d3916e9d6984dacef72251336a1582a4d64814c244595aeb566af4d9146d3"

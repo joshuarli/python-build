@@ -1,8 +1,7 @@
-import inspect
-import warnings
-
 import _hashlib
 import hashlib
+import inspect
+import warnings
 
 
 def check_readonly(value, type_name):

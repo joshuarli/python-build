@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import socket
+import ssl
+import sysconfig
 import threading
 import unittest
 from pathlib import Path
-import sysconfig
-
-import ssl
-
 
 SERVER_CERT = Path(sysconfig.get_path("stdlib")) / "test" / "certdata" / "keycert3.pem"
 EXPECTED_GROUP = "secp384r1"
@@ -35,12 +33,13 @@ def _contexts(
 
 def _memory_bio_groups(version: ssl.TLSVersion) -> tuple[str | None, str | None]:
     client_context, server_context = _contexts(version)
-    return _memory_bio_groups_for_contexts(client_context, server_context)
+    return _memory_bio_groups_for_contexts(client_context, server_context, version)
 
 
 def _memory_bio_groups_for_contexts(
     client_context: ssl.SSLContext,
     server_context: ssl.SSLContext,
+    version: ssl.TLSVersion,
 ) -> tuple[str | None, str | None]:
     client_incoming, client_outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
     server_incoming, server_outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
@@ -98,7 +97,7 @@ def _socket_groups_for_contexts(
                 server.do_handshake()
                 groups["server"] = server.group()
                 server_done.set()
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001
             server_errors.append(error)
 
     thread = threading.Thread(target=serve)
@@ -113,7 +112,7 @@ def _socket_groups_for_contexts(
             client_group = client.group()
             if not server_done.wait(4):
                 raise TimeoutError("socketpair TLS server handshake did not finish")
-    except BaseException as error:
+    except BaseException as error:  # noqa: BLE001
         client_error = error
     finally:
         thread.join(6)
@@ -209,7 +208,7 @@ class GroupContractTests(unittest.TestCase):
             self.assertIsNone(client_context.set_groups("?future_group"))
             self.assertEqual(client_context.get_groups(), available_groups)
             with self.assertRaises(ssl.SSLError):
-                _memory_bio_groups_for_contexts(client_context, server_context)
+                _memory_bio_groups_for_contexts(client_context, server_context, ssl.TLSVersion.TLSv1_3)
 
         with self.subTest(server_groups="x25519"):
             client_context, server_context = _contexts(
@@ -221,7 +220,7 @@ class GroupContractTests(unittest.TestCase):
             self.assertIsNone(client_context.set_groups("?future_group"))
             self.assertEqual(client_context.get_groups(), available_groups)
             with self.assertRaises(ssl.SSLError):
-                _memory_bio_groups_for_contexts(client_context, server_context)
+                _memory_bio_groups_for_contexts(client_context, server_context, ssl.TLSVersion.TLSv1_3)
 
     def test_negotiated_groups_on_memory_bio_and_socket(self):
         for version in (ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3):

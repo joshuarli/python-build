@@ -4,25 +4,25 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from buildsys.bootstrap import (  # noqa: E402
+from buildsys.bootstrap import (
     BootstrapError,
     load_linux_bootstrap,
     load_macos_toolchain,
 )
-from buildsys.inputs import Cache, InputError, load_lock  # noqa: E402
-from buildsys.llvm import (  # noqa: E402
+from buildsys.inputs import Cache, InputError, load_lock
+from buildsys.llvm import (
     extract_llvm_archive,
     verify_llvm_attestation_metadata,
 )
-from buildsys.targets import native_target, target_for_triple  # noqa: E402
+from buildsys.targets import native_target, target_for_triple
 
 
 def main(argv: list[str] | None = None) -> int:

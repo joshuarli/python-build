@@ -7,7 +7,11 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from catalog_service.errors import DuplicateEntryError, EntryNotFoundError, TransactionError
+from catalog_service.errors import (
+    DuplicateEntryError,
+    EntryNotFoundError,
+    TransactionError,
+)
 from catalog_service.model import CatalogEntry, EntrySnapshot
 
 

@@ -5,15 +5,15 @@ from __future__ import annotations
 import json
 import math
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Any
 
 
 def _read_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text())
     if not isinstance(value, dict):
-        raise ValueError(f"expected a JSON object in {path}")
+        raise TypeError(f"expected a JSON object in {path}")
     return value
 
 
@@ -27,7 +27,7 @@ def _observation(path: Path, *, memory_only: bool = False) -> dict[str, Any]:
     record = _read_json(path)
     payload = record["payload"]
     if not isinstance(payload, dict):
-        raise ValueError(f"invalid benchmark payload: {name}")
+        raise TypeError(f"invalid benchmark payload: {name}")
     memory = record.get("memory") if parts[0] == "memory" else None
     cpu = memory.get("cpu") if isinstance(memory, dict) else record.get("cpu")
     if not memory_only and not isinstance(cpu, dict):
@@ -97,7 +97,7 @@ def compact_evidence(result_directory: Path, destination: Path) -> Path:
         raise ValueError("compact evidence currently supports smoke/realworld quick or standard runs")
     workloads = summary.get("workloads")
     if not isinstance(workloads, list):
-        raise ValueError("benchmark summary has no workload list")
+        raise TypeError("benchmark summary has no workload list")
     document: dict[str, Any] = {
         "schema_version": 1,
         "method": {
@@ -123,7 +123,7 @@ def compact_evidence(result_directory: Path, destination: Path) -> Path:
     }
     for workload in workloads:
         if not isinstance(workload, dict) or not isinstance(workload.get("identity"), dict):
-            raise ValueError("benchmark summary has an invalid workload")
+            raise TypeError("benchmark summary has an invalid workload")
         identity = workload["identity"]
         name = identity["name"]
         directory = result_directory / "realworld" / name

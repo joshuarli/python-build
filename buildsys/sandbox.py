@@ -80,7 +80,8 @@ def _darwin_user_temp_dir() -> str | None:
     """The per-user scratch directory macOS hands out via confstr."""
     try:
         result = subprocess.run(
-            ["getconf", "DARWIN_USER_TEMP_DIR"], capture_output=True, text=True, timeout=10
+            ["getconf", "DARWIN_USER_TEMP_DIR"], capture_output=True, text=True, timeout=10,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -170,12 +171,11 @@ class SealedRun:
         timeout_seconds: float | None = None,
     ) -> subprocess.CompletedProcess:
         self.prepare()
-        handle = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             "w", suffix=".sb", delete=False, dir=self.write_paths[0] if self.write_paths else None
-        )
-        try:
+        ) as handle:
             handle.write(self.profile())
-            handle.close()
+        try:
             full = [SANDBOX_EXEC, "-f", handle.name, *command]
             if log is not None:
                 log.parent.mkdir(parents=True, exist_ok=True)
@@ -183,11 +183,13 @@ class SealedRun:
                     result = subprocess.run(
                         full, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT,
                         timeout=timeout_seconds,
+                        check=False,
                     )
                 return result
             return subprocess.run(
                 full, cwd=cwd, env=env, capture_output=True, text=True,
                 timeout=timeout_seconds,
+                check=False,
             )
         finally:
             Path(handle.name).unlink(missing_ok=True)
@@ -269,6 +271,7 @@ def network_boundary_selftest(python: Path, workdir: Path) -> dict:
         outside = subprocess.run(
             [str(python), str(probe), str(port)], capture_output=True, text=True,
             cwd=workdir, timeout=10,
+            check=False,
         )
         sealed = SealedRun(write_paths=[workdir], home=workdir / "home")
         inside = sealed.run(

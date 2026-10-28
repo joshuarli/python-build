@@ -6,14 +6,13 @@ import gzip
 import importlib.util
 import json
 import os
-from dataclasses import replace
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
+from pathlib import Path
 from unittest import mock
-
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "benchmarks" / "harness" / "pyperformance.py"

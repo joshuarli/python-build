@@ -192,7 +192,7 @@ def tls_exchange(
                 if peer.recv(4) != b"ping":
                     raise AssertionError("server received an unexpected payload")
                 peer.sendall(b"pong")
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001
             server_errors.append(error)
         finally:
             listener.close()
@@ -205,15 +205,14 @@ def tls_exchange(
             if client_context_factory is not None
             else client_context(ssl, cafile)
         )
-        with socket.create_connection(("127.0.0.1", port), timeout=5) as raw:
-            with client_tls.wrap_socket(raw, server_hostname=hostname) as peer:
-                peer.sendall(b"ping")
-                if peer.recv(4) != b"pong":
-                    raise AssertionError("client received an unexpected payload")
-                if peer.version() != "TLSv1.3":
-                    raise AssertionError(f"unexpected protocol: {peer.version()}")
-                if not peer.getpeercert():
-                    raise AssertionError("client received no verified peer certificate")
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as raw, client_tls.wrap_socket(raw, server_hostname=hostname) as peer:
+            peer.sendall(b"ping")
+            if peer.recv(4) != b"pong":
+                raise AssertionError("client received an unexpected payload")
+            if peer.version() != "TLSv1.3":
+                raise AssertionError(f"unexpected protocol: {peer.version()}")
+            if not peer.getpeercert():
+                raise AssertionError("client received no verified peer certificate")
         result = "accepted"
     except (OSError, ssl.SSLError) as error:
         result = f"rejected: {type(error).__name__}: {error}"
@@ -271,12 +270,11 @@ def https_default_context(ssl, certdata: Path, mode: str) -> str:
         "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE": None,
     }
     try:
-        with environment(overrides):
-            with urllib.request.urlopen(
-                f"https://localhost:{server.server_port}/", timeout=5
-            ) as response:
-                if response.status != 200 or response.read() != b"https-ok":
-                    raise AssertionError("HTTPS response did not match")
+        with environment(overrides), urllib.request.urlopen(
+            f"https://localhost:{server.server_port}/", timeout=5
+        ) as response:
+            if response.status != 200 or response.read() != b"https-ok":
+                raise AssertionError("HTTPS response did not match")
         return "passed"
     finally:
         server.shutdown()

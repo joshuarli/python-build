@@ -45,7 +45,7 @@ def read_json_lines(payload: str) -> Iterator[CatalogEntry]:
         except json.JSONDecodeError as error:
             raise ValueError(f"invalid JSON on line {number}") from error
         if not isinstance(value, dict):
-            raise ValueError(f"expected an object on line {number}")
+            raise TypeError(f"expected an object on line {number}")
         yield from (from_mapping(value),)
 
 

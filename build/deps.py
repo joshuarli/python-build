@@ -12,20 +12,23 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from buildsys.bootstrap import BootstrapError, lto_smoke_test, toolchain_for  # noqa: E402
-from buildsys.deporder import dependency_order  # noqa: E402
-from buildsys.inputs import Cache, InputError, load_lock  # noqa: E402
-from buildsys.recipes import (  # noqa: E402
-    RECIPE_LAYOUTS, BuildError, Recipe, build_recipe,
+from buildsys.bootstrap import BootstrapError, lto_smoke_test, toolchain_for
+from buildsys.deporder import dependency_order
+from buildsys.inputs import Cache, InputError, load_lock
+from buildsys.recipes import (
+    RECIPE_LAYOUTS,
+    BuildError,
+    Recipe,
+    build_recipe,
 )
-from buildsys.targets import Target, UnsupportedTargetError, native_target  # noqa: E402
+from buildsys.targets import Target, UnsupportedTargetError, native_target
+
 
 def configure_args(name: str, prefix: Path | None = None, target: Target | None = None) -> tuple[str, ...]:
     if name not in RECIPE_LAYOUTS:
@@ -89,15 +92,7 @@ def cflags_for(name: str, target: Target | None = None) -> str:
         # python-build-standalone distribution tests. Keep these as compile
         # definitions on SQLite itself; the CPython configure switch below
         # controls the separate sqlite3 extension-loading wrapper.
-        return " ".join((
-            "-DSQLITE_ENABLE_FTS3",
-            "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
-            "-DSQLITE_ENABLE_FTS4",
-            "-DSQLITE_ENABLE_FTS5",
-            "-DSQLITE_ENABLE_GEOPOLY",
-            "-DSQLITE_ENABLE_RTREE",
-            "-DSQLITE_ENABLE_DBSTAT_VTAB",
-        ))
+        return "-DSQLITE_ENABLE_FTS3 -DSQLITE_ENABLE_FTS3_PARENTHESIS -DSQLITE_ENABLE_FTS4 -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_GEOPOLY -DSQLITE_ENABLE_RTREE -DSQLITE_ENABLE_DBSTAT_VTAB"
     if name == "zstd" and not target.is_macos:
         # The static Makefile target is compiled with ZSTD_MULTITHREAD; POSIX
         # threading must also be enabled on the compile line.

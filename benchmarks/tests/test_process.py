@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from benchmarks.harness.memory import CgroupV2MemoryScope
@@ -132,13 +132,11 @@ class MacProcessSamplerTests(unittest.TestCase):
                          result.memory.root_kernel_peak_rss_bytes)
 
     def test_process_table_failure_cannot_report_clean_memory_run(self):
-        with patch("benchmarks.harness.process._mac_process_table",
-                   side_effect=RuntimeError("ps unavailable")):
-            with self.assertRaisesRegex(RuntimeError, "ps unavailable"):
-                run_command(
-                    [sys.executable, "-c", "pass"], timeout=3,
-                    sample_interval_seconds=0.02,
-                )
+        with patch("benchmarks.harness.process._mac_process_table",                    side_effect=RuntimeError("ps unavailable")), self.assertRaisesRegex(RuntimeError, "ps unavailable"):
+            run_command(
+                [sys.executable, "-c", "pass"], timeout=3,
+                sample_interval_seconds=0.02,
+            )
 
     def test_external_tree_rss_counts_child_and_marks_unavailable_metrics(self):
         code = (

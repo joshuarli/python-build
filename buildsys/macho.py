@@ -302,7 +302,7 @@ def inspect(path: Path) -> dict:
 
 
 def _tool(command: list[str]) -> str:
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise MachOError(
             f"{command[0]} failed on {command[-1]}: {result.stderr.strip() or result.stdout.strip()}"
@@ -348,6 +348,7 @@ def signature_status(path: Path) -> tuple[bool, str]:
     result = subprocess.run(
         ["codesign", "--verify", "--strict", str(path)],
         capture_output=True, text=True,
+        check=False,
     )
     detail = (result.stderr or result.stdout).strip()
     return result.returncode == 0, detail

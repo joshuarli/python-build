@@ -9,20 +9,35 @@ would let a wrong dependency through validation.
 """
 from __future__ import annotations
 
-import struct
 import platform
+import struct
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
-import tempfile
 from unittest.mock import patch
 
 from buildsys.macho import (
-    CPU_TYPE_ARM64, CPU_TYPE_X86_64, LC_BUILD_VERSION, LC_ID_DYLIB,
-    LC_LOAD_DYLIB, LC_RPATH, MH_DYLIB, MH_EXECUTE, MH_PIE, MachOError, build_version,
-    dependencies, dylib_id, find_machos, format_version, inspect, is_macho,
-    read_header, rpaths,
+    CPU_TYPE_ARM64,
+    CPU_TYPE_X86_64,
+    LC_BUILD_VERSION,
+    LC_ID_DYLIB,
+    LC_LOAD_DYLIB,
+    LC_RPATH,
+    MH_DYLIB,
+    MH_EXECUTE,
+    MH_PIE,
+    MachOError,
+    build_version,
+    dependencies,
+    dylib_id,
+    find_machos,
+    format_version,
+    inspect,
+    is_macho,
+    read_header,
+    rpaths,
 )
 from buildsys.product import PRODUCT
 
@@ -51,7 +66,7 @@ def rpath_command(path: str) -> bytes:
 
 
 def build_version_command(platform: int = 1, minos=(26, 0), sdk=(26, 5)) -> bytes:
-    packed = lambda t: (t[0] << 16) | (t[1] << 8) | (t[2] if len(t) > 2 else 0)  # noqa: E731
+    packed = lambda t: (t[0] << 16) | (t[1] << 8) | (t[2] if len(t) > 2 else 0)
     return _command(
         LC_BUILD_VERSION,
         struct.pack("<IIII", platform, packed(minos), packed(sdk), 0),
@@ -129,9 +144,8 @@ class HeaderTests(unittest.TestCase):
             self.assertIn("fat/universal", str(caught.exception))
 
     def test_truncated_header_is_rejected(self) -> None:
-        with TempImage(make_macho([])[:16]) as path:
-            with self.assertRaises(MachOError):
-                read_header(path)
+        with TempImage(make_macho([])[:16]) as path, self.assertRaises(MachOError):
+            read_header(path)
 
 
 class LoadCommandTests(unittest.TestCase):
@@ -180,9 +194,8 @@ class LoadCommandTests(unittest.TestCase):
     def test_malformed_command_size_is_rejected(self) -> None:
         body = struct.pack("<II", LC_RPATH, 4)  # cmdsize smaller than the header
         header = struct.pack("<IiiIIIII", MH_MAGIC_64, CPU_TYPE_ARM64, 3, MH_EXECUTE, 1, 8, 0, 0)
-        with TempImage(header + body) as path:
-            with self.assertRaises(MachOError):
-                rpaths(path)
+        with TempImage(header + body) as path, self.assertRaises(MachOError):
+            rpaths(path)
 
     def test_inspect_summarises_one_image(self) -> None:
         image = make_macho([
@@ -308,6 +321,7 @@ class HostBinaryTests(unittest.TestCase):
                     ["lipo", "-thin", platform.machine(), str(executable), "-output", str(thin)],
                     capture_output=True,
                     text=True,
+                    check=False,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 executable = thin

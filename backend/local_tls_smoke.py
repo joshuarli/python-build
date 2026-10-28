@@ -1,8 +1,8 @@
-from pathlib import Path
 import socket
 import ssl as stdlib_ssl
 import sys
 import threading
+from pathlib import Path
 
 checkout = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(checkout / "src"))
@@ -44,7 +44,7 @@ def exchange(server_module, label):
                 if tls.recv(4) != b"ping":
                     raise AssertionError("server received an unexpected payload")
                 tls.sendall(b"pong")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             errors.append(exc)
         finally:
             listener.close()
@@ -54,15 +54,14 @@ def exchange(server_module, label):
     thread.start()
     client_context = tls_context(ssl, False)
     try:
-        with socket.create_connection(listener.getsockname(), timeout=5) as raw:
-            with client_context.wrap_socket(raw, server_hostname="localhost") as tls:
-                tls.sendall(b"ping")
-                if tls.recv(4) != b"pong":
-                    raise AssertionError("client received an unexpected payload")
-                if tls.version() != "TLSv1.3":
-                    raise AssertionError(f"unexpected negotiated version: {tls.version()}")
-                if not tls.getpeercert():
-                    raise AssertionError("client did not receive a verified peer certificate")
+        with socket.create_connection(listener.getsockname(), timeout=5) as raw, client_context.wrap_socket(raw, server_hostname="localhost") as tls:
+            tls.sendall(b"ping")
+            if tls.recv(4) != b"pong":
+                raise AssertionError("client received an unexpected payload")
+            if tls.version() != "TLSv1.3":
+                raise AssertionError(f"unexpected negotiated version: {tls.version()}")
+            if not tls.getpeercert():
+                raise AssertionError("client did not receive a verified peer certificate")
     finally:
         thread.join(5)
     if thread.is_alive():

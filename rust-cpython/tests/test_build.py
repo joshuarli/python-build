@@ -7,8 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 LANE = Path(__file__).resolve().parents[1]
@@ -38,7 +38,7 @@ class RustLauncherTests(unittest.TestCase):
                 cargo = perf.lb._rust_tool_wrappers(str(rustup))
             env = dict(os.environ, PATH=str(cargo_home / "bin"))
             result = subprocess.run([str(cargo), "-V"], env=env,
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "cargo\npinned-rustc\n")
 

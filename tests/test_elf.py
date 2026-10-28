@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from buildsys.elf import (
     dynamic_relocation_report,
@@ -15,8 +17,6 @@ from buildsys.elf import (
     writable_executable_loads_report,
 )
 from buildsys.product import PRODUCT
-from pathlib import Path
-import tempfile
 
 
 class LinkageReportTests(unittest.TestCase):

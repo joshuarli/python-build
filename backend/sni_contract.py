@@ -5,7 +5,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 CERTDATA = Path(sys.argv.pop(1))
 FIXTURES = Path(__file__).with_name("fixtures")
 
@@ -115,7 +114,7 @@ class ServerNameContract(unittest.TestCase):
                         selected.load_verify_locations(CERTDATA / "pycacert.pem")
                         if identity is not None:
                             client.load_cert_chain(str(CERTDATA / identity))
-                        initial.sni_callback = lambda connection, hostname, context: setattr(
+                        initial.sni_callback = lambda connection, hostname, context, selected=selected: setattr(
                             connection, "context", selected
                         )
                         rejected = (
@@ -139,7 +138,7 @@ class ServerNameContract(unittest.TestCase):
                     context.load_verify_locations(
                         CERTDATA / "pycacert.pem" if trusted else FIXTURES / "unrelated-root.pem"
                     )
-                initial.sni_callback = lambda connection, hostname, context: setattr(
+                initial.sni_callback = lambda connection, hostname, context, selected=selected: setattr(
                     connection, "context", selected
                 )
                 if selected_trust:
@@ -164,7 +163,7 @@ class ServerNameContract(unittest.TestCase):
                             context.verify_mode = ssl.CERT_REQUIRED
                             context.load_verify_locations(CERTDATA / "pycacert.pem")
                             context.set_client_sigalgs(scheme)
-                        initial.sni_callback = lambda connection, hostname, context: setattr(
+                        initial.sni_callback = lambda connection, hostname, context, selected=selected: setattr(
                             connection, "context", selected
                         )
                         if selected_scheme == schemes[0]:
@@ -184,7 +183,7 @@ class ServerNameContract(unittest.TestCase):
                 untrusted = initial if selected_capath else selected
                 trusted.load_verify_locations(capath=str(CERTDATA / "capath"))
                 untrusted.load_verify_locations(FIXTURES / "unrelated-root.pem")
-                initial.sni_callback = lambda connection, hostname, context: setattr(
+                initial.sni_callback = lambda connection, hostname, context, selected=selected: setattr(
                     connection, "context", selected
                 )
                 if selected_capath:
@@ -204,7 +203,7 @@ class ServerNameContract(unittest.TestCase):
                     context.verify_flags = ssl.VERIFY_X509_TRUSTED_FIRST
                     if strict:
                         context.verify_flags |= ssl.VERIFY_X509_STRICT
-                initial.sni_callback = lambda connection, hostname, context: setattr(
+                initial.sni_callback = lambda connection, hostname, context, selected=selected: setattr(
                     connection, "context", selected
                 )
                 if initial_strict:
@@ -231,7 +230,7 @@ class ServerNameContract(unittest.TestCase):
                         context.maximum_version = version
                     calls = []
 
-                    def callback(connection, hostname, context):
+                    def callback(connection, hostname, context, calls=calls, selected=selected):
                         calls.append(hostname)
                         connection.context = selected
 
