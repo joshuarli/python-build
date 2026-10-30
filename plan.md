@@ -66,9 +66,8 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   supported macOS release, so its minimum and host floor coincide. Install
   the exact assembled uv archive on a macOS 27 arm64 host; smoke startup,
   relocation under spaces, TLS client/server, subprocess, ctypes and
-  native/abi3 extensions. Apple M1 execution needs M1 hardware running
-  macOS 27; without it, record the `apple-m1` baseline as verified by
-  compiler flags and load commands only. Preserve native Alpine-musl amd64
+  native/abi3 extensions. Apple M1 is the minimum hardware and is trusted
+  without a hardware run (owner decision). Preserve native Alpine-musl amd64
   and arm64 qualification. Save host, archive digest and command-level
   results.
   *Receipt 2026-10-30:* macOS arm64 archive from `38faf1d`, SHA-256
@@ -80,8 +79,9 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   abi3 and relocation checks passed on the same host. The smoke found that uv's
   install-name rewrite invalidated our ad-hoc signature and the interpreter was
   killed at launch; images are now signed linker-style (`38faf1d`). Apple M1
-  execution is unverified (no M1 hardware): the `apple-m1` baseline is checked
-  by compiler flags and load commands only.
+  is the minimum hardware; the owner accepts the `apple-m1` baseline without
+  execution on M1 hardware (2026-10-30), so it is checked by compiler flags and
+  load commands only.
 
 - [ ] **P3 — independent build reproducibility.** Use two clean sealed
   builds per native target with separate compiled outputs (shared verified
