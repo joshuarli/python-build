@@ -1034,6 +1034,11 @@ def qualification_volume():
         checked_run(["docker", "volume", "rm", name])
 
 
+
+def _capability_names(capabilities: list[str]) -> list[str]:
+    return [name.removeprefix("CAP_") for name in capabilities]
+
+
 def initialize_qualification_volume(
     run_dir: Path,
     image: str,
@@ -1094,8 +1099,8 @@ def initialize_qualification_volume(
     }
     if (
         receipt["container_user"] != "0:0"
-        or receipt["cap_drop"] != ["ALL"]
-        or receipt["cap_add"] != ["CAP_CHOWN"]
+        or _capability_names(receipt["cap_drop"]) != ["ALL"]
+        or _capability_names(receipt["cap_add"]) != ["CHOWN"]
         or receipt["effective_capabilities"] != "0000000000000001"
     ):
         raise DockerBuildError(
