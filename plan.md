@@ -53,8 +53,14 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   Berkeley DB lives only in Linux `_dbm`; `_dbm` stays). `buildsys/notices.py`
   now installs every bundled input's notices plus `SOURCES.md`, and the
   qualifier's `license_notices` check verifies them in the extracted archive.
-  Not yet receipted: no build has produced an archive with these files.
-  Check this box when a fresh qualified archive for each target lists them.
+  Receipts (local native builds, qualifier `license_notices` check passed,
+  notices and `SOURCES.md` listed in the archive): macOS arm64 at `1a63e3c`,
+  archive SHA-256 `b98c7d6ba0644212ada9a390d6f38e4b4c658c1b1528ebc698659d731262325f`
+  (Apple M5 Max, macOS 27.0.1); Linux arm64 musl at `938d172`, archive SHA-256
+  `c34ed5b76009a3ed56fb32695bcc312f42a5179a689aa5a5bd920736ff910aa5`, which
+  includes the Berkeley DB `LICENSE` and the Sleepycat source offer. Open: a
+  Linux x86-64 archive (no native host here); the CI release run provides it.
+  Check this box when that archive lists the notices.
 - [ ] **P2 — prove the macOS 27 deployment minimum.** macOS 27 is the only
   supported macOS release, so its minimum and host floor coincide. Install
   the exact assembled uv archive on a macOS 27 arm64 host; smoke startup,
