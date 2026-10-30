@@ -112,6 +112,8 @@ except ImportError:
 
 lazy import ssl
 
+_have_ssl = True
+
 __all__ = [
     # Classes
     'Request', 'OpenerDirector', 'BaseHandler', 'HTTPDefaultErrorHandler',
@@ -1361,16 +1363,14 @@ if hasattr(http.client, 'HTTPSConnection'):
         def __init__(self, debuglevel=None, context=None, check_hostname=None):
             debuglevel = debuglevel if debuglevel is not None else http.client.HTTPSConnection.debuglevel
             AbstractHTTPHandler.__init__(self, debuglevel)
-            self._context = context
-            self._check_hostname = check_hostname
-
-        def https_open(self, req):
-            if self._context is None:
+            if context is None:
                 http_version = http.client.HTTPSConnection._http_vsn
                 context = http.client._create_https_context(http_version)
-                if self._check_hostname is not None:
-                    context.check_hostname = self._check_hostname
-                self._context = context
+            if check_hostname is not None:
+                context.check_hostname = check_hostname
+            self._context = context
+
+        def https_open(self, req):
             return self.do_open(http.client.HTTPSConnection, req,
                                 context=self._context)
 
