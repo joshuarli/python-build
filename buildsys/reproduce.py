@@ -122,3 +122,53 @@ def compare_trees(first: Path, second: Path) -> dict:
         )),
         "identical_file_count": identical,
     }
+
+
+def compare_archives(first: Path, second: Path, scratch: Path) -> dict:
+    """Compare two release archives built independently from the same inputs.
+
+    Reproducible means: identical entry sets, types, modes, and symlink
+    targets, and every content difference is a Mach-O image whose bytes differ
+    only in the LC_UUID and ad-hoc signature. A differing ELF or text file is
+    a finding, never excused.
+    """
+    from . import macho
+    from .package import extract_package_archive
+
+    first, second, scratch = Path(first), Path(second), Path(scratch)
+    trees = [extract_package_archive(archive, scratch / name)
+             for name, archive in (("first", first), ("second", second))]
+    result = compare_trees(*trees)
+    signature_only = {}
+    findings = []
+    for relative in result["content_differs"]:
+        a, b = trees[0] / relative, trees[1] / relative
+        if macho.is_macho(a) and macho.is_macho(b):
+            difference = macho_difference(a, b)
+            if difference.get("compiled_content_identical"):
+                signature_only[relative] = difference["signature_metadata_bytes"]
+                continue
+        findings.append(relative)
+    structural = [
+        result[key] for key in (
+            "only_in_first", "only_in_second", "entry_type_differs",
+            "mode_differs", "symlink_target_differs",
+        )
+    ]
+    return {
+        "archives": {
+            "first": {"sha256": _sha256(first), "size_bytes": first.stat().st_size},
+            "second": {"sha256": _sha256(second), "size_bytes": second.stat().st_size},
+        },
+        "files_compared": result["files_compared"],
+        "raw_archives_identical": _sha256(first) == _sha256(second),
+        "structural_differences": {
+            key: result[key] for key in (
+                "only_in_first", "only_in_second", "entry_type_differs",
+                "mode_differs", "symlink_target_differs",
+            ) if result[key]
+        },
+        "signature_only_images": sorted(signature_only),
+        "content_differences": findings,
+        "reproducible": not any(structural) and not findings,
+    }
