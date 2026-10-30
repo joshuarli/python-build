@@ -96,6 +96,7 @@ def build_corpus(directory: Path) -> None:
                  "-days", "30", "-extfile", str(extensions))
     shutil.copyfile(directory / "ca.pem", directory / "ca-original.pem")
     _build_chain_corpus(directory)
+    _build_crl_corpus(directory)
 
 
 def _issue(directory: Path, name: str, subject: str, extensions: list[str], issuer: str | None,
@@ -118,6 +119,26 @@ def _issue(directory: Path, name: str, subject: str, extensions: list[str], issu
         command += ["-CA", str(directory / f"{issuer}.pem"), "-CAkey", str(directory / f"{issuer}.key"),
                     "-CAcreateserial"]
     _openssl(*command)
+
+
+CRL_CASES = ("revoked", "clean", "expired", "missing")
+
+
+def _build_crl_corpus(directory: Path) -> None:
+    configuration = directory / "ca.cnf"
+    configuration.write_text(
+        f"[ca]\ndefault_ca=CA_default\n[CA_default]\ndir={directory}\ndatabase={directory}/index.txt\n"
+        f"new_certs_dir={directory}\ncertificate={directory}/ca.pem\nprivate_key={directory}/ca.key\n"
+        f"default_md=sha256\ndefault_crl_days=30\ncrlnumber={directory}/crlnumber\nunique_subject=no\n"
+        "policy=policy_any\n[policy_any]\ncommonName=supplied\n"
+    )
+    (directory / "index.txt").write_text("")
+    (directory / "crlnumber").write_text("01\n")
+    _openssl("ca", "-config", str(configuration), "-gencrl", "-out", str(directory / "crl_clean.pem"))
+    _openssl("ca", "-config", str(configuration), "-gencrl", "-crl_lastupdate", "20200101000000Z",
+             "-crl_nextupdate", "20200102000000Z", "-out", str(directory / "crl_expired.pem"))
+    _openssl("ca", "-config", str(configuration), "-revoke", str(directory / "chain_valid.pem"))
+    _openssl("ca", "-config", str(configuration), "-gencrl", "-out", str(directory / "crl_revoked.pem"))
 
 
 def _build_chain_corpus(directory: Path) -> None:
@@ -190,7 +211,8 @@ def _outcome(function) -> str:
     return "ok"
 
 
-def _handshake(directory: Path, leaf: str, hostname: str, *, trust: str = "ca", chain: tuple[str, ...] = ()) -> str:
+def _handshake(directory: Path, leaf: str, hostname: str, *, trust: str = "ca",
+               chain: tuple[str, ...] = (), crl: str | None = None, check_crl: bool = False) -> str:
     server = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     certificates = directory / f"{leaf}.pem"
     if chain:
@@ -201,6 +223,10 @@ def _handshake(directory: Path, leaf: str, hostname: str, *, trust: str = "ca", 
     except Exception as error:  # noqa: BLE001
         return f"server_load:{type(error).__name__}"
     client = ssl.create_default_context(cafile=str(directory / f"{trust}.pem"))
+    if crl:
+        client.load_verify_locations(cafile=str(directory / f"{crl}.pem"))
+    if check_crl:
+        client.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
     client_in, client_out, server_in, server_out = (ssl.MemoryBIO() for _ in range(4))
     try:
         client_side = client.wrap_bio(client_in, client_out, server_hostname=hostname)
@@ -245,6 +271,10 @@ def run(directory: Path, output: Path) -> None:
         trust = "chain_self_signed_leaf" if issuer == "self" else "ca"
         results[f"chain {name}"] = _handshake(
             directory, f"chain_{name}", CHAIN_HOST, trust=trust, chain=chain)
+    for case in CRL_CASES:
+        results[f"crl {case}"] = _handshake(
+            directory, "chain_valid", CHAIN_HOST, crl=None if case == "missing" else f"crl_{case}",
+            check_crl=True)
     ca_pem = (directory / "ca-original.pem").read_text()
     for label, pem in _mutations(ca_pem).items():
         def load(pem=pem):
