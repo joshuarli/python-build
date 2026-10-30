@@ -53,11 +53,12 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   Berkeley DB lives only in Linux `_dbm`; `_dbm` stays). `buildsys/notices.py`
   now installs every bundled input's notices plus `SOURCES.md`, and the
   qualifier's `license_notices` check verifies them in the extracted archive.
-  Receipts (local native builds, qualifier `license_notices` check passed,
-  notices and `SOURCES.md` listed in the archive): macOS arm64 at `1a63e3c`,
-  archive SHA-256 `b98c7d6ba0644212ada9a390d6f38e4b4c658c1b1528ebc698659d731262325f`
-  (Apple M5 Max, macOS 27.0.1); Linux arm64 musl at `938d172`, archive SHA-256
-  `c34ed5b76009a3ed56fb32695bcc312f42a5179a689aa5a5bd920736ff910aa5`, which
+  Receipts (local native builds at `38faf1d`; the qualifier `license_notices`
+  check passed and notices plus `SOURCES.md` are listed in each archive):
+  macOS arm64 archive SHA-256
+  `6f4b7ca53e37fec7f3e7fe04ee4ca51780f538d7c19c0a7a00749a3d61aa21ec`
+  (Apple M5 Max, macOS 27.0.1); Linux arm64 musl archive SHA-256
+  `327003b2007a9529a92ebb9b8f1fd502b292d57e3665fb1b07dc0a6d0d388c46`, which
   includes the Berkeley DB `LICENSE` and the Sleepycat source offer. Open: a
   Linux x86-64 archive (no native host here); the CI release run provides it.
   Check this box when that archive lists the notices.
@@ -91,14 +92,15 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   on releases. An unchanged source lock is not enough.
   *Status 2026-10-30:* `build/reproduce_archives.py` compares two product
   archives (entries, modes, symlinks, content; a Mach-O difference passes only
-  if it is confined to LC_UUID and the ad-hoc signature). Two clean macOS
-  builds at `938d172` from the same build path reproduced: 1,223 files, the
-  only differences were 62 Mach-O images differing in UUID and signature
-  alone, and every raw archive hash differed for that reason. Builds at
-  different paths do not reproduce: the build directory is baked into
-  sysconfigdata, the pkg-config files, `config.c`, and seven Mach-O images, and
-  the CI run directory includes the run id. Open: fix or pin the build path
-  (decision), the Linux pair (a second arm64 build is running), x86-64, and
+  if it is confined to LC_UUID and the ad-hoc signature). Linux arm64 musl: two
+  clean sequential builds at `38faf1d` produced byte-identical archives
+  (SHA-256 `327003b2…`, 1,229 files). macOS arm64: two clean builds at `938d172`
+  from the same build path reproduced compiled content in all 1,223 files; the
+  only differences were 62 Mach-O images differing in UUID and signature, so
+  raw archive hashes differ. Builds at different paths do not reproduce on
+  macOS: the build directory is baked into sysconfigdata, the pkg-config files,
+  `config.c`, and seven Mach-O images, and the CI run directory includes the
+  run id. Open: pin or map the macOS build path (decision), Linux x86-64, and
   release evidence in CI.
 
 - [ ] **P4 — crash-consistent publication.** buildsys.package.publish_files
