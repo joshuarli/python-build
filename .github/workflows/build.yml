@@ -46,10 +46,10 @@ jobs:
     runs-on: xcode-27
     needs: [prepare]
     env:
-      CANDIDATE_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-macos-${{ github.run_id }}-${{ github.run_attempt }}
-      REGRESSION_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-macos-regression-${{ github.run_id }}-${{ github.run_attempt }}
-      ARCHIVE_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-macos-archive-${{ github.run_id }}-${{ github.run_attempt }}
-      RTLS_SOURCE_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-rtls-${{ github.run_id }}-${{ github.run_attempt }}
+      CANDIDATE_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-macos
+      REGRESSION_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-macos-regression
+      ARCHIVE_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-macos-archive
+      RTLS_SOURCE_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-rtls
       ARCHIVE_NAME: cpython-3.15.1-aarch64-apple-darwin-r2.tar.gz
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -199,8 +199,8 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     needs: [prepare]
     env:
-      EXPERIMENT_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-${{ matrix.cache-scope }}-${{ github.run_id }}-${{ github.run_attempt }}
-      RTLS_SOURCE_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-rtls-${{ matrix.cache-scope }}-${{ github.run_id }}-${{ github.run_attempt }}
+      EXPERIMENT_RUN_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-${{ matrix.cache-scope }}
+      RTLS_SOURCE_DIR: ${{ github.workspace }}/.work/tmp/openssl-free-rtls-${{ matrix.cache-scope }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

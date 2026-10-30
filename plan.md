@@ -100,10 +100,12 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   raw archive hashes differ. Builds at different paths do not
   reproduce, on macOS or Linux: the build directory is baked into
   sysconfigdata, the pkg-config files, `python-config`, `config.c`,
-  `build-details.json`, and several extension images, and every CI run
-  directory includes the run id, so two CI releases will differ and each ships
-  its builder path. Open: pin the CI run-directory names or map the path in the
-  build (decision), Linux x86-64, and release evidence in CI.
+  `build-details.json`, and several extension images, and CI run
+  directories used to include the run id, so two CI releases would differ.
+  The workflow now uses fixed run-directory names (owner delegation,
+  2026-10-30), so equal-runner builds share a path; the archives still ship that
+  builder path, which a later path-mapping change could remove. Open: Linux
+  x86-64 and release evidence from two CI runs.
 
 - [ ] **P4 — crash-consistent publication.** buildsys.package.publish_files
   rolls back on caught exceptions; replacing archive and artifact.json
