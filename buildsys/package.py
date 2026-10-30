@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .deporder import dependency_order
 from .inputs import canonical_json, load_lock
+from .notices import bundled_native_names
 from .product import Product
 from .targets import Target
 
@@ -389,18 +390,8 @@ def _component_manifest(
     lock_path: Path, target: Target, qualification: dict
 ) -> dict:
     entries = {entry.name: entry for entry in load_lock(lock_path)}
-    bundled_by_family = {
-        "linux-musl": (
-            "openssl", "sqlite", "expat", "zlib", "bzip2", "xz", "zstd",
-            "mpdecimal", "libffi", "libedit", "ncurses", "libuuid", "bdb",
-        ),
-        "macos": (
-            "openssl", "sqlite", "expat", "bzip2", "xz", "zstd", "mpdecimal",
-            "libffi",
-        ),
-    }
     bundled = []
-    for name in ("cpython", "certifi-ca", *bundled_by_family[target.family]):
+    for name in ("cpython", "certifi-ca", *bundled_native_names(target)):
         entry = entries.get(name)
         if entry is None:
             continue
