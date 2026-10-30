@@ -1,13 +1,12 @@
 import json
 import os
-from pathlib import Path
 import ssl
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
-
 
 CERTDATA = Path(sys.argv.pop(1)).resolve()
 
@@ -22,8 +21,8 @@ class SSLFactoryContract(unittest.TestCase):
                     environment["SSLKEYLOGFILE"] = path
                     result = subprocess.run(
                         [sys.executable, *flags, "-B", "-c",
-                         "import json, ssl; print(json.dumps([factory().keylog_filename "
-                         "for factory in (ssl.create_default_context, ssl._create_stdlib_context)]))"],
+                         ("import json, ssl; print(json.dumps([factory().keylog_filename "
+                         "for factory in (ssl.create_default_context, ssl._create_stdlib_context)]))")],
                         env=environment, text=True, capture_output=True, check=True,
                     )
                     self.assertEqual(json.loads(result.stdout), [None, None] if flags else [path, path])

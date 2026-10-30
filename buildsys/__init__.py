@@ -5,9 +5,9 @@ from .inputs import (
     Input,
     InputError,
     canonical_json,
+    identity,
     load_lock,
     safe_extract,
-    identity,
 )
 
 __all__ = [
@@ -15,7 +15,7 @@ __all__ = [
     "Input",
     "InputError",
     "canonical_json",
+    "identity",
     "load_lock",
     "safe_extract",
-    "identity",
 ]

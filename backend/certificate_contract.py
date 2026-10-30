@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-
 REFERENCE_BACKEND_PREFIX = "OpenSSL 3.5.7"
 REFERENCE_EXPECTATIONS = {
     "load_valid_chain": {"accepted": True},
@@ -652,7 +651,7 @@ main()
 
 def cert_blocks(data: bytes) -> list[bytes]:
     return re.findall(
-        rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", data, re.S
+        rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", data, re.DOTALL
     )
 
 
@@ -720,7 +719,7 @@ def pem_der(data: bytes) -> bytes:
     match = re.search(
         rb"-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----",
         data,
-        re.S,
+        re.DOTALL,
     )
     if match is None:
         raise ValueError("certificate fixture contains no PEM certificate")
@@ -875,6 +874,7 @@ def run_openssl(openssl: str, directory: Path, arguments: list[str]) -> None:
         env=environment,
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -992,22 +992,7 @@ def issue_certificate(
 def make_root_b(openssl: str, directory: Path) -> tuple[Path, Path]:
     config = directory / "root-b-req.cnf"
     config.write_text(
-        "\n".join(
-            (
-                "[req]",
-                "prompt = no",
-                "distinguished_name = dn",
-                "x509_extensions = ca_ext",
-                "[dn]",
-                "CN = RTLS-Root-B",
-                "[ca_ext]",
-                "basicConstraints = critical,CA:true,pathlen:5",
-                "keyUsage = critical,keyCertSign,cRLSign",
-                "subjectKeyIdentifier = hash",
-                "authorityKeyIdentifier = keyid:always,issuer",
-                "",
-            )
-        )
+        "[req]\nprompt = no\ndistinguished_name = dn\nx509_extensions = ca_ext\n[dn]\nCN = RTLS-Root-B\n[ca_ext]\nbasicConstraints = critical,CA:true,pathlen:5\nkeyUsage = critical,keyCertSign,cRLSign\nsubjectKeyIdentifier = hash\nauthorityKeyIdentifier = keyid:always,issuer\n"
     )
     key = directory / "root-b.key"
     certificate = directory / "root-b.pem"

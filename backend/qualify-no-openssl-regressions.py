@@ -5,18 +5,17 @@ import hashlib
 import importlib
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO))
 
-from buildsys.product import PRODUCT
 from buildsys.package import copy_product_tree
-
+from buildsys.product import PRODUCT
 
 RUNTIME_FILES = (
     Path("bin") / PRODUCT.interpreter_name,
@@ -420,7 +419,7 @@ def run(args) -> int:
                 full_suite_log,
             )
             report.update(accounting)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             report["suite_error"] = f"{type(error).__name__}: {error}"
             full_output = (
                 full_suite_log.read_text(encoding="utf-8")
@@ -501,7 +500,7 @@ def run(args) -> int:
             )
         else:
             report["ok"] = False
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         report["error"] = f"{type(error).__name__}: {error}"
         report["ok"] = False
 
@@ -526,7 +525,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         return run(args)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         print(f"FAIL OpenSSL-free regression qualification: {error}", file=sys.stderr)
         return 1
 

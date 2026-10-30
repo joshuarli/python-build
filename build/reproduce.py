@@ -23,11 +23,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from buildsys.inputs import canonical_json  # noqa: E402
-from buildsys import macho  # noqa: E402
-from buildsys.bootstrap import load_macos_toolchain  # noqa: E402
-from buildsys.reproduce import compare_trees, macho_difference  # noqa: E402
-from buildsys.targets import target_for_triple  # noqa: E402
+from buildsys import macho
+from buildsys.bootstrap import load_macos_toolchain
+from buildsys.inputs import canonical_json
+from buildsys.reproduce import compare_trees, macho_difference
+from buildsys.targets import target_for_triple
 
 
 def _positive_int(value: str) -> int:
@@ -67,7 +67,7 @@ def _extract_staged(tag: str, dest: Path) -> Path:
             check=True,
         )
     finally:
-        subprocess.run(["docker", "rm", container], capture_output=True)
+        subprocess.run(["docker", "rm", container], capture_output=True, check=False)
     return dest
 
 
@@ -119,7 +119,8 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
         shutil.rmtree(REPO / "build" / stale, ignore_errors=True)
     print("BUILD sealed (clean, rebuilds dependencies and CPython)", flush=True)
     result = subprocess.run(
-        [sys.executable, "build/sealed.py", "--pgo-jobs", str(pgo_jobs)], cwd=REPO
+        [sys.executable, "build/sealed.py", "--pgo-jobs", str(pgo_jobs)], cwd=REPO,
+        check=False,
     )
     if result.returncode != 0:
         print("FAIL reproduce: sealed rebuild failed")

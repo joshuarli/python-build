@@ -12,9 +12,9 @@ import shutil
 import stat
 import tarfile
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 from .deporder import dependency_order
 from .inputs import canonical_json, load_lock
@@ -118,29 +118,22 @@ def create_archive(install: Path, archive_path: Path) -> ArchiveFacts:
     if not install.is_dir():
         raise PackageError(f"install tree does not exist: {install}")
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    with archive_path.open("wb") as raw:
-        with gzip.GzipFile(
-            filename="", mode="wb", compresslevel=9,
-            fileobj=raw, mtime=SOURCE_DATE_EPOCH,
-        ) as compressed:
-            with tarfile.open(
-                fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT
-            ) as archive:
-                root_info = tarfile.TarInfo("python")
-                root_info.type = tarfile.DIRTYPE
-                root_info.mode = 0o755
-                root_info.uid = root_info.gid = 0
-                root_info.uname = root_info.gname = ""
-                root_info.mtime = SOURCE_DATE_EPOCH
-                archive.addfile(root_info)
-                for path in sorted(install.rglob("*"), key=lambda item: item.relative_to(install).as_posix()):
-                    relative = path.relative_to(install).as_posix()
-                    info = _archive_info(path, f"python/{relative}")
-                    if info.isreg():
-                        with path.open("rb") as stream:
-                            archive.addfile(info, stream)
-                    else:
-                        archive.addfile(info)
+    with archive_path.open("wb") as raw, gzip.GzipFile(             filename="", mode="wb", compresslevel=9,             fileobj=raw, mtime=SOURCE_DATE_EPOCH,         ) as compressed, tarfile.open(             fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT         ) as archive:
+        root_info = tarfile.TarInfo("python")
+        root_info.type = tarfile.DIRTYPE
+        root_info.mode = 0o755
+        root_info.uid = root_info.gid = 0
+        root_info.uname = root_info.gname = ""
+        root_info.mtime = SOURCE_DATE_EPOCH
+        archive.addfile(root_info)
+        for path in sorted(install.rglob("*"), key=lambda item: item.relative_to(install).as_posix()):
+            relative = path.relative_to(install).as_posix()
+            info = _archive_info(path, f"python/{relative}")
+            if info.isreg():
+                with path.open("rb") as stream:
+                    archive.addfile(info, stream)
+            else:
+                archive.addfile(info)
     sha256, size_bytes = _sha256(archive_path)
     payload_sha256, payload_size_bytes = _payload_facts(archive_path)
     return ArchiveFacts(sha256, size_bytes, payload_sha256, payload_size_bytes)
@@ -297,7 +290,7 @@ def verify_archive_extraction(
     extracted_root = Path(extraction_parent) / "extracted"
     extract_package_archive(Path(archive_path), extracted_root)
     extracted_install = extracted_root / "python"
-    if not extracted_install.is_dir() or set(path.name for path in extracted_root.iterdir()) != {"python"}:
+    if not extracted_install.is_dir() or {path.name for path in extracted_root.iterdir()} != {"python"}:
         raise PackageError("archive does not contain exactly one top-level python directory")
     expected = _tree_inventory(Path(install))
     found = _tree_inventory(extracted_install)

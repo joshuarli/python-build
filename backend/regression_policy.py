@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-
 POLICY_SOURCE = "backend/MODERN_TLS_POLICY.md"
 EXPECTED_SSL_TEST_COUNT = 219
 _FULL_SSL_PROGRESS = re.compile(

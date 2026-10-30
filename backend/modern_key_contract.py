@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import base64
-from pathlib import Path
-from runpy import run_path
 import ssl
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
+from runpy import run_path
 
 _fixtures = run_path(str(Path(__file__).with_name("certificate_contract.py")))
 der_children = _fixtures["der_children"]
@@ -129,7 +129,7 @@ class ModernKeys(unittest.TestCase):
 
 def generate(openssl, certdata, directory):
     def command(*arguments):
-        result = subprocess.run([str(openssl), *map(str, arguments)], capture_output=True)
+        result = subprocess.run([str(openssl), *map(str, arguments)], capture_output=True, check=False)
         if result.returncode:
             raise RuntimeError(f"fixture generation failed: {result.stderr.decode()}")
     def pkcs8(name, *options):

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import json
-from pathlib import Path
 import tarfile
 import tempfile
 import unittest
-import base64
+from pathlib import Path
 
 from buildsys.inputs import InputError
 from buildsys.llvm import (
@@ -15,7 +15,6 @@ from buildsys.llvm import (
     verify_llvm_attestation_metadata,
     verify_llvm_prefix_from_archive,
 )
-
 
 ARCHIVE_ROOT = "LLVM-test-macOS-ARM64"
 FILES = {

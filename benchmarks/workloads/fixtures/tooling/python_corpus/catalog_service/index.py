@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from catalog_service.model import CatalogEntry, EntrySnapshot
 from catalog_service.tokenizer import terms

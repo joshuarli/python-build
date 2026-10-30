@@ -1,10 +1,12 @@
 import os
 import sys
-from enum import IntEnum as _IntEnum, IntFlag as _IntFlag
+from enum import IntEnum as _IntEnum
+from enum import IntFlag as _IntFlag
 
 from rtls import *
-from rtls import __all__ as _rtls_all, __version__
 from rtls import SSLContext as _RTLS_SSLContext
+from rtls import __all__ as _rtls_all
+from rtls import __version__  # noqa: F401
 
 __all__ = list(_rtls_all)
 
@@ -135,8 +137,9 @@ def _create_unverified_context(
 _create_stdlib_context = _create_unverified_context
 _create_default_https_context = create_default_context
 
-from _ssl_metadata import _TLSContentType, _TLSAlertType, _TLSMessageType
 import _ssl
+
+from _ssl_metadata import _TLSAlertType, _TLSContentType, _TLSMessageType  # noqa: F401
 from rtls import _constants
 
 _OPENSSL_API_VERSION = _ssl._OPENSSL_API_VERSION
@@ -178,12 +181,12 @@ _PROTOCOL_NAMES = {
 _SSLv2_IF_EXISTS = getattr(_SSLMethod, "PROTOCOL_SSLv2", None)
 __all__.extend(
     (
-        "SSLErrorNumber",
-        "ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE",
-        "ALERT_DESCRIPTION_UNRECOGNIZED_NAME",
-        "ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE",
         "ALERT_DESCRIPTION_BAD_CERTIFICATE_HASH_VALUE",
+        "ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE",
+        "ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE",
         "ALERT_DESCRIPTION_UNKNOWN_PSK_IDENTITY",
+        "ALERT_DESCRIPTION_UNRECOGNIZED_NAME",
+        "SSLErrorNumber",
     )
 )
 

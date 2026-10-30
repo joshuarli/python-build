@@ -7,6 +7,10 @@ architectures, and every other target are unsupported. No glibc enters any
 artifact: Linux binaries use the musl loader and statically linked musl in
 the Rust extensions, with libgcc as the only other platform library.
 
+Follow `plan.md`: finish production P1-P6 and requalify that release before
+starting new Rust performance lanes. `rust-for-cpython.md` is the sole
+detailed Rust campaign and performance ledger. A debt entry is not success.
+
 `rust-cpython/` is a separate CPython 3.16 Rust-for-CPython coverage lane. Its
 source pin does not affect this product or its production targets. Linux arm64
 is not implemented in that experimental lane and must not be described as
@@ -18,7 +22,7 @@ For delegated work on that lane, use
 integration; no more than 16 coverage subagents run concurrently. The active
 loop uses debug builds and complete Python-level module suites; integrated
 work also runs all default-resource CPython test modules.
-Coverage is complete; performance work follows `rust-for-cpython-perf.md`
+Coverage is complete; performance work follows `rust-for-cpython.md`
 through `.claude/skills/rust-cpython-perf/SKILL.md` and `rust-perf-climber`
 agents. Claude sessions use Sonnet 5.5 (`claude-sonnet-5-5`) at `high` effort,
 or `xhigh` for lanes named by that skill. Codex sessions use the separate
@@ -64,8 +68,9 @@ and `python3.15-config`. Linux PGO is disabled. JIT, BOLT, free-threaded ABI,
 and the tail-call interpreter are disabled. Preserve the platform CPU
 baselines and the declared dependency closure.
 
-The product is fully OpenSSL-free: no OpenSSL source enters any dependency
-graph, compiled `_ssl` and `_hashlib` are disabled in `Modules/Setup.local`,
+The product is fully OpenSSL-free: its candidate excludes OpenSSL source
+and linkage; the pinned OpenSSL input serves the separate reference build.
+Compiled `_ssl` and `_hashlib` are disabled in `Modules/Setup.local`,
 and TLS plus hashing run on the RTLS/rustls-graviola backend built with the
 pinned nightly Rust toolchain. Rust extensions use the musl dynamic CRT
 (`-crt-static` is mandatory: rustc cannot emit cdylib/proc-macro artifacts
@@ -165,7 +170,9 @@ Packaging applies installed-tree fixes, runs regressions on a disposable copy,
 strips and prunes the release tree, validates it, creates a deterministic
 archive, extracts it under a path containing spaces, and validates those
 exact bytes before transactional publication. `artifact.json` is the
-canonical artifact and qualification record; `SHA256SUMS` covers published
+canonical artifact and qualification record; the exception-rollback
+publisher is not crash-atomic across the archive/manifest pair (plan P4).
+`SHA256SUMS` covers published
 release assets. Failed work must not replace an accepted artifact or leave a
 partial release.
 

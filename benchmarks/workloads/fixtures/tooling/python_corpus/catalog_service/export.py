@@ -9,7 +9,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 from catalog_service.codec import encode_entry
-from catalog_service.model import CatalogEntry, Page, SearchHit
+from catalog_service.model import CatalogEntry, Page
 from catalog_service.search import explain
 
 

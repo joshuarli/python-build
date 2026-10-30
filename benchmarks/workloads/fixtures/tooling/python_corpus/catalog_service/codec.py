@@ -32,13 +32,13 @@ def decode_entry(payload: bytes | str) -> CatalogEntry:
     """Decode a mapping and validate each field through the model type."""
     value = json.loads(payload)
     if not isinstance(value, Mapping):
-        raise ValueError("an encoded entry must be a JSON object")
+        raise TypeError("an encoded entry must be a JSON object")
     attributes = value.get("attributes", {})
     if not isinstance(attributes, Mapping):
-        raise ValueError("entry attributes must be an object")
+        raise TypeError("entry attributes must be an object")
     labels = value.get("labels", ())
     if not isinstance(labels, (list, tuple)):
-        raise ValueError("entry labels must be an array")
+        raise TypeError("entry labels must be an array")
     return CatalogEntry(
         str(value["id"]),
         str(value["title"]),

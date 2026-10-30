@@ -1,12 +1,12 @@
 import argparse
-import json
-from pathlib import Path
 import errno
+import json
 import select
 import socket
 import ssl
 import threading
 import unittest
+from pathlib import Path
 
 
 class HandshakeErrorCleanupTests(unittest.TestCase):
@@ -97,7 +97,7 @@ class HandshakeErrorCleanupTests(unittest.TestCase):
                 accepted.settimeout(3)
                 with server_context.wrap_socket(accepted, server_side=True):
                     pass
-            except BaseException as error:
+            except BaseException as error:  # noqa: BLE001
                 server_errors.append(error)
             finally:
                 listener.close()

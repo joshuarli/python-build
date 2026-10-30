@@ -20,6 +20,7 @@ PROTO_TLSv1_3 = 0x0304
 def _test_decode_cert(path):
     import base64
     import re
+
     from rtls import _rustls
 
     try:

@@ -15,12 +15,11 @@ import json
 import os
 import sqlite3
 import time
-from pathlib import Path
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
-
 
 SCENARIOS = (
     "django_wsgi_first_request",
@@ -191,7 +190,7 @@ def _seed_database(*, Author: Any, Comment: Any, Post: Any, Tag: Any) -> None:
                 published=True,
                 published_at=_BASE_TIME + timedelta(days=ordinal, minutes=ordinal % 60),
                 reading_minutes=3 + (ordinal % 18),
-                score=Decimal(ordinal % 1000) / Decimal("100"),
+                score=Decimal(ordinal % 1000) / Decimal(100),
             )
         )
     Post.objects.bulk_create(posts, batch_size=500)
@@ -239,7 +238,7 @@ def _validate_post_response(status: int, body: bytes) -> None:
     document = json.loads(body)
     post = document.get("post")
     if not isinstance(post, dict):
-        raise AssertionError("Django request did not return a post object")
+        raise AssertionError("Django request did not return a post object")  # noqa: TRY004
     if post.get("slug") != _TARGET_SLUG or post.get("title") != _TARGET_TITLE:
         raise AssertionError("Django request returned the wrong seeded post")
     if post.get("url") != _request_path():

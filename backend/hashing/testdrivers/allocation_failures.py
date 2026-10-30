@@ -1,12 +1,13 @@
-import _hashlib_graviola
 import _testcapi
 import sys
+
+import _hashlib_graviola
 
 
 def check(factory, arguments, expected):
     failed_allocations = []
     for allocation in range(32):
-        held = [tuple([None, None, None]) for _ in range(4096)]
+        held = [(None, None, None) for _ in range(4096)]
         sys._clear_internal_caches()
         try:
             result = _testcapi.call_with_nomemory(

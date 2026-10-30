@@ -9,7 +9,6 @@ from pathlib import Path
 import rtls as ssl
 from rtls import _rustls
 
-
 CERTDATA = Path(sysconfig.get_path("stdlib")) / "test" / "certdata"
 SERVER_CERT = CERTDATA / "keycert3.pem"
 CLIENT_CA = CERTDATA / "pycacert.pem"
@@ -32,7 +31,7 @@ def _hostname_mismatch_alert():
         try:
             with server_context.wrap_socket(connection, server_side=True):
                 server_result.append(None)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             server_result.append(error)
         finally:
             listener.close()
@@ -46,7 +45,7 @@ def _hostname_mismatch_alert():
                 connection, server_hostname="127.0.0.1"
             ):
                 client_error = None
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             client_error = error
     finally:
         thread.join(5)
@@ -79,7 +78,7 @@ def _no_shared_cipher():
         try:
             with server_context.wrap_socket(connection, server_side=True):
                 server_result.append(None)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             server_result.append(error)
         finally:
             listener.close()
@@ -93,7 +92,7 @@ def _no_shared_cipher():
                 connection, server_hostname="localhost"
             ):
                 client_error = None
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             client_error = error
     finally:
         thread.join(5)

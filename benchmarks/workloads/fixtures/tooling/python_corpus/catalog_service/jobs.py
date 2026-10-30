@@ -5,10 +5,10 @@ from __future__ import annotations
 import concurrent.futures
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, Generic, TypeVar
-
+from typing import Generic, TypeVar
 
 Result = TypeVar("Result")
 

@@ -1,5 +1,9 @@
 # OpenSSL-free macOS arm64 candidate
 
+**Historical research qualification:** This predates product adoption.
+Statements below that production was unchanged apply to that earlier
+checkout, not current main. See [plan.md](../plan.md).
+
 ## Result
 
 The experimental distribution is fully OpenSSL-free. All 42 declared archive

@@ -22,9 +22,8 @@ import os
 import re
 import shlex
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Iterable
 
 from .product import PRODUCT
 
@@ -105,6 +104,7 @@ def set_relative_rpath(elf: Path, lib_dir: Path, *, patchelf: str = "patchelf") 
     result = subprocess.run(
         [patchelf, "--set-rpath", token, str(elf)],
         capture_output=True, text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RelocationError(f"patchelf failed on {elf}: {result.stderr}")
@@ -256,7 +256,7 @@ def _rewrite(
     for key in _BUILD_ONLY_PROFILE_KEYS:
         cleaned = re.sub(
             rf"(?m)^([ \t]*{re.escape(key)}[ \t]*=).*$",
-            rf"\1",
+            r"\1",
             cleaned,
         )
     for command_path in command_paths:

@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
-import sys
 
 
 def build_cases():
@@ -54,7 +53,7 @@ def emit():
     for pattern, subject, flags, _ in build_cases():
         try:
             hit = re.fullmatch(pattern, subject, flags) is not None
-        except Exception as exc:  # noqa: BLE001 - record, don't crash
+        except Exception as exc:  # noqa: BLE001
             lines.append(f"{pattern!r} ERROR:{type(exc).__name__}")
         else:
             lines.append(f"{pattern!r} {subject!r} {hit}")
@@ -82,6 +81,7 @@ def main(argv=None):
             text=True,
             env=env,
             timeout=600,
+            check=False,
         )
         if result.returncode != 0:
             print(f"{label} emit failed:\n{result.stderr}")

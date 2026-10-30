@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from artifact_layout import ARCHIVE_NAME, MANIFEST_NAME, REPORT_NAME
 
+
 class QualificationDriverError(Exception):
     pass
 
@@ -67,8 +68,8 @@ sys.path.insert(0, str(COMMON_ROOT))
 from buildsys.package import (
     PackageError,
     build_manifest,
-    create_archive,
     copy_product_tree,
+    create_archive,
     payload_size_report,
     qualify,
     verify_archive_extraction,
@@ -77,7 +78,10 @@ from buildsys.package import (
 from buildsys.product import PRODUCT
 from buildsys.product_process import run_product_process
 from buildsys.scope import ScopeError, prune_distribution_payload
-from buildsys.standalone_compat import run_standalone_compatibility, testcapi_modules_pre_prune
+from buildsys.standalone_compat import (
+    run_standalone_compatibility,
+    testcapi_modules_pre_prune,
+)
 from buildsys.targets import native_target
 from buildsys.testsuite import _accounting as account_suite_log
 from buildsys.testsuite import classify as classify_suite_findings
@@ -175,7 +179,7 @@ def candidate_runtime_identity_paths(prefix: Path, target) -> tuple[str, ...]:
 
 
 def openssl_symbol_family(symbol: str) -> str | None:
-    normalized = symbol[1:] if symbol.startswith("_") else symbol
+    normalized = symbol.removeprefix("_")
     return next(
         (prefix for prefix in OPENSSL_SYMBOL_PREFIXES if normalized.startswith(prefix)),
         None,
@@ -206,6 +210,7 @@ def audit_openssl_symbols(prefix: Path, target) -> dict:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
         if result.returncode:
             return check_result(
@@ -732,7 +737,7 @@ def run_json_contract(
         name, argv, install, cwd, logs, timeout_seconds=timeout_seconds
     )
     result = dict(process)
-    if not process.get("returncode") == 0:
+    if process.get("returncode") != 0:
         return result, None
     try:
         payload = json.loads(Path(process["stdout_log"]).read_text())
@@ -1135,7 +1140,7 @@ def validate_regression_report(
             ssl_log_evidence=ssl_log_evidence,
             report=report,
         )
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         return check_result(
             False,
             source_report=str(path.resolve()),
@@ -1454,6 +1459,7 @@ def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver, 
             capture_output=True,
             text=True,
             timeout=180,
+            check=False,
         )
         if result.returncode:
             raise QualificationDriverError(
@@ -1472,7 +1478,7 @@ def _rust_dependency_graph(build_run_dir: Path, run_dir: Path, research_driver, 
             normalized = package_name.lower().replace("_", "-")
             if "openssl" in normalized or normalized in {"libssl", "libcrypto"}:
                 raise QualificationDriverError(f"OpenSSL package is active in Rust graph: {package_name}")
-            package_root, source_identity = module._package_location(
+            _package_root, source_identity = module._package_location(
                 package,
                 {key: path.resolve(strict=True) for key, path in source_roots.items()},
                 registry_root,
@@ -1708,10 +1714,12 @@ def build_experimental_manifest(
             raise QualificationDriverError(f"{name} Cargo log does not prove the locked clang linker")
         if f"-C target-cpu={rust_target_cpu}" not in log_text:
             raise QualificationDriverError(f"{name} Cargo log omits the target CPU policy")
-        if not target.is_macos:
-            if not all(
+        if not target.is_macos and (
+            not all(
                 feature in log_text for feature in arch["rust_features"]
-            ) or "-crt-static" not in log_text:
+            )
+            or "-crt-static" not in log_text
+        ):
                 raise QualificationDriverError(f"{name} Cargo log omits the {arch['machine']} feature policy")
         extension_name = "_rustls" if name == "rtls" else "_hashlib_graviola"
         extension_commands = [
@@ -2286,7 +2294,7 @@ def main(argv: list[str] | None = None) -> int:
             pre_prune_testcapi = testcapi_modules_pre_prune(
                 PRODUCT.interpreter(package_work), package_work
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             pre_prune_testcapi = {
                 "status": "failed",
                 "ok": False,
@@ -2301,7 +2309,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             research_driver.verify_overlay_prefix(package_work, build_run_dir, target)
             report["checks"]["no_openssl_overlay"] = check_result(True)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             report["checks"]["no_openssl_overlay"] = check_result(
                 False, error_type=type(error).__name__, error=str(error)
             )
@@ -2343,7 +2351,7 @@ def main(argv: list[str] | None = None) -> int:
                 report["checks"]["strip"] = check_result(
                     True, elf_images_stripped=len(stripped), tool=strip
                 )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             report["checks"]["strip"] = check_result(
                 False, error_type=type(error).__name__, error=str(error)
             )
@@ -2399,7 +2407,7 @@ def main(argv: list[str] | None = None) -> int:
         if not target.is_macos:
             try:
                 linux_validation = package_driver._linux_validation(extracted)
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001
                 linux_validation = {
                     "ok": False,
                     "error_type": type(error).__name__,
@@ -2417,14 +2425,14 @@ def main(argv: list[str] | None = None) -> int:
             report["checks"]["linux_elf_validation"] = linux_validation
             write_json(run_dir / "Linux ELF validation.json", linux_validation)
         try:
-            import buildsys.standalone_compat as standalone_compat
+            from buildsys import standalone_compat
 
             standalone_compat.SCRATCH_ROOT = compatibility_work
             compatibility = run_standalone_compatibility(
                 PRODUCT.interpreter(extracted), extracted, target,
                 skip_testcapi=True,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             compatibility = {
                 "ok": False,
                 "checks": {
@@ -2447,7 +2455,7 @@ def main(argv: list[str] | None = None) -> int:
                 rtls_source,
                 compatibility_work,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             modern_capability = {
                 "ok": False,
                 "evidence": {},
@@ -2485,7 +2493,7 @@ def main(argv: list[str] | None = None) -> int:
                 target,
             )
             report["checks"].update(contracts)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             report["checks"]["post_extract_contracts"] = check_result(
                 False,
                 error_type=type(error).__name__,
@@ -2553,7 +2561,7 @@ def main(argv: list[str] | None = None) -> int:
                     "path": str(manifest_path),
                     "sha256": sha256_file(manifest_path),
                 }
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001
                 report["qualification"]["checks"]["experimental_artifact_manifest"] = {
                     "status": "failed",
                     "error_type": type(error).__name__,
@@ -2576,7 +2584,7 @@ def main(argv: list[str] | None = None) -> int:
             detail = report["qualification"]["checks"][failure]
             print(f"FAIL {failure}: {detail.get('error', detail)}")
         return 0 if report["ok"] else 1
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         print(f"FAIL qualification driver: {type(error).__name__}: {error}", file=sys.stderr)
         return 2
 

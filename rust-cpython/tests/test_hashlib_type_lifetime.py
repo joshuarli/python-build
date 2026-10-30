@@ -6,7 +6,6 @@ import os
 import sys
 import unittest
 
-
 EXPECTED_HASH_MODULE = os.environ.get("HASHLIB_EXPECTED_MODULE", "_hashlib_rs")
 ALGORITHMS = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512")
 

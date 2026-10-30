@@ -19,10 +19,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
-
+from typing import Any
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "tooling"
 PYTHON_CORPUS = FIXTURE_ROOT / "python_corpus"
@@ -191,8 +191,7 @@ def pylint_source(iterations: int) -> WorkloadResult:
                 command,
                 cwd=cwd,
                 env=environment,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=False,
             )
             elapsed += time.perf_counter() - started

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from buildsys.package import create_archive, write_manifest, build_manifest
+from buildsys.package import build_manifest, create_archive, write_manifest
 from buildsys.product import PRODUCT
 from buildsys.targets import TARGETS
 from buildsys.uvmirror import (

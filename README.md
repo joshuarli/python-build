@@ -11,6 +11,10 @@ The distribution excludes pip, ensurepip, venv, Tcl/Tk, `_gdbm`, regression
 tests, and bytecode caches. SQLite includes FTS3/4/5, geopoly, rtree, dbstat,
 and loadable extensions. `compression.zstd` supports multithreading.
 
+The next stage is the [production closeout and Rust performance plan](plan.md).
+[Rust-for-CPython](rust-for-cpython.md) is an isolated research interpreter,
+not the shipping CPython 3.15.1 distribution.
+
 ## Build and qualify
 
 Run `doctor` to inspect the host and pinned toolchain requirements. Fetch
@@ -37,7 +41,8 @@ carry `MH_PIE`.
 `qualify` applies required installed-tree fixes, runs the CPython regression
 suite on a disposable pre-prune copy, validates the packaged payload and
 archive extraction, then publishes the archive and `artifact.json`
-transactionally under `dist/<target>/`. Optional reference comparisons and
+with exception rollback under `dist/<target>/`. Crash-atomic pairwise
+publication is tracked in [P4](plan.md). Optional reference comparisons and
 two-build reproduction are separate commands:
 
 ```sh
@@ -67,9 +72,10 @@ evidence passed. Both complete regression runs had no unexpected failures.
 These fresh archives were qualified in an isolated worktree and did not
 replace the local `dist` files.
 
-No Linux x86-64 archive was present locally, and the available Docker runtime
-is arm64. Linux x86-64 final-byte qualification remains for a native amd64
-runner; no emulated result is claimed.
+Those earlier local results are historical. The [2026-10-26 CI release](https://github.com/laputa-systems/python-build/actions/runs/40330042202)
+passed native builds, qualification, assembly and fresh uv installation on all
+three targets at `3edfbdd0`. Later revisions require new qualification.
+An actual macOS 26 runtime check remains open ([P2](plan.md)).
 
 Controller tests run with:
 
@@ -92,7 +98,8 @@ fallback. The bundle is pinned at package time and is not updated at runtime.
 ## TLS backend
 
 TLS and hashing run on the RTLS/rustls-graviola backend with a modern
-TLS 1.2/1.3-only policy. No OpenSSL source enters the build and no OpenSSL or
+TLS 1.2/1.3-only policy. No OpenSSL source enters the product candidate (the pinned separate
+reference build may use OpenSSL), and no OpenSSL or
 glibc symbols remain in the payload. CPU floors are Apple M1, x86-64
 Broadwell, and ARMv8-A with crypto extensions. The backend design, contracts,
 replay procedures, and per-architecture qualification live in

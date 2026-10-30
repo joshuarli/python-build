@@ -19,9 +19,8 @@ class MemoryBIOContract(unittest.TestCase):
         bio = ssl.MemoryBIO()
         bio.write(b"retained")
         for value in (None, "", False, 0, 1):
-            with self.subTest(value=value):
-                with self.assertRaises(TypeError):
-                    bio.write(value)
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                bio.write(value)
         self.assertEqual(bio.read(), b"retained")
 
     def test_read_integer_bounds_and_positional_arguments(self):
@@ -32,9 +31,8 @@ class MemoryBIOContract(unittest.TestCase):
         bio = ssl.MemoryBIO()
         bio.write(b"abcdef")
         for value in (-(1 << 31) - 1, 1 << 31):
-            with self.subTest(value=value):
-                with self.assertRaises(OverflowError):
-                    bio.read(value)
+            with self.subTest(value=value), self.assertRaises(OverflowError):
+                bio.read(value)
         with self.assertRaises(TypeError):
             bio.read(size=1)
         with self.assertRaises(TypeError):

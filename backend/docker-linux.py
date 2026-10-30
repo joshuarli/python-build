@@ -18,6 +18,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from artifact_layout import ARCHIVE_NAME, MANIFEST_NAME, REPORT_NAME
+
 ARCH_CONFIGS = {
     "aarch64-unknown-linux-musl": {
         "triple": "aarch64-unknown-linux-musl",
@@ -88,7 +89,7 @@ def write_json(path: Path, value: object) -> None:
 
 
 def checked_run(argv: list[str], *, cwd: Path | None = None) -> str:
-    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
     if result.returncode:
         raise DockerBuildError(
             f"command failed ({result.returncode}): {argv!r}\n{result.stdout}{result.stderr}"
@@ -177,7 +178,7 @@ def require_work_dir(path: Path, *, fresh: bool) -> Path:
         raise DockerBuildError(f"cannot read Git's local exclude file: {exclude}") from error
     if not any(pattern.strip() in {".work/", "/.work/"} for pattern in excluded_patterns):
         raise DockerBuildError(".work/ must be ignored through .git/info/exclude before use")
-    if subprocess.run(["git", "check-ignore", "-q", ".work/tmp"], cwd=REPO).returncode:
+    if subprocess.run(["git", "check-ignore", "-q", ".work/tmp"], cwd=REPO, check=False).returncode:
         raise DockerBuildError(".work/tmp must be ignored through .git/info/exclude before use")
     work_root.mkdir(parents=True, exist_ok=True)
     lexical = Path(os.path.abspath(path if path.is_absolute() else REPO / path))
@@ -662,10 +663,10 @@ def run_container(
         if status:
             raise DockerBuildError(f"container exited {status}; see {log_path}")
     except BaseException:
-        subprocess.run(["docker", "stop", "--time", "5", container_id], capture_output=True)
-        subprocess.run(["docker", "rm", "--force", container_id], capture_output=True)
+        subprocess.run(["docker", "stop", "--time", "5", container_id], capture_output=True, check=False)
+        subprocess.run(["docker", "rm", "--force", container_id], capture_output=True, check=False)
         raise
-    cleanup = subprocess.run(["docker", "rm", "--force", container_id], capture_output=True, text=True)
+    cleanup = subprocess.run(["docker", "rm", "--force", container_id], capture_output=True, text=True, check=False)
     if cleanup.returncode:
         raise DockerBuildError(f"could not remove completed container {container_id}: {cleanup.stderr.strip()}")
     return record, image_record, argv, output
@@ -713,9 +714,9 @@ def run_build(
     ]
     command = [
         "sh", "-ec",
-        f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
+        (f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
-        'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"',
+        'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"'),
         f"native-{MACHINE}-guard", *driver_command,
     ]
     name = "rtls-linux-build-" + uuid.uuid4().hex[:12]
@@ -924,9 +925,9 @@ print(json.dumps({
 """
     return [
         "sh", "-ec",
-        f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
+        (f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
-        'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"',
+        'test "$cap_eff" = 0000000000000000; printf "container_cap_eff=%s\\n" "$cap_eff"; exec "$@"'),
         f"native-{MACHINE}-runtime-guard", "/opt/python/bin/python3.15", "-I", "-S", "-B", "-c", code,
     ]
 
@@ -1000,6 +1001,7 @@ def qualification_volume():
         ["docker", "volume", "inspect", name],
         capture_output=True,
         text=True,
+        check=False,
     )
     if existing.returncode == 0:
         raise DockerBuildError(f"refusing to reuse an existing qualification volume: {name}")
@@ -1020,7 +1022,8 @@ def qualification_volume():
         yield volume
     except BaseException as error:
         cleanup = subprocess.run(
-            ["docker", "volume", "rm", name], capture_output=True, text=True
+            ["docker", "volume", "rm", name], capture_output=True, text=True,
+            check=False,
         )
         if cleanup.returncode:
             raise DockerBuildError(
@@ -1042,12 +1045,12 @@ def initialize_qualification_volume(
     command = [
         "sh",
         "-ec",
-        f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
+        (f'test "$(uname -m)" = {MACHINE}; printf "{MACHINE}\\n"; '
         'cap_eff=$(awk \'/^CapEff:/ {print $2}\' /proc/self/status); '
         'test "$cap_eff" = 0000000000000001; printf "container_cap_eff=%s\\n" "$cap_eff"; '
         f"chmod 0700 {QUALIFICATION_VOLUME_TARGET}; chown {owner_uid}:{owner_gid} {QUALIFICATION_VOLUME_TARGET}; "
         "printf 'PASSWD_BEGIN\\n'; cat /etc/passwd; printf 'PASSWD_END\\n'; "
-        "printf 'GROUP_BEGIN\\n'; cat /etc/group; printf 'GROUP_END\\n'",
+        "printf 'GROUP_BEGIN\\n'; cat /etc/group; printf 'GROUP_END\\n'"),
     ]
     record, image_record, argv, output = run_container(
         image,

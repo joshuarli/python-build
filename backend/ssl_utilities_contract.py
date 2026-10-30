@@ -5,9 +5,8 @@ import ssl
 import sys
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
-
+from unittest import mock
 
 NULLBYTE_CERTIFICATE = Path(sys.argv.pop(1)).resolve()
 IPV6_SAN_CERTIFICATE = """-----BEGIN CERTIFICATE-----
@@ -48,7 +47,7 @@ class IndexOnly:
 
 class BadIndex:
     def __index__(self):
-        return 1.5
+        return 1.5  # noqa: PLE0305
 
 
 class SSLUtilitiesContract(unittest.TestCase):
@@ -74,11 +73,10 @@ class SSLUtilitiesContract(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "num must be positive"):
             ssl.RAND_bytes(int_min)
         for value in (int_min - 1, int_max + 1, 1 << 1000):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(
-                    OverflowError, "Python int too large to convert to C int"
-                ):
-                    ssl.RAND_bytes(value)
+            with self.subTest(value=value), self.assertRaisesRegex(
+                OverflowError, "Python int too large to convert to C int"
+            ):
+                ssl.RAND_bytes(value)
 
     def test_rand_add_support_is_explicit(self):
         if ssl.OPENSSL_VERSION.startswith("OpenSSL "):

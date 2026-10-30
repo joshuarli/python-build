@@ -20,8 +20,9 @@ import tempfile
 import time
 import zipfile
 import zlib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 class WorkloadError(RuntimeError):

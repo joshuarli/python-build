@@ -4,7 +4,7 @@ import json
 import re
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +17,7 @@ from verify_uv_python import verify_identity
 class ReleaseTagTests(unittest.TestCase):
     def test_empty_tag_defaults_to_utc_date(self) -> None:
         commit = "a" * 40
-        now = datetime(2026, 10, 22, 1, tzinfo=timezone.utc)
+        now = datetime(2026, 10, 22, 1, tzinfo=UTC)
         self.assertEqual(resolve_release_tag("", commit, commit, now), "20261022")
 
     def test_valid_tag_requires_matching_checkout_and_existing_ref(self) -> None:
@@ -86,7 +86,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text()
 
     def test_all_actions_use_full_commit_pins(self) -> None:
-        references = re.findall(r"^\s+uses: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([^\s]+)", self.workflow, re.M)
+        references = re.findall(r"^\s+uses: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([^\s]+)", self.workflow, re.MULTILINE)
         self.assertTrue(references)
         for action, revision in references:
             with self.subTest(action=action):

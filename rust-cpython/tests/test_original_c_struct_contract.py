@@ -1,11 +1,10 @@
 """Original C struct behavior remains independent of extension placement."""
+import _struct
 import importlib
+import struct
 import sys
 import types
 import unittest
-
-import _struct
-import struct
 
 
 class OriginalStructTests(unittest.TestCase):

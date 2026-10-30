@@ -11,10 +11,9 @@ from __future__ import annotations
 import json
 import os
 import pty
-import shlex
 import select
+import shlex
 import signal
-import shutil
 import subprocess
 import tempfile
 import time
@@ -758,7 +757,7 @@ def _curses_tty_check(python: Path, install: Path, environment: dict[str, str]) 
                 [str(python), "-I", "-B", "-c", _CURSES_TTY_PROBE],
                 child_environment,
             )
-        except BaseException:
+        except BaseException:  # noqa: BLE001
             os._exit(127)
 
     output = bytearray()

@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from artifact_layout import MANIFEST_NAME, REPORT_NAME
 
-
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 REVISION_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 
@@ -140,7 +139,7 @@ def validate_qualification_receipt(
 
     container_user = receipt.get("container_user")
     if not isinstance(container_user, str):
-        raise ValueError(f"{name} does not record its main-container user")
+        raise TypeError(f"{name} does not record its main-container user")
     match = re.fullmatch(r"([0-9]+):([0-9]+)", container_user)
     if match is None or int(match.group(1)) == 0:
         raise ValueError(f"{name} did not run its main container as a non-root user")
@@ -163,7 +162,7 @@ def validate_qualification_receipt(
 
     volume = receipt.get("qualification_work_volume")
     if not isinstance(volume, dict):
-        raise ValueError(f"{name} does not record its qualification work volume")
+        raise TypeError(f"{name} does not record its qualification work volume")
     volume_name = volume.get("name")
     if not isinstance(volume_name, str) or re.fullmatch(r"rtls-q-[0-9a-f]{12}", volume_name) is None:
         raise ValueError(f"{name} has an invalid qualification volume identity")
@@ -183,7 +182,7 @@ def validate_qualification_receipt(
 
     account = volume.get("account")
     if not isinstance(account, dict):
-        raise ValueError(f"{name} does not record its non-root account binding")
+        raise TypeError(f"{name} does not record its non-root account binding")
     username = account.get("username")
     home = account.get("home")
     if (
@@ -200,10 +199,10 @@ def validate_qualification_receipt(
     require_digest(account.get("passwd_sha256"), f"{name} passwd SHA-256")
     require_digest(account.get("group_sha256"), f"{name} group SHA-256")
     if not any(
-        f"target=/etc/passwd" in argument and "readonly" in argument
+        "target=/etc/passwd" in argument and "readonly" in argument
         for argument in command
     ) or not any(
-        f"target=/etc/group" in argument and "readonly" in argument
+        "target=/etc/group" in argument and "readonly" in argument
         for argument in command
     ):
         raise ValueError(f"{name} does not mount its generated account files read-only")
@@ -218,7 +217,7 @@ def validate_qualification_receipt(
 
     initialization = volume.get("initialization")
     if not isinstance(initialization, dict):
-        raise ValueError(f"{name} does not record qualification volume initialization")
+        raise TypeError(f"{name} does not record qualification volume initialization")
     triple = docker_build.get("target_triple")
     try:
         arch = LINUX_ARCHITECTURES[triple]

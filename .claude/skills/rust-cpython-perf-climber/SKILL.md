@@ -5,6 +5,12 @@ description: Procedure for one Rust-for-CPython performance lane - profile, edit
 
 # Rust-for-CPython performance lane (climber)
 
+**Owner directive (2026-10-29):** Root plan.md gates every lane behind
+production closeout and R0. For MEMORY ONLY lanes pass `--memory-only`
+to `perf.py bench` and `perf.py goals`; CPU, timing and quiet-host admission
+cannot accept or reject memory work. Keep the full suite, output,
+replication and module/workload RSS checks. Debt never equals completion.
+
 You run one lane from the coordinator's brief: one hypothesis about one
 module route (plus any application workload the brief adds), in your own
 git worktree. The module's goal is kernel CPU, load footprint, and working
@@ -41,8 +47,8 @@ is a build in your worktree. Use your `LANE` value as your build name.
   them. A non-crate dependency (a C library, a system tool) is still a
   BLOCKED finding.
 - In the memory phase (the brief says MEMORY ONLY), the goals are load
-  footprint and working peak. Kernel CPU is not a target but must not
-  regress: the gate REJECTs a replicated CPU regression.
+  footprint, working peak and workload peak RSS. Use `--memory-only`;
+  CPU and wall results are not measured and cannot reject a memory lane.
 - Use only `perf.py` for builds, suites, profiles, and measurements. Do not
   run `bench.py`, the coverage `build.py build`/`test`, or anything that
   loads the host during someone else's measurement. Never modify a

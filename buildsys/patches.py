@@ -24,6 +24,7 @@ def apply_patch(source: Path, patch: Path, *, strip: int = 1) -> None:
     dry_run = subprocess.run(
         ["patch", f"-p{strip}", "--fuzz=0", "--dry-run", "--forward", "-i", str(patch)],
         cwd=source, capture_output=True, text=True,
+        check=False,
     )
     if dry_run.returncode != 0:
         raise PatchError(
@@ -32,6 +33,7 @@ def apply_patch(source: Path, patch: Path, *, strip: int = 1) -> None:
     result = subprocess.run(
         ["patch", f"-p{strip}", "--fuzz=0", "--forward", "-i", str(patch)],
         cwd=source, capture_output=True, text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise PatchError(

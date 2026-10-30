@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import _struct as struct
 import hashlib
 import json
 import re
 import stat
-import _struct as struct
 import tomllib
 from pathlib import Path
 
@@ -191,7 +191,7 @@ def validate_builtin_source(source: Path, target: str,
         if manifest["dependencies"].get(helper) != {"path": "../" + helper}:
             raise BuiltinArtifactError(f"helper is outside the declared static carrier: {helper}")
     makefile = files.read(source / "Makefile.pre.in", source).decode()
-    recipes = re.findall(r"^cpython-rust-staticlib:[^\n]*\n(\t[^\n]+)", makefile, re.M)
+    recipes = re.findall(r"^cpython-rust-staticlib:[^\n]*\n(\t[^\n]+)", makefile, re.MULTILINE)
     if (len(recipes) != 1
             or "$(CARGO_HOME)/bin/cargo build " not in recipes[0]
             or not re.search(r"--message-format=(json|json-render-diagnostics)\s", recipes[0])

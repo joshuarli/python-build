@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import socket
+import ssl
+import sysconfig
 import threading
 import unittest
 from pathlib import Path
-import sysconfig
-
-import ssl
-
 
 CERTDATA = Path(sysconfig.get_path("stdlib")) / "test" / "certdata"
 SERVER_CA = CERTDATA / "pycacert.pem"
@@ -68,7 +66,7 @@ def _run_sockets(client_context, server_context, server_hostname="localhost", se
                     server.session_reused,
                 )
                 server.sendall(b"x")
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001
             server_errors.append(error)
 
     thread = threading.Thread(target=serve)

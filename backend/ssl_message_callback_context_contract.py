@@ -1,9 +1,9 @@
 import argparse
 import concurrent.futures
-from collections.abc import Callable
 import json
 import socket
 import ssl
+from collections.abc import Callable
 from pathlib import Path
 
 CONTENT_HANDSHAKE = 22
@@ -55,7 +55,7 @@ def callback_for(
 ) -> Callable:
     def callback(connection, direction, version, content_type, message_type, data):
         if not isinstance(connection, ssl.SSLSocket):
-            raise AssertionError((label, type(connection)))
+            raise TypeError((label, type(connection)))
         if direction not in {"read", "write"} or type(data) is not bytes:
             raise AssertionError((label, direction, type(data)))
         events.append(

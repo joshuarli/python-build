@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Iterable, Mapping
 
 from catalog_service.model import CatalogEntry, SearchHit
 from catalog_service.tokenizer import frequencies, terms
@@ -35,9 +35,11 @@ def score_entry(
     document_frequency: Mapping[str, int],
     document_count: int,
     *,
-    config: RankConfig = RankConfig(),
+    config: RankConfig | None = None,
 ) -> SearchHit | None:
     """Score one entry and retain the terms that contributed to its score."""
+    if config is None:
+        config = RankConfig()
     wanted = tuple(dict.fromkeys(query_terms))
     if not wanted:
         return None

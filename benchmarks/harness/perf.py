@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
 
 from .allocations import _write_json
-
 
 DEFAULT_EVENTS = (
     "task-clock",
@@ -159,7 +158,7 @@ def run_perf_stat(
     target_command.extend(("--", *command))
     perf_command = [executable, "stat", "-x,", "-e", ",".join(events), "--", *target_command]
     try:
-        completed = subprocess.run(perf_command, text=True, capture_output=True, env=child_env)
+        completed = subprocess.run(perf_command, text=True, capture_output=True, env=child_env, check=False)
     except OSError as error:
         report = _result("unavailable", command, reason=str(error), events=events)
         if output_json is not None:

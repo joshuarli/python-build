@@ -1,11 +1,14 @@
 """CPython recipe policy, before executing the expensive build."""
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from buildsys.cpython import (
-    CPYTHON_PGO_HASH_SEED, configuration, pgo_profile_task,
-    resolve_build_jobs, resolve_pgo_jobs,
+    CPYTHON_PGO_HASH_SEED,
+    configuration,
+    pgo_profile_task,
+    resolve_build_jobs,
+    resolve_pgo_jobs,
 )
 from buildsys.targets import TARGETS
 

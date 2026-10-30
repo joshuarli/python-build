@@ -9,17 +9,18 @@ build-time disk requirement.
 
 from __future__ import annotations
 
-import hashlib
 import base64
+import hashlib
 import json
 import os
-from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
 import stat
 import tarfile
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 
 from .inputs import InputError
+
 
 @dataclass(frozen=True)
 class ExtractionLayout:

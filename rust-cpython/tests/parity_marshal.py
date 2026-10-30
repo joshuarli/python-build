@@ -73,7 +73,7 @@ def emit():
         graph = build_cases()[name]
         try:
             blob = marshal.dumps(graph)
-        except Exception as exc:  # noqa: BLE001 - record, don't crash
+        except Exception as exc:  # noqa: BLE001
             lines.append(f"{name} ERROR:{type(exc).__name__}")
         else:
             lines.append(f"{name} {blob.hex()}")
@@ -107,6 +107,7 @@ def cycle_probe(python):
         text=True,
         env={**os.environ, "PYTHONHASHSEED": "0"},
         timeout=120,
+        check=False,
     )
     return result.returncode, result.stderr.strip().splitlines()[-1] if result.stderr else ""
 
@@ -131,6 +132,7 @@ def main(argv=None):
             text=True,
             env=env,
             timeout=600,
+            check=False,
         )
         if result.returncode != 0:
             print(f"{label} emit failed:\n{result.stderr}")

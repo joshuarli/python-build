@@ -26,7 +26,6 @@ from pathlib import Path
 
 from .targets import Target, native_target
 
-
 # Keep the profile workload as a named policy input. The tests are part of the
 # locked CPython source, so the source pin selects their implementation.
 CPYTHON_PGO_PROFILE_TASK = "-m test --pgo"

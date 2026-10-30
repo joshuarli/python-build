@@ -11,12 +11,19 @@ import hashlib
 import json
 import sys
 import time
-from typing import Callable, Protocol
-from urllib.parse import parse_qsl, quote_from_bytes, unquote_to_bytes, urlencode, urlsplit, urlunsplit
+from collections.abc import Callable
+from typing import Protocol
+from urllib.parse import (
+    parse_qsl,
+    quote_from_bytes,
+    unquote_to_bytes,
+    urlencode,
+    urlsplit,
+    urlunsplit,
+)
 from urllib.request import Request
 
-from .catalog_url import WorkloadError, _EXPECTED_INPUT, _batch, _digest
-
+from .catalog_url import _EXPECTED_INPUT, WorkloadError, _batch, _digest
 
 _EXPECTED_SEARCH_OUTPUT = "a56d64f19accb1be3bb302cc60f406928d15182828c2b7e975e957d503dc1f22"
 _EXPECTED_PATH_OUTPUT = "52db5e5b89587be9b6690dde7ffccaf709c6c2592b31f881c05354d1475d2eff"

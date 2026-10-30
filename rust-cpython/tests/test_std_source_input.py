@@ -3,11 +3,11 @@
 import copy
 import hashlib
 import json
-from pathlib import Path
 import sys
-import tempfile
 import tarfile
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -78,26 +78,27 @@ class StdSourceInputTests(unittest.TestCase):
                 entry = copy.deepcopy(self.std_entry)
                 entry['name'] = name
                 self.document['inputs'].append(entry)
-                with tempfile.TemporaryDirectory() as tmp, self.lock(Path(tmp)):
-                    with self.assertRaises(lb.LaneError):
-                        lb._read_lock()
+                with tempfile.TemporaryDirectory() as tmp, self.lock(Path(tmp)), self.assertRaises(lb.LaneError):
+                    lb._read_lock()
                 self.document['inputs'].pop()
 
     def test_cpython_metadata_mismatch_is_still_rejected(self):
         self.document['inputs'][0]['version'] = 'wrong'
-        with tempfile.TemporaryDirectory() as tmp, self.lock(Path(tmp)):
-            with self.assertRaises(lb.LaneError):
-                lb._read_lock()
+        with tempfile.TemporaryDirectory() as tmp, self.lock(Path(tmp)), self.assertRaises(lb.LaneError):
+            lb._read_lock()
 
     def test_std_metadata_and_input_must_agree(self):
         for field, value in [('version', 'wrong'), ('role', 'reference'),
                              ('target', lb.LINUX_TARGET), ('license', 'wrong')]:
             original = self.std_entry[field]
             self.std_entry[field] = value
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp, \
-                    self.lock(Path(tmp)):
-                with self.assertRaises(lb.LaneError):
-                    lb._read_rust_std_lock()
+            with (
+                self.subTest(field=field),
+                tempfile.TemporaryDirectory() as tmp,
+                self.lock(Path(tmp)),
+                self.assertRaises(lb.LaneError),
+            ):
+                lb._read_rust_std_lock()
             self.std_entry[field] = original
 
     def test_extraction_requires_named_verified_archive_before_source_reads(self):
@@ -177,9 +178,8 @@ class StdSourceInputTests(unittest.TestCase):
                 archive, library = self.extraction(root / 'extracted')
                 path = library / field if field == 'Cargo.lock' else archive / field
                 path.write_text('tampered')
-                with self.lock(root):
-                    with self.assertRaises(lb.LaneError):
-                        lb._rust_std_source_root(root / 'extracted')
+                with self.lock(root), self.assertRaises(lb.LaneError):
+                    lb._rust_std_source_root(root / 'extracted')
 
 
 if __name__ == '__main__':

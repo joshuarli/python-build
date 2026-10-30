@@ -1,11 +1,12 @@
-import _operator
-import inspect
-import _hashlib_graviola
-import _md5
-import _sha1
-import _sha2
-import _sha3
 import _blake2
+import _md5
+import _operator
+import _sha1
+import _sha3
+import inspect
+
+import _hashlib_graviola
+import _sha2
 
 
 def _md5_sha1(data=b"", *, usedforsecurity=True):
@@ -42,7 +43,7 @@ class _MD5SHA1:
 
 def _rust_constructor(algorithm):
     class RustHash:
-        __slots__ = ("_state", "_name", "_digest_size", "_block_size")
+        __slots__ = ("_block_size", "_digest_size", "_name", "_state")
 
         def __init__(self, data=b"", *, usedforsecurity=True):
             bool(usedforsecurity)
@@ -145,7 +146,7 @@ class _HMACMeta(type):
 
 
 class HMAC(metaclass=_HMACMeta):
-    __slots__ = ("_state", "_digest_size", "_block_size", "_algorithm")
+    __slots__ = ("_algorithm", "_block_size", "_digest_size", "_state")
 
     def __new__(cls, *args, **kwargs):
         raise TypeError("cannot create '_hashlib.HMAC' instances")

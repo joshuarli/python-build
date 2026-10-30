@@ -1,20 +1,21 @@
 """Structured post-install relocation edits: rpaths and sysconfigdata."""
 from __future__ import annotations
 
-import shutil
 import runpy
 import shlex
+import shutil
 import subprocess
-import sysconfig
 import sys
+import sysconfig
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from buildsys.product import PRODUCT
 from buildsys.relocate import (
-    clean_sysconfig,
     _fix_python_config_scripts,
+    clean_sysconfig,
     find_elfs,
     is_elf,
     origin_token,
@@ -22,7 +23,6 @@ from buildsys.relocate import (
     stale_sysconfig_values,
     strip_private_prefix,
 )
-from buildsys.product import PRODUCT
 
 HAS_PATCHELF = shutil.which("patchelf") is not None
 

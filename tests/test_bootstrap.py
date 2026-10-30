@@ -6,17 +6,23 @@ reported rather than silently used.
 """
 from __future__ import annotations
 
-import json
 import dataclasses
+import json
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 from buildsys.bootstrap import (
-    BootstrapError, XcodeFacts, _resolve_host_tool, _resolve_xcode_facts,
-    load_linux_bootstrap, load_macos_toolchain, problems, toolchain_for,
+    BootstrapError,
+    XcodeFacts,
+    _resolve_host_tool,
+    _resolve_xcode_facts,
+    load_linux_bootstrap,
+    load_macos_toolchain,
+    problems,
+    toolchain_for,
 )
 from buildsys.targets import target_for_triple
 

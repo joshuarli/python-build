@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -54,6 +54,7 @@ def _run_probe(python: Path, code: str, target: Target, workdir: Path) -> dict:
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
     if result.returncode != 0:
         return {

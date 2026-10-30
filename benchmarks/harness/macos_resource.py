@@ -11,11 +11,10 @@ Linux USS nor PSS; its definition is subject to OS changes (`footprint(1)`).
 from __future__ import annotations
 
 import ctypes
-from dataclasses import dataclass
 import errno
-from functools import lru_cache
 import sys
-
+from dataclasses import dataclass
+from functools import lru_cache
 
 _RUSAGE_INFO_V4 = 4
 _PROC_PGRP_ONLY = 2

@@ -20,7 +20,6 @@ from .models import (
     validate_workload_result,
 )
 
-
 PAGE_SIZE_FLOOR_BYTES = 4096
 TIMING_RESOLUTION_FLOOR_SECONDS = 0.001
 NOISE_SIGMA_MULTIPLIER = 3.0
@@ -515,11 +514,7 @@ def _compare_memory(
         status = "incomplete"
     elif "fail" in statuses:
         status = "fail"
-    elif "incomplete" in statuses or "inconclusive" in statuses:
-        status = "incomplete"
-    elif measured_gate_metrics == 0:
-        status = "incomplete"
-    elif memory_primary_metric not in metrics:
+    elif "incomplete" in statuses or "inconclusive" in statuses or measured_gate_metrics == 0 or memory_primary_metric not in metrics:
         status = "incomplete"
     elif memory_primary_metric == "peak_rss":
         # Summed RSS can double-count shared pages. A regression is useful
@@ -608,9 +603,7 @@ def _compare_allocations(
         status = "not_measured"
     elif "fail" in statuses:
         status = "fail"
-    elif "incomplete" in statuses or "inconclusive" in statuses:
-        status = "incomplete"
-    elif measured_gate_metrics == 0:
+    elif "incomplete" in statuses or "inconclusive" in statuses or measured_gate_metrics == 0:
         status = "incomplete"
     else:
         status = "pass"

@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from catalog_service.codec import decode_entry, encode_entry
 from catalog_service.errors import StorageError

@@ -10,10 +10,12 @@ VSOCK loopback. They also passed on macOS arm64, including rerun at
 `9329e1c` with the shared-overlay uuid, codec (`encodings.utf_8`), socket,
 and stdlib-module-list repairs included (`b0888dd`, `499308e`, `4710c23`):
 50,158 run/2,703 skipped with zero failures, matching the pre-repair counts
-exactly. Performance work has its separate plan in
-[`rust-for-cpython-perf.md`](../rust-for-cpython-perf.md).
+exactly at that historical coverage checkpoint. The later parity run has
+explicit accepted failures; see the live technical campaign in
+[`rust-for-cpython.md`](../rust-for-cpython.md), sequenced behind
+[production closeout](../plan.md).
 
-The production CPython 3.14.6 build, packaging, and frozen Linux recipes are
+The production CPython 3.15.1 build, packaging, and pinned Linux recipes are
 outside this lane. The lane supports native macOS arm64 and Linux x86-64.
 Linux arm64 is in scope but its builder is not implemented. Windows, Intel
 macOS, and all other targets are unsupported; the builder rejects them.

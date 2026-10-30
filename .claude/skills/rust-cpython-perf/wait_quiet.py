@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "rust-cpython"))
-import perf  # noqa: E402
+import perf
 
 minutes = float(sys.argv[1]) if len(sys.argv) > 1 else 180.0
 min_idle = float(sys.argv[2]) if len(sys.argv) > 2 else perf.DEFAULT_MIN_IDLE

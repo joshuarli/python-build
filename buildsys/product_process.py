@@ -6,7 +6,6 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-
 _BASE_ENVIRONMENT_KEYS = ("LANG", "LC_ALL", "TZ")
 _ALLOWED_OVERRIDES = frozenset(
     {
@@ -52,7 +51,7 @@ def product_environment(
         supplied = dict(overrides)
         unsupported = [name for name in supplied if name not in _ALLOWED_OVERRIDES]
         if unsupported:
-            names = ", ".join(sorted((str(name) for name in unsupported)))
+            names = ", ".join(sorted(str(name) for name in unsupported))
             raise ValueError(f"unsupported product environment override names: {names}")
         if any(not isinstance(value, str) for value in supplied.values()):
             raise TypeError("product environment override values must be strings")
@@ -72,7 +71,7 @@ def run_product_process(
     if isinstance(argv, (str, bytes, Path)) or not argv:
         raise ValueError("argv must be a non-empty sequence")
     if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)):
-        raise ValueError("timeout_seconds must be a finite positive number")
+        raise ValueError("timeout_seconds must be a finite positive number")  # noqa: TRY004
     try:
         timeout = float(timeout_seconds)
     except OverflowError as error:
@@ -97,4 +96,5 @@ def run_product_process(
         capture_output=True,
         text=True,
         timeout=timeout,
+        check=False,
     )

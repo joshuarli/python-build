@@ -8,7 +8,6 @@ import unicodedata
 from pathlib import PurePosixPath
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
-
 _SPACE = re.compile(r"\s+")
 _IDENTIFIER = re.compile(r"[^a-z0-9._:-]+")
 

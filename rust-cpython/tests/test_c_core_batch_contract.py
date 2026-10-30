@@ -1,4 +1,9 @@
 """Original C modules retain native APIs and lifetimes across core placement."""
+import _heapq
+import _json
+import _queue
+import _random
+import _statistics
 import array
 import fcntl
 import heapq
@@ -8,17 +13,10 @@ import math
 import os
 import random
 import select
-import struct
 import sys
 import unittest
-import _heapq
-import _json
-import _math_integer
-import _queue
-import _random
-import _statistics
-import _struct
 
+import _math_integer
 
 MODULES = ('_struct', '_heapq', '_math_integer', 'math', 'fcntl', 'select',
            '_json', '_queue', '_random', '_statistics', 'array')
@@ -54,9 +52,8 @@ class OriginalCCoreBatchContractTests(unittest.TestCase):
         copied = array.array('i')
         copied.frombytes(numbers.tobytes())
         self.assertEqual(copied.tolist(), [2, 4, 6])
-        with self.assertRaises(BufferError):
-            with memoryview(numbers):
-                numbers.append(8)
+        with self.assertRaises(BufferError), memoryview(numbers):
+            numbers.append(8)
         numbers.append(8)
 
     def test_posix_descriptors_restore_flags_and_close(self):

@@ -3,7 +3,6 @@ import importlib
 import sys
 import unittest
 
-
 MODULES = ('_struct', '_heapq', '_math_integer', 'math', 'fcntl', 'select',
            '_json', '_queue', '_random', '_statistics', 'array')
 

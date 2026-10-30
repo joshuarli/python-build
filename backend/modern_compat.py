@@ -7,7 +7,6 @@ from pathlib import Path
 
 from buildsys.product_process import run_product_process
 
-
 _TLS12_CIPHERS = frozenset(
     {
         "ECDHE-ECDSA-AES128-GCM-SHA256",
@@ -171,7 +170,7 @@ def _locked_versions(lock_path: Path) -> dict[str, str]:
     with lock_path.open("rb") as source:
         packages = tomllib.load(source).get("package")
     if not isinstance(packages, list):
-        raise ValueError("RTLS Cargo.lock has no package list")
+        raise TypeError("RTLS Cargo.lock has no package list")
     versions: dict[str, str] = {}
     for crate_name in _LOCKED_CRATES:
         matches = [
@@ -235,7 +234,7 @@ def probe_modern_tls(
     try:
         locked_versions = _locked_versions(source / "rust" / "Cargo.lock")
         expected_version_info = _rustls_version_info(locked_versions["rustls"])
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, TypeError) as error:
         return {"ok": False, "evidence": evidence, "error": str(error)}
 
     evidence["locked_versions"] = locked_versions

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -10,7 +9,6 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
-
 
 CERTDATA = Path(sys.argv.pop(1))
 PINNED_BUNDLE = Path(sys.argv.pop(1))
@@ -132,8 +130,8 @@ class TrustPolicyContract(unittest.TestCase):
                 "-I",
                 "-B",
                 "-c",
-                "import json, ssl; p=ssl.get_default_verify_paths(); "
-                "print(json.dumps(list(p)))",
+                ("import json, ssl; p=ssl.get_default_verify_paths(); "
+                "print(json.dumps(list(p)))"),
             ],
             check=True,
             capture_output=True,
@@ -524,13 +522,11 @@ class TrustPolicyContract(unittest.TestCase):
             self.ssl._create_unverified_context,
         ):
             for value in (None, "SERVER_AUTH"):
-                with self.subTest(method=method.__name__, value=value):
-                    with self.assertRaises(TypeError):
-                        method(purpose=value)
+                with self.subTest(method=method.__name__, value=value), self.assertRaises(TypeError):
+                    method(purpose=value)
             unknown = self.ssl._ASN1Object._make((1, "UNKNOWN", "unknown", "1.2.3.4"))
-            with self.subTest(method=method.__name__, value=unknown):
-                with self.assertRaises(ValueError):
-                    method(purpose=unknown)
+            with self.subTest(method=method.__name__, value=unknown), self.assertRaises(ValueError):
+                method(purpose=unknown)
 
         with self.assertRaises(TypeError):
             self.new_context().load_default_certs(None)

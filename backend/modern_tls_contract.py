@@ -11,7 +11,6 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-
 REFERENCE_BACKEND = "OpenSSL 3.5.7"
 SERVER_CERT = "keycert3.pem"
 CA_CERT = "pycacert.pem"
@@ -182,7 +181,7 @@ def _reference_server(config: dict[str, Any]) -> int:
             listener.settimeout(config["timeout"])
             listener.bind(("127.0.0.1", 0))
             listener.listen(1)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         print(json.dumps({"setup_error": _error_value(error)}), flush=True)
         return 1
 
@@ -203,9 +202,9 @@ def _reference_server(config: dict[str, Any]) -> int:
         try:
             with context.wrap_socket(raw, server_side=True) as connection:
                 result = {"accepted": True, **_session_value(connection)}
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             result = {"accepted": False, "error": _error_value(error)}
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         result = {"accepted": False, "error": _error_value(error)}
     finally:
         listener.close()
@@ -232,9 +231,9 @@ def _reference_client(config: dict[str, Any]) -> int:
         try:
             with context.wrap_socket(raw, server_hostname=HOSTNAME) as connection:
                 result = {"accepted": True, **_session_value(connection)}
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             result = {"accepted": False, "error": _error_value(error)}
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         result = {"accepted": False, "error": _error_value(error)}
     print(json.dumps(result), flush=True)
     return 0
@@ -409,7 +408,7 @@ def _candidate_client(
         ) as connection:
             try:
                 connection.do_handshake()
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001
                 return {
                     "accepted": False,
                     "phase": "handshake",
@@ -424,7 +423,7 @@ def _candidate_client(
                 "check_hostname": context.check_hostname,
                 "verify_flags": int(context.verify_flags),
             }
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         return {
             "accepted": False,
             "phase": "connect_or_wrap",
@@ -584,7 +583,7 @@ def _check_unsupported_setters(
         before = _public_context_state(context)
         try:
             setter(context)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             after = _public_context_state(context)
             results.append(
                 {
@@ -644,8 +643,7 @@ def _reference_offer(exchange: dict[str, Any], case: dict[str, Any]) -> tuple[bo
     if server.get("cipher") != case["expected_cipher"]:
         return False, "reference server selected unexpected cipher " + str(server.get("cipher"))
     expected_sigalg = case.get("expected_server_sigalg")
-    if expected_sigalg is not None:
-        if client.get("server_sigalg") != expected_sigalg:
+    if expected_sigalg is not None and client.get("server_sigalg") != expected_sigalg:
             return False, "reference selected unexpected server signature " + str(
                 client.get("server_sigalg")
             )
@@ -707,8 +705,10 @@ def _check_positive(
         return False, "reference server reported unexpected protocol " + str(server.get("version"))
     if server.get("cipher") != client.get("cipher"):
         return False, "candidate and reference server disagree on the negotiated cipher"
-    if case.get("expected_group"):
-        if client.get("group") != case["expected_group"] or server.get("group") != case["expected_group"]:
+    if case.get("expected_group") and (
+        client.get("group") != case["expected_group"]
+        or server.get("group") != case["expected_group"]
+    ):
             return False, "candidate and reference did not negotiate the required group"
     return True, "verified candidate handshake negotiated the expected modern protocol"
 

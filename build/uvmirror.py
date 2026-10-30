@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from buildsys.uvmirror import UvMirrorError, assemble  # noqa: E402
+from buildsys.uvmirror import UvMirrorError, assemble
 
 
 def main(argv: list[str] | None = None) -> int:

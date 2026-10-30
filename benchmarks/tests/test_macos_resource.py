@@ -32,9 +32,8 @@ class MacResourceLayoutTests(unittest.TestCase):
             ctypes.set_errno(errno.ESRCH)
             return -1
 
-        with patch.object(macos_resource, "_proc_pid_rusage", return_value=unavailable):
-            with self.assertRaises(ProcessLookupError):
-                macos_resource.read_process_memory(123456)
+        with patch.object(macos_resource, "_proc_pid_rusage", return_value=unavailable), self.assertRaises(ProcessLookupError):
+            macos_resource.read_process_memory(123456)
 
     def test_non_macos_host_has_explicit_unavailable_error(self):
         with patch.object(macos_resource.sys, "platform", "linux"):
@@ -44,11 +43,10 @@ class MacResourceLayoutTests(unittest.TestCase):
         macos_resource._proc_pid_rusage.cache_clear()
 
     def test_missing_libproc_has_explicit_unavailable_error(self):
-        with patch.object(macos_resource.sys, "platform", "darwin"):
-            with patch.object(macos_resource.ctypes, "CDLL", side_effect=OSError("missing")):
-                macos_resource._proc_pid_rusage.cache_clear()
-                with self.assertRaisesRegex(RuntimeError, "libproc is unavailable"):
-                    macos_resource.read_process_memory(1)
+        with patch.object(macos_resource.sys, "platform", "darwin"), patch.object(macos_resource.ctypes, "CDLL", side_effect=OSError("missing")):
+            macos_resource._proc_pid_rusage.cache_clear()
+            with self.assertRaisesRegex(RuntimeError, "libproc is unavailable"):
+                macos_resource.read_process_memory(1)
         macos_resource._proc_pid_rusage.cache_clear()
 
 

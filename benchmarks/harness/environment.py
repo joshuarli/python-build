@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import os
-from pathlib import Path
 import platform
 import re
 import shutil
 import stat
 import subprocess
 from collections.abc import Mapping, Sequence
-
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 _CPU_DIR = re.compile(r"^cpu(\d+)$")
 _PYTHON_VERSIONED = re.compile(r"^python\d+\.\d+$")
@@ -451,7 +450,7 @@ def _container_provenance(proc_root: Path) -> dict[str, object]:
     cgroup = _read_text(proc_root / "1" / "cgroup") or ""
     mountinfo = _read_text(proc_root / "1" / "mountinfo") or ""
     current_cgroup = _read_text(proc_root / "self" / "cgroup") or ""
-    evidence = "\n".join((cgroup, current_cgroup, mountinfo)).lower()
+    evidence = f"{cgroup}\n{current_cgroup}\n{mountinfo}".lower()
     runtimes = [
         runtime
         for marker, runtime in (

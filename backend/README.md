@@ -1,5 +1,11 @@
 # RTLS and Graviola backend
 
+**Current release status (2026-10-29):** The OpenSSL-free backend is now
+the official product on all three platforms; the [2026-10-26 release workflow](https://github.com/laputa-systems/python-build/actions/runs/40330042202)
+passed. Older paragraphs below retain experimental chronology and may say
+adoption is pending. For current open guarantees use [plan.md](../plan.md),
+not those historical status assertions.
+
 This is the official TLS and hashing backend: fully OpenSSL-free CPython
 3.15.1 distributions for macOS arm64 and Linux x86-64/arm64 musl, built by
 `build.yml` with the drivers in this directory. The sections below record the

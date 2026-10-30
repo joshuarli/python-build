@@ -1,9 +1,9 @@
 """Regression tests for native recipe execution boundaries."""
 import io
-from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from buildsys.recipes import RECIPE_LAYOUTS, Recipe, Toolchain, build_recipe

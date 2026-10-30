@@ -7,7 +7,6 @@ import os
 import subprocess
 from pathlib import Path
 
-
 WORKER = r'''
 import importlib.util
 import json

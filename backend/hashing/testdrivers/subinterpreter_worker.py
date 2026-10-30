@@ -21,11 +21,11 @@ EXPECTED = {
 
 
 def calculate(label, port):
+    import _hashlib
     import hashlib
     import hmac
     import socket
 
-    import _hashlib
     import _hashlib_graviola
 
     with socket.create_connection(("127.0.0.1", port), timeout=20) as connection:

@@ -5,11 +5,10 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import Counter
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import Iterable, Iterator
 
 from catalog_service.normalize import normalize_text
-
 
 _TOKEN = re.compile(r"[\w]+(?:['’][\w]+)?", re.UNICODE)
 _DEFAULT_STOP_WORDS = frozenset(

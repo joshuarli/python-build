@@ -12,7 +12,6 @@ and dependency set.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, replace
@@ -148,7 +147,8 @@ def run(cmd: list[str], *, cwd: Path, env: dict[str, str], log: Path) -> None:
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w") as handle:
         result = subprocess.run(
-            cmd, cwd=cwd, env=env, stdout=handle, stderr=subprocess.STDOUT
+            cmd, cwd=cwd, env=env, stdout=handle, stderr=subprocess.STDOUT,
+            check=False,
         )
     if result.returncode != 0:
         raise BuildError(f"command failed ({result.returncode}): {cmd} — log {log}")

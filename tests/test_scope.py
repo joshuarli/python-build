@@ -5,14 +5,22 @@ from pathlib import Path
 from unittest.mock import patch
 
 from buildsys.deporder import (
-    DEPENDENCY_ORDER, LINUX_DEPENDENCY_ORDER, MACOS_DEPENDENCY_ORDER,
+    DEPENDENCY_ORDER,
+    LINUX_DEPENDENCY_ORDER,
+    MACOS_DEPENDENCY_ORDER,
 )
 from buildsys.inputs import load_lock
 from buildsys.product import PRODUCT
 from buildsys.scope import (
-    EXCLUDED_SCRIPT_PREFIXES, EXCLUDED_STDLIB_DIRS, ScopeError,
-    enforce_exclusions, probe_in_process, prune_distribution_payload,
-    stdlib_directories, verify_distribution_payload, verify_exclusions,
+    EXCLUDED_SCRIPT_PREFIXES,
+    EXCLUDED_STDLIB_DIRS,
+    ScopeError,
+    enforce_exclusions,
+    probe_in_process,
+    prune_distribution_payload,
+    stdlib_directories,
+    verify_distribution_payload,
+    verify_exclusions,
 )
 
 # Tcl/Tk and everything that exists solely to serve its GUI are outside the

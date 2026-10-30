@@ -1,5 +1,6 @@
 # Derived from CPython 3.15.1, Copyright Python Software Foundation, PSF License.
-from enum import IntEnum as _IntEnum, _simple_enum
+from enum import IntEnum as _IntEnum
+from enum import _simple_enum
 
 _SSL_CONSTANTS = {
     "PROTOCOL_SSLv23": 2,

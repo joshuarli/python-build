@@ -273,7 +273,7 @@ def _format_absolute(metric: str, value: Any) -> str:
         unit = "B/op"
     elif metric.endswith("allocations_per_operation"):
         unit = "alloc/op"
-    elif metric.endswith("total_num_allocations") or metric.endswith("total_allocations"):
+    elif metric.endswith(("total_num_allocations", "total_allocations")):
         unit = "allocations"
     else:
         unit = "units"

@@ -6,16 +6,18 @@ not launch benchmark suites, Docker, or network operations.
 
 from __future__ import annotations
 
-from contextlib import redirect_stdout
 import io
-from pathlib import Path
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
 
 from benchmarks.bench import (
     _docker_descriptor,
     _required_input_groups,
     _select_input_lock,
+)
+from benchmarks.bench import (
     main as bench_main,
 )
 from benchmarks.harness.inputs import (
@@ -41,7 +43,6 @@ from benchmarks.harness.runner import (
     workload_environment,
 )
 from benchmarks.workloads.registry import WORKLOADS, select_workloads
-
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCH = ROOT / "benchmarks"
