@@ -2076,8 +2076,6 @@ def build_experimental_manifest(
         build_record=build_record,
         package_patches_directory=COMMON_ROOT / "patches" / "cpython",
     )
-    bundled = manifest["components"]["bundled"]
-    manifest["components"]["bundled"] = [entry for entry in bundled if entry["name"] != "openssl"]
     manifest["components"]["rust_backends"] = [
         item for item in rust_graph if item["name"] in {"rustls", "rustls-webpki", "rustls-graviola", "graviola"}
     ]
