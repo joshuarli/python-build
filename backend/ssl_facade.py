@@ -8,7 +8,8 @@ from rtls import SSLContext as _RTLS_SSLContext
 from rtls import __all__ as _rtls_all
 from rtls import __version__  # noqa: F401
 
-__all__ = list(_rtls_all)
+__all__ = [name for name in _rtls_all if name != "match_hostname"]
+globals().pop("match_hostname", None)
 
 
 _PYTHON_BUILD_DEFAULT_CA_BUNDLE = os.path.join(
@@ -74,18 +75,15 @@ def create_default_context(
         context = SSLContext(PROTOCOL_TLS_CLIENT)
         context.verify_mode = CERT_REQUIRED
         context.check_hostname = True
-        context.verify_flags |= (
-            VERIFY_X509_PARTIAL_CHAIN
-            | VERIFY_X509_STRICT
-            | VERIFY_X509_TRUSTED_FIRST
-        )
+        context.verify_flags |= VERIFY_X509_TRUSTED_FIRST
     elif purpose == Purpose.CLIENT_AUTH:
         context = SSLContext(PROTOCOL_TLS_SERVER)
     else:
         raise ValueError(purpose)
+    context.verify_flags |= VERIFY_X509_PARTIAL_CHAIN | VERIFY_X509_STRICT
     if cafile or capath or cadata:
         context.load_verify_locations(cafile, capath, cadata)
-    else:
+    elif context.verify_mode != CERT_NONE:
         context.load_default_certs(purpose)
     if hasattr(context, "keylog_filename"):
         keylogfile = os.environ.get("SSLKEYLOGFILE")

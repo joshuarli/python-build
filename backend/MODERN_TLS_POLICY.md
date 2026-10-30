@@ -84,3 +84,16 @@ fallbacks, fabricated backend identities, or ignored setters.
 Hashlib and HMAC retain CPython API compatibility, including MD5 and SHA-1
 for checksum and data-format uses, as explicitly confirmed by the owner.
 Those digest APIs do not add algorithms to the TLS allowlist.
+
+## User-facing guarantees and non-guarantees
+
+- TLS 1.2 and 1.3 only. SSLv2/3, TLS 1.0 and 1.1 are not available and are not
+  planned.
+- No online revocation checking: there is no OCSP or CRL fetching. CRLs work
+  only when the application loads them and sets a CRL check flag.
+- The bundled Mozilla root set is a fallback used only when no explicit trust
+  source and no platform default source exists. It is refreshed with each
+  release and is not updated at run time.
+- The `ssl` module follows CPython 3.15 semantics where the RTLS backend
+  allows; deliberate and known differences are listed in
+  `NATIVE_COMPATIBILITY.md`, `ssl-cipher-support.md`, and `ssl-error-support.md`.
