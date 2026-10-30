@@ -7,6 +7,7 @@ touched here.
 """
 
 import bz2
+import compression.zstd
 import ctypes
 import decimal
 import hashlib
@@ -18,8 +19,6 @@ import sys
 import tempfile
 import uuid
 import zlib
-
-import compression.zstd
 
 
 def main() -> int:

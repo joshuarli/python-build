@@ -1658,9 +1658,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.pgo and args.phase not in {"base", "all"}:
         parser.error("--pgo is only valid with --phase base or --phase all")
-    if sys.version_info < (3, 12):
-        print("FAIL no-OpenSSL build: run with Python 3.12 or newer", file=sys.stderr)
-        return 2
     try:
         common_root = repository_common_root()
         require_same_locks(common_root)

@@ -60,8 +60,6 @@ def prepare(archive: Path, checkout: Path) -> Path:
 
 
 def main() -> None:
-    if sys.version_info < (3, 12):
-        raise RuntimeError("Preparing verified source archives requires Python 3.12 or newer")
     parser = argparse.ArgumentParser()
     subcommands = parser.add_subparsers(dest="command", required=True)
     download = subcommands.add_parser("fetch")

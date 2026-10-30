@@ -2,12 +2,12 @@ import _blake2
 import _md5
 import _operator
 import _sha1
+import _sha2
 import _sha3
 import inspect
 import warnings
 
 import _hashlib_graviola
-import _sha2
 
 _NO_DATA = object()
 _openssl_fallback_signature = inspect.Signature(

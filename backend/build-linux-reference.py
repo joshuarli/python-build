@@ -606,9 +606,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.jobs < 1:
         parser.error("--jobs must be at least one")
-    if sys.version_info < (3, 12):
-        print("FAIL Linux reference build: run with Python 3.12 or newer", file=sys.stderr)
-        return 2
 
     try:
         common_root = repository_common_root()

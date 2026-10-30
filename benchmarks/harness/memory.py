@@ -12,7 +12,6 @@ import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import TypeVar
 
 
 class SmapsRollupError(ValueError):
@@ -432,10 +431,9 @@ def parse_cgroup_cpu_stat(text: str) -> dict[str, int]:
     return values
 
 
-_ScopeT = TypeVar("_ScopeT", CgroupV2MemoryScope, CgroupV2CpuScope)
-
-
-def _create_checked_scope(scope_type: type[_ScopeT], parent: Path) -> _ScopeT | None:
+def _create_checked_scope[ScopeT: (CgroupV2MemoryScope, CgroupV2CpuScope)](
+    scope_type: type[ScopeT], parent: Path
+) -> ScopeT | None:
     try:
         child_path = _create_child_cgroup(parent)
     except OSError:

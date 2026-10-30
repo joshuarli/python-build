@@ -1,5 +1,6 @@
 """Additional original C modules retain APIs, capsules and interpreter ownership."""
 import _blake2
+import _interpreters
 import _posixsubprocess
 import _socket
 import _zoneinfo
@@ -16,8 +17,6 @@ import sys
 import termios
 import unicodedata
 import unittest
-
-import _interpreters
 
 MODULES = ('_socket', '_posixsubprocess', 'termios', '_zoneinfo',
            '_interpreters', 'unicodedata', '_blake2')

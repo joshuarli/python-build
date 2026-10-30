@@ -1,6 +1,7 @@
 """Original C modules retain native APIs and lifetimes across core placement."""
 import _heapq
 import _json
+import _math_integer
 import _queue
 import _random
 import _statistics
@@ -15,8 +16,6 @@ import random
 import select
 import sys
 import unittest
-
-import _math_integer
 
 MODULES = ('_struct', '_heapq', '_math_integer', 'math', 'fcntl', 'select',
            '_json', '_queue', '_random', '_statistics', 'array')
