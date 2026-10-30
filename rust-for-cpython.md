@@ -80,19 +80,32 @@ Primary evidence is in
 and
 `rust-cpython/results/perf-bench/20261026T225011Z-goals-perf-upstream-vs-perf-merge/`.
 
-**Batch 29:** Commit `9538f3f` defers `http.client`'s `ssl` import until TLS
-use. The retained primary stage built cleanly with 58 verified Rust
-extensions. Its full suite matched the accepted D2 deviations: 50,158 tests,
-9 failures, and 2,770 skips, with no new failing suite. The primary-path gate
-ACCEPTED load footprint at 0.463 [0.462, 0.469] and neutral working peak at
-1.000. All seven workload peak-RSS guards were neutral, and outputs matched.
-Against control, load is BEYOND at 0.65x (2,640/4,120 KiB) and working peak
-is MET at 1.00x (160/128 KiB). The accepted stage is
-`perf-http-client-lazy-ssl-mem`; `http.client` leaves the memory debt list.
-CPU was not measured. Evidence is in
-`rust-cpython/results/perf-bench/20261027T012140Z-perf-rust-vs-perf-http-client-lazy-ssl-mem/verdict.json`
-and
-`rust-cpython/results/perf-bench/20261027T012241Z-goals-perf-upstream-vs-perf-http-client-lazy-ssl-mem/verdict.json`.
+**Batch 30–31:** Overnight unattended run under the owner's "finish
+rust-cpython-perf without stopping" direction, treated as a scoped override
+of the 2026-10-29 pause for memory lanes (local commits only, never push;
+model-policy deviation logged in coordinator state: no gpt-6-luna in this
+harness, lanes run as local subagents under identical briefs/gates).
+R0 refresh first: doctor OK, fresh memory-only CALIBRATION-OK
+(`20261030T025758Z`), `perf-rust` rebuilt clean at HEAD (58 extensions),
+`test --all` 50,158 run with only the accepted D2 sets plus two
+parallel-churn flakes (`test_mailbox`, one extra `test_ssl` failure; both
+green focused). Fresh full goals: OVER 6, UNCLEAR 17, MET 48. Rigorous
+reruns resolved decimal, csv, binascii, sqlite3, zipfile, and html.parser
+to MET with no lane. Workload gate: five RSS regressions remain (startup,
+WSGI first/request, ASGI, template); ORM returned to neutral.
+
+**Batch 32:** Commit `9c9c21a` integrates the `urllib.request` lazy-ssl
+lane (lazy `import ssl` plus default HTTPS context on first `https_open`,
+http.client `30219e7` precedent; attempt 1 lazy-import-only gated NEUTRAL
+because `build_opener()` rebuilt the context). Worktree gate ACCEPT at
+0.543x load, all guards neutral. Primary-path batch gate first REJECTed on
+a 1.013x `gzip_extract_1m` guard with no mechanism (that workload never
+imports the changed module); a focused guard rerun read neutral
+(1.005x) and the full rerun ACCEPTed at 0.549x with all guards neutral.
+Adjudicated as an unstable guard with all four evidences preserved; the
+REJECT is kept in the results log, not erased. Goal row is BEYOND at
+0.64x load (4,336/6,800 KiB), working peak MET. `urllib.request` leaves
+the memory debt list; the retained accepted stage is `perf-batch-31`.
 
 **Phase 4:** The accepted `_marshal_rs` stage passed `test_audit` three times
 in a row, with 33 tests and 4 skips each time. Its integrated marshal,
