@@ -186,6 +186,40 @@ def doctor() -> int:
     return 0
 
 
+
+def _controller_test() -> int:
+    """Run every test module in its own process, in parallel."""
+    import re
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    root = Path(__file__).parent
+    modules = sorted(path.name for path in (root / "tests").glob("test_*.py"))
+
+    def run(module: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", module],
+            cwd=root, capture_output=True, text=True, check=False,
+        )
+
+    started = time.monotonic()
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
+        results = list(pool.map(run, modules))
+    total = 0
+    failed = []
+    for module, result in zip(modules, results):
+        counted = re.search(r"^Ran (\d+) tests?", result.stderr, re.MULTILINE)
+        total += int(counted.group(1)) if counted else 0
+        if result.returncode != 0 or counted is None:
+            failed.append(module)
+            print(f"--- {module} (exit {result.returncode})\n{result.stdout}{result.stderr}")
+    print(
+        f"Ran {total} tests in {len(modules)} modules in {time.monotonic() - started:.1f}s; "
+        f"{len(failed)} failed{': ' + ', '.join(failed) if failed else ''}"
+    )
+    return 1 if failed else 0
+
+
 def build(args: argparse.Namespace) -> int:
     _require_native_target(args.target)
     if args.pgo_jobs is not None and not _NATIVE.pgo:
@@ -357,12 +391,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in NATIVE_EXECUTION_COMMANDS - {"build"}:
         _require_native_target(args.target)
     if args.command == "controller-test":
-        result = subprocess.run(
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
-            cwd=Path(__file__).parent,
-            check=False,
-        )
-        return result.returncode
+        return _controller_test()
     if args.command == "qualify":
         _require_target(args.target)
         target = TARGETS[args.target]

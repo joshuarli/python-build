@@ -190,6 +190,11 @@ class HostToolResolutionTests(unittest.TestCase):
         self.assertEqual(run.call_args_list[2].args[0], ["xcrun", "--find", "xcodebuild"])
 
 
+def without_archive_verification():
+    """Skip re-reading the multi-gigabyte LLVM archive for tests of other checks."""
+    return patch("buildsys.llvm.verify_llvm_prefix_from_archive")
+
+
 class LockAgainstMachineTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "darwin", "locked macOS/Xcode tools are macOS-only")
     def test_repository_lock_matches_this_machine(self) -> None:
@@ -236,17 +241,22 @@ class LockAgainstMachineTests(unittest.TestCase):
                 locked.xcode, sdkroot=Path("/nonexistent/SDK")
             ),
         )
-        self.assertTrue(any("SDK resolved by xcrun is unavailable" in problem for problem in problems(broken)))
+        with without_archive_verification():
+            found = problems(broken)
+        self.assertTrue(any("SDK resolved by xcrun is unavailable" in problem for problem in found))
 
     def test_missing_llvm_profdata_is_reported(self) -> None:
         import dataclasses
         locked = load_macos_toolchain(LOCK)
         broken = dataclasses.replace(locked, llvm_prefix=Path("/nonexistent/llvm"))
-        self.assertTrue(any("llvm-profdata not found" in problem for problem in problems(broken)))
+        with without_archive_verification():
+            found = problems(broken)
+        self.assertTrue(any("llvm-profdata not found" in problem for problem in found))
 
     def test_host_below_floor_is_reported(self) -> None:
         locked = load_macos_toolchain(LOCK)
-        with patch("buildsys.bootstrap.platform.mac_ver", return_value=("26.0", "", "")):
+        with patch("buildsys.bootstrap.platform.mac_ver", return_value=("26.0", "", "")), \
+                without_archive_verification():
             found = problems(locked, host_floor="999.0")
         self.assertTrue(any("floor" in problem for problem in found))
 

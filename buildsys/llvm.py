@@ -452,6 +452,9 @@ def extract_llvm_archive(
     return destination
 
 
+_VERIFIED_ARCHIVE_MANIFESTS: dict[tuple, _PrefixManifest] = {}
+
+
 def verify_llvm_prefix_from_archive(
     archive: Path,
     destination: Path,
@@ -466,9 +469,13 @@ def verify_llvm_prefix_from_archive(
     archive = Path(archive)
     destination = Path(destination)
     _archive_identity(archive, sha256, size)
-    archived = _archive_manifest(
-        archive, archive_root=archive_root, layout=layout
-    )
+    key = (str(archive.resolve()), archive.stat().st_mtime_ns, sha256, archive_root, id(layout))
+    archived = _VERIFIED_ARCHIVE_MANIFESTS.get(key)
+    if archived is None:
+        archived = _archive_manifest(
+            archive, archive_root=archive_root, layout=layout
+        )
+        _VERIFIED_ARCHIVE_MANIFESTS[key] = archived
     expected = _manifest_with_marker(archived, version, sha256)
     if not _prefix_matches(destination, expected):
         raise InputError(
