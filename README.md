@@ -3,7 +3,7 @@
 python-build builds a relocatable, fully OpenSSL-free CPython 3.15.1
 distribution from locked sources for Apple Silicon macOS and x86-64/arm64
 Linux musl. It keeps the GIL, shared libpython, private native dependencies,
-ThinLTO, macOS PGO, and useful extension development metadata. No glibc
+ThinLTO, and useful extension development metadata. PGO is deferred. No glibc
 enters any artifact: Linux binaries use the musl loader with statically
 linked musl in the Rust extensions.
 
@@ -75,7 +75,7 @@ replace the local `dist` files.
 Those earlier local results are historical. The [2026-10-26 CI release](https://github.com/laputa-systems/python-build/actions/runs/40330042202)
 passed native builds, qualification, assembly and fresh uv installation on all
 three targets at `3edfbdd0`. Later revisions require new qualification.
-An actual macOS 26 runtime check remains open ([P2](plan.md)).
+macOS 27 is the only supported macOS release; its runtime check is [P2](plan.md).
 
 Controller tests run with:
 

@@ -1493,8 +1493,8 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
 def run_linux(args, target, toolchain) -> int:
     from buildsys import recipes
 
-    if args.pgo:
-        raise BuildError("Linux PGO is outside the product policy")
+    if args.pgo and not target.pgo:
+        raise BuildError(f"PGO is deferred for {target.triple}")
     if args.run_dir is None:
         raise BuildError("Linux phases require an explicit --run-dir")
     run_dir = require_work_path(args.run_dir)
@@ -1549,6 +1549,8 @@ def build_base(run_dir: Path, cache_root: Path, target, toolchain, *, pgo: bool)
 
     if target.triple not in {TARGET_TRIPLE, LINUX_AARCH64_TRIPLE, LINUX_X86_64_TRIPLE}:
         raise BuildError("this research build supports native arm64 and x86_64 only")
+    if pgo and not target.pgo:
+        raise BuildError(f"PGO is deferred for {target.triple}")
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(exist_ok=True)
     (run_dir / "tmp").mkdir(exist_ok=True)
@@ -1638,7 +1640,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--pgo",
         action="store_true",
-        help="enable CPython profile-guided optimization for base or all phases",
+        help="enable CPython profile-guided optimization on targets that allow it",
     )
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--prefix", type=Path)

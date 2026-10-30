@@ -9,13 +9,14 @@ technical references, not competing campaign plans.
 
 The product is OpenSSL-free CPython 3.15.1 for macOS arm64, Linux x86-64 musl
 and Linux arm64 musl, preserving the GIL, shared libpython, mimalloc, ThinLTO,
-macOS PGO, pinned inputs/toolchains, supported extension APIs and intentional
+pinned inputs/toolchains, supported extension APIs and intentional
 omissions (pip, ensurepip, venv, Tcl/Tk, tests and bytecode caches).
 The [2026-10-26 release workflow](https://github.com/laputa-systems/python-build/actions/runs/40330042202)
 passed native three-target builds, final artifact qualification, assembly,
 uv-install smoke tests and publication at 3edfbdd0. Later revisions do NOT
-inherit that verdict. A macOS 26 binary deployment target has not been
-runtime-qualified on macOS 26. Locked inputs alone do not prove reproducibility.
+inherit that verdict. That release targeted macOS 26 with PGO; the product now
+targets macOS 27.0 only and defers PGO on every target (owner decision
+2026-10-30). Locked inputs alone do not prove reproducibility.
 
 Rust-for-CPython is a separate 3.16.0a0 research interpreter, not the
 production 3.15.1 artifact. All 71 named public Rust routes achieved D1
@@ -32,9 +33,8 @@ BLOCKED, not an accepted exception to a goal.
 
 The 2026-10-29/30 overnight memory run was a one-session override and has
 ended; resume at P1. Order of attack: P1 (local, release-blocking), P4 (code
-only), P5, P3, then P2 and P6. P2 is BLOCKED until the owner supplies real
-macOS 26 arm64 hardware or a VM; do not substitute macOS 27. rust-for-cpython.md
-"Resume here" holds the parked Rust-phase calls.
+only), P5, P3, then P2 and P6. P2 runs on this macOS 27 host.
+rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
 
 ## P — production closeout (release-blocking work)
 
@@ -55,17 +55,19 @@ macOS 26 arm64 hardware or a VM; do not substitute macOS 27. rust-for-cpython.md
   qualifier's `license_notices` check verifies them in the extracted archive.
   Not yet receipted: no build has produced an archive with these files.
   Check this box when a fresh qualified archive for each target lists them.
-- [ ] **P2 — prove the real deployment minimum.** Install the exact
-  assembled uv archive on actual macOS 26 arm64 hardware/VM; smoke
-  startup, relocation under spaces, TLS client/server, subprocess, ctypes
-  and native/abi3 extensions. Verify Apple M1 CPU compatibility on
-  suitable hardware rather than relying on compiler flags. Preserve native
-  Alpine-musl amd64 and arm64 qualification. Save host, archive digest and
-  command-level results; never substitute a macOS 27 test for macOS 26.
+- [ ] **P2 — prove the macOS 27 deployment minimum.** macOS 27 is the only
+  supported macOS release, so its minimum and host floor coincide. Install
+  the exact assembled uv archive on a macOS 27 arm64 host; smoke startup,
+  relocation under spaces, TLS client/server, subprocess, ctypes and
+  native/abi3 extensions. Apple M1 execution needs M1 hardware running
+  macOS 27; without it, record the `apple-m1` baseline as verified by
+  compiler flags and load commands only. Preserve native Alpine-musl amd64
+  and arm64 qualification. Save host, archive digest and command-level
+  results.
 - [ ] **P3 — independent build reproducibility.** Use two clean sealed
   builds per native target with separate compiled outputs (shared verified
   immutable downloads are fine). Compare paths, file types, modes, symlinks,
-  payload bytes, raw archive hashes and PGO identity; distinguish Mac
+  payload bytes and raw archive hashes; distinguish Mac
   signing/UUID differences from actual compiled differences without
   hiding them. Extend the optional reproduce path and require evidence
   on releases. An unchanged source lock is not enough.
@@ -129,7 +131,7 @@ until its builder is actually implemented and qualified.
   guards must be neutral or improved; never substitute an aggregate win
   for a regressed route or workload. Keep all Rust-routed behavior.
 - [ ] **R3 — optimized release-grade qualification.** Repeat the accepted
-  changes with matched -O3/PGO/ThinLTO builds, complete correctness and
+  changes with matched -O3/ThinLTO builds (PGO only if the owner reopens it), complete correctness and
   own-GIL subinterpreter tests on native hosts. Separate CPU/timing,
   process memory and allocation passes; self-calibrate, alternate paired
   rounds and verify identical outputs. Compare with upstream and

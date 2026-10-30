@@ -108,9 +108,9 @@ def build(
     target = native_target()
     recipe_path = logs / "build-record.json"
     recipe_path.unlink(missing_ok=True)
-    if pgo_jobs is not None and not target.is_macos:
-        raise BuildError("--pgo-jobs is only supported for the macOS PGO build")
-    resolved_pgo_jobs = resolve_pgo_jobs(pgo_jobs) if target.is_macos else None
+    if pgo_jobs is not None and not target.pgo:
+        raise BuildError("--pgo-jobs requires a target with PGO enabled")
+    resolved_pgo_jobs = resolve_pgo_jobs(pgo_jobs) if target.pgo else None
     staged = stage / "cpython-staged"
     if staged.exists():
         shutil.rmtree(staged)
@@ -137,7 +137,7 @@ def build(
     args, env_overrides = configuration(
         prefix, target, pgo_jobs=resolved_pgo_jobs
     )
-    if target.is_macos:
+    if target.pgo:
         # CPython's configure probe can find Apple's generic llvm-profdata,
         # which may not match the locked clang bitcode. Name the profiler from
         # the same digest-pinned official LLVM prefix as CC.
@@ -243,13 +243,13 @@ def build(
         raise ScopeError(f"excluded modules are still importable: {', '.join(leaked)}")
     profile_data = None
     optimization = {
-        "pgo": target.is_macos,
+        "pgo": target.pgo,
         "pgo_jobs": resolved_pgo_jobs,
         "profile_task": env.get("PROFILE_TASK"),
         "lto": "thin",
         "configure_args": args,
     }
-    if target.is_macos:
+    if target.pgo:
         profile_path = build_directory / "code.profclangd"
         try:
             profile_bytes = profile_path.read_bytes()

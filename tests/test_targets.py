@@ -41,12 +41,12 @@ class TargetRegistryTests(unittest.TestCase):
 
     def test_macos_target_declares_a_deployment_floor_and_baseline(self) -> None:
         target = target_for_triple(MACOS_TRIPLE)
-        self.assertEqual(target.deployment_target, "26.0")
+        self.assertEqual(target.deployment_target, "27.0")
         self.assertEqual(target.cpu_baseline_cflag, "-mcpu=apple-m1")
         # The PEP 425 tag prefix must agree with the declared floor, or the
         # build would advertise wheels for macOS releases its own
         # LC_BUILD_VERSION refuses to load on.
-        self.assertEqual(target.platform_tag_prefix, "macosx_26_0")
+        self.assertEqual(target.platform_tag_prefix, "macosx_27_0")
 
     def test_each_linux_target_has_distinct_loader_and_openssl_name(self) -> None:
         linux = _family("linux-musl")

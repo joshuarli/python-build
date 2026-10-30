@@ -45,7 +45,7 @@ def _rpath_command(value: str) -> bytes:
     return _command(LC_RPATH, struct.pack("<I", 12) + _padded(value))
 
 
-def _build_version_command(platform: int = 1, minos: tuple[int, int] = (26, 0)) -> bytes:
+def _build_version_command(platform: int = 1, minos: tuple[int, int] = (27, 0)) -> bytes:
     packed = (minos[0] << 16) | (minos[1] << 8)
     return _command(LC_BUILD_VERSION, struct.pack("<IIII", platform, packed, packed, 0))
 
@@ -82,7 +82,7 @@ class MachOValidationTests(unittest.TestCase):
         self,
         *,
         platform: int = 1,
-        minos: tuple[int, int] = (26, 0),
+        minos: tuple[int, int] = (27, 0),
         dependency: str | None = None,
         rpath: str = "@loader_path/../lib",
         executable_flags: int = MH_PIE,
@@ -133,7 +133,7 @@ class MachOValidationTests(unittest.TestCase):
         self.assertTrue(report["platform_mismatches"])
 
     def test_wrong_minimum_os_fails(self) -> None:
-        self._write_images(minos=(25, 0))
+        self._write_images(minos=(26, 0))
 
         report = self._report()
 
@@ -249,7 +249,7 @@ class ProductVersionValidationTests(unittest.TestCase):
             "gil_enabled": True,
             "free_threaded": False,
             "lto": True,
-            "pgo": True,
+            "pgo": False,
             "tail_call": False,
             "shared_libpython": True,
             "INSTSONAME": f"lib{PRODUCT.shared_library_stem}.dylib",
@@ -324,13 +324,13 @@ class ProductVersionValidationTests(unittest.TestCase):
             "machine": "arm64",
             "implementation": "cpython",
             "cache_tag": PRODUCT.abi_tag.replace("cp", "cpython-"),
-            "python_platform": "macosx-26.0-arm64",
+            "python_platform": "macosx-27.0-arm64",
             "soabi": f"cpython-{PRODUCT.abi_tag[2:]}-darwin",
             "ext_suffix": f".cpython-{PRODUCT.abi_tag[2:]}-darwin.so",
             "gil_enabled": True,
             "free_threaded": False,
             "lto": True,
-            "pgo": True,
+            "pgo": False,
             "tail_call": False,
             "shared_libpython": True,
             "INSTSONAME": (

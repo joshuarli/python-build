@@ -90,23 +90,29 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
     except (OSError, json.JSONDecodeError) as error:
         print(f"FAIL reproduce: no valid CPython build recipe at {recipe_path}: {error}")
         return 1
-    if not first_recipe.get("optimization", {}).get("pgo"):
-        print("FAIL reproduce: the staged build was not produced with PGO")
+    if first_recipe.get("optimization", {}).get("pgo") is not target.pgo:
+        print("FAIL reproduce: the staged build's PGO setting differs from the target's")
         return 1
     if first_recipe.get("build_mode") != "sealed":
-        print("FAIL reproduce: the staged PGO build was not produced by build/sealed.py")
+        print("FAIL reproduce: the staged build was not produced by build/sealed.py")
         return 1
-    recorded_jobs = first_recipe["optimization"].get("pgo_jobs")
-    if type(recorded_jobs) is not int or recorded_jobs < 1:
-        print("FAIL reproduce: staged recipe has no valid PGO worker count")
-        return 1
-    if pgo_jobs is None:
-        pgo_jobs = recorded_jobs
-    if pgo_jobs != recorded_jobs:
-        print(
-            f"FAIL reproduce: requested PGO jobs {pgo_jobs} differ from the staged "
-            f"build's recorded {recorded_jobs}"
-        )
+    sealed_command = [sys.executable, "build/sealed.py"]
+    if target.pgo:
+        recorded_jobs = first_recipe["optimization"].get("pgo_jobs")
+        if type(recorded_jobs) is not int or recorded_jobs < 1:
+            print("FAIL reproduce: staged recipe has no valid PGO worker count")
+            return 1
+        if pgo_jobs is None:
+            pgo_jobs = recorded_jobs
+        if pgo_jobs != recorded_jobs:
+            print(
+                f"FAIL reproduce: requested PGO jobs {pgo_jobs} differ from the staged "
+                f"build's recorded {recorded_jobs}"
+            )
+            return 1
+        sealed_command.extend(["--pgo-jobs", str(pgo_jobs)])
+    elif pgo_jobs is not None:
+        print("FAIL reproduce: --pgo-jobs requires a target with PGO enabled")
         return 1
     work = REPO / ".work" / "tmp" / "reproduce" / target.triple
     if work.exists():
@@ -118,10 +124,7 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
     for stale in ("work", "stage", "prefix"):
         shutil.rmtree(REPO / "build" / stale, ignore_errors=True)
     print("BUILD sealed (clean, rebuilds dependencies and CPython)", flush=True)
-    result = subprocess.run(
-        [sys.executable, "build/sealed.py", "--pgo-jobs", str(pgo_jobs)], cwd=REPO,
-        check=False,
-    )
+    result = subprocess.run(sealed_command, cwd=REPO, check=False)
     if result.returncode != 0:
         print("FAIL reproduce: sealed rebuild failed")
         return 1
@@ -139,6 +142,8 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
         isinstance(first_profile, dict)
         and isinstance(second_profile, dict)
         and first_profile == second_profile
+        if target.pgo
+        else None
     )
 
     second = work / "second"
@@ -230,7 +235,9 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
     report["pgo_recipe_identical"] = recipe_match
     report["pgo_profile_data_identical"] = profile_match
     report["compiled_content_identical"] = compiled_content_match
-    report["reproducible"] = recipe_match and profile_match and compiled_content_match
+    report["reproducible"] = (
+        recipe_match and profile_match is not False and compiled_content_match
+    )
     report["method"] = (
         "Two independent sealed `sandbox-exec` builds on this machine, each "
         "rebuilding every native dependency and CPython from a cleared work "
@@ -245,7 +252,7 @@ def _reproduce_macos(target, pgo_jobs: int | None = None) -> int:
         "covers the whole image, and each link stamps a fresh LC_UUID. Any "
         "difference at all therefore propagates into the signature bytes, so "
         "a raw hash comparison overstates the change. Suppressing the UUID is "
-        "not an option on macOS 26: `-Wl,-no_uuid` produces a binary dyld "
+        "not an option on macOS 27: `-Wl,-no_uuid` produces a binary dyld "
         "refuses to load ('missing LC_UUID load command'), verified here. "
         "What remains is reported per image as signature metadata versus "
         "compiled content."
@@ -265,13 +272,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
     parser.add_argument("--pgo-jobs", type=_positive_int,
-                        help="use this worker count for both clean macOS PGO builds")
+                        help="use this worker count for both clean PGO builds")
     args = parser.parse_args()
     target = target_for_triple(args.target)
     if target.is_macos:
         return _reproduce_macos(target, pgo_jobs=args.pgo_jobs)
     if args.pgo_jobs is not None:
-        parser.error("--pgo-jobs is only supported for the macOS PGO build")
+        parser.error("--pgo-jobs requires a target with PGO enabled")
     tags = (f"python-build-m1:reproduce-a-{target.alpine_arch}",
             f"python-build-m1:reproduce-b-{target.alpine_arch}")
 

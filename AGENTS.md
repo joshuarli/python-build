@@ -51,20 +51,22 @@ target descriptions and target branching.
 
 | Triple | Platform/compiler | Baseline and deployment |
 | --- | --- | --- |
-| `aarch64-apple-darwin` | Apple Silicon macOS 27 host; official LLVM 23.1.4 and Xcode 27 SDK | `-mcpu=apple-m1`; artifact minimum macOS 26.0 |
+| `aarch64-apple-darwin` | Apple Silicon macOS 27 host; official LLVM 23.1.4 and Xcode 27 SDK | `-mcpu=apple-m1`; artifact minimum macOS 27.0 |
 | `x86_64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=broadwell` (AES, PCLMULQDQ, AVX/AVX2, BMI1/BMI2, FMA, MOVBE); loader `/lib/ld-musl-x86_64.so.1` |
 | `aarch64-unknown-linux-musl` | Alpine native-musl LLVM 23.1.3-r0 | `-march=armv8-a+crypto` (AES, PMULL, SHA2, ASIMD); loader `/lib/ld-musl-aarch64.so.1` |
 
-The macOS host floor and deployment minimum are separate constraints. Do not
-claim macOS 26 runtime qualification from a macOS 27 run. Linux qualification
+macOS 27 is the only supported macOS release: the host floor and the artifact
+minimum are both 27.0, and macOS 26 and older are unsupported. Linux qualification
 uses the locked Alpine image and complete APK closure in `bootstrap.lock.json`;
 package acquisition is verified before the network-disabled build.
 
 The product keeps the GIL, shared libpython, the bundled mimalloc allocator
 (compiled in statically via explicit `--with-mimalloc`), private native
 dependencies,
-ThinLTO, macOS PGO, `-O3`, and useful headers, sysconfig, pkg-config metadata,
-and `python3.15-config`. Linux PGO is disabled. JIT, BOLT, free-threaded ABI,
+ThinLTO, `-O3`, and useful headers, sysconfig, pkg-config metadata,
+and `python3.15-config`. PGO is deferred on every target and out of scope until
+the owner reopens it; `Target.pgo` and the `--pgo-jobs` options keep the
+machinery. JIT, BOLT, free-threaded ABI,
 and the tail-call interpreter are disabled. Preserve the platform CPU
 baselines and the declared dependency closure.
 
@@ -180,7 +182,7 @@ Comparison reads completed artifacts and writes its own results. It requires
 successful, complete probes for a match. Benchmarks use the shared harness
 only when explicitly requested. Reproduction is opt-in and compares two
 independent clean builds, including payload entry types, modes, symlink
-targets, content, archives, PGO identity, and normalized Mach-O identity.
+targets, content, archives, and normalized Mach-O identity.
 
 ## CI and releases
 

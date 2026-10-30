@@ -1,5 +1,7 @@
 # OpenSSL-free macOS arm64 candidate
 
+**Policy change (2026-10-30):** the macOS deployment minimum is now 27.0 and PGO is deferred on every target. Results below predate that and describe macOS 26 and PGO builds.
+
 **Historical research qualification:** This predates product adoption.
 Statements below that production was unchanged apply to that earlier
 checkout, not current main. See [plan.md](../plan.md).

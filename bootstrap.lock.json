@@ -5,7 +5,7 @@
       "sdk_minimum_version": "27.0"
     },
     "host_floor": "27.0",
-    "deployment_target": "26.0",
+    "deployment_target": "27.0",
     "cpu_baseline": "-mcpu=apple-m1",
     "arch": "arm64",
     "host_tools": {

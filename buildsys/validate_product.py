@@ -410,7 +410,7 @@ def version_and_abi(python: Path, target, *, cwd: Path | None = None) -> dict:
         and info["shared_library_ok"]
         and info["platform"] == ("darwin" if target.is_macos else "linux")
         and info["gil_enabled"] and not info["free_threaded"] and info["lto"]
-        and info["pgo"] is target.is_macos
+        and info["pgo"] is target.pgo
         and not info["tail_call"]
     )
     return info

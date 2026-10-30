@@ -726,7 +726,7 @@ def validate_build_record(
         or not isinstance(optimization.get("configure_args"), list)
         or not all(isinstance(item, str) for item in optimization["configure_args"])
         or optimization.get("lto") != "thin"
-        or optimization.get("pgo") is not target.is_macos
+        or optimization.get("pgo") is not target.pgo
         or not isinstance(environment, dict)
         or not isinstance(effective_flags, dict)
         or not isinstance(commands, dict)

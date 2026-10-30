@@ -1566,29 +1566,37 @@ def build_experimental_manifest(
 
         locked_toolchain = load_macos_toolchain(COMMON_ROOT / "bootstrap.lock.json")
         target_toolchain = locked_toolchain.toolchain(jobs=2)
-        profile_path = build_directory / "code.profclangd"
-        pgo_stdout = StringIO()
-        pgo_environment = target_toolchain.env(
-            {"LLVM_PROFDATA": str(locked_toolchain.llvm_profdata)}
-        )
-        with contextlib.redirect_stdout(pgo_stdout):
-            research_driver.verify_pgo_build(
-                source_dir,
-                build_directory,
-                target_toolchain,
-                pgo_environment,
+        if target.pgo:
+            profile_path = build_directory / "code.profclangd"
+            pgo_stdout = StringIO()
+            pgo_environment = target_toolchain.env(
+                {"LLVM_PROFDATA": str(locked_toolchain.llvm_profdata)}
             )
-        pgo_summary = pgo_stdout.getvalue()
-        pgo_match = re.search(
-            r"PGO profile valid: bytes=(\d+), sha256=([0-9a-f]{64}), "
-            r"functions=(\d+), max_count=(\d+)",
-            pgo_summary,
-        )
-        if pgo_match is None or not profile_path.is_file():
-            raise QualificationDriverError("locked PGO verifier did not return profile evidence")
-        profile_size, profile_digest, functions, maximum_count = pgo_match.groups()
-        if sha256_file(profile_path) != profile_digest or profile_path.stat().st_size != int(profile_size):
-            raise QualificationDriverError("verified PGO profile changed after inspection")
+            with contextlib.redirect_stdout(pgo_stdout):
+                research_driver.verify_pgo_build(
+                    source_dir,
+                    build_directory,
+                    target_toolchain,
+                    pgo_environment,
+                )
+            pgo_summary = pgo_stdout.getvalue()
+            pgo_match = re.search(
+                r"PGO profile valid: bytes=(\d+), sha256=([0-9a-f]{64}), "
+                r"functions=(\d+), max_count=(\d+)",
+                pgo_summary,
+            )
+            if pgo_match is None or not profile_path.is_file():
+                raise QualificationDriverError("locked PGO verifier did not return profile evidence")
+            profile_size, profile_digest, functions, maximum_count = pgo_match.groups()
+            if sha256_file(profile_path) != profile_digest or profile_path.stat().st_size != int(profile_size):
+                raise QualificationDriverError("verified PGO profile changed after inspection")
+        else:
+            pgo_summary = "CPython macOS PGO is deferred by product policy."
+            profile_path = None
+            profile_digest = None
+            profile_size = 0
+            functions = 0
+            maximum_count = 0
         locked_clang = (locked_toolchain.llvm_prefix / "bin" / "clang").resolve()
         llvm_version = locked_toolchain.llvm_version
         bootstrap_identity = hashlib.sha256(
@@ -1597,15 +1605,20 @@ def build_experimental_manifest(
         source_revision = _load_source_revision(COMMON_ROOT)
         rust_target_cpu = "apple-m1"
         rust_target_features = None
-        pgo_receipt = {
-            "verified": True,
-            "summary": pgo_summary.strip().splitlines(),
-            "profile_path": str(profile_path),
-            "profile_sha256": profile_digest,
-            "profile_size_bytes": int(profile_size),
-        }
-        if "--enable-optimizations" not in configure_arguments:
-            raise QualificationDriverError("CPython Makefile does not show PGO optimization")
+        if target.pgo:
+            pgo_receipt = {
+                "verified": True,
+                "summary": pgo_summary.strip().splitlines(),
+                "profile_path": str(profile_path),
+                "profile_sha256": profile_digest,
+                "profile_size_bytes": int(profile_size),
+            }
+            if "--enable-optimizations" not in configure_arguments:
+                raise QualificationDriverError("CPython Makefile does not show PGO optimization")
+        else:
+            pgo_receipt = {"verified": False, "enabled": False, "policy": "PGO is deferred"}
+            if "--enable-optimizations" in configure_arguments:
+                raise QualificationDriverError("macOS CPython build unexpectedly enables PGO")
         if Path(configure_values.get("CC", "")).resolve() != locked_clang:
             raise QualificationDriverError("CPython configure arguments do not select locked clang")
         ldflags = configure_values.get("LDFLAGS", "")
@@ -1973,7 +1986,7 @@ def build_experimental_manifest(
         "toolchain_observed": toolchain_observed,
         "optimization": {
             "cpython": {
-                "pgo": target.is_macos,
+                "pgo": target.pgo,
                 "profile_sha256": profile_digest,
                 "profile_bytes": int(profile_size),
                 "profile_functions": int(functions),
@@ -2100,7 +2113,8 @@ def build_experimental_manifest(
             "summary": pgo_summary.strip().splitlines(),
         },
         "runtime_floor_claim": (
-            "macOS 26 deployment target recorded; runtime not tested on macOS 26"
+            f"macOS {target.deployment_target} is the deployment minimum; "
+            f"runtime tested on macOS {platform.mac_ver()[0]}"
             if target.is_macos
             else f"native Linux {target.machine} musl runtime tested in the locked Docker image"
         ),
@@ -2264,8 +2278,8 @@ def main(argv: list[str] | None = None) -> int:
         }
         if target.is_macos:
             scope.update(
-                production_pgo="research PGO source profile is verified; not production PGO qualification",
-                minimum_macos_runtime="not tested",
+                production_pgo="deferred by product policy",
+                minimum_macos_runtime=f"macOS {target.deployment_target} host",
                 host_macos_version=platform.mac_ver()[0],
             )
         else:

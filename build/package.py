@@ -576,7 +576,7 @@ def _package() -> Path:
         bootstrap_lock_path=REPO / "bootstrap.lock.json",
         patches_directory=REPO / "patches" / "cpython",
     )
-    if TARGET_DESCRIPTION.is_macos:
+    if TARGET_DESCRIPTION.pgo:
         require_macos_pgo_recipe()
     source_revision = _source_revision(build_record)
     archive_name = ARCHIVE_NAME

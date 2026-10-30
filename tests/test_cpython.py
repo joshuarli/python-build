@@ -1,5 +1,6 @@
 """CPython recipe policy, before executing the expensive build."""
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -89,10 +90,10 @@ class MacOSCPythonTests(unittest.TestCase):
 
     def setUp(self):
         self.args, self.env = configuration(
-            Path('/private'), TARGETS['aarch64-apple-darwin'], pgo_jobs=4
+            Path('/private'), TARGETS['aarch64-apple-darwin']
         )
 
-    def test_product_policy_enables_exact_macos_pgo(self):
+    def test_product_policy_defers_macos_pgo(self):
         self.assertIn('--with-lto=thin', self.args)
         self.assertIn('--enable-shared', self.args)
         self.assertIn('--enable-loadable-sqlite-extensions', self.args)
@@ -100,17 +101,28 @@ class MacOSCPythonTests(unittest.TestCase):
         self.assertIn('--with-system-libmpdec', self.args)
         self.assertIn('--enable-experimental-jit=no', self.args)
         self.assertIn('--with-tail-call-interp=no', self.args)
-        self.assertIn('--enable-optimizations', self.args)
-        self.assertEqual(self.env['PROFILE_TASK'], '-m test --pgo -j 4')
-        self.assertEqual(self.env['PYTHONHASHSEED'], CPYTHON_PGO_HASH_SEED)
+        self.assertNotIn('--enable-optimizations', self.args)
+        for name in ('PROFILE_TASK', 'PYTHONHASHSEED'):
+            self.assertNotIn(name, self.env)
         self.assertNotIn('-fno-omit-frame-pointer', self.env['CFLAGS'])
         self.assertNotIn('--without-frame-pointers', self.args)
+
+    def test_target_that_enables_pgo_gets_the_exact_profile_task(self):
+        target = replace(TARGETS['aarch64-apple-darwin'], pgo=True)
+        args, env = configuration(Path('/private'), target, pgo_jobs=4)
+        self.assertIn('--enable-optimizations', args)
+        self.assertEqual(env['PROFILE_TASK'], '-m test --pgo -j 4')
+        self.assertEqual(env['PYTHONHASHSEED'], CPYTHON_PGO_HASH_SEED)
+
+    def test_pgo_workers_are_rejected_when_the_target_defers_pgo(self):
+        with self.assertRaises(ValueError):
+            configuration(Path('/private'), TARGETS['aarch64-apple-darwin'], pgo_jobs=4)
 
     def test_deployment_floor_is_explicit_in_flags(self):
         # Left unset, clang inherits the SDK's version (newer than the
         # declared floor), so this has to be passed and not assumed.
-        self.assertIn('-mmacosx-version-min=26.0', self.env['CFLAGS'])
-        self.assertIn('-mmacosx-version-min=26.0', self.env['LDFLAGS'])
+        self.assertIn('-mmacosx-version-min=27.0', self.env['CFLAGS'])
+        self.assertIn('-mmacosx-version-min=27.0', self.env['LDFLAGS'])
 
     def test_header_padding_is_requested_for_install_name_edits(self):
         self.assertIn('-headerpad_max_install_names', self.env['LDFLAGS'])

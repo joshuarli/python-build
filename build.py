@@ -188,8 +188,8 @@ def doctor() -> int:
 
 def build(args: argparse.Namespace) -> int:
     _require_native_target(args.target)
-    if args.pgo_jobs is not None and not _NATIVE.is_macos:
-        _fail("--pgo-jobs is only supported for the macOS PGO build")
+    if args.pgo_jobs is not None and not _NATIVE.pgo:
+        _fail("--pgo-jobs requires a target with PGO enabled")
     result = subprocess.run(
         [sys.executable, "build/deps.py"], cwd=Path(__file__).parent,
         check=False,
@@ -367,11 +367,11 @@ def main(argv: list[str] | None = None) -> int:
         target = TARGETS[args.target]
         if target.family == "linux-musl":
             if args.pgo_jobs is not None:
-                _fail("--pgo-jobs is only supported for the macOS PGO build")
+                _fail("--pgo-jobs requires a target with PGO enabled")
             return qualify_linux(args.target)
         _require_native_target(args.target)
-        if args.pgo_jobs is not None and not target.is_macos:
-            _fail("--pgo-jobs is only supported for the macOS PGO build")
+        if args.pgo_jobs is not None and not target.pgo:
+            _fail("--pgo-jobs requires a target with PGO enabled")
         sealed_command = [sys.executable, "build/sealed.py"]
         if args.pgo_jobs is not None:
             sealed_command.extend(["--pgo-jobs", str(args.pgo_jobs)])

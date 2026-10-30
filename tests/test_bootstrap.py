@@ -44,7 +44,7 @@ class LockParsingTests(unittest.TestCase):
         )
         self.assertTrue(toolchain.deployment_target)
         self.assertEqual(toolchain.host_floor, "27.0")
-        self.assertEqual(toolchain.deployment_target, "26.0")
+        self.assertEqual(toolchain.deployment_target, "27.0")
         self.assertEqual(toolchain.xcode_major, 27)
         self.assertTrue(toolchain.cpu_baseline)
         lock = json.loads(LOCK.read_text())

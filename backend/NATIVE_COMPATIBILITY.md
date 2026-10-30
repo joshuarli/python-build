@@ -1,5 +1,7 @@
 # Native extension compatibility
 
+**Policy change (2026-10-30):** the macOS deployment minimum is now 27.0 and PGO is deferred on every target. Results below predate that and describe macOS 26 and PGO builds.
+
 This note covers native consumers of the CPython 3.15.1 TLS and hashing
 modules. It distinguishes the supported CPython C API from OpenSSL symbols
 that happen to be present in the reference extension binaries.

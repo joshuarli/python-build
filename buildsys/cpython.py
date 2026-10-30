@@ -1,8 +1,9 @@
 """CPython product configuration policy.
 
-LTO is explicit ThinLTO; macOS uses CPython's instrumented PGO build with the
-locked `-m test --pgo` workload; BOLT/JIT/tail-call stay off; ensurepip stays
-disabled; and third-party dependencies resolve through the private prefix.
+LTO is explicit ThinLTO; PGO is deferred for every target and runs CPython's
+locked `-m test --pgo` workload only when `Target.pgo` is set; BOLT/JIT/tail-call
+stay off; ensurepip stays disabled; and third-party dependencies resolve
+through the private prefix.
 
 The two families differ in more than flag spelling, and the differences are
 consequences of the platform rather than preferences:
@@ -60,8 +61,12 @@ def configuration(
 ) -> tuple[list[str], dict[str, str]]:
     prefix = Path(prefix)
     target = target or native_target()
+    if pgo_jobs is not None and not target.pgo:
+        raise ValueError(f"{target.triple}: PGO is not enabled for this target")
     if target.is_macos:
-        return _macos_configuration(prefix, target, resolve_pgo_jobs(pgo_jobs))
+        return _macos_configuration(
+            prefix, target, resolve_pgo_jobs(pgo_jobs) if target.pgo else None
+        )
     return _linux_musl_configuration(prefix, target)
 
 
@@ -180,9 +185,8 @@ def _linux_musl_configuration(prefix: Path, target: Target) -> tuple[list[str], 
 
 
 def _macos_configuration(
-    prefix: Path, target: Target, pgo_jobs: int
+    prefix: Path, target: Target, pgo_jobs: int | None
 ) -> tuple[list[str], dict[str, str]]:
-    profile_task = pgo_profile_task(pgo_jobs)
     cflags, ldflags = _interpreter_flags(prefix, target)
     env = {
         **_base_env(prefix),
@@ -207,17 +211,21 @@ def _macos_configuration(
         "LIBSQLITE3_LIBS": f"-L{prefix}/lib {prefix}/lib/libsqlite3.a",
         "LDFLAGS": ldflags,
         "CFLAGS": cflags,
-        # `--enable-optimizations` runs this task against the instrumented
-        # interpreter, then consumes its profile for the optimized build.
-        # Keep the worker count explicit so the recipe can be reproduced.
-        "PROFILE_TASK": profile_task,
-        # SOURCE_DATE_EPOCH fixes libregrtest's seed; also fix the interpreter
-        # hash seed so parallel profile shards use stable hash ordering.
-        "PYTHONHASHSEED": CPYTHON_PGO_HASH_SEED,
     }
+    if pgo_jobs is not None:
+        env.update({
+            # `--enable-optimizations` runs this task against the instrumented
+            # interpreter, then consumes its profile for the optimized build.
+            # Keep the worker count explicit so the recipe can be reproduced.
+            "PROFILE_TASK": pgo_profile_task(pgo_jobs),
+            # SOURCE_DATE_EPOCH fixes libregrtest's seed; also fix the
+            # interpreter hash seed so parallel profile shards use stable
+            # hash ordering.
+            "PYTHONHASHSEED": CPYTHON_PGO_HASH_SEED,
+        })
     args = [
         *COMMON_POLICY_ARGS,
-        "--enable-optimizations",
+        *(["--enable-optimizations"] if pgo_jobs is not None else []),
         "--with-openssl=" + str(prefix),
         "--with-openssl-rpath=no",
         # Darwin's _uuid uses platform facilities and dbm uses ndbm; neither

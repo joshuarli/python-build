@@ -51,6 +51,7 @@ class Target:
     uv_arch: str
     uv_os: str
     uv_libc: str
+    pgo: bool = False
 
     # linux-musl only
     alpine_arch: str = ""  # apk/Alpine architecture tag
@@ -58,8 +59,8 @@ class Target:
     musl_loader: str = ""  # expected PT_INTERP value
 
     # macos only
-    deployment_target: str = ""  # -mmacosx-version-min floor, e.g. "26.0"
-    platform_tag_prefix: str = ""  # PEP 425 macOS tag prefix, e.g. "macosx_26_0"
+    deployment_target: str = ""  # -mmacosx-version-min floor, e.g. "27.0"
+    platform_tag_prefix: str = ""  # PEP 425 macOS tag prefix, e.g. "macosx_27_0"
 
     def __post_init__(self) -> None:
         if self.family not in FAMILIES:
@@ -122,8 +123,8 @@ TARGETS: dict[str, Target] = {
         uv_arch="aarch64",
         uv_os="darwin",
         uv_libc="none",
-        deployment_target="26.0",
-        platform_tag_prefix="macosx_26_0",
+        deployment_target="27.0",
+        platform_tag_prefix="macosx_27_0",
     ),
 }
 

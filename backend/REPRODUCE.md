@@ -144,7 +144,7 @@ working tree. Use the same run directory and source path for both phases:
 
 The overlay builds both Rust extensions with Cargo `--release`, overriding
 release settings to `opt-level=3`, `lto=thin`, `codegen-units=1`, `debug=0`,
-and `panic=unwind`. The build keeps the `apple-m1` Rust target and macOS 26
+and `panic=unwind`. The build keeps the `apple-m1` Rust target and the macOS
 deployment minimum. Direct calls to `build_rust_extension` keep the debug
 profile unless the caller requests release mode.
 
@@ -284,4 +284,4 @@ run writes `EXPERIMENTALartifact.json` beside the archive and report. The
 record identifies the archive, source inputs, Rust dependency closure,
 toolchains, build flags, and verified PGO profile. It is a research record.
 The command does not publish an artifact, qualify the production release, or
-establish runtime support on macOS 26.
+establish runtime support on the macOS deployment minimum.
