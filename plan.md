@@ -48,6 +48,13 @@ macOS 26 arm64 hardware or a VM; do not substitute macOS 27. rust-for-cpython.md
   payload (ideally only the removable _dbm module), decide whether _dbm
   should remain, and requalify any product-scope change. The metadata
   correction alone does not satisfy redistribution compliance.
+  *Status 2026-10-30:* the audit and proof are in
+  [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) (6.0.19 is Sleepycat;
+  Berkeley DB lives only in Linux `_dbm`; `_dbm` stays). `buildsys/notices.py`
+  now installs every bundled input's notices plus `SOURCES.md`, and the
+  qualifier's `license_notices` check verifies them in the extracted archive.
+  Not yet receipted: no build has produced an archive with these files.
+  Check this box when a fresh qualified archive for each target lists them.
 - [ ] **P2 — prove the real deployment minimum.** Install the exact
   assembled uv archive on actual macOS 26 arm64 hardware/VM; smoke
   startup, relocation under spaces, TLS client/server, subprocess, ctypes

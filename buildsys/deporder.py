@@ -9,7 +9,8 @@ than bundling them:
   macos       builds eight. zlib, Expat, and libedit come from the platform,
               and libuuid and Berkeley DB are not inputs at all: `_uuid` and
               `dbm.ndbm` use platform facilities on Darwin, which also keeps
-              an AGPL-licensed component out of the macOS payload.
+              Berkeley DB and its source-offer obligation out of the macOS
+              payload.
 """
 
 from __future__ import annotations

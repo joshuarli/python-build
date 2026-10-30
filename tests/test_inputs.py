@@ -37,7 +37,6 @@ class LockTests(unittest.TestCase):
         return path
 
     def test_bdb_metadata_is_version_specific(self):
-        # Source LICENSE/redistribution compliance is a separate P1 gate.
         inputs = {x.name: x for x in load_lock(
             Path(__file__).resolve().parents[1] / "sources.lock.json"
         )}

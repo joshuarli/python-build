@@ -275,6 +275,7 @@ def build_cpython(
         pgo_profile_task,
     )
     from buildsys.inputs import safe_extract
+    from buildsys.notices import NoticeError, install_notices
     from buildsys.patches import apply_patch_set
     from buildsys.recipes import run
 
@@ -367,7 +368,26 @@ def build_cpython(
         )
     except CABundleError as error:
         raise BuildError(f"cannot install the locked CA fallback: {error}") from error
+    try:
+        notices = install_notices(
+            prefix,
+            target=target,
+            cache_root=cache_root,
+            lock_path=REPO / "sources.lock.json",
+            source_revision=source_revision(),
+            rtls_revision=RTLS_REVISION,
+            rtls_archive_sha256=RTLS_ARCHIVE_SHA256,
+        )
+    except NoticeError as error:
+        raise BuildError(f"cannot install bundled-input notices: {error}") from error
+    print(f"INSTALL bundled-input notices ({len(notices['files'])} files)", flush=True)
     return prefix
+
+
+def source_revision() -> str:
+    return os.environ.get("PYTHON_BUILD_SOURCE_REVISION") or subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
+    ).stdout.strip()
 
 
 def verify_pgo_build(source: Path, build_directory: Path, toolchain, env: dict[str, str]) -> None:
@@ -1456,9 +1476,7 @@ def write_linux_receipt(run_dir: Path, target, toolchain, isolation: dict, comma
     receipt = {
         "schema_version": 1, "target": target.triple,
         "cpu_baseline": target.cpu_baseline_cflag, "cpu_features": linux_cpu_features(target), "pgo": False,
-        "source_revision": os.environ.get("PYTHON_BUILD_SOURCE_REVISION") or subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True, check=True
-        ).stdout.strip(),
+        "source_revision": source_revision(),
         "compiler": compiler, "commands": commands, "logs": logs,
         "source": source, "isolation": isolation,
         "effective_flags": {

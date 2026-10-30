@@ -1352,9 +1352,13 @@ def run_archive_contracts(
         and cleanup_payload.get("skipped") == 0
     )
     symbol_audit = audit_openssl_symbols(extracted, target)
+    from buildsys.notices import verify_notices
+
+    notice_report = verify_notices(extracted, target, COMMON_ROOT / "sources.lock.json")
 
     return {
         "no_openssl_symbols": symbol_audit,
+        "license_notices": check_result(notice_report.pop("ok"), **notice_report),
         "trust_source_contract": check_result(
             trust_ok, process=trust_process, tests_run=trust_runs,
             pinned_bundle_sha256=sha256_file(ca_bundles[0]),
