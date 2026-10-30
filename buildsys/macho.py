@@ -339,8 +339,13 @@ def add_rpath(path: Path, rpath: str, *, resign: bool = True) -> None:
 
 
 def sign_adhoc(path: Path) -> None:
-    """Apply an ad-hoc code signature, replacing any invalidated one."""
-    _tool(["codesign", "--force", "--sign", "-", str(path)])
+    """Apply a linker-style ad-hoc signature, replacing any invalidated one.
+
+    `install_name_tool` re-signs a modified image only when its signature is
+    linker-signed. uv rewrites libpython's install name after extraction, so
+    a plain ad-hoc signature would leave the interpreter killed on launch.
+    """
+    _tool(["codesign", "--force", "--sign", "-", "--options", "linker-signed", str(path)])
 
 
 def signature_status(path: Path) -> tuple[bool, str]:

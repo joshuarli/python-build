@@ -10,6 +10,7 @@ would let a wrong dependency through validation.
 from __future__ import annotations
 
 import platform
+import shutil
 import struct
 import subprocess
 import sys
@@ -38,6 +39,8 @@ from buildsys.macho import (
     is_macho,
     read_header,
     rpaths,
+    sign_adhoc,
+    signature_status,
 )
 from buildsys.product import PRODUCT
 
@@ -340,3 +343,26 @@ class HostBinaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(
+    sys.platform == "darwin" and shutil.which("clang") and shutil.which("install_name_tool"),
+    "needs a macOS toolchain",
+)
+class SignatureSurvivesInstallNameRewriteTests(unittest.TestCase):
+    def test_signed_image_stays_valid_after_install_name_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "lib.c"
+            source.write_text("int answer(void) { return 42; }\n")
+            image = Path(temporary) / "libanswer.dylib"
+            subprocess.run(
+                ["clang", "-dynamiclib", "-o", str(image), str(source)],
+                check=True, capture_output=True,
+            )
+            sign_adhoc(image)
+            subprocess.run(
+                ["install_name_tool", "-id", "/somewhere/else/libanswer.dylib", str(image)],
+                check=True, capture_output=True,
+            )
+            valid, detail = signature_status(image)
+            self.assertTrue(valid, detail)
