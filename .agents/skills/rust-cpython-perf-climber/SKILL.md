@@ -5,6 +5,11 @@ description: Procedure for one Rust-for-CPython performance lane - profile, edit
 
 # Rust-for-CPython performance lane (climber)
 
+**Owner directive (2026-10-29):** Follow root plan.md and the coordinator:
+no new lane before production P1-P6 closeout and R0 parity/baseline checks.
+Complete *all* module and workload memory goals before any CPU lane.
+Two failed hypotheses park an approach, never complete the target.
+
 You run one lane from the coordinator's brief: one hypothesis about one
 module route (plus any application workload the brief adds), in your own
 git worktree. The module's goal is kernel CPU, load footprint, and working

@@ -1,5 +1,9 @@
 # OpenSSL-free Linux arm64 qualification
 
+**Historical research qualification:** This predates product adoption.
+Statements below that production was unchanged apply to that earlier
+checkout, not current main. See [plan.md](../plan.md).
+
 ## Result
 
 The isolated CPython 3.15.1 distribution is fully OpenSSL-free. The native

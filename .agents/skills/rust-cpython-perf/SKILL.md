@@ -1,14 +1,21 @@
 ---
 name: rust-cpython-perf
-description: Coordinate the Rust-for-CPython performance hill climb in rust-for-cpython-perf.md with Codex GPT-6 Luna climber subagents at xhigh effort, the perf.py host lease, and replicated paired verdicts. Use for Codex performance work under rust-cpython/; coverage uses rust-cpython-coordinator.
+description: Coordinate the Rust-for-CPython performance hill climb in rust-for-cpython.md with Codex GPT-6 Luna climber subagents at xhigh effort, the perf.py host lease, and replicated paired verdicts. Use for Codex performance work under rust-cpython/; coverage uses rust-cpython-coordinator.
 ---
 
 # Rust-for-CPython performance hill climb (coordinator)
 
+**Owner directive (2026-10-29):** Read root plan.md before dispatch.
+The performance campaign is paused until production P1-P6 and a fresh
+production release qualification pass. When unblocked, complete R0 native
+parity/baseline refresh, R1 *every* memory goal, then R2 *every* CPU/workload
+goal. Debt labels and operational stops never satisfy those goals; this
+directive supersedes contrary historical stop rules below.
+
 You are the root agent. You own the control and incumbent builds in the
 primary checkout, target selection, lane briefs, integration onto `main`,
 gate measurements, recorded baselines, and the ledger in
-`rust-for-cpython-perf.md`. Climber subagents own one hypothesis each in
+`rust-for-cpython.md`. Climber subagents own one hypothesis each in
 an isolated worktree. The coverage rules of `rust-for-cpython.md` still
 bind every change: a performance step never removes a checked item's Rust
 route, edits `Lib/test/`, or weakens a module suite.
@@ -16,7 +23,7 @@ route, edits `Lib/test/`, or weakens a module suite.
 The goal is per module: for each of the 71 checklist routes, kernel CPU,
 load footprint, and working peak footprint of `@incumbent` over
 `@control` must reach the band 0.9x to 1.0x (see Goals in
-`rust-for-cpython-perf.md`). Application workloads guard every step.
+`rust-for-cpython.md`). Application workloads guard every step.
 
 Scope: native macOS arm64 (`aarch64-apple-darwin`) only. Linux (x86_64 and
 arm64) is out of scope for this phase; do not build, measure, or brief lanes
@@ -150,7 +157,7 @@ a first command merely yielded.
 
 ## Ground truth (session start, and after any toolchain or pin change)
 
-Read the current objective, progress and ledger in `rust-for-cpython-perf.md`
+Read the current objective, progress and ledger in `rust-for-cpython.md`
 first. Outstanding confirmation and baseline-refresh steps take precedence
 over routine lane selection. Recover state and check disk space before scheduling work.
 Use an installed Python 3.11 or newer; check `python3 --version` first.
@@ -444,7 +451,7 @@ can establish an improvement and permit integration of that lane.
    complete module goals and absolute workload memory comparison with
    `--memory-only`; no debt row or quiet-host wait waives that proof. CPU
    baseline recording retains its quiet-host requirement. Update the ledger and goal table in
-   `rust-for-cpython-perf.md`. Commit the refreshed
+   `rust-for-cpython.md`. Commit the refreshed
    `benchmarks/baselines/rust-cp316-perf-*.json`, ledger, and goal table
    together. Run complete `perf.py goals --candidate <ACCEPTED_REF>
    --memory-only` every third memory integration to catch cross-module drift;
@@ -476,7 +483,7 @@ accepted, the gate ratios, and what the next batch targets.
   `DECISION` line with the target rows from the verdict table. Integration
   commits carry the batch gate table, the `perf-merge` full-suite counts,
   and the `@control` versus `@incumbent` rows for the targets.
-- `rust-for-cpython-perf.md` keeps one ledger row per integration: date,
+- `rust-for-cpython.md` keeps one ledger row per integration: date,
   commit, lanes, module and workload target ratios versus the previous
   incumbent, and the modules' goal statuses versus control. Keep its goal
   table current and a short debt list of routes still OVER after two
@@ -495,9 +502,10 @@ after the CPU phase. Stop and report when any of these holds:
   `@control` workload comparison reads every peak RSS neutral or improved.
   Debt and unresolved UNCLEAR rows do not satisfy completion. No quiet-host
   confirmation is required. Only then end or advance the memory phase.
-- CPU completion: every module reads MET/BEYOND on all three metrics or is on
-  the CPU debt list, and every gate workload is neutral/improved against
-  `@control` or has two failed workload lanes. CPU quiet-host policy remains.
+- CPU completion: all 71 modules read MET/BEYOND on all three metrics and
+  every eligible workload is neutral/improved on its CPU/latency and memory
+  guards against `@control`, in a fully calibrated quiet-host paired gate.
+  Failed CPU/workload lanes remain unresolved debts, not success.
 - In the CPU phase, two consecutive batches integrate nothing, excluding an
   INCONCLUSIVE result solely for `quiet=no`; or `host never quiet` is reported.
 - The lane budget or disk floor from Unattended operation is reached. Report
