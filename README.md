@@ -15,7 +15,7 @@ The next stage is the [production closeout and Rust performance plan](plan.md).
 [Rust-for-CPython](rust-for-cpython.md) is an isolated research interpreter,
 not the shipping CPython 3.15.1 distribution.
 
-## Build and qualify
+## Compile and qualify
 
 Run `doctor` to inspect the host and pinned toolchain requirements. Fetch
 locked inputs before compiling:
