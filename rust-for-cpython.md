@@ -1350,6 +1350,16 @@ upstream speedups secondhand.
 
 ## Decision log and campaign log
 
+- 2026-10-30 batch 32 follow-up: the ElementTree working-peak lane
+  returned NEUTRAL after three distinct mechanisms (single-write broke a
+  suite, mid-walk streaming duplicated output, measuring-pass reserve cut
+  ~90–110 KiB vs incumbent but could not replicate to a gate ACCEPT and
+  finished UNCLEAR vs control). All edits reverted; branch
+  `lane/elementtree-working-mem` kept for the `ebc24c9` implementation and
+  the finding that this route's control working peak is page-quantized and
+  noise-dominated (32/112/168 KiB across sessions). Third failed lane on
+  the route; it stays debt. Do not retry single-write, streaming,
+  retained slabs, output slabs, or bytes-sink without new evidence.
 - 2026-10-26 resumed after the Python packaging hardening work. Commit
   `9e60680` moved runtime aliases under `.work/tmp`; the fresh calibration
   passed. The refreshed 71-route memory goals report 17 OVER and 13 UNCLEAR
