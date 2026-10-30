@@ -78,6 +78,12 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   that preserves dist/target and uv-mirror compatibility. Fault-inject
   process termination between steps; readers must always obtain one
   complete verified generation, never mixed archive/manifest bytes.
+  *Status 2026-10-30:* `buildsys/generations.py` publishes archive plus manifest
+  as one immutable, hash-sealed generation with an atomic `ACTIVE` switch;
+  build, qualify, promote, uvmirror, comparison and benchmarks use it.
+  `tests/test_generations.py` kills the publisher at every filesystem step and
+  checks that readers see exactly the old or the new generation. Check this box
+  when merged to main and a CI release run publishes and assembles through it.
 - [ ] **P5 — modern TLS security and compatibility.** Preserve TLS 1.2/1.3
   and zero OpenSSL in the shipped payload. Inventory ssl/hashlib/hmac APIs
   by supported, deliberate rejection, or unresolved difference; fix

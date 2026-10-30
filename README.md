@@ -40,9 +40,10 @@ carry `MH_PIE`.
 
 `qualify` applies required installed-tree fixes, runs the CPython regression
 suite on a disposable pre-prune copy, validates the packaged payload and
-archive extraction, then publishes the archive and `artifact.json`
-with exception rollback under `dist/<target>/`. Crash-atomic pairwise
-publication is tracked in [P4](plan.md). Optional reference comparisons and
+archive extraction, then publishes the archive and `artifact.json` as one
+immutable generation under `dist/<target>/generations/`, selected by an
+atomic `dist/<target>/ACTIVE` file (`buildsys/generations.py`); readers
+verify the active generation's recorded sizes and digests. Optional reference comparisons and
 two-build reproduction are separate commands:
 
 ```sh

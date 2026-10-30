@@ -616,7 +616,12 @@ def _resolve_preset(args: argparse.Namespace) -> None:
         args.baseline_label = "Astral PBS 20260610"
         args.baseline_kind = "pbs"
     if not args.candidate:
-        candidates = sorted((ROOT / "dist" / target).glob("*.tar.gz"))
+        from buildsys.generations import GenerationError, active_generation
+
+        try:
+            candidates = sorted(active_generation(ROOT / "dist" / target).glob("*.tar.gz"))
+        except GenerationError as error:
+            raise ValueError(f"no complete published {target} artifact: {error}") from error
         if len(candidates) != 1:
             raise ValueError(
                 f"PBS preset requires exactly one {target} dist archive; specify --candidate"

@@ -99,7 +99,7 @@ RUN --network=none python3 build/deps.py \
 FROM sealed AS packaged
 RUN --network=none python3 build/package.py \
  && mkdir -p /work/qualification \
- && set -- /work/dist/*/*.tar.gz \
+ && set -- /work/dist/*/generations/*/*.tar.gz \
  && [ -f "$1" ] \
  && [ "$#" -eq 1 ] \
  && [ -f "$(dirname "$1")/artifact.json" ] \

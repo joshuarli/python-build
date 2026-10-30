@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import quote
 
+from .generations import GenerationError, active_generation
 from .product import PRODUCT
 from .targets import TARGETS
 
@@ -111,8 +112,17 @@ def _expected_revision(expected_revision: str | None) -> str:
 
 
 def _load_manifest(dist: Path, triple: str, expected_revision: str) -> tuple[Path, dict]:
+    try:
+        directory = active_generation(Path(dist) / triple)
+    except GenerationError as error:
+        raise UvMirrorError(f"{triple}: no complete published artifact: {error}") from error
+    return _load_manifest_from(directory, triple, expected_revision)
+
+
+def _load_manifest_from(
+    directory: Path, triple: str, expected_revision: str
+) -> tuple[Path, dict]:
     target = TARGETS[triple]
-    directory = Path(dist) / triple
     manifest_path = directory / "artifact.json"
     try:
         manifest = json.loads(manifest_path.read_text())
@@ -180,7 +190,7 @@ def validate_artifact(
         raise UvMirrorError(f"unsupported artifact target {triple!r}")
     if re.fullmatch(r"[0-9a-f]{40,64}", expected_revision) is None:
         raise UvMirrorError(f"invalid expected source revision {expected_revision!r}")
-    return _load_manifest(Path(directory).parent, triple, expected_revision)
+    return _load_manifest_from(Path(directory), triple, expected_revision)
 
 
 def record_runtime_container(
@@ -304,7 +314,7 @@ def assemble(
         _target = TARGETS[triple]
         if manifest.get("toolchain", {}).get("llvm_version") != LLVM_VERSIONS[triple]:
             raise UvMirrorError(f"{triple}: toolchain identity changed")
-        prepared[triple] = (source, Path(dist) / triple / "artifact.json", manifest)
+        prepared[triple] = (source, source.parent / "artifact.json", manifest)
 
     output = Path(out).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -29,12 +29,12 @@ from buildsys.elf import (
     pie_report,
     writable_executable_loads_report,
 )
+from buildsys.generations import active_generation, publish_generation
 from buildsys.inputs import InputError, load_lock
 from buildsys.package import (
     PackageError,
     build_manifest,
     create_archive,
-    publish_files,
     qualify,
     validate_build_record,
     verify_archive_extraction,
@@ -650,11 +650,11 @@ def _package() -> Path:
         )
         manifest_temp = workdir / "artifact.json"
         write_manifest(manifest_temp, manifest)
-        publish_files({
-            output / archive_name: archive_temp,
-            output / "artifact.json": manifest_temp,
+        publish_generation(output, {
+            archive_name: archive_temp,
+            "artifact.json": manifest_temp,
         })
-    return output / archive_name
+    return active_generation(output) / archive_name
 
 
 def main(argv: list[str] | None = None) -> int:

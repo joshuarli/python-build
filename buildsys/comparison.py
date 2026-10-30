@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from .inputs import Cache, InputError, load_lock, safe_extract
+from .generations import GenerationError, active_generation
 from .package import PackageError, extract_package_archive, publish_files
 from .targets import Target
 
@@ -100,17 +101,18 @@ def compare_completed_artifact(
     scratch_root: Path,
 ) -> Path:
     dist = Path(dist)
-    manifest_path = dist / "artifact.json"
     try:
+        artifact_directory = active_generation(dist)
+        manifest_path = artifact_directory / "artifact.json"
         manifest = json.loads(manifest_path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+    except (GenerationError, OSError, json.JSONDecodeError) as error:
         raise ComparisonError(f"completed artifact manifest is unavailable: {error}") from error
     if manifest.get("target", {}).get("triple") != target.triple:
         raise ComparisonError("completed artifact manifest names a different target")
     archive_name = manifest.get("archive", {}).get("filename")
     if not isinstance(archive_name, str) or Path(archive_name).name != archive_name:
         raise ComparisonError("completed artifact manifest has an unsafe archive filename")
-    archive_path = dist / archive_name
+    archive_path = artifact_directory / archive_name
     try:
         digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
     except OSError as error:

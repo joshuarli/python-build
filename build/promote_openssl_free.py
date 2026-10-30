@@ -12,10 +12,12 @@ import argparse
 import json
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from buildsys.generations import GenerationError, publish_generation
 from buildsys.targets import TARGETS
 from buildsys.uvmirror import (
     UvMirrorError,
@@ -71,40 +73,39 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     out = args.dist / args.triple
-    if out.exists() or out.is_symlink():
-        print(f"FAIL promote: refusing to overwrite {out}", file=sys.stderr)
-        return 1
-    out.mkdir(parents=True)
-    shutil.copyfile(archive_src, out / args.archive_name)
-    shutil.copyfile(manifest_src, out / "artifact.json")
+    with tempfile.TemporaryDirectory(prefix="promote-", dir=run_dir) as staging_root:
+        stage = Path(staging_root) / args.triple
+        stage.mkdir()
+        shutil.copyfile(archive_src, stage / args.archive_name)
+        shutil.copyfile(manifest_src, stage / "artifact.json")
+        try:
+            manifest = json.loads((stage / "artifact.json").read_text())
+            if manifest.get("archive", {}).get("filename") != args.archive_name:
+                raise UvMirrorError("promoted manifest names a different archive file")
+            if _sha256(stage / args.archive_name) != manifest["archive"]["sha256"]:
+                raise UvMirrorError("promoted archive bytes do not match the manifest")
 
-    try:
-        manifest = json.loads((out / "artifact.json").read_text())
-        if manifest.get("archive", {}).get("filename") != args.archive_name:
-            raise UvMirrorError("promoted manifest names a different archive file")
-        if _sha256(out / args.archive_name) != manifest["archive"]["sha256"]:
-            raise UvMirrorError("promoted archive bytes do not match the manifest")
+            if target.family == "linux-musl":
+                runtime_receipt = json.loads(
+                    (run_dir / "docker-runtime.json").read_text()
+                )
+                probe = runtime_receipt.get("runtime_probe", {})
+                smoke = {
+                    "ok": probe.get("ok") is True,
+                    "target": args.triple,
+                    "archive": args.archive_name,
+                    "archive_sha256": runtime_receipt.get("archive_sha256"),
+                    "python": manifest["product"]["version"],
+                }
+                (stage / "runtime-smoke.json").write_text(json.dumps(smoke, indent=2) + "\n")
+                record_runtime_container(stage, args.triple, args.revision, "native")
+                (stage / "runtime-smoke.json").unlink()
 
-        if target.family == "linux-musl":
-            runtime_receipt = json.loads(
-                (run_dir / "docker-runtime.json").read_text()
-            )
-            probe = runtime_receipt.get("runtime_probe", {})
-            smoke = {
-                "ok": probe.get("ok") is True,
-                "target": args.triple,
-                "archive": args.archive_name,
-                "archive_sha256": runtime_receipt.get("archive_sha256"),
-                "python": manifest["product"]["version"],
-            }
-            (out / "runtime-smoke.json").write_text(json.dumps(smoke, indent=2) + "\n")
-            record_runtime_container(out, args.triple, args.revision, "native")
-            (out / "runtime-smoke.json").unlink()
-
-        validate_artifact(out, args.triple, args.revision)
-    except (OSError, json.JSONDecodeError, UvMirrorError, KeyError) as error:
-        print(f"FAIL promote: {error}", file=sys.stderr)
-        return 1
+            validate_artifact(stage, args.triple, args.revision)
+            publish_generation(out, {path.name: path for path in stage.iterdir()})
+        except (OSError, json.JSONDecodeError, GenerationError, UvMirrorError, KeyError) as error:
+            print(f"FAIL promote: {error}", file=sys.stderr)
+            return 1
     print(f"OK promote {args.triple} -> {out}")
     return 0
 

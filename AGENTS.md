@@ -171,9 +171,11 @@ three targets.
 Packaging applies installed-tree fixes, runs regressions on a disposable copy,
 strips and prunes the release tree, validates it, creates a deterministic
 archive, extracts it under a path containing spaces, and validates those
-exact bytes before transactional publication. `artifact.json` is the
-canonical artifact and qualification record; the exception-rollback
-publisher is not crash-atomic across the archive/manifest pair (plan P4).
+exact bytes before publication. `artifact.json` is the canonical artifact
+and qualification record. The archive and manifest publish together as one
+immutable generation under `dist/<target>/generations/`, selected by an atomic
+`dist/<target>/ACTIVE`; readers use `buildsys.generations.active_generation`
+and never read loose files in `dist/<target>/`.
 `SHA256SUMS` covers published
 release assets. Failed work must not replace an accepted artifact or leave a
 partial release.

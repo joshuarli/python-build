@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
+from buildsys.generations import active_generation, publish_generation
 from buildsys.package import build_manifest, create_archive, write_manifest
 from buildsys.product import PRODUCT
 from buildsys.targets import TARGETS
@@ -61,7 +63,7 @@ class AssembleTests(unittest.TestCase):
     def _input_tree(self, root: Path) -> tuple[Path, Path]:
         dist = root / "dist"
         for triple, target in TARGETS.items():
-            directory = dist / triple
+            directory = root / "stage" / triple
             directory.mkdir(parents=True)
             install = root / f"install-{target.machine}-{target.family}"
             (install / "bin").mkdir(parents=True)
@@ -119,7 +121,19 @@ class AssembleTests(unittest.TestCase):
                 package_patches_directory=REPO / "patches" / "package",
             )
             write_manifest(directory / "artifact.json", manifest)
+            publish_generation(dist / triple, {path.name: path for path in directory.iterdir()})
         return dist, root / "release-budgets.json"
+
+    def _replace_published(self, dist: Path, triple: str, name: str, content: bytes) -> None:
+        published = active_generation(dist / triple)
+        staged = dist.parent / "replace" / triple
+        shutil.rmtree(staged, ignore_errors=True)
+        staged.mkdir(parents=True)
+        for path in published.iterdir():
+            if path.name != "GENERATION.json":
+                shutil.copyfile(path, staged / path.name)
+        (staged / name).write_bytes(content)
+        publish_generation(dist / triple, {path.name: path for path in staged.iterdir()})
 
     def _budgets(self, path: Path, *, compressed: int = 10_000_000) -> None:
         path.write_text(json.dumps({
@@ -195,7 +209,7 @@ class AssembleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             dist, _ = self._input_tree(root)
-            target_directory = dist / "aarch64-unknown-linux-musl"
+            target_directory = active_generation(dist / "aarch64-unknown-linux-musl")
             archive, manifest = validate_artifact(
                 target_directory, "aarch64-unknown-linux-musl", REVISION
             )
@@ -211,10 +225,9 @@ class AssembleTests(unittest.TestCase):
             dist, budgets = self._input_tree(root)
             self._budgets(budgets)
             triple = "x86_64-unknown-linux-musl"
-            manifest_path = dist / triple / "artifact.json"
-            manifest = json.loads(manifest_path.read_text())
+            manifest = json.loads((active_generation(dist / triple) / "artifact.json").read_text())
             manifest["qualification"]["checks"]["runtime_container"]["execution"] = "emulated"
-            manifest_path.write_text(json.dumps(manifest))
+            self._replace_published(dist, triple, "artifact.json", json.dumps(manifest).encode())
             output = root / "release"
             with self.assertRaisesRegex(UvMirrorError, "native runtime-container"):
                 assemble(
@@ -228,8 +241,9 @@ class AssembleTests(unittest.TestCase):
             root = Path(temporary)
             dist, budgets = self._input_tree(root)
             self._budgets(budgets)
-            archive = next((dist / "x86_64-unknown-linux-musl").glob("*.tar.gz"))
-            archive.write_bytes(b"corrupt")
+            triple = "x86_64-unknown-linux-musl"
+            archive = next(active_generation(dist / triple).glob("*.tar.gz"))
+            self._replace_published(dist, triple, archive.name, b"corrupt")
 
             with self.assertRaisesRegex(UvMirrorError, "digest or size"):
                 assemble(
@@ -244,8 +258,8 @@ class AssembleTests(unittest.TestCase):
             root = Path(temporary)
             dist, budgets = self._input_tree(root)
             self._budgets(budgets)
-            (dist / "aarch64-unknown-linux-musl" / "artifact.json").unlink()
-            with self.assertRaisesRegex(UvMirrorError, "manifest is missing"):
+            (dist / "aarch64-unknown-linux-musl" / "ACTIVE").unlink()
+            with self.assertRaisesRegex(UvMirrorError, "no complete published artifact"):
                 assemble(
                     "20261022", "owner/name", dist, root / "release",
                     expected_revision=REVISION, budgets_path=budgets,

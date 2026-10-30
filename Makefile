@@ -1,7 +1,7 @@
 PYTHON ?= python3
 
 BENCH_TARGET ?= $(shell $(PYTHON) -c 'from buildsys.targets import native_target; print(native_target().triple)')
-BENCH_ARTIFACT := $(shell $(PYTHON) -c 'from buildsys.product import PRODUCT; print("dist/$(BENCH_TARGET)/" + PRODUCT.local_archive_name("$(BENCH_TARGET)", "r2"))')
+BENCH_ARTIFACT = $(shell $(PYTHON) -c 'from pathlib import Path; from buildsys.generations import active_generation; from buildsys.product import PRODUCT; root = Path("dist/$(BENCH_TARGET)"); print(active_generation(root) / PRODUCT.local_archive_name("$(BENCH_TARGET)", "r2") if (root / "ACTIVE").exists() else root / "unpublished")')
 BENCH_PRODUCT_LABEL := python-build CPython $(shell $(PYTHON) -c 'from buildsys.product import PRODUCT; print(PRODUCT.version_string)')
 BENCH_PROFILE ?= standard
 BENCH_PYPERFORMANCE_SELECTION ?= all

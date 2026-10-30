@@ -247,7 +247,8 @@ def qualify_linux(target: str) -> int:
     if fetch.returncode != 0:
         return fetch.returncode
 
-    from buildsys.package import PackageError, publish_files, write_manifest
+    from buildsys.generations import GenerationError, publish_generation
+    from buildsys.package import PackageError, write_manifest
     from buildsys.uvmirror import UvMirrorError, record_runtime_container
 
     scratch = Path(__file__).parent / ".work" / "tmp"
@@ -300,11 +301,11 @@ def qualify_linux(target: str) -> int:
         write_manifest(manifest_temp, manifest)
         output_directory = Path(__file__).parent / "dist" / target
         try:
-            publish_files({
-                output_directory / archive_name: archive,
-                output_directory / "artifact.json": manifest_temp,
+            publish_generation(output_directory, {
+                archive_name: archive,
+                "artifact.json": manifest_temp,
             })
-        except (OSError, PackageError) as error:
+        except (OSError, GenerationError, PackageError) as error:
             _fail(f"cannot publish qualified Linux artifact: {error}")
     print(f"OK    qualify -> {Path(__file__).parent / 'dist' / target}")
     return 0

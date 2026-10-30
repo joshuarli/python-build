@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 
 from buildsys.comparison import compare_completed_artifact
 from buildsys.deporder import dependency_order
+from buildsys.generations import active_generation, publish_generation
 from buildsys.inputs import canonical_json, load_lock
 from buildsys.package import (
     ArchiveFacts,
@@ -546,12 +547,17 @@ class PublicationTests(unittest.TestCase):
                 build_record=BUILD_RECORD,
                 package_patches_directory=REPO / "patches" / "package",
             )
-            (dist / archive_name).write_bytes(staged_archive.read_bytes())
-            (dist / "artifact.json").write_text(json.dumps(manifest))
+            staged_manifest = root / "artifact.json"
+            staged_manifest.write_text(json.dumps(manifest))
+            publish_generation(dist, {
+                archive_name: staged_archive,
+                "artifact.json": staged_manifest,
+            })
+            published = active_generation(dist)
             benchmarks = dist / "benchmarks.json"
             benchmarks.write_text("existing benchmark report")
-            previous_manifest = (dist / "artifact.json").read_bytes()
-            previous_archive = (dist / archive_name).read_bytes()
+            previous_manifest = (published / "artifact.json").read_bytes()
+            previous_archive = (published / archive_name).read_bytes()
 
             report_path = compare_completed_artifact(
                 dist,
@@ -571,8 +577,8 @@ class PublicationTests(unittest.TestCase):
             )
             self.assertTrue(report_path.is_file())
             self.assertEqual(benchmarks.read_text(), "existing benchmark report")
-            self.assertEqual((dist / "artifact.json").read_bytes(), previous_manifest)
-            self.assertEqual((dist / archive_name).read_bytes(), previous_archive)
+            self.assertEqual((published / "artifact.json").read_bytes(), previous_manifest)
+            self.assertEqual((published / archive_name).read_bytes(), previous_archive)
 
 
 if __name__ == "__main__":
