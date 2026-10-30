@@ -114,10 +114,3 @@ workflow-dispatched release path smoke-tests those exact archive bytes
 through a local mirror before publishing. Release tags are bound to the
 source revision recorded by the build.
 
-## Optional Nix-backed Linux builder prototype
-
-The [Nix bootstrap prototype](nix/README.md) uses pinned Nix inputs to
-materialize the **same** Alpine/APK and native-musl Rust toolchain into Docker
-build environments for amd64 and arm64. It is explicitly opt-in and does not
-replace the existing build or qualification path. Native Docker validation
-and full independent release qualification are still required.

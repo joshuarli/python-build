@@ -343,37 +343,6 @@ def prepare_toolchain_image(
     run_dir: Path, bootstrap: dict, experimental: dict, locked_digest: str
 ) -> tuple[str, dict, dict]:
     common = common_root()
-    # Explicit experimental Nix image override. The images are built from
-    # exactly the same locks/Dockerfiles, and must pass the usual runtime
-    # qualification; the default image-building path is unchanged.
-    nix_base = os.environ.get("PYTHON_BUILD_NIX_BASE_IMAGE")
-    nix_toolchain = os.environ.get("PYTHON_BUILD_NIX_TOOLCHAIN_IMAGE")
-    if (nix_base is None) != (nix_toolchain is None):
-        raise DockerBuildError("Nix override requires both base and toolchain image names")
-    if nix_base is not None:
-        if not nix_base.strip() or not nix_toolchain.strip():
-            raise DockerBuildError("Nix override image names cannot be empty")
-        experimental_root = common / ".cache" / "bootstrap" / f"rtls-linux-{DOCKER_ARCH}"
-        verify_experimental_inputs(experimental_root, experimental)
-        input_items = [
-            item["sha256"] for item in experimental["apk_closure"]
-        ] + [item["sha256"] for item in experimental["rust"]["components"]]
-        input_identity = canonical_digest(
-            {"lock": sha256_file(LOCK_PATH), "inputs": sorted(input_items)}
-        )
-        base_image = image_info(nix_base)
-        overlay_image = image_info(nix_toolchain)
-        labels = overlay_image.get("Config", {}).get("Labels", {})
-        if (
-            labels.get("org.python-build.rtls.locked-image-digest") != locked_digest
-            or labels.get("org.python-build.rtls.bootstrap-inputs-sha256") != input_identity
-        ):
-            raise DockerBuildError("Nix toolchain image does not match the locked inputs")
-        base_layers = base_image.get("RootFS", {}).get("Layers", [])
-        overlay_layers = overlay_image.get("RootFS", {}).get("Layers", [])
-        if not base_layers or overlay_layers[:len(base_layers)] != base_layers:
-            raise DockerBuildError("Nix toolchain image is not derived from its declared base image")
-        return nix_toolchain, base_image, overlay_image
     package_paths = base_package_paths(common, bootstrap)
     base_material = {
         "dockerfile": sha256_file(REPO / "Dockerfile"),

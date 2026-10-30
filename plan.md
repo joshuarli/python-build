@@ -2,8 +2,8 @@
 
 Owner direction, 2026-10-29. This is the only repository-wide priority and
 production closeout queue. rust-for-cpython.md remains the one detailed Rust
-coverage, parity, benchmark and experiment ledger; backend/ and nix/ are
-technical references, not competing campaign plans.
+coverage, parity, benchmark and experiment ledger; backend/ is a
+technical reference, not competing campaign plans.
 
 ## Starting evidence and non-negotiable scope
 
@@ -146,9 +146,8 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   revision; the old CI success cannot substitute for this new run.
 
 Check P1-P6 only against concrete commits, exact artifact hashes, native
-host information and qualification/CI links. Optional Nix bootstrap is not
-equivalent to the Alpine/musl product qualification; it also does not
-guarantee historical APK URLs remain fetchable.
+host information and qualification/CI links. Historical APK URLs are not
+guaranteed to remain fetchable.
 
 ## R — perfect Rust-for-CPython, after P closes
 

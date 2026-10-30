@@ -561,8 +561,6 @@ Known baseline failures (never mistake for a regression):
   `test_socketserver`, `test_peg_generator`, etc.; see the register).
 
 Loop timings (measured 2026-10-25/26, macOS arm64):
-- narrow controller check (`python3 -m unittest tests.test_nix_build_image`):
-  ~0.1s.
 - `py_compile` of lane entry points: ~0.05s.
 - full controller `discover -s tests`: exceeds 120s (earlier full run
   ~290s); run at milestones only, in the background.
@@ -1253,7 +1251,7 @@ the owner explicitly authorizes them for the lane.
 Forbidden: pushing anywhere; changing production `buildsys/` artifacts or
 the 3.15.1 product; adding platforms, production dependencies, or product
 versions; removing a Rust route to meet a goal (needs OD-level decision);
-substituting Nixpkgs LLVM/Rust/libc or store paths into payloads; network
+network
 access during sealed builds; warm-host timing claims as qualification.
 Contract changes made (none this preflight): listed here for the owner.
 

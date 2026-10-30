@@ -117,12 +117,3 @@ public package/API contracts without an explicit scope decision. Do not run
 formatters, linters, pre-commit hooks, or CI-only changes for unrelated work.
 Do not push unless asked. Commits use Conventional Commit format.
 
-## Optional Nix builder experiment
-
-`flake.nix`, `nix/bootstrap.nix`, and `nix/build_image.py` form an opt-in
-alternative bootstrap for the **same** locked Alpine and native-musl Rust
-Docker builder, not a NixOS/glibc replacement. Keep its inputs anchored to
-the existing locks and the original Dockerfiles. Do not silently substitute
-Nixpkgs LLVM, Rust, or libc, introduce Nix store paths into payloads, change
-production defaults, or claim release reproducibility from image provenance
-alone. See `nix/README.md` for qualification and cold-fetch limitations.
