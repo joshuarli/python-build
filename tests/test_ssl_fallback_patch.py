@@ -41,6 +41,10 @@ print(json.dumps(events))
 
 
 @unittest.skipUnless(sys.version_info[:2] == (3, 15), "CPython 3.15 is required")
+@unittest.skipUnless(
+    "OpenSSL" in ssl.OPENSSL_VERSION,
+    "the fallback patch targets an OpenSSL-linked ssl module",
+)
 class SSLFallbackPatchTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
