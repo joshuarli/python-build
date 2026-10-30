@@ -75,5 +75,5 @@ formal copyright/contributor license agreement.
 Bug Reporting
 =============
 
-Please refer to the [SECURITY](SECURITY.md) policy for security issues. All
+Please refer to the [SECURITY](https://github.com/rustls/webpki/security/policy) policy for security issues. All
 other bugs should be reported as [GitHub issues](https://github.com/rustls/webpki/issues/new).

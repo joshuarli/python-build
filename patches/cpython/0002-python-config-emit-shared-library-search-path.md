@@ -39,7 +39,7 @@
 - **Regression test**: `tests/test_patches.py` applies the patch to a
   scratch copy of the fetched CPython source and asserts the inverted
   condition is present and that `-L` is emitted on the shared path.
-  End-to-end, `buildsys/validate_macos.py`'s `embedding_checks` compiles and
+  End-to-end, `buildsys/validate_product.py`'s `embedding_checks` compiles and
   runs a C program against `python3.15-config --cflags --ldflags --embed`
   from the relocated tree; that check failed before this patch and passes
   after it.
