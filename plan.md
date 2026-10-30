@@ -97,11 +97,13 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   (SHA-256 `327003b2…`, 1,229 files). macOS arm64: two clean builds at `938d172`
   from the same build path reproduced compiled content in all 1,223 files; the
   only differences were 62 Mach-O images differing in UUID and signature, so
-  raw archive hashes differ. Builds at different paths do not reproduce on
-  macOS: the build directory is baked into sysconfigdata, the pkg-config files,
-  `config.c`, and seven Mach-O images, and the CI run directory includes the
-  run id. Open: pin or map the macOS build path (decision), Linux x86-64, and
-  release evidence in CI.
+  raw archive hashes differ. Builds at different paths do not
+  reproduce, on macOS or Linux: the build directory is baked into
+  sysconfigdata, the pkg-config files, `python-config`, `config.c`,
+  `build-details.json`, and several extension images, and every CI run
+  directory includes the run id, so two CI releases will differ and each ships
+  its builder path. Open: pin the CI run-directory names or map the path in the
+  build (decision), Linux x86-64, and release evidence in CI.
 
 - [ ] **P4 — crash-consistent publication.** buildsys.package.publish_files
   rolls back on caught exceptions; replacing archive and artifact.json
