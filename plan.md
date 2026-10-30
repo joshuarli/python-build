@@ -61,7 +61,7 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   includes the Berkeley DB `LICENSE` and the Sleepycat source offer. Open: a
   Linux x86-64 archive (no native host here); the CI release run provides it.
   Check this box when that archive lists the notices.
-- [ ] **P2 — prove the macOS 27 deployment minimum.** macOS 27 is the only
+- [x] **P2 — prove the macOS 27 deployment minimum.** macOS 27 is the only
   supported macOS release, so its minimum and host floor coincide. Install
   the exact assembled uv archive on a macOS 27 arm64 host; smoke startup,
   relocation under spaces, TLS client/server, subprocess, ctypes and
@@ -70,6 +70,18 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   compiler flags and load commands only. Preserve native Alpine-musl amd64
   and arm64 qualification. Save host, archive digest and command-level
   results.
+  *Receipt 2026-10-30:* macOS arm64 archive from `38faf1d`, SHA-256
+  `6f4b7ca53e37fec7f3e7fe04ee4ca51780f538d7c19c0a7a00749a3d61aa21ec`,
+  installed with `uv 0.13.2` from a local mirror into a directory containing
+  a space on an Apple M5 Max running macOS 27.0.1; `.github/scripts/toy.py`
+  passed against the uv-installed interpreter, the interpreter's LC_BUILD_VERSION
+  minimum is 27.0, and the qualifier's TLS, ctypes, subprocess, extension,
+  abi3 and relocation checks passed on the same host. The smoke found that uv's
+  install-name rewrite invalidated our ad-hoc signature and the interpreter was
+  killed at launch; images are now signed linker-style (`38faf1d`). Apple M1
+  execution is unverified (no M1 hardware): the `apple-m1` baseline is checked
+  by compiler flags and load commands only.
+
 - [ ] **P3 — independent build reproducibility.** Use two clean sealed
   builds per native target with separate compiled outputs (shared verified
   immutable downloads are fine). Compare paths, file types, modes, symlinks,
