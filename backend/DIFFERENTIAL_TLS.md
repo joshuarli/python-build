@@ -48,7 +48,10 @@ PEM and DER loading, 8 differences (7 unresolved, 1 since fixed), none a verific
 bypass, since a trust anchor contributes only its subject and key:
 
 - Blank lines inside the base64 body load in the product and fail in OpenSSL.
-- Five single-bit flips of the CA DER load in OpenSSL and fail in the product;
-  one flip loads in the product and fails in OpenSSL.
+- Five single-bit flips of the CA DER load in OpenSSL and fail in the product:
+  three inside the trailing signature value (bytes 506 to 508) and two near the
+  validity period (bytes 99 and 103). One flip, inside the commonName OID
+  (byte 56), loads in the product and fails in OpenSSL. The product's cause for
+  rejecting the five has not been traced.
 - Loading an empty `cadata` raised `SSLError` in the product where OpenSSL
   raises `ValueError`; the facade now raises `ValueError("empty cadata")`.
