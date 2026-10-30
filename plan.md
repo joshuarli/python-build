@@ -30,6 +30,12 @@ production release, then resume R0-R4. Non-invasive preparation is allowed in
 parallel. An unavailable host, rejected attempt or missing evidence is
 BLOCKED, not an accepted exception to a goal.
 
+The 2026-10-29/30 overnight memory run was a one-session override and has
+ended; resume at P1. Order of attack: P1 (local, release-blocking), P4 (code
+only), P5, P3, then P2 and P6. P2 is BLOCKED until the owner supplies real
+macOS 26 arm64 hardware or a VM; do not substitute macOS 27. rust-for-cpython.md
+"Resume here" holds the parked Rust-phase calls.
+
 ## P — production closeout (release-blocking work)
 
 - [ ] **P1 — verify licenses and source delivery.** Inspect LICENSE and

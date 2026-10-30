@@ -18,11 +18,53 @@ guards still bind. No CPU lane until *all* module memory rows are
 MET/BEYOND and *all* eligible workload RSS rows neutral/improved.
 Two failed hypotheses are recorded as unresolved debt, not completion.
 
+## Resume here — 2026-10-30
 
-## Current checkpoint — 2026-10-26
+Calls made under the owner's "call the shots" delegation after the overnight
+memory run (HEAD `2abac96`). They bind until the owner countermands them.
 
-**Continue:** Clear the macOS memory goals before CPU work. The current map has
-25 known module debts and six workload RSS debts.
+1. **The overnight override is spent.** "Finish without stopping" granted one
+   unattended session; it does not carry forward. Work resumes in
+   [plan.md](plan.md) order: P1-P6 first. No memory or CPU lane starts until
+   P6 closes or the owner reopens the Rust phase in writing.
+2. **Unstable-guard adjudication.** The `urllib.request` call is endorsed on
+   these grounds, which are now the rule: a guard REJECT may be set aside only
+   when (a) the guard workload never imports the changed module or route, so
+   no mechanism exists, (b) a focused guard rerun and a full gate rerun both
+   read neutral or ACCEPT, and (c) every evidence file, including the REJECT,
+   stays in the results log and is named in the ledger entry. A guard with a
+   mechanism, or a second REJECT, stands as REJECT.
+3. **Flipper rows** (`_strptime`, `warnings`, `html.parser`, `uuid`, `decimal`,
+   `sqlite3`): no lanes and no harness change. The perf skill's UNCLEAR rule
+   already applies (one rigorous rerun, then OVER above 1.01x pooled median,
+   else MET; never loop). Changing the 0-KiB-control rule now would move the
+   goalposts mid-campaign. A row that still flips at R1 closeout is recorded
+   as floor-limited debt with its absolute KiB values; it is not done until
+   the owner rules on the policy then.
+4. **`bisect`** stays structural debt, not waived. Changing the `Lib/bisect.py`
+   probe protocol alters pristine stdlib behavior for a few KiB and would add
+   a parity deviation; reconsider only if it is the last open memory row.
+5. **Model policy.** No deviation occurred. `AGENTS.md` assigns Claude
+   sessions to Sonnet 5.5, and `rust-perf-climber` pins `claude-sonnet-5-5`
+   at `high`. `gpt-6-luna` applies to Codex sessions only. No re-run needed.
+6. **Debt carried into R1 (no change from batch 33):** 15 OVER and 14 UNCLEAR
+   modules, six workload RSS regressions (startup, ORM, template, WSGI first
+   request, WSGI request, ASGI request), `compileall_source` untimed.
+
+**When R1 resumes:** sweep the 12 leftover `.work/wt/*` lane worktrees
+(WIP-commit anything worth keeping to its branch first); then follow the perf
+skill's ground-truth steps (doctor, status, rebuild `perf-rust` if HEAD moved,
+`test --all` against the accepted counts, memory-only calibration, goals) and
+treat any pre-existing map as stale. Parked and closed mechanisms in batch 33
+stay closed without new evidence.
+
+## Memory-phase checkpoint log — 2026-10-26 to 2026-10-30
+
+Historical record, newest entries last. Superseded instructions here are
+overridden by "Resume here" above.
+
+**Continue (historical):** The map below dates from 2026-10-26; batch 33 holds
+the latest counts.
 
 **State:** `main@9538f3f` contains the accepted `http.client` memory change.
 Use `perf-http-client-lazy-ssl-mem@9538f3f` as the next comparison baseline.
@@ -97,8 +139,9 @@ and
 **Batch 30–31:** Overnight unattended run under the owner's "finish
 rust-cpython-perf without stopping" direction, treated as a scoped override
 of the 2026-10-29 pause for memory lanes (local commits only, never push;
-model-policy deviation logged in coordinator state: no gpt-6-luna in this
-harness, lanes run as local subagents under identical briefs/gates).
+lanes ran as `rust-perf-climber` subagents on Sonnet 5.5 at `high`, the
+Claude-session policy; `gpt-6-luna` is Codex-only). The override ended
+2026-10-30.
 R0 refresh first: doctor OK, fresh memory-only CALIBRATION-OK
 (`20261030T025758Z`), `perf-rust` rebuilt clean at HEAD (58 extensions),
 `test --all` 50,158 run with only the accepted D2 sets plus two
