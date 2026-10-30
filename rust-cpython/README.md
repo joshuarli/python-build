@@ -23,7 +23,7 @@ macOS, and all other targets are unsupported; the builder rejects them.
 The verified source is `Rust-for-CPython/cpython` commit
 `b812b4a7b9efaca46b98544a8633b7d7e454166b`, pinned with its archive
 and Cargo lock digests in [`sources.lock.json`](sources.lock.json). The Rust
-toolchain is pinned in [`rust-toolchain.toml`](rust-toolchain.toml). The
+toolchain is pinned in [`rust-toolchain.toml`](../rust-toolchain.toml). The
 private Cargo home is used offline after fetching. Do not update the source,
 toolchain, or Cargo lock accidentally; intentional vetted crate additions
 update the overlay lockfile.
