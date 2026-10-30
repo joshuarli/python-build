@@ -80,6 +80,20 @@ Primary evidence is in
 and
 `rust-cpython/results/perf-bench/20261026T225011Z-goals-perf-upstream-vs-perf-merge/`.
 
+**Batch 29:** Commit `9538f3f` defers `http.client`'s `ssl` import until TLS
+use. The retained primary stage built cleanly with 58 verified Rust
+extensions. Its full suite matched the accepted D2 deviations: 50,158 tests,
+9 failures, and 2,770 skips, with no new failing suite. The primary-path gate
+ACCEPTED load footprint at 0.463 [0.462, 0.469] and neutral working peak at
+1.000. All seven workload peak-RSS guards were neutral, and outputs matched.
+Against control, load is BEYOND at 0.65x (2,640/4,120 KiB) and working peak
+is MET at 1.00x (160/128 KiB). The accepted stage is
+`perf-http-client-lazy-ssl-mem`; `http.client` leaves the memory debt list.
+CPU was not measured. Evidence is in
+`rust-cpython/results/perf-bench/20261027T012140Z-perf-rust-vs-perf-http-client-lazy-ssl-mem/verdict.json`
+and
+`rust-cpython/results/perf-bench/20261027T012241Z-goals-perf-upstream-vs-perf-http-client-lazy-ssl-mem/verdict.json`.
+
 **Batch 30–31:** Overnight unattended run under the owner's "finish
 rust-cpython-perf without stopping" direction, treated as a scoped override
 of the 2026-10-29 pause for memory lanes (local commits only, never push;
