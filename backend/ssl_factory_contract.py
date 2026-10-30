@@ -44,6 +44,27 @@ class SSLFactoryContract(unittest.TestCase):
             self.assertEqual(unverified.cert_store_stats()["x509_ca"], 0)
             self.assertEqual(unverified.verify_mode, ssl.CERT_NONE)
 
+    def test_match_hostname_stays_removed_like_cpython(self):
+        self.assertFalse(hasattr(ssl, "match_hostname"))
+        self.assertNotIn("match_hostname", ssl.__all__)
+
+    def test_client_auth_context_trusts_only_what_the_caller_loads(self):
+        with patch.dict(os.environ, {}, clear=False):
+            for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "PYTHON_BUILD_NO_DEFAULT_CA_BUNDLE"):
+                os.environ.pop(name, None)
+            os.environ["SSL_CERT_FILE"] = str(CERTDATA / "pycacert.pem")
+            server = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            client = ssl.create_default_context()
+        required = ssl.VERIFY_X509_PARTIAL_CHAIN | ssl.VERIFY_X509_STRICT
+        self.assertEqual(server.verify_mode, ssl.CERT_NONE)
+        self.assertEqual(server.cert_store_stats()["x509_ca"], 0)
+        self.assertEqual(server.verify_flags & required, required)
+        self.assertEqual(client.verify_flags & required, required)
+        self.assertGreater(client.cert_store_stats()["x509_ca"], 0)
+        server.verify_mode = ssl.CERT_REQUIRED
+        server.load_verify_locations(cafile=str(CERTDATA / "pycacert.pem"))
+        self.assertGreater(server.cert_store_stats()["x509_ca"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

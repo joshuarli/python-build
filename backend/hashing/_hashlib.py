@@ -4,9 +4,19 @@ import _operator
 import _sha1
 import _sha3
 import inspect
+import warnings
 
 import _hashlib_graviola
 import _sha2
+
+_NO_DATA = object()
+_openssl_fallback_signature = inspect.Signature(
+    (
+        inspect.Parameter("data", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=b""),
+        inspect.Parameter("usedforsecurity", inspect.Parameter.KEYWORD_ONLY, default=True),
+        inspect.Parameter("string", inspect.Parameter.KEYWORD_ONLY, default=None),
+    )
+)
 
 
 def _md5_sha1(data=b"", *, usedforsecurity=True):
@@ -87,6 +97,9 @@ def _rust_constructor(algorithm):
         def hexdigest(self):
             return self.digest().hex()
 
+        def __reduce_ex__(self, protocol):
+            raise TypeError("cannot pickle '_hashlib.HASH' object")
+
         def copy(self):
             result = object.__new__(type(self))
             result._state = _hashlib_graviola.state_copy(self._state)
@@ -95,9 +108,26 @@ def _rust_constructor(algorithm):
             result._block_size = self._block_size
             return result
 
-    def constructor(data=b"", *, usedforsecurity=True):
+    def constructor(data=_NO_DATA, *, usedforsecurity=True, string=None):
+        if string is not None:
+            if data is not _NO_DATA:
+                raise TypeError(
+                    "'data' and 'string' are mutually exclusive and support for "
+                    "'string' keyword parameter is slated for removal in a future version."
+                )
+            warnings.warn(
+                "the 'string' keyword parameter is deprecated since Python 3.15 "
+                "and slated for removal in Python 3.19; use the 'data' keyword "
+                "parameter or pass the data to hash as a positional argument instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            data = string
+        elif data is _NO_DATA:
+            data = b""
         return RustHash(data, usedforsecurity=usedforsecurity)
 
+    constructor.__signature__ = _openssl_fallback_signature
     constructor.__name__ = "openssl_" + algorithm
     constructor.__qualname__ = constructor.__name__
     constructor.__module__ = __name__
@@ -197,6 +227,9 @@ class HMAC(metaclass=_HMACMeta):
     def hexdigest(self):
         return self.digest().hex()
 
+    def __reduce_ex__(self, protocol):
+        raise TypeError("cannot pickle '_hashlib.HMAC' object")
+
     def copy(self):
         result = object.__new__(type(self))
         result._state = _hashlib_graviola.state_copy(self._state)
@@ -211,17 +244,13 @@ class HMAC(metaclass=_HMACMeta):
 
 def _digest_name(digestmod):
     if isinstance(digestmod, str):
-        name = digestmod
-    else:
-        name = getattr(digestmod, "__name__", None)
-        if name is None:
-            name = getattr(digestmod, "name", None)
-        if not isinstance(name, str):
-            raise UnsupportedDigestmodError(
-                "[digital envelope routines] unsupported hash algorithm "
-            )
-        name = name.removeprefix("openssl_")
-    return _normalize_digest_name(name)
+        return _normalize_digest_name(digestmod)
+    for name, constructor in _digestmod_constructors.items():
+        if constructor is digestmod:
+            return name
+    raise UnsupportedDigestmodError(
+        "[digital envelope routines] unsupported hash algorithm "
+    )
 
 
 def hmac_new(key, msg=b"", digestmod=_MISSING):
@@ -264,13 +293,6 @@ _openssl_names = (
     "shake_128",
     "shake_256",
 )
-_openssl_fallback_signature = inspect.Signature(
-    (
-        inspect.Parameter("data", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=b""),
-        inspect.Parameter("usedforsecurity", inspect.Parameter.KEYWORD_ONLY, default=True),
-        inspect.Parameter("string", inspect.Parameter.KEYWORD_ONLY, default=None),
-    )
-)
 
 
 def _openssl_constructor(name):
@@ -291,6 +313,8 @@ def _openssl_constructor(name):
 
 for _name in _openssl_names:
     globals()["openssl_" + _name] = _openssl_constructor(_name)
+
+_digestmod_constructors = {name: globals()["openssl_" + name] for name in _openssl_names}
 
 
 def new(name, *args, **kwargs):
