@@ -4,9 +4,13 @@
 diffs the outcomes: 14 leaf certificates (exact, upper case, trailing dot,
 wildcards including partial, TLD and double, IDNA, IPv4, IPv6, an IP written as
 a DNS name, CN-only, CN with a different SAN, several SANs) against 17 hostnames
-in an in-memory handshake, and 53 mutated PEM variants of the CA (truncations,
-bit flips, wrong labels, CRLF, blank lines, text around the block) loaded as a
-trust anchor and converted with `PEM_cert_to_DER_cert`.
+in an in-memory handshake; 17 chain and policy cases (expired, not yet valid,
+client-only and any EKU, missing or key-agreement-only key usage, missing
+basicConstraints, a leaf marked CA, missing AKI, ECDSA and 1024-bit RSA keys,
+an intermediate sent and not sent, a path-length violation, a self-signed leaf
+used as its own anchor); and 59 mutated PEM variants of the CA (truncations, bit
+flips, wrong labels, CRLF, blank lines, text around the block) loaded as a trust
+anchor and converted with `PEM_cert_to_DER_cert`.
 
 ```sh
 python3 backend/differential_tls.py corpus .work/tmp/dtls/corpus
@@ -17,8 +21,8 @@ python3 backend/differential_tls.py diff ref.json prod.json
 
 ## Result, 2026-10-30
 
-Reference OpenSSL 3.5.7 against the macOS product build at `38faf1d`: 356 cases,
-305 agree, 51 differ.
+Reference OpenSSL 3.5.7 against the macOS product build at `38faf1d`: 373 cases,
+321 agree, 52 differ.
 
 Handshakes: 195 of 238 agree, including every wildcard, IDNA, IP SAN, CN-only,
 CN-fallback, and multi-SAN case. The 43 differences:
@@ -31,6 +35,12 @@ CN-fallback, and multi-SAN case. The 43 differences:
   accepts). Both are the same host name; neither admits a different host.
 
 No hostname or IP case is accepted by the product that names a different host.
+
+Chain and policy cases: 16 of 17 agree, including the verify codes (expired 10,
+not yet valid 9, wrong EKU 26, missing AKI 85, unknown issuer 20, path length
+25). The one difference is stricter in the product: a leaf with
+`basicConstraints=CA:TRUE` is rejected (code 1) where OpenSSL accepts it. A
+1024-bit RSA server key is refused at load by both.
 
 PEM and DER loading, 8 differences, all unresolved and none a verification
 bypass, since a trust anchor contributes only its subject and key:

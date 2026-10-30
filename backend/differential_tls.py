@@ -46,6 +46,28 @@ HOSTS = [
 ]
 
 
+CHAIN_CASES = {
+    "valid": {},
+    "expired": {"not_before": "20200101000000Z", "not_after": "20200102000000Z"},
+    "not_yet_valid": {"not_before": "20990101000000Z", "not_after": "20990102000000Z"},
+    "eku_client_only": {"eku": "clientAuth"},
+    "eku_absent": {"eku": None},
+    "eku_any": {"eku": "anyExtendedKeyUsage"},
+    "ku_key_agreement_only": {"ku": "keyAgreement"},
+    "ku_absent": {"ku": None},
+    "no_basic_constraints": {"bc": None},
+    "leaf_marked_ca": {"bc": "critical,CA:TRUE"},
+    "no_aki": {"aki": None},
+    "ecdsa_p256": {"key": "ec:prime256v1"},
+    "rsa_1024": {"key": "rsa:1024"},
+    "via_intermediate": {"issuer": "int"},
+    "via_intermediate_not_sent": {"issuer": "int", "send_intermediate": False},
+    "via_intermediate_pathlen_exceeded": {"issuer": "int2"},
+    "self_signed_leaf": {"issuer": "self"},
+}
+CHAIN_HOST = "example.com"
+
+
 def _openssl(*arguments: str) -> None:
     subprocess.run(["openssl", *arguments], check=True, capture_output=True)
 
@@ -73,6 +95,56 @@ def build_corpus(directory: Path) -> None:
                  "-CAkey", str(directory / "ca.key"), "-CAcreateserial", "-out", str(pem),
                  "-days", "30", "-extfile", str(extensions))
     shutil.copyfile(directory / "ca.pem", directory / "ca-original.pem")
+    _build_chain_corpus(directory)
+
+
+def _issue(directory: Path, name: str, subject: str, extensions: list[str], issuer: str | None,
+           key: str = "rsa:2048", validity: tuple[str, str] | None = None) -> None:
+    key_path, csr, pem = (directory / f"{name}.{kind}" for kind in ("key", "csr", "pem"))
+    key_arguments = (["-newkey", "EC", "-pkeyopt", f"ec_paramgen_curve:{key.split(':')[1]}"]
+                     if key.startswith("ec:") else ["-newkey", key])
+    _openssl("req", *key_arguments, "-nodes", "-keyout", str(key_path), "-out", str(csr),
+             "-subj", f"/CN={subject}")
+    extension_file = directory / f"{name}.ext"
+    extension_file.write_text("\n".join(extensions) + "\n")
+    command = ["x509", "-req", "-in", str(csr), "-out", str(pem), "-extfile", str(extension_file)]
+    if validity:
+        command += ["-not_before", validity[0], "-not_after", validity[1]]
+    else:
+        command += ["-days", "30"]
+    if issuer is None:
+        command += ["-signkey", str(key_path)]
+    else:
+        command += ["-CA", str(directory / f"{issuer}.pem"), "-CAkey", str(directory / f"{issuer}.key"),
+                    "-CAcreateserial"]
+    _openssl(*command)
+
+
+def _build_chain_corpus(directory: Path) -> None:
+    ca_extensions = ["basicConstraints=critical,CA:TRUE,pathlen:0", "keyUsage=critical,keyCertSign,cRLSign",
+                     "subjectKeyIdentifier=hash", "authorityKeyIdentifier=keyid"]
+    _issue(directory, "int", "Differential Intermediate", ca_extensions, "ca")
+    sub_extensions = ["basicConstraints=critical,CA:TRUE", "keyUsage=critical,keyCertSign,cRLSign",
+                      "subjectKeyIdentifier=hash", "authorityKeyIdentifier=keyid"]
+    _issue(directory, "int2", "Differential Sub Intermediate", sub_extensions, "int")
+    for name, options in CHAIN_CASES.items():
+        extensions = []
+        basic = options.get("bc", "critical,CA:FALSE")
+        if basic:
+            extensions.append(f"basicConstraints={basic}")
+        usage = options.get("ku", "critical,digitalSignature")
+        if usage:
+            extensions.append(f"keyUsage={usage}")
+        if options.get("eku", "serverAuth"):
+            extensions.append(f"extendedKeyUsage={options.get('eku', 'serverAuth')}")
+        extensions.append("subjectKeyIdentifier=hash")
+        if options.get("aki", "keyid"):
+            extensions.append("authorityKeyIdentifier=keyid")
+        extensions.append(f"subjectAltName=DNS:{CHAIN_HOST}")
+        issuer = options.get("issuer", "ca")
+        _issue(directory, f"chain_{name}", CHAIN_HOST, extensions, None if issuer == "self" else issuer,
+               key=options.get("key", "rsa:2048"), validity=(
+                   (options["not_before"], options["not_after"]) if "not_before" in options else None))
 
 
 def _mutations(pem: str) -> dict[str, str]:
@@ -118,10 +190,17 @@ def _outcome(function) -> str:
     return "ok"
 
 
-def _handshake(directory: Path, leaf: str, hostname: str) -> str:
+def _handshake(directory: Path, leaf: str, hostname: str, *, trust: str = "ca", chain: tuple[str, ...] = ()) -> str:
     server = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    server.load_cert_chain(directory / f"{leaf}.pem", directory / f"{leaf}.key")
-    client = ssl.create_default_context(cafile=str(directory / "ca.pem"))
+    certificates = directory / f"{leaf}.pem"
+    if chain:
+        certificates = directory / f"{leaf}.bundle.pem"
+        certificates.write_text("".join((directory / f"{name}.pem").read_text() for name in (leaf, *chain)))
+    try:
+        server.load_cert_chain(certificates, directory / f"{leaf}.key")
+    except Exception as error:  # noqa: BLE001
+        return f"server_load:{type(error).__name__}"
+    client = ssl.create_default_context(cafile=str(directory / f"{trust}.pem"))
     client_in, client_out, server_in, server_out = (ssl.MemoryBIO() for _ in range(4))
     try:
         client_side = client.wrap_bio(client_in, client_out, server_hostname=hostname)
@@ -158,6 +237,14 @@ def run(directory: Path, output: Path) -> None:
     for leaf in LEAVES:
         for hostname in HOSTS:
             results[f"handshake {leaf} -> {hostname}"] = _handshake(directory, leaf, hostname)
+    for name, options in CHAIN_CASES.items():
+        issuer = options.get("issuer", "ca")
+        chain = {"int": ("int",), "int2": ("int2", "int")}.get(issuer, ())
+        if issuer == "int" and options.get("send_intermediate") is False:
+            chain = ()
+        trust = "chain_self_signed_leaf" if issuer == "self" else "ca"
+        results[f"chain {name}"] = _handshake(
+            directory, f"chain_{name}", CHAIN_HOST, trust=trust, chain=chain)
     ca_pem = (directory / "ca-original.pem").read_text()
     for label, pem in _mutations(ca_pem).items():
         def load(pem=pem):
