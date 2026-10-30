@@ -125,6 +125,14 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   independent review of verification and the custom Rust/C/Python FFI.
   Refresh the pinned Mozilla CA bundle and document no online revocation
   or legacy TLS guarantees.
+  *Status 2026-10-30:* CA bundle refreshed (certifi 2026.10.23). Agent
+  review of the hashing FFI and TLS verification code: record and fixes in
+  `backend/SECURITY_REVIEW.md`. Differential run against OpenSSL: 305 of 356
+  cases agree; no host-name case admits a different host; the 51 differences
+  are classified in `backend/DIFFERENTIAL_TLS.md`. Open: a human or external
+  audit (decision), the eight PEM/DER loading differences, and a larger
+  fuzz corpus (chains, CRLs, SNI, socket shutdown, subinterpreters).
+
 - [ ] **P6 — final release gate and documentation truth.** Keep cheap
   push-time lint/controller checks and manually dispatched expensive native
   builds. Require P1-P5 accepted receipts, a fresh-current-revision
