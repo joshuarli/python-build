@@ -11,8 +11,8 @@ from pathlib import Path
 from buildsys.inputs import Cache, load_lock
 from buildsys.notices import (
     NATIVE_NOTICES,
-    NoticeError,
     SOURCES_RECORD,
+    NoticeError,
     bundled_native_names,
     expected_notice_paths,
     install_notices,

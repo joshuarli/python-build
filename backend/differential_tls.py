@@ -15,7 +15,6 @@ from __future__ import annotations
 import base64
 import json
 import random
-import re
 import shutil
 import ssl
 import subprocess

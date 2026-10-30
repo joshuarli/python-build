@@ -202,12 +202,14 @@ def _sources_record(
     lines = [
         "# Bundled component sources",
         "",
-        "Every component below is built from the exact archive named here. "
-        "Download the URL and check the SHA-256 to obtain the source "
-        "that went into this distribution. License texts are in "
-        "`native/`; CPython's own license is `lib/python*/LICENSE.txt` and its "
-        "third-party acknowledgements are in the `cpython-*-third-party-licenses.rst` "
-        "file next to this record. Rust dependencies are recorded in `rust/`.",
+        (
+            "Every component below is built from the exact archive named here. "
+            "Download the URL and check the SHA-256 to obtain the source "
+            "that went into this distribution. License texts are in "
+            "`native/`; CPython's own license is `lib/python*/LICENSE.txt` and its "
+            "third-party acknowledgements are in the `cpython-*-third-party-licenses.rst` "
+            "file next to this record. Rust dependencies are recorded in `rust/`."
+        ),
         "",
         "| Component | Version | License | Source archive | SHA-256 |",
         "| --- | --- | --- | --- | --- |",
@@ -227,23 +229,27 @@ def _sources_record(
         "",
         "## Patches and build recipes",
         "",
-        f"This distribution was built from revision `{source_revision}` of "
-        f"<{REPOSITORY_URL}>. At that revision, `patches/cpython/` and "
-        "`backend/cpython-linux-patches/` hold every patch applied to CPython, "
-        "`backend/rtls-graviola.patch` and the other `backend/*.patch` files "
-        "hold the patches applied to the Rust TLS sources, and `build/`, "
-        "`buildsys/`, and `backend/` hold the build recipes. Sources are "
-        "available at no charge.",
+        (
+            f"This distribution was built from revision `{source_revision}` of "
+            f"<{REPOSITORY_URL}>. At that revision, `patches/cpython/` and "
+            "`backend/cpython-linux-patches/` hold every patch applied to CPython, "
+            "`backend/rtls-graviola.patch` and the other `backend/*.patch` files "
+            "hold the patches applied to the Rust TLS sources, and `build/`, "
+            "`buildsys/`, and `backend/` hold the build recipes. Sources are "
+            "available at no charge."
+        ),
         "",
         "## Rust components",
         "",
-        f"TLS runs on RTLS, <{RTLS_URL}> at revision `{rtls_revision}` "
-        f"(`git archive` tar SHA-256 `{rtls_archive_sha256}`), with the patches "
-        "named above. The hashing backend source is `backend/hashing/` in the "
-        "repository revision above. Crates come from crates.io at the versions "
-        "and checksums in the RTLS `rust/Cargo.lock` (as patched) and "
-        "`backend/hashing/Cargo.lock`; `rust/THIRD_PARTY_LICENSES.md` lists "
-        "every active package with its source identity and notices.",
+        (
+            f"TLS runs on RTLS, <{RTLS_URL}> at revision `{rtls_revision}` "
+            f"(`git archive` tar SHA-256 `{rtls_archive_sha256}`), with the patches "
+            "named above. The hashing backend source is `backend/hashing/` in the "
+            "repository revision above. Crates come from crates.io at the versions "
+            "and checksums in the RTLS `rust/Cargo.lock` (as patched) and "
+            "`backend/hashing/Cargo.lock`; `rust/THIRD_PARTY_LICENSES.md` lists "
+            "every active package with its source identity and notices."
+        ),
         "",
     ))
     return "\n".join(lines)
