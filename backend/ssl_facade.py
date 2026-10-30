@@ -47,6 +47,11 @@ class SSLContext(_RTLS_SSLContext):
     def verify_flags(self, value):
         _RTLS_SSLContext.verify_flags.fset(self, value)
 
+    def load_verify_locations(self, cafile=None, capath=None, cadata=None):
+        if cadata is not None and len(cadata) == 0:
+            raise ValueError("empty cadata")
+        super().load_verify_locations(cafile, capath, cadata)
+
     def load_default_certs(self, purpose=Purpose.SERVER_AUTH):
         super().load_default_certs(purpose)
         default_paths = get_default_verify_paths()

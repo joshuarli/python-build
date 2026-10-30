@@ -44,6 +44,12 @@ class SSLFactoryContract(unittest.TestCase):
             self.assertEqual(unverified.cert_store_stats()["x509_ca"], 0)
             self.assertEqual(unverified.verify_mode, ssl.CERT_NONE)
 
+    def test_empty_cadata_is_a_value_error_like_cpython(self):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        for empty in ("", b""):
+            with self.assertRaises(ValueError):
+                context.load_verify_locations(cadata=empty)
+
     def test_match_hostname_stays_removed_like_cpython(self):
         self.assertFalse(hasattr(ssl, "match_hostname"))
         self.assertNotIn("match_hostname", ssl.__all__)

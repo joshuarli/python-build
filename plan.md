@@ -130,7 +130,7 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   `backend/SECURITY_REVIEW.md`. Differential run against OpenSSL: 321 of 373
   cases agree (16 of 17 chain and policy cases); no host-name case admits a different host; the 52 differences
   are classified in `backend/DIFFERENTIAL_TLS.md`. Open: a human or external
-  audit (decision), the eight PEM/DER loading differences, and a larger
+  audit (decision), the seven remaining PEM/DER loading differences, and a larger
   fuzz corpus (CRLs, SNI, socket shutdown, subinterpreters).
 
 - [ ] **P6 — final release gate and documentation truth.** Keep cheap

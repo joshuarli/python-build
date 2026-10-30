@@ -42,11 +42,11 @@ not yet valid 9, wrong EKU 26, missing AKI 85, unknown issuer 20, path length
 `basicConstraints=CA:TRUE` is rejected (code 1) where OpenSSL accepts it. A
 1024-bit RSA server key is refused at load by both.
 
-PEM and DER loading, 8 differences, all unresolved and none a verification
+PEM and DER loading, 8 differences (7 unresolved, 1 since fixed), none a verification
 bypass, since a trust anchor contributes only its subject and key:
 
 - Blank lines inside the base64 body load in the product and fail in OpenSSL.
 - Five single-bit flips of the CA DER load in OpenSSL and fail in the product;
   one flip loads in the product and fails in OpenSSL.
-- Loading an empty `cadata` raises `ValueError` in OpenSSL and `SSLError` in
-  the product.
+- Loading an empty `cadata` raised `SSLError` in the product where OpenSSL
+  raises `ValueError`; the facade now raises `ValueError("empty cadata")`.
