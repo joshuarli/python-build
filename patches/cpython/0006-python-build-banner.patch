@@ -12,7 +12,7 @@
 
 --- a/Python/getversion.c
 +++ b/Python/getversion.c
-@@ -6,8 +6,31 @@
+@@ -6,8 +6,26 @@
  #include "patchlevel.h"
 
  static int initialized = 0;
@@ -31,21 +31,16 @@
 +#ifndef PYB_SRC_REV
 +#define PYB_SRC_REV "unknown"
 +#endif
-+#ifdef __APPLE__
-+#define PYB_PGO_TAG "+PGO"
-+#else
-+#define PYB_PGO_TAG ""
-+#endif
 +#define PYB_BUILD_IDENTITY \
 +    "[python-build " PYB_TARGET_TRIPLE \
 +    ": OpenSSL-free TLS+hashing (RTLS/rustls-graviola), mimalloc static," \
-+    " ThinLTO" PYB_PGO_TAG "; src " PYB_SRC_REV \
++    " ThinLTO; src " PYB_SRC_REV \
 +    "; github.com/joshuarli/python-build/releases]"
 +
  void _Py_InitVersion(void)
  {
      if (initialized) {
-@@ -15,12 +38,13 @@ void _Py_InitVersion(void)
+@@ -15,12 +33,13 @@ void _Py_InitVersion(void)
      }
      initialized = 1;
  #ifdef Py_GIL_DISABLED

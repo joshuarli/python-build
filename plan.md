@@ -77,6 +77,18 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   signing/UUID differences from actual compiled differences without
   hiding them. Extend the optional reproduce path and require evidence
   on releases. An unchanged source lock is not enough.
+  *Status 2026-10-30:* `build/reproduce_archives.py` compares two product
+  archives (entries, modes, symlinks, content; a Mach-O difference passes only
+  if it is confined to LC_UUID and the ad-hoc signature). Two clean macOS
+  builds at `938d172` from the same build path reproduced: 1,223 files, the
+  only differences were 62 Mach-O images differing in UUID and signature
+  alone, and every raw archive hash differed for that reason. Builds at
+  different paths do not reproduce: the build directory is baked into
+  sysconfigdata, the pkg-config files, `config.c`, and seven Mach-O images, and
+  the CI run directory includes the run id. Open: fix or pin the build path
+  (decision), the Linux pair (a second arm64 build is running), x86-64, and
+  release evidence in CI.
+
 - [ ] **P4 — crash-consistent publication.** buildsys.package.publish_files
   rolls back on caught exceptions; replacing archive and artifact.json
   separately is not crash-atomic. Implement immutable verified generations

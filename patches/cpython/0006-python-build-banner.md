@@ -15,7 +15,7 @@
   product, target triple (from target macros, so the text needs no
   build-system substitution), key configuration (OpenSSL-free
   RTLS/rustls-graviola TLS plus hashing backend, static mimalloc,
-  ThinLTO, PGO on macOS), the 12-character source revision (supplied by
+  ThinLTO), the 12-character source revision (supplied by
   the harness as `-DPYB_SRC_REV`, recorded in `artifact.json`), and the
   release page. The banner keeps its leading version
   token, so `platform`'s `sys.version` parser, `sys.version.split()[0]`

@@ -328,6 +328,7 @@ def build_cpython(
             "PKG_CONFIG": "pkg-config",
         }
     )
+    environment["CFLAGS"] += f" -DPYB_SRC_REV='\"{source_revision()[:12]}\"'"
     env = toolchain.env(environment)
     if not pgo:
         for name in ("PROFILE_TASK", "PYTHONHASHSEED", "LLVM_PROFDATA"):
