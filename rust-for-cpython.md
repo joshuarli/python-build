@@ -1350,6 +1350,14 @@ upstream speedups secondhand.
 
 ## Decision log and campaign log
 
+- 2026-10-30 batch 32 follow-up: the bisect load lane returned BLOCKED
+  without burning an attempt: pre-edit measurement disproved extension
+  mapping (`_bisect_rs` is a static builtin; import closure identical to
+  control and faster). The 112 KiB is dirty first-call retention scaling
+  with per-midpoint Python probe traffic in the `Lib/bisect.py` protocol,
+  outside any `_bisect_rs` edit. Parked as structural debt; retry needs
+  the bisect.py owner path or a policy call on the 0-KiB-control UNCLEAR
+  rule, not a crate rewrite.
 - 2026-10-30 batch 32 follow-up: the ElementTree working-peak lane
   returned NEUTRAL after three distinct mechanisms (single-write broke a
   suite, mid-walk streaming duplicated output, measuring-pass reserve cut
