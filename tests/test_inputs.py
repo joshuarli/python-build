@@ -36,6 +36,14 @@ class LockTests(unittest.TestCase):
         path.write_text(json.dumps(document))
         return path
 
+    def test_bdb_metadata_is_version_specific(self):
+        # Source LICENSE/redistribution compliance is a separate P1 gate.
+        inputs = {x.name: x for x in load_lock(
+            Path(__file__).resolve().parents[1] / "sources.lock.json"
+        )}
+        self.assertEqual(inputs["bdb"].version, "6.0.19")
+        self.assertEqual(inputs["bdb"].license, "Sleepycat")
+
     def test_invalid_field_types_and_digest_rejected(self):
         for fields in ({"sha256": "g" * 64}, {"sha256": None},
                        {"name": []}, {"size": True}, {"size": -1},

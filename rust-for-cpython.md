@@ -1,7 +1,23 @@
 # Rust-for-CPython campaign
 
-Status: active (2026-10-26), macOS memory-first performance phase.
-Coverage D1 and upstream parity D2 remain accepted with documented deviations.
+Status: paused behind product closeout (owner direction 2026-10-29). The
+last measured Rust checkpoint below dates to 2026-10-26/27, not the current
+main revision. D1/D2 are historical acceptances with recorded deviations.
+
+## Owner sequencing — 2026-10-29
+
+Complete [plan.md](plan.md) P1-P6 and a new production 3.15.1 release
+qualification. Then resume R0 native parity and baseline refresh, R1 all
+71 module and eligible application memory goals, R2 CPU goals, and R3/R4
+optimized verification. This is the only detailed Rust technical plan and
+ledger. Re-measure the old 25-module/six-workload debt picture before
+starting work; do not mislabel old results as current. For R1 use the
+memory-only harness: CPU, timing and quiet-host state do not gate memory,
+but output identity, replication, clean builds, complete suites and RSS
+guards still bind. No CPU lane until *all* module memory rows are
+MET/BEYOND and *all* eligible workload RSS rows neutral/improved.
+Two failed hypotheses are recorded as unresolved debt, not completion.
+
 
 ## Current checkpoint — 2026-10-26
 
