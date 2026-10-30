@@ -121,6 +121,25 @@ REJECT is kept in the results log, not erased. Goal row is BEYOND at
 0.64x load (4,336/6,800 KiB), working peak MET. `urllib.request` leaves
 the memory debt list; the retained accepted stage is `perf-batch-31`.
 
+**Batch 33:** Full map refresh on the integrated tree (`perf-rust`
+rebuilt at `9f254a3`, `test --all` exact accepted counts, no flakes):
+OVER 15 modules, UNCLEAR 14, MET 42. `urllib.request` BEYOND confirmed
+(0.63x) and `plistlib` working peak returned to MET (0.94x) with no lane.
+`bisect` (BLOCKED, structural: first-call dirty retention from the
+`Lib/bisect.py` probe protocol, `_bisect_rs` is a static builtin) and
+`typing`/`threading` (parked same-class by analogy plus importtime
+evidence; overlay import blocks byte-identical to pristine, so no
+Python-level fat exists to cut) stay debt without further lanes.
+`_strptime`, `html.parser`, `warnings`, `uuid`, `decimal`, and `sqlite3`
+flip MET/UNCLEAR/OVER between runs on page-quantized small absolutes;
+lanes are the wrong tool for those rows until the floor/policy question
+(0-KiB-control UNCLEAR rule) gets an owner call. Workload gate: six RSS
+regressions (startup 1.046x, ORM 1.016x, template 1.016x, WSGI first
+1.026x, WSGI 1.015x, ASGI 1.016x); ORM flip-flops at the 1% floor.
+Remaining OVERs with closed mechanisms stay parked: ssl, hmac, datetime,
+ipaddress, marshal, ElementTree, contextlib, re, tokenize, zlib, inspect,
+zstd. No CPU work started.
+
 **Phase 4:** The accepted `_marshal_rs` stage passed `test_audit` three times
 in a row, with 33 tests and 4 skips each time. Its integrated marshal,
 importlib, compile, and audit suites passed 1,602 tests with 29 skips.
