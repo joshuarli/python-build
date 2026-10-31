@@ -1,4 +1,4 @@
-# Rust-for-CPython coverage lane
+# Rust-for-CPython research lane
 
 This isolated lane builds the pinned Rust-for-CPython CPython **3.16.0a0** fork.
 All 71 named public-behavior coverage targets in
@@ -11,13 +11,13 @@ VSOCK loopback. They also passed on macOS arm64, including rerun at
 and stdlib-module-list repairs included (`b0888dd`, `499308e`, `4710c23`):
 50,158 run/2,703 skipped with zero failures, matching the pre-repair counts
 exactly at that historical coverage checkpoint. The later parity run has
-explicit accepted failures; see the live technical campaign in
-[`rust-for-cpython.md`](../rust-for-cpython.md), sequenced behind
-[production closeout](../plan.md).
+explicit accepted failures; see the live campaign in
+[`rust-for-cpython.md`](../rust-for-cpython.md). [`ROUTES.md`](ROUTES.md)
+lists every route's public behavior and qualifying suites.
 
 The production CPython 3.15.1 build, packaging, and pinned Linux recipes are
-outside this lane. The lane supports native macOS arm64 and Linux x86-64.
-Linux arm64 is in scope but its builder is not implemented. Windows, Intel
+outside this lane. The lane builds on native macOS arm64 and Linux x86-64;
+current work runs on macOS only. Linux arm64 has no builder. Windows, Intel
 macOS, and all other targets are unsupported; the builder rejects them.
 
 The verified source is `Rust-for-CPython/cpython` commit
@@ -71,9 +71,9 @@ profiles, and paired measurements for the performance phase use
 Use a maintained Rust library where its semantics fit. Vetted Rust crates
 with compatible recorded licenses and pinned `Cargo.lock` entries are
 preauthorized for this isolated lane. Keep CPython's Python and C-ABI boundaries
-where they carry public object, callback, or exception behavior. A private
-Rust extension counts only when the named public module behavior reaches it
-and its full relevant Python suite passes.
+where they carry public object, callback, or exception behavior. A route's
+line in `ROUTES.md` names the suites that must stay green when its
+implementation changes or moves.
 Check a public import and representative call in a CPython subinterpreter
 before handing off a candidate. Single-phase private extensions can reject
 loading there, so their public wrapper must use a compatible fallback or the
@@ -96,3 +96,43 @@ The macOS lane uses the root `bootstrap.lock.json` LLVM 23.1.2 and Xcode SDK
 identity. `fetch` verifies inputs; build and install use an offline boundary
 with a network-denial self-test. The Linux boundary uses user and network
 namespaces; macOS uses `sandbox-exec`.
+
+## Performance harness
+
+`python3 rust-cpython/perf.py` builds optimized interpreters (`-O2`, Cargo
+`release`, no PGO, LTO, JIT, or tail-call interpreter), runs suites on them,
+profiles, and measures paired comparisons. It is the only entry point while
+measurements may run: it holds the host lease, and the coverage
+`build.py build` and `test` commands bypass it.
+
+| Command | Purpose |
+| --- | --- |
+| `build --name N [--incremental] [--jobs J]` | Clean optimized build verified per Rust extension; `--incremental` syncs changed overlay files and refuses build-system or Cargo changes |
+| `build --name perf-upstream --empty-overlay` | Pristine-fork control |
+| `test --name N --suite test_X ...` or `--all` | Complete CPython suites on a perf build |
+| `profile --ref R (--module M \| --workload W) --tool sample\|cprofile\|importtime` | Native stacks, Python call costs, or import time |
+| `bench --baseline R --candidate R [--module M] [--workload W] [--gate]` | Paired measurement with a coded verdict |
+| `calibrate --ref R --gate` | Self-comparison; identical interpreters must not read different |
+| `goals [--candidate R] [--module M ...]` | Module rows against the control |
+| `setup-worktree` | Share verified caches from the primary checkout into a worktree |
+| `status` | Lease holders and every perf build with commit, flags, and suite state |
+
+`@control` is the primary checkout's `perf-upstream` and `@incumbent` its
+`perf-rust`; a bare name is a build in the current worktree. Builds, suites,
+and profiles share the host, while `bench` and `calibrate` hold it
+exclusively (`WAIT  host lease busy` is normal). A bench refuses a stage
+whose bytes changed since its build. `--gate` requires clean builds of
+committed overlays, a candidate that contains the incumbent commit, the
+`GATE_WORKLOADS` guards, and two runs. Runs without `--gate` steer and are
+never acceptance evidence. `--memory-only` skips timing.
+
+Builds and `test --all` outlast a 10-minute foreground limit; run them in
+the background. A worktree build costs about 3 GB under
+`work/perf/<name>/` and `stage-perf-<name>/`; `perf.py clean --name N`
+removes one. Gates run from long worktree paths have biased startup-bound
+guards (`import_django`, `python_startup`) by 1-3% against the primary-path
+incumbent, so gate an integration batch in the primary checkout. When two
+lanes' `overlay/Cargo.lock` edits merge textually but `cargo fetch --locked`
+rejects the result, regenerate it with `cargo metadata --offline` in the
+build's `work/perf/<name>/source/cpython-*/` using the primary
+`rust-cpython/.cargo-home`, copy the lock back, and rebuild.

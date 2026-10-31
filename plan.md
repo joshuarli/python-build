@@ -1,9 +1,9 @@
-# Execution plan — production closeout, then Rust-for-CPython performance
+# Execution plan — production closeout and Rust-for-CPython
 
-Owner direction, 2026-10-29. This is the only repository-wide priority and
-production closeout queue. rust-for-cpython.md remains the one detailed Rust
-coverage, parity, benchmark and experiment ledger; backend/ is a
-technical reference, not competing campaign plans.
+Owner direction, 2026-10-29, amended 2026-10-31. This is the only
+repository-wide priority and production closeout queue. rust-for-cpython.md
+is the one detailed Rust campaign ledger; backend/ is a technical
+reference, not competing campaign plans.
 
 ## Starting evidence and non-negotiable scope
 
@@ -20,21 +20,23 @@ targets macOS 27.0 only and defers PGO on every target (owner decision
 
 Rust-for-CPython is a separate 3.16.0a0 research interpreter, not the
 production 3.15.1 artifact. All 71 named public Rust routes achieved D1
-coverage; D2 parity was accepted with explicit suite deviations. The last
-measured memory checkpoint reported approximately 25 module debts and six
-workload peak-RSS debts after the accepted http.client improvement. CPU
-optimization has not started. Retain the exact historical data and confidence
-intervals in rust-for-cpython.md; do not treat this as a new measurement.
+coverage; D2 parity was accepted with explicit suite deviations. The
+per-module memory-first climb closed on 2026-10-31 with module and workload
+memory debt open and no CPU work run; its full ledger is at
+`git show d17607f:rust-for-cpython.md`. Do not quote those numbers as current.
 
-**Sequence:** finish P1-P6 with current receipts, requalify the resulting
-production release, then resume R0-R4. Non-invasive preparation is allowed in
-parallel. An unavailable host, rejected attempt or missing evidence is
-BLOCKED, not an accepted exception to a goal.
+**Sequence (2026-10-31):** all work runs on this macOS arm64 host. The
+open macOS production work (P5) and the Rust milestone M1 proceed in
+parallel; the Rust lane no longer waits for P6. Linux builds,
+qualification and CI release evidence wait for the L wave after feature
+work is done, and P6 follows L. An unavailable host, rejected attempt or
+missing evidence is BLOCKED, not an accepted exception to a goal.
 
-The 2026-10-29/30 overnight memory run was a one-session override and has
-ended; resume at P1. Order of attack: P1 (local, release-blocking), P4 (code
-only), P5, P3, then P2 and P6. P2 runs on this macOS 27 host.
-rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
+Open state at the change: CI run 41160302125 (build at `1e09b68`) was in
+flight; record its verdict here when it lands, without starting new Linux or
+CI runs. The retained `.work/wt/openssl-free-modern-keys` worktree shows 260
+unstaged deletions of unknown origin; the owner rules on it before anyone
+cleans it.
 
 ## P — production closeout (release-blocking work)
 
@@ -59,9 +61,8 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   `6f4b7ca53e37fec7f3e7fe04ee4ca51780f538d7c19c0a7a00749a3d61aa21ec`
   (Apple M5 Max, macOS 27.0.1); Linux arm64 musl archive SHA-256
   `327003b2007a9529a92ebb9b8f1fd502b292d57e3665fb1b07dc0a6d0d388c46`, which
-  includes the Berkeley DB `LICENSE` and the Sleepycat source offer. Open: a
-  Linux x86-64 archive (no native host here); the CI release run provides it.
-  Check this box when that archive lists the notices.
+  includes the Berkeley DB `LICENSE` and the Sleepycat source offer. Open (L
+  wave): a Linux x86-64 archive that lists the notices.
 - [x] **P2 — prove the macOS 27 deployment minimum.** macOS 27 is the only
   supported macOS release, so its minimum and host floor coincide. Install
   the exact assembled uv archive on a macOS 27 arm64 host; smoke startup,
@@ -104,8 +105,8 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   directories used to include the run id, so two CI releases would differ.
   The workflow now uses fixed run-directory names (owner delegation,
   2026-10-30), so equal-runner builds share a path; the archives still ship that
-  builder path, which a later path-mapping change could remove. Open: Linux
-  x86-64 and release evidence from two CI runs.
+  builder path, which a later path-mapping change could remove. Open (L
+  wave): Linux x86-64 and release evidence from two CI runs.
 
 - [ ] **P4 — crash-consistent publication.** buildsys.package.publish_files
   rolls back on caught exceptions; replacing archive and artifact.json
@@ -118,8 +119,9 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
   as one immutable, hash-sealed generation with an atomic `ACTIVE` switch;
   build, qualify, promote, uvmirror, comparison and benchmarks use it.
   `tests/test_generations.py` kills the publisher at every filesystem step and
-  checks that readers see exactly the old or the new generation. Check this box
-  when merged to main and a CI release run publishes and assembles through it.
+  checks that readers see exactly the old or the new generation. Merged to
+  main. Open (L wave, unless run 41160302125 already shows it): a CI release
+  run that publishes and assembles through it.
 - [ ] **P5 — modern TLS security and compatibility.** Preserve TLS 1.2/1.3
   and zero OpenSSL in the shipped payload. Inventory ssl/hashlib/hmac APIs
   by supported, deliberate rejection, or unresolved difference; fix
@@ -139,7 +141,7 @@ rust-for-cpython.md "Resume here" holds the parked Rust-phase calls.
 
 - [ ] **P6 — final release gate and documentation truth.** Keep cheap
   push-time lint/controller checks and manually dispatched expensive native
-  builds. Require P1-P5 accepted receipts, a fresh-current-revision
+  builds. Require P1-P5 accepted receipts, the L wave, a fresh-current-revision
   three-platform qualification, exact uv-installed archive checksums,
   source/tag identity, full failure accounting and no stale production
   claims before publication. Then qualify and publish the final product
@@ -149,55 +151,33 @@ Check P1-P6 only against concrete commits, exact artifact hashes, native
 host information and qualification/CI links. Historical APK URLs are not
 guaranteed to remain fetchable.
 
-## R — perfect Rust-for-CPython, after P closes
+## L — deferred Linux gates (after feature work)
 
-D1 coverage and D2 parity are accepted historical checkpoints, with
-explicit test_ssl, test_support and test_unicodedata differences, not a
-zero-failure upstream suite. Experimental Linux arm64 remains out of scope
-until its builder is actually implemented and qualified.
+One wave on native hosts once P5 and M1 feature work is done; emulated
+timing is never evidence.
 
-- [ ] **R0 — refresh upstream parity and benchmark baselines.** Requalify
-  U2 Unicode and U8 regex on native Linux x86-64; replay Mac suites and
-  attributed deviations. Handle the parked U7 newer-upstream rebase as
-  a coordinated wave, first addressing lock/fetch, marshal-writer and
-  overlay conflicts. Qualify any new pin on both supported native hosts;
-  never silently change reference controls. Recalibrate the pristine
-  control and incumbent, then refresh all 71 routes and eligible workloads.
-- [ ] **R1 — eliminate ALL memory debt before any CPU optimization.** Use
-  perf.py memory-only paired gates: every module load/working memory
-  metric MET or BEYOND and every eligible application peak RSS neutral
-  or improved versus control. Outputs must match, two independent runs,
-  floors, clean builds, all relevant CPython suites and the seven
-  application guards must pass. CPU/wall and host quietness cannot block
-  memory-only acceptance. Prioritize SSL working peak, HMAC load,
-  datetime and startup/Django residency by measured mechanism. Two
-  failed hypotheses park that approach, not the unresolved objective.
-  No UNCLEAR/OVER, debt-list waiver or mismatched output counts as done.
-- [ ] **R2 — meet per-route CPU goals without losing memory.** Only after
-  full R1 completion, run quiet-host replicated CPU gates. Every module
-  must be MET or BEYOND on all three metrics (0.9x-1.0x accepted band;
-  aim better than 0.9x). All eligible application timing, CPU and RSS
-  guards must be neutral or improved; never substitute an aggregate win
-  for a regressed route or workload. Keep all Rust-routed behavior.
-- [ ] **R3 — optimized release-grade qualification.** Repeat the accepted
-  changes with matched -O3/ThinLTO builds (PGO only if the owner reopens it), complete correctness and
-  own-GIL subinterpreter tests on native hosts. Separate CPU/timing,
-  process memory and allocation passes; self-calibrate, alternate paired
-  rounds and verify identical outputs. Compare with upstream and
-  python-build-standalone only with compatible Python versions, compiler
-  policies and CPU baselines.
-- [ ] **R4 — final hardening and evidence.** Resolve or intentionally
-  reject remaining behavior differences without weakening tests, close
-  per-route and workload verdicts, revalidate ABI/security/licenses
-  and write the final reproducible report. Promoting experimental Rust
-  into production is an independent product decision.
+- [ ] Native `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`
+  builds and `python3 build.py qualify --target <triple>` at the release
+  candidate revision.
+- [ ] P1 x86-64 notice listing, P3 Linux reproduction and two CI runs, and
+  the CI release run for P4.
+- [ ] The Rust lane's **Needs environment** list in rust-for-cpython.md.
+
+## R — Rust-for-CPython milestone M1
+
+The goal is a faster research interpreter with less private code: shared
+bindings and output writers, upstream compression wrappers in place of
+private adapters, one deser pilot, and one application-level win on matched
+optimized builds. Slices S1-S7, the engineering contract, verdict policy and
+acceptance live in rust-for-cpython.md and nowhere else. PGO stays deferred
+unless the owner reopens it. Promoting experimental Rust into production is
+an independent product decision.
 
 ## Agent rules
 
 Do not add a second performance plan or ledger; use rust-for-cpython.md,
-the existing perf.py/perf_verdict.py gate logic and the host lease. One
-profile-backed, falsifiable hypothesis per lane. New attempts after
-neutral/rejected lanes need a different mechanism. Never remove a public
-Rust route or relax suite/benchmark thresholds just to hit a score.
-A stopped/blocked run can be honestly reported as incomplete; it never
-becomes a completed performance goal.
+perf.py/perf_verdict.py and the host lease. Delegation uses the global
+`orchestrate` skill. New attempts after a rejected mechanism need a different
+mechanism. Never relax suite or benchmark thresholds to hit a score. A
+stopped or blocked run is reported as incomplete; it never becomes a
+completed goal.

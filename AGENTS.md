@@ -7,41 +7,29 @@ architectures, and every other target are unsupported. No glibc enters any
 artifact: Linux binaries use the musl loader and statically linked musl in
 the Rust extensions, with libgcc as the only other platform library.
 
-Follow `plan.md`: finish production P1-P6 and requalify that release before
-starting new Rust performance lanes. `rust-for-cpython.md` is the sole
-detailed Rust campaign and performance ledger. A debt entry is not success.
+Follow `plan.md`. Work runs on the macOS arm64 host; Linux builds,
+qualification, and CI release evidence wait for its deferred L wave after
+feature work. `rust-for-cpython.md` is the sole detailed Rust campaign
+ledger. A debt entry is not success.
 
-`rust-cpython/` is a separate CPython 3.16 Rust-for-CPython coverage lane. Its
-source pin does not affect this product or its production targets. Linux arm64
-is not implemented in that experimental lane and must not be described as
-qualified.
+`rust-cpython/` is a separate CPython 3.16 Rust-for-CPython research lane. Its
+source pin does not affect this product or its production targets, and it no
+longer waits for production closeout. Linux arm64 is not implemented in that
+experimental lane and must not be described as qualified.
 
-For delegated work on that lane, use
-`.agents/skills/rust-cpython-coordinator/SKILL.md` in place of the general
-`orchestrate` skill. The root agent coordinates isolated worktrees and
-integration; no more than 16 coverage subagents run concurrently. The active
-loop uses debug builds and complete Python-level module suites; integrated
-work also runs all default-resource CPython test modules.
-Coverage is complete; performance work follows `rust-for-cpython.md`
-through `.claude/skills/rust-cpython-perf/SKILL.md` and `rust-perf-climber`
-agents. Claude sessions use Sonnet 5.5 (`claude-sonnet-5-5`) at `high` effort,
-or `xhigh` for lanes named by that skill. Codex sessions use the separate
-`.agents/skills/rust-cpython-perf/SKILL.md` coordinator and
-`.agents/skills/rust-cpython-perf-climber/SKILL.md` lane skill, with only
-`gpt-6-luna` at `xhigh` effort for the coordinator and every subagent. The
-Claude model policy remains intact.
-For this isolated coverage and performance lane, Rust crates may be added for
-experiments without per-crate approval when version and checksum are pinned
-in the committed overlay `Cargo.lock`, license is recorded in the route's
+Delegated work on that lane uses the global `orchestrate` skill under the
+charter and engineering contract in `rust-for-cpython.md`; this repository
+pins no models. `rust-cpython/ROUTES.md` holds each route's suite contract,
+and `rust-cpython/README.md` documents the build and `perf.py` harness. The
+root schedules shared host work through the `perf.py` host lease.
+For this isolated lane, Rust crates may be added for experiments without
+per-crate approval when version and checksum are pinned in the committed
+overlay `Cargo.lock`, license is recorded in the route's
 `THIRD_PARTY_LICENSES.md`, and no production dependency or platform is added.
-Other new dependencies require consultation. Performance work runs
-memory-first: no CPU-targeted lane starts until every module's load footprint
-and working peak are MET or BEYOND and all eligible workload absolute RSS
-goals pass. Debt entries remain unresolved goals. The root schedules shared
-host work through the performance host lease. Memory qualification has no
-CPU, timing, or quiet-host prerequisite; memory samples, floors, output
-checks, replication, Rust coverage, and complete correctness checks still
-bind.
+Other new dependencies require consultation. Performance acceptance follows
+the verdict policy in `rust-for-cpython.md`: application budgets decide,
+module rows diagnose, and no Rust, allocator, or CPython contract is bent to
+move a metric.
 
 ## Product targets
 

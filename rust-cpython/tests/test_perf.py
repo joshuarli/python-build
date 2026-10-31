@@ -1583,8 +1583,8 @@ class SelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(perf.LaneError, "select"):
             perf.selection(workloads=[], modules=[], gate=False)
 
-    def test_every_checklist_route_has_a_kernel(self):
-        text = (LANE.parent / "rust-for-cpython.md").read_text()
+    def test_every_registered_route_has_a_kernel(self):
+        text = (LANE / "ROUTES.md").read_text()
         import re
         routes = re.findall(r"^- \[x\] `([^`]+)`", text, re.MULTILINE)
         self.assertEqual(len(routes), 71)
