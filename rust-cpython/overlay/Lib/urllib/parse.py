@@ -801,6 +801,10 @@ _hextobyte = None
 
 def unquote_to_bytes(string):
     """unquote_to_bytes('abc%20def') -> b'abc def'."""
+    if _rust_parse is not None:
+        result = _rust_parse.unquote_to_bytes(string)
+        if result is not None:
+            return result
     return bytes(_unquote_impl(string))
 
 def _unquote_impl(string: bytes | bytearray | str) -> bytes | bytearray:
@@ -813,7 +817,9 @@ def _unquote_impl(string: bytes | bytearray | str) -> bytes | bytearray:
     if isinstance(string, str):
         string = string.encode('utf-8')
     if _rust_parse is not None and isinstance(string, bytes):
-        return _rust_parse.unquote_to_bytes(string)
+        result = _rust_parse.unquote_to_bytes(string)
+        if result is not None:
+            return result
     bits = string.split(b'%')
     if len(bits) == 1:
         return string
@@ -1125,6 +1131,10 @@ def quote(string, safe='/', encoding=None, errors=None):
     By default, encoding='utf-8' (characters are encoded with UTF-8), and
     errors='strict' (unsupported characters raise a UnicodeEncodeError).
     """
+    if _rust_parse is not None and encoding is None and errors is None:
+        result = _rust_parse.quote_str(string, safe)
+        if result is not None:
+            return result
     if isinstance(string, str):
         if not string:
             return string
@@ -1145,6 +1155,10 @@ def quote_plus(string, safe='', encoding=None, errors=None):
     HTML form values. Plus signs in the original string are escaped unless
     they are included in safe. It also does not have safe default to '/'.
     """
+    if _rust_parse is not None and encoding is None and errors is None:
+        result = _rust_parse.quote_plus_str(string, safe)
+        if result is not None:
+            return result
     # Check if ' ' in string, where string may either be a str or bytes.  If
     # there are no spaces, the regular quote will produce the right answer.
     if ((isinstance(string, str) and ' ' not in string) or
@@ -1167,6 +1181,10 @@ def quote_from_bytes(bs, safe='/'):
     not perform string-to-bytes encoding.  It always returns an ASCII string.
     quote_from_bytes(b'abc def\x3f') -> 'abc%20def%3f'
     """
+    if _rust_parse is not None:
+        result = _rust_parse.quote_from_bytes(bs, safe)
+        if result is not None:
+            return result
     if not isinstance(bs, (bytes, bytearray)):
         raise TypeError("quote_from_bytes() expected bytes")
     if not bs:
@@ -1177,11 +1195,8 @@ def quote_from_bytes(bs, safe='/'):
     else:
         # List comprehensions are faster than generator expressions.
         safe = bytes([c for c in safe if c < 128])
-    if _rust_parse is not None:
-        if type(bs) is bytearray:
-            bs = bytes(bs)
-        if type(bs) is bytes:
-            return _rust_parse.quote_from_bytes(bs, safe).decode('ascii')
+    if _rust_parse is not None and type(bs) in (bytes, bytearray):
+        return _rust_parse.quote_from_bytes(bytes(bs), safe)
     if not bs.rstrip(_ALWAYS_SAFE_BYTES + safe):
         return bs.decode()
     quoter = _byte_quoter_factory(safe)

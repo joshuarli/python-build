@@ -8,16 +8,19 @@
 #![no_std]
 
 use core::ffi::{c_int, c_void};
+use core::mem::MaybeUninit;
 use core::ptr;
+use core::slice;
 
 use cpython_binding::ffi::{
-    PyBytes_AsString, PyBytes_FromStringAndSize, PyBytes_Size, PyErr_Clear, PyErr_SetString,
-    PyExc_TypeError, PyList_New, PyList_SetItem, PyMethodDef, PyObject, PyTuple_New,
-    PyTuple_SetItem, PyUnicode_AsUTF8AndSize, PyUnicode_DecodeUTF8, Py_DecRef, Py_GetConstant,
-    Py_ssize_t,
+    PyBytes_AsString, PyBytes_FromStringAndSize, PyBytes_Size, PyBytes_Type, PyErr_Clear,
+    PyErr_SetString, PyExc_TypeError, PyList_New, PyList_SetItem, PyMethodDef, PyObject,
+    PyTuple_New, PyTuple_SetItem, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_DecodeUTF8,
+    PyUnicode_FromStringAndSize, PyUnicode_Type, Py_DecRef, Py_GetConstant, Py_ssize_t,
 };
 use cpython_binding::{
-    BytesWriter, Module, Owned, fastcall, method_table_end, single_argument,
+    Borrowed, BytesWriter, Exception, Module, Outcome, Owned, Stop, fastcall, fastcall_arguments,
+    into_return, method_table_end, raise, single_argument,
 };
 
 unsafe fn bytes_argument<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
@@ -69,46 +72,238 @@ struct Decoded<'a> {
     plus: bool,
 }
 
-impl<'a> Decoded<'a> {
-    fn iter(&self) -> DecodedIter<'a> {
-        DecodedIter {
-            input: self.input,
-            plus: self.plus,
+/// Writes the decoding of `input` to the front of `out`, which holds at
+/// least `input.len()` bytes, and returns the decoded length.
+fn decode_into<const PLUS: bool>(input: &[u8], out: &mut [MaybeUninit<u8>]) -> usize {
+    let mut rest = input;
+    let mut at = 0;
+    loop {
+        let run = rest
+            .iter()
+            .position(|&byte| byte == b'%' || (PLUS && byte == b'+'))
+            .unwrap_or(rest.len());
+        let (literal, tail) = rest.split_at(run);
+        for (slot, &byte) in out[at..at + run].iter_mut().zip(literal) {
+            slot.write(byte);
+        }
+        at += run;
+        let Some((&special, after)) = tail.split_first() else {
+            return at;
+        };
+        rest = after;
+        if special == b'+' {
+            out[at].write(b' ');
+            at += 1;
+        } else if let [high, low, tail @ ..] = after
+            && let (Some(high), Some(low)) = (hex_value(*high), hex_value(*low))
+        {
+            out[at].write(high << 4 | low);
+            at += 1;
+            rest = tail;
+        } else {
+            out[at].write(b'%');
+            at += 1;
         }
     }
 }
 
-struct DecodedIter<'a> {
-    input: &'a [u8],
-    plus: bool,
-}
-
-impl Iterator for DecodedIter<'_> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<u8> {
-        let (&byte, rest) = self.input.split_first()?;
-        if byte == b'%' {
-            if let [high, low, tail @ ..] = rest {
-                if let (Some(high), Some(low)) = (hex_value(*high), hex_value(*low)) {
-                    self.input = tail;
-                    return Some(high << 4 | low);
-                }
-            }
-        }
-        self.input = rest;
-        Some(if self.plus && byte == b'+' { b' ' } else { byte })
-    }
+fn decode_to_stack<'a>(
+    decoded: &Decoded,
+    buffer: &'a mut [MaybeUninit<u8>; STACK_BYTES],
+) -> &'a [u8] {
+    let written = if decoded.plus {
+        decode_into::<true>(decoded.input, buffer)
+    } else {
+        decode_into::<false>(decoded.input, buffer)
+    };
+    unsafe { slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), written) }
 }
 
 unsafe fn decoded_bytes(decoded: &Decoded) -> *mut PyObject {
-    unsafe {
-        bytes_with(decoded.iter().count(), |target| {
-            for (index, byte) in decoded.iter().enumerate() {
-                *target.add(index) = byte;
-            }
-        })
+    if decoded.input.len() <= STACK_BYTES {
+        let mut buffer = [MaybeUninit::<u8>::uninit(); STACK_BYTES];
+        let bytes = decode_to_stack(decoded, &mut buffer);
+        return unsafe { bytes_object(bytes) };
     }
+    BytesWriter::create(decoded.input.len())
+        .and_then(|mut writer| {
+            let written = if decoded.plus {
+                decode_into::<true>(decoded.input, writer.uninit())
+            } else {
+                decode_into::<false>(decoded.input, writer.uninit())
+            };
+            unsafe { writer.finish(written) }
+        })
+        .map_or(ptr::null_mut(), Owned::into_raw)
+}
+
+const ESCAPE: u8 = 0xFF;
+const STACK_BYTES: usize = 1024;
+
+const fn unreserved_map() -> [u8; 256] {
+    let mut map = [ESCAPE; 256];
+    let mut byte = 0;
+    while byte < 256 {
+        let value = byte as u8;
+        if value.is_ascii_alphanumeric() || matches!(value, b'_' | b'.' | b'-' | b'~') {
+            map[byte] = value;
+        }
+        byte += 1;
+    }
+    map
+}
+
+const UNRESERVED: [u8; 256] = unreserved_map();
+
+/// Maps each input byte to its single output byte, or `ESCAPE` when it is
+/// written as `%XX`.
+struct Quoter {
+    map: [u8; 256],
+}
+
+impl Quoter {
+    fn new(safe: &[u8], space: Space) -> Self {
+        let mut map = UNRESERVED;
+        for &byte in safe {
+            if byte < 128 {
+                map[byte as usize] = byte;
+            }
+        }
+        if let Space::Plus = space {
+            map[b' ' as usize] = b'+';
+        }
+        Self { map }
+    }
+
+    fn quoted_len(&self, input: &[u8]) -> usize {
+        let escaped = input
+            .iter()
+            .filter(|&&byte| self.map[byte as usize] == ESCAPE)
+            .count();
+        input.len() + 2 * escaped
+    }
+
+    /// Writes the quoting of `input` to `out` and returns the written length.
+    ///
+    /// # Safety
+    /// `out` has room for `quoted_len(input)` bytes.
+    unsafe fn write(&self, input: &[u8], out: *mut u8) -> usize {
+        let mut at = 0;
+        for &byte in input {
+            let mapped = self.map[byte as usize];
+            if mapped == ESCAPE {
+                unsafe {
+                    *out.add(at) = b'%';
+                    *out.add(at + 1) = HEX[(byte >> 4) as usize];
+                    *out.add(at + 2) = HEX[(byte & 15) as usize];
+                }
+                at += 3;
+            } else {
+                unsafe { *out.add(at) = mapped };
+                at += 1;
+            }
+        }
+        at
+    }
+
+    fn quote(&self, input: &[u8]) -> Outcome<Owned> {
+        if input.len() <= STACK_BYTES / 3 {
+            let mut buffer = [MaybeUninit::<u8>::uninit(); STACK_BYTES];
+            let written = unsafe { self.write(input, buffer.as_mut_ptr().cast()) };
+            let text = unsafe { slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), written) };
+            return ascii_text(text);
+        }
+        let length = self.quoted_len(input);
+        let mut writer = BytesWriter::create(length)?;
+        unsafe { self.write(input, writer.uninit().as_mut_ptr().cast()) };
+        let quoted = unsafe { writer.finish(length)? };
+        let data = unsafe { PyBytes_AsString(quoted.as_ptr()) };
+        let text = unsafe { slice::from_raw_parts(data.cast::<u8>(), length) };
+        ascii_text(text)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Space {
+    Escaped,
+    Plus,
+}
+
+fn ascii_text(text: &[u8]) -> Outcome<Owned> {
+    let object =
+        unsafe { PyUnicode_FromStringAndSize(text.as_ptr().cast(), text.len() as Py_ssize_t) };
+    unsafe { Owned::from_new_reference(object) }
+}
+
+fn is_exact(object: Borrowed<'_>, expected: *mut PyTypeObject) -> bool {
+    unsafe { (*object.as_ptr()).ob_type == expected }
+}
+
+fn exact_bytes<'a>(object: Borrowed<'a>) -> Outcome<&'a [u8]> {
+    if !is_exact(object, &raw mut PyBytes_Type) {
+        return Err(Stop::Unsupported);
+    }
+    unsafe { bytes_argument(object.as_ptr()) }.ok_or(Stop::Unsupported)
+}
+
+fn exact_text<'a>(object: Borrowed<'a>) -> Outcome<&'a [u8]> {
+    if !is_exact(object, &raw mut PyUnicode_Type) {
+        return Err(Stop::Unsupported);
+    }
+    let mut size: Py_ssize_t = 0;
+    let data = unsafe { PyUnicode_AsUTF8AndSize(object.as_ptr(), &mut size) };
+    if data.is_null() {
+        unsafe { PyErr_Clear() };
+        return Err(Stop::Unsupported);
+    }
+    Ok(unsafe { slice::from_raw_parts(data.cast::<u8>(), size as usize) })
+}
+
+fn safe_characters<'a>(object: Borrowed<'a>) -> Outcome<&'a [u8]> {
+    if is_exact(object, &raw mut PyBytes_Type) {
+        exact_bytes(object)
+    } else {
+        exact_text(object)
+    }
+}
+
+fn quote_arguments<'a>(
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> Outcome<(Borrowed<'a>, &'a [u8])> {
+    let arguments = unsafe { fastcall_arguments::<'a>(args, nargs) };
+    let [subject, safe] = arguments else {
+        return Err(raise(
+            Exception::TypeError,
+            c"quote functions take exactly two arguments",
+        ));
+    };
+    Ok((*subject, safe_characters(*safe)?))
+}
+
+fn quote_text(args: *mut *mut PyObject, nargs: Py_ssize_t, space: Space) -> Outcome<Owned> {
+    let (subject, safe) = quote_arguments(args, nargs)?;
+    let input = exact_text(subject)?;
+    if input.is_empty() {
+        return Ok(subject.to_owned());
+    }
+    Quoter::new(safe, space).quote(input)
+}
+
+unsafe extern "C" fn quote_str(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    into_return(quote_text(args, nargs, Space::Escaped))
+}
+
+unsafe extern "C" fn quote_plus_str(
+    _module: *mut PyObject,
+    args: *mut *mut PyObject,
+    nargs: Py_ssize_t,
+) -> *mut PyObject {
+    into_return(quote_text(args, nargs, Space::Plus))
 }
 
 unsafe extern "C" fn quote_from_bytes(
@@ -116,44 +311,34 @@ unsafe extern "C" fn quote_from_bytes(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    if nargs != 2 {
-        return argument_error(c"quote_from_bytes() takes exactly two arguments");
-    }
-    let Some(input) = (unsafe { bytes_argument(*args) }) else {
-        return ptr::null_mut();
-    };
-    let Some(safe) = (unsafe { bytes_argument(*args.add(1)) }) else {
-        return ptr::null_mut();
-    };
+    let quoted = quote_arguments(args, nargs)
+        .and_then(|(subject, safe)| Quoter::new(safe, Space::Escaped).quote(exact_bytes(subject)?));
+    into_return(quoted)
+}
 
-    let mut keep = [false; 256];
-    for byte in 0..=255u8 {
-        keep[byte as usize] =
-            byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b'-' | b'~');
-    }
-    for byte in safe {
-        keep[*byte as usize] = true;
-    }
-
-    let mut length = 0;
-    for byte in input {
-        length += if keep[*byte as usize] { 1 } else { 3 };
-    }
+fn decoded_object(input: &[u8]) -> Outcome<Owned> {
     unsafe {
-        bytes_with(length, |target| {
-            let mut at = 0;
-            for byte in input {
-                if keep[*byte as usize] {
-                    *target.add(at) = *byte;
-                    at += 1;
-                } else {
-                    *target.add(at) = b'%';
-                    *target.add(at + 1) = HEX[(*byte >> 4) as usize];
-                    *target.add(at + 2) = HEX[(*byte & 15) as usize];
-                    at += 3;
-                }
-            }
-        })
+        Owned::from_new_reference(decoded_bytes(&Decoded {
+            input,
+            plus: false,
+        }))
+    }
+}
+
+fn unquote_subject(subject: Borrowed<'_>) -> Outcome<Owned> {
+    if is_exact(subject, &raw mut PyBytes_Type) {
+        let input = exact_bytes(subject)?;
+        return if input.contains(&b'%') {
+            decoded_object(input)
+        } else {
+            Ok(subject.to_owned())
+        };
+    }
+    let input = exact_text(subject)?;
+    if input.contains(&b'%') {
+        decoded_object(input)
+    } else {
+        BytesWriter::copy_of(input)
     }
 }
 
@@ -162,13 +347,11 @@ unsafe extern "C" fn unquote_to_bytes(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    if nargs != 1 {
+    let arguments = unsafe { fastcall_arguments(args, nargs) };
+    let [subject] = arguments else {
         return argument_error(c"unquote_to_bytes() takes exactly one argument");
-    }
-    let Some(input) = (unsafe { bytes_argument(*args) }) else {
-        return ptr::null_mut();
     };
-    unsafe { decoded_bytes(&Decoded { input, plus: false }) }
+    into_return(unquote_subject(*subject))
 }
 
 /// `unquote()` of a `str` with UTF-8 and `replace`: escapes decoded across
@@ -187,6 +370,17 @@ unsafe extern "C" fn unquote_str(_module: *mut PyObject, text: *mut PyObject) ->
         input,
         plus: false,
     };
+    if input.len() <= STACK_BYTES {
+        let mut buffer = [MaybeUninit::<u8>::uninit(); STACK_BYTES];
+        let bytes = decode_to_stack(&decoded, &mut buffer);
+        return unsafe {
+            PyUnicode_DecodeUTF8(
+                bytes.as_ptr().cast(),
+                bytes.len() as Py_ssize_t,
+                c"replace".as_ptr(),
+            )
+        };
+    }
     let bytes = unsafe { decoded_bytes(&decoded) };
     if bytes.is_null() {
         return bytes;
@@ -383,16 +577,26 @@ extern "C" fn _urllib_parse_rs_clear(_module: *mut PyObject) -> c_int {
 
 extern "C" fn _urllib_parse_rs_free(_module: *mut c_void) {}
 
-static MODULE_METHODS: [PyMethodDef; 6] = [
+static MODULE_METHODS: [PyMethodDef; 8] = [
     single_argument(
         c"unquote_str",
         unquote_str,
         c"Percent-decode a str as UTF-8 with replacement",
     ),
     fastcall(
+        c"quote_str",
+        quote_str,
+        c"Percent-encode a str as UTF-8, or None outside the fast path",
+    ),
+    fastcall(
+        c"quote_plus_str",
+        quote_plus_str,
+        c"Percent-encode a str as UTF-8 with spaces as plus, or None outside the fast path",
+    ),
+    fastcall(
         c"quote_from_bytes",
         quote_from_bytes,
-        c"Percent-encode bytes with a dynamic safe set",
+        c"Percent-encode bytes to a str, or None outside the fast path",
     ),
     fastcall(
         c"unquote_to_bytes",
