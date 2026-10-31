@@ -170,7 +170,6 @@ static const char* _Py_stdlib_module_names[] = {
 "_weakrefset",
 "_winapi",
 "_wmi",
-"_zip_rs",
 "_zipimport_rs",
 "_zlib_rs",
 "_zoneinfo",

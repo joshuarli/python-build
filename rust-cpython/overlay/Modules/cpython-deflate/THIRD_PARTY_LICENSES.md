@@ -1,7 +1,8 @@
-# Rust ZIP codec dependency licenses
+# DEFLATE engine dependency licenses
 
-ZIP method 8 and the ZIP CRC-32 use the locked `libz-rs-sys` Rust crate, the
-C-API surface of the `zlib-rs` port of zlib. Its enabled dependency closure is:
+The DEFLATE engine shared by the zlib, gzip, and zipimport adapters uses the
+locked `libz-rs-sys` Rust crate, the C-API surface of the `zlib-rs` port of
+zlib. Its enabled dependency closure is:
 
 | Crate | Version | Declared license |
 | --- | --- | --- |

@@ -22,12 +22,12 @@ except ImportError:
     crc32 = binascii.crc32
 
 try:
-    import _zip_rs
+    import _zlib_rs
 except ImportError:
-    _zip_rs = None
+    _zlib_rs = None
 
-if _zip_rs is not None:
-    _crc32_impl = _zip_rs.crc32
+if _zlib_rs is not None:
+    _crc32_impl = _zlib_rs.crc32
 else:
     _crc32_impl = crc32
 
@@ -879,46 +879,46 @@ def _check_compression(compression):
         raise NotImplementedError("That compression method is not supported")
 
 
-if _zip_rs is not None:
+if _zlib_rs is not None:
     class _RustDeflateCompressor:
         def __init__(self, compresslevel):
             try:
-                self._state = _zip_rs.compressor(compresslevel)
+                self._state = _zlib_rs.compressor(compresslevel, -15)
             except ValueError as error:
                 raise zlib.error(str(error)) from None
 
         def compress(self, data):
             try:
-                return _zip_rs.compress(self._state, data)
+                return _zlib_rs.compress(self._state, data)
             except ValueError as error:
                 raise zlib.error(str(error)) from None
 
         def flush(self):
             try:
-                return _zip_rs.flush(self._state, zlib.Z_FINISH)
+                return _zlib_rs.flush(self._state, zlib.Z_FINISH)
             except ValueError as error:
                 raise zlib.error(str(error)) from None
 
 
     class _RustDeflateDecompressor:
         def __init__(self):
-            self._state = _zip_rs.decompressor()
+            self._state = _zlib_rs.decompressor(-15)
 
         @property
         def eof(self):
-            return _zip_rs.eof(self._state)
+            return _zlib_rs.eof(self._state)
 
         @property
         def unconsumed_tail(self):
-            return _zip_rs.unconsumed_tail(self._state)
+            return _zlib_rs.unconsumed_tail(self._state)
 
         @property
         def unused_data(self):
-            return _zip_rs.unused_data(self._state)
+            return _zlib_rs.unused_data(self._state)
 
         def decompress(self, data, max_length=0):
             try:
-                return _zip_rs.decompress(self._state, data, max_length)
+                return _zlib_rs.decompress(self._state, data, max_length)
             except ValueError as error:
                 raise zlib.error(str(error)) from None
 
@@ -928,7 +928,7 @@ if _zip_rs is not None:
 
 def _get_compressor(compress_type, compresslevel=None):
     if compress_type == ZIP_DEFLATED:
-        if _zip_rs is not None:
+        if _zlib_rs is not None:
             if compresslevel is not None:
                 level = compresslevel
             else:
@@ -955,7 +955,7 @@ def _get_decompressor(compress_type):
     if compress_type == ZIP_STORED:
         return None
     elif compress_type == ZIP_DEFLATED:
-        if _zip_rs is not None:
+        if _zlib_rs is not None:
             return _RustDeflateDecompressor()
         return zlib.decompressobj(-15)
     elif compress_type == ZIP_BZIP2:

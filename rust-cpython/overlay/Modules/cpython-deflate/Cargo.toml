@@ -1,16 +1,14 @@
 [package]
-name = "_zip_rs"
+name = "cpython-deflate"
 version = "0.1.0"
 edition = "2024"
 rust-version.workspace = true
+license = "PSF-2.0"
 
 [dependencies]
-cpython-sys = { path = "../cpython-sys" }
+cpython-binding = { path = "../cpython-binding" }
 libz-rs-sys = { version = "=0.6.7", default-features = false, features = ["std", "rust-allocator"] }
 
-[build-dependencies]
-cpython-build-helper = { path = "../cpython-build-helper" }
-
 [lib]
-name = "_zip_rs"
-crate-type = ["cdylib", "rlib"]
+name = "cpython_deflate"
+crate-type = ["rlib"]
