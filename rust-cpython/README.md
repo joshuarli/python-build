@@ -110,6 +110,7 @@ measurements may run: it holds the host lease, and the coverage
 | `build --name N [--incremental] [--jobs J]` | Clean optimized build verified per Rust extension; `--incremental` syncs changed overlay files and refuses build-system or Cargo changes |
 | `build --name perf-upstream --empty-overlay` | Pristine-fork control |
 | `test --name N --suite test_X ...` or `--all` | Complete CPython suites on a perf build |
+| `cargo --name N -- <cargo args>` | Sync changed overlay files as `build --incremental` does, then run the pinned cargo in build `N`'s assembled source with the build's environment; exits with cargo's status |
 | `profile --ref R (--module M \| --workload W) --tool sample\|cprofile\|importtime` | Native stacks, Python call costs, or import time |
 | `bench --baseline R --candidate R [--module M] [--workload W] [--gate]` | Paired measurement with a coded verdict |
 | `calibrate --ref R --gate` | Self-comparison; identical interpreters must not read different |

@@ -39,11 +39,17 @@ void until S2 re-measures it. The `_re_rs`, `_fnmatch_rs`, and
 `lane/*` plus pre-product history, listed at `d17607f`) are evidence, not
 candidates. None merges without review under this contract.
 
-S2 landed on `m1-scaffold`: verdicts read improved, regressed, within
-budget, or inconclusive, and decisions read REJECT, INCONCLUSIVE, ACCEPT, or
-WITHIN-BUDGET.
+S2 and S3 landed on `m1-scaffold`. S2: verdicts read improved, regressed,
+within budget, or inconclusive, and decisions read REJECT, INCONCLUSIVE,
+ACCEPT, or WITHIN-BUDGET. S3: `perf.py cargo --name N -- <cargo args>` ran
+`metadata --format-version 1 --offline` (exit 0), `clippy -p _bz2_rs
+--offline` (exit 0, 266 warnings, all in `cpython-sys`), and `test -p
+_bz2_rs --offline` (exit 0, but `_bz2_rs` has no Rust tests: 0 run) on a
+fresh perf build. The command syncs overlay files into the build's source
+without rebuilding the stage, so the build report's overlay digest goes stale
+until the next `build --incremental`.
 
-Next slice: S1. S3 may run in parallel with it.
+Next slice: S1.
 
 Resume: "Resume the Rust-for-CPython campaign in rust-for-cpython.md with
 the orchestrate skill." First command: `python3 rust-cpython/perf.py status`.

@@ -37,7 +37,7 @@ import tomllib
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 LANE = Path(__file__).resolve().parent
 REPO = LANE.parent
@@ -771,6 +771,82 @@ def incremental_plan(staged: dict[str, bytes], current: dict[str, bytes | None],
     return {"changed": changed, "removed": removed, "clean_only": clean_only}
 
 
+class OverlaySync(NamedTuple):
+    source: Path
+    overlay: dict[str, Any]
+    files: list[str]
+    staged: dict[str, bytes]
+    current: dict[str, bytes | None]
+    changes: dict[str, list[str]]
+
+
+def _plan_overlay_sync(paths: dict[str, Path]) -> OverlaySync:
+    source = _existing_source(paths["source_parent"])
+    if not (paths["build"] / "Makefile").is_file() or not paths["overlay_manifest"].is_file():
+        raise LaneError("the previous build tree is incomplete; run a clean build")
+    overlay, files = _stage_overlay(paths)
+    staged = {item: (paths["overlay_staging"] / item).read_bytes() for item in files}
+    current = {item: ((source / item).read_bytes() if (source / item).is_file() else None)
+               for item in files}
+    changes = incremental_plan(staged, current, json.loads(paths["overlay_manifest"].read_text()))
+    return OverlaySync(source, overlay, files, staged, current, changes)
+
+
+def _refuse_unsyncable(changes: dict[str, list[str]]) -> None:
+    if changes["removed"] or changes["clean_only"]:
+        raise LaneError("incremental build refused; run a clean build. Removed: "
+                        f"{changes['removed'] or 'none'}; build-system changes: "
+                        f"{changes['clean_only'] or 'none'}")
+
+
+def _copy_changed_overlay(paths: dict[str, Path], source: Path, changes: dict[str, list[str]]) -> None:
+    for item in changes["changed"]:
+        _copy_file(paths["overlay_staging"] / item, source / item)
+    print(f"OK    incremental overlay sync: {len(changes['changed'])} changed file(s)")
+
+
+def _worker_count(jobs: int | None) -> int:
+    return jobs if jobs is not None else max(1, (os.cpu_count() or 4) - 1)
+
+
+def _build_environment(toolchain, target, paths: dict[str, Path], *, workers: int, sandbox) -> dict[str, str]:
+    env = lb._environment(toolchain, offline=True, build_dir=paths["build"])
+    env.update(_perf_flags(toolchain, target))
+    env.update({
+        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
+        "PY_CPPFLAGS": env["CPPFLAGS"],
+        "PY_CFLAGS": env["CFLAGS"],
+        "PYTHON_BUILD_DIR": str(paths["build"]),
+        "CARGO_BUILD_JOBS": str(workers),
+        lb._cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
+        "IPHONEOS_DEPLOYMENT_TARGET": "",
+    })
+    return sandbox.environment(env)
+
+
+def cargo(*, name: str, arguments: list[str]) -> int:
+    _check_name(name)
+    if lb.IS_LINUX:
+        raise LaneError("perf builds currently support only native Apple Silicon macOS")
+    paths = _paths(name)
+    with host_lease("build", f"cargo {_tag(name)}"):
+        previous = _read_report(paths["report"])
+        if previous.get("pristine"):
+            raise LaneError(f"{_tag(name)} is the pristine control and has no overlay to run cargo on")
+        if not previous.get("configured"):
+            raise LaneError(f"no configured candidate build named {name!r}; run a clean build")
+        sync = _plan_overlay_sync(paths)
+        _refuse_unsyncable(sync.changes)
+        _copy_changed_overlay(paths, sync.source, sync.changes)
+        _write_json(paths["overlay_manifest"], sync.files)
+        toolchain, target = lb._toolchain()
+        lb._llvm_ready(toolchain)
+        env = _build_environment(toolchain, target, paths, workers=_worker_count(None),
+                                 sandbox=lb._sealed_sandbox())
+        return subprocess.run([str(lb.CARGO_HOME / "bin" / "cargo"), *arguments],
+                              cwd=sync.source, env=env, check=False).returncode
+
+
 def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
           incremental: bool = False) -> int:
     _check_name(name)
@@ -828,14 +904,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     placement_modes: dict[str, bool] = {}
     placement_original: bytes | None = None
     if incremental:
-        source = _existing_source(paths["source_parent"])
-        if not (paths["build"] / "Makefile").is_file() or not paths["overlay_manifest"].is_file():
-            raise LaneError("the previous build tree is incomplete; run a clean build")
-        overlay, files = _stage_overlay(paths)
-        staged = {item: (paths["overlay_staging"] / item).read_bytes() for item in files}
-        current = {item: ((source / item).read_bytes() if (source / item).is_file() else None)
-                   for item in files}
-        changes = incremental_plan(staged, current, json.loads(paths["overlay_manifest"].read_text()))
+        source, overlay, files, staged, current, changes = _plan_overlay_sync(paths)
         setup = "Modules/Setup.stdlib.in"
         if changes["changed"] == [setup] and not changes["removed"]:
             placement_original = _original_setup_template()
@@ -874,10 +943,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
                 raise LaneError("C placement requires unchanged compiler owner")
             placement_modes = {name: name in wrapped for name in placement}
             changes["clean_only"] = []
-        if changes["removed"] or changes["clean_only"]:
-            raise LaneError("incremental build refused; run a clean build. Removed: "
-                            f"{changes['removed'] or 'none'}; build-system changes: "
-                            f"{changes['clean_only'] or 'none'}")
+        _refuse_unsyncable(changes)
         if placement:
             # A failed placement migration must not be retried as an ordinary
             # source-only sync after its template has already been copied.
@@ -887,9 +953,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             # available only to this already-running migration.
             _write_json(paths["report"], {"status": "building", "name": _tag(name),
                                           "pristine": False, "configured": False})
-        for item in changes["changed"]:
-            _copy_file(paths["overlay_staging"] / item, source / item)
-        print(f"OK    incremental overlay sync: {len(changes['changed'])} changed file(s)")
+        _copy_changed_overlay(paths, source, changes)
     else:
         source = lb._extract_fresh(paths["source_parent"])
         if empty_overlay:
@@ -905,25 +969,15 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             proof.validate_builtin_source(source, lb.TARGET, object_stores)
         except proof.BuiltinArtifactError as error:
             raise LaneError(f"built-in Rust source preflight failed: {error}") from error
-    env = lb._environment(toolchain, offline=True, build_dir=paths["build"])
     lb._require_command(
         [str(lb.CARGO_HOME / "bin" / "cargo"), "fetch", "--locked", "--offline",
          "--manifest-path", str(source / "Cargo.toml")],
-        cwd=source, env=env, log=paths["cargo_log"],
+        cwd=source, env=lb._environment(toolchain, offline=True, build_dir=paths["build"]),
+        log=paths["cargo_log"],
     )
-    workers = jobs if jobs is not None else max(1, (os.cpu_count() or 4) - 1)
-    env.update(_perf_flags(toolchain, target))
-    env.update({
-        "PY_CC": str(toolchain.llvm_prefix / "bin" / "clang"),
-        "PY_CPPFLAGS": env["CPPFLAGS"],
-        "PY_CFLAGS": env["CFLAGS"],
-        "PYTHON_BUILD_DIR": str(paths["build"]),
-        "CARGO_BUILD_JOBS": str(workers),
-        lb._cargo_linker_variable(): str(toolchain.llvm_prefix / "bin" / "clang"),
-        "IPHONEOS_DEPLOYMENT_TARGET": "",
-    })
+    workers = _worker_count(jobs)
     sandbox = lb._sealed_sandbox()
-    env = sandbox.environment(env)
+    env = _build_environment(toolchain, target, paths, workers=workers, sandbox=sandbox)
     configure = [str(source / "configure"), f"--prefix={paths['stage']}", "--enable-shared",
                  "--enable-experimental-jit=no", "--with-tail-call-interp=no",
                  "--without-ensurepip"]
@@ -980,13 +1034,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     cargo_default = lb._make_value(paths["build"] / "Makefile", "CARGO_PROFILE")
     if cargo_default != "dev":
         raise LaneError(f"unexpected configured Cargo default {cargo_default!r}; expected 'dev'")
-    cargo_env = dict(env)
-    cargo_env.update({
-        "CARGO_TARGET_DIR": str(paths["build"] / "target"),
-        "LLVM_TARGET": lb.TARGET,
-        "RUST_SHARED_BUILD": "1",
-    })
-    members = set(lb._workspace_members(source, cargo_env))
+    members = set(lb._workspace_members(source, env))
     required = {"_base64", "cpython-sys"} | (set() if empty_overlay else _overlay_members())
     if not required <= members:
         raise LaneError("perf workspace is missing members: "
@@ -1800,6 +1848,11 @@ def main(argv: list[str] | None = None) -> int:
     build_parser.add_argument("--incremental", action="store_true",
                               help="reuse the configured tree; sync changed overlay files only")
     build_parser.add_argument("--jobs", type=int, metavar="N", help="parallel build jobs")
+    cargo_parser = commands.add_parser(
+        "cargo", help="run the pinned cargo in a perf build's assembled source, after an overlay sync")
+    cargo_parser.add_argument("--name", required=True, help="isolated build name to run cargo in")
+    cargo_parser.add_argument("cargo_args", nargs="+", metavar="CARGO_ARG",
+                              help="arguments forwarded verbatim to cargo, after `--`")
     test_parser = commands.add_parser("test", help="run CPython suites on a perf build")
     test_parser.add_argument("--name", required=True, help="isolated build name to test")
     test_parser.add_argument("--all", action="store_true", help="run all default-resource CPython tests")
@@ -1876,6 +1929,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "build":
             return build(name=args.name, empty_overlay=args.empty_overlay, jobs=args.jobs,
                          incremental=args.incremental)
+        if args.command == "cargo":
+            return cargo(name=args.name, arguments=args.cargo_args)
         if args.command == "test":
             return test(name=args.name, suites=args.suite, all_suites=args.all, jobs=args.jobs)
         if args.command == "bench":

@@ -1029,6 +1029,114 @@ class CPlacementIncrementalTests(unittest.TestCase):
                     perf.verify_c_placement_compilation(log, plan, {'_json': static})
 
 
+class CargoCommandTests(unittest.TestCase):
+    def run_cargo(self, arguments=("metadata",), *, report=None, returncode=0, staged=None,
+                  previous_files=("Modules/_fixture_rs/src/lib.rs",), installed=b"old"):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            root = Path(temp)
+            paths = {name: root / name for name in (
+                "source_parent", "overlay_staging", "overlay_manifest", "build", "report")}
+            source = paths["source_parent"] / "cpython-fixture"
+            source.mkdir(parents=True)
+            (source / "configure").write_text("")
+            (source / "Modules/_fixture_rs/src").mkdir(parents=True)
+            (source / "Modules/_fixture_rs/src/lib.rs").write_bytes(installed)
+            paths["build"].mkdir()
+            (paths["build"] / "Makefile").write_text("")
+            paths["overlay_manifest"].write_text(json.dumps(list(previous_files)))
+            if report is not None:
+                paths["report"].write_text(json.dumps(report))
+            if staged is None:
+                staged = {"Modules/_fixture_rs/src/lib.rs": b"new"}
+            self.cargo_runs = 0
+            def stage(_paths):
+                for name, data in staged.items():
+                    target = paths["overlay_staging"] / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
+                return {"files": len(staged)}, sorted(staged)
+            toolchain = mock.Mock(llvm_prefix=root / "llvm")
+            sandbox = mock.Mock()
+            sandbox.environment.side_effect = lambda env: {**env, "SEALED": "1"}
+            leases = []
+            def lease(kind, what, **kwargs):
+                leases.append(kind)
+                return nullcontext()
+            patches.enter_context(mock.patch.object(perf, "_paths", return_value=paths))
+            patches.enter_context(mock.patch.object(perf, "_stage_overlay", side_effect=stage))
+            patches.enter_context(mock.patch.object(perf, "_perf_flags",
+                                                    return_value={"CPPFLAGS": "-I", "CFLAGS": "-O2"}))
+            patches.enter_context(mock.patch.object(perf, "host_lease", side_effect=lease))
+            patches.enter_context(mock.patch.object(perf.lb, "IS_LINUX", False))
+            patches.enter_context(mock.patch.object(perf.lb, "_toolchain", return_value=(toolchain, "target")))
+            patches.enter_context(mock.patch.object(perf.lb, "_llvm_ready"))
+            patches.enter_context(mock.patch.object(perf.lb, "_sealed_sandbox", return_value=sandbox))
+            patches.enter_context(mock.patch.object(
+                perf.lb, "_environment", return_value={"CARGO_HOME": "/cargo-home", "CPPFLAGS": "-I",
+                                                       "CFLAGS": "-O2"}))
+            def cargo_process(*args, **kwargs):
+                self.cargo_runs += 1
+                self.source_seen_by_cargo = (source / "Modules/_fixture_rs/src/lib.rs").read_bytes()
+                return mock.Mock(returncode=returncode)
+            run = patches.enter_context(mock.patch.object(perf.subprocess, "run", side_effect=cargo_process))
+            status = perf.cargo(name="fixture", arguments=list(arguments))
+            self.build_environment = perf._build_environment(
+                toolchain, mock.Mock(), paths, workers=perf._worker_count(None), sandbox=sandbox)
+            return status, run, leases, source, paths
+
+    def test_missing_build_is_refused(self):
+        with self.assertRaisesRegex(perf.LaneError, "no perf build report"):
+            self.run_cargo()
+
+    def test_empty_overlay_build_is_refused(self):
+        with self.assertRaisesRegex(perf.LaneError, "pristine control"):
+            self.run_cargo(report={"configured": True, "pristine": True})
+
+    def test_unconfigured_build_is_refused(self):
+        with self.assertRaisesRegex(perf.LaneError, "no configured candidate build"):
+            self.run_cargo(report={"configured": False, "pristine": False})
+
+    def test_cargo_runs_with_the_build_environment_in_the_assembled_source(self):
+        status, run, leases, source, paths = self.run_cargo(
+            report={"configured": True, "pristine": False})
+        self.assertEqual(status, 0)
+        self.assertEqual(leases, ["build"])
+        expected = self.build_environment
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0][0], str(perf.lb.CARGO_HOME / "bin" / "cargo"))
+        self.assertEqual(run.call_args.kwargs["env"], expected)
+        self.assertEqual(run.call_args.kwargs["cwd"], source)
+        self.assertEqual(expected["PYTHON_BUILD_DIR"], str(paths["build"]))
+        self.assertEqual(expected["SEALED"], "1")
+
+    def test_arguments_are_forwarded_verbatim(self):
+        arguments = ["test", "-p", "_bz2_rs", "--offline", "--", "--nocapture", "--"]
+        _status, run, *_ = self.run_cargo(arguments, report={"configured": True, "pristine": False})
+        self.assertEqual(run.call_args.args[0][1:], arguments)
+        with mock.patch.object(perf, "cargo", return_value=0) as call:
+            self.assertEqual(perf.main(["cargo", "--name", "fixture", "--", *arguments]), 0)
+        self.assertEqual(call.call_args.kwargs, {"name": "fixture", "arguments": arguments})
+
+    def test_exit_status_is_cargo_status(self):
+        status, *_ = self.run_cargo(report={"configured": True, "pristine": False}, returncode=101)
+        self.assertEqual(status, 101)
+        with mock.patch.object(perf, "cargo", return_value=101):
+            self.assertEqual(perf.main(["cargo", "--name", "fixture", "--", "test"]), 101)
+
+    def test_changed_overlay_files_sync_before_cargo_runs(self):
+        self.run_cargo(report={"configured": True, "pristine": False})
+        self.assertEqual(self.source_seen_by_cargo, b"new")
+
+    def test_build_system_changes_and_removals_are_refused_without_running_cargo(self):
+        report = {"configured": True, "pristine": False}
+        with self.assertRaisesRegex(perf.LaneError, "build-system changes: .*configure.ac"):
+            self.run_cargo(report=report, staged={"configure.ac": b"new"}, previous_files=("configure.ac",))
+        self.assertEqual(self.cargo_runs, 0)
+        with self.assertRaisesRegex(perf.LaneError, "Removed: .*lib.rs"):
+            self.run_cargo(report=report, staged={})
+        self.assertEqual(self.cargo_runs, 0)
+
+
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
                  empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False,
