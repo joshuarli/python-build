@@ -18,6 +18,7 @@ pub struct BytesWriter {
     capacity: usize,
 }
 
+#[inline]
 fn size_argument(size: usize) -> Outcome<Py_ssize_t> {
     Py_ssize_t::try_from(size).map_err(|_| {
         unsafe { PyErr_NoMemory() };
@@ -27,6 +28,7 @@ fn size_argument(size: usize) -> Outcome<Py_ssize_t> {
 
 impl BytesWriter {
     /// A writer whose current size is `size` bytes, all uninitialized.
+    #[inline]
     pub fn create(size: usize) -> Outcome<Self> {
         let raw = unsafe { PyBytes_FromStringAndSize(ptr::null(), size_argument(size)?) };
         if raw.is_null() {
@@ -39,15 +41,18 @@ impl BytesWriter {
         })
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.size
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.size == 0
     }
 
     /// The bytes up to the current size. Growing the writer invalidates them.
+    #[inline]
     pub fn uninit(&mut self) -> &mut [MaybeUninit<u8>] {
         let data = unsafe { PyBytes_AsString(self.object) };
         unsafe { slice::from_raw_parts_mut(data.cast::<MaybeUninit<u8>>(), self.size) }
@@ -88,6 +93,7 @@ impl BytesWriter {
     }
 
     /// A `bytes` object holding a copy of `bytes`.
+    #[inline]
     pub fn copy_of(bytes: &[u8]) -> Outcome<Owned> {
         let object = unsafe {
             PyBytes_FromStringAndSize(bytes.as_ptr().cast(), size_argument(bytes.len())?)
@@ -100,6 +106,7 @@ impl BytesWriter {
     /// # Safety
     /// The first `initialized` bytes of the writer are initialized, and
     /// `initialized <= self.len()`.
+    #[inline]
     pub unsafe fn finish(mut self, initialized: usize) -> Outcome<Owned> {
         debug_assert!(initialized <= self.size);
         if initialized != self.capacity {
@@ -111,6 +118,7 @@ impl BytesWriter {
 }
 
 impl Drop for BytesWriter {
+    #[inline]
     fn drop(&mut self) {
         unsafe { Py_DecRef(self.object) };
     }

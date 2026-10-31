@@ -11,6 +11,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    #[inline]
     pub fn acquire(object: Borrowed<'_>) -> Outcome<Self> {
         let mut view = MaybeUninit::<Py_buffer>::uninit();
         if unsafe { PyObject_GetBuffer(object.as_ptr(), view.as_mut_ptr(), PyBUF_SIMPLE) } != 0 {
@@ -21,6 +22,7 @@ impl Buffer {
         })
     }
 
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         if self.view.len <= 0 {
             return &[];
@@ -30,6 +32,7 @@ impl Buffer {
 }
 
 impl Drop for Buffer {
+    #[inline]
     fn drop(&mut self) {
         unsafe { PyBuffer_Release(&mut self.view) };
     }

@@ -53,6 +53,7 @@ pub fn raise(exception: Exception, message: &CStr) -> Stop {
 }
 
 /// The value a C-API entry point returns for an outcome.
+#[inline]
 pub fn into_return(outcome: Outcome<Owned>) -> *mut PyObject {
     match outcome {
         Ok(value) => value.into_raw(),
