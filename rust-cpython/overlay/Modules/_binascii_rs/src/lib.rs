@@ -633,7 +633,7 @@ macro_rules! base64_method {
         PyMethodDef {
             ml_name: $name.as_ptr() as *mut c_char,
             ml_meth: PyMethodDefFuncPointer {
-                PyCFunctionFast: $function,
+                PyCFunctionFast: unsafe { core::mem::transmute($function as *const ()) },
             },
             ml_flags: METH_FASTCALL,
             ml_doc: $doc.as_ptr() as *mut c_char,

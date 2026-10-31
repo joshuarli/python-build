@@ -1,23 +1,24 @@
-use std::ffi::{c_char, c_int, c_long, c_void};
-use std::mem::{MaybeUninit, size_of};
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 use std::slice;
 
 use blake2::{Blake2b512, Blake2s256};
-use cpython_sys::{
-    METH_NOARGS, METH_O, METH_VARARGS, PyBytes_FromStringAndSize, PyErr_NoMemory,
-    PyErr_Occurred, PyErr_SetObject, PyErr_SetString, PyExc_OverflowError, PyExc_ValueError,
-    PyGetSetDef, PyLong_AsLongLong, PyLong_FromLong, PyMethodDef,
-    PyMethodDefFuncPointer, PyModule_AddObject, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyObject_Free, PyObject_GetAttrString,
-    PyObject_GetBuffer, PyObject_HashNotImplemented, PyObject_Type, PyType_FromSpec,
-    PyType_GenericAlloc, PyTypeObject, PyType_Slot, PyType_Spec,
-    PyUnicode_FromFormat, PyUnicode_FromStringAndSize, Py_DecRef, Py_NewRef, Py_buffer,
-    Py_ssize_t, Py_tp_dealloc, Py_tp_getset, Py_tp_hash, Py_tp_methods, Py_tp_repr,
-    Py_TPFLAGS_DEFAULT, Py_TPFLAGS_DISALLOW_INSTANTIATION,
-    Py_TPFLAGS_IMMUTABLETYPE,
+use cpython_binding::ffi::{
+    PyErr_NoMemory, PyErr_Occurred, PyErr_SetObject, PyErr_SetString, PyExc_OverflowError,
+    PyExc_TypeError, PyExc_ValueError, PyGetSetDef, PyLong_AsLongLong, PyLong_FromLong,
+    PyMethodDef, PyModule_AddObject, PyModuleDef_Slot, PyObject, PyObject_Free,
+    PyObject_GetAttrString, PyObject_HashNotImplemented, PyObject_Type, PyTuple_GetItem,
+    PyTuple_Size, PyTypeObject, PyType_FromSpec, PyType_GenericAlloc, PyType_Slot, PyType_Spec,
+    PyUnicode_AsUTF8AndSize, PyUnicode_FromFormat, PyUnicode_FromStringAndSize, Py_DecRef,
+    Py_TPFLAGS_DEFAULT, Py_TPFLAGS_DISALLOW_INSTANTIATION, Py_TPFLAGS_IMMUTABLETYPE,
+    Py_mod_exec, Py_ssize_t, Py_tp_dealloc, Py_tp_getset, Py_tp_hash, Py_tp_methods, Py_tp_repr,
+    _Py_NoneStruct,
 };
-use cpython_sys::_Py_NoneStruct;
+use cpython_binding::module::PER_INTERPRETER_GIL_SLOT;
+use cpython_binding::{
+    Borrowed, Buffer, BytesWriter, Module, Owned, into_return, method_table_end, noargs,
+    single_argument, varargs,
+};
 use hmac::{Hmac, KeyInit, Mac, SimpleHmac};
 use md5::Md5;
 use ripemd::Ripemd160;
@@ -26,7 +27,6 @@ use sha2::{Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256};
 use sha3::{Sha3_224, Sha3_256, Sha3_384, Sha3_512};
 use sm3::Sm3;
 
-const PYBUF_SIMPLE: c_int = 0;
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
 #[derive(Clone)]
@@ -396,62 +396,37 @@ struct HashObject {
     state: *mut HashState,
 }
 
-struct BorrowedBuffer {
-    view: Py_buffer,
+fn acquire_buffer(object: *mut PyObject) -> Option<Buffer> {
+    Buffer::acquire(unsafe { Borrowed::from_raw(object) }).ok()
 }
 
-impl BorrowedBuffer {
-    unsafe fn from_object(object: *mut PyObject) -> Option<Self> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        if unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) } != 0 {
-            return None;
-        }
-        Some(Self {
-            view: unsafe { view.assume_init() },
-        })
+fn copy_checked(buffer: &Buffer, message: &'static CStr) -> Option<Vec<u8>> {
+    let bytes = buffer.as_bytes();
+    if bytes.len() > i32::MAX as usize {
+        unsafe { PyErr_SetString(PyExc_OverflowError, message.as_ptr()) };
+        return None;
     }
-
-    fn bytes(&self) -> &[u8] {
-        if self.view.len <= 0 {
-            return &[];
-        }
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
+    let mut owned = Vec::new();
+    if owned.try_reserve_exact(bytes.len()).is_err() {
+        unsafe { PyErr_NoMemory() };
+        return None;
     }
-
-    fn copy(&self, message: &'static std::ffi::CStr) -> Option<Vec<u8>> {
-        let bytes = self.bytes();
-        if bytes.len() > i32::MAX as usize {
-            unsafe { PyErr_SetString(PyExc_OverflowError, message.as_ptr()) };
-            return None;
-        }
-        let mut owned = Vec::new();
-        if owned.try_reserve_exact(bytes.len()).is_err() {
-            unsafe { PyErr_NoMemory() };
-            return None;
-        }
-        owned.extend_from_slice(bytes);
-        Some(owned)
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { cpython_sys::PyBuffer_Release(&mut self.view) }
-    }
+    owned.extend_from_slice(bytes);
+    Some(owned)
 }
 
 unsafe fn tuple_item(args: *mut PyObject, index: Py_ssize_t, count: Py_ssize_t) -> Option<*mut PyObject> {
-    if unsafe { cpython_sys::PyTuple_Size(args) } != count {
-        unsafe { PyErr_SetString(cpython_sys::PyExc_TypeError, c"invalid number of arguments".as_ptr()) };
+    if unsafe { PyTuple_Size(args) } != count {
+        unsafe { PyErr_SetString(PyExc_TypeError, c"invalid number of arguments".as_ptr()) };
         return None;
     }
-    let item = unsafe { cpython_sys::PyTuple_GetItem(args, index) };
+    let item = unsafe { PyTuple_GetItem(args, index) };
     if item.is_null() { None } else { Some(item) }
 }
 
 unsafe fn read_name(object: *mut PyObject) -> Option<String> {
     let mut size: Py_ssize_t = 0;
-    let name = unsafe { cpython_sys::PyUnicode_AsUTF8AndSize(object, &mut size) };
+    let name = unsafe { PyUnicode_AsUTF8AndSize(object, &mut size) };
     if name.is_null() {
         return None;
     }
@@ -528,11 +503,7 @@ fn allocate_hash(type_object: *mut PyTypeObject, state: HashState) -> *mut PyObj
 }
 
 fn return_bytes(bytes: &[u8]) -> *mut PyObject {
-    if bytes.len() > Py_ssize_t::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    unsafe { PyBytes_FromStringAndSize(bytes.as_ptr().cast::<c_char>(), bytes.len() as Py_ssize_t) }
+    into_return(BytesWriter::copy_of(bytes))
 }
 
 unsafe extern "C" fn new_hash(_module: *mut PyObject, args: *mut PyObject) -> *mut PyObject {
@@ -549,10 +520,10 @@ unsafe extern "C" fn new_hash(_module: *mut PyObject, args: *mut PyObject) -> *m
         unsafe { PyErr_SetString(PyExc_ValueError, c"unsupported hash algorithm".as_ptr()) };
         return ptr::null_mut();
     };
-    let Some(data) = (unsafe { BorrowedBuffer::from_object(data_object) }) else {
+    let Some(data) = (unsafe { acquire_buffer(data_object) }) else {
         return ptr::null_mut();
     };
-    state.update(data.bytes());
+    state.update(data.as_bytes());
 
     let type_object = unsafe { PyObject_GetAttrString(_module, c"HASH".as_ptr()) };
     if type_object.is_null() {
@@ -594,14 +565,14 @@ unsafe extern "C" fn pbkdf2_hmac(_module: *mut PyObject, args: *mut PyObject) ->
         };
         Some(value)
     };
-    let Some(password_view) = (unsafe { BorrowedBuffer::from_object(password_object) }) else {
+    let Some(password_view) = (unsafe { acquire_buffer(password_object) }) else {
         return ptr::null_mut();
     };
-    let password_length = password_view.bytes().len();
-    let Some(salt_view) = (unsafe { BorrowedBuffer::from_object(salt_object) }) else {
+    let password_length = password_view.as_bytes().len();
+    let Some(salt_view) = (unsafe { acquire_buffer(salt_object) }) else {
         return ptr::null_mut();
     };
-    let salt_length = salt_view.bytes().len();
+    let salt_length = salt_view.as_bytes().len();
     let (algorithm, iterations, length) = match pbkdf2_parameters(
         &normalized,
         password_length,
@@ -621,10 +592,10 @@ unsafe extern "C" fn pbkdf2_hmac(_module: *mut PyObject, args: *mut PyObject) ->
             return ptr::null_mut();
         }
     };
-    let Some(password) = password_view.copy(c"password is too long.") else {
+    let Some(password) = copy_checked(&password_view, c"password is too long.") else {
         return ptr::null_mut();
     };
-    let Some(salt) = salt_view.copy(c"salt is too long.") else {
+    let Some(salt) = copy_checked(&salt_view, c"salt is too long.") else {
         return ptr::null_mut();
     };
     let mut result = Vec::new();
@@ -665,14 +636,14 @@ unsafe extern "C" fn scrypt_derive(_module: *mut PyObject, args: *mut PyObject) 
     let Some(dklen) = (unsafe { read_long(dklen_object) }) else {
         return ptr::null_mut();
     };
-    let Some(password_view) = (unsafe { BorrowedBuffer::from_object(password_object) }) else {
+    let Some(password_view) = (unsafe { acquire_buffer(password_object) }) else {
         return ptr::null_mut();
     };
-    let password_length = password_view.bytes().len();
-    let Some(salt_view) = (unsafe { BorrowedBuffer::from_object(salt_object) }) else {
+    let password_length = password_view.as_bytes().len();
+    let Some(salt_view) = (unsafe { acquire_buffer(salt_object) }) else {
         return ptr::null_mut();
     };
-    let salt_length = salt_view.bytes().len();
+    let salt_length = salt_view.as_bytes().len();
     let (params, length) = match scrypt_parameters(
         password_length,
         salt_length,
@@ -688,10 +659,10 @@ unsafe extern "C" fn scrypt_derive(_module: *mut PyObject, args: *mut PyObject) 
             return ptr::null_mut();
         }
     };
-    let Some(password) = password_view.copy(c"password is too long") else {
+    let Some(password) = copy_checked(&password_view, c"password is too long") else {
         return ptr::null_mut();
     };
-    let Some(salt) = salt_view.copy(c"salt is too long") else {
+    let Some(salt) = copy_checked(&salt_view, c"salt is too long") else {
         return ptr::null_mut();
     };
     let mut output = Vec::new();
@@ -708,14 +679,14 @@ unsafe extern "C" fn scrypt_derive(_module: *mut PyObject, args: *mut PyObject) 
 }
 
 unsafe extern "C" fn update(object: *mut PyObject, data_object: *mut PyObject) -> *mut PyObject {
-    let Some(data) = (unsafe { BorrowedBuffer::from_object(data_object) }) else {
+    let Some(data) = (unsafe { acquire_buffer(data_object) }) else {
         return ptr::null_mut();
     };
     let Some(state) = (unsafe { object_state(object) }) else {
         return ptr::null_mut();
     };
-    unsafe { &mut *state }.update(data.bytes());
-    unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
+    unsafe { &mut *state }.update(data.as_bytes());
+    Owned::none().into_raw()
 }
 
 unsafe extern "C" fn copy_hash(object: *mut PyObject, _unused: *mut PyObject) -> *mut PyObject {
@@ -797,7 +768,7 @@ unsafe extern "C" fn hash_repr(object: *mut PyObject) -> *mut PyObject {
 }
 
 unsafe extern "C" fn dealloc(object: *mut PyObject) {
-    let type_object = unsafe { (*object.cast::<cpython_sys::_object>()).ob_type };
+    let type_object = unsafe { (*object).ob_type };
     let hash_object = unsafe { &mut *object.cast::<HashObject>() };
     if !hash_object.state.is_null() {
         unsafe { drop(Box::from_raw(hash_object.state)) };
@@ -812,103 +783,68 @@ unsafe extern "C" fn unhashable(object: *mut PyObject) -> isize {
     unsafe { PyObject_HashNotImplemented(object) }
 }
 
-pub static HASH_METHODS: [PyMethodDef; 5] = [
-    PyMethodDef {
-        ml_name: c"update".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: update },
-        ml_flags: METH_O,
-        ml_doc: c"Update the digest with bytes-like data.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"copy".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: copy_hash },
-        ml_flags: METH_NOARGS,
-        ml_doc: c"Return a copy of the hash object.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"digest".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: digest },
-        ml_flags: METH_NOARGS,
-        ml_doc: c"Return the digest of the data passed to update().".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"hexdigest".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: hexdigest },
-        ml_flags: METH_NOARGS,
-        ml_doc: c"Return the hexadecimal digest of the data passed to update().".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+static HASH_METHODS: [PyMethodDef; 5] = [
+    single_argument(c"update", update, c"Update the digest with bytes-like data."),
+    noargs(c"copy", copy_hash, c"Return a copy of the hash object."),
+    noargs(c"digest", digest, c"Return the digest of the data passed to update()."),
+    noargs(
+        c"hexdigest",
+        hexdigest,
+        c"Return the hexadecimal digest of the data passed to update().",
+    ),
+    method_table_end(),
 ];
 
-struct HashGetSet([PyGetSetDef; 4]);
+const fn read_only(
+    name: &'static CStr,
+    get: unsafe extern "C" fn(*mut PyObject, *mut c_void) -> *mut PyObject,
+    doc: &'static CStr,
+) -> PyGetSetDef {
+    PyGetSetDef {
+        name: name.as_ptr(),
+        get: Some(get),
+        set: None,
+        doc: doc.as_ptr(),
+        closure: ptr::null_mut(),
+    }
+}
 
-// CPython reads these immutable C definition tables after module initialization.
-unsafe impl Sync for HashGetSet {}
-
-static HASH_GETSET: HashGetSet = HashGetSet([
+static HASH_GETSET: [PyGetSetDef; 4] = [
+    read_only(c"name", get_name, c"Canonical name of this digest algorithm."),
+    read_only(c"digest_size", get_digest_size, c"Size of the digest in bytes."),
+    read_only(
+        c"block_size",
+        get_block_size,
+        c"Internal block size of the hash algorithm in bytes.",
+    ),
     PyGetSetDef {
-        name: c"name".as_ptr() as *mut c_char,
-        get: Some(get_name),
-        set: None,
-        doc: c"Canonical name of this digest algorithm.".as_ptr() as *mut c_char,
-        closure: ptr::null_mut(),
-    },
-    PyGetSetDef {
-        name: c"digest_size".as_ptr() as *mut c_char,
-        get: Some(get_digest_size),
-        set: None,
-        doc: c"Size of the digest in bytes.".as_ptr() as *mut c_char,
-        closure: ptr::null_mut(),
-    },
-    PyGetSetDef {
-        name: c"block_size".as_ptr() as *mut c_char,
-        get: Some(get_block_size),
-        set: None,
-        doc: c"Internal block size of the hash algorithm in bytes.".as_ptr() as *mut c_char,
-        closure: ptr::null_mut(),
-    },
-    PyGetSetDef {
-        name: ptr::null_mut(),
+        name: ptr::null(),
         get: None,
         set: None,
-        doc: ptr::null_mut(),
+        doc: ptr::null(),
         closure: ptr::null_mut(),
     },
-]);
+];
 
-struct HashTypeSlots([PyType_Slot; 6]);
-
-unsafe impl Sync for HashTypeSlots {}
-
-static HASH_TYPE_SLOTS: HashTypeSlots = HashTypeSlots([
-    PyType_Slot { slot: Py_tp_dealloc as c_int, pfunc: dealloc as *const () as *mut c_void },
-    PyType_Slot { slot: Py_tp_getset as c_int, pfunc: HASH_GETSET.0.as_ptr() as *mut c_void },
-    PyType_Slot { slot: Py_tp_hash as c_int, pfunc: unhashable as *const () as *mut c_void },
-    PyType_Slot { slot: Py_tp_methods as c_int, pfunc: HASH_METHODS.as_ptr() as *mut c_void },
-    PyType_Slot { slot: Py_tp_repr as c_int, pfunc: hash_repr as *const () as *mut c_void },
+static HASH_TYPE_SLOTS: [PyType_Slot; 6] = [
+    PyType_Slot { slot: Py_tp_dealloc, pfunc: dealloc as *const () as *mut c_void },
+    PyType_Slot { slot: Py_tp_getset, pfunc: HASH_GETSET.as_ptr() as *mut c_void },
+    PyType_Slot { slot: Py_tp_hash, pfunc: unhashable as *const () as *mut c_void },
+    PyType_Slot { slot: Py_tp_methods, pfunc: HASH_METHODS.as_ptr() as *mut c_void },
+    PyType_Slot { slot: Py_tp_repr, pfunc: hash_repr as *const () as *mut c_void },
     PyType_Slot { slot: 0, pfunc: ptr::null_mut() },
-]);
+];
 
-struct HashTypeSpec(PyType_Spec);
-
-unsafe impl Sync for HashTypeSpec {}
-
-static HASH_TYPE_SPEC: HashTypeSpec = HashTypeSpec(PyType_Spec {
+static HASH_TYPE_SPEC: PyType_Spec = PyType_Spec {
     name: c"_hashlib_rs.HASH".as_ptr(),
     basicsize: size_of::<HashObject>() as c_int,
     itemsize: 0,
     flags: Py_TPFLAGS_DEFAULT | Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,
-    slots: HASH_TYPE_SLOTS.0.as_ptr() as *mut PyType_Slot,
-});
-
-unsafe extern "C" fn clear_module(_module: *mut PyObject) -> c_int {
-    0
-}
-
-unsafe extern "C" fn free_module(_module: *mut c_void) {}
+    slots: HASH_TYPE_SLOTS.as_ptr().cast_mut(),
+};
 
 unsafe extern "C" fn exec_module(module: *mut PyObject) -> c_int {
-    let hash_type = unsafe { PyType_FromSpec(&HASH_TYPE_SPEC.0 as *const PyType_Spec as *mut PyType_Spec) };
+    let hash_type = unsafe { PyType_FromSpec(ptr::addr_of!(HASH_TYPE_SPEC).cast_mut()) };
     if hash_type.is_null() {
         return -1;
     }
@@ -919,71 +855,25 @@ unsafe extern "C" fn exec_module(module: *mut PyObject) -> c_int {
     0
 }
 
-struct HashModuleSlots([PyModuleDef_Slot; 3]);
-
-unsafe impl Sync for HashModuleSlots {}
-
-// These are the generated slot IDs in the pinned CPython 3.16 fork.
-const PY_MOD_EXEC: c_int = 85;
-const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2 as *mut c_void;
-
-static MODULE_SLOTS: HashModuleSlots = HashModuleSlots([
-    PyModuleDef_Slot { slot: PY_MOD_EXEC, value: exec_module as *const () as *mut c_void },
-    PyModuleDef_Slot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
+static MODULE_SLOTS: [PyModuleDef_Slot; 3] = [
+    PyModuleDef_Slot { slot: Py_mod_exec, value: exec_module as *const () as *mut c_void },
+    PER_INTERPRETER_GIL_SLOT,
     PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
-]);
-
-pub struct ModuleDef {
-    ffi: std::cell::UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static MODULE_METHODS: [PyMethodDef; 4] = [
-    PyMethodDef {
-        ml_name: c"new".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: new_hash },
-        ml_flags: METH_VARARGS,
-        ml_doc: c"Create a Rust-backed fixed-output digest object.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"pbkdf2_hmac".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: pbkdf2_hmac },
-        ml_flags: METH_VARARGS,
-        ml_doc: c"Derive a key with PBKDF2-HMAC.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"scrypt".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunction: scrypt_derive },
-        ml_flags: METH_VARARGS,
-        ml_doc: c"Derive a key with scrypt.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
 ];
 
-pub static MODULE: ModuleDef = ModuleDef {
-    ffi: std::cell::UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_hashlib_rs".as_ptr() as *mut c_char,
-        m_doc: c"Rust-backed digest, PBKDF2, and scrypt implementations used by hashlib.".as_ptr() as *mut c_char,
-        m_size: 0,
-        m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
-        m_traverse: None,
-        m_clear: Some(clear_module),
-        m_free: Some(free_module),
-    }),
-};
+static MODULE_METHODS: [PyMethodDef; 4] = [
+    varargs(c"new", new_hash, c"Create a Rust-backed fixed-output digest object."),
+    varargs(c"pbkdf2_hmac", pbkdf2_hmac, c"Derive a key with PBKDF2-HMAC."),
+    varargs(c"scrypt", scrypt_derive, c"Derive a key with scrypt."),
+    method_table_end(),
+];
+
+static MODULE: Module = Module::new(
+    c"_hashlib_rs",
+    c"Rust-backed digest, PBKDF2, and scrypt implementations used by hashlib.",
+    &MODULE_METHODS,
+)
+.with_slots(&MODULE_SLOTS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__hashlib_rs() -> *mut PyObject {

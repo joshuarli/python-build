@@ -1,41 +1,16 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
-use std::ptr;
 use std::slice;
 
-use base64::engine::general_purpose::{
-    GeneralPurpose, GeneralPurposeConfig, STANDARD, STANDARD_NO_PAD, URL_SAFE,
-    URL_SAFE_NO_PAD,
-};
 use base64::engine::DecodePaddingMode;
-use base64::{alphabet, DecodeSliceError, Engine};
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::Py_DecRef;
-use cpython_sys::Py_buffer;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::PyBuffer_Release;
-use cpython_sys::PyBytes_AsString;
-use cpython_sys::_PyBytes_Resize;
-use cpython_sys::PyBytes_FromStringAndSize;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::Py_NewRef;
-use cpython_sys::PyObject_IsTrue;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_GetBuffer;
-use cpython_sys::_Py_NoneStruct;
-use data_encoding::{
-    Encoding, BASE32, BASE32HEX, BASE32HEX_NOPAD, BASE32_NOPAD, HEXUPPER,
+use base64::engine::general_purpose::{
+    GeneralPurpose, GeneralPurposeConfig, STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD,
 };
-
-const PYBUF_SIMPLE: c_int = 0;
+use base64::{DecodeSliceError, Engine, alphabet};
+use cpython_binding::ffi::{PyErr_NoMemory, PyMethodDef, PyObject, PyObject_IsTrue, Py_ssize_t};
+use cpython_binding::{
+    Borrowed, Buffer, BytesWriter, Exception, Module, Outcome, Owned, Stop, fastcall,
+    fastcall_arguments, into_return, method_table_end, raise,
+};
+use data_encoding::{BASE32, BASE32HEX, BASE32HEX_NOPAD, BASE32_NOPAD, Encoding, HEXUPPER};
 
 const STANDARD_COMPAT: GeneralPurpose = GeneralPurpose::new(
     &alphabet::STANDARD,
@@ -63,158 +38,53 @@ fn encoded_output_len(input_len: usize, padded: bool) -> Option<usize> {
     }
 }
 
-fn encode_with<E: Engine>(source: &PyObject, engine: &E, padded: bool) -> Result<*mut PyObject, ()> {
-    let buffer = BorrowedBuffer::from_object(source)?;
-    let view_len = buffer.len();
-    if view_len < 0 {
-        unsafe {
-            PyErr_SetString(
-                PyExc_TypeError,
-                c"base64 encode argument has negative length".as_ptr(),
-            );
-        }
-        return Err(());
-    }
+fn out_of_memory() -> Stop {
+    unsafe { PyErr_NoMemory() };
+    Stop::Raised
+}
 
-    let input_len = view_len as usize;
-    let input = unsafe { slice::from_raw_parts(buffer.as_ptr(), input_len) };
-    let Some(output_len) = encoded_output_len(input_len, padded) else {
-        unsafe {
-            PyErr_NoMemory();
-        }
-        return Err(());
-    };
-    if output_len > isize::MAX as usize {
-        unsafe {
-            PyErr_NoMemory();
-        }
-        return Err(());
-    }
-
-    let result = unsafe { PyBytes_FromStringAndSize(ptr::null(), output_len as Py_ssize_t) };
-    if result.is_null() {
-        return Err(());
-    }
-    let dest_ptr = unsafe { PyBytes_AsString(result) };
-    if dest_ptr.is_null() {
-        unsafe {
-            Py_DecRef(result);
-        }
-        return Err(());
-    }
-    let dest = unsafe { slice::from_raw_parts_mut(dest_ptr.cast::<u8>(), output_len) };
-    match engine.encode_slice(input, dest) {
-        Ok(written) if written == output_len => Ok(result),
-        _ => {
-            unsafe {
-                Py_DecRef(result);
-                PyErr_NoMemory();
-            }
-            Err(())
-        }
+fn flag(object: Borrowed<'_>) -> Outcome<bool> {
+    match unsafe { PyObject_IsTrue(object.as_ptr()) } {
+        result if result < 0 => Err(Stop::Raised),
+        result => Ok(result != 0),
     }
 }
 
-fn bytes_from_slice(data: &[u8]) -> *mut PyObject {
-    if data.len() > isize::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
+fn output_slice(writer: &mut BytesWriter) -> &mut [u8] {
+    let length = writer.len();
+    unsafe { slice::from_raw_parts_mut(writer.uninit().as_mut_ptr().cast::<u8>(), length) }
+}
+
+fn encode_with<E: Engine>(source: Borrowed<'_>, engine: &E, padded: bool) -> Outcome<Owned> {
+    let buffer = Buffer::acquire(source)?;
+    let input = buffer.as_bytes();
+    let output_len = encoded_output_len(input.len(), padded).ok_or_else(out_of_memory)?;
+    let mut writer = BytesWriter::create(output_len)?;
+    match engine.encode_slice(input, output_slice(&mut writer)) {
+        Ok(written) if written == output_len => unsafe { writer.finish(output_len) },
+        _ => Err(out_of_memory()),
     }
-    unsafe { PyBytes_FromStringAndSize(data.as_ptr().cast(), data.len() as Py_ssize_t) }
 }
 
-fn bytes_from_vec(data: Vec<u8>) -> *mut PyObject {
-    bytes_from_slice(&data)
-}
-
-fn borrowed_bytes(source: &PyObject, operation: &'static [u8]) -> Result<(BorrowedBuffer, Vec<u8>), ()> {
-    let buffer = BorrowedBuffer::from_object(source)?;
-    let len = buffer.len();
-    if len < 0 {
-        unsafe { PyErr_SetString(PyExc_TypeError, operation.as_ptr().cast()) };
-        return Err(());
-    }
-    let input = unsafe { slice::from_raw_parts(buffer.as_ptr(), len as usize) }.to_vec();
-    Ok((buffer, input))
-}
-
-unsafe fn none_ref() -> *mut PyObject {
-    unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
-}
-
-/// Allocate an uninitialized bytes object of `len` bytes.
-unsafe fn new_bytes(len: usize) -> Result<(*mut PyObject, *mut u8), ()> {
-    if len > isize::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return Err(());
-    }
-    let result = unsafe { PyBytes_FromStringAndSize(ptr::null(), len as Py_ssize_t) };
-    if result.is_null() {
-        return Err(());
-    }
-    Ok((result, unsafe { PyBytes_AsString(result) }.cast::<u8>()))
-}
-
-/// Shrink a freshly built bytes object to `len` bytes.
-unsafe fn shrink_bytes(result: *mut PyObject, len: usize) -> *mut PyObject {
-    let mut result = result;
-    if unsafe { _PyBytes_Resize(&mut result, len as Py_ssize_t) } != 0 {
-        return ptr::null_mut();
-    }
-    result
-}
-
-fn encode_data_encoding(
-    source: &PyObject,
-    encoding: &'static Encoding,
-) -> *mut PyObject {
-    let buffer = match BorrowedBuffer::from_object(source) {
-        Ok(buffer) => buffer,
-        Err(()) => return ptr::null_mut(),
-    };
-    let Some(input) = buffer.as_slice() else {
-        unsafe {
-            PyErr_SetString(PyExc_TypeError, c"base encoding argument has negative length".as_ptr())
-        };
-        return ptr::null_mut();
-    };
+fn encode_data_encoding(source: Borrowed<'_>, encoding: &'static Encoding) -> Outcome<Owned> {
+    let buffer = Buffer::acquire(source)?;
+    let input = buffer.as_bytes();
     let output_len = encoding.encode_len(input.len());
-    let Ok((result, dest_ptr)) = (unsafe { new_bytes(output_len) }) else {
-        return ptr::null_mut();
-    };
-    let dest = unsafe { slice::from_raw_parts_mut(dest_ptr, output_len) };
-    encoding.encode_mut(input, dest);
-    result
+    let mut writer = BytesWriter::create(output_len)?;
+    encoding.encode_mut(input, output_slice(&mut writer));
+    unsafe { writer.finish(output_len) }
 }
 
-fn decode_data_encoding(
-    source: &PyObject,
-    encoding: &'static Encoding,
-) -> *mut PyObject {
-    let buffer = match BorrowedBuffer::from_object(source) {
-        Ok(buffer) => buffer,
-        Err(()) => return ptr::null_mut(),
-    };
-    let Some(input) = buffer.as_slice() else {
-        unsafe {
-            PyErr_SetString(PyExc_TypeError, c"base decoding argument has negative length".as_ptr())
-        };
-        return ptr::null_mut();
-    };
-    let Ok(capacity) = encoding.decode_len(input.len()) else {
-        return unsafe { none_ref() };
-    };
-    let Ok((result, dest_ptr)) = (unsafe { new_bytes(capacity) }) else {
-        return ptr::null_mut();
-    };
-    let dest = unsafe { slice::from_raw_parts_mut(dest_ptr, capacity) };
-    match encoding.decode_mut(input, dest) {
-        Ok(written) if written == capacity => result,
-        Ok(written) => unsafe { shrink_bytes(result, written) },
-        Err(_) => {
-            unsafe { Py_DecRef(result) };
-            unsafe { none_ref() }
-        }
+fn decode_data_encoding(source: Borrowed<'_>, encoding: &'static Encoding) -> Outcome<Owned> {
+    let buffer = Buffer::acquire(source)?;
+    let input = buffer.as_bytes();
+    let capacity = encoding
+        .decode_len(input.len())
+        .map_err(|_| Stop::Unsupported)?;
+    let mut writer = BytesWriter::create(capacity)?;
+    match encoding.decode_mut(input, output_slice(&mut writer)) {
+        Ok(written) => unsafe { writer.finish(written) },
+        Err(_) => Err(Stop::Unsupported),
     }
 }
 
@@ -339,336 +209,107 @@ fn decode_ascii85(input: &[u8]) -> Option<Vec<u8>> {
     Some(output)
 }
 
-unsafe fn encode_one_argument(
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-    name: *const c_char,
-    encoding: &'static Encoding,
-) -> *mut PyObject {
-    if nargs != 1 {
-        unsafe { PyErr_SetString(PyExc_TypeError, name) };
-        return ptr::null_mut();
-    }
-    encode_data_encoding(unsafe { &**args }, encoding)
+fn argument_count_error(message: &'static std::ffi::CStr) -> Stop {
+    raise(Exception::TypeError, message)
 }
 
-unsafe fn decode_one_argument(
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-    name: *const c_char,
-    encoding: &'static Encoding,
-) -> *mut PyObject {
-    if nargs != 1 {
-        unsafe { PyErr_SetString(PyExc_TypeError, name) };
-        return ptr::null_mut();
-    }
-    decode_data_encoding(unsafe { &**args }, encoding)
-}
-
-pub unsafe extern "C" fn b16encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { encode_one_argument(args, nargs, c"b16encode() takes exactly one argument".as_ptr(), &HEXUPPER_ENCODING) }
-}
-
-pub unsafe extern "C" fn b16decode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { decode_one_argument(args, nargs, c"b16decode() takes exactly one argument".as_ptr(), &HEXUPPER_ENCODING) }
-}
-
-unsafe fn b32_encode_dispatch(
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-    hex: bool,
-) -> *mut PyObject {
-    if nargs != 2 {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"Base32 encode requires data and padded".as_ptr()) };
-        return ptr::null_mut();
-    }
-    let padded = match truthy(unsafe { *args.add(1) }) {
-        Ok(value) => value,
-        Err(()) => return ptr::null_mut(),
-    };
-    let encoding = match (hex, padded) {
+fn base32_encoding(hex: bool, padded: bool) -> &'static Encoding {
+    match (hex, padded) {
         (false, true) => &BASE32_ENCODING,
         (false, false) => &BASE32_NOPAD_ENCODING,
         (true, true) => &BASE32HEX_ENCODING,
         (true, false) => &BASE32HEX_NOPAD_ENCODING,
-    };
-    encode_data_encoding(unsafe { &**args }, encoding)
-}
-
-unsafe fn b32_decode_dispatch(
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-    hex: bool,
-) -> *mut PyObject {
-    if nargs != 2 {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"Base32 decode requires data and padded".as_ptr()) };
-        return ptr::null_mut();
-    }
-    let padded = match truthy(unsafe { *args.add(1) }) {
-        Ok(value) => value,
-        Err(()) => return ptr::null_mut(),
-    };
-    let encoding = match (hex, padded) {
-        (false, true) => &BASE32_ENCODING,
-        (false, false) => &BASE32_NOPAD_ENCODING,
-        (true, true) => &BASE32HEX_ENCODING,
-        (true, false) => &BASE32HEX_NOPAD_ENCODING,
-    };
-    decode_data_encoding(unsafe { &**args }, encoding)
-}
-
-pub unsafe extern "C" fn b32encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { b32_encode_dispatch(args, nargs, false) }
-}
-
-pub unsafe extern "C" fn b32decode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { b32_decode_dispatch(args, nargs, false) }
-}
-
-pub unsafe extern "C" fn b32hexencode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { b32_encode_dispatch(args, nargs, true) }
-}
-
-pub unsafe extern "C" fn b32hexdecode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { b32_decode_dispatch(args, nargs, true) }
-}
-
-unsafe fn encode_85(
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-    alphabet: &'static [u8; 85],
-) -> *mut PyObject {
-    if nargs != 2 {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"Base85 encode requires data and pad".as_ptr()) };
-        return ptr::null_mut();
-    }
-    let padded = match truthy(unsafe { *args.add(1) }) {
-        Ok(value) => value,
-        Err(()) => return ptr::null_mut(),
-    };
-    let (buffer, input) = match borrowed_bytes(unsafe { &**args }, b"base85 encode argument has negative length\0") {
-        Ok(data) => data,
-        Err(()) => return ptr::null_mut(),
-    };
-    drop(buffer);
-    bytes_from_vec(encode_base85(&input, padded, alphabet))
-}
-
-unsafe fn decode_85(
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-    alphabet: &'static [u8; 85],
-) -> *mut PyObject {
-    if nargs != 1 {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"Base85 decode requires one argument".as_ptr()) };
-        return ptr::null_mut();
-    }
-    let (buffer, input) = match borrowed_bytes(unsafe { &**args }, b"base85 decode argument has negative length\0") {
-        Ok(data) => data,
-        Err(()) => return ptr::null_mut(),
-    };
-    drop(buffer);
-    match decode_base85(&input, alphabet) {
-        Some(output) => bytes_from_vec(output),
-        None => unsafe { none_ref() },
     }
 }
 
-pub unsafe extern "C" fn b85encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { encode_85(args, nargs, B85_ALPHABET) }
-}
-
-pub unsafe extern "C" fn b85decode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { decode_85(args, nargs, B85_ALPHABET) }
-}
-
-pub unsafe extern "C" fn z85encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { encode_85(args, nargs, Z85_ALPHABET) }
-}
-
-pub unsafe extern "C" fn z85decode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    unsafe { decode_85(args, nargs, Z85_ALPHABET) }
-}
-
-pub unsafe extern "C" fn a85encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 1 {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"a85encode() takes exactly one argument".as_ptr()) };
-        return ptr::null_mut();
-    }
-    let (buffer, input) = match borrowed_bytes(unsafe { &**args }, b"Ascii85 encode argument has negative length\0") {
-        Ok(data) => data,
-        Err(()) => return ptr::null_mut(),
+fn base32_encode(arguments: &[Borrowed<'_>], hex: bool) -> Outcome<Owned> {
+    let [data, padded] = arguments else {
+        return Err(argument_count_error(c"Base32 encode requires data and padded"));
     };
-    drop(buffer);
-    bytes_from_vec(encode_ascii85(&input))
+    let padded = flag(*padded)?;
+    encode_data_encoding(*data, base32_encoding(hex, padded))
 }
 
-pub unsafe extern "C" fn a85decode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 1 {
-        unsafe { PyErr_SetString(PyExc_TypeError, c"a85decode() takes exactly one argument".as_ptr()) };
-        return ptr::null_mut();
-    }
-    let (buffer, input) = match borrowed_bytes(unsafe { &**args }, b"Ascii85 decode argument has negative length\0") {
-        Ok(data) => data,
-        Err(()) => return ptr::null_mut(),
+fn base32_decode(arguments: &[Borrowed<'_>], hex: bool) -> Outcome<Owned> {
+    let [data, padded] = arguments else {
+        return Err(argument_count_error(c"Base32 decode requires data and padded"));
     };
-    drop(buffer);
-    match decode_ascii85(&input) {
-        Some(output) => bytes_from_vec(output),
-        None => unsafe { none_ref() },
-    }
+    let padded = flag(*padded)?;
+    decode_data_encoding(*data, base32_encoding(hex, padded))
 }
 
-pub extern "C" fn _base64_clear(_obj: *mut PyObject) -> c_int {
-    0
+fn base16_encode(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
+    let [data] = arguments else {
+        return Err(argument_count_error(c"b16encode() takes exactly one argument"));
+    };
+    encode_data_encoding(*data, &HEXUPPER_ENCODING)
 }
 
-pub extern "C" fn _base64_free(_obj: *mut c_void) {}
-
-/// # Safety
-/// `module` must be a valid pointer of PyObject representing the module.
-/// `args` must be a valid pointer to an array of valid PyObject pointers with length `nargs`.
-pub unsafe extern "C" fn standard_b64encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 1 && nargs != 2 {
-        unsafe {
-            PyErr_SetString(
-                PyExc_TypeError,
-                c"standard_b64encode() takes one or two arguments".as_ptr(),
-            );
-        }
-        return ptr::null_mut();
-    }
-
-    let source = unsafe { &**args };
-    let padded = if nargs == 1 {
-        true
-    } else {
-        match truthy(unsafe { *args.add(1) }) {
-            Ok(value) => value,
-            Err(()) => return ptr::null_mut(),
-        }
+fn base16_decode(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
+    let [data] = arguments else {
+        return Err(argument_count_error(c"b16decode() takes exactly one argument"));
     };
-    let engine = if padded { &STANDARD } else { &STANDARD_NO_PAD };
-    match encode_with(source, engine, padded) {
-        Ok(result) => result,
-        Err(()) => ptr::null_mut(),
-    }
+    decode_data_encoding(*data, &HEXUPPER_ENCODING)
 }
 
-pub unsafe extern "C" fn urlsafe_b64encode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 1 && nargs != 2 {
-        unsafe {
-            PyErr_SetString(
-                PyExc_TypeError,
-                c"urlsafe_b64encode() takes one or two arguments".as_ptr(),
-            );
-        }
-        return ptr::null_mut();
-    }
-
-    let source = unsafe { &**args };
-    let padded = if nargs == 1 {
-        true
-    } else {
-        match truthy(unsafe { *args.add(1) }) {
-            Ok(value) => value,
-            Err(()) => return ptr::null_mut(),
-        }
+fn base85_encode(arguments: &[Borrowed<'_>], alphabet: &'static [u8; 85]) -> Outcome<Owned> {
+    let [data, padded] = arguments else {
+        return Err(argument_count_error(c"Base85 encode requires data and pad"));
     };
-    let engine = if padded { &URL_SAFE } else { &URL_SAFE_NO_PAD };
-    match encode_with(source, engine, padded) {
-        Ok(result) => result,
-        Err(()) => ptr::null_mut(),
-    }
+    let padded = flag(*padded)?;
+    let buffer = Buffer::acquire(*data)?;
+    BytesWriter::copy_of(&encode_base85(buffer.as_bytes(), padded, alphabet))
 }
 
-pub unsafe extern "C" fn b64decode(
-    _module: *mut PyObject,
-    args: *mut *mut PyObject,
-    nargs: Py_ssize_t,
-) -> *mut PyObject {
-    if nargs != 3 {
-        unsafe {
-            PyErr_SetString(PyExc_TypeError, c"b64decode() takes exactly three arguments".as_ptr());
-        }
-        return ptr::null_mut();
-    }
+fn base85_decode(arguments: &[Borrowed<'_>], alphabet: &'static [u8; 85]) -> Outcome<Owned> {
+    let [data] = arguments else {
+        return Err(argument_count_error(c"Base85 decode requires one argument"));
+    };
+    let buffer = Buffer::acquire(*data)?;
+    let output = decode_base85(buffer.as_bytes(), alphabet).ok_or(Stop::Unsupported)?;
+    BytesWriter::copy_of(&output)
+}
 
-    let source = unsafe { &**args };
-    let validate = match truthy(unsafe { *args.add(1) }) {
-        Ok(value) => value,
-        Err(()) => return ptr::null_mut(),
+fn ascii85_encode(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
+    let [data] = arguments else {
+        return Err(argument_count_error(c"a85encode() takes exactly one argument"));
     };
-    let padded = match truthy(unsafe { *args.add(2) }) {
-        Ok(value) => value,
-        Err(()) => return ptr::null_mut(),
+    let buffer = Buffer::acquire(*data)?;
+    BytesWriter::copy_of(&encode_ascii85(buffer.as_bytes()))
+}
+
+fn ascii85_decode(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
+    let [data] = arguments else {
+        return Err(argument_count_error(c"a85decode() takes exactly one argument"));
     };
-    let buffer = match BorrowedBuffer::from_object(source) {
-        Ok(buffer) => buffer,
-        Err(()) => return ptr::null_mut(),
+    let buffer = Buffer::acquire(*data)?;
+    let output = decode_ascii85(buffer.as_bytes()).ok_or(Stop::Unsupported)?;
+    BytesWriter::copy_of(&output)
+}
+
+fn padded_encode<E: Engine>(
+    arguments: &[Borrowed<'_>],
+    padded_engine: &E,
+    unpadded_engine: &E,
+    message: &'static std::ffi::CStr,
+) -> Outcome<Owned> {
+    let (source, padded) = match arguments {
+        [source] => (*source, true),
+        [source, padded] => (*source, flag(*padded)?),
+        _ => return Err(argument_count_error(message)),
     };
-    let Some(input) = buffer.as_slice() else {
-        unsafe {
-            PyErr_SetString(PyExc_TypeError, c"base64 decode argument has negative length".as_ptr());
-        }
-        return ptr::null_mut();
+    let engine = if padded { padded_engine } else { unpadded_engine };
+    encode_with(source, engine, padded)
+}
+
+fn base64_decode(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
+    let [source, validate, padded] = arguments else {
+        return Err(argument_count_error(c"b64decode() takes exactly three arguments"));
     };
+    let validate = flag(*validate)?;
+    let padded = flag(*padded)?;
+    let buffer = Buffer::acquire(*source)?;
+    let input = buffer.as_bytes();
 
     // Discarded characters are rare: decode straight from the caller's
     // buffer when every byte is part of the alphabet, and only build a
@@ -680,7 +321,7 @@ pub unsafe extern "C" fn b64decode(
     let input = if input.iter().all(|&byte| is_clean(byte)) {
         input
     } else if validate {
-        return unsafe { none_ref() };
+        return Err(Stop::Unsupported);
     } else {
         cleaned = input.iter().copied().filter(|&byte| is_clean(byte)).collect::<Vec<u8>>();
         &cleaned[..]
@@ -691,13 +332,15 @@ pub unsafe extern "C" fn b64decode(
     } else {
         &STANDARD_NO_PAD_COMPAT
     };
-    // Size the result exactly so a valid decode needs no shrink (a shrinking
-    // realloc of a large bytes object can copy it); the crate's estimate is a
-    // fallback if this count is ever too small.
     let estimate = (input.len() / 4 + usize::from(input.len() % 4 != 0)).saturating_mul(3);
     let exact = match input.len() % 4 {
         0 if padded => {
-            let padding = input.iter().rev().take(2).take_while(|&&byte| byte == b'=').count();
+            let padding = input
+                .iter()
+                .rev()
+                .take(2)
+                .take_while(|&&byte| byte == b'=')
+                .count();
             estimate - padding.min(estimate)
         }
         2 if !padded => estimate - 2,
@@ -705,138 +348,77 @@ pub unsafe extern "C" fn b64decode(
         _ => estimate,
     };
     for capacity in [exact, estimate] {
-        let Ok((result, dest_ptr)) = (unsafe { new_bytes(capacity) }) else {
-            return ptr::null_mut();
-        };
-        let dest = unsafe { slice::from_raw_parts_mut(dest_ptr, capacity) };
-        match engine.decode_slice(input, dest) {
-            Ok(written) if written == capacity => return result,
-            Ok(written) => return unsafe { shrink_bytes(result, written) },
-            Err(DecodeSliceError::OutputSliceTooSmall) if capacity != estimate => {
-                unsafe { Py_DecRef(result) };
-            }
-            Err(_) => {
-                unsafe { Py_DecRef(result) };
-                return unsafe { none_ref() };
-            }
+        let mut writer = BytesWriter::create(capacity)?;
+        match engine.decode_slice(input, output_slice(&mut writer)) {
+            Ok(written) => return unsafe { writer.finish(written) },
+            Err(DecodeSliceError::OutputSliceTooSmall) if capacity != estimate => {}
+            Err(_) => return Err(Stop::Unsupported),
         }
     }
-    unsafe { none_ref() }
+    Err(Stop::Unsupported)
 }
 
-fn truthy(value: *mut PyObject) -> Result<bool, ()> {
-    let result = unsafe { PyObject_IsTrue(value) };
-    if result < 0 {
-        Err(())
-    } else {
-        Ok(result != 0)
-    }
-}
-
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    fn from_object(obj: &PyObject) -> Result<Self, ()> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        let buffer = unsafe {
-            if PyObject_GetBuffer(obj.as_raw(), view.as_mut_ptr(), PYBUF_SIMPLE) != 0 {
-                return Err(());
-            }
-            Self {
-                view: view.assume_init(),
-            }
-        };
-        Ok(buffer)
-    }
-
-    fn len(&self) -> Py_ssize_t {
-        self.view.len
-    }
-
-    fn as_ptr(&self) -> *const u8 {
-        self.view.buf.cast::<u8>() as *const u8
-    }
-
-    /// The bytes of the view, or `None` for a negative length.
-    fn as_slice(&self) -> Option<&[u8]> {
-        if self.view.len < 0 {
-            return None;
-        }
-        Some(unsafe { slice::from_raw_parts(self.as_ptr(), self.view.len as usize) })
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe {
-            PyBuffer_Release(&mut self.view);
-        }
-    }
-}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-macro_rules! module_method {
-    ($name:expr, $function:ident, $doc:expr) => {
-        PyMethodDef {
-            ml_name: $name.as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer {
-                PyCFunctionFast: $function,
-            },
-            ml_flags: METH_FASTCALL,
-            ml_doc: $doc.as_ptr() as *mut c_char,
+macro_rules! entry_point {
+    ($name:ident, |$arguments:ident| $body:expr) => {
+        pub unsafe extern "C" fn $name(
+            _module: *mut PyObject,
+            args: *mut *mut PyObject,
+            nargs: Py_ssize_t,
+        ) -> *mut PyObject {
+            let $arguments = unsafe { fastcall_arguments(args, nargs) };
+            into_return($body)
         }
     };
 }
 
-pub static _BASE64_MODULE_METHODS: [PyMethodDef; 16] = [
-    module_method!(c"standard_b64encode", standard_b64encode, c"Encode with the standard Base64 alphabet"),
-    module_method!(c"urlsafe_b64encode", urlsafe_b64encode, c"Encode with the URL-safe Base64 alphabet"),
-    module_method!(c"b64decode", b64decode, c"Decode Base64 data for the public base64 module"),
-    module_method!(c"b16encode", b16encode, c"Encode with the Base16 alphabet"),
-    module_method!(c"b16decode", b16decode, c"Decode Base16 data for the public base64 module"),
-    module_method!(c"b32encode", b32encode, c"Encode with the Base32 alphabet"),
-    module_method!(c"b32decode", b32decode, c"Decode Base32 data for the public base64 module"),
-    module_method!(c"b32hexencode", b32hexencode, c"Encode with the Base32hex alphabet"),
-    module_method!(c"b32hexdecode", b32hexdecode, c"Decode Base32hex data for the public base64 module"),
-    module_method!(c"b85encode", b85encode, c"Encode with the Base85 alphabet"),
-    module_method!(c"b85decode", b85decode, c"Decode Base85 data for the public base64 module"),
-    module_method!(c"z85encode", z85encode, c"Encode with the Z85 alphabet"),
-    module_method!(c"z85decode", z85decode, c"Decode Z85 data for the public base64 module"),
-    module_method!(c"a85encode", a85encode, c"Encode with the Ascii85 alphabet"),
-    module_method!(c"a85decode", a85decode, c"Decode Ascii85 data for the public base64 module"),
-    PyMethodDef::zeroed(),
+entry_point!(standard_b64encode, |arguments| padded_encode(
+    arguments,
+    &STANDARD,
+    &STANDARD_NO_PAD,
+    c"standard_b64encode() takes one or two arguments"
+));
+entry_point!(urlsafe_b64encode, |arguments| padded_encode(
+    arguments,
+    &URL_SAFE,
+    &URL_SAFE_NO_PAD,
+    c"urlsafe_b64encode() takes one or two arguments"
+));
+entry_point!(b64decode, |arguments| base64_decode(arguments));
+entry_point!(b16encode, |arguments| base16_encode(arguments));
+entry_point!(b16decode, |arguments| base16_decode(arguments));
+entry_point!(b32encode, |arguments| base32_encode(arguments, false));
+entry_point!(b32decode, |arguments| base32_decode(arguments, false));
+entry_point!(b32hexencode, |arguments| base32_encode(arguments, true));
+entry_point!(b32hexdecode, |arguments| base32_decode(arguments, true));
+entry_point!(b85encode, |arguments| base85_encode(arguments, B85_ALPHABET));
+entry_point!(b85decode, |arguments| base85_decode(arguments, B85_ALPHABET));
+entry_point!(z85encode, |arguments| base85_encode(arguments, Z85_ALPHABET));
+entry_point!(z85decode, |arguments| base85_decode(arguments, Z85_ALPHABET));
+entry_point!(a85encode, |arguments| ascii85_encode(arguments));
+entry_point!(a85decode, |arguments| ascii85_decode(arguments));
+
+static METHODS: [PyMethodDef; 16] = [
+    fastcall(c"standard_b64encode", standard_b64encode, c"Encode with the standard Base64 alphabet"),
+    fastcall(c"urlsafe_b64encode", urlsafe_b64encode, c"Encode with the URL-safe Base64 alphabet"),
+    fastcall(c"b64decode", b64decode, c"Decode Base64 data for the public base64 module"),
+    fastcall(c"b16encode", b16encode, c"Encode with the Base16 alphabet"),
+    fastcall(c"b16decode", b16decode, c"Decode Base16 data for the public base64 module"),
+    fastcall(c"b32encode", b32encode, c"Encode with the Base32 alphabet"),
+    fastcall(c"b32decode", b32decode, c"Decode Base32 data for the public base64 module"),
+    fastcall(c"b32hexencode", b32hexencode, c"Encode with the Base32hex alphabet"),
+    fastcall(c"b32hexdecode", b32hexdecode, c"Decode Base32hex data for the public base64 module"),
+    fastcall(c"b85encode", b85encode, c"Encode with the Base85 alphabet"),
+    fastcall(c"b85decode", b85decode, c"Decode Base85 data for the public base64 module"),
+    fastcall(c"z85encode", z85encode, c"Encode with the Z85 alphabet"),
+    fastcall(c"z85decode", z85decode, c"Decode Z85 data for the public base64 module"),
+    fastcall(c"a85encode", a85encode, c"Encode with the Ascii85 alphabet"),
+    fastcall(c"a85decode", a85decode, c"Decode Ascii85 data for the public base64 module"),
+    method_table_end(),
 ];
 
-pub static _BASE64_MODULE: ModuleDef = {
-    ModuleDef {
-        ffi: UnsafeCell::new(PyModuleDef {
-            m_base: PyModuleDef_HEAD_INIT,
-            m_name: c"_base64".as_ptr() as *mut _,
-            m_doc: c"Rust encoding engines used by base64".as_ptr() as *mut _,
-            m_size: 0,
-            m_methods: &_BASE64_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: std::ptr::null_mut(),
-            m_traverse: None,
-            m_clear: Some(_base64_clear),
-            m_free: Some(_base64_free),
-        }),
-    }
-};
+static MODULE: Module = Module::new(c"_base64", c"Rust encoding engines used by base64", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__base64() -> *mut PyObject {
-    _BASE64_MODULE.init_multi_phase()
+    MODULE.init()
 }
