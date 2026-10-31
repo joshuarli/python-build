@@ -6,6 +6,7 @@ version = 3
 name = "_argparse_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -131,6 +132,7 @@ dependencies = [
 name = "_decimal_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -188,6 +190,7 @@ dependencies = [
 name = "_glob_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "libc",
 ]
@@ -380,6 +383,7 @@ dependencies = [
 name = "_random_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -397,6 +401,7 @@ dependencies = [
 name = "_shlex_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -445,6 +450,7 @@ dependencies = [
 name = "_statistics_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -478,6 +484,7 @@ dependencies = [
 name = "_tarfile_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -493,6 +500,7 @@ dependencies = [
 name = "_textwrap_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -544,6 +552,7 @@ dependencies = [
 name = "_urllib_parse_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 

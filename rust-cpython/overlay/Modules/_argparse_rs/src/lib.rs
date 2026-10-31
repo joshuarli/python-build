@@ -1,109 +1,18 @@
 //! Rust option matching over borrowed Python strings.
 //! Results use Python allocations directly; no Rust heap or runtime is retained.
 #![no_std]
-#![allow(non_camel_case_types, non_snake_case)]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::c_char;
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut PyModuleDef_Slot,
-    m_traverse: Option<unsafe extern "C" fn(
-        *mut PyObject,
-        unsafe extern "C" fn(*mut PyObject, *mut c_void) -> c_int,
-        *mut c_void,
-    ) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[repr(C)]
-struct PyModuleDef_Slot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-const PY_MOD_MULTIPLE_INTERPRETERS_SLOT: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2usize as *mut c_void;
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyExc_TypeError: *mut PyObject;
-    static mut _Py_NoneStruct: PyObject;
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyErr_NoMemory() -> *mut PyObject;
-    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
-    fn PyList_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyList_Append(list: *mut PyObject, item: *mut PyObject) -> c_int;
-    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
-    fn PyTuple_GetItem(tuple: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyObject_IsTrue(object: *mut PyObject) -> c_int;
-    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
-    fn PyUnicode_FromStringAndSize(text: *const c_char, size: Py_ssize_t) -> *mut PyObject;
-    fn Py_NewRef(object: *mut PyObject) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::ffi::{
+    PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyList_Append, PyList_New, PyMethodDef,
+    PyObject, PyObject_IsTrue, PyTuple_GetItem, PyTuple_New, PyTuple_SetItem, PyTuple_Size,
+    PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_DecRef, Py_NewRef, Py_ssize_t,
+    _Py_NoneStruct,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
+use cpython_binding::module::PER_INTERPRETER_GIL;
 
 // Arguments and configured option strings stay alive for this synchronous scan.
 // Borrowing their UTF-8 avoids Rust heap allocations and allocator retention.
@@ -310,79 +219,22 @@ unsafe extern "C" fn option_candidates(
     result
 }
 
-extern "C" fn module_clear(_module: *mut PyObject) -> c_int {
-    0
-}
-
-extern "C" fn module_free(_module: *mut c_void) {}
-
-struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-    slots: [PyModuleDef_Slot; 2],
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe {
-            (*self.ffi.get()).m_slots = self.slots.as_ptr() as *mut PyModuleDef_Slot;
-            PyModuleDef_Init(self.ffi.get())
-        }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 static MODULE_METHODS: [PyMethodDef; 2] = [
-    PyMethodDef {
-        ml_name: c"option_candidates".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: option_candidates,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Find configured option tokens using Rust option matching".as_ptr()
-            as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    fastcall(
+        c"option_candidates",
+        option_candidates,
+        c"Find configured option tokens using Rust option matching",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_Base {
-            ob_base: PyObject {
-                ob_refcnt: STATIC_IMMORTAL_REFCNT,
-                ob_type: ptr::null_mut(),
-            },
-            m_init: None,
-            m_index: 0,
-            m_copy: ptr::null_mut(),
-        },
-        m_name: c"_argparse_rs".as_ptr() as *mut _,
-        m_doc: c"Rust option-token scanner used by argparse".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(module_clear),
-        m_free: Some(module_free),
-    }),
-    slots: [
-        PyModuleDef_Slot {
-            slot: PY_MOD_MULTIPLE_INTERPRETERS_SLOT,
-            value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-        },
-        PyModuleDef_Slot {
-            slot: 0,
-            value: ptr::null_mut(),
-        },
-    ],
-};
+static MODULE: Module = Module::new(
+    c"_argparse_rs",
+    c"Rust option-token scanner used by argparse",
+    &MODULE_METHODS,
+).with_slots(&PER_INTERPRETER_GIL);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__argparse_rs() -> *mut PyObject {
-    MODULE.init_multi_phase()
+    MODULE.init()
 }

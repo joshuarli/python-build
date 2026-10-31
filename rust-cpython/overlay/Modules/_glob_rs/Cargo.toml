@@ -6,6 +6,7 @@ rust-version.workspace = true
 license = "PSF-2.0"
 
 [dependencies]
+cpython-binding = { path = "../cpython-binding", features = ["abort-on-panic"] }
 libc = { version = "=0.2.189", default-features = false } # MIT OR Apache-2.0
 
 [build-dependencies]

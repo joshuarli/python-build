@@ -5,6 +5,9 @@ edition = "2024"
 rust-version.workspace = true
 license = "MIT"
 
+[dependencies]
+cpython-binding = { path = "../cpython-binding", features = ["abort-on-panic"] }
+
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }
 

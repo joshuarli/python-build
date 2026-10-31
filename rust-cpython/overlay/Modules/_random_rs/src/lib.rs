@@ -3,104 +3,18 @@
 //! Direct CPython declarations avoid adding a separate standard runtime
 //! to the extension. The builtin route uses the interpreter's existing
 //! Rust archive and panic runtime. Python owns all sampling allocations.
-#![cfg_attr(not(feature = "static-module"), no_std)]
+#![cfg_attr(feature = "freestanding", no_std)]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut PyModuleDef_Slot,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[repr(C)]
-struct PyModuleDef_Slot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyExc_TypeError: *mut PyObject;
-    static mut PyExc_IndexError: *mut PyObject;
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyErr_Occurred() -> *mut PyObject;
-    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
-    fn PyLong_FromSsize_t(value: Py_ssize_t) -> *mut PyObject;
-    fn PyNumber_Subtract(left: *mut PyObject, right: *mut PyObject) -> *mut PyObject;
-    fn PyObject_CallOneArg(callable: *mut PyObject, arg: *mut PyObject) -> *mut PyObject;
-    fn PyObject_GetItem(object: *mut PyObject, key: *mut PyObject) -> *mut PyObject;
-    fn PyObject_GetIter(object: *mut PyObject) -> *mut PyObject;
-    fn PyObject_SetItem(object: *mut PyObject, key: *mut PyObject, value: *mut PyObject) -> c_int;
-    fn PyObject_Size(object: *mut PyObject) -> Py_ssize_t;
-    fn PySequence_Contains(sequence: *mut PyObject, value: *mut PyObject) -> c_int;
-    fn PyIter_Next(iterator: *mut PyObject) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn Py_IncRef(object: *mut PyObject);
-    #[cfg(not(feature = "static-module"))]
-    fn abort() -> !;
-}
-
-#[cfg(not(feature = "static-module"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::ffi::{
+    PyErr_Occurred, PyErr_SetString, PyExc_IndexError, PyExc_TypeError, PyIter_Next,
+    PyLong_FromSsize_t, PyMethodDef, PyNumber_Subtract, PyObject, PyObject_CallOneArg,
+    PyObject_GetItem, PyObject_GetIter, PyObject_SetItem, PyObject_Size, PySequence_Contains,
+    Py_DecRef, Py_IncRef, Py_ssize_t,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
+use cpython_binding::module::PER_INTERPRETER_GIL;
 
 unsafe fn check_arity(actual: Py_ssize_t, expected: Py_ssize_t) -> bool {
     if actual == expected {
@@ -424,86 +338,32 @@ unsafe extern "C" fn sample_selected_method(
     result
 }
 
-struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-const PY_MOD_MULTIPLE_INTERPRETERS_SLOT: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: usize = 2;
-
-struct ModuleSlots(UnsafeCell<[PyModuleDef_Slot; 2]>);
-
-unsafe impl Sync for ModuleSlots {}
-
-static MODULE_SLOTS: ModuleSlots = ModuleSlots(UnsafeCell::new([
-    PyModuleDef_Slot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS_SLOT,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED as *mut c_void,
-    },
-    PyModuleDef_Slot {
-        slot: 0,
-        value: ptr::null_mut(),
-    },
-]));
-
 static MODULE_METHODS: [PyMethodDef; 4] = [
-    PyMethodDef {
-        ml_name: c"choice".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: choice },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Choose an element using a Python generator callback".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"sample_pool".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: sample_pool_method },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Sample a sequence using a Python generator callback".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"sample_selected".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: sample_selected_method },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Sample a sequence using a Python generator callback".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    fastcall(
+        c"choice",
+        choice,
+        c"Choose an element using a Python generator callback",
+    ),
+    fastcall(
+        c"sample_pool",
+        sample_pool_method,
+        c"Sample a sequence using a Python generator callback",
+    ),
+    fastcall(
+        c"sample_selected",
+        sample_selected_method,
+        c"Sample a sequence using a Python generator callback",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_Base {
-            ob_base: PyObject {
-                ob_refcnt: STATIC_IMMORTAL_REFCNT,
-                ob_type: ptr::null_mut(),
-            },
-            m_init: None,
-            m_index: 0,
-            m_copy: ptr::null_mut(),
-        },
-        m_name: c"_random_rs".as_ptr() as *mut c_char,
-        m_doc: c"Rust sequence sampling primitives for random.Random".as_ptr() as *mut c_char,
-        m_size: 0,
-        m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: MODULE_SLOTS.0.get().cast(),
-        m_traverse: None,
-        m_clear: None,
-        m_free: None,
-    }),
-};
+static MODULE: Module = Module::new(
+    c"_random_rs",
+    c"Rust sequence sampling primitives for random.Random",
+    &MODULE_METHODS,
+).with_slots(&PER_INTERPRETER_GIL);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__random_rs() -> *mut PyObject {
-    MODULE.init_multi_phase()
+    MODULE.init()
 }

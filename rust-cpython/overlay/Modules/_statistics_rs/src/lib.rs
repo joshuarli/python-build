@@ -6,99 +6,15 @@
 //! partly dirtied on every import of the extension.
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_long, c_void};
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyList_Type: PyTypeObject;
-    static mut PyTuple_Type: PyTypeObject;
-    static mut PyLong_Type: PyTypeObject;
-
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyBool_FromLong(value: c_long) -> *mut PyObject;
-    fn PyErr_Clear();
-    fn PyErr_NoMemory() -> *mut PyObject;
-    fn PyErr_Occurred() -> *mut PyObject;
-    fn PyList_GetItem(list: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
-    fn PyList_Size(list: *mut PyObject) -> Py_ssize_t;
-    fn PyTuple_GetItem(tuple: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
-    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyLong_AsLongLong(object: *mut PyObject) -> i64;
-    fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
-    fn PyLong_FromSsize_t(value: Py_ssize_t) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn PyMem_Malloc(size: usize) -> *mut c_void;
-    fn PyMem_Free(pointer: *mut c_void);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::ffi::{
+    PyBool_FromLong, PyErr_Clear, PyErr_NoMemory, PyErr_Occurred, PyList_GetItem, PyList_Size,
+    PyList_Type, PyLong_AsLongLong, PyLong_FromLongLong, PyLong_FromSsize_t, PyLong_Type,
+    PyMem_Free, PyMem_Malloc, PyMethodDef, PyObject, PyTuple_GetItem, PyTuple_New,
+    PyTuple_SetItem, PyTuple_Size, PyTuple_Type, PyTypeObject, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
 
 unsafe fn is_exact_type(object: *mut PyObject, expected: *mut PyTypeObject) -> Result<bool, ()> {
     Ok(unsafe { (*object).ob_type } == expected)
@@ -440,70 +356,25 @@ unsafe extern "C" fn median_indices_method(
     tuple
 }
 
-pub extern "C" fn _statistics_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _statistics_rs_free(_object: *mut c_void) {}
-
-struct ModuleDef(UnsafeCell<PyModuleDef>);
-
-impl ModuleDef {
-    fn init(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.0.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 static METHODS: [PyMethodDef; 3] = [
-    PyMethodDef {
-        ml_name: c"integer_moments".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: integer_moments_method,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Return sum, sum of squares, and count for exact int sequences."
-            .as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"median_indices".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: median_indices_method,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Return stable median indices for exact int sequences."
-            .as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer {
-            void: ptr::null_mut(),
-        },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    fastcall(
+        c"integer_moments",
+        integer_moments_method,
+        c"Return sum, sum of squares, and count for exact int sequences.",
+    ),
+    fastcall(
+        c"median_indices",
+        median_indices_method,
+        c"Return stable median indices for exact int sequences.",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
-    m_base: PyModuleDef_Base {
-        ob_base: PyObject {
-            ob_refcnt: STATIC_IMMORTAL_REFCNT,
-            ob_type: ptr::null_mut(),
-        },
-        m_init: None,
-        m_index: 0,
-        m_copy: ptr::null_mut(),
-    },
-    m_name: c"_statistics_rs".as_ptr() as *mut _,
-    m_doc: c"Rust summary operations for exact integer sequences.".as_ptr() as *mut _,
-    m_size: 0,
-    m_methods: METHODS.as_ptr() as *mut _,
-    m_slots: ptr::null_mut(),
-    m_traverse: None,
-    m_clear: Some(_statistics_rs_clear),
-    m_free: Some(_statistics_rs_free),
-}));
+static MODULE: Module = Module::new(
+    c"_statistics_rs",
+    c"Rust summary operations for exact integer sequences.",
+    &METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__statistics_rs() -> *mut PyObject {

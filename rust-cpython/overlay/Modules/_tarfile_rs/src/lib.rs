@@ -1,92 +1,15 @@
 //! Bounded USTAR header processing without a Rust allocator or runtime.
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::c_char;
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut _Py_NoneStruct: PyObject;
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyBytes_AsStringAndSize(object: *mut PyObject, data: *mut *mut c_char,
-                              length: *mut Py_ssize_t) -> c_int;
-    fn PyBytes_FromStringAndSize(data: *const c_char, length: Py_ssize_t) -> *mut PyObject;
-    fn PyLong_AsUnsignedLongLong(object: *mut PyObject) -> u64;
-    fn PyLong_FromUnsignedLongLong(value: u64) -> *mut PyObject;
-    fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
-    fn PyErr_Clear();
-    fn PyErr_Occurred() -> *mut PyObject;
-    fn PyTuple_New(length: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, value: *mut PyObject) -> c_int;
-    fn Py_NewRef(object: *mut PyObject) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::ffi::{
+    PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyErr_Clear, PyErr_Occurred,
+    PyLong_AsUnsignedLongLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyMethodDef,
+    PyObject, PyTuple_New, PyTuple_SetItem, Py_DecRef, Py_NewRef, Py_ssize_t, _Py_NoneStruct,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
 
 // FASTCALL arguments keep these immutable bytes alive for the entire call.
 unsafe fn bytes_argument<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
@@ -364,75 +287,29 @@ unsafe extern "C" fn header_chksums(
     unsafe { tuple_from_fields([py_uint(unsigned), PyLong_FromLongLong(signed)]) }
 }
 
-pub extern "C" fn tarfile_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn tarfile_rs_free(_object: *mut c_void) {}
-
-struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 static METHODS: [PyMethodDef; 4] = [
-    PyMethodDef {
-        ml_name: c"create_ustar_header".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: create_ustar_header,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Create a USTAR header in Rust.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"parse_ustar_header".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: parse_ustar_header,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse a standard USTAR header in Rust.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"header_chksums".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: header_chksums },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Return unsigned and signed TAR header checksums.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    fastcall(
+        c"create_ustar_header",
+        create_ustar_header,
+        c"Create a USTAR header in Rust.",
+    ),
+    fastcall(
+        c"parse_ustar_header",
+        parse_ustar_header,
+        c"Parse a standard USTAR header in Rust.",
+    ),
+    fastcall(
+        c"header_chksums",
+        header_chksums,
+        c"Return unsigned and signed TAR header checksums.",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_Base {
-            ob_base: PyObject { ob_refcnt: STATIC_IMMORTAL_REFCNT, ob_type: ptr::null_mut() },
-            m_init: None,
-            m_index: 0,
-            m_copy: ptr::null_mut(),
-        },
-        m_name: c"_tarfile_rs".as_ptr() as *mut _,
-        m_doc: c"Rust USTAR header support for tarfile.".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: METHODS.as_ptr() as *mut _,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(tarfile_rs_clear),
-        m_free: Some(tarfile_rs_free),
-    }),
-};
+static MODULE: Module =
+    Module::new(c"_tarfile_rs", c"Rust USTAR header support for tarfile.", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__tarfile_rs() -> *mut PyObject {
-    MODULE.init_multi_phase()
+    MODULE.init()
 }

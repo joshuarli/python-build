@@ -8,102 +8,16 @@
 //! allocation otherwise.
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::c_void;
 use core::mem::MaybeUninit;
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyExc_ValueError: *mut PyObject;
-
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyErr_NoMemory() -> *mut PyObject;
-    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
-    fn PyList_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyList_Append(list: *mut PyObject, item: *mut PyObject) -> c_int;
-    fn PyObject_IsTrue(object: *mut PyObject) -> c_int;
-    fn PyUnicode_GetLength(object: *mut PyObject) -> Py_ssize_t;
-    fn PyUnicode_AsUCS4(
-        object: *mut PyObject,
-        target: *mut u32,
-        targetsize: Py_ssize_t,
-        copy_null: c_int,
-    ) -> *mut u32;
-    fn PyUnicode_FromKindAndData(
-        kind: c_int,
-        buffer: *const c_void,
-        size: Py_ssize_t,
-    ) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn PyMem_Malloc(size: usize) -> *mut c_void;
-    fn PyMem_Free(pointer: *mut c_void);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::ffi::{
+    PyErr_NoMemory, PyErr_SetString, PyExc_ValueError, PyList_Append, PyList_New, PyMem_Free,
+    PyMem_Malloc, PyMethodDef, PyObject, PyObject_IsTrue, PyUnicode_AsUCS4,
+    PyUnicode_FromKindAndData, PyUnicode_GetLength, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
 
 /// Stack scratch capacity in code points (input copy plus token buffer).
 const STACK_CODEPOINTS: usize = 512;
@@ -392,60 +306,17 @@ unsafe extern "C" fn split(
     }
 }
 
-pub extern "C" fn _shlex_rs_clear(_obj: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _shlex_rs_free(_obj: *mut c_void) {}
-
-struct ModuleDef(UnsafeCell<PyModuleDef>);
-
-impl ModuleDef {
-    fn init(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.0.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 static METHODS: [PyMethodDef; 2] = [
-    PyMethodDef {
-        ml_name: c"split".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: split,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Split shell-like words using Rust parsing.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer {
-            void: ptr::null_mut(),
-        },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    fastcall(
+        c"split",
+        split,
+        c"Split shell-like words using Rust parsing.",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
-    m_base: PyModuleDef_Base {
-        ob_base: PyObject {
-            ob_refcnt: STATIC_IMMORTAL_REFCNT,
-            ob_type: ptr::null_mut(),
-        },
-        m_init: None,
-        m_index: 0,
-        m_copy: ptr::null_mut(),
-    },
-    m_name: c"_shlex_rs".as_ptr() as *mut _,
-    m_doc: c"Rust implementation used by the shlex module.".as_ptr() as *mut _,
-    m_size: 0,
-    m_methods: METHODS.as_ptr() as *mut _,
-    m_slots: ptr::null_mut(),
-    m_traverse: None,
-    m_clear: Some(_shlex_rs_clear),
-    m_free: Some(_shlex_rs_free),
-}));
+static MODULE: Module =
+    Module::new(c"_shlex_rs", c"Rust implementation used by the shlex module.", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__shlex_rs() -> *mut PyObject {

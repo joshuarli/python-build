@@ -7,100 +7,18 @@
 //! straight into their `bytes` objects, so nothing allocates through Rust.
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::{c_int, c_void};
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunction: unsafe extern "C" fn(slf: *mut PyObject, arg: *mut PyObject) -> *mut PyObject,
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-const METH_O: c_int = 0x0008;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyExc_TypeError: *mut PyObject;
-
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
-    fn PyBytes_AsString(object: *mut PyObject) -> *mut c_char;
-    fn PyBytes_Size(object: *mut PyObject) -> Py_ssize_t;
-    fn PyBytes_FromStringAndSize(data: *const c_char, size: Py_ssize_t) -> *mut PyObject;
-    fn PyList_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyList_SetItem(list: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
-    fn PyUnicode_DecodeUTF8(
-        data: *const c_char,
-        size: Py_ssize_t,
-        errors: *const c_char,
-    ) -> *mut PyObject;
-    fn PyErr_Clear();
-    fn Py_GetConstant(constant_id: u32) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::ffi::{
+    PyBytes_AsString, PyBytes_FromStringAndSize, PyBytes_Size, PyErr_Clear, PyErr_SetString,
+    PyExc_TypeError, PyList_New, PyList_SetItem, PyMethodDef, PyObject, PyTuple_New,
+    PyTuple_SetItem, PyUnicode_AsUTF8AndSize, PyUnicode_DecodeUTF8, Py_DecRef, Py_GetConstant,
+    Py_ssize_t,
+};
+use cpython_binding::{
+    BytesWriter, Module, Owned, fastcall, method_table_end, single_argument,
+};
 
 unsafe fn bytes_argument<'a>(object: *mut PyObject) -> Option<&'a [u8]> {
     let length = unsafe { PyBytes_Size(object) };
@@ -119,13 +37,14 @@ fn argument_error(message: &'static core::ffi::CStr) -> *mut PyObject {
     ptr::null_mut()
 }
 
-/// A new `bytes` of `length` bytes filled by `fill` from its own buffer.
+/// A new `bytes` of `length` bytes that `fill` fully initializes in place.
 unsafe fn bytes_with(length: usize, fill: impl FnOnce(*mut u8)) -> *mut PyObject {
-    let object = unsafe { PyBytes_FromStringAndSize(ptr::null(), length as Py_ssize_t) };
-    if !object.is_null() {
-        fill(unsafe { PyBytes_AsString(object) }.cast());
-    }
-    object
+    BytesWriter::create(length)
+        .and_then(|mut writer| {
+            fill(writer.uninit().as_mut_ptr().cast());
+            unsafe { writer.finish(length) }
+        })
+        .map_or(ptr::null_mut(), Owned::into_raw)
 }
 
 unsafe fn bytes_object(value: &[u8]) -> *mut PyObject {
@@ -464,83 +383,42 @@ extern "C" fn _urllib_parse_rs_clear(_module: *mut PyObject) -> c_int {
 
 extern "C" fn _urllib_parse_rs_free(_module: *mut c_void) {}
 
-struct ModuleDef(UnsafeCell<PyModuleDef>);
-
-unsafe impl Sync for ModuleDef {}
-
 static MODULE_METHODS: [PyMethodDef; 6] = [
-    PyMethodDef {
-        ml_name: c"unquote_str".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunction: unquote_str,
-        },
-        ml_flags: METH_O,
-        ml_doc: c"Percent-decode a str as UTF-8 with replacement".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"quote_from_bytes".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: quote_from_bytes,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Percent-encode bytes with a dynamic safe set".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"unquote_to_bytes".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: unquote_to_bytes,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Decode valid percent escapes without interpreting text".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"parse_qsl".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: parse_qsl,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Split query fields and retain their percent-encoded byte pairs".as_ptr()
-            as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"parse_qsl_utf8".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: parse_qsl_utf8,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse UTF-8 form query fields".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer {
-            void: ptr::null_mut(),
-        },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    single_argument(
+        c"unquote_str",
+        unquote_str,
+        c"Percent-decode a str as UTF-8 with replacement",
+    ),
+    fastcall(
+        c"quote_from_bytes",
+        quote_from_bytes,
+        c"Percent-encode bytes with a dynamic safe set",
+    ),
+    fastcall(
+        c"unquote_to_bytes",
+        unquote_to_bytes,
+        c"Decode valid percent escapes without interpreting text",
+    ),
+    fastcall(
+        c"parse_qsl",
+        parse_qsl,
+        c"Split query fields and retain their percent-encoded byte pairs",
+    ),
+    fastcall(
+        c"parse_qsl_utf8",
+        parse_qsl_utf8,
+        c"Parse UTF-8 form query fields",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
-    m_base: PyModuleDef_Base {
-        ob_base: PyObject {
-            ob_refcnt: STATIC_IMMORTAL_REFCNT,
-            ob_type: ptr::null_mut(),
-        },
-        m_init: None,
-        m_index: 0,
-        m_copy: ptr::null_mut(),
-    },
-    m_name: c"_urllib_parse_rs".as_ptr(),
-    m_doc: c"Rust percent-encoding and query parsing for urllib.parse".as_ptr(),
-    m_size: 0,
-    m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
-    m_slots: ptr::null_mut(),
-    m_traverse: None,
-    m_clear: Some(_urllib_parse_rs_clear),
-    m_free: Some(_urllib_parse_rs_free),
-}));
+static MODULE: Module = Module::new(
+    c"_urllib_parse_rs",
+    c"Rust percent-encoding and query parsing for urllib.parse",
+    &MODULE_METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__urllib_parse_rs() -> *mut PyObject {
-    unsafe { PyModuleDef_Init(MODULE.0.get()) }
+    MODULE.init()
 }

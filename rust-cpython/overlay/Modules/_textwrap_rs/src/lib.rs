@@ -6,101 +6,14 @@
 //! crate add hundreds of KiB of mapped image and first-call heap pages.
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{CStr, c_char, c_int, c_void};
+use core::ffi::{c_char, c_void};
 use core::ptr;
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyExc_TypeError: *mut PyObject;
-    static mut PyExc_ValueError: *mut PyObject;
-
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyErr_NoMemory() -> *mut PyObject;
-    fn PyErr_Occurred() -> *mut PyObject;
-    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
-    fn PyList_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyList_SetItem(list: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyLong_AsLongLong(object: *mut PyObject) -> i64;
-    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
-    fn PyUnicode_FromStringAndSize(text: *const c_char, size: Py_ssize_t) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn PyMem_Malloc(size: usize) -> *mut c_void;
-    fn PyMem_Free(pointer: *mut c_void);
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
-
-fn set_type_error(message: &'static CStr) {
-    unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
-}
-
-fn set_value_error(message: &'static CStr) {
-    unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) };
-}
+use cpython_binding::ffi::{
+    PyErr_NoMemory, PyErr_Occurred, PyList_New, PyList_SetItem, PyLong_AsLongLong, PyMem_Free,
+    PyMem_Malloc, PyMethodDef, PyObject, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::{Exception, Module, fastcall, method_table_end, raise};
 
 /// Borrow the UTF-8 view of a `str` argument; ASCII strings are viewed in
 /// place, so no copy is made.
@@ -111,7 +24,7 @@ unsafe fn read_unicode<'a>(arg: *mut PyObject) -> Option<&'a [u8]> {
         return None;
     }
     if size < 0 {
-        set_type_error(c"text has a negative encoded length");
+        raise(Exception::TypeError, c"text has a negative encoded length");
         return None;
     }
     Some(unsafe { core::slice::from_raw_parts(data.cast::<u8>(), size as usize) })
@@ -123,7 +36,7 @@ unsafe fn read_width(arg: *mut PyObject) -> Option<usize> {
         return None;
     }
     if width <= 0 {
-        set_value_error(c"width must be positive");
+        raise(Exception::ValueError, c"width must be positive");
         return None;
     }
     Some(width as usize)
@@ -184,7 +97,7 @@ fn line_end(text: &[u8], start: usize, width: usize) -> usize {
 
 unsafe fn wrap_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObject {
     if nargs != 2 {
-        set_type_error(c"wrap() takes exactly two arguments");
+        raise(Exception::TypeError, c"wrap() takes exactly two arguments");
         return ptr::null_mut();
     }
     let Some(text) = (unsafe { read_unicode(*args) }) else {
@@ -194,7 +107,7 @@ unsafe fn wrap_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObjec
         return ptr::null_mut();
     };
     if !is_plain_ascii_paragraph(text, width) {
-        set_value_error(c"text is outside the supported wrapping domain");
+        raise(Exception::ValueError, c"text is outside the supported wrapping domain");
         return ptr::null_mut();
     }
 
@@ -280,7 +193,7 @@ const STACK_BYTES: usize = 1024;
 
 unsafe fn shorten_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObject {
     if nargs != 3 {
-        set_type_error(c"shorten() takes exactly three arguments");
+        raise(Exception::TypeError, c"shorten() takes exactly three arguments");
         return ptr::null_mut();
     }
     let Some(text) = (unsafe { read_unicode(*args) }) else {
@@ -293,7 +206,7 @@ unsafe fn shorten_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyOb
         return ptr::null_mut();
     };
     if !shorten_domain_ok(text, width, placeholder) {
-        set_value_error(c"text is outside the supported shortening domain");
+        raise(Exception::ValueError, c"text is outside the supported shortening domain");
         return ptr::null_mut();
     }
 
@@ -399,62 +312,22 @@ unsafe extern "C" fn shorten(
     unsafe { shorten_impl(args, nargs) }
 }
 
-pub extern "C" fn _textwrap_rs_clear(_obj: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _textwrap_rs_free(_obj: *mut c_void) {}
-
-struct ModuleDef(UnsafeCell<PyModuleDef>);
-
-impl ModuleDef {
-    fn init(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.0.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
 static METHODS: [PyMethodDef; 3] = [
-    PyMethodDef {
-        ml_name: c"wrap".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: wrap },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Wrap a supported ASCII paragraph.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"shorten".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: shorten },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Shorten supported ASCII text.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+    fastcall(
+        c"wrap",
+        wrap,
+        c"Wrap a supported ASCII paragraph.",
+    ),
+    fastcall(
+        c"shorten",
+        shorten,
+        c"Shorten supported ASCII text.",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
-    m_base: PyModuleDef_Base {
-        ob_base: PyObject {
-            ob_refcnt: STATIC_IMMORTAL_REFCNT,
-            ob_type: ptr::null_mut(),
-        },
-        m_init: None,
-        m_index: 0,
-        m_copy: ptr::null_mut(),
-    },
-    m_name: c"_textwrap_rs".as_ptr() as *mut _,
-    m_doc: c"Rust text wrapping helpers.".as_ptr() as *mut _,
-    m_size: 0,
-    m_methods: METHODS.as_ptr() as *mut _,
-    m_slots: ptr::null_mut(),
-    m_traverse: None,
-    m_clear: Some(_textwrap_rs_clear),
-    m_free: Some(_textwrap_rs_free),
-}));
+static MODULE: Module =
+    Module::new(c"_textwrap_rs", c"Rust text wrapping helpers.", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__textwrap_rs() -> *mut PyObject {

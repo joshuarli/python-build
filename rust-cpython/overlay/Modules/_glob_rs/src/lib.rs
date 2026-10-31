@@ -9,93 +9,16 @@
 //! Python.
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{CStr, c_char, c_int, c_void};
-use core::ptr;
+use core::ffi::{CStr, c_char};
 
-type Py_ssize_t = isize;
-
-#[repr(C)]
-struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut c_void,
-}
-
-#[repr(C)]
-union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(
-        slf: *mut PyObject,
-        args: *mut *mut PyObject,
-        nargs: Py_ssize_t,
-    ) -> *mut PyObject,
-    void: *mut c_void,
-}
-
-#[repr(C)]
-struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-/// `_Py_IMMORTAL_INITIAL_REFCNT | ((_Py_STATICALLY_ALLOCATED_FLAG |
-/// _Py_IMMORTAL_FLAGS) << 48)` for the 64-bit GIL-enabled build.
-const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48);
-
-unsafe extern "C" {
-    static mut _Py_NoneStruct: PyObject;
-
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyErr_Clear();
-    fn PyList_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyList_Append(list: *mut PyObject, item: *mut PyObject) -> c_int;
-    fn PyObject_IsTrue(object: *mut PyObject) -> c_int;
-    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
-    fn PyUnicode_FromStringAndSize(text: *const c_char, size: Py_ssize_t) -> *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn Py_NewRef(object: *mut PyObject) -> *mut PyObject;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { libc::abort() }
-}
+use cpython_binding::ffi::{
+    PyErr_Clear, PyList_Append, PyList_New, PyObject, PyObject_IsTrue, PyUnicode_AsUTF8AndSize,
+    PyUnicode_FromStringAndSize, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::{Module, Outcome, Owned, Stop, fastcall, into_return, method_table_end};
 
 /// Capacity of the path buffer; longer paths use the Python fallback.
 const PATH_CAPACITY: usize = 4096;
-
-/// Why a walk stopped early.
-enum Stop {
-    /// The pattern or a directory entry needs the Python implementation.
-    Fallback,
-    /// A Python exception is set.
-    Error,
-}
 
 fn has_magic(text: &[u8]) -> bool {
     text.iter().any(|byte| matches!(byte, b'*' | b'?' | b'['))
@@ -263,7 +186,7 @@ impl Walk {
         let separator = usize::from(self.length != 0 && self.path[self.length - 1] != b'/');
         // Keep one byte for the terminator of the C string.
         if self.length + separator + name.len() + 1 > PATH_CAPACITY {
-            return Err(Stop::Fallback);
+            return Err(Stop::Unsupported);
         }
         if separator != 0 {
             self.path[self.length] = b'/';
@@ -287,11 +210,11 @@ impl Walk {
             )
         };
         if item.is_null() {
-            return Err(Stop::Error);
+            return Err(Stop::Raised);
         }
         let status = unsafe { PyList_Append(self.result, item) };
         unsafe { Py_DecRef(item) };
-        if status < 0 { Err(Stop::Error) } else { Ok(()) }
+        if status < 0 { Err(Stop::Raised) } else { Ok(()) }
     }
 
     fn is_dir(&mut self, name: &[u8], kind: u8) -> Result<bool, Stop> {
@@ -360,7 +283,7 @@ impl Walk {
                 continue;
             }
             if core::str::from_utf8(name).is_err() {
-                return Err(Stop::Fallback);
+                return Err(Stop::Unsupported);
             }
             // CPython excludes hidden names unless the pattern component
             // starts with '.'.
@@ -395,49 +318,47 @@ unsafe extern "C" fn expand(
     args: *mut *mut PyObject,
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
-    let none = || unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) };
+    into_return(unsafe { expand_arguments(args, nargs) })
+}
+
+unsafe fn expand_arguments(args: *mut *mut PyObject, nargs: Py_ssize_t) -> Outcome<Owned> {
     if nargs != 3 {
-        return none();
+        return Err(Stop::Unsupported);
     }
     let include_hidden = unsafe { PyObject_IsTrue(*args.add(1)) };
     if include_hidden < 0 {
-        return ptr::null_mut();
+        return Err(Stop::Raised);
     }
     let mut size: Py_ssize_t = 0;
     let data = unsafe { PyUnicode_AsUTF8AndSize(*args, &mut size) };
     if data.is_null() {
-        // Lone surrogates cannot be encoded; Python handles them.
         unsafe { PyErr_Clear() };
-        return none();
+        return Err(Stop::Unsupported);
     }
     let pattern = unsafe { core::slice::from_raw_parts(data.cast::<u8>(), size as usize) };
     if !supported(pattern) {
-        return none();
+        return Err(Stop::Unsupported);
     }
     let mut root_size: Py_ssize_t = 0;
     let root_data = unsafe { PyUnicode_AsUTF8AndSize(*args.add(2), &mut root_size) };
     if root_data.is_null() {
         unsafe { PyErr_Clear() };
-        return none();
+        return Err(Stop::Unsupported);
     }
     let root = unsafe { core::slice::from_raw_parts(root_data.cast::<u8>(), root_size as usize) };
     if root.contains(&0) {
-        return none();
+        return Err(Stop::Unsupported);
     }
-    let result = unsafe { PyList_New(0) };
-    if result.is_null() {
-        return ptr::null_mut();
-    }
+    let result = unsafe { Owned::from_new_reference(PyList_New(0))? };
     let mut walk = Walk {
         path: [0; PATH_CAPACITY],
         length: 0,
         origin: 0,
         include_hidden: include_hidden != 0,
-        result,
+        result: result.as_ptr(),
     };
     let rest = match pattern.strip_prefix(b"/") {
         Some(rest) => {
-            // An absolute pattern ignores `root_dir`.
             walk.path[0] = b'/';
             walk.length = 1;
             rest
@@ -446,8 +367,7 @@ unsafe extern "C" fn expand(
             if !root.is_empty() {
                 let separator = usize::from(root[root.len() - 1] != b'/');
                 if root.len() + separator + 1 > PATH_CAPACITY {
-                    unsafe { Py_DecRef(result) };
-                    return none();
+                    return Err(Stop::Unsupported);
                 }
                 walk.path[..root.len()].copy_from_slice(root);
                 if separator != 0 {
@@ -459,74 +379,20 @@ unsafe extern "C" fn expand(
             pattern
         }
     };
-    match walk.walk(rest) {
-        Ok(()) => result,
-        Err(Stop::Fallback) => {
-            unsafe { Py_DecRef(result) };
-            none()
-        }
-        Err(Stop::Error) => {
-            unsafe { Py_DecRef(result) };
-            ptr::null_mut()
-        }
-    }
+    walk.walk(rest)?;
+    Ok(result)
 }
 
-pub extern "C" fn _glob_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _glob_rs_free(_object: *mut c_void) {}
-
-struct ModuleDef(UnsafeCell<PyModuleDef>);
-
-impl ModuleDef {
-    fn init(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.0.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-static METHODS: [PyMethodDef; 2] = [
-    PyMethodDef {
-        ml_name: c"expand".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: expand,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Expand a supported text pathname pattern under a root, or return None.".as_ptr()
-            as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer {
-            void: ptr::null_mut(),
-        },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+static METHODS: [cpython_binding::ffi::PyMethodDef; 2] = [
+    fastcall(
+        c"expand",
+        expand,
+        c"Expand a supported text pathname pattern under a root, or return None.",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
-    m_base: PyModuleDef_Base {
-        ob_base: PyObject {
-            ob_refcnt: STATIC_IMMORTAL_REFCNT,
-            ob_type: ptr::null_mut(),
-        },
-        m_init: None,
-        m_index: 0,
-        m_copy: ptr::null_mut(),
-    },
-    m_name: c"_glob_rs".as_ptr(),
-    m_doc: c"Rust pathname expansion.".as_ptr(),
-    m_size: 0,
-    m_methods: METHODS.as_ptr() as *mut _,
-    m_slots: ptr::null_mut(),
-    m_traverse: None,
-    m_clear: Some(_glob_rs_clear),
-    m_free: Some(_glob_rs_free),
-}));
+static MODULE: Module = Module::new(c"_glob_rs", c"Rust pathname expansion.", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__glob_rs() -> *mut PyObject {
