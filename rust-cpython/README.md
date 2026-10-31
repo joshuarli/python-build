@@ -109,6 +109,7 @@ measurements may run: it holds the host lease, and the coverage
 | --- | --- |
 | `build --name N [--incremental] [--jobs J]` | Clean optimized build verified per Rust extension; `--incremental` syncs changed overlay files and refuses build-system or Cargo changes |
 | `build --name perf-upstream --empty-overlay` | Pristine-fork control |
+| `build --name N --upstream-compression` | Link CPython's stock `zlib`, `_bz2` and `binascii` against static `zlib-rs` and `libbz2-rs` archives of the locked crates, and omit the private `_zlib_rs`, `_bz2_rs` and `Lib/zlib.py` |
 | `test --name N --suite test_X ...` or `--all` | Complete CPython suites on a perf build |
 | `cargo --name N -- <cargo args>` | Sync changed overlay files as `build --incremental` does, then run the pinned cargo in build `N`'s assembled source with the build's environment; exits with cargo's status |
 | `profile --ref R (--module M \| --workload W) --tool sample\|cprofile\|importtime` | Native stacks, Python call costs, or import time |

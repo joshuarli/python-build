@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -41,6 +42,51 @@ class RustLauncherTests(unittest.TestCase):
                                     capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "cargo\npinned-rustc\n")
+
+
+class CompressionEngineEnvironmentTests(unittest.TestCase):
+    def test_configure_inputs_name_each_engine_archive_and_its_own_header(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            packages = []
+            for engine in perf.lb.COMPRESSION_ENGINES:
+                manifest = root / "registry" / engine.engine_crate / "Cargo.toml"
+                (manifest.parent / "include").mkdir(parents=True)
+                packages.append({"name": engine.engine_crate, "manifest_path": str(manifest)})
+            metadata = SimpleNamespace(returncode=0, stdout=json.dumps({"packages": packages}), stderr="")
+            def build(argv, **kwargs):
+                for engine in perf.lb.COMPRESSION_ENGINES:
+                    archive = root / "target" / "release" / engine.archive
+                    archive.parent.mkdir(parents=True, exist_ok=True)
+                    archive.write_text("")
+            with mock.patch.object(perf.lb, "_require_command", side_effect=build) as command, \
+                    mock.patch.object(perf.lb.subprocess, "run", return_value=metadata):
+                variables = perf.lb.compression_engine_environment(
+                    root, {"PATH": "p"}, target_dir=root / "target", profile="release",
+                    log=root / "log")
+            argv = command.call_args.args[0]
+            self.assertEqual([argv[index + 1] for index, item in enumerate(argv) if item == "--package"],
+                             ["cpython-libz-rs", "cpython-libbz2-rs"])
+            self.assertEqual(command.call_args.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target"))
+            self.assertEqual(variables, {
+                "ZLIB_CFLAGS": f"-I{root / 'registry/libz-rs-sys/include'}",
+                "ZLIB_LIBS": f"-L{root / 'target/release'} -Wl,-hidden-lcpython_libz_rs -Wl,-dead_strip",
+                "BZIP2_CFLAGS": f"-I{root / 'registry/libbz2-rs-sys/include'}",
+                "BZIP2_LIBS": f"-L{root / 'target/release'} -Wl,-hidden-lcpython_libbz2_rs -Wl,-dead_strip",
+            })
+
+    def test_missing_archive_fails_loudly(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(perf.lb, "_require_command"), \
+                    self.assertRaisesRegex(perf.LaneError, "archive was not built"):
+                perf.lb.compression_engine_environment(
+                    root, {}, target_dir=root / "target", profile="dev", log=root / "log")
+
+    def test_only_cargo_profiles_are_accepted(self):
+        with self.assertRaisesRegex(perf.LaneError, "dev or release"):
+            perf.lb.compression_engine_environment(
+                Path("."), {}, target_dir=Path("."), profile="bench", log=Path("log"))
 
 
 class LinuxToolchainProvenanceTests(unittest.TestCase):

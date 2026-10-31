@@ -37,7 +37,7 @@ import tomllib
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 LANE = Path(__file__).resolve().parent
 REPO = LANE.parent
@@ -92,6 +92,11 @@ CLEAN_BUILD_PATHS = (
     re.compile(r"Modules/Setup(\..*)?"),
     re.compile(r"Modules/makesetup"),
 )
+CompressionRoute = Literal["private", "upstream"]
+UPSTREAM_COMPRESSION_OMITTED_FILES = ("Lib/zlib.py", "Modules/_bz2module.c")
+UPSTREAM_COMPRESSION_OMITTED_SETUP_ROWS = frozenset({"_bz2", "_bz2_rs", "_zlib_rs"})
+UPSTREAM_COMPRESSION_OMITTED_MEMBERS = frozenset({"_bz2_rs", "_zlib_rs"})
+UPSTREAM_COMPRESSION_MODULES = ("zlib", "_bz2", "binascii")
 COMPLETED = {"built", "suite-failed", "suite-passed", "all-failed", "all-passed"}
 DEFAULT_MIN_IDLE = 80.0
 # compileall_source hashes the .pyc bytes it writes; the checklist's marshal
@@ -129,6 +134,7 @@ def _paths(name: str, lane: Path = LANE) -> dict[str, Path]:
         "configure_log": logs / f"{tag}-configure.log",
         "build_log": logs / f"{tag}-build.log",
         "install_log": logs / f"{tag}-install.log",
+        "compression_log": logs / f"{tag}-compression-engines.log",
         "cargo_log": logs / f"{tag}-cargo-offline-check.log",
         "report": lane / "results" / f"{tag}.json",
     }
@@ -311,7 +317,7 @@ def _perf_flags(toolchain, target) -> dict[str, str]:
     }
 
 
-def _overlay_members() -> set[str]:
+def _overlay_members(route: CompressionRoute) -> set[str]:
     members: set[str] = set()
     for manifest in lb.OVERLAY.glob("Modules/_*/Cargo.toml"):
         package = tomllib.loads(manifest.read_text()).get("package", {})
@@ -319,6 +325,8 @@ def _overlay_members() -> set[str]:
         if not isinstance(name, str) or not name:
             raise LaneError(f"overlay Rust module has no package name: {manifest}")
         members.add(name)
+    if route == "upstream":
+        members -= UPSTREAM_COMPRESSION_OMITTED_MEMBERS
     return members
 
 
@@ -426,6 +434,27 @@ def verify_release_artifacts(build: Path, stage: Path, members: set[str]) -> dic
     if not installed:
         raise LaneError("no installed Rust extension modules were found to verify")
     return installed
+
+
+def verify_upstream_compression(stage: Path) -> None:
+    """Prove the stock zlib, bzip2 and CRC modules carry no system codec library."""
+    dynload = next(stage.glob("lib/python3.*/lib-dynload"), None)
+    if dynload is None:
+        raise LaneError(f"installed lib-dynload is missing under {stage}")
+    for module in UPSTREAM_COMPRESSION_MODULES:
+        extensions = sorted(dynload.glob(f"{module}.*.so"))
+        if len(extensions) != 1:
+            raise LaneError(f"expected one installed {module} extension, found {len(extensions)}")
+        linked = subprocess.run(["otool", "-L", str(extensions[0])], capture_output=True,
+                                text=True, check=True).stdout
+        system_codecs = [line.split()[0] for line in linked.splitlines()[1:]
+                         if re.search(r"/lib(z|bz2)\.", line.split()[0])]
+        if system_codecs:
+            raise LaneError(f"{extensions[0].name} links system codec libraries: {system_codecs}")
+    private = sorted(path.name for module in UPSTREAM_COMPRESSION_OMITTED_MEMBERS
+                     for path in dynload.glob(f"{module}.*.so"))
+    if private or (next(stage.glob("lib/python3.*/zlib.py"), None) is not None):
+        raise LaneError(f"upstream compression stage contains private adapters: {private or 'zlib.py'}")
 
 
 def _source_aggregate_recipe(source: Path):
@@ -593,7 +622,22 @@ def _builtin_artifact_verifier():
     return proof, object_stores
 
 
-def _stage_overlay(paths: dict[str, Path]) -> tuple[dict[str, Any], list[str]]:
+def _upstream_compression_setup(setup_local: str) -> str:
+    kept: list[str] = []
+    dropped: set[str] = set()
+    for line in setup_local.splitlines(keepends=True):
+        tokens = line.split("#", 1)[0].split()
+        if tokens and tokens[0] in UPSTREAM_COMPRESSION_OMITTED_SETUP_ROWS:
+            dropped.add(tokens[0])
+        else:
+            kept.append(line)
+    if dropped != UPSTREAM_COMPRESSION_OMITTED_SETUP_ROWS:
+        raise LaneError("Setup.local lacks private compression rows: "
+                        + ", ".join(sorted(UPSTREAM_COMPRESSION_OMITTED_SETUP_ROWS - dropped)))
+    return "".join(kept)
+
+
+def _stage_overlay(paths: dict[str, Path], route: CompressionRoute) -> tuple[dict[str, Any], list[str]]:
     # Copy the overlay into a scratch tree with the coverage builder's own
     # validation (no Lib/test edits, no symlinks), then diff from there.
     staging = paths["overlay_staging"]
@@ -601,6 +645,11 @@ def _stage_overlay(paths: dict[str, Path]) -> tuple[dict[str, Any], list[str]]:
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
     overlay = lb._apply_overlay(staging)
+    if route == "upstream":
+        for omitted in UPSTREAM_COMPRESSION_OMITTED_FILES:
+            (staging / omitted).unlink()
+        setup_local = staging / "Modules" / "Setup.local"
+        setup_local.write_text(_upstream_compression_setup(setup_local.read_text()))
     files = sorted(path.relative_to(staging).as_posix()
                    for path in staging.rglob("*") if path.is_file())
     return overlay, files
@@ -780,11 +829,11 @@ class OverlaySync(NamedTuple):
     changes: dict[str, list[str]]
 
 
-def _plan_overlay_sync(paths: dict[str, Path]) -> OverlaySync:
+def _plan_overlay_sync(paths: dict[str, Path], route: CompressionRoute) -> OverlaySync:
     source = _existing_source(paths["source_parent"])
     if not (paths["build"] / "Makefile").is_file() or not paths["overlay_manifest"].is_file():
         raise LaneError("the previous build tree is incomplete; run a clean build")
-    overlay, files = _stage_overlay(paths)
+    overlay, files = _stage_overlay(paths, route)
     staged = {item: (paths["overlay_staging"] / item).read_bytes() for item in files}
     current = {item: ((source / item).read_bytes() if (source / item).is_file() else None)
                for item in files}
@@ -824,6 +873,13 @@ def _build_environment(toolchain, target, paths: dict[str, Path], *, workers: in
     return sandbox.environment(env)
 
 
+def _report_route(report: dict[str, Any]) -> CompressionRoute:
+    route = report.get("compression_route", "private")
+    if route not in ("private", "upstream"):
+        raise LaneError(f"build report names an unknown compression route {route!r}")
+    return route
+
+
 def cargo(*, name: str, arguments: list[str]) -> int:
     _check_name(name)
     if lb.IS_LINUX:
@@ -835,7 +891,7 @@ def cargo(*, name: str, arguments: list[str]) -> int:
             raise LaneError(f"{_tag(name)} is the pristine control and has no overlay to run cargo on")
         if not previous.get("configured"):
             raise LaneError(f"no configured candidate build named {name!r}; run a clean build")
-        sync = _plan_overlay_sync(paths)
+        sync = _plan_overlay_sync(paths, _report_route(previous))
         _refuse_unsyncable(sync.changes)
         _copy_changed_overlay(paths, sync.source, sync.changes)
         _write_json(paths["overlay_manifest"], sync.files)
@@ -848,7 +904,7 @@ def cargo(*, name: str, arguments: list[str]) -> int:
 
 
 def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
-          incremental: bool = False) -> int:
+          incremental: bool = False, upstream_compression: bool = False) -> int:
     _check_name(name)
     if lb.IS_LINUX:
         raise LaneError("perf builds currently support only native Apple Silicon macOS")
@@ -856,6 +912,9 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
         raise LaneError("build jobs must be positive")
     if incremental and empty_overlay:
         raise LaneError("the pristine control is always a clean build")
+    if upstream_compression and (incremental or empty_overlay):
+        raise LaneError("--upstream-compression selects the route of a clean candidate build; "
+                        "an incremental build keeps its recorded route and the control has no overlay")
     if not lb.doctor_report()["ok"]:
         raise LaneError("doctor found prerequisites missing; run `build.py doctor` for details")
     paths = _paths(name)
@@ -866,23 +925,26 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
         # that is being rebuilt, so `bench` cannot pair new bytes with an
         # old report. A failed incremental build keeps its configured tree.
         configured = False
+        route: CompressionRoute = "upstream" if upstream_compression else "private"
         if incremental:
             previous = _read_report(paths["report"])
             if not previous.get("configured") or previous.get("pristine"):
                 raise LaneError(f"no configured candidate build named {name!r}; run a clean build")
             configured = True
+            route = _report_route(previous)
         _write_json(paths["report"], {"status": "building", "name": _tag(name),
-                                      "pristine": empty_overlay, "configured": configured})
+                                      "pristine": empty_overlay, "configured": configured,
+                                      "compression_route": route})
         state = {"configured": configured}
         if incremental:
             state["previous"] = previous
         try:
             report = _build_locked(name, paths, empty_overlay=empty_overlay, jobs=jobs,
-                                   incremental=incremental, state=state)
+                                   incremental=incremental, state=state, route=route)
         except BaseException as error:
             _write_json(paths["report"], {"status": "failed", "name": _tag(name),
                                           "pristine": empty_overlay, "configured": state["configured"],
-                                          "error": str(error)})
+                                          "compression_route": route, "error": str(error)})
             raise
         report["build_seconds"] = round(time.monotonic() - started, 1)
         report["phase_seconds"] = phase_seconds
@@ -895,7 +957,8 @@ def build(*, name: str, empty_overlay: bool, jobs: int | None = None,
 
 
 def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, jobs: int | None,
-                  incremental: bool, state: dict[str, Any]) -> dict[str, Any]:
+                  incremental: bool, state: dict[str, Any],
+                  route: CompressionRoute = "private") -> dict[str, Any]:
     toolchain, target = lb._toolchain()
     lb._llvm_ready(toolchain)
     git_state = _git_state()
@@ -904,7 +967,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     placement_modes: dict[str, bool] = {}
     placement_original: bytes | None = None
     if incremental:
-        source, overlay, files, staged, current, changes = _plan_overlay_sync(paths)
+        source, overlay, files, staged, current, changes = _plan_overlay_sync(paths, route)
         setup = "Modules/Setup.stdlib.in"
         if changes["changed"] == [setup] and not changes["removed"]:
             placement_original = _original_setup_template()
@@ -959,7 +1022,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         if empty_overlay:
             overlay, files = {"files": 0, "sha256": None, "pristine": True}, []
         else:
-            overlay, files = _stage_overlay(paths)
+            overlay, files = _stage_overlay(paths, route)
             for item in files:
                 _copy_file(paths["overlay_staging"] / item, source / item)
     _write_json(paths["overlay_manifest"], files)
@@ -986,6 +1049,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     source_aggregate = (not empty_overlay and lb.TARGET == "aarch64-apple-darwin"
                         and (source / "Modules/cpython-rust-source-aggregate356/Cargo.toml").is_file())
     std_metadata = None
+    engine_environment: dict[str, str] | None = None
     if not incremental:
         for path in (paths["build"], paths["stage"]):
             if path.exists():
@@ -993,6 +1057,11 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
             path.mkdir(parents=True)
         if source_aggregate:
             std_metadata = _prepare_csv_source_std(paths, env)
+        if route == "upstream":
+            engine_environment = lb.compression_engine_environment(
+                source, env, target_dir=paths["build"] / "compression-target", profile="release",
+                log=paths["compression_log"], sealed=sandbox)
+            env.update(engine_environment)
         lb._require_command(configure, cwd=paths["build"], env=env,
                             log=paths["configure_log"], sealed=sandbox)
         setup_local = source / "Modules" / "Setup.local"
@@ -1035,7 +1104,7 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     if cargo_default != "dev":
         raise LaneError(f"unexpected configured Cargo default {cargo_default!r}; expected 'dev'")
     members = set(lb._workspace_members(source, env))
-    required = {"_base64", "cpython-sys"} | (set() if empty_overlay else _overlay_members())
+    required = {"_base64", "cpython-sys"} | (set() if empty_overlay else _overlay_members(route))
     if not required <= members:
         raise LaneError("perf workspace is missing members: "
                         + ", ".join(sorted(required - members)))
@@ -1047,6 +1116,8 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
     rust_source_aggregate = (_install_source_aggregate(source, paths, std_metadata)
                        if std_metadata is not None else None)
     rust_extensions = verify_release_artifacts(paths["build"], paths["stage"], members)
+    if route == "upstream":
+        verify_upstream_compression(paths["stage"])
     rust_builtins = {}
     if not empty_overlay:
         proof, object_stores = _builtin_artifact_verifier()
@@ -1060,6 +1131,10 @@ def _build_locked(name: str, paths: dict[str, Path], *, empty_overlay: bool, job
         "status": "built",
         "configured": True,
         "build_mode": "perf-no-pgo-no-lto",
+        "compression_route": route,
+        "compression_engine_environment": (
+            state.get("previous", {}).get("compression_engine_environment") if incremental
+            else engine_environment),
         "name": _tag(name),
         "pristine": empty_overlay,
         "incremental": incremental,
@@ -1196,6 +1271,8 @@ def _label(side: dict[str, Any]) -> str:
     flags = []
     if report.get("incremental"):
         flags.append("incremental")
+    if report.get("compression_route") == "upstream":
+        flags.append("upstream-compression")
     if report.get("git", {}).get("overlay_dirty"):
         flags.append("dirty")
     suffix = f" ({', '.join(flags)})" if flags else ""
@@ -1847,6 +1924,9 @@ def main(argv: list[str] | None = None) -> int:
                               help="build the pristine fork without the Rust overlay")
     build_parser.add_argument("--incremental", action="store_true",
                               help="reuse the configured tree; sync changed overlay files only")
+    build_parser.add_argument("--upstream-compression", action="store_true",
+                              help="link CPython's stock zlib, _bz2 and binascii modules against "
+                                   "zlib-rs and libbz2-rs instead of the private _zlib_rs and _bz2_rs")
     build_parser.add_argument("--jobs", type=int, metavar="N", help="parallel build jobs")
     cargo_parser = commands.add_parser(
         "cargo", help="run the pinned cargo in a perf build's assembled source, after an overlay sync")
@@ -1928,7 +2008,7 @@ def main(argv: list[str] | None = None) -> int:
             return status()
         if args.command == "build":
             return build(name=args.name, empty_overlay=args.empty_overlay, jobs=args.jobs,
-                         incremental=args.incremental)
+                         incremental=args.incremental, upstream_compression=args.upstream_compression)
         if args.command == "cargo":
             return cargo(name=args.name, arguments=args.cargo_args)
         if args.command == "test":

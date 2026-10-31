@@ -9,6 +9,7 @@ members = [
     "Modules/_tokenize_rs", "Modules/_tomllib_rs", "Modules/_typing_rs",
     "Modules/_unicodedata_rs", "Modules/_urllib_parse_rs", "Modules/_urllib_request_rs", "Modules/_uuid_rs", "Modules/_warnings_rs", "Modules/_zip_rs", "Modules/_zipimport_rs", "Modules/_zlib_rs", "Modules/_zstd_rs",
     "Modules/cpython-binding", "Modules/cpython-build-helper",
+    "Modules/cpython-libbz2-rs", "Modules/cpython-libz-rs",
     "Modules/cpython-rust-staticlib", "Modules/cpython-sys"
 ]
 

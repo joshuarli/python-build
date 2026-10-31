@@ -1185,6 +1185,74 @@ def _workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     return sorted(names[member] for member in document["workspace_members"] if member in names)
 
 
+class CompressionEngine(NamedTuple):
+    carrier_package: str
+    engine_crate: str
+    library: str
+    configure_prefix: str
+
+    @property
+    def archive(self) -> str:
+        return f"lib{self.library}.a"
+
+
+COMPRESSION_ENGINES = (
+    CompressionEngine("cpython-libz-rs", "libz-rs-sys", "cpython_libz_rs", "ZLIB"),
+    CompressionEngine("cpython-libbz2-rs", "libbz2-rs-sys", "cpython_libbz2_rs", "BZIP2"),
+)
+
+
+def _package_include_directory(source: Path, env: dict[str, str], package: str) -> Path:
+    result = subprocess.run(
+        [str(CARGO_HOME / "bin" / "cargo"), "metadata", "--locked", "--offline",
+         "--format-version", "1", "--manifest-path", str(source / "Cargo.toml")],
+        cwd=source, env=env, capture_output=True, text=True, timeout=120, check=False,
+    )
+    if result.returncode != 0:
+        raise LaneError(f"cargo metadata failed: {(result.stderr or result.stdout).strip()}")
+    manifests = [Path(item["manifest_path"]) for item in json.loads(result.stdout)["packages"]
+                 if item["name"] == package]
+    if len(manifests) != 1 or not (manifests[0].parent / "include").is_dir():
+        raise LaneError(f"locked crate {package} has no unique include directory: {manifests}")
+    return manifests[0].parent / "include"
+
+
+def compression_engine_environment(
+    source: Path, env: dict[str, str], *, target_dir: Path, profile: str, log: Path,
+    sealed: SealedRun | None = None,
+) -> dict[str, str]:
+    """Static zlib-rs and libbz2-rs archives, as CPython's own configure inputs.
+
+    CPython links its stock zlib and bzip2 modules through ZLIB_* and BZIP2_*.
+    The returned variables point those at archives of the locked crates, with
+    each crate's own header, so no system libz or libbz2 enters the modules.
+    The Apple linker hides the archive's symbols and drops what the module
+    does not reach, so a module exports only its own entry points.
+    """
+    if profile not in {"dev", "release"}:
+        raise LaneError(f"compression engines build with the dev or release profile, not {profile!r}")
+    cargo_env = dict(env)
+    cargo_env["CARGO_TARGET_DIR"] = str(target_dir)
+    _require_command(
+        [str(CARGO_HOME / "bin" / "cargo"), "build", "--lib", "--locked", "--offline",
+         "--profile", profile, "--manifest-path", str(source / "Cargo.toml"),
+         *[argument for engine in COMPRESSION_ENGINES
+           for argument in ("--package", engine.carrier_package)]],
+        cwd=source, env=cargo_env, log=log, sealed=sealed,
+    )
+    profile_directory = "release" if profile == "release" else "debug"
+    variables: dict[str, str] = {}
+    for engine in COMPRESSION_ENGINES:
+        archive = target_dir / profile_directory / engine.archive
+        if not archive.is_file():
+            raise LaneError(f"compression engine archive was not built: {archive}")
+        include = _package_include_directory(source, cargo_env, engine.engine_crate)
+        variables[f"{engine.configure_prefix}_CFLAGS"] = f"-I{include}"
+        variables[f"{engine.configure_prefix}_LIBS"] = (
+            f"-L{archive.parent} -Wl,-hidden-l{engine.library} -Wl,-dead_strip")
+    return variables
+
+
 def _built_workspace_members(source: Path, env: dict[str, str]) -> list[str]:
     members = set(_workspace_members(source, env))
     pattern = re.compile(r"(?:Compiling|Fresh) ([^ ]+) v[^ ]+")

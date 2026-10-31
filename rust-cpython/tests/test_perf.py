@@ -1049,7 +1049,7 @@ class CargoCommandTests(unittest.TestCase):
             if staged is None:
                 staged = {"Modules/_fixture_rs/src/lib.rs": b"new"}
             self.cargo_runs = 0
-            def stage(_paths):
+            def stage(_paths, _route):
                 for name, data in staged.items():
                     target = paths["overlay_staging"] / name
                     target.parent.mkdir(parents=True, exist_ok=True)
@@ -1140,7 +1140,7 @@ class CargoCommandTests(unittest.TestCase):
 class IncrementalRecipeTests(unittest.TestCase):
     def exercise(self, incremental, *, bad_install=False, failed_install=False, source_std=True,
                  empty_overlay=False, missing_current_member=False, aggregate=True, missing_aggregate=False,
-                 late_placement_failure=False, abrupt_placement_failure=False):
+                 late_placement_failure=False, abrupt_placement_failure=False, route="private"):
         with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
             root = Path(temp)
             if not source_std:
@@ -1158,7 +1158,7 @@ class IncrementalRecipeTests(unittest.TestCase):
             (source / "Lib/pickle.py").write_text("old")
             paths = {name: root / name for name in (
                 "source_parent", "overlay_staging", "overlay_manifest", "build", "stage",
-                "cargo_log", "configure_log", "build_log", "install_log")}
+                "cargo_log", "configure_log", "build_log", "install_log", "compression_log")}
             paths["build"].mkdir()
             (paths["build"] / "Makefile").write_text("CARGO_PROFILE=dev\n")
             paths["overlay_manifest"].write_text('["Lib/pickle.py"]')
@@ -1173,9 +1173,12 @@ class IncrementalRecipeTests(unittest.TestCase):
             proof.verify_builtin_artifacts.return_value = {"fixture": "verified"}
             members = {"_base64", "cpython-sys", "_fixture_rs"}
             commands = []
+            configure_environments = []
             preparations = []
             def command(argv, *, log, **kwargs):
                 commands.append(argv)
+                if argv[0].endswith("/configure"):
+                    configure_environments.append(kwargs["env"])
                 if "fetch" in argv and missing_aggregate:
                     self.assertIn('--locked', argv)
                     self.assertIn('--manifest-path', argv)
@@ -1206,10 +1209,10 @@ class IncrementalRecipeTests(unittest.TestCase):
                 "_install_source_aggregate": lambda *a: {"fixture": "verified"},
                 "_git_state": lambda: {"commit": "fixture"},
                 "_existing_source": lambda parent: source,
-                "_stage_overlay": lambda paths: ({"sha256": "fixture"}, ["Lib/pickle.py"]),
+                "_stage_overlay": lambda paths, route: ({"sha256": "fixture"}, ["Lib/pickle.py"]),
                 "_builtin_artifact_verifier": lambda: (proof, []),
                 "_perf_flags": lambda *a: {"CPPFLAGS": "", "CFLAGS": "fixture flags"},
-                "_overlay_members": lambda: {"_fixture_rs"},
+                "_overlay_members": lambda route: {"_fixture_rs"},
                 "_build_python": lambda build: build / "python.exe",
             }
             for name, value in fixtures.items():
@@ -1225,6 +1228,10 @@ class IncrementalRecipeTests(unittest.TestCase):
             patches.enter_context(mock.patch.object(perf.lb, "_extract_fresh", return_value=source))
             patches.enter_context(mock.patch.object(perf.lb, "_require_command", side_effect=command))
             patches.enter_context(mock.patch.object(perf.lb, "_make_value", return_value="dev"))
+            engines = patches.enter_context(mock.patch.object(
+                perf.lb, "compression_engine_environment",
+                return_value={"ZLIB_LIBS": "/engines/libz.a", "BZIP2_LIBS": "/engines/libbz2.a"}))
+            upstream_proof = patches.enter_context(mock.patch.object(perf, "verify_upstream_compression"))
             extensions = patches.enter_context(mock.patch.object(
                 perf, "verify_release_artifacts", return_value={str(i): "hash" for i in range(58)}))
             checks = patches.enter_context(mock.patch.object(perf, "_check_logs", wraps=perf._check_logs))
@@ -1320,7 +1327,19 @@ class IncrementalRecipeTests(unittest.TestCase):
                     compiled.assert_not_called()
             else:
                 report = perf._build_locked("fixture", paths, empty_overlay=empty_overlay, jobs=4,
-                                            incremental=incremental, state={"configured": True})
+                                            incremental=incremental, state={"configured": True},
+                                            route=route)
+                self.assertEqual(report["compression_route"], route)
+                self.assertEqual(engines.call_count, int(route == "upstream"))
+                self.assertEqual(upstream_proof.call_count, int(route == "upstream"))
+                if route == "upstream":
+                    self.assertEqual(engines.call_args.kwargs["profile"], "release")
+                    self.assertEqual(report["compression_engine_environment"], engines.return_value)
+                    self.assertEqual([environment["ZLIB_LIBS"] for environment in configure_environments],
+                                     ["/engines/libz.a"])
+                else:
+                    self.assertIsNone(report["compression_engine_environment"])
+                    self.assertFalse(any("ZLIB_LIBS" in environment for environment in configure_environments))
                 self.assertEqual(len(report["rust_extensions_sha256"]), 58)
                 self.assertEqual(report["rust_builtin_artifacts"], {} if empty_overlay else {"fixture": "verified"})
                 self.assertEqual(report["stage_identity"], perf.tree_digest(paths["stage"]))
@@ -1371,6 +1390,9 @@ class IncrementalRecipeTests(unittest.TestCase):
 
     def test_incremental_rejects_current_dev_transcript_despite_stale_release_log(self):
         self.exercise(True, bad_install=True)
+
+    def test_upstream_route_links_the_compression_engines_before_configure(self):
+        self.exercise(False, route="upstream")
 
     def test_incremental_install_failure_does_not_claim_artifact_proof(self):
         self.exercise(True, failed_install=True)
@@ -1736,6 +1758,98 @@ class LeaseTests(unittest.TestCase):
             self.assertFalse(self._try("host.lock", fcntl.LOCK_SH))
             self.assertFalse(self._try("turnstile.lock", fcntl.LOCK_EX))
         self.assertTrue(self._try("host.lock", fcntl.LOCK_EX))
+
+
+class UpstreamCompressionRouteTests(unittest.TestCase):
+    setup_local = (
+        "*shared*\n_binascii_rs _binascii_rs/Cargo.toml\n"
+        "_bz2 _bz2module.c -DPYTHON_RUST_BZ2\n_bz2_rs _bz2_rs/Cargo.toml  # codec\n"
+        "_zlib_rs _zlib_rs/Cargo.toml\n*disabled*\n_ssl\n")
+
+    def test_setup_drops_exactly_the_private_compression_rows(self):
+        self.assertEqual(perf._upstream_compression_setup(self.setup_local),
+                         "*shared*\n_binascii_rs _binascii_rs/Cargo.toml\n*disabled*\n_ssl\n")
+
+    def test_setup_without_a_private_row_is_refused(self):
+        with self.assertRaisesRegex(perf.LaneError, "_zlib_rs"):
+            perf._upstream_compression_setup(
+                self.setup_local.replace("_zlib_rs _zlib_rs/Cargo.toml\n", ""))
+
+    def test_staging_omits_private_adapters_on_the_upstream_route_only(self):
+        files = {"Lib/zlib.py": "a", "Modules/_bz2module.c": "b", "Lib/gzip.py": "c",
+                 "Modules/Setup.local": self.setup_local}
+        def apply_overlay(staging):
+            for relative, text in files.items():
+                (staging / relative).parent.mkdir(parents=True, exist_ok=True)
+                (staging / relative).write_text(text)
+            return {"files": len(files)}
+        for route, expected in (("private", sorted(files)),
+                                ("upstream", ["Lib/gzip.py", "Modules/Setup.local"])):
+            with tempfile.TemporaryDirectory() as temp, \
+                    mock.patch.object(perf.lb, "_apply_overlay", side_effect=apply_overlay):
+                paths = {"overlay_staging": Path(temp) / "staging"}
+                _, staged = perf._stage_overlay(paths, route)
+                self.assertEqual(staged, expected)
+                setup = (paths["overlay_staging"] / "Modules/Setup.local").read_text()
+                self.assertEqual("_zlib_rs" in setup, route == "private")
+
+    def test_required_members_exclude_private_adapters_on_the_upstream_route_only(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for name in ("_zlib_rs", "_bz2_rs", "_gzip_rs"):
+                manifest = Path(temp) / "Modules" / name / "Cargo.toml"
+                manifest.parent.mkdir(parents=True)
+                manifest.write_text(f'[package]\nname = "{name}"\n')
+            with mock.patch.object(perf.lb, "OVERLAY", Path(temp)):
+                self.assertEqual(perf._overlay_members("private"), {"_zlib_rs", "_bz2_rs", "_gzip_rs"})
+                self.assertEqual(perf._overlay_members("upstream"), {"_gzip_rs"})
+
+    def test_route_belongs_to_clean_candidate_builds(self):
+        for options in ({"incremental": True}, {"empty_overlay": True}):
+            with self.subTest(options), self.assertRaisesRegex(perf.LaneError, "--upstream-compression"):
+                perf.build(name="fixture", **{"empty_overlay": False, **options},
+                           upstream_compression=True)
+
+    def test_recorded_route_must_be_known(self):
+        self.assertEqual(perf._report_route({}), "private")
+        self.assertEqual(perf._report_route({"compression_route": "upstream"}), "upstream")
+        with self.assertRaisesRegex(perf.LaneError, "unknown compression route"):
+            perf._report_route({"compression_route": "zlib-ng"})
+
+    def test_stage_with_system_codec_libraries_or_private_adapters_is_refused(self):
+        def otool(linked):
+            return mock.Mock(stdout="name:\n" + "".join(f"\t{path} (compatibility version 1)\n"
+                                                         for path in linked))
+        def stage(root, extra=()):
+            dynload = root / "lib/python3.16/lib-dynload"
+            dynload.mkdir(parents=True)
+            for module in ("zlib", "_bz2", "binascii", *extra):
+                (dynload / f"{module}.cpython-316-darwin.so").write_text("")
+        with tempfile.TemporaryDirectory() as temp:
+            stage(Path(temp))
+            with mock.patch.object(perf.subprocess, "run", return_value=otool(["/usr/lib/libSystem.B.dylib"])):
+                perf.verify_upstream_compression(Path(temp))
+            with mock.patch.object(perf.subprocess, "run", return_value=otool(["/usr/lib/libz.1.dylib"])), \
+                    self.assertRaisesRegex(perf.LaneError, "system codec libraries"):
+                perf.verify_upstream_compression(Path(temp))
+        with tempfile.TemporaryDirectory() as temp:
+            stage(Path(temp), extra=("_zlib_rs",))
+            with mock.patch.object(perf.subprocess, "run", return_value=otool([])), \
+                    self.assertRaisesRegex(perf.LaneError, "private adapters"):
+                perf.verify_upstream_compression(Path(temp))
+
+    def test_cargo_syncs_overlay_with_the_recorded_route(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+            paths = {"report": Path(temp) / "report.json"}
+            paths["report"].write_text(json.dumps(
+                {"configured": True, "pristine": False, "compression_route": "upstream"}))
+            sync = patches.enter_context(mock.patch.object(
+                perf, "_plan_overlay_sync", side_effect=LookupError("stop after planning")))
+            patches.enter_context(mock.patch.object(perf, "_paths", return_value=paths))
+            patches.enter_context(mock.patch.object(perf, "host_lease", return_value=nullcontext()))
+            patches.enter_context(mock.patch.object(perf.lb, "IS_LINUX", False))
+            with self.assertRaises(LookupError):
+                perf.cargo(name="fixture", arguments=["metadata"])
+            sync.assert_called_once_with(paths, "upstream")
 
 
 class SelectionTests(unittest.TestCase):

@@ -1027,6 +1027,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpython-libbz2-rs"
+version = "0.1.0"
+dependencies = [
+ "libbz2-rs-sys",
+]
+
+[[package]]
+name = "cpython-libz-rs"
+version = "0.1.0"
+dependencies = [
+ "libz-rs-sys",
+]
+
+[[package]]
 name = "cpython-rust-staticlib"
 version = "0.1.0"
 dependencies = [
