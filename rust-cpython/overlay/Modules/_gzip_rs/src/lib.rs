@@ -7,11 +7,11 @@ use cpython_binding::arguments::{c_int_argument, exactly, long_long_argument};
 use cpython_binding::ffi::{PyMethodDef, PyObject, Py_ssize_t};
 use cpython_binding::values::boolean;
 use cpython_binding::{
-    Borrowed, Buffer, BytesSink, BytesWriter, CapsuleState, Sink, Exception, Module, Outcome, Owned, capsule_state,
+    Borrowed, Buffer, BytesWriter, CapsuleState, Sink, Exception, Module, Outcome, Owned, capsule_state,
     fastcall, fastcall_arguments, into_return, method_table_end, new_capsule, raise,
 };
 use cpython_deflate::{
-    Deflater, InflateFlush, Inflater, RAW_WINDOW, StateAllocator, Z_BUF_ERROR,
+    Deflater, ExactBytesSink, InflateFlush, Inflater, RAW_WINDOW, StateAllocator, Z_BUF_ERROR,
     Z_FINISH, Z_NO_FLUSH, Z_OK, Z_STREAM_END, compress_capacity_hint, crc32, crc32_call,
     decompress_capacity_hint, setup_failure, zlib_failure,
 };
@@ -122,7 +122,7 @@ fn compressor_compress_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
         ));
     }
     let input = input.as_bytes();
-    let mut output = BytesSink::with_capacity(compress_capacity_hint(input.len()))?;
+    let mut output = ExactBytesSink::with_capacity(compress_capacity_hint(input.len()))?;
     compressor
         .stream
         .run(input, Z_NO_FLUSH, &mut output)
@@ -147,7 +147,7 @@ fn compressor_flush_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     if mode == Z_NO_FLUSH {
         return BytesWriter::copy_of(b"");
     }
-    let mut output = BytesSink::with_capacity(1024)?;
+    let mut output = ExactBytesSink::with_capacity(1024)?;
     let code = compressor
         .stream
         .run(&[], mode, &mut output)
@@ -182,7 +182,7 @@ fn compress_member_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     let input = input.as_bytes();
     let mut compressor = new_deflater(level)?;
     let bound = compressor.bound(input.len());
-    let mut output = BytesSink::with_capacity(bound.saturating_add(MEMBER_HEADER + MEMBER_TRAILER))?;
+    let mut output = ExactBytesSink::with_capacity(bound.saturating_add(MEMBER_HEADER + MEMBER_TRAILER))?;
     let extra_flags = match level {
         9 => 2u8,
         1 => 4u8,
@@ -266,7 +266,7 @@ fn decompressor_decompress_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     if let Some(limit) = limit {
         capacity = capacity.min(limit);
     }
-    let mut output = BytesSink::with_capacity(capacity)?;
+    let mut output = ExactBytesSink::with_capacity(capacity)?;
     let result = decompressor
         .stream
         .run(input, InflateFlush::Sync, limit, &mut output)?;

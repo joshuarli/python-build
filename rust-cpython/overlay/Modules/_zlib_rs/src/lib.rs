@@ -6,11 +6,11 @@ use cpython_binding::ffi::{PyMethodDef, PyObject, Py_ssize_t};
 use cpython_binding::module::PER_INTERPRETER_GIL;
 use cpython_binding::values::boolean;
 use cpython_binding::{
-    Borrowed, Buffer, BytesSink, BytesWriter, CapsuleState, Exception, Module, Outcome, Owned, capsule_state, fastcall, fastcall_arguments, into_return, method_table_end, new_capsule,
+    Borrowed, Buffer, BytesWriter, CapsuleState, Exception, Module, Outcome, Owned, capsule_state, fastcall, fastcall_arguments, into_return, method_table_end, new_capsule,
     raise,
 };
 use cpython_deflate::{
-    Deflater, InflateFlush, Inflater, RAW_WINDOW, ZLIB_WINDOW, Z_BUF_ERROR, Z_FINISH,
+    Deflater, ExactBytesSink, InflateFlush, Inflater, RAW_WINDOW, ZLIB_WINDOW, Z_BUF_ERROR, Z_FINISH,
     Z_NO_FLUSH, Z_OK, Z_STREAM_END, compress_capacity_hint, copy_failure, crc32_call,
     decompress_capacity_hint, setup_failure, zlib_failure,
 };
@@ -64,7 +64,7 @@ fn compress_once_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     let mut compressor = Deflater::new(level, window, None)
         .map_err(|code| setup_failure(code, "while compressing data"))?;
     let bound = compressor.bound(input.len());
-    let mut output = BytesSink::with_capacity(bound)?;
+    let mut output = ExactBytesSink::with_capacity(bound)?;
     compressor
         .run(input, Z_FINISH, &mut output)
         .map_err(|error| compressor.failure(error, "while compressing data"))?;
@@ -86,7 +86,7 @@ fn decompress_once_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     let input = input.as_bytes();
     let mut decompressor = Inflater::new(window)
         .map_err(|code| setup_failure(code, "while preparing to decompress data"))?;
-    let mut output = BytesSink::with_capacity(decompress_capacity_hint(input.len()))?;
+    let mut output = ExactBytesSink::with_capacity(decompress_capacity_hint(input.len()))?;
     let result = decompressor.run(input, InflateFlush::FinishLast, None, &mut output)?;
     if result.code != Z_STREAM_END {
         return Err(zlib_failure(
@@ -120,7 +120,7 @@ fn compressor_compress_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     let compressor = unsafe { capsule_state::<Compressor>(state) }?;
     let input = Buffer::acquire(input)?;
     let input = input.as_bytes();
-    let mut output = BytesSink::with_capacity(compress_capacity_hint(input.len()))?;
+    let mut output = ExactBytesSink::with_capacity(compress_capacity_hint(input.len()))?;
     compressor
         .0
         .run(input, Z_NO_FLUSH, &mut output)
@@ -135,7 +135,7 @@ fn compressor_flush_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     if mode == Z_NO_FLUSH {
         return BytesWriter::copy_of(b"");
     }
-    let mut output = BytesSink::with_capacity(1024)?;
+    let mut output = ExactBytesSink::with_capacity(1024)?;
     let code = compressor
         .0
         .run(&[], mode, &mut output)
@@ -221,7 +221,7 @@ fn decompressor_decompress_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     if let Some(limit) = limit {
         capacity = capacity.min(limit);
     }
-    let mut output = BytesSink::with_capacity(capacity)?;
+    let mut output = ExactBytesSink::with_capacity(capacity)?;
     let result = decompressor
         .stream
         .run(input, InflateFlush::Sync, limit, &mut output)?;
@@ -257,7 +257,7 @@ fn decompressor_flush_call(arguments: &[Borrowed<'_>]) -> Outcome<Owned> {
     }
     let input = mem::take(&mut decompressor.unconsumed_tail);
     let capacity = decompress_capacity_hint(input.len()).min(length as usize);
-    let mut output = match BytesSink::with_capacity(capacity) {
+    let mut output = match ExactBytesSink::with_capacity(capacity) {
         Ok(output) => output,
         Err(stop) => {
             decompressor.unconsumed_tail = input;
