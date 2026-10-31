@@ -1807,7 +1807,7 @@ def main(argv: list[str] | None = None) -> int:
     test_parser.add_argument("--suite", action="append", default=[], metavar="TEST_NAME",
                              help="complete CPython test module or package; repeatable")
     for command, help_text in (("bench", "paired measurement with a hill-climbing verdict"),
-                               ("calibrate", "self-compare one build; every workload must read neutral")):
+                               ("calibrate", "self-compare one build; every workload must read within budget")):
         sub = commands.add_parser(command, help=help_text)
         if command == "bench":
             sub.add_argument("--baseline", required=True, help="@control, @incumbent, or a local build name")

@@ -17,13 +17,17 @@ in the ignored `rust-cpython/results/` directory.
 Host: macOS arm64 only. All Linux proof waits in **Needs environment**
 until feature work is done.
 
-Last measured map (batch 33, `perf-rust@9f254a3`, old verdict policy,
-stale): 42 MET, 15 OVER and 14 UNCLEAR module memory rows. Six workload
-peak-RSS regressions against control: `python_startup` 1.046x,
-`django_wsgi_first_request` 1.026x, `django_orm_10k` 1.016x,
-`django_template_realistic` 1.016x, `django_asgi_request` 1.016x,
-`django_wsgi_request` 1.015x. No CPU work has run. Replay this map under the
-S2 policy before quoting it.
+Last measured map (batch 33, `perf-rust@9f254a3`, stale). Old verdict
+policy: 42 MET, 15 OVER and 14 UNCLEAR module memory rows. Replayed under the
+S2 policy from the stored intervals: 33 MET, 15 OVER and 23 UNCLEAR. Nine
+rows that the old median test called MET have an interval upper bound above
+1.01. Six workload peak-RSS regressions against control, old policy:
+`python_startup` 1.046x, `django_wsgi_first_request` 1.026x,
+`django_orm_10k` 1.016x, `django_template_realistic` 1.016x,
+`django_asgi_request` 1.016x, `django_wsgi_request` 1.015x. Those were not
+replayed: the stored workload `verdict.json` keeps only old classes and point
+ratios, without `absolute_change`, `noise_allowance` or `baseline.median`.
+Re-measure them before quoting a decision. No CPU work has run.
 
 Slices: S1 is open. Its `_bz2_rs` part landed: the scoped allocator is
 gone, and `test_bz2`, `test_tarfile`, `test_fileinput`, and `test_codecs`
@@ -35,7 +39,11 @@ void until S2 re-measures it. The `_re_rs`, `_fnmatch_rs`, and
 `lane/*` plus pre-product history, listed at `d17607f`) are evidence, not
 candidates. None merges without review under this contract.
 
-Next slice: S1. S2 and S3 may run in parallel with it.
+S2 landed on `m1-scaffold`: verdicts read improved, regressed, within
+budget, or inconclusive, and decisions read REJECT, INCONCLUSIVE, ACCEPT, or
+WITHIN-BUDGET.
+
+Next slice: S1. S3 may run in parallel with it.
 
 Resume: "Resume the Rust-for-CPython campaign in rust-for-cpython.md with
 the orchestrate skill." First command: `python3 rust-cpython/perf.py status`.

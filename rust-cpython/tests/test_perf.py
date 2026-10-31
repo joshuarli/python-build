@@ -34,6 +34,9 @@ def summary(wall_ci, *, wall_ratios=(1.0, 1.0, 1.0), cpu=None, status="pass", me
     return {"comparison": {"timing": timing, "memory": {"metrics": memory or {}}}}
 
 
+OUTCOMES = {"worse": "regressed", "better": "improved", "neutral": "within budget"}
+
+
 def verdict(*runs):
     return pv.entity_verdict([pv.run_observation(item) for item in runs])
 
@@ -63,11 +66,11 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
                 bad = name == ("json" if bad_module else "first")
                 cls = classes[counts[name] - 1] if bad else "neutral"
                 ratio = {"worse": 1.2, "better": 0.8, "neutral": 1.0}[cls]
-                metrics = {metric: {"class": cls, "ratios": [ratio] * 3,
+                metrics = {metric: {"class": OUTCOMES[cls], "ratios": [ratio] * 3,
                                     "ci95": [ratio, ratio]}
                            for metric in (("load_footprint", "working_peak")
                                           if kind == "module" else ("peak_rss",))}
-                metrics["cpu"] = {"class": "worse", "ratios": [2.0] * 3,
+                metrics["cpu"] = {"class": "regressed", "ratios": [2.0] * 3,
                                   "ci95": [2.0, 2.0]}
                 return {"kind": kind, "metrics": metrics,
                         "mismatch": mismatch and name == "tail"}
@@ -176,7 +179,7 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         self.assertEqual(set(record["entities"]), {"first", "tail", "json", "csv"})
         for observations in record["raw"].values():
             self.assertEqual(len(observations), 2)
-        self.assertEqual(record["decision"]["decision"], pv.NEUTRAL)
+        self.assertEqual(record["decision"]["decision"], pv.WITHIN_BUDGET)
 
     def test_rigorous_survivor_preserves_all_selected_rounds_and_replicates(self):
         record, calls = self.measure(("neutral", "neutral", "neutral"), profile="rigorous")
@@ -187,7 +190,7 @@ class ExploratoryEarlyRejectionTests(unittest.TestCase):
         self.assertTrue(record["sampling_complete"])
         for observations in record["raw"].values():
             self.assertEqual(len(observations), 3)
-        self.assertEqual(record["decision"]["decision"], pv.NEUTRAL)
+        self.assertEqual(record["decision"]["decision"], pv.WITHIN_BUDGET)
 
     def test_one_worse_then_neutral_keeps_complete_evidence(self):
         record, calls = self.measure(("worse", "neutral"))
@@ -554,44 +557,85 @@ class WorkloadProfileTests(unittest.TestCase):
 
 class ClassifyTests(unittest.TestCase):
     def test_interval_must_clear_the_practical_floor(self):
-        self.assertEqual(pv.classify([0.95, 0.98]), "better")
-        self.assertEqual(pv.classify([0.97, 0.995]), "neutral")
-        self.assertEqual(pv.classify([1.02, 1.05]), "worse")
-        self.assertEqual(pv.classify([1.001, 1.009]), "neutral")
-        self.assertEqual(pv.classify(None), "insufficient")
+        self.assertEqual(pv.classify([0.95, 0.98]), "improved")
+        self.assertEqual(pv.classify([0.97, 0.995]), "within budget")
+        self.assertEqual(pv.classify([1.02, 1.05]), "regressed")
+        self.assertEqual(pv.classify([1.001, 1.009]), "within budget")
+        self.assertEqual(pv.classify(None), "inconclusive")
 
     def test_claims_need_every_run_to_agree(self):
-        self.assertEqual(pv.replicate(["better", "better"]), "improved")
-        self.assertEqual(pv.replicate(["better", "neutral"]), "neutral")
-        self.assertEqual(pv.replicate(["worse", "worse"]), "regressed")
-        self.assertEqual(pv.replicate(["better", "worse"]), "unstable")
-        self.assertEqual(pv.replicate(["better", "insufficient"]), "insufficient")
+        self.assertEqual(pv.replicate(["improved", "improved"]), "improved")
+        self.assertEqual(pv.replicate(["improved", "within budget"]), "within budget")
+        self.assertEqual(pv.replicate(["regressed", "regressed"]), "regressed")
+        self.assertEqual(pv.replicate(["improved", "regressed"]), "inconclusive")
+        self.assertEqual(pv.replicate(["improved", "inconclusive"]), "inconclusive")
 
     def test_harness_timing_failure_counts_as_worse(self):
         observation = pv.run_observation(summary([0.99, 1.009], status="fail"))
-        self.assertEqual(observation["metrics"]["wall"]["class"], "worse")
+        self.assertEqual(observation["metrics"]["wall"]["class"], "regressed")
 
     def test_cpu_uses_paired_bootstrap(self):
         observation = pv.run_observation(summary(
             [0.99, 1.0], cpu=([1.0, 1.0, 1.0, 1.0, 1.0], [0.9, 0.91, 0.9, 0.89, 0.9])))
-        self.assertEqual(observation["metrics"]["cpu"]["class"], "better")
+        self.assertEqual(observation["metrics"]["cpu"]["class"], "improved")
 
     def test_memory_needs_floor_and_noise(self):
         grown = {"peak_rss": {"ratio_candidate_over_baseline": 1.05, "absolute_change": 5e6,
-                              "noise_allowance": 1e6, "status": "fail"}}
+                              "noise_allowance": 1e6, "baseline": {"median": 1e8}, "status": "fail"}}
         within = {"peak_rss": {"ratio_candidate_over_baseline": 1.05, "absolute_change": 5e5,
-                               "noise_allowance": 1e6, "status": "pass"}}
+                               "noise_allowance": 1e6, "baseline": {"median": 1e8}, "status": "pass"}}
         self.assertEqual(pv.run_observation(summary([0.99, 1.0], memory=grown))["metrics"]["peak_rss"]["class"],
-                         "worse")
+                         "regressed")
         self.assertEqual(pv.run_observation(summary([0.99, 1.0], memory=within))["metrics"]["peak_rss"]["class"],
-                         "neutral")
+                         "inconclusive")
+
+
+class VerdictPolicyTests(unittest.TestCase):
+    def memory(self, change, noise, baseline=1e8):
+        return {"peak_rss": {"ratio_candidate_over_baseline": 1 + change / baseline,
+                             "absolute_change": change, "noise_allowance": noise,
+                             "baseline": {"median": baseline}, "status": "pass"}}
+
+    def test_one_wide_interval_is_inconclusive_not_neutral(self):
+        run = summary([0.8, 1.3])
+        self.assertEqual(pv.run_observation(run)["metrics"]["wall"]["class"], "inconclusive")
+        decision = pv.decide({"w": verdict(run)}, targets=["w"], runs=1, quiet=True, gate=False)
+        self.assertEqual(decision["decision"], pv.INCONCLUSIVE)
+
+    def test_disagreeing_runs_are_inconclusive_not_neutral(self):
+        entity = verdict(summary([1.02, 1.08]), summary([0.99, 1.03]))
+        self.assertEqual(entity["metrics"]["wall"]["per_run"], ["regressed", "inconclusive"])
+        self.assertEqual(entity["metrics"]["wall"]["verdict"], "inconclusive")
+        decision = pv.decide({"w": entity}, targets=["w"], runs=2, quiet=True, gate=True)
+        self.assertEqual(decision["decision"], pv.INCONCLUSIVE)
+
+    def test_wide_intervals_around_parity_are_unclear_not_met(self):
+        def observed(interval, ratios):
+            return {"ratios": ratios, "ci95": interval, "class": pv.classify(interval)}
+        runs = [{"kind": "module", "mismatch": False, "metrics": {
+                    name: observed(interval, ratios) for name in pv.MODULE_MEMORY_METRICS}}
+                for interval, ratios in (([0.95, 1.6], [0.95, 1.0, 1.6]), ([0.9, 1.5], [0.9, 1.0, 1.5]))]
+        entity = pv.entity_verdict(runs)
+        self.assertEqual(entity["metrics"]["load_footprint"]["pooled"]["median"], 1.0)
+        goal = pv.goal_status(entity)
+        self.assertEqual(goal["status"], "UNCLEAR")
+        self.assertEqual(goal["metrics"], {"load_footprint": "UNCLEAR", "working_peak": "UNCLEAR"})
+
+    def test_bench_memory_is_within_budget_up_to_the_allowance(self):
+        def reads(change, noise):
+            observation = pv.run_observation(summary([0.99, 1.0], memory=self.memory(change, noise)))
+            return observation["metrics"]["peak_rss"]["class"]
+        self.assertEqual(reads(5e5, 5e5), "within budget")
+        self.assertEqual(reads(5e5, 6e5), "inconclusive")
+        self.assertEqual(reads(-2e6, 5e5), "improved")
+        self.assertEqual(reads(3e6, 5e5), "regressed")
 
 
 class DecideTests(unittest.TestCase):
     def test_replicated_workload_rss_win_is_accepted_with_neutral_timing(self):
         memory = {'peak_rss': {'ratio_candidate_over_baseline': 0.90,
                               'absolute_change': -2e6, 'noise_allowance': 1e6,
-                              'status': 'pass'}}
+                              'baseline': {'median': 2e7}, 'status': 'pass'}}
         run = summary([0.99, 1.005], cpu=([1.0] * 5, [1.0] * 5), memory=memory)
         entities = {'python_startup': verdict(run, run)}
         decision = pv.decide(entities, targets=['python_startup'], runs=2,
@@ -617,7 +661,7 @@ class DecideTests(unittest.TestCase):
         workloads = {"zlib_decode_1m": verdict(summary([0.90, 0.95]), summary([0.91, 0.96])),
                      "python_startup": verdict(summary([1.03, 1.05]), summary([0.99, 1.01]))}
         decision = pv.decide(workloads, targets=["zlib_decode_1m"], runs=2, quiet=True, gate=True)
-        self.assertEqual(decision["decision"], pv.ACCEPT)
+        self.assertEqual(decision["decision"], pv.INCONCLUSIVE)
 
     def test_gate_needs_two_runs_and_a_quiet_host(self):
         one = {"zlib_decode_1m": verdict(summary([0.90, 0.95]))}
@@ -628,13 +672,13 @@ class DecideTests(unittest.TestCase):
         self.assertEqual(pv.decide(one, targets=["zlib_decode_1m"], runs=1, quiet=False,
                                    gate=False)["decision"], pv.INCONCLUSIVE)
 
-    def test_unstable_and_neutral(self):
+    def test_unstable_and_within_budget(self):
         unstable = {"w": verdict(summary([0.90, 0.95]), summary([1.03, 1.05]))}
         self.assertEqual(pv.decide(unstable, targets=["w"], runs=2, quiet=True, gate=True)["decision"],
                          pv.INCONCLUSIVE)
-        neutral = {"w": verdict(summary([0.98, 1.01]), summary([0.985, 1.0]))}
-        self.assertEqual(pv.decide(neutral, targets=["w"], runs=2, quiet=True, gate=True)["decision"],
-                         pv.NEUTRAL)
+        within = {"w": verdict(summary([0.98, 1.01]), summary([0.985, 1.0]))}
+        self.assertEqual(pv.decide(within, targets=["w"], runs=2, quiet=True, gate=True)["decision"],
+                         pv.WITHIN_BUDGET)
 
     def test_calibration_flags_any_difference(self):
         clean = {"w": verdict(summary([0.99, 1.01]), summary([0.995, 1.004]))}
@@ -644,6 +688,22 @@ class DecideTests(unittest.TestCase):
                          "CALIBRATION-FAILED")
         self.assertEqual(pv.calibration(clean, runs=2, quiet=False, gate=True)["decision"],
                          "CALIBRATION-INCONCLUSIVE")
+
+    def test_calibration_needs_every_metric_within_budget(self):
+        wide = {"w": verdict(summary([0.97, 1.03]), summary([0.98, 1.02]))}
+        self.assertEqual(pv.calibration(wide, runs=2, quiet=True, gate=True)["decision"],
+                         "CALIBRATION-INCONCLUSIVE")
+        split = {"w": verdict(summary([0.95, 0.98]), summary([1.03, 1.05]))}
+        calibration = pv.calibration(split, runs=2, quiet=True, gate=True)
+        self.assertEqual(calibration["decision"], "CALIBRATION-FAILED")
+        self.assertEqual(calibration["differences"], ["w wall: unstable"])
+
+    def test_inconclusive_guard_blocks_a_target_win(self):
+        workloads = {"zlib_decode_1m": verdict(summary([0.90, 0.95]), summary([0.91, 0.96])),
+                     "python_startup": verdict(summary([0.9, 1.3]), summary([0.99, 1.005]))}
+        decision = pv.decide(workloads, targets=["zlib_decode_1m"], runs=2, quiet=True, gate=True)
+        self.assertEqual(decision["decision"], pv.INCONCLUSIVE)
+        self.assertEqual(decision["inconclusive"], ["python_startup wall"])
 
     def test_render_marks_targets_and_decision(self):
         workloads = {"w": verdict(summary([0.90, 0.95], wall_ratios=(0.92, 0.93, 0.94)))}
@@ -657,8 +717,8 @@ class ModuleTests(unittest.TestCase):
         base = [sample(1.0, 100_000, 0), sample(1.0, 100_000, 0), sample(1.0, 100_000, 0)]
         cand = [sample(2.0, 400_000, 10_000), sample(2.1, 400_000, 10_000), sample(1.9, 400_000, 10_000)]
         observation = module(base, cand)
-        self.assertEqual(observation["metrics"]["cpu"]["class"], "worse")
-        self.assertEqual(observation["metrics"]["load_footprint"]["class"], "worse")
+        self.assertEqual(observation["metrics"]["cpu"]["class"], "regressed")
+        self.assertEqual(observation["metrics"]["load_footprint"]["class"], "regressed")
         # Both working peaks sit below the 256 KiB floor: equal, not infinite.
         self.assertEqual(observation["metrics"]["working_peak"]["ratios"], [1.0, 1.0, 1.0])
         self.assertFalse(observation["mismatch"])
@@ -722,8 +782,8 @@ class MemoryOnlyTests(unittest.TestCase):
         self.assertEqual(decision["regressions"], [])
         self.assertEqual(decision["acceptance_policy"], "memory-only")
 
-    def test_cpu_win_cannot_qualify_memory_neutral(self):
-        self.assertEqual(self.decision(self.entities(cpu=0.5, load=1.0))["decision"], pv.NEUTRAL)
+    def test_cpu_win_cannot_qualify_memory_within_budget(self):
+        self.assertEqual(self.decision(self.entities(cpu=0.5, load=1.0))["decision"], pv.WITHIN_BUDGET)
 
     def test_memory_guards_and_mismatches_still_reject(self):
         entities = self.entities()
@@ -741,7 +801,7 @@ class MemoryOnlyTests(unittest.TestCase):
 
     def test_unstable_memory_is_inconclusive(self):
         entities = self.entities()
-        entities["json"]["metrics"]["working_peak"]["verdict"] = "unstable"
+        entities["json"]["metrics"]["working_peak"]["verdict"] = "inconclusive"
         self.assertEqual(self.decision(entities)["decision"], pv.INCONCLUSIVE)
 
     def test_goals_exclude_cpu_and_require_both_memory_metrics(self):
@@ -763,7 +823,7 @@ class MemoryOnlyTests(unittest.TestCase):
     def test_workload_observation_accepts_memory_without_timing(self):
         memory = {"peak_rss": {"ratio_candidate_over_baseline": 0.8,
                                "absolute_change": -2e6, "noise_allowance": 1e6,
-                               "status": "pass"}}
+                               "baseline": {"median": 1e7}, "status": "pass"}}
         observation = pv.run_observation({"comparison": {"memory": {"metrics": memory}}},
                                          memory_only=True)
         self.assertEqual(set(observation["metrics"]), {"peak_rss"})

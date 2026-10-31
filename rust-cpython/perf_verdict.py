@@ -9,10 +9,14 @@ more rounds, so a hill climb uses the interval of the paired median.) This
 module turns runs into verdicts, one decision per attempt, and goal
 statuses against the control. It performs no I/O.
 
-A change counts only when it replicates: a metric is `improved` or
-`regressed` when every independent run agrees beyond the practical floor,
-and `unstable` when runs disagree in direction. Ratios are candidate over
-baseline everywhere, so below 1 is faster or smaller.
+A claim counts only when it replicates. Each run reads one of four outcomes
+per metric: `improved` (its whole interval lies below 1 - allowance),
+`regressed` (its whole interval lies above 1 + allowance), `within budget`
+(its upper bound is at most 1 + allowance), or `inconclusive`. A metric takes
+a replicated outcome only when every run supports it; runs that disagree, or
+that cannot bound the ratio, leave it `inconclusive`. The allowance is
+`PRACTICAL_FLOOR`. Ratios are candidate over baseline everywhere, so below 1
+is faster or smaller.
 
 Memory-only acceptance evaluates module load footprint and working peak,
 and supported workload peak memory, with peak RSS required. Output equality,
@@ -26,22 +30,12 @@ import statistics
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-# The smallest change worth a commit on this host, applied on top of the
-# confidence interval. A 1% floor keeps interval edges that barely clear 1.0
-# from ratcheting noise into the incumbent.
 PRACTICAL_FLOOR = 0.01
 BOOTSTRAP_CONFIDENCE = 0.95
 BENCH_MEMORY_METRICS = ("peak_rss", "peak_private", "peak_pss")
-# Peak resident memory can be a workload target independently of its timing.
 WORKLOAD_IMPROVABLE = ("wall", "cpu", "peak_rss")
-# Per-module goal band against the pristine control: at most 1.0x (with the
-# practical floor as measurement slack), and climbing on a route stops once
-# it is provably below 0.9x.
 GOAL_CEILING = 1.0
 GOAL_FLOOR = 0.9
-# Module memory values below these sizes are indistinguishable from page
-# and allocator granularity; both sides are raised to the floor before a
-# ratio is taken, so two negligible values compare as equal.
 MODULE_METRIC_FLOORS = {
     "cpu": 0.0,
     "load_footprint": 64 * 1024,
@@ -56,40 +50,49 @@ MODULE_SAMPLE_FIELDS = {
 
 ACCEPT = "ACCEPT"
 REJECT = "REJECT"
-NEUTRAL = "NEUTRAL"
+WITHIN_BUDGET = "WITHIN-BUDGET"
 INCONCLUSIVE = "INCONCLUSIVE"
+
+RUN_IMPROVED = "improved"
+RUN_REGRESSED = "regressed"
+RUN_WITHIN_BUDGET = "within budget"
+RUN_INCONCLUSIVE = "inconclusive"
 
 
 def _bootstrap(values: Sequence[float]) -> list[float] | None:
-    # Imported lazily: perf.py puts the repository root on sys.path.
     from benchmarks.harness.statistics import bootstrap_median_interval
 
     return bootstrap_median_interval(values, confidence=BOOTSTRAP_CONFIDENCE)
 
 
 def classify(interval: Sequence[float] | None, *, floor: float = PRACTICAL_FLOOR) -> str:
-    """Classify one run's ratio interval as better, worse, or neutral."""
+    """Classify one run's ratio interval against the allowance."""
     if interval is None or len(interval) != 2:
-        return "insufficient"
+        return RUN_INCONCLUSIVE
     low, high = float(interval[0]), float(interval[1])
     if high < 1.0 - floor:
-        return "better"
+        return RUN_IMPROVED
     if low > 1.0 + floor:
-        return "worse"
-    return "neutral"
+        return RUN_REGRESSED
+    if high <= 1.0 + floor:
+        return RUN_WITHIN_BUDGET
+    return RUN_INCONCLUSIVE
 
 
 def replicate(run_classes: Sequence[str]) -> str:
-    """Combine per-run classes: agreement is required for any claim."""
-    if not run_classes or any(item == "insufficient" for item in run_classes):
-        return "insufficient"
-    if all(item == "better" for item in run_classes):
-        return "improved"
-    if all(item == "worse" for item in run_classes):
-        return "regressed"
-    if "better" in run_classes and "worse" in run_classes:
-        return "unstable"
-    return "neutral"
+    """Combine per-run outcomes: every run must support the claim."""
+    if not run_classes:
+        return RUN_INCONCLUSIVE
+    for claim in (RUN_IMPROVED, RUN_REGRESSED):
+        if all(item == claim for item in run_classes):
+            return claim
+    if all(item in {RUN_IMPROVED, RUN_WITHIN_BUDGET} for item in run_classes):
+        return RUN_WITHIN_BUDGET
+    return RUN_INCONCLUSIVE
+
+
+def directions_disagree(run_classes: Sequence[str]) -> bool:
+    return RUN_IMPROVED in run_classes and RUN_REGRESSED in run_classes
 
 
 def _paired(baseline: Sequence[float], candidate: Sequence[float], floor: float = 0.0) -> list[float]:
@@ -115,21 +118,16 @@ def _metric(ratios: list[float], interval: Sequence[float] | None = None,
 # ------------------------------------------------------- run observations
 
 
-def _memory_class(metric: Mapping[str, Any], floor: float) -> str:
-    # bench.py memory rounds are medians, not pairs: use its repeatability
-    # bound and require the practical floor as well.
-    ratio = metric.get("ratio_candidate_over_baseline")
+def _memory_interval(metric: Mapping[str, Any]) -> list[float] | None:
     change = metric.get("absolute_change")
-    allowance = metric.get("noise_allowance")
-    if metric.get("status") == "inconclusive" or not isinstance(ratio, (int, float)):
-        return "insufficient"
-    if not isinstance(change, (int, float)) or not isinstance(allowance, (int, float)):
-        return "insufficient"
-    if ratio > 1.0 + floor and change > allowance:
-        return "worse"
-    if ratio < 1.0 - floor and -change > allowance:
-        return "better"
-    return "neutral"
+    noise = metric.get("noise_allowance")
+    baseline = metric.get("baseline")
+    median = baseline.get("median") if isinstance(baseline, Mapping) else None
+    if metric.get("status") == "inconclusive":
+        return None
+    if not all(isinstance(value, (int, float)) for value in (change, noise, median)) or median <= 0:
+        return None
+    return [1.0 + (change - noise) / median, 1.0 + (change + noise) / median]
 
 
 def run_observation(workload: Mapping[str, Any], *, floor: float = PRACTICAL_FLOOR,
@@ -145,20 +143,20 @@ def run_observation(workload: Mapping[str, Any], *, floor: float = PRACTICAL_FLO
         cpu = timing.get("cpu")
         cpu_metric = cpu.get("metrics", {}).get("total_seconds_per_operation") \
             if isinstance(cpu, Mapping) and cpu.get("status") == "compared" else None
-        metrics["cpu"] = _metric(_paired(cpu_metric.get("baseline_samples") or [],
-                                         cpu_metric.get("candidate_samples") or [])
-                                 if isinstance(cpu_metric, Mapping) else [])
-        # The harness's 3-sigma timing failure is an independent regression
-        # signal; keep it even when the interval stays inside the floor.
-        if timing.get("status") == "fail" and metrics["wall"]["class"] == "neutral":
-            metrics["wall"]["class"] = "worse"
+        if isinstance(cpu_metric, Mapping):
+            metrics["cpu"] = _metric(_paired(cpu_metric.get("baseline_samples") or [],
+                                             cpu_metric.get("candidate_samples") or []))
+        if (timing.get("status") == "fail" and metrics["wall"]["ci95"] is not None
+                and metrics["wall"]["class"] in {RUN_WITHIN_BUDGET, RUN_INCONCLUSIVE}):
+            metrics["wall"]["class"] = RUN_REGRESSED
     memory = workload["comparison"].get("memory", {})
     for name in BENCH_MEMORY_METRICS:
         metric = memory.get("metrics", {}).get(name) if isinstance(memory, Mapping) else None
         if isinstance(metric, Mapping):
             ratio = metric.get("ratio_candidate_over_baseline")
+            interval = _memory_interval(metric)
             metrics[name] = {"ratios": [ratio] if isinstance(ratio, (int, float)) else [],
-                             "ci95": None, "class": _memory_class(metric, floor)}
+                             "ci95": interval, "class": classify(interval, floor=floor)}
     return {"kind": "workload", "metrics": metrics, "mismatch": False}
 
 
@@ -190,7 +188,7 @@ def entity_verdict(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     names = list(dict.fromkeys(name for run in runs for name in run["metrics"]))
     metrics = {}
     for name in names:
-        classes = [run["metrics"].get(name, {}).get("class", "insufficient") for run in runs]
+        classes = [run["metrics"].get(name, {}).get("class", RUN_INCONCLUSIVE) for run in runs]
         ratios = [value for run in runs for value in run["metrics"].get(name, {}).get("ratios", [])]
         values = {side: [value for run in runs
                          for value in run["metrics"].get(name, {}).get("values", {}).get(side, [])]
@@ -220,6 +218,10 @@ def _policy_metrics(verdict: Mapping[str, Any]) -> Sequence[str]:
     return MODULE_MEMORY_METRICS if verdict["kind"] == "module" else BENCH_MEMORY_METRICS
 
 
+def _unmeasured(detail: Mapping[str, Any] | None) -> bool:
+    return detail is None or all(interval is None for interval in detail["per_run_ci95"])
+
+
 def _missing_memory(entities: Mapping[str, Mapping[str, Any]]) -> list[str]:
     missing = []
     for name, verdict in entities.items():
@@ -227,7 +229,7 @@ def _missing_memory(entities: Mapping[str, Mapping[str, Any]]) -> list[str]:
             continue
         required = (MODULE_MEMORY_METRICS if verdict["kind"] == "module" else ("peak_rss",))
         for metric in required:
-            if verdict["metrics"].get(metric, {}).get("verdict", "insufficient") == "insufficient":
+            if _unmeasured(verdict["metrics"].get(metric)):
                 missing.append(f"{name} {metric}")
     return sorted(missing)
 
@@ -236,10 +238,10 @@ def goal_status(verdict: Mapping[str, Any], *, memory_only: bool = False) -> dic
     """Classify a module verdict (candidate over control) against the band.
 
     Per metric: OVER when every run's interval sits above the ceiling plus
-    the floor; BEYOND when every run's interval sits below 0.9x; MET when
-    the pooled median is at or under the ceiling plus the floor; otherwise
-    UNCLEAR. The module is OVER if any metric is, UNCLEAR if any is, BEYOND
-    only if all are, and MET otherwise.
+    the allowance; BEYOND when every run's interval sits below 0.9x; MET
+    when every run's upper bound is at most the ceiling plus the allowance;
+    otherwise UNCLEAR. The module is OVER if any metric is, UNCLEAR if any
+    is, BEYOND only if all are, and MET otherwise.
     """
     if verdict.get("mismatch"):
         return {"status": "MISMATCH", "metrics": {}}
@@ -247,17 +249,15 @@ def goal_status(verdict: Mapping[str, Any], *, memory_only: bool = False) -> dic
     names = (MODULE_MEMORY_METRICS if memory_only else verdict["metrics"])
     for name in names:
         detail = verdict["metrics"].get(name)
-        if detail is None or (memory_only and (verdict.get("runs", 0) < 2
-                                              or detail["verdict"] in {"insufficient", "unstable"})):
+        if detail is None or (memory_only and verdict.get("runs", 0) < 2):
             metrics[name] = "UNCLEAR"
             continue
         intervals = detail["per_run_ci95"]
-        median = detail["pooled"]["median"]
         if intervals and all(ci and ci[0] > GOAL_CEILING + PRACTICAL_FLOOR for ci in intervals):
             status = "OVER"
         elif intervals and all(ci and ci[1] < GOAL_FLOOR for ci in intervals):
             status = "BEYOND"
-        elif median is not None and median <= GOAL_CEILING + PRACTICAL_FLOOR:
+        elif intervals and all(ci and ci[1] <= GOAL_CEILING + PRACTICAL_FLOOR for ci in intervals):
             status = "MET"
         else:
             status = "UNCLEAR"
@@ -283,13 +283,15 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
 
     REJECT: any evaluated entity regresses a metric in every run, or its
     outputs differ from the baseline (outside `known_mismatches`).
-    INCONCLUSIVE: the host was not quiet, a metric is unstable across runs,
-    a target lacks samples, or a gate decision has fewer than two runs.
-    ACCEPT: a target improves an improvable metric with no rejection.
-    Otherwise NEUTRAL.
+    INCONCLUSIVE: the host was not quiet, a gate decision has fewer than two
+    runs, a target lacks samples, or any evaluated metric is inconclusive.
+    ACCEPT: a target improves an improvable metric and every other evaluated
+    metric is improved or within budget.
+    WITHIN-BUDGET: every evaluated metric is within budget and no target
+    improved.
     """
     reasons: list[str] = []
-    regressions, unstable, mismatches = [], [], []
+    regressions, inconclusive, unstable, mismatches = [], [], [], []
     for name, verdict in sorted(entities.items()):
         if verdict["mismatch"]:
             if name not in known_mismatches:
@@ -298,14 +300,16 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
         for metric, detail in verdict["metrics"].items():
             if memory_only and metric not in _policy_metrics(verdict):
                 continue
-            if detail["verdict"] == "regressed":
+            if detail["verdict"] == RUN_REGRESSED:
                 regressions.append(f"{name} {metric}")
-            elif detail["verdict"] == "unstable":
-                unstable.append(f"{name} {metric}")
+            elif detail["verdict"] == RUN_INCONCLUSIVE:
+                inconclusive.append(f"{name} {metric}")
+                if directions_disagree(detail["per_run"]):
+                    unstable.append(f"{name} {metric}")
     missing = sorted(set(targets) - set(entities))
     insufficient = sorted(
         name for name in targets if name in entities and not entities[name]["mismatch"]
-        and all(entities[name]["metrics"].get(metric, {}).get("verdict", "insufficient") == "insufficient"
+        and all(_unmeasured(entities[name]["metrics"].get(metric))
                 for metric in entities[name]["improvable"])
     )
     if memory_only:
@@ -313,7 +317,7 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     improved = sorted(
         f"{name} {metric}" for name in targets if name in entities
         for metric in (_policy_metrics(entities[name]) if memory_only else entities[name]["improvable"])
-        if entities[name]["metrics"].get(metric, {}).get("verdict") == "improved"
+        if entities[name]["metrics"].get(metric, {}).get("verdict") == RUN_IMPROVED
     )
     if mismatches:
         decision = REJECT
@@ -330,15 +334,17 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
     elif missing or insufficient:
         decision = INCONCLUSIVE
         reasons.append("targets lack samples: " + ", ".join([*missing, *insufficient]))
-    elif unstable:
+    elif inconclusive:
         decision = INCONCLUSIVE
-        reasons.append("runs disagree in direction: " + ", ".join(unstable))
+        reasons.append("not bounded within budget in every run: " + ", ".join(inconclusive))
+        if unstable:
+            reasons.append("runs disagree in direction: " + ", ".join(unstable))
     elif improved:
         decision = ACCEPT
         reasons.append(f"improved in {_every(runs)}: " + ", ".join(improved))
     else:
-        decision = NEUTRAL
-        reasons.append("no target improved beyond the interval and practical floor")
+        decision = WITHIN_BUDGET
+        reasons.append("every evaluated metric is within budget and no target improved")
     known = sorted(name for name in known_mismatches
                    if entities.get(name, {}).get("mismatch"))
     if known:
@@ -355,6 +361,7 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
         "targets": list(targets),
         "improved": improved,
         "regressions": regressions,
+        "inconclusive": inconclusive,
         "unstable": unstable,
         "mismatches": mismatches,
         "reasons": reasons,
@@ -363,20 +370,25 @@ def decide(entities: Mapping[str, Mapping[str, Any]], *, targets: Sequence[str],
 
 def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: bool | None,
                 gate: bool, memory_only: bool = False) -> dict[str, Any]:
-    """Judge a self-comparison: identical interpreters must read neutral.
+    """Judge a self-comparison: identical interpreters must read within budget.
 
-    Any improvement, regression, unstable metric, or output mismatch means
-    the harness can report a difference that does not exist at this floor
-    and run count.
+    Any improvement, regression, direction disagreement between runs, or
+    output mismatch means the harness can report a difference that does not
+    exist at this allowance and run count. A metric that stays inconclusive
+    leaves the calibration inconclusive.
     """
+    evaluated = [(name, metric, detail)
+                 for name, verdict in entities.items() if not verdict["mismatch"]
+                 for metric, detail in verdict["metrics"].items()
+                 if not memory_only or metric in _policy_metrics(verdict)]
     differences = sorted(
         [f"{name}: outputs differ" for name, verdict in entities.items() if verdict["mismatch"]]
-        + [f"{name} {metric}: {detail['verdict']}"
-           for name, verdict in entities.items()
-           for metric, detail in verdict["metrics"].items()
-           if (not memory_only or metric in _policy_metrics(verdict))
-           and detail["verdict"] in {"improved", "regressed", "unstable"}]
+        + [f"{name} {metric}: {'unstable' if directions_disagree(detail['per_run']) else detail['verdict']}"
+           for name, metric, detail in evaluated
+           if detail["verdict"] in {RUN_IMPROVED, RUN_REGRESSED} or directions_disagree(detail["per_run"])]
     )
+    undecided = sorted(f"{name} {metric}" for name, metric, detail in evaluated
+                       if detail["verdict"] == RUN_INCONCLUSIVE)
     missing = _missing_memory(entities) if memory_only else []
     if memory_only and differences:
         outcome, reasons = "CALIBRATION-FAILED", ["identical interpreters read different: "
@@ -389,8 +401,11 @@ def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: 
     elif differences:
         outcome, reasons = "CALIBRATION-FAILED", ["identical interpreters read different: "
                                                   + ", ".join(differences)]
+    elif undecided:
+        outcome, reasons = "CALIBRATION-INCONCLUSIVE", [
+            "identical interpreters are not bounded within budget: " + ", ".join(undecided)]
     else:
-        outcome, reasons = "CALIBRATION-OK", ["identical interpreters read neutral everywhere"]
+        outcome, reasons = "CALIBRATION-OK", ["identical interpreters read within budget everywhere"]
     return {
         "decision": outcome,
         "acceptance_policy": "memory-only" if memory_only else "all-metrics",
@@ -401,6 +416,7 @@ def calibration(entities: Mapping[str, Mapping[str, Any]], *, runs: int, quiet: 
         "targets": [],
         "improved": [],
         "regressions": [],
+        "inconclusive": [],
         "unstable": [],
         "mismatches": [],
         "differences": differences,
