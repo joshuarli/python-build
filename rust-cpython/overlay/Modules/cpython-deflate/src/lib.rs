@@ -14,9 +14,7 @@ pub use libz_rs_sys::{
     Z_STREAM_ERROR, Z_SYNC_FLUSH, alloc_func, free_func,
 };
 
-pub use output::ExactBytesSink;
 
-mod output;
 
 const DEFLATED: c_int = 8;
 const DEF_MEM_LEVEL: c_int = 8;

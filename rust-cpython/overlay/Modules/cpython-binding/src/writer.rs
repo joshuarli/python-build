@@ -82,6 +82,21 @@ impl BytesWriter {
         Ok(())
     }
 
+    /// Extend the current size by `additional` uninitialized bytes, resizing
+    /// the object to exactly that size when it does not fit. For callers that
+    /// choose their own growth policy.
+    pub fn grow_exact(&mut self, additional: usize) -> Outcome<()> {
+        let size = self.size.checked_add(additional).ok_or_else(|| {
+            unsafe { PyErr_NoMemory() };
+            Stop::Raised
+        })?;
+        if size > self.capacity {
+            self.resize_object(size)?;
+        }
+        self.size = size;
+        Ok(())
+    }
+
     /// Append `bytes` after the current size.
     pub fn append(&mut self, bytes: &[u8]) -> Outcome<()> {
         let start = self.size;

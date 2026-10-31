@@ -7,11 +7,12 @@ use cpython_binding::ffi::{
 };
 use cpython_binding::values::boolean;
 use cpython_binding::{
+    BytesSink,
     Borrowed, Buffer, BytesWriter, Exception, Module, Outcome, Owned, Stop, fastcall,
     fastcall_arguments, into_return, method_table_end, raise,
 };
 use cpython_deflate::{
-    ExactBytesSink, InflateFlush, Inflater, RAW_WINDOW, Z_MEM_ERROR, Z_STREAM_END, out_of_memory,
+    InflateFlush, Inflater, RAW_WINDOW, Z_MEM_ERROR, Z_STREAM_END, out_of_memory,
 };
 
 fn contains(files: Borrowed<'_>, key: &Owned) -> Outcome<bool> {
@@ -64,7 +65,7 @@ fn inflate_raw(input: &[u8], capacity: usize) -> Outcome<Owned> {
         Err(Z_MEM_ERROR) => return Err(out_of_memory()),
         Err(_) => return Err(Stop::Unsupported),
     };
-    let mut output = ExactBytesSink::with_capacity(capacity)?;
+    let mut output = BytesSink::with_capacity(capacity)?;
     let result = stream.run(input, InflateFlush::FinishLast, None, &mut output)?;
     if result.code != Z_STREAM_END {
         return Err(Stop::Unsupported);

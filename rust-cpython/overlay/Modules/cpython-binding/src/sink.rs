@@ -67,7 +67,7 @@ impl Sink for BytesSink {
     }
 
     fn grow(&mut self, additional: usize) -> Outcome<()> {
-        self.writer.grow(additional)
+        self.writer.grow_exact(additional)
     }
 
     unsafe fn advance(&mut self, count: usize) {
