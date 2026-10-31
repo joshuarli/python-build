@@ -1,0 +1,16 @@
+[package]
+name = "cpython-binding"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license = "PSF-2.0"
+
+[features]
+abort-on-panic = []
+
+[dev-dependencies]
+cpython-sys = { path = "../cpython-sys" }
+
+[lib]
+name = "cpython_binding"
+crate-type = ["rlib"]

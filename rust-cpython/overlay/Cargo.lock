@@ -1002,6 +1002,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpython-binding"
+version = "0.1.0"
+dependencies = [
+ "cpython-sys",
+]
+
+[[package]]
 name = "cpython-build-helper"
 version = "0.1.0"
 dependencies = [
