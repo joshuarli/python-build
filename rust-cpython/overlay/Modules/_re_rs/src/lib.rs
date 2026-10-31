@@ -629,3 +629,137 @@ pub static _RE_RS_MODULE: ModuleDef = ModuleDef {
 pub extern "C" fn PyInit__re_rs() -> *mut PyObject {
     _RE_RS_MODULE.init_multi_phase()
 }
+
+#[cfg(test)]
+mod allocator_contract {
+    use super::*;
+    use std::sync::PoisonError;
+    use std::thread;
+
+    static SERIAL: Mutex<()> = Mutex::new(());
+
+    fn serial() -> MutexGuard<'static, ()> {
+        SERIAL.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn layout(size: usize, align: usize) -> Layout {
+        Layout::from_size_align(size, align).unwrap()
+    }
+
+    fn fill(pointer: *mut u8, length: usize) {
+        for index in 0..length {
+            unsafe { pointer.add(index).write((index % 251) as u8 + 1) };
+        }
+    }
+
+    fn prefix_intact(pointer: *mut u8, length: usize) -> bool {
+        unsafe { slice::from_raw_parts(pointer, length) }
+            .iter()
+            .enumerate()
+            .all(|(index, &byte)| byte == (index % 251) as u8 + 1)
+    }
+
+    #[test]
+    fn zeroed_allocation_is_zero_when_the_arena_is_reused() {
+        let _serial = serial();
+        let size = 512;
+        {
+            let _scope = ArenaScope::enter().unwrap();
+            let pointer = unsafe { ALLOCATOR.alloc(layout(size, 8)) };
+            assert!(in_arena(pointer));
+            unsafe { ptr::write_bytes(pointer, 0xAA, size) };
+        }
+        let _scope = ArenaScope::enter().unwrap();
+        let pointer = unsafe { ALLOCATOR.alloc_zeroed(layout(size, 8)) };
+        assert!(in_arena(pointer));
+        assert!(unsafe { slice::from_raw_parts(pointer, size) }.iter().all(|&byte| byte == 0));
+    }
+
+    #[test]
+    fn zeroed_allocation_is_zero_outside_the_arena() {
+        let _serial = serial();
+        let size = ARENA_SIZE * 2;
+        let pointer = unsafe { ALLOCATOR.alloc_zeroed(layout(size, 8)) };
+        assert!(!in_arena(pointer));
+        assert!(unsafe { slice::from_raw_parts(pointer, size) }.iter().all(|&byte| byte == 0));
+        unsafe { ALLOCATOR.dealloc(pointer, layout(size, 8)) };
+    }
+
+    #[test]
+    fn realloc_keeps_the_common_prefix_through_growth_shrink_and_exhaustion() {
+        let _serial = serial();
+        let _scope = ArenaScope::enter().unwrap();
+        let pointer = unsafe { ALLOCATOR.alloc(layout(32, 8)) };
+        assert!(in_arena(pointer));
+        fill(pointer, 32);
+
+        let grown = unsafe { ALLOCATOR.realloc(pointer, layout(32, 8), 128) };
+        assert!(in_arena(grown));
+        assert!(prefix_intact(grown, 32));
+        fill(grown, 128);
+
+        let shrunk = unsafe { ALLOCATOR.realloc(grown, layout(128, 8), 16) };
+        assert!(prefix_intact(shrunk, 16));
+
+        let exhausted = unsafe { ALLOCATOR.realloc(shrunk, layout(16, 8), ARENA_SIZE * 2) };
+        assert!(!in_arena(exhausted));
+        assert!(prefix_intact(exhausted, 16));
+        fill(exhausted, ARENA_SIZE * 2);
+
+        let system_shrunk = unsafe { ALLOCATOR.realloc(exhausted, layout(ARENA_SIZE * 2, 8), 64) };
+        assert!(!in_arena(system_shrunk));
+        assert!(prefix_intact(system_shrunk, 64));
+        unsafe { ALLOCATOR.dealloc(system_shrunk, layout(64, 8)) };
+    }
+
+    #[test]
+    fn realloc_preserves_the_requested_alignment() {
+        let _serial = serial();
+        let _scope = ArenaScope::enter().unwrap();
+        for align in [1, 2, 4, 8, 16] {
+            let pointer = unsafe { ALLOCATOR.alloc(layout(3, align)) };
+            fill(pointer, 3);
+            let grown = unsafe { ALLOCATOR.realloc(pointer, layout(3, align), 200) };
+            assert_eq!(grown as usize % align, 0);
+            assert!(prefix_intact(grown, 3));
+        }
+        let over_aligned = unsafe { ALLOCATOR.alloc(layout(8, 64)) };
+        fill(over_aligned, 8);
+        let grown = unsafe { ALLOCATOR.realloc(over_aligned, layout(8, 64), 4096) };
+        assert_eq!(grown as usize % 64, 0);
+        assert!(prefix_intact(grown, 8));
+        unsafe { ALLOCATOR.dealloc(grown, layout(4096, 64)) };
+    }
+
+    #[test]
+    fn allocations_are_aligned_after_odd_sized_neighbours() {
+        let _serial = serial();
+        let _scope = ArenaScope::enter().unwrap();
+        for align in [1, 2, 4, 8, 16, 32, 64, 4096] {
+            let odd = unsafe { ALLOCATOR.alloc(layout(1, 1)) };
+            let pointer = unsafe { ALLOCATOR.alloc(layout(24, align)) };
+            assert_ne!(odd, pointer);
+            assert_eq!(pointer as usize % align, 0);
+            assert_eq!(in_arena(pointer), align <= 16);
+            if align > 16 {
+                unsafe { ALLOCATOR.dealloc(pointer, layout(24, align)) };
+            }
+        }
+    }
+
+    #[test]
+    fn other_threads_never_allocate_from_the_owned_arena() {
+        let _serial = serial();
+        let _scope = ArenaScope::enter().unwrap();
+        let in_arena_elsewhere = thread::spawn(|| {
+            let pointer = unsafe { ALLOCATOR.alloc(layout(64, 8)) };
+            let result = in_arena(pointer);
+            unsafe { ALLOCATOR.dealloc(pointer, layout(64, 8)) };
+            result
+        })
+        .join()
+        .unwrap();
+        assert!(!in_arena_elsewhere);
+        assert!(ArenaScope::enter().is_none());
+    }
+}
