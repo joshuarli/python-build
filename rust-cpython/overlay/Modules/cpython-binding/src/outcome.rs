@@ -5,6 +5,9 @@ use crate::ffi::{
     PyErr_SetString, PyExc_IndexError, PyExc_OverflowError, PyExc_TypeError, PyExc_ValueError,
     PyObject,
 };
+use crate::ffi_extra::{
+    PyExc_MemoryError, PyExc_OSError, PyExc_RuntimeError, PyExc_ZeroDivisionError,
+};
 use crate::reference::Owned;
 
 /// Why an operation produced no value.
@@ -23,18 +26,26 @@ pub type Outcome<T> = Result<T, Stop>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Exception {
     IndexError,
+    MemoryError,
+    OSError,
     OverflowError,
+    RuntimeError,
     TypeError,
     ValueError,
+    ZeroDivisionError,
 }
 
-pub fn raise(exception: Exception, message: &'static CStr) -> Stop {
+pub fn raise(exception: Exception, message: &CStr) -> Stop {
     unsafe {
         let class = match exception {
             Exception::IndexError => PyExc_IndexError,
+            Exception::MemoryError => PyExc_MemoryError,
+            Exception::OSError => PyExc_OSError,
             Exception::OverflowError => PyExc_OverflowError,
+            Exception::RuntimeError => PyExc_RuntimeError,
             Exception::TypeError => PyExc_TypeError,
             Exception::ValueError => PyExc_ValueError,
+            Exception::ZeroDivisionError => PyExc_ZeroDivisionError,
         };
         PyErr_SetString(class, message.as_ptr());
     }
