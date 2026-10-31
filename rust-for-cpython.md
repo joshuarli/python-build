@@ -29,27 +29,58 @@ replayed: the stored workload `verdict.json` keeps only old classes and point
 ratios, without `absolute_change`, `noise_allowance` or `baseline.median`.
 Re-measure them before quoting a decision. No CPU work has run.
 
-Slices: S1 is open. Its `_bz2_rs` part landed: the scoped allocator is
-gone, and `test_bz2`, `test_tarfile`, `test_fileinput`, and `test_codecs`
-pass on `perf-bz2-alloc-contract` (1,235 run, 19 skipped; the extra skip
-versus ROUTES.md is the debug-only `test_refleaks_in___init__`). The bz2
-memory row from `500b5b0` (load 0.694x) depended on the shortcut and is
-void until S2 re-measures it. The `_re_rs`, `_fnmatch_rs`, and
-`_fractions_rs` audit remains. Parked branches (41
-`lane/*` plus pre-product history, listed at `d17607f`) are evidence, not
-candidates. None merges without review under this contract.
+Slices on `m1-scaffold` (never merged into `main`; the owner decides):
 
-S2 and S3 landed on `m1-scaffold`. S2: verdicts read improved, regressed,
-within budget, or inconclusive, and decisions read REJECT, INCONCLUSIVE,
-ACCEPT, or WITHIN-BUDGET. S3: `perf.py cargo --name N -- <cargo args>` ran
-`metadata --format-version 1 --offline` (exit 0), `clippy -p _bz2_rs
---offline` (exit 0, 266 warnings, all in `cpython-sys`), and `test -p
-_bz2_rs --offline` (exit 0, but `_bz2_rs` has no Rust tests: 0 run) on a
-fresh perf build. The command syncs overlay files into the build's source
-without rebuilding the stage, so the build report's overlay digest goes stale
-until the next `build --incremental`.
+- S1 done. `_bz2_rs` lost its scoped allocator; `_fractions_rs` and
+  `_fnmatch_rs` keep their allocators, now pinned by `GlobalAlloc` contract
+  tests. `_fnmatch_rs` is a close call (+65 KiB, +9 percent retained with
+  libc malloc; the heap is 190 unsafe lines). The bz2 load row from `500b5b0`
+  stays void until re-measured. Parked `lane/*` branches are evidence only.
+- S2 done: verdicts read improved, regressed, within budget, or
+  inconclusive; decisions read REJECT, INCONCLUSIVE, ACCEPT, or
+  WITHIN-BUDGET.
+- S3 done: `perf.py cargo --name N -- <cargo args>` runs cargo over an
+  assembled perf build. It syncs overlay files without rebuilding the stage,
+  so the build report's overlay digest goes stale and the build is no longer
+  a clean baseline; run `build --incremental` or rebuild before benching.
+- S4 done. `cpython-binding` (one `ffi` module checked against `cpython-sys`,
+  buffers, bytes writer, module and outcome helpers, abort-on-panic) and
+  `cpython-deflate` (one DEFLATE engine; `_zip_rs` is folded into
+  `_zlib_rs`) are in use. The acceptance grep lists only the shared crate.
+  Overlay Rust lines: 96,662 (100,510 at `d17607f`). `test --all` on the
+  merged tree: 50,158 run, only the Baseline known-red files fail
+  (`test_ssl`, `test_support`, `test_unicodedata`) plus one load-flaky
+  `test_concurrent_futures` case that passes alone. A job started from a
+  background shell inherits SIGINT ignored and fails nine signal suites
+  falsely; reset SIGINT first. About 25 modules still wrap the bindgen
+  `PyModuleDef_Slot` and about 15 std modules keep private `extern "C"`
+  blocks for functions `cpython-sys` provides; neither is in the acceptance.
+- S5 decided, private routes kept. The pinned fork has no
+  `--with-zlib=zlib-rs` or `--with-bzip2=bzip2-rs`; its configure takes
+  `ZLIB_CFLAGS/LIBS` and `BZIP2_CFLAGS/LIBS`, and `perf.py build
+  --upstream-compression` feeds those from `cpython-libz-rs` and
+  `cpython-libbz2-rs`. Matched suites are green on both routes, but
+  `zlib_decode_1m` peak RSS reads 1.085 to 1.131 (regressed) and the bz2 load
+  row 1.547, and timing is deferred (host busy), so the deletion condition is
+  unmet. Re-decide on a quiet host with `bench --gate`.
+- S6 lost. The deser TOML pilot regressed peak RSS in every run (1.072) and
+  grew `_tomllib_rs.so` by 37 percent, because `deser-toml` builds the whole
+  document before emitting events. `_tomllib_rs` is unchanged; the pilot is
+  on `s6-toml-pilot`. The `catalog_toml_load` workload landed. JSON and plist
+  do not follow. `_tomllib_rs` hardcodes key and nesting limits that
+  `tomllib` takes from the recursion limit.
+- S7 open. Candidate `2e90085` (urllib quote and unquote in one Rust call)
+  reads wall 0.71 to 0.88 on three catalog workloads but is not accepted: a
+  peak-RSS offset of 1.002 to 1.016 appears on every row against the old base
+  build, including guards that never load the module, while two builds of
+  the candidate agree at 1.001. A rerun on fresh matched builds is in
+  flight.
 
-Next slice: S1.
+Needs a quiet host: matched `bench --gate` runs for S5 and S7, and the six
+workload RSS rows quoted above. The bench `peak_rss` metric is sampled and
+noisy below 100 ms.
+
+Next slice: finish S7, then the M1 completion check.
 
 Resume: "Resume the Rust-for-CPython campaign in rust-for-cpython.md with
 the orchestrate skill." First command: `python3 rust-cpython/perf.py status`.
@@ -124,7 +155,7 @@ Owner (2026-10-31; overrule by saying so):
   coordinator and climber skills, agents, model pins, and agent hook are
   removed.
 - Kept: OD3 (no redesign around the proposed 3.17+ upstream Rust API;
-  shipped 3.16 build options such as `--with-zlib=zlib-rs` are not that)
+  upstream compression routes in the shipped 3.16 fork are not that)
   and the OpenSSL-free rule.
 
 Prescribed (reversal needs counter-evidence):
@@ -261,13 +292,12 @@ keep-or-delete call comes before S4 migrates them.
   fall.
 - **S5 - upstream compression wrappers.** Owns `rust-cpython/build.py` and
   `perf.py` configure inputs plus the compression adapters. Build
-  `libz_rs` and `libbz2_rs` from the pinned crate sources, configure
-  `--with-zlib=zlib-rs --with-bzip2=bzip2-rs`, and compare against the
+  `libz_rs` and `libbz2_rs` from the pinned crate sources, feed them to
+  configure through `ZLIB_CFLAGS/LIBS` and `BZIP2_CFLAGS/LIBS`, and compare against the
   private `_zlib_rs` and `_bz2_rs` routes on matched builds. Delete each
   private adapter whose upstream route keeps its ROUTES.md suites green
   within budget. Remaining gzip, zip, and zipimport paths keep only
-  machinery that earns its cost (`_zip_rs` and `_zlib_rs` lines 48-179 are
-  identical today). Acceptance: the compression lines of ROUTES.md green on
+  machinery that earns its cost (`_zip_rs` is now folded into `_zlib_rs`). Acceptance: the compression lines of ROUTES.md green on
   the chosen route; a recorded matched comparison.
 - **S6 - deser TOML pilot.** Prerequisite: S4. Owns `_tomllib_rs`. Prove a
   sound ownership bridge from deser's event sinks to Python objects first;
