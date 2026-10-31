@@ -1,52 +1,26 @@
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::MaybeUninit;
 use std::ptr;
 use std::slice;
 
 use cpython_sys::{
-    METH_FASTCALL, METH_KEYWORDS, Py_DecRef, Py_buffer, PyBytes_AsString,
+    METH_FASTCALL, METH_KEYWORDS, Py_DecRef, PyBytes_AsString,
     PyBytes_FromStringAndSize, _PyBytes_Resize,
-    PyBuffer_Release, PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
+    PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
     PyImport_AddModule, PyLong_AsSsize_t, PyLong_AsUnsignedLongMask, PyMethodDef,
     PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_Slot, PyModuleDef_HEAD_INIT, PyModuleDef_Init,
-    PyObject, PyObject_GetAttrString, PyObject_GetBuffer, PyObject_IsInstance,
+    PyObject, PyObject_GetAttrString, PyObject_IsInstance,
     PyObject_Length, PyTuple_GetItem, PyTuple_Size,
     PyUnicode_AsUTF8AndSize, PyUnicode_ReadChar, PyBytes_Type, PyUnicode_Type, Py_ssize_t,
 };
 
+use cpython_binding::{Borrowed, Buffer};
 use crc32fast::Hasher;
 
-const PYBUF_SIMPLE: c_int = 0;
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
-struct Buffer {
-    view: Py_buffer,
-}
-
-impl Buffer {
-    unsafe fn from_object(object: *mut PyObject) -> Result<Self, ()> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        if unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) } != 0 {
-            return Err(());
-        }
-        Ok(Self {
-            view: unsafe { view.assume_init() },
-        })
-    }
-
-    fn as_slice(&self) -> &[u8] {
-        if self.view.len <= 0 {
-            return &[];
-        }
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-    }
-}
-
-impl Drop for Buffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) }
-    }
+unsafe fn buffer_of(object: *mut PyObject) -> Result<Buffer, ()> {
+    Buffer::acquire(unsafe { Borrowed::from_raw(object.cast()) }).map_err(|_| ())
 }
 
 struct AsciiBuffer {
@@ -85,7 +59,7 @@ impl AsciiBuffer {
             if owner.is_null() {
                 return Err(());
             }
-            match unsafe { Buffer::from_object(owner) } {
+            match unsafe { buffer_of(owner) } {
                 Ok(buffer) => Ok(Self { buffer, owner }),
                 Err(()) => {
                     unsafe { Py_DecRef(owner) };
@@ -94,7 +68,7 @@ impl AsciiBuffer {
             }
         } else {
             Ok(Self {
-                buffer: unsafe { Buffer::from_object(object)? },
+                buffer: unsafe { buffer_of(object)? },
                 owner: ptr::null_mut(),
             })
         }
@@ -288,12 +262,12 @@ unsafe fn separator(value: *mut PyObject) -> Result<Option<u8>, ()> {
         return Err(());
     }
     if is_bytes != 0 {
-        let buffer = unsafe { Buffer::from_object(value)? };
-        if buffer.view.len != 1 {
+        let buffer = unsafe { buffer_of(value)? };
+        if buffer.as_bytes().len() != 1 {
             unsafe { set_value_error("sep must be length 1.") };
             return Err(());
         }
-        return Ok(Some(buffer.as_slice()[0]));
+        return Ok(Some(buffer.as_bytes()[0]));
     }
 
     let length = unsafe { PyObject_Length(value) };
@@ -330,11 +304,11 @@ unsafe fn encode_hex(
         Ok(values) => values,
         Err(()) => return ptr::null_mut(),
     };
-    let source = match unsafe { Buffer::from_object(parsed[0]) } {
+    let source = match unsafe { buffer_of(parsed[0]) } {
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
-    let input = source.as_slice();
+    let input = source.as_bytes();
     let sep = match unsafe { separator(parsed[1]) } {
         Ok(sep) => sep,
         Err(()) => return ptr::null_mut(),
@@ -433,13 +407,13 @@ unsafe fn decode_hex(
     let ignorechars = if parsed[1].is_null() {
         None
     } else {
-        match unsafe { Buffer::from_object(parsed[1]) } {
+        match unsafe { buffer_of(parsed[1]) } {
             Ok(buffer) => Some(buffer),
             Err(()) => return ptr::null_mut(),
         }
     };
-    let ignored = ignorechars.as_ref().map_or(&[][..], Buffer::as_slice);
-    let input = source.buffer.as_slice();
+    let ignored = ignorechars.as_ref().map_or(&[][..], Buffer::as_bytes);
+    let input = source.buffer.as_bytes();
     // Ignored characters only shorten the result: size for none, shrink after.
     let capacity = input.len() / 2;
     let Ok((result, dest_ptr)) = (unsafe { new_bytes(capacity) }) else {
@@ -505,7 +479,7 @@ unsafe fn checksum_args(
             names.len(),
         )
     }?;
-    let data = unsafe { Buffer::from_object(parsed[0]) }?;
+    let data = unsafe { buffer_of(parsed[0]) }?;
     let crc = if parsed.len() > 1 && !parsed[1].is_null() {
         let crc = unsafe { PyLong_AsUnsignedLongMask(parsed[1]) };
         if crc == u64::MAX && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
@@ -530,7 +504,7 @@ unsafe fn crc32_impl(
         Err(()) => return ptr::null_mut(),
     };
     let mut hasher = Hasher::new_with_initial(crc);
-    hasher.update(data.as_slice());
+    hasher.update(data.as_bytes());
     unsafe { cpython_sys::PyLong_FromUnsignedLong(hasher.finalize() as _) }
 }
 
@@ -546,7 +520,7 @@ unsafe fn crc_hqx_impl(
         Err(()) => return ptr::null_mut(),
     };
     crc &= 0xffff;
-    for byte in data.as_slice() {
+    for byte in data.as_bytes() {
         crc ^= (*byte as u32) << 8;
         for _ in 0..8 {
             crc = if crc & 0x8000 != 0 {

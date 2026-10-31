@@ -41,6 +41,7 @@ name = "_binascii_rs"
 version = "0.1.0"
 dependencies = [
  "_base64",
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
  "crc32fast",
@@ -67,6 +68,7 @@ dependencies = [
 name = "_codecs_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -99,6 +101,7 @@ dependencies = [
 name = "_contextlib_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -343,6 +346,7 @@ dependencies = [
 name = "_multiprocessing_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -479,6 +483,7 @@ dependencies = [
 name = "_subprocess_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
  "libc",
@@ -512,6 +517,7 @@ dependencies = [
 name = "_threading_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -564,6 +570,7 @@ dependencies = [
 name = "_urllib_request_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
 ]
@@ -581,6 +588,7 @@ dependencies = [
 name = "_warnings_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
  "cpython-sys",
 ]

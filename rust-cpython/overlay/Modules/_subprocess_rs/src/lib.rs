@@ -4,18 +4,17 @@ use std::mem::MaybeUninit;
 use std::ptr;
 use std::slice;
 
+use cpython_binding::{Borrowed, Buffer};
 use cpython_sys::{
-    METH_FASTCALL, Py_buffer, PyBuffer_Release, PyBytes_AsStringAndSize,
+    METH_FASTCALL, PyBytes_AsStringAndSize,
     PyBytes_FromStringAndSize, PyErr_CheckSignals, PyErr_NoMemory, PyErr_Occurred,
     PyErr_SetFromErrno, PyErr_SetString, PyEval_RestoreThread, PyEval_SaveThread,
     PyExc_OSError, PyExc_TypeError, PyExc_ValueError, PyLong_AsLong, PyLong_AsSsize_t,
     PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer,
     PyModuleDef, PyModuleDef_Slot, PyModuleDef_HEAD_INIT, PyModuleDef_Init,
-    PyObject, PyObject_GetBuffer, PyObject_IsTrue, PyTuple_GetItem, PyTuple_Size,
+    PyObject, PyObject_IsTrue, PyTuple_GetItem, PyTuple_Size,
     Py_ssize_t,
 };
-
-const PYBUF_SIMPLE: c_int = 0;
 
 unsafe extern "C" {
     static mut environ: *mut *mut c_char;
@@ -111,28 +110,27 @@ unsafe fn write_impl(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObje
     let Some(fd) = (unsafe { integer(*args) }) else {
         return ptr::null_mut();
     };
-    let mut raw = MaybeUninit::<Py_buffer>::uninit();
-    if unsafe { PyObject_GetBuffer(*args.add(1), raw.as_mut_ptr(), PYBUF_SIMPLE) } < 0 {
+    let Ok(buffer) = Buffer::acquire(unsafe { Borrowed::from_raw((*args.add(1)).cast()) }) else {
         return ptr::null_mut();
-    }
-    let mut buffer = unsafe { raw.assume_init() };
+    };
+    let bytes = buffer.as_bytes();
     loop {
         let thread = unsafe { PyEval_SaveThread() };
-        let written = unsafe { libc::write(fd, buffer.buf, buffer.len as usize) };
+        let written = unsafe { libc::write(fd, bytes.as_ptr().cast(), bytes.len()) };
         let error = if written < 0 { last_errno() } else { 0 };
         unsafe { PyEval_RestoreThread(thread) };
         if written >= 0 {
-            unsafe { PyBuffer_Release(&mut buffer) };
+            drop(buffer);
             return unsafe { PyLong_FromSsize_t(written as Py_ssize_t) };
         }
         if error == libc::EINTR {
             if unsafe { PyErr_CheckSignals() } < 0 {
-                unsafe { PyBuffer_Release(&mut buffer) };
+                drop(buffer);
                 return ptr::null_mut();
             }
             continue;
         }
-        unsafe { PyBuffer_Release(&mut buffer) };
+        drop(buffer);
         unsafe { set_errno(error) };
         return ptr::null_mut();
     }

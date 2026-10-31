@@ -3,6 +3,7 @@ use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
 
+use cpython_binding::{Borrowed, Buffer};
 use cpython_sys::{
     METH_FASTCALL, Py_DecRef, PyErr_Occurred, PyErr_SetString, PyExc_TypeError,
     PyExc_ValueError, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize,
@@ -85,20 +86,14 @@ unsafe extern "C" fn frame(
 
     // The small payload and its header travel in one write. Empty payloads
     // also take this route so the pipe never receives a separate empty write.
-    let mut view = std::mem::MaybeUninit::<cpython_sys::Py_buffer>::uninit();
-    if unsafe { cpython_sys::PyObject_GetBuffer(payload, view.as_mut_ptr(), 0) } != 0 {
+    let Ok(view) = Buffer::acquire(unsafe { Borrowed::from_raw(payload.cast()) }) else {
         return ptr::null_mut();
-    }
-    let mut view = unsafe { view.assume_init() };
-    let payload_bytes = if view.len == 0 {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(view.buf.cast::<u8>(), view.len as usize) }
     };
+    let payload_bytes = view.as_bytes();
     let mut joined = Vec::with_capacity(4 + payload_bytes.len());
     joined.extend_from_slice(&header);
     joined.extend_from_slice(payload_bytes);
-    unsafe { cpython_sys::PyBuffer_Release(&mut view) };
+    drop(view);
     bytes(&joined)
 }
 

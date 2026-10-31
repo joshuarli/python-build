@@ -2,6 +2,8 @@ use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+use cpython_binding::ffi::{Py_mod_exec, PyModuleDef_Slot};
+use cpython_binding::module::PER_INTERPRETER_GIL_SLOT;
 use cpython_sys::{
     METH_FASTCALL, PyErr_Clear, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
     PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init,
@@ -252,36 +254,17 @@ static METHODS: [PyMethodDef; 3] = [
     PyMethodDef::zeroed(),
 ];
 
-#[repr(C)]
-struct ModuleSlot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-unsafe impl Sync for ModuleSlot {}
-
-struct ModuleSlots([ModuleSlot; 3]);
-
-unsafe impl Sync for ModuleSlots {}
-
-const PY_MOD_EXEC: c_int = 85;
-const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2 as *mut c_void;
-
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    ModuleSlot {
-        slot: PY_MOD_EXEC,
+static MODULE_SLOTS: [PyModuleDef_Slot; 3] = [
+    PyModuleDef_Slot {
+        slot: Py_mod_exec,
         value: module_exec as *const () as *mut c_void,
     },
-    ModuleSlot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
-    ModuleSlot {
+    PER_INTERPRETER_GIL_SLOT,
+    PyModuleDef_Slot {
         slot: 0,
         value: ptr::null_mut(),
     },
-]);
+];
 
 struct ModuleDef {
     ffi: UnsafeCell<PyModuleDef>,
@@ -302,7 +285,7 @@ static MODULE: ModuleDef = ModuleDef {
         m_doc: c"Rust support for Python warning filtering and display.".as_ptr() as *mut _,
         m_size: 0,
         m_methods: METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: MODULE_SLOTS.0.as_ptr() as *mut _,
+        m_slots: MODULE_SLOTS.as_ptr() as *mut _,
         m_traverse: None,
         m_clear: Some(module_clear),
         m_free: Some(module_free),

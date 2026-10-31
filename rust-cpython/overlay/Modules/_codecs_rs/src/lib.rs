@@ -1,8 +1,9 @@
 use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::c_char;
 use std::ptr;
 use std::slice;
 
+use cpython_binding::module::PER_INTERPRETER_GIL;
 use cpython_sys::{
     METH_FASTCALL, METH_O, PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, Py_DecRef,
     PyErr_Clear, PyErr_SetString, PyExc_TypeError, PyLong_FromSsize_t, PyMethodDef,
@@ -10,8 +11,6 @@ use cpython_sys::{
     PyObject, PyObject_IsTrue, PyTuple_New, PyTuple_SetItem, PyUnicode_AsUTF8AndSize,
     PyUnicode_FromStringAndSize, Py_ssize_t, _Py_NoneStruct,
 };
-
-const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
 
 fn none() -> *mut PyObject {
     unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
@@ -82,14 +81,6 @@ unsafe extern "C" fn decode_utf8(
     pair
 }
 
-#[repr(C)]
-struct ModuleSlot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-unsafe impl Sync for ModuleSlot {}
-
 struct ModuleDef {
     ffi: UnsafeCell<PyModuleDef>,
 }
@@ -112,11 +103,6 @@ static METHODS: [PyMethodDef; 3] = [
     PyMethodDef::zeroed(),
 ];
 
-static SLOTS: [ModuleSlot; 2] = [
-    ModuleSlot { slot: PY_MOD_MULTIPLE_INTERPRETERS, value: 2usize as *mut c_void },
-    ModuleSlot { slot: 0, value: ptr::null_mut() },
-];
-
 static MODULE: ModuleDef = ModuleDef {
     ffi: UnsafeCell::new(PyModuleDef {
         m_base: PyModuleDef_HEAD_INIT,
@@ -124,7 +110,7 @@ static MODULE: ModuleDef = ModuleDef {
         m_doc: c"Rust UTF-8 conversion for registered codecs.".as_ptr() as *mut _,
         m_size: 0,
         m_methods: METHODS.as_ptr() as *mut _,
-        m_slots: SLOTS.as_ptr() as *mut _,
+        m_slots: PER_INTERPRETER_GIL.as_ptr() as *mut _,
         m_traverse: None,
         m_clear: None,
         m_free: None,

@@ -3,6 +3,7 @@ use std::ffi::{c_char, c_int, c_longlong, c_void};
 use std::ptr;
 use std::slice;
 
+use cpython_binding::module::PER_INTERPRETER_GIL;
 use cpython_sys::METH_FASTCALL;
 use cpython_sys::PyBool_FromLong;
 use cpython_sys::PyErr_Occurred;
@@ -20,7 +21,6 @@ use cpython_sys::PyObject;
 use cpython_sys::PyUnicode_AsUTF8AndSize;
 use cpython_sys::Py_ssize_t;
 
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: c_int = 86;
 const BARRIER_RESETTING: c_longlong = -1;
 const BARRIER_FILLING: c_longlong = 0;
 const BARRIER_DRAINING: c_longlong = 1;
@@ -152,14 +152,6 @@ impl ModuleDef {
 
 unsafe impl Sync for ModuleDef {}
 
-#[repr(C)]
-struct ModuleSlot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-unsafe impl Sync for ModuleSlot {}
-
 static METHODS: [PyMethodDef; 2] = [
     PyMethodDef {
         ml_name: c"_barrier_transition".as_ptr() as *mut c_char,
@@ -172,17 +164,6 @@ static METHODS: [PyMethodDef; 2] = [
     PyMethodDef::zeroed(),
 ];
 
-static MODULE_SLOTS: [ModuleSlot; 2] = [
-    ModuleSlot {
-        slot: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-        value: 2usize as *mut c_void,
-    },
-    ModuleSlot {
-        slot: 0,
-        value: ptr::null_mut(),
-    },
-];
-
 static MODULE: ModuleDef = ModuleDef {
     ffi: UnsafeCell::new(PyModuleDef {
         m_base: PyModuleDef_HEAD_INIT,
@@ -190,7 +171,7 @@ static MODULE: ModuleDef = ModuleDef {
         m_doc: c"Rust barrier state transitions used by threading.".as_ptr() as *mut _,
         m_size: 0,
         m_methods: METHODS.as_ptr() as *mut _,
-        m_slots: MODULE_SLOTS.as_ptr() as *mut _,
+        m_slots: PER_INTERPRETER_GIL.as_ptr() as *mut _,
         m_traverse: None,
         m_clear: Some(_threading_rs_clear),
         m_free: Some(_threading_rs_free),
