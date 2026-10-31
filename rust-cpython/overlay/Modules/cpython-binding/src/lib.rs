@@ -8,6 +8,7 @@ pub mod buffer;
 #[cfg(feature = "alloc")]
 pub mod capsule;
 pub mod ffi;
+pub mod ffi_ext;
 pub mod ffi_extra;
 pub mod module;
 pub mod outcome;

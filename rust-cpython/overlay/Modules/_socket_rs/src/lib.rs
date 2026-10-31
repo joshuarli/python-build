@@ -1,18 +1,20 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_long, c_void};
-use std::mem::MaybeUninit;
+use std::ffi::{c_int, c_long, c_void};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ptr;
 use std::slice;
 
-use cpython_sys::{
-    METH_FASTCALL, Py_buffer, PyBuffer_Release, PyBytes_FromStringAndSize, Py_NewRef,
-    PyErr_CheckSignals, PyErr_Occurred, PyErr_SetFromErrno, PyErr_SetString, PyEval_RestoreThread,
-    PyEval_SaveThread, PyExc_OSError,
-    PyExc_TypeError, PyExc_ValueError, PyLong_AsLong, PyLong_FromSsize_t,
-    PyMethodDef, PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT,
-    PyModuleDef_Init, PyModuleDef_Slot, PyObject, PyObject_GetBuffer,
-    PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_ssize_t,
+use cpython_binding::ffi::{
+    PyBytes_FromStringAndSize, PyErr_Occurred, PyLong_FromSsize_t, PyMethodDef,
+    PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_NewRef, Py_ssize_t, PyErr_NoMemory,
+    PyObject, _Py_NoneStruct,
+};
+use cpython_binding::ffi_ext::{
+    PyErr_CheckSignals, PyErr_SetFromErrno, PyEval_RestoreThread, PyEval_SaveThread,
+    PyExc_OSError, PyLong_AsLong,
+};
+use cpython_binding::module::PER_INTERPRETER_GIL;
+use cpython_binding::{
+    Borrowed, Buffer, Exception, Module, fastcall, method_table_end, raise,
 };
 
 unsafe extern "C" {
@@ -20,21 +22,18 @@ unsafe extern "C" {
     fn recv(fd: c_int, data: *mut c_void, len: usize, flags: c_int) -> isize;
 }
 
-const PYBUF_SIMPLE: c_int = 0;
-const PY_MOD_MULTIPLE_INTERPRETERS_SLOT: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: usize = 2;
-
-fn fail(exception: *mut PyObject, message: &'static std::ffi::CStr) -> *mut PyObject {
-    unsafe { PyErr_SetString(exception, message.as_ptr()) };
+fn type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
+    raise(Exception::TypeError, message);
     ptr::null_mut()
 }
 
-fn type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
-    unsafe { fail(PyExc_TypeError, message) }
+fn value_error(message: &'static std::ffi::CStr) -> *mut PyObject {
+    raise(Exception::ValueError, message);
+    ptr::null_mut()
 }
 
-fn value_error(message: &'static std::ffi::CStr) -> *mut PyObject {
-    unsafe { fail(PyExc_ValueError, message) }
+fn acquire(object: *mut PyObject) -> Result<Buffer, ()> {
+    Buffer::acquire(unsafe { Borrowed::from_raw(object) }).map_err(|_| ())
 }
 
 unsafe fn arg(args: *mut *mut PyObject, index: usize) -> *mut PyObject {
@@ -47,33 +46,6 @@ fn integer(object: *mut PyObject) -> Result<c_long, ()> {
         Err(())
     } else {
         Ok(value)
-    }
-}
-
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    fn from_object(object: *mut PyObject) -> Result<Self, ()> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        if unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) } != 0 {
-            return Err(());
-        }
-        Ok(Self { view: unsafe { view.assume_init() } })
-    }
-
-    fn bytes(&self) -> &[u8] {
-        if self.view.len == 0 {
-            return &[];
-        }
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) };
     }
 }
 
@@ -127,11 +99,11 @@ unsafe extern "C" fn format_address(
         Ok(value) => value,
         Err(()) => return ptr::null_mut(),
     };
-    let data = match BorrowedBuffer::from_object(unsafe { arg(args, 1) }) {
+    let data = match acquire(unsafe { arg(args, 1) }) {
         Ok(value) => value,
         Err(()) => return ptr::null_mut(),
     };
-    let text = match (version, data.bytes()) {
+    let text = match (version, data.as_bytes()) {
         (4, [a, b, c, d]) => Ipv4Addr::new(*a, *b, *c, *d).to_string(),
         (6, address) if address.len() == 16 => {
             Ipv6Addr::from(<[u8; 16]>::try_from(address).unwrap()).to_string()
@@ -154,12 +126,12 @@ unsafe extern "C" fn socket_send(
         Ok(_) => return value_error(c"invalid socket descriptor"),
         Err(()) => return ptr::null_mut(),
     };
-    let data = match BorrowedBuffer::from_object(unsafe { arg(args, 1) }) {
+    let data = match acquire(unsafe { arg(args, 1) }) {
         Ok(value) => value,
         Err(()) => return ptr::null_mut(),
     };
     let state = unsafe { PyEval_SaveThread() };
-    let result = unsafe { send(fd, data.view.buf, data.view.len as usize, 0) };
+    let result = unsafe { send(fd, data.as_bytes().as_ptr().cast(), data.as_bytes().len(), 0) };
     let interrupted = result < 0
         && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted;
     unsafe { PyEval_RestoreThread(state) };
@@ -197,7 +169,7 @@ unsafe extern "C" fn socket_recv(
     };
     let mut data = Vec::<u8>::new();
     if data.try_reserve_exact(len).is_err() {
-        return unsafe { cpython_sys::PyErr_NoMemory() };
+        return unsafe { PyErr_NoMemory() };
     }
     let state = unsafe { PyEval_SaveThread() };
     let result = unsafe { recv(fd, data.as_mut_ptr().cast(), len, 0) };
@@ -210,7 +182,7 @@ unsafe extern "C" fn socket_recv(
         }
         // None is never a successful receive; the caller rechecks the
         // descriptor and timeout before retrying after a signal.
-        unsafe { Py_NewRef(ptr::addr_of_mut!(cpython_sys::_Py_NoneStruct)) }
+        unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
     } else if result < 0 {
         unsafe { PyErr_SetFromErrno(PyExc_OSError) }
     } else {
@@ -218,61 +190,38 @@ unsafe extern "C" fn socket_recv(
     }
 }
 
-struct ModuleDef(UnsafeCell<PyModuleDef>);
-unsafe impl Sync for ModuleDef {}
-
-struct ModuleSlots(UnsafeCell<[PyModuleDef_Slot; 2]>);
-unsafe impl Sync for ModuleSlots {}
-
-static MODULE_SLOTS: ModuleSlots = ModuleSlots(UnsafeCell::new([
-    PyModuleDef_Slot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS_SLOT,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED as *mut c_void,
-    },
-    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
-]));
-
 static METHODS: [PyMethodDef; 5] = [
-    PyMethodDef {
-        ml_name: c"parse_address".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse_address },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse an IPv4 or IPv6 address into network-order bytes".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"format_address".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: format_address },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Format network-order IPv4 or IPv6 bytes".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"send".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: socket_send },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Send bytes through a borrowed blocking socket descriptor".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"recv".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: socket_recv },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Receive bytes through a borrowed blocking socket descriptor".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+    fastcall(
+        c"parse_address",
+        parse_address,
+        c"Parse an IPv4 or IPv6 address into network-order bytes",
+    ),
+    fastcall(
+        c"format_address",
+        format_address,
+        c"Format network-order IPv4 or IPv6 bytes",
+    ),
+    fastcall(
+        c"send",
+        socket_send,
+        c"Send bytes through a borrowed blocking socket descriptor",
+    ),
+    fastcall(
+        c"recv",
+        socket_recv,
+        c"Receive bytes through a borrowed blocking socket descriptor",
+    ),
+    method_table_end(),
 ];
 
-static MODULE: ModuleDef = ModuleDef(UnsafeCell::new(PyModuleDef {
-    m_base: PyModuleDef_HEAD_INIT,
-    m_name: c"_socket_rs".as_ptr() as *mut c_char,
-    m_doc: c"Rust address conversion and blocking socket I/O".as_ptr() as *mut c_char,
-    m_size: 0,
-    m_methods: METHODS.as_ptr() as *mut PyMethodDef,
-    m_slots: MODULE_SLOTS.0.get().cast(),
-    m_traverse: None,
-    m_clear: None,
-    m_free: None,
-}));
+static MODULE: Module = Module::new(
+    c"_socket_rs",
+    c"Rust address conversion and blocking socket I/O",
+    &METHODS,
+)
+.with_slots(&PER_INTERPRETER_GIL);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__socket_rs() -> *mut PyObject {
-    unsafe { PyModuleDef_Init(MODULE.0.get()) }
+    MODULE.init()
 }

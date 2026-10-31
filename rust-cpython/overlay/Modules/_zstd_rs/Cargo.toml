@@ -6,7 +6,7 @@ rust-version.workspace = true
 license = "PSF-2.0"
 
 [dependencies]
-cpython-sys = { path = "../cpython-sys" }
+cpython-binding = { path = "../cpython-binding" }
 zstd = { version = "=0.14.0", default-features = false }
 
 [build-dependencies]

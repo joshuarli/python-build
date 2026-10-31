@@ -5,7 +5,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-cpython-sys = { path = "../cpython-sys" }
+cpython-binding = { path = "../cpython-binding" }
 lzma-rust2 = { version = "=0.21.0", default-features = false, features = ["std", "encoder", "xz"] }
 
 [build-dependencies]

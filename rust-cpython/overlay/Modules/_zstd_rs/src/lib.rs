@@ -1,46 +1,21 @@
 //! Rust-backed Zstandard operations used by the public compression wrapper.
 
-use std::cell::UnsafeCell;
-use std::ffi::{CStr, CString, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, CString, c_long, c_void};
 use std::io;
-use std::mem::MaybeUninit;
 use std::ptr;
 use std::slice;
 
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::Py_buffer;
-use cpython_sys::PyBuffer_Release;
-use cpython_sys::PyBytes_AsString;
-use cpython_sys::PyBytes_FromStringAndSize;
-use cpython_sys::PyCapsule_GetPointer;
-use cpython_sys::PyCapsule_New;
-use cpython_sys::PyErr_Clear;
-use cpython_sys::PyErr_Occurred;
-use cpython_sys::PyEval_RestoreThread;
-use cpython_sys::PyEval_SaveThread;
-use cpython_sys::PyExc_MemoryError;
-use cpython_sys::PyLong_AsSsize_t;
-use cpython_sys::PyLong_AsUnsignedLongLong;
-use cpython_sys::Py_IncRef;
-use cpython_sys::_Py_NoneStruct;
-use cpython_sys::PyLong_FromLong;
-use cpython_sys::PyTuple_New;
-use cpython_sys::PyTuple_SetItem;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_OverflowError;
-use cpython_sys::PyExc_RuntimeError;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyLong_AsLong;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_GetBuffer;
-use cpython_sys::Py_DecRef;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::_PyBytes_Resize;
+use cpython_binding::ffi::{
+    PyBytes_AsString, PyBytes_FromStringAndSize, PyErr_Clear, PyErr_Occurred, PyErr_SetString,
+    PyExc_OverflowError, PyExc_TypeError, PyLong_AsUnsignedLongLong, PyMethodDef, PyObject,
+    PyTuple_New, PyTuple_SetItem, Py_DecRef, Py_IncRef, Py_ssize_t, _Py_NoneStruct,
+};
+use cpython_binding::ffi_ext::{
+    PyCapsule_GetPointer, PyCapsule_New, PyEval_RestoreThread, PyEval_SaveThread,
+    PyExc_MemoryError, PyExc_RuntimeError, PyLong_AsLong, PyLong_AsSsize_t, PyLong_FromLong,
+    _PyBytes_Resize,
+};
+use cpython_binding::{Borrowed, Buffer, Module, fastcall, method_table_end};
 
 use zstd::zstd_safe::zstd_sys::ZSTD_EndDirective;
 use zstd::zstd_safe::{
@@ -48,40 +23,13 @@ use zstd::zstd_safe::{
     find_frame_compressed_size, get_error_name, get_frame_content_size,
 };
 
-const PYBUF_SIMPLE: c_int = 0;
 const MIN_OUTPUT_SIZE: usize = 16 * 1024;
 const MAX_SIZE_HINT: u64 = 256 * 1024 * 1024;
 const ENCODER_CAPSULE_NAME: &CStr = c"_zstd_rs.encoder";
 const DECODER_CAPSULE_NAME: &CStr = c"_zstd_rs.decoder";
 
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    unsafe fn from_object(object: *mut PyObject) -> Result<Self, ()> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        let result = unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) };
-        if result != 0 {
-            return Err(());
-        }
-        Ok(Self {
-            view: unsafe { view.assume_init() },
-        })
-    }
-
-    fn bytes(&self) -> &[u8] {
-        if self.view.len <= 0 {
-            return &[];
-        }
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) }
-    }
+fn acquire(object: *mut PyObject) -> Result<Buffer, ()> {
+    Buffer::acquire(unsafe { Borrowed::from_raw(object) }).map_err(|_| ())
 }
 
 /// Run `f` with the GIL released. `f` must not touch any Python object.
@@ -556,14 +504,14 @@ unsafe extern "C" fn encoder_compress(
     let Some(encoder) = (unsafe { capsule_ref::<StreamCompressor>(*args, ENCODER_CAPSULE_NAME) }) else {
         return ptr::null_mut();
     };
-    let buffer = match unsafe { BorrowedBuffer::from_object(*args.add(1)) } {
+    let buffer = match acquire(unsafe { *args.add(1) }) {
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
     let Some(mode) = (unsafe { read_integer(*args.add(2)) }) else {
         return ptr::null_mut();
     };
-    match encoder.compress(buffer.bytes(), mode) {
+    match encoder.compress(buffer.as_bytes(), mode) {
         Ok(output) => output,
         Err(error) => io_error(error),
     }
@@ -646,7 +594,7 @@ unsafe extern "C" fn decoder_decompress(
     let Some(decoder) = (unsafe { capsule_ref::<StreamDecompressor>(*args, DECODER_CAPSULE_NAME) }) else {
         return ptr::null_mut();
     };
-    let buffer = match unsafe { BorrowedBuffer::from_object(*args.add(1)) } {
+    let buffer = match acquire(unsafe { *args.add(1) }) {
         Ok(buffer) => buffer,
         Err(()) => return ptr::null_mut(),
     };
@@ -654,7 +602,7 @@ unsafe extern "C" fn decoder_decompress(
     if max_length == -1 && !unsafe { PyErr_Occurred() }.is_null() {
         return ptr::null_mut();
     }
-    let (output, flags) = match decoder.decompress(buffer.bytes(), max_length as i64) {
+    let (output, flags) = match decoder.decompress(buffer.as_bytes(), max_length as i64) {
         Ok(result) => result,
         Err(error) => return io_error(error),
     };
@@ -698,78 +646,35 @@ unsafe extern "C" fn decoder_unused_data(
 }
 
 static METHODS: [PyMethodDef; 8] = [
-    PyMethodDef {
-        ml_name: c"encoder_new".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: encoder_new },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Create a Zstandard stream encoder".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"encoder_compress".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: encoder_compress },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Compress bytes with an incremental Zstandard encoder".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"encoder_flush".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: encoder_flush },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Flush an incremental Zstandard encoder".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"encoder_set_pledged".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: encoder_set_pledged },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Pledge the size of the next Zstandard frame".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"decoder_new".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decoder_new },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Create a Zstandard stream decoder".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"decoder_decompress".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decoder_decompress },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Decompress bytes with an incremental Zstandard decoder".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"decoder_unused_data".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: decoder_unused_data },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Return the input left after the end of the frame".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+    fastcall(c"encoder_new", encoder_new, c"Create a Zstandard stream encoder"),
+    fastcall(
+        c"encoder_compress",
+        encoder_compress,
+        c"Compress bytes with an incremental Zstandard encoder",
+    ),
+    fastcall(c"encoder_flush", encoder_flush, c"Flush an incremental Zstandard encoder"),
+    fastcall(
+        c"encoder_set_pledged",
+        encoder_set_pledged,
+        c"Pledge the size of the next Zstandard frame",
+    ),
+    fastcall(c"decoder_new", decoder_new, c"Create a Zstandard stream decoder"),
+    fastcall(
+        c"decoder_decompress",
+        decoder_decompress,
+        c"Decompress bytes with an incremental Zstandard decoder",
+    ),
+    fastcall(
+        c"decoder_unused_data",
+        decoder_unused_data,
+        c"Return the input left after the end of the frame",
+    ),
+    method_table_end(),
 ];
 
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
+static MODULE: Module = Module::new(c"_zstd_rs", c"Rust Zstandard codec support", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__zstd_rs() -> *mut PyObject {
-    MODULE.init_multi_phase()
+    MODULE.init()
 }
-
-static MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_zstd_rs".as_ptr() as *mut c_char,
-        m_doc: c"Rust Zstandard codec support".as_ptr() as *mut c_char,
-        m_size: 0,
-        m_methods: METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: None,
-        m_free: None,
-    }),
-};

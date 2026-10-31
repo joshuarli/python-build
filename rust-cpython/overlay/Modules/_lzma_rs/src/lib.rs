@@ -1,35 +1,18 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_void};
 use std::io::{Read, Write};
-use std::mem::MaybeUninit;
 use std::ptr;
 use std::slice;
 
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::PyBool_FromLong;
-use cpython_sys::PyBuffer_Release;
-use cpython_sys::PyBytes_AsString;
-use cpython_sys::PyBytes_FromStringAndSize;
-use cpython_sys::PyCapsule_GetPointer;
-use cpython_sys::PyCapsule_New;
-use cpython_sys::PyErr_Clear;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_Occurred;
-use cpython_sys::PyLong_AsLong;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_GetBuffer;
-use cpython_sys::Py_DecRef;
-use cpython_sys::_PyBytes_Resize;
-use cpython_sys::Py_buffer;
-use cpython_sys::Py_ssize_t;
+use cpython_binding::ffi::{
+    PyBool_FromLong, PyBytes_AsString, PyBytes_FromStringAndSize, PyErr_Clear, PyErr_NoMemory,
+    PyErr_Occurred, PyMethodDef, PyObject, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::ffi_ext::{
+    PyCapsule_GetPointer, PyCapsule_New, PyLong_AsLong, _PyBytes_Resize,
+};
+use cpython_binding::{Borrowed, Buffer, Module, fastcall, method_table_end};
 use lzma_rust2::{DICT_SIZE_MIN, XzOptions, XzReader, XzWriter};
 
-const PYBUF_SIMPLE: c_int = 0;
 const XZ_MAGIC: &[u8; 6] = b"\xfd7zXZ\0";
 const COMPRESSOR_CAPSULE_NAME: &std::ffi::CStr = c"_lzma_rs.Compressor";
 
@@ -53,44 +36,6 @@ impl CompressionState {
         writer.write_all(&pending).map_err(|_| ())?;
         self.writer = Some(writer);
         Ok(())
-    }
-}
-
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    fn from_object(object: *mut PyObject) -> Result<Self, ()> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        unsafe {
-            if PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) != 0 {
-                return Err(());
-            }
-            Ok(Self {
-                view: view.assume_init(),
-            })
-        }
-    }
-
-    fn bytes(&self) -> Option<&[u8]> {
-        if self.view.len < 0 {
-            return None;
-        }
-        let length = self.view.len as usize;
-        if length == 0 {
-            return Some(&[]);
-        }
-        if self.view.buf.is_null() {
-            return None;
-        }
-        Some(unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), length) })
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) }
     }
 }
 
@@ -178,12 +123,10 @@ unsafe extern "C" fn compressor_compress(
     if nargs != 2 {
         return declined();
     }
-    let Ok(buffer) = BorrowedBuffer::from_object(unsafe { *args.add(1) }) else {
+    let Ok(buffer) = Buffer::acquire(unsafe { Borrowed::from_raw(*args.add(1)) }) else {
         return ptr::null_mut();
     };
-    let Some(input) = buffer.bytes() else {
-        return ptr::null_mut();
-    };
+    let input = buffer.as_bytes();
     let Some(state) = (unsafe { compressor_state(*args) }) else {
         return ptr::null_mut();
     };
@@ -249,16 +192,14 @@ unsafe extern "C" fn decompress_xz(
     if nargs != 1 {
         return declined();
     }
-    let buffer = match BorrowedBuffer::from_object(unsafe { *args }) {
+    let buffer = match Buffer::acquire(unsafe { Borrowed::from_raw(*args) }) {
         Ok(buffer) => buffer,
-        Err(()) => {
+        Err(_) => {
             unsafe { PyErr_Clear() };
             return declined();
         }
     };
-    let Some(input) = buffer.bytes() else {
-        return declined();
-    };
+    let input = buffer.as_bytes();
     if !input.starts_with(XZ_MAGIC) {
         return declined();
     }
@@ -307,75 +248,25 @@ unsafe extern "C" fn decompress_xz(
     result
 }
 
-pub extern "C" fn _lzma_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _lzma_rs_free(_object: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static _LZMA_RS_MODULE_METHODS: [PyMethodDef; 5] = [
-    PyMethodDef {
-        ml_name: c"compressor_new".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: compressor_new,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Create a stateful XZ compressor.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"compressor_compress".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: compressor_compress,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Write input to an XZ compressor and return ready output.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"compressor_flush".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: compressor_flush,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Finish an XZ compressor and return its final output.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"decompress_xz".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: decompress_xz,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Decompress concatenated XZ streams.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+static METHODS: [PyMethodDef; 5] = [
+    fastcall(c"compressor_new", compressor_new, c"Create a stateful XZ compressor."),
+    fastcall(
+        c"compressor_compress",
+        compressor_compress,
+        c"Write input to an XZ compressor and return ready output.",
+    ),
+    fastcall(
+        c"compressor_flush",
+        compressor_flush,
+        c"Finish an XZ compressor and return its final output.",
+    ),
+    fastcall(c"decompress_xz", decompress_xz, c"Decompress concatenated XZ streams."),
+    method_table_end(),
 ];
 
-pub static _LZMA_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_lzma_rs".as_ptr() as *mut _,
-        m_doc: c"Rust XZ compression and decompression.".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: &_LZMA_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(_lzma_rs_clear),
-        m_free: Some(_lzma_rs_free),
-    }),
-};
+static MODULE: Module = Module::new(c"_lzma_rs", c"Rust XZ compression and decompression.", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__lzma_rs() -> *mut PyObject {
-    _LZMA_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }

@@ -148,8 +148,8 @@ dependencies = [
 name = "_elementtree_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "quick-xml",
 ]
 
@@ -157,8 +157,8 @@ dependencies = [
 name = "_email_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "mail-parser",
 ]
 
@@ -317,8 +317,8 @@ dependencies = [
 name = "_lzma_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "lzma-rust2",
 ]
 
@@ -420,8 +420,8 @@ dependencies = [
 name = "_socket_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
 ]
 
 [[package]]
@@ -607,8 +607,8 @@ dependencies = [
 name = "_zstd_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "zstd",
 ]
 

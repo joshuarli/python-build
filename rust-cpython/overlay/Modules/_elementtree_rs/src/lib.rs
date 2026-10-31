@@ -1,84 +1,26 @@
 use std::borrow::Cow;
-use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 use std::slice;
 use std::str;
 
-use cpython_sys::PyBool_FromLong;
-use cpython_sys::PyDict_Contains;
-use cpython_sys::PyDict_New;
-use cpython_sys::PyDict_SetItem;
-use cpython_sys::PyErr_Clear;
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::PyObject_GetAttrString;
-use cpython_sys::PyObject_Vectorcall;
-use cpython_sys::PyUnicode_AsUTF8AndSize;
-use cpython_sys::PyUnicode_FromStringAndSize;
-use cpython_sys::PyUnicode_Type;
-use cpython_sys::Py_DecRef;
-use cpython_sys::Py_TYPE;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyObject;
-use cpython_sys::PyDict_GetItemWithError;
-use cpython_sys::PyErr_Occurred;
-use cpython_sys::PyIter_Next;
-use cpython_sys::PyObject_CallNoArgs;
-use cpython_sys::PyObject_CallOneArg;
-use cpython_sys::PyObject_GetAttr;
-use cpython_sys::PyObject_GetIter;
-use cpython_sys::PyObject_IsTrue;
-use cpython_sys::PyObject_Size;
-use cpython_sys::PyTuple_GetItem;
-use cpython_sys::PyTuple_Size;
-use cpython_sys::PyTuple_Type;
-use cpython_sys::PyType_GetFlags;
-use cpython_sys::PyUnicode_InternFromString;
-use cpython_sys::Py_TPFLAGS_UNICODE_SUBCLASS;
-use cpython_sys::_Py_NoneStruct;
-use cpython_sys::PyObject_GetBuffer;
-use cpython_sys::PyBuffer_Release;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::Py_buffer;
+use cpython_binding::ffi::{
+    PyBool_FromLong, PyErr_Clear, PyErr_Occurred, PyErr_SetString, PyExc_TypeError, PyIter_Next,
+    PyMethodDef, PyObject, PyObject_CallOneArg, PyObject_GetIter, PyObject_IsTrue, PyObject_Size,
+    PyTuple_GetItem, PyTuple_Size, PyTuple_Type, PyUnicode_AsUTF8AndSize,
+    PyUnicode_FromStringAndSize, Py_DecRef, Py_ssize_t, _Py_NoneStruct,
+};
+use cpython_binding::ffi_ext::{
+    PyDict_Contains, PyDict_GetItemWithError, PyDict_New, PyDict_SetItem, PyObject_CallNoArgs,
+    PyObject_GetAttr, PyObject_GetAttrString, PyObject_Vectorcall, PyType_GetFlags,
+    PyUnicode_InternFromString, PyUnicode_Type, Py_TPFLAGS_UNICODE_SUBCLASS,
+};
+use cpython_binding::{Borrowed, Buffer, Module, Outcome, Stop, fastcall, method_table_end};
 use quick_xml::events::Event;
 use quick_xml::name::ResolveResult;
 use quick_xml::reader::NsReader;
 use quick_xml::XmlVersion;
-
-const PYBUF_SIMPLE: c_int = 0;
-
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    unsafe fn from_object(object: *mut PyObject) -> Option<Self> {
-        let mut view = std::mem::MaybeUninit::<Py_buffer>::uninit();
-        if unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) } != 0 {
-            return None;
-        }
-        Some(Self {
-            view: unsafe { view.assume_init() },
-        })
-    }
-
-    fn bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) }
-    }
-}
 
 fn valid_xml_characters(value: &str) -> bool {
     value.chars().all(|ch| {
@@ -187,8 +129,8 @@ fn expanded_name<'a>(result: ResolveResult<'_>, local: &'a str) -> Option<Cow<'a
 struct Obj(*mut PyObject);
 
 impl Obj {
-    fn new(raw: *mut PyObject) -> Parsed<Self> {
-        if raw.is_null() { Err(Stop::PyError) } else { Ok(Self(raw)) }
+    fn new(raw: *mut PyObject) -> Outcome<Self> {
+        if raw.is_null() { Err(Stop::Raised) } else { Ok(Self(raw)) }
     }
 }
 
@@ -198,14 +140,7 @@ impl Drop for Obj {
     }
 }
 
-enum Stop {
-    Unsupported,
-    PyError,
-}
-
-type Parsed<T> = Result<T, Stop>;
-
-fn new_str(value: &str) -> Parsed<Obj> {
+fn new_str(value: &str) -> Outcome<Obj> {
     Obj::new(unsafe {
         PyUnicode_FromStringAndSize(value.as_ptr().cast::<c_char>(), value.len() as Py_ssize_t)
     })
@@ -224,7 +159,7 @@ struct Sink {
 }
 
 impl Sink {
-    fn new(target: *mut PyObject) -> Parsed<Self> {
+    fn new(target: *mut PyObject) -> Outcome<Self> {
         let method = |name: &CStr| Obj::new(unsafe { PyObject_GetAttrString(target, name.as_ptr()) });
         Ok(Self {
             start: method(c"start")?,
@@ -237,7 +172,7 @@ impl Sink {
         })
     }
 
-    fn name(&mut self, key: &str) -> Parsed<*mut PyObject> {
+    fn name(&mut self, key: &str) -> Outcome<*mut PyObject> {
         if let Some(name) = self.names.get(key) {
             return Ok(name.0);
         }
@@ -247,7 +182,7 @@ impl Sink {
         Ok(raw)
     }
 
-    fn call(callable: &Obj, args: &[*mut PyObject]) -> Parsed<()> {
+    fn call(callable: &Obj, args: &[*mut PyObject]) -> Outcome<()> {
         let result = Obj::new(unsafe {
             PyObject_Vectorcall(callable.0, args.as_ptr(), args.len(), ptr::null_mut())
         })?;
@@ -255,7 +190,7 @@ impl Sink {
         Ok(())
     }
 
-    fn flush(&mut self) -> Parsed<()> {
+    fn flush(&mut self) -> Outcome<()> {
         if self.pending.is_empty() {
             return Ok(());
         }
@@ -268,27 +203,27 @@ impl Sink {
         self.pending.push_str(value);
     }
 
-    fn comment(&mut self, value: &str) -> Parsed<()> {
+    fn comment(&mut self, value: &str) -> Outcome<()> {
         self.flush()?;
         let text = new_str(value)?;
         Self::call(&self.comment, &[text.0])
     }
 
-    fn start(&mut self, name: &str, attrs: Obj) -> Parsed<()> {
+    fn start(&mut self, name: &str, attrs: Obj) -> Outcome<()> {
         self.flush()?;
         let tag = self.name(name)?;
         self.open.push(tag);
         Self::call(&self.start, &[tag, attrs.0])
     }
 
-    fn end(&mut self) -> Parsed<()> {
+    fn end(&mut self) -> Outcome<()> {
         self.flush()?;
         let tag = self.open.pop().ok_or(Stop::Unsupported)?;
         Self::call(&self.end, &[tag])
     }
 }
 
-fn parse_document(input: &[u8], sink: &mut Sink) -> Parsed<()> {
+fn parse_document(input: &[u8], sink: &mut Sink) -> Outcome<()> {
     let Ok(text) = str::from_utf8(input) else {
         return Err(Stop::Unsupported);
     };
@@ -370,7 +305,7 @@ fn parse_document(input: &[u8], sink: &mut Sink) -> Parsed<()> {
                     let key = sink.name(&key)?;
                     match unsafe { PyDict_Contains(attrs.0, key) } {
                         0 => {}
-                        -1 => return Err(Stop::PyError),
+                        -1 => return Err(Stop::Raised),
                         _ => return Err(Stop::Unsupported),
                     }
                     let Ok(value) = attribute.normalized_value(XmlVersion::Implicit1_0) else {
@@ -381,7 +316,7 @@ fn parse_document(input: &[u8], sink: &mut Sink) -> Parsed<()> {
                     }
                     let value = new_str(&value)?;
                     if unsafe { PyDict_SetItem(attrs.0, key, value.0) } != 0 {
-                        return Err(Stop::PyError);
+                        return Err(Stop::Raised);
                     }
                 }
                 sink.start(&name, attrs)?;
@@ -478,12 +413,12 @@ fn parse_document(input: &[u8], sink: &mut Sink) -> Parsed<()> {
 
 const MAX_SERIALIZE_DEPTH: usize = 400;
 
-fn fallback<T>() -> Parsed<T> {
+fn fallback<T>() -> Outcome<T> {
     unsafe { PyErr_Clear() };
     Err(Stop::Unsupported)
 }
 
-fn checked(raw: *mut PyObject) -> Parsed<Obj> {
+fn checked(raw: *mut PyObject) -> Outcome<Obj> {
     if raw.is_null() { fallback() } else { Ok(Obj(raw)) }
 }
 
@@ -491,9 +426,9 @@ fn is_none(object: *mut PyObject) -> bool {
     object == ptr::addr_of_mut!(_Py_NoneStruct).cast::<PyObject>()
 }
 
-fn as_str<'a>(object: *mut PyObject) -> Parsed<&'a str> {
-    let flags = unsafe { PyType_GetFlags(Py_TYPE(object)) };
-    if flags & u64::from(Py_TPFLAGS_UNICODE_SUBCLASS) == 0 {
+fn as_str<'a>(object: *mut PyObject) -> Outcome<&'a str> {
+    let flags = unsafe { PyType_GetFlags((*object).ob_type) };
+    if flags & Py_TPFLAGS_UNICODE_SUBCLASS == 0 {
         return Err(Stop::Unsupported);
     }
     let mut length: Py_ssize_t = 0;
@@ -510,7 +445,7 @@ fn as_str<'a>(object: *mut PyObject) -> Parsed<&'a str> {
 }
 
 /// `None` and empty strings are absent; anything else must be a string.
-fn optional_text<'a>(object: *mut PyObject) -> Parsed<Option<&'a str>> {
+fn optional_text<'a>(object: *mut PyObject) -> Outcome<Option<&'a str>> {
     if is_none(object) {
         return Ok(None);
     }
@@ -518,11 +453,11 @@ fn optional_text<'a>(object: *mut PyObject) -> Parsed<Option<&'a str>> {
     Ok(if text.is_empty() { None } else { Some(text) })
 }
 
-fn iterate(object: *mut PyObject) -> Parsed<Obj> {
+fn iterate(object: *mut PyObject) -> Outcome<Obj> {
     checked(unsafe { PyObject_GetIter(object) })
 }
 
-fn next_item(iterator: &Obj) -> Parsed<Option<Obj>> {
+fn next_item(iterator: &Obj) -> Outcome<Option<Obj>> {
     let item = unsafe { PyIter_Next(iterator.0) };
     if !item.is_null() {
         return Ok(Some(Obj(item)));
@@ -534,8 +469,8 @@ fn next_item(iterator: &Obj) -> Parsed<Option<Obj>> {
     }
 }
 
-fn pair(object: *mut PyObject) -> Parsed<(*mut PyObject, *mut PyObject)> {
-    if unsafe { Py_TYPE(object) } != ptr::addr_of_mut!(PyTuple_Type) || unsafe { PyTuple_Size(object) } != 2 {
+fn pair(object: *mut PyObject) -> Outcome<(*mut PyObject, *mut PyObject)> {
+    if unsafe { (*object).ob_type } != ptr::addr_of_mut!(PyTuple_Type) || unsafe { PyTuple_Size(object) } != 2 {
         return Err(Stop::Unsupported);
     }
     Ok(unsafe { (PyTuple_GetItem(object, 0), PyTuple_GetItem(object, 1)) })
@@ -584,7 +519,7 @@ impl Serializer {
         self.out.extend_from_slice(&bytes[start..]);
     }
 
-    fn qname<'a>(&self, key: *mut PyObject) -> Parsed<Option<&'a str>> {
+    fn qname<'a>(&self, key: *mut PyObject) -> Outcome<Option<&'a str>> {
         let value = unsafe { PyDict_GetItemWithError(self.qnames, key) };
         if value.is_null() {
             return fallback();
@@ -595,7 +530,7 @@ impl Serializer {
         as_str(value).map(Some)
     }
 
-    fn children(&mut self, element: *mut PyObject, depth: usize) -> Parsed<()> {
+    fn children(&mut self, element: *mut PyObject, depth: usize) -> Outcome<()> {
         let iterator = iterate(element)?;
         while let Some(child) = next_item(&iterator)? {
             self.element(child.0, &[], depth + 1)?;
@@ -610,7 +545,7 @@ impl Serializer {
         }
     }
 
-    fn element(&mut self, element: *mut PyObject, namespaces: &[(String, String)], depth: usize) -> Parsed<()> {
+    fn element(&mut self, element: *mut PyObject, namespaces: &[(String, String)], depth: usize) -> Outcome<()> {
         if depth > MAX_SERIALIZE_DEPTH {
             return Err(Stop::Unsupported);
         }
@@ -688,7 +623,7 @@ impl Serializer {
         Ok(())
     }
 
-    fn emit(&self, write: *mut PyObject) -> Parsed<()> {
+    fn emit(&self, write: *mut PyObject) -> Outcome<()> {
         for chunk in self.out.split(|byte| *byte == 0).filter(|chunk| !chunk.is_empty()) {
             let text = new_str(str::from_utf8(chunk).map_err(|_| Stop::Unsupported)?)?;
             drop(Obj::new(unsafe { PyObject_CallOneArg(write, text.0) })?);
@@ -710,7 +645,7 @@ unsafe extern "C" fn parse(
     let Ok(mut sink) = Sink::new(target) else {
         return ptr::null_mut();
     };
-    let outcome = if unsafe { Py_TYPE(data) } == ptr::addr_of_mut!(PyUnicode_Type) {
+    let outcome = if unsafe { (*data).ob_type } == ptr::addr_of_mut!(PyUnicode_Type) {
         let mut length: Py_ssize_t = 0;
         let bytes = unsafe { PyUnicode_AsUTF8AndSize(data, &mut length) };
         if bytes.is_null() {
@@ -720,15 +655,15 @@ unsafe extern "C" fn parse(
             parse_document(unsafe { slice::from_raw_parts(bytes.cast::<u8>(), length as usize) }, &mut sink)
         }
     } else {
-        let Some(input) = (unsafe { BorrowedBuffer::from_object(data) }) else {
+        let Ok(input) = Buffer::acquire(unsafe { Borrowed::from_raw(data) }) else {
             return ptr::null_mut();
         };
-        parse_document(input.bytes(), &mut sink)
+        parse_document(input.as_bytes(), &mut sink)
     };
     match outcome {
         Ok(()) => unsafe { PyBool_FromLong(1) },
         Err(Stop::Unsupported) => unsafe { PyBool_FromLong(0) },
-        Err(Stop::PyError) => ptr::null_mut(),
+        Err(Stop::Raised) => ptr::null_mut(),
     }
 }
 
@@ -751,11 +686,11 @@ unsafe extern "C" fn serialize(
     match outcome {
         Ok(()) => unsafe { PyBool_FromLong(1) },
         Err(Stop::Unsupported) => unsafe { PyBool_FromLong(0) },
-        Err(Stop::PyError) => ptr::null_mut(),
+        Err(Stop::Raised) => ptr::null_mut(),
     }
 }
 
-unsafe fn serialize_tree(args: &[*mut PyObject]) -> Parsed<()> {
+unsafe fn serialize_tree(args: &[*mut PyObject]) -> Outcome<()> {
     let attr = |name: &CStr| checked(unsafe { PyUnicode_InternFromString(name.as_ptr()) });
     let mut namespaces = Vec::new();
     let iterator = iterate(args[2])?;
@@ -782,59 +717,23 @@ unsafe fn serialize_tree(args: &[*mut PyObject]) -> Parsed<()> {
     serializer.emit(args[4])
 }
 
-pub extern "C" fn _elementtree_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
+static METHODS: [PyMethodDef; 3] = [
+    fastcall(c"parse", parse, c"Parse a supported complete XML document."),
+    fastcall(
+        c"serialize",
+        serialize,
+        c"Serialize an ElementTree element tree to write callbacks.",
+    ),
+    method_table_end(),
+];
 
-pub extern "C" fn _elementtree_rs_free(_object: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_module(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static _ELEMENTTREE_RS_MODULE_METHODS: [PyMethodDef; 3] = {
-    [
-        PyMethodDef {
-            ml_name: c"parse".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse },
-            ml_flags: METH_FASTCALL,
-            ml_doc: c"Parse a supported complete XML document.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"serialize".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: serialize },
-            ml_flags: METH_FASTCALL,
-            ml_doc: c"Serialize an ElementTree element tree to write callbacks.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef::zeroed(),
-    ]
-};
-
-pub static _ELEMENTTREE_RS_MODULE: ModuleDef = {
-    ModuleDef {
-        ffi: UnsafeCell::new(PyModuleDef {
-            m_base: PyModuleDef_HEAD_INIT,
-            m_name: c"_elementtree_rs".as_ptr() as *mut _,
-            m_doc: c"Rust complete-document XML parser and writer.".as_ptr() as *mut _,
-            m_size: 0,
-            m_methods: &_ELEMENTTREE_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: ptr::null_mut(),
-            m_traverse: None,
-            m_clear: Some(_elementtree_rs_clear),
-            m_free: Some(_elementtree_rs_free),
-        }),
-    }
-};
+static MODULE: Module = Module::new(
+    c"_elementtree_rs",
+    c"Rust complete-document XML parser and writer.",
+    &METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__elementtree_rs() -> *mut PyObject {
-    _ELEMENTTREE_RS_MODULE.init_module()
+    MODULE.init()
 }

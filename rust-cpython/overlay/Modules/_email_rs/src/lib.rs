@@ -1,32 +1,11 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
-use std::ptr;
-use std::slice;
-
-use cpython_sys::METH_FASTCALL;
-use cpython_sys::Py_DecRef;
-use cpython_sys::PyBuffer_Release;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyList_New;
-use cpython_sys::PyList_SetItem;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::Py_NewRef;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_GetBuffer;
-use cpython_sys::Py_buffer;
-use cpython_sys::PyBytes_FromStringAndSize;
-use cpython_sys::Py_ssize_t;
-use cpython_sys::_Py_NoneStruct;
+use cpython_binding::ffi::{
+    PyBytes_FromStringAndSize, PyErr_NoMemory, PyList_New, PyList_SetItem, PyObject, Py_ssize_t,
+};
+use cpython_binding::{
+    Borrowed, Buffer, Exception, Module, Outcome, Owned, Stop, fastcall, into_return,
+    method_table_end, raise,
+};
 use mail_parser::MessageParser;
-
-const PYBUF_SIMPLE: c_int = 0;
 
 fn valid_header_block(raw: &[u8]) -> Option<usize> {
     let mut position = 0;
@@ -108,67 +87,30 @@ fn parse_header_fields(raw: &[u8]) -> Option<Vec<&[u8]>> {
     (previous_end == raw.len()).then_some(fields)
 }
 
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    unsafe fn from_object(object: *mut PyObject) -> Result<Self, ()> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        if unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) } != 0 {
-            return Err(());
-        }
-        Ok(Self {
-            view: unsafe { view.assume_init() },
-        })
-    }
-
-    fn bytes(&self) -> &[u8] {
-        if self.view.len == 0 {
-            &[]
-        } else {
-            unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-        }
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) };
-    }
-}
-
-unsafe fn none_result() -> *mut PyObject {
-    unsafe { Py_NewRef(ptr::addr_of_mut!(_Py_NoneStruct)) }
-}
-
-unsafe fn python_fields(fields: &[&[u8]]) -> *mut PyObject {
-    let result = unsafe { PyList_New(fields.len() as Py_ssize_t) };
-    if result.is_null() {
-        return ptr::null_mut();
-    }
-
+fn python_fields(fields: &[&[u8]]) -> Outcome<Owned> {
+    let result = unsafe { Owned::from_new_reference(PyList_New(fields.len() as Py_ssize_t)) }?;
     for (index, field) in fields.iter().enumerate() {
         if field.len() > isize::MAX as usize {
-            unsafe {
-                Py_DecRef(result);
-                PyErr_NoMemory();
-            }
-            return ptr::null_mut();
+            unsafe { PyErr_NoMemory() };
+            return Err(Stop::Raised);
         }
         let item = unsafe {
-            PyBytes_FromStringAndSize(field.as_ptr().cast::<c_char>(), field.len() as Py_ssize_t)
-        };
-        if item.is_null() {
-            unsafe { Py_DecRef(result) };
-            return ptr::null_mut();
-        }
-        if unsafe { PyList_SetItem(result, index as Py_ssize_t, item) } != 0 {
-            unsafe { Py_DecRef(result) };
-            return ptr::null_mut();
+            Owned::from_new_reference(PyBytes_FromStringAndSize(
+                field.as_ptr().cast(),
+                field.len() as Py_ssize_t,
+            ))
+        }?;
+        if unsafe { PyList_SetItem(result.as_ptr(), index as Py_ssize_t, item.into_raw()) } != 0 {
+            return Err(Stop::Raised);
         }
     }
-    result
+    Ok(result)
+}
+
+fn fields_of(object: Borrowed<'_>) -> Outcome<Owned> {
+    let buffer = Buffer::acquire(object)?;
+    let fields = parse_header_fields(buffer.as_bytes()).ok_or(Stop::Unsupported)?;
+    python_fields(&fields)
 }
 
 /// Return original RFC header fields when the block uses strict field syntax.
@@ -181,70 +123,27 @@ unsafe extern "C" fn parse_fields(
     nargs: Py_ssize_t,
 ) -> *mut PyObject {
     if nargs != 1 {
-        unsafe {
-            PyErr_SetString(
-                PyExc_TypeError,
-                c"parse_header_fields() takes exactly one argument".as_ptr(),
-            );
-        }
-        return ptr::null_mut();
+        raise(
+            Exception::TypeError,
+            c"parse_header_fields() takes exactly one argument",
+        );
+        return core::ptr::null_mut();
     }
-
-    let buffer = match unsafe { BorrowedBuffer::from_object(*args) } {
-        Ok(buffer) => buffer,
-        Err(()) => return ptr::null_mut(),
-    };
-    match parse_header_fields(buffer.bytes()) {
-        Some(fields) => unsafe { python_fields(&fields) },
-        None => unsafe { none_result() },
-    }
+    into_return(fields_of(unsafe { Borrowed::from_raw(*args) }))
 }
 
-pub extern "C" fn email_rs_clear(_module: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn email_rs_free(_module: *mut c_void) {}
-
-struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-static EMAIL_RS_METHODS: [PyMethodDef; 2] = [
-    PyMethodDef {
-        ml_name: c"parse_header_fields".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: parse_fields,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Parse a strict RFC message header block".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+static METHODS: [cpython_binding::ffi::PyMethodDef; 2] = [
+    fastcall(
+        c"parse_header_fields",
+        parse_fields,
+        c"Parse a strict RFC message header block",
+    ),
+    method_table_end(),
 ];
 
-static EMAIL_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_email_rs".as_ptr() as *mut c_char,
-        m_doc: c"Rust RFC email header parsing".as_ptr() as *mut c_char,
-        m_size: 0,
-        m_methods: EMAIL_RS_METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(email_rs_clear),
-        m_free: Some(email_rs_free),
-    }),
-};
+static MODULE: Module = Module::new(c"_email_rs", c"Rust RFC email header parsing", &METHODS);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__email_rs() -> *mut PyObject {
-    EMAIL_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }
