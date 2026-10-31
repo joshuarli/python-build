@@ -1,176 +1,28 @@
 //! Exact rational arithmetic without a separate standard runtime or heap.
 #![cfg_attr(not(test), no_std)]
-#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
 extern crate alloc;
 
 use alloc::{ffi::CString, format, vec};
-use core::alloc::{GlobalAlloc, Layout};
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::{c_int, c_void};
 
-// These C layouts describe the 64-bit, GIL-enabled CPython module boundary.
-type Py_ssize_t = isize;
-
-#[repr(C)]
-pub struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut c_void,
-}
-
-#[repr(C)]
-pub union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(*mut PyObject, *mut *mut PyObject, Py_ssize_t) -> *mut PyObject,
-    Void: *mut c_void,
-}
-
-#[repr(C)]
-pub struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-impl PyMethodDef {
-    const fn zeroed() -> Self {
-        Self {
-            ml_name: core::ptr::null_mut(),
-            ml_meth: PyMethodDefFuncPointer { Void: core::ptr::null_mut() },
-            ml_flags: 0,
-            ml_doc: core::ptr::null_mut(),
-        }
-    }
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut c_void,
-    m_traverse: Option<unsafe extern "C" fn(*mut PyObject, *mut c_void, *mut c_void) -> c_int>,
-    m_clear: Option<unsafe extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<unsafe extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-// Immortal reference count and static allocation flags in the 64-bit GIL ABI.
-const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
-    ob_base: PyObject {
-        ob_refcnt: (3_isize << 30) | (5_isize << 48),
-        ob_type: core::ptr::null_mut(),
-    },
-    m_init: None,
-    m_index: 0,
-    m_copy: core::ptr::null_mut(),
+use cpython_binding::ffi::{
+    PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError, PyMethodDef, PyObject,
+    PyTuple_New, PyTuple_SetItem, Py_DecRef, Py_ssize_t,
 };
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    static mut PyExc_TypeError: *mut PyObject;
-    static mut PyExc_ValueError: *mut PyObject;
-    static mut PyExc_ZeroDivisionError: *mut PyObject;
-    fn Py_DecRef(object: *mut PyObject);
-    fn PyErr_NoMemory() -> *mut PyObject;
-    fn PyErr_SetString(exception: *mut PyObject, message: *const c_char);
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn PyMem_Malloc(size: usize) -> *mut c_void;
-    fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
-    fn PyMem_Free(pointer: *mut c_void);
-}
+use cpython_binding::ffi_extra::{
+    PyExc_ZeroDivisionError, PyLong_AsNativeBytes, PyLong_FromNativeBytes,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
 
 #[cfg(not(test))]
-unsafe extern "C" {
-    fn abort() -> !;
-}
-
-#[cfg(not(test))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
-
-// All arithmetic runs under the GIL and all temporary buffers die before the
-// C entry point returns. Reusing Python's small-block pools avoids retaining
-// a second allocator's size classes after the first rational operation.
-struct PythonAllocator;
-
-unsafe impl GlobalAlloc for PythonAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if layout.align() <= core::mem::align_of::<usize>() {
-            return unsafe { PyMem_Malloc(layout.size()).cast() };
-        }
-        let Some(size) = layout.size().checked_add(layout.align()) else {
-            return core::ptr::null_mut();
-        };
-        let base = unsafe { PyMem_Malloc(size).cast::<u8>() };
-        if base.is_null() {
-            return base;
-        }
-        let offset = layout.align() - (base as usize % layout.align());
-        let aligned = unsafe { base.add(offset) };
-        unsafe { aligned.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().write(base) };
-        aligned
-    }
-
-    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
-        let base = if layout.align() <= core::mem::align_of::<usize>() {
-            pointer
-        } else {
-            unsafe { pointer.sub(core::mem::size_of::<usize>()).cast::<*mut u8>().read() }
-        };
-        unsafe { PyMem_Free(base.cast()) };
-    }
-
-    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        if layout.align() <= core::mem::align_of::<usize>() {
-            return unsafe { PyMem_Realloc(pointer.cast(), size).cast() };
-        }
-        let Ok(replacement_layout) = Layout::from_size_align(size, layout.align()) else {
-            return core::ptr::null_mut();
-        };
-        let replacement = unsafe { self.alloc(replacement_layout) };
-        if !replacement.is_null() {
-            unsafe {
-                core::ptr::copy_nonoverlapping(pointer, replacement, layout.size().min(size));
-                self.dealloc(pointer, layout);
-            }
-        }
-        replacement
-    }
-}
-
 #[global_allocator]
-static ALLOCATOR: PythonAllocator = PythonAllocator;
+static ALLOCATOR: cpython_binding::pymem::AttachedThreadAllocator =
+    cpython_binding::pymem::AttachedThreadAllocator;
 
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_rational::BigRational;
-
-unsafe extern "C" {
-    fn PyLong_AsNativeBytes(
-        object: *mut PyObject,
-        buffer: *mut c_void,
-        size: Py_ssize_t,
-        flags: c_int,
-    ) -> Py_ssize_t;
-    fn PyLong_FromNativeBytes(buffer: *const c_void, size: usize, flags: c_int) -> *mut PyObject;
-    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-}
 
 unsafe fn set_error(exception: *mut PyObject, message: &str) {
     if let Ok(message) = CString::new(message) {
@@ -475,172 +327,30 @@ binary_method!(floordiv, "floordiv");
 binary_method!(modulo, "mod");
 binary_method!(divmod, "divmod");
 
-unsafe extern "C" fn module_clear(_module: *mut PyObject) -> c_int {
-    0
-}
-
-unsafe extern "C" fn module_free(_module: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static FRACTIONS_METHODS: [PyMethodDef; 10] = [
-    PyMethodDef {
-        ml_name: c"normalize".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: normalize },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Return a normalized numerator and denominator.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"parse_parts".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse_parts },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Convert parsed decimal components to a normalized rational.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef { ml_name: c"add".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: add }, ml_flags: METH_FASTCALL, ml_doc: c"Add two rational values.".as_ptr() as *mut c_char },
-    PyMethodDef { ml_name: c"sub".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: sub }, ml_flags: METH_FASTCALL, ml_doc: c"Subtract two rational values.".as_ptr() as *mut c_char },
-    PyMethodDef { ml_name: c"mul".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: mul }, ml_flags: METH_FASTCALL, ml_doc: c"Multiply two rational values.".as_ptr() as *mut c_char },
-    PyMethodDef { ml_name: c"truediv".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: truediv }, ml_flags: METH_FASTCALL, ml_doc: c"Divide two rational values.".as_ptr() as *mut c_char },
-    PyMethodDef { ml_name: c"floordiv".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: floordiv }, ml_flags: METH_FASTCALL, ml_doc: c"Floor-divide two rational values.".as_ptr() as *mut c_char },
-    PyMethodDef { ml_name: c"mod".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: modulo }, ml_flags: METH_FASTCALL, ml_doc: c"Return the rational remainder.".as_ptr() as *mut c_char },
-    PyMethodDef { ml_name: c"divmod".as_ptr() as *mut c_char, ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: divmod }, ml_flags: METH_FASTCALL, ml_doc: c"Return the integer quotient and rational remainder.".as_ptr() as *mut c_char },
-    PyMethodDef::zeroed(),
+static METHODS: [PyMethodDef; 10] = [
+    fastcall(c"normalize", normalize, c"Return a normalized numerator and denominator."),
+    fastcall(
+        c"parse_parts",
+        parse_parts,
+        c"Convert parsed decimal components to a normalized rational.",
+    ),
+    fastcall(c"add", add, c"Add two rational values."),
+    fastcall(c"sub", sub, c"Subtract two rational values."),
+    fastcall(c"mul", mul, c"Multiply two rational values."),
+    fastcall(c"truediv", truediv, c"Divide two rational values."),
+    fastcall(c"floordiv", floordiv, c"Floor-divide two rational values."),
+    fastcall(c"mod", modulo, c"Return the rational remainder."),
+    fastcall(c"divmod", divmod, c"Return the integer quotient and rational remainder."),
+    method_table_end(),
 ];
 
-pub static FRACTIONS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_fractions_rs".as_ptr() as *mut _,
-        m_doc: c"Exact rational arithmetic support for fractions.Fraction.".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: &FRACTIONS_METHODS as *const PyMethodDef as *mut _,
-        m_slots: core::ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(module_clear),
-        m_free: Some(module_free),
-    }),
-};
+static MODULE: Module = Module::new(
+    c"_fractions_rs",
+    c"Exact rational arithmetic support for fractions.Fraction.",
+    &METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__fractions_rs() -> *mut PyObject {
-    FRACTIONS_MODULE.init_multi_phase()
-}
-
-#[cfg(test)]
-mod allocator_contract {
-    use super::*;
-    use core::slice;
-
-    unsafe extern "C" {
-        fn malloc(size: usize) -> *mut c_void;
-        fn free(pointer: *mut c_void);
-    }
-
-    const PREFIX: usize = 8;
-
-    #[unsafe(no_mangle)]
-    extern "C" fn PyMem_Malloc(size: usize) -> *mut c_void {
-        let raw = unsafe { malloc(size + 2 * PREFIX) }.cast::<u8>();
-        if raw.is_null() {
-            return core::ptr::null_mut();
-        }
-        unsafe {
-            raw.cast::<usize>().write(size);
-            raw.add(PREFIX).cast()
-        }
-    }
-
-    #[unsafe(no_mangle)]
-    extern "C" fn PyMem_Free(pointer: *mut c_void) {
-        if !pointer.is_null() {
-            unsafe { free(pointer.cast::<u8>().sub(PREFIX).cast()) };
-        }
-    }
-
-    #[unsafe(no_mangle)]
-    extern "C" fn PyMem_Realloc(pointer: *mut c_void, size: usize) -> *mut c_void {
-        let replacement = PyMem_Malloc(size);
-        if !replacement.is_null() && !pointer.is_null() {
-            let old = unsafe { pointer.cast::<u8>().sub(PREFIX).cast::<usize>().read() };
-            unsafe {
-                core::ptr::copy_nonoverlapping(
-                    pointer.cast::<u8>(),
-                    replacement.cast::<u8>(),
-                    old.min(size),
-                );
-            }
-            PyMem_Free(pointer);
-        }
-        replacement
-    }
-
-    const ALIGNMENTS: [usize; 6] = [1, 8, 16, 32, 64, 4096];
-
-    fn layout(size: usize, align: usize) -> Layout {
-        Layout::from_size_align(size, align).unwrap()
-    }
-
-    fn fill(pointer: *mut u8, length: usize) {
-        for index in 0..length {
-            unsafe { pointer.add(index).write((index % 251) as u8 + 1) };
-        }
-    }
-
-    fn prefix_intact(pointer: *mut u8, length: usize) -> bool {
-        unsafe { slice::from_raw_parts(pointer, length) }
-            .iter()
-            .enumerate()
-            .all(|(index, &byte)| byte == (index % 251) as u8 + 1)
-    }
-
-    #[test]
-    fn allocations_honor_the_requested_alignment() {
-        for align in ALIGNMENTS {
-            let pointer = unsafe { ALLOCATOR.alloc(layout(40, align)) };
-            assert!(!pointer.is_null());
-            assert_eq!(pointer as usize % align, 0);
-            fill(pointer, 40);
-            assert!(prefix_intact(pointer, 40));
-            unsafe { ALLOCATOR.dealloc(pointer, layout(40, align)) };
-        }
-    }
-
-    #[test]
-    fn zeroed_allocation_is_zero_after_a_dirty_block_is_freed() {
-        for align in ALIGNMENTS {
-            let size = 300;
-            let dirty = unsafe { ALLOCATOR.alloc(layout(size, align)) };
-            unsafe { core::ptr::write_bytes(dirty, 0xAA, size) };
-            unsafe { ALLOCATOR.dealloc(dirty, layout(size, align)) };
-            let pointer = unsafe { ALLOCATOR.alloc_zeroed(layout(size, align)) };
-            assert_eq!(pointer as usize % align, 0);
-            assert!(unsafe { slice::from_raw_parts(pointer, size) }.iter().all(|&byte| byte == 0));
-            unsafe { ALLOCATOR.dealloc(pointer, layout(size, align)) };
-        }
-    }
-
-    #[test]
-    fn realloc_keeps_the_common_prefix_and_alignment() {
-        for align in ALIGNMENTS {
-            let pointer = unsafe { ALLOCATOR.alloc(layout(48, align)) };
-            fill(pointer, 48);
-            let grown = unsafe { ALLOCATOR.realloc(pointer, layout(48, align), 5000) };
-            assert_eq!(grown as usize % align, 0);
-            assert!(prefix_intact(grown, 48));
-            fill(grown, 5000);
-            let shrunk = unsafe { ALLOCATOR.realloc(grown, layout(5000, align), 24) };
-            assert_eq!(shrunk as usize % align, 0);
-            assert!(prefix_intact(shrunk, 24));
-            unsafe { ALLOCATOR.dealloc(shrunk, layout(24, align)) };
-        }
-    }
+    MODULE.init()
 }

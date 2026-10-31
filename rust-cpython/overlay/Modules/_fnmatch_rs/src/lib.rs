@@ -7,13 +7,20 @@ use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::c_char;
 use core::mem::MaybeUninit;
 use core::ptr;
 use core::sync::atomic::{AtomicBool, Ordering};
 
-mod ffi;
-use ffi::*;
+use cpython_binding::ffi::{
+    PyBool_FromLong, PyBytes_AsStringAndSize, PyErr_Clear, PyErr_SetString, PyExc_TypeError,
+    PyMethodDef, PyObject, PyUnicode_GetLength, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::ffi_extra::{PyUnicode_New, PyUnicode_ReadChar, PyUnicode_WriteChar};
+use cpython_binding::module::PER_INTERPRETER_GIL;
+use cpython_binding::{Module, fastcall, method_table_end};
+
+mod heap;
 
 const CACHE_LIMIT: usize = 32_768;
 
@@ -611,82 +618,25 @@ unsafe extern "C" fn translate(
     result
 }
 
-extern "C" fn module_clear(_module: *mut PyObject) -> c_int {
-    0
-}
-
-extern "C" fn module_free(_module: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-static MODULE_METHODS: [PyMethodDef; 4] = [
-    PyMethodDef {
-        ml_name: c"prepare".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: prepare,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Prepare a filename pattern for matching".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"match".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: matcher,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Match a filename against a shell-style pattern".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"translate".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: translate,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Translate a shell-style pattern to a regular expression".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: ptr::null_mut(),
-        ml_meth: PyMethodDefFuncPointer { void: ptr::null_mut() },
-        ml_flags: 0,
-        ml_doc: ptr::null_mut(),
-    },
+static METHODS: [PyMethodDef; 4] = [
+    fastcall(c"prepare", prepare, c"Prepare a filename pattern for matching"),
+    fastcall(c"match", matcher, c"Match a filename against a shell-style pattern"),
+    fastcall(
+        c"translate",
+        translate,
+        c"Translate a shell-style pattern to a regular expression",
+    ),
+    method_table_end(),
 ];
 
-// The shared cache owns only Rust data and serializes concurrent interpreter
-// access, so importing the extension does not require a shared interpreter GIL.
-static MODULE_SLOTS: [PyModuleDef_Slot; 2] = [
-    PyModuleDef_Slot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
-    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
-];
-
-static MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_fnmatch_rs".as_ptr() as *mut _,
-        m_doc: c"Rust filename pattern matching primitives".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: MODULE_METHODS.as_ptr() as *mut PyMethodDef,
-        m_slots: MODULE_SLOTS.as_ptr() as *mut PyModuleDef_Slot,
-        m_traverse: None,
-        m_clear: Some(module_clear),
-        m_free: Some(module_free),
-    }),
-};
+static MODULE: Module = Module::new(
+    c"_fnmatch_rs",
+    c"Rust filename pattern matching primitives",
+    &METHODS,
+)
+.with_slots(&PER_INTERPRETER_GIL);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__fnmatch_rs() -> *mut PyObject {
-    MODULE.init_multi_phase()
+    MODULE.init()
 }

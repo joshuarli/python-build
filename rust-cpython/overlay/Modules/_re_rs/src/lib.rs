@@ -1,22 +1,23 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
 use std::collections::{HashMap, VecDeque};
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 use std::slice;
 use std::str;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use cpython_sys::{
-    METH_FASTCALL, PyBool_FromLong, PyCFunction_GetFunction, PyCFunction_GetSelf,
-    PyDict_GetItemString, PyErr_CheckSignals, PyErr_Clear, PyErr_NoMemory,
-    PyErr_Occurred, PyErr_SetString, PyLong_AsLong, PyModule_GetDict,
-    PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyMethodDefFuncPointer, PyModuleDef,
-    PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject, PyTuple_New, PyTuple_SetItem,
-    PyObject_Type, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength,
-    PyUnicode_ReadChar, Py_DecRef, Py_ssize_t,
+use cpython_binding::ffi::{
+    PyBool_FromLong, PyErr_Clear, PyErr_NoMemory, PyErr_Occurred, PyErr_SetString, PyLong_AsLong,
+    PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyObject, PyObject_Type, PyTuple_New,
+    PyTuple_SetItem, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength, Py_DecRef, Py_ssize_t,
 };
+use cpython_binding::ffi_extra::{
+    PyCFunction_GetFunction, PyCFunction_GetSelf, PyCFunction_Type, PyDict_GetItemString,
+    PyErr_CheckSignals, PyExc_RuntimeError, PyModule_GetDict, PyUnicode_ReadChar,
+};
+use cpython_binding::{Module, fastcall, method_table_end};
 use regex::bytes::{Regex, RegexBuilder};
 
 mod borrowed_sre;
@@ -488,7 +489,7 @@ unsafe fn compiled_error(error: borrowed_sre::Error) -> *mut PyObject {
         borrowed_sre::Error::AllocationFailed => unsafe { PyErr_NoMemory() },
         borrowed_sre::Error::Interrupted => ptr::null_mut(),
         borrowed_sre::Error::InvalidProgram => {
-            unsafe { PyErr_SetString(cpython_sys::PyExc_RuntimeError, c"invalid borrowed SRE program".as_ptr()) };
+            unsafe { PyErr_SetString(PyExc_RuntimeError, c"invalid borrowed SRE program".as_ptr()) };
             ptr::null_mut()
         }
         borrowed_sre::Error::Unsupported => unsafe { search_result(0, 0, 0) },
@@ -529,7 +530,7 @@ unsafe fn native_hook(module: *mut PyObject, name: *const c_char, function: *con
         return false;
     }
     let kind = unsafe { PyObject_Type(hook) };
-    let native = kind == ptr::addr_of_mut!(cpython_sys::PyCFunction_Type).cast();
+    let native = kind == ptr::addr_of_mut!(PyCFunction_Type).cast();
     unsafe { Py_DecRef(kind) };
     if !native {
         return false;
@@ -553,81 +554,36 @@ unsafe extern "C" fn legacy_hooks_intact(
     unsafe { PyBool_FromLong(intact.into()) }
 }
 
-pub extern "C" fn _re_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _re_rs_free(_object: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static _RE_RS_MODULE_METHODS: [PyMethodDef; 6] = [
-    PyMethodDef {
-        ml_name: c"prepare".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: prepare,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Prepare a supported regular expression for searching.".as_ptr()
-            as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"search".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: search,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Search an ASCII string with a supported expression.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"prepare_compiled".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: prepare_compiled },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Check a borrowed compiled ASCII expression.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"search_compiled".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: search_compiled },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Search with borrowed canonical SRE code.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"_legacy_hooks_intact".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: legacy_hooks_intact },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Check native legacy-hook identities.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+static METHODS: [PyMethodDef; 6] = [
+    fastcall(c"prepare", prepare, c"Prepare a supported regular expression for searching."),
+    fastcall(c"search", search, c"Search an ASCII string with a supported expression."),
+    fastcall(
+        c"prepare_compiled",
+        prepare_compiled,
+        c"Check a borrowed compiled ASCII expression.",
+    ),
+    fastcall(
+        c"search_compiled",
+        search_compiled,
+        c"Search with borrowed canonical SRE code.",
+    ),
+    fastcall(
+        c"_legacy_hooks_intact",
+        legacy_hooks_intact,
+        c"Check native legacy-hook identities.",
+    ),
+    method_table_end(),
 ];
 
-pub static _RE_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_re_rs".as_ptr() as *mut _,
-        m_doc: c"Rust regular-expression search for a compatible ASCII subset.".as_ptr()
-            as *mut _,
-        m_size: 0,
-        m_methods: &_RE_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(_re_rs_clear),
-        m_free: Some(_re_rs_free),
-    }),
-};
+static MODULE: Module = Module::new(
+    c"_re_rs",
+    c"Rust regular-expression search for a compatible ASCII subset.",
+    &METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__re_rs() -> *mut PyObject {
-    _RE_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }
 
 #[cfg(test)]
