@@ -1,8 +1,6 @@
 # Rust-for-CPython campaign
 
-Status: paused behind product closeout (owner direction 2026-10-29). The
-last measured Rust checkpoint below dates to 2026-10-26/27, not the current
-main revision. D1/D2 are historical acceptances with recorded deviations.
+Status: winding down 2026-10-31 — no new lanes; reclaiming worktree checkouts, keeping all branches.
 
 ## Owner sequencing — 2026-10-29
 
