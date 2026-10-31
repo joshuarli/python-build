@@ -12,7 +12,7 @@ BENCH_PYPERFORMANCE_ARGS = $(if $(strip $(BENCH_PYPERFORMANCE_SELECTION)),--pype
 
 lint:
 	uv run --frozen ruff check . --exclude .work
-	cargo clippy --manifest-path rust-cpython/overlay/Cargo.toml --workspace --all-targets -- -D warnings
+	cargo clippy --manifest-path backend/hashing/Cargo.toml --locked --all-targets -- -D warnings
 
 ifeq ($(BENCH_TARGET),aarch64-apple-darwin)
 # The locked wheelhouse is Linux/musl-only; macOS uses dependency-free smoke workloads.
