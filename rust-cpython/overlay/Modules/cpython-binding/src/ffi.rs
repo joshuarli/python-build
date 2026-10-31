@@ -115,11 +115,6 @@ pub struct PyType_Spec {
 unsafe impl Sync for PyType_Spec {}
 
 #[repr(C)]
-pub struct PyBytesWriter {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
 pub struct PyThreadState {
     _opaque: [u8; 0],
 }
@@ -180,20 +175,6 @@ unsafe extern "C" {
 
     pub fn PyBool_FromLong(value: c_long) -> *mut PyObject;
     pub fn PyBuffer_Release(view: *mut Py_buffer);
-    pub fn PyBytesWriter_Create(size: Py_ssize_t) -> *mut PyBytesWriter;
-    pub fn PyBytesWriter_Discard(writer: *mut PyBytesWriter);
-    pub fn PyBytesWriter_FinishWithSize(
-        writer: *mut PyBytesWriter,
-        size: Py_ssize_t,
-    ) -> *mut PyObject;
-    pub fn PyBytesWriter_GetData(writer: *mut PyBytesWriter) -> *mut c_void;
-    pub fn PyBytesWriter_GetSize(writer: *mut PyBytesWriter) -> Py_ssize_t;
-    pub fn PyBytesWriter_Grow(writer: *mut PyBytesWriter, size: Py_ssize_t) -> c_int;
-    pub fn PyBytesWriter_WriteBytes(
-        writer: *mut PyBytesWriter,
-        bytes: *const c_void,
-        size: Py_ssize_t,
-    ) -> c_int;
     pub fn PyBytes_AsString(object: *mut PyObject) -> *mut c_char;
     pub fn PyBytes_AsStringAndSize(
         object: *mut PyObject,
