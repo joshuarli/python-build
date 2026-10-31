@@ -81,6 +81,7 @@ class WorkloadRegistryTests(unittest.TestCase):
                 "catalog_search_form",
                 "catalog_request_path",
                 "catalog_json_export",
+                "catalog_toml_load",
             },
         )
 
