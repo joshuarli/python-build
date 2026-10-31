@@ -1,6 +1,23 @@
 # Rust-for-CPython campaign
 
-Status: winding down 2026-10-31 — no new lanes; reclaiming worktree checkouts, keeping all branches.
+Status: paused 2026-10-31. Resume prompt: finish production P1-P6 (plan.md),
+then R1 memory lanes. First command: `gh run view 41160302125 --json
+status,conclusion` (build at 1e09b68; if green, check off P1/P4/P6 per plan.md,
+then a second CI run for P3 two-run evidence). Then `git worktree list` (main
+plus modern-keys only) and `git status` (must be clean).
+Last accepted revisions: production 1e09b68 (lint and 352 controller tests
+green, CI pending); Rust batch-33 map (42 MET / 15 OVER / 14 UNCLEAR, six
+workload RSS debts) from the 2026-10-26/27 tree — stale after HEAD moved, so
+rebuild perf-rust at resume. D1/D2 stay historical acceptances.
+Parked branches, all kept, none merged: 41 lane/* (stale R1 mem lanes plus
+p4/p5/p6/accelerate history — retry only after P6 closes); 18
+experiment/openssl-free-* + 4 openssl-free-linux-* (pre-product history);
+10 codex/*, integrate-20/23/29/32, memory-batch-22, tmp/u6-build (history).
+25 lane checkouts removed 2026-10-31 (all clean, nothing uncommitted lost).
+RETAINED dirty: .work/wt/openssl-free-modern-keys (260 unstaged deletions
+appeared mid-session, owner unknown — restore or rule on it first).
+Next slice: record the CI verdict in plan.md; on green, P1/P4 boxes, second
+run for P3, fresh-revision P6 gate; then R1 resume (worktree sweep done).
 
 ## Owner sequencing — 2026-10-29
 
