@@ -32,9 +32,11 @@ qualification and CI release evidence wait for the L wave after feature
 work is done, and P6 follows L. An unavailable host, rejected attempt or
 missing evidence is BLOCKED, not an accepted exception to a goal.
 
-Open state at the change: CI run 41160302125 (build at `1e09b68`) was in
-flight; record its verdict here when it lands, without starting new Linux or
-CI runs. The retained `.work/wt/openssl-free-modern-keys` worktree shows 260
+Open state at the change: [CI run 41160302125](https://github.com/laputa-systems/python-build/actions/runs/41160302125)
+at `1e09b68` passed every job (three-target build, assemble, smoke and
+publish). Its log shows neither the x86-64 `license_notices` result nor
+generation publishing, so P1 and P4 stay open until the L wave reads its
+artifacts. The retained `.work/wt/openssl-free-modern-keys` worktree shows 260
 unstaged deletions of unknown origin; the owner rules on it before anyone
 cleans it.
 
