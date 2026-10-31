@@ -94,6 +94,10 @@ unsafe extern "C" {
     fn malloc(size: usize) -> *mut c_void;
     fn free(pointer: *mut c_void);
     fn posix_memalign(pointer: *mut *mut c_void, alignment: usize, size: usize) -> c_int;
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
     fn abort() -> !;
 }
 
@@ -277,7 +281,160 @@ unsafe impl core::alloc::GlobalAlloc for Allocator {
 #[global_allocator]
 static ALLOCATOR: Allocator = Allocator;
 
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { abort() }
+}
+
+#[cfg(test)]
+mod allocator_contract {
+    use super::*;
+    use core::alloc::{GlobalAlloc, Layout};
+    use core::slice;
+    use std::boxed::Box;
+    use std::thread;
+    use std::vec::Vec;
+
+    fn layout(size: usize, align: usize) -> Layout {
+        Layout::from_size_align(size, align).unwrap()
+    }
+
+    fn pattern(seed: u8, length: usize) -> impl Iterator<Item = u8> {
+        (0..length).map(move |index| seed.wrapping_add(index as u8))
+    }
+
+    fn fill(pointer: *mut u8, length: usize, seed: u8) {
+        for (index, byte) in pattern(seed, length).enumerate() {
+            unsafe { pointer.add(index).write(byte) };
+        }
+    }
+
+    fn intact(pointer: *mut u8, length: usize, seed: u8) -> bool {
+        unsafe { slice::from_raw_parts(pointer, length) }
+            .iter()
+            .copied()
+            .eq(pattern(seed, length))
+    }
+
+    fn local_heap() -> Box<MatcherHeap> {
+        Box::new(MatcherHeap {
+            locked: AtomicBool::new(false),
+            state: UnsafeCell::new(HeapState { initialized: false, first: ptr::null_mut() }),
+            storage: HeapStorage(UnsafeCell::new([0; HEAP_BYTES])),
+        })
+    }
+
+    #[test]
+    fn heap_blocks_are_aligned_disjoint_and_keep_their_contents_across_frees() {
+        let heap = local_heap();
+        let sizes = [1usize, 7, 16, 17, 48, 100, 333, 1024, 5, 64, 250, 31];
+        let mut live: Vec<(*mut u8, usize, u8)> = Vec::new();
+        for round in 0..40usize {
+            for (index, &size) in sizes.iter().enumerate() {
+                let pointer = unsafe { heap.allocate(size) };
+                if pointer.is_null() {
+                    continue;
+                }
+                assert_eq!(pointer as usize % HEAP_ALIGNMENT, 0);
+                assert!(heap.contains(pointer));
+                let seed = (round * 13 + index) as u8;
+                fill(pointer, size, seed);
+                live.push((pointer, size, seed));
+            }
+            let mut keep = Vec::new();
+            for (index, entry) in live.drain(..).enumerate() {
+                if index % 2 == 0 {
+                    assert!(intact(entry.0, entry.1, entry.2));
+                    unsafe { heap.release(entry.0) };
+                } else {
+                    keep.push(entry);
+                }
+            }
+            live = keep;
+            for &(pointer, size, seed) in &live {
+                assert!(intact(pointer, size, seed));
+            }
+        }
+        for (pointer, size, seed) in live {
+            assert!(intact(pointer, size, seed));
+            unsafe { heap.release(pointer) };
+        }
+    }
+
+    #[test]
+    fn heap_returns_to_one_free_block_after_every_release_in_any_order() {
+        let heap = local_heap();
+        let mut blocks = Vec::new();
+        loop {
+            let pointer = unsafe { heap.allocate(100) };
+            if pointer.is_null() {
+                break;
+            }
+            blocks.push(pointer);
+        }
+        assert!(blocks.len() > 100);
+        let mut order: Vec<usize> = (0..blocks.len()).collect();
+        order.sort_by_key(|&index| (index * 7919) % blocks.len());
+        for index in order {
+            unsafe { heap.release(blocks[index]) };
+        }
+        let whole = unsafe { heap.allocate(HEAP_BYTES - core::mem::size_of::<BlockHeader>()) };
+        assert!(!whole.is_null());
+        assert!(unsafe { heap.allocate(1) }.is_null());
+    }
+
+    #[test]
+    fn global_zeroed_allocation_is_zero_after_a_dirty_block_is_freed() {
+        for align in [1, 8, 16, 32, 64, 4096] {
+            for size in [24usize, 300, HEAP_BYTES * 2] {
+                let dirty = unsafe { Allocator.alloc(layout(size, align)) };
+                unsafe { ptr::write_bytes(dirty, 0xAA, size) };
+                unsafe { Allocator.dealloc(dirty, layout(size, align)) };
+                let pointer = unsafe { Allocator.alloc_zeroed(layout(size, align)) };
+                assert_eq!(pointer as usize % align, 0);
+                assert!(unsafe { slice::from_raw_parts(pointer, size) }.iter().all(|&byte| byte == 0));
+                unsafe { Allocator.dealloc(pointer, layout(size, align)) };
+            }
+        }
+    }
+
+    #[test]
+    fn global_realloc_keeps_the_common_prefix_across_the_heap_boundary() {
+        for align in [1, 8, 16, 32, 4096] {
+            let pointer = unsafe { Allocator.alloc(layout(40, align)) };
+            assert_eq!(pointer as usize % align, 0);
+            fill(pointer, 40, 3);
+            let grown = unsafe { Allocator.realloc(pointer, layout(40, align), HEAP_BYTES * 2) };
+            assert_eq!(grown as usize % align, 0);
+            assert!(intact(grown, 40, 3));
+            fill(grown, HEAP_BYTES * 2, 9);
+            let shrunk = unsafe { Allocator.realloc(grown, layout(HEAP_BYTES * 2, align), 20) };
+            assert_eq!(shrunk as usize % align, 0);
+            assert!(intact(shrunk, 20, 9));
+            unsafe { Allocator.dealloc(shrunk, layout(20, align)) };
+        }
+    }
+
+    #[test]
+    fn concurrent_allocations_never_overlap() {
+        let workers: Vec<_> = (0..4u8)
+            .map(|worker| {
+                thread::spawn(move || {
+                    for round in 0..3000usize {
+                        let size = 8 + (round * 37 + worker as usize * 11) % 700;
+                        let pointer = unsafe { Allocator.alloc(layout(size, 8)) };
+                        let seed = worker.wrapping_mul(61).wrapping_add(round as u8);
+                        fill(pointer, size, seed);
+                        thread::yield_now();
+                        assert!(intact(pointer, size, seed));
+                        unsafe { Allocator.dealloc(pointer, layout(size, 8)) };
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+    }
 }
