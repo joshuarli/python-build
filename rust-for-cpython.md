@@ -69,18 +69,35 @@ Slices on `m1-scaffold` (never merged into `main`; the owner decides):
   on `s6-toml-pilot`. The `catalog_toml_load` workload landed. JSON and plist
   do not follow. `_tomllib_rs` hardcodes key and nesting limits that
   `tomllib` takes from the recursion limit.
-- S7 open. Candidate `2e90085` (urllib quote and unquote in one Rust call)
-  reads wall 0.71 to 0.88 on three catalog workloads but is not accepted: a
-  peak-RSS offset of 1.002 to 1.016 appears on every row against the old base
-  build, including guards that never load the module, while two builds of
-  the candidate agree at 1.001. A rerun on fresh matched builds is in
-  flight.
+- S7 parked, not accepted. Candidate `cf91a6e` on `s7-runtime` (urllib
+  quote and unquote in one Rust call) reads wall 0.72, 0.78 and 0.87 and CPU
+  0.81, 0.81 and 0.88 on `catalog_request_path`, `catalog_search_form` and
+  `catalog_url_normalize`, improved in every run, with no guard regressed.
+  Peak RSS reads 0.998 to 1.005 with upper bounds up to 1.014, so the 6-run
+  gate decision is INCONCLUSIVE, not ACCEPT. The earlier REJECT came from the
+  old base build, and two same-commit builds agree within 0.3 percent. The
+  owner decides whether to accept at the 1 percent floor; the branch is a
+  base of `990f7fd` and needs a rebase onto `m1-scaffold` before merging.
+- Integrated gate. `main` against `m1-scaffold` at `990f7fd` (`bench --gate
+  --all-workloads --runs 4`, matched clean builds, quiet) read REJECT on
+  `rust_base64_small` wall 1.234, `zip_read_wheel` peak RSS 1.017 and
+  `zlib_decode_1m` peak RSS 1.019. Causes: the binding's `BytesWriter` made a
+  separate allocation and copy, nothing inlined across the crate boundary,
+  and `BytesSink` grew by a further quarter on top of the engines'
+  doubling. Fixed in `cpython-binding`; the second `ExactBytesSink` was
+  folded away. At `b605237` the same gate reads INCONCLUSIVE with no regressed
+  row: `rust_base64_small` wall 1.012 [0.998,1.029], `zip_read_wheel` and
+  `zlib_decode_1m` peak RSS 1.000 and 1.001, and no application row has an
+  interval wholly above 1.01. Wall intervals straddle the 1 percent floor on
+  this shared host, so no slice has an ACCEPT. The affected suites pass
+  (7,279 run, 190 skipped).
 
-Needs a quiet host: matched `bench --gate` runs for S5 and S7, and the six
-workload RSS rows quoted above. The bench `peak_rss` metric is sampled and
+Needs a quieter host: more `bench --gate` runs for S5, S7, and the borderline
+wall rows `rust_base64_small` and `gzip_extract_1m`. The bench `peak_rss` metric is sampled and
 noisy below 100 ms.
 
-Next slice: finish S7, then the M1 completion check.
+M1 is not complete: S7 is parked and the integrated gate has no ACCEPT. The
+owner decides on both.
 
 Resume: "Resume the Rust-for-CPython campaign in rust-for-cpython.md with
 the orchestrate skill." First command: `python3 rust-cpython/perf.py status`.
