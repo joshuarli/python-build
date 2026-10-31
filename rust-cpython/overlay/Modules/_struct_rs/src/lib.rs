@@ -1,22 +1,19 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
 use std::ptr;
 use std::slice;
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use cpython_sys::{
-    METH_FASTCALL, PyBool_FromLong, PyBool_Type, PyByteArray_Type, PyBytes_FromStringAndSize,
-    PyBytes_Type, PyErr_Clear, PyErr_NoMemory, PyFloat_AsDouble, PyFloat_FromDouble,
-    PyFloat_Type, PyLong_AsLongLong, PyLong_AsSsize_t, PyLong_AsUnsignedLongLong,
-    PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type, PyMethodDef,
-    PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_HEAD_INIT, PyModuleDef_Init, PyObject,
-    PyObject_GetBuffer, PyObject_Type, PyTuple_GetItem, PyTuple_New, PyTuple_SetItem,
-    PyTuple_Size, PyTypeObject, PyUnicode_AsUTF8AndSize, PyUnicode_Type, Py_DecRef,
-    Py_ssize_t, Py_buffer, PyBuffer_Release,
+use cpython_binding::ffi::{
+    PyBool_FromLong, PyBool_Type, PyByteArray_Type, PyBytes_Type, PyErr_Clear, PyErr_Occurred,
+    PyFloat_AsDouble, PyFloat_FromDouble, PyFloat_Type, PyLong_AsLongLong, PyLong_AsSsize_t,
+    PyLong_AsUnsignedLongLong, PyLong_FromLongLong, PyLong_FromUnsignedLongLong, PyLong_Type,
+    PyMethodDef, PyObject, PyObject_IsTrue, PyObject_Type, PyTuple_GetItem, PyTuple_New,
+    PyTuple_SetItem, PyTuple_Size, PyTuple_Type, PyTypeObject, PyUnicode_AsUTF8AndSize,
+    PyUnicode_Type, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::{
+    Borrowed, Buffer, BytesWriter, Module, Owned, fastcall, method_table_end,
 };
 
-const PYBUF_SIMPLE: c_int = 0;
 const MAX_FORMAT_SIZE: usize = 1 << 26;
 
 #[derive(Clone, Copy)]
@@ -40,32 +37,13 @@ struct FormatPlan {
     value_count: usize,
 }
 
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    fn from_object(object: *mut PyObject) -> Option<Self> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        unsafe {
-            if PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) != 0 {
-                PyErr_Clear();
-                return None;
-            }
-            Some(Self {
-                view: view.assume_init(),
-            })
+fn acquire_buffer(object: *mut PyObject) -> Option<Buffer> {
+    match Buffer::acquire(unsafe { Borrowed::from_raw(object) }) {
+        Ok(buffer) => Some(buffer),
+        Err(_) => {
+            unsafe { PyErr_Clear() };
+            None
         }
-    }
-
-    fn as_slice(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) }
     }
 }
 
@@ -193,7 +171,7 @@ unsafe fn signed_value(object: *mut PyObject) -> Option<i64> {
         return None;
     }
     let value = unsafe { PyLong_AsLongLong(object) };
-    if value == -1 && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
+    if value == -1 && !unsafe { PyErr_Occurred() }.is_null() {
         unsafe { PyErr_Clear() };
         return None;
     }
@@ -205,7 +183,7 @@ unsafe fn unsigned_value(object: *mut PyObject) -> Option<u64> {
         return None;
     }
     let value = unsafe { PyLong_AsUnsignedLongLong(object) };
-    if value == u64::MAX && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
+    if value == u64::MAX && !unsafe { PyErr_Occurred() }.is_null() {
         unsafe { PyErr_Clear() };
         return None;
     }
@@ -313,7 +291,7 @@ unsafe fn encode_integer(
             if !(unsafe { exact_integer(object) }) {
                 return false;
             }
-            let truth = unsafe { cpython_sys::PyObject_IsTrue(object) };
+            let truth = unsafe { PyObject_IsTrue(object) };
             if truth < 0 {
                 unsafe { PyErr_Clear() };
                 return false;
@@ -366,8 +344,8 @@ unsafe fn pack_values(
                 if !unsafe { exact_buffer(object) } {
                     return None;
                 }
-                let buffer = BorrowedBuffer::from_object(object)?;
-                let source = buffer.as_slice();
+                let buffer = acquire_buffer(object)?;
+                let source = buffer.as_bytes();
                 let copied = source.len().min(operation.size);
                 output[operation.offset..operation.offset + copied]
                     .copy_from_slice(&source[..copied]);
@@ -379,8 +357,8 @@ unsafe fn pack_values(
                     if !unsafe { exact_buffer(object) } {
                         return None;
                     }
-                    let buffer = BorrowedBuffer::from_object(object)?;
-                    let source = buffer.as_slice();
+                    let buffer = acquire_buffer(object)?;
+                    let source = buffer.as_bytes();
                     if source.len() != 1 {
                         return None;
                     }
@@ -405,13 +383,7 @@ unsafe fn pack_values(
 }
 
 fn return_bytes(bytes: &[u8]) -> *mut PyObject {
-    if bytes.len() > Py_ssize_t::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    unsafe {
-        PyBytes_FromStringAndSize(bytes.as_ptr().cast::<c_char>(), bytes.len() as Py_ssize_t)
-    }
+    BytesWriter::copy_of(bytes).map_or(ptr::null_mut(), Owned::into_raw)
 }
 
 unsafe fn pack_call(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObject {
@@ -426,7 +398,7 @@ unsafe fn pack_call(args: *mut *mut PyObject, nargs: Py_ssize_t) -> *mut PyObjec
         return not_handled();
     };
     let values = unsafe { *args.add(1) };
-    let tuple_type = unsafe { ptr::addr_of_mut!(cpython_sys::PyTuple_Type) };
+    let tuple_type = unsafe { ptr::addr_of_mut!(PyTuple_Type) };
     if !unsafe { is_exact_type(values, tuple_type) } {
         return not_handled();
     }
@@ -576,7 +548,7 @@ unsafe fn unpack_call(
     if !unsafe { exact_buffer(buffer_object) } {
         return not_handled();
     }
-    let buffer = match BorrowedBuffer::from_object(buffer_object) {
+    let buffer = match acquire_buffer(buffer_object) {
         Some(buffer) => buffer,
         None => return not_handled(),
     };
@@ -586,7 +558,7 @@ unsafe fn unpack_call(
             return not_handled();
         }
         let offset = unsafe { PyLong_AsSsize_t(offset_object) };
-        if offset == -1 && !unsafe { cpython_sys::PyErr_Occurred() }.is_null() {
+        if offset == -1 && !unsafe { PyErr_Occurred() }.is_null() {
             unsafe { PyErr_Clear() };
             return not_handled();
         }
@@ -597,7 +569,7 @@ unsafe fn unpack_call(
     } else {
         0
     };
-    let input = buffer.as_slice();
+    let input = buffer.as_bytes();
     let Some(end) = offset.checked_add(plan.size) else {
         return not_handled();
     };
@@ -631,67 +603,24 @@ unsafe extern "C" fn unpack_from(
     unsafe { unpack_call(args, nargs, true) }
 }
 
-pub extern "C" fn _struct_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _struct_rs_free(_object: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static _STRUCT_RS_MODULE_METHODS: [PyMethodDef; 4] = [
-    PyMethodDef {
-        ml_name: c"pack".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: pack,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Pack supported standard binary records".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"unpack".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: unpack,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Unpack supported standard binary records".as_ptr() as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"unpack_from".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: unpack_from,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Unpack a standard binary record at an offset".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+static METHODS: [PyMethodDef; 4] = [
+    fastcall(c"pack", pack, c"Pack supported standard binary records"),
+    fastcall(c"unpack", unpack, c"Unpack supported standard binary records"),
+    fastcall(
+        c"unpack_from",
+        unpack_from,
+        c"Unpack a standard binary record at an offset",
+    ),
+    method_table_end(),
 ];
 
-pub static _STRUCT_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_struct_rs".as_ptr() as *mut _,
-        m_doc: c"Rust implementation of standard binary record packing".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: &_STRUCT_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(_struct_rs_clear),
-        m_free: Some(_struct_rs_free),
-    }),
-};
+static MODULE: Module = Module::new(
+    c"_struct_rs",
+    c"Rust implementation of standard binary record packing",
+    &METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__struct_rs() -> *mut PyObject {
-    _STRUCT_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }

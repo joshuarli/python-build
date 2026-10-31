@@ -5,6 +5,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
+cpython-binding = { path = "../cpython-binding", features = ["abort-on-panic"] }
 chrono = { version = "=0.4.45", default-features = false }
 
 [build-dependencies]

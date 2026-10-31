@@ -1,6 +1,6 @@
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
-use super::ffi::{PyMem_Free, PyMem_Malloc, PyMem_Realloc};
+use cpython_binding::ffi::{PyMem_Free, PyMem_Malloc, PyMem_Realloc};
 
 // Matching scratch values have no destructors, nonzero size, and word alignment.
 // Restricting the element types keeps the allocator and bytewise sorter boundary

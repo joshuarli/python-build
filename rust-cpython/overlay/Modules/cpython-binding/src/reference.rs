@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 use core::ptr::{self, NonNull};
 
-use crate::ffi::{_Py_NoneStruct, Py_DecRef, Py_NewRef, PyObject};
+use crate::ffi::{_Py_NoneStruct, Py_DecRef, Py_NewRef, Py_ssize_t, PyObject};
 use crate::outcome::{Outcome, Stop};
 
 /// A strong reference, released on drop.
@@ -46,6 +46,7 @@ impl Drop for Owned {
 
 /// A reference some other owner keeps alive for `'a`.
 #[derive(Clone, Copy)]
+#[repr(transparent)]
 pub struct Borrowed<'a>(NonNull<PyObject>, PhantomData<&'a PyObject>);
 
 impl<'a> Borrowed<'a> {
@@ -63,4 +64,18 @@ impl<'a> Borrowed<'a> {
         let pointer = unsafe { Py_NewRef(self.0.as_ptr()) };
         Owned(unsafe { NonNull::new_unchecked(pointer) })
     }
+}
+
+/// The positional arguments of a `METH_FASTCALL` call.
+///
+/// # Safety
+/// `args` points to `count` non-null objects that stay alive for `'a`.
+pub unsafe fn fastcall_arguments<'a>(
+    args: *mut *mut PyObject,
+    count: Py_ssize_t,
+) -> &'a [Borrowed<'a>] {
+    if count <= 0 {
+        return &[];
+    }
+    unsafe { core::slice::from_raw_parts(args.cast::<Borrowed<'a>>(), count as usize) }
 }

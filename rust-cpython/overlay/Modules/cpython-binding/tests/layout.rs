@@ -76,6 +76,7 @@ fn buffer_view_matches_the_fork() {
 
 #[test]
 fn method_flags_match_the_fork() {
+    assert_eq!(ours::METH_VARARGS, fork::METH_VARARGS);
     assert_eq!(ours::METH_O, fork::METH_O);
     assert_eq!(ours::METH_NOARGS, fork::METH_NOARGS);
     assert_eq!(ours::METH_FASTCALL, fork::METH_FASTCALL);
@@ -113,4 +114,47 @@ fn multiple_interpreters_slot_matches_the_fork_headers() {
 fn simple_buffer_request_matches_the_fork_headers() {
     assert_eq!(define_value("pybuffer.h", "PyBUF_SIMPLE"), "0");
     assert_eq!(ours::PyBUF_SIMPLE as u32, fork::PyBUF_SIMPLE);
+}
+
+#[test]
+fn borrowed_reference_is_one_pointer() {
+    assert_eq!(size_of::<cpython_binding::Borrowed<'static>>(), size_of::<*mut ours::PyObject>());
+    assert_eq!(align_of::<cpython_binding::Borrowed<'static>>(), align_of::<*mut ours::PyObject>());
+}
+
+#[test]
+fn type_definitions_match_the_fork() {
+    same_layout!(
+        ours::PyGetSetDef,
+        fork::PyGetSetDef,
+        [name, get, set, doc, closure]
+    );
+    same_layout!(ours::PyType_Slot, fork::PyType_Slot, [slot, pfunc]);
+    same_layout!(
+        ours::PyType_Spec,
+        fork::PyType_Spec,
+        [name, basicsize, itemsize, flags, slots]
+    );
+}
+
+#[test]
+fn type_slots_and_flags_match_the_fork() {
+    assert_eq!(ours::Py_tp_dealloc, fork::Py_tp_dealloc as i32);
+    assert_eq!(ours::Py_tp_getset, fork::Py_tp_getset as i32);
+    assert_eq!(ours::Py_tp_hash, fork::Py_tp_hash as i32);
+    assert_eq!(ours::Py_tp_methods, fork::Py_tp_methods as i32);
+    assert_eq!(ours::Py_tp_repr, fork::Py_tp_repr as i32);
+    assert_eq!(
+        define_value("slots_generated.h", "Py_mod_exec"),
+        format!("_Py_SLOT_COMPAT_VALUE(2, {})", ours::Py_mod_exec)
+    );
+    assert_eq!(ours::Py_TPFLAGS_DEFAULT as u64, fork::Py_TPFLAGS_DEFAULT as u64);
+    assert_eq!(
+        ours::Py_TPFLAGS_DISALLOW_INSTANTIATION as u64,
+        fork::Py_TPFLAGS_DISALLOW_INSTANTIATION as u64
+    );
+    assert_eq!(
+        ours::Py_TPFLAGS_IMMUTABLETYPE as u64,
+        fork::Py_TPFLAGS_IMMUTABLETYPE as u64
+    );
 }

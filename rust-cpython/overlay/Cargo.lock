@@ -31,8 +31,8 @@ name = "_base64"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "data-encoding",
 ]
 
@@ -140,6 +140,7 @@ dependencies = [
 name = "_difflib_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -209,8 +210,8 @@ name = "_hashlib_rs"
 version = "0.1.0"
 dependencies = [
  "blake2",
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "hmac 0.13.0",
  "md-5 0.11.0",
  "pbkdf2 0.13.0",
@@ -234,8 +235,8 @@ dependencies = [
 name = "_hmac_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "hmac 0.13.0",
  "md-5 0.11.0",
  "ripemd",
@@ -282,8 +283,8 @@ dependencies = [
 name = "_ipaddress_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
 ]
 
 [[package]]
@@ -459,6 +460,7 @@ name = "_strptime_rs"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cpython-binding",
  "cpython-build-helper",
 ]
 
@@ -467,8 +469,8 @@ name = "_struct_rs"
 version = "0.1.0"
 dependencies = [
  "byteorder",
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
 ]
 
 [[package]]
@@ -568,8 +570,8 @@ dependencies = [
 name = "_uuid_rs"
 version = "0.1.0"
 dependencies = [
+ "cpython-binding",
  "cpython-build-helper",
- "cpython-sys",
  "uuid",
 ]
 

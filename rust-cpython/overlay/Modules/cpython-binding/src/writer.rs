@@ -60,6 +60,13 @@ impl BytesWriter {
         }
     }
 
+    /// A `bytes` object holding a copy of `bytes`.
+    pub fn copy_of(bytes: &[u8]) -> Outcome<Owned> {
+        let mut writer = Self::create(0)?;
+        writer.append(bytes)?;
+        unsafe { writer.finish(bytes.len()) }
+    }
+
     /// Finish into a `bytes` object holding the first `initialized` bytes.
     ///
     /// # Safety

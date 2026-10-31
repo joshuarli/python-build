@@ -1,122 +1,18 @@
 //! Date and time directive conversion using call-scoped Python buffers.
 #![no_std]
-#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
 use core::ptr;
 use core::slice;
 
-use chrono::{Datelike, Weekday};
 use chrono::format::Parsed;
-
-// These C layouts describe the 64-bit, GIL-enabled CPython module boundary.
-type Py_ssize_t = isize;
-
-#[repr(C)]
-pub struct PyObject {
-    ob_refcnt: Py_ssize_t,
-    ob_type: *mut PyTypeObject,
-}
-
-#[repr(C)]
-pub struct PyTypeObject {
-    _opaque: [u8; 0],
-}
-
-#[repr(C)]
-pub union PyMethodDefFuncPointer {
-    PyCFunctionFast: unsafe extern "C" fn(*mut PyObject, *mut *mut PyObject, Py_ssize_t) -> *mut PyObject,
-    Void: *mut c_void,
-}
-
-#[repr(C)]
-pub struct PyMethodDef {
-    ml_name: *mut c_char,
-    ml_meth: PyMethodDefFuncPointer,
-    ml_flags: c_int,
-    ml_doc: *mut c_char,
-}
-
-impl PyMethodDef {
-    const fn zeroed() -> Self {
-        Self {
-            ml_name: core::ptr::null_mut(),
-            ml_meth: PyMethodDefFuncPointer { Void: core::ptr::null_mut() },
-            ml_flags: 0,
-            ml_doc: core::ptr::null_mut(),
-        }
-    }
-}
-
-unsafe impl Sync for PyMethodDef {}
-
-#[repr(C)]
-struct PyModuleDef_Base {
-    ob_base: PyObject,
-    m_init: Option<unsafe extern "C" fn() -> *mut PyObject>,
-    m_index: Py_ssize_t,
-    m_copy: *mut PyObject,
-}
-
-#[repr(C)]
-struct PyModuleDef_Slot {
-    slot: c_int,
-    value: *mut c_void,
-}
-
-type VisitProc = Option<unsafe extern "C" fn(*mut PyObject, *mut c_void) -> c_int>;
-type TraverseProc = unsafe extern "C" fn(*mut PyObject, VisitProc, *mut c_void) -> c_int;
-
-#[repr(C)]
-struct PyModuleDef {
-    m_base: PyModuleDef_Base,
-    m_name: *const c_char,
-    m_doc: *const c_char,
-    m_size: Py_ssize_t,
-    m_methods: *mut PyMethodDef,
-    m_slots: *mut PyModuleDef_Slot,
-    m_traverse: Option<TraverseProc>,
-    m_clear: Option<unsafe extern "C" fn(*mut PyObject) -> c_int>,
-    m_free: Option<unsafe extern "C" fn(*mut c_void)>,
-}
-
-const METH_FASTCALL: c_int = 0x0080;
-// CPython 3.16 full-API module slot and independent-GIL capability values.
-const Py_mod_multiple_interpreters: c_int = 86;
-const Py_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2_usize as *mut c_void;
-// Immortal reference count and static allocation flags in the 64-bit GIL ABI.
-const PyModuleDef_HEAD_INIT: PyModuleDef_Base = PyModuleDef_Base {
-    ob_base: PyObject {
-        ob_refcnt: (3_isize << 30) | (5_isize << 48),
-        ob_type: core::ptr::null_mut(),
-    },
-    m_init: None,
-    m_index: 0,
-    m_copy: core::ptr::null_mut(),
+use chrono::{Datelike, Weekday};
+use cpython_binding::ffi::{
+    PyErr_Occurred, PyLong_AsLong, PyLong_FromLongLong, PyMethodDef, PyObject, PyObject_CallMethod,
+    PyTuple_GetItem, PyTuple_New, PyTuple_SetItem, PyTuple_Size, PyUnicode_AsUTF8AndSize,
+    PyUnicode_FromStringAndSize, Py_DecRef, Py_ssize_t,
 };
-
-#[cfg_attr(target_vendor = "apple", link(name = "System"))]
-unsafe extern "C" {
-    fn Py_DecRef(object: *mut PyObject);
-    fn PyErr_Occurred() -> *mut PyObject;
-    fn PyLong_AsLong(object: *mut PyObject) -> core::ffi::c_long;
-    fn PyLong_FromLongLong(value: i64) -> *mut PyObject;
-    fn PyTuple_GetItem(tuple: *mut PyObject, index: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_New(size: Py_ssize_t) -> *mut PyObject;
-    fn PyTuple_SetItem(tuple: *mut PyObject, index: Py_ssize_t, item: *mut PyObject) -> c_int;
-    fn PyTuple_Size(tuple: *mut PyObject) -> Py_ssize_t;
-    fn PyUnicode_AsUTF8AndSize(object: *mut PyObject, size: *mut Py_ssize_t) -> *const c_char;
-    fn PyUnicode_FromStringAndSize(bytes: *const c_char, size: Py_ssize_t) -> *mut PyObject;
-    fn PyObject_CallMethod(object: *mut PyObject, name: *const c_char, format: *const c_char, ...) -> *mut PyObject;
-    fn PyModuleDef_Init(module: *mut PyModuleDef) -> *mut PyObject;
-    fn abort() -> !;
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe { abort() }
-}
+use cpython_binding::module::PER_INTERPRETER_GIL;
+use cpython_binding::{Module, fastcall, method_table_end};
 
 const MISSING: i64 = i64::MIN;
 
@@ -778,74 +674,24 @@ unsafe extern "C" fn parse_groups(
     unsafe { parse_groups_impl(args, nargs) }
 }
 
-pub extern "C" fn _strptime_rs_clear(_obj: *mut PyObject) -> c_int {
-    0
-}
+static METHODS: [PyMethodDef; 3] = [
+    fastcall(
+        c"parse_groups",
+        parse_groups,
+        c"Parse matched strptime directive fields.",
+    ),
+    fastcall(
+        c"parse_numeric_groups",
+        parse_numeric_groups,
+        c"Parse matched locale-independent strptime fields.",
+    ),
+    method_table_end(),
+];
 
-pub extern "C" fn _strptime_rs_free(_obj: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-struct ModuleSlots([PyModuleDef_Slot; 2]);
-
-unsafe impl Sync for ModuleSlots {}
-
-// Conversion keeps buffers within each call and holds no shared Python references.
-static MODULE_SLOTS: ModuleSlots = ModuleSlots([
-    PyModuleDef_Slot {
-        slot: Py_mod_multiple_interpreters,
-        value: Py_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
-    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
-]);
-
-pub static _STRPTIME_RS_MODULE_METHODS: [PyMethodDef; 3] = {
-    [
-        PyMethodDef {
-            ml_name: c"parse_groups".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer {
-                PyCFunctionFast: parse_groups,
-            },
-            ml_flags: METH_FASTCALL,
-            ml_doc: c"Parse matched strptime directive fields.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"parse_numeric_groups".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: parse_numeric_groups },
-            ml_flags: METH_FASTCALL,
-            ml_doc: c"Parse matched locale-independent strptime fields.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef::zeroed(),
-    ]
-};
-
-pub static _STRPTIME_RS_MODULE: ModuleDef = {
-    ModuleDef {
-        ffi: UnsafeCell::new(PyModuleDef {
-            m_base: PyModuleDef_HEAD_INIT,
-            m_name: c"_strptime_rs".as_ptr() as *mut _,
-            m_doc: c"Rust strptime directive field parser.".as_ptr() as *mut _,
-            m_size: 0,
-            m_methods: &_STRPTIME_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: MODULE_SLOTS.0.as_ptr() as *mut PyModuleDef_Slot,
-            m_traverse: None,
-            m_clear: Some(_strptime_rs_clear),
-            m_free: Some(_strptime_rs_free),
-        }),
-    }
-};
+static MODULE: Module = Module::new(c"_strptime_rs", c"Rust strptime directive field parser.", &METHODS)
+    .with_slots(&PER_INTERPRETER_GIL);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__strptime_rs() -> *mut PyObject {
-    _STRPTIME_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }

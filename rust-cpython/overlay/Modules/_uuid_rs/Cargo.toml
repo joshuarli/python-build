@@ -5,7 +5,7 @@ edition = "2024"
 rust-version.workspace = true
 
 [dependencies]
-cpython-sys = { path = "../cpython-sys" }
+cpython-binding = { path = "../cpython-binding" }
 uuid = { version = "=1.26.1", default-features = false, features = ["std", "v3", "v4", "v5"] }
 
 [build-dependencies]

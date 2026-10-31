@@ -1,37 +1,15 @@
-use std::cell::UnsafeCell;
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::MaybeUninit;
-use std::ptr;
-use std::slice;
-use std::str;
+use std::ffi::{CStr, c_void};
 
-use cpython_sys::METH_O;
-use cpython_sys::METH_VARARGS;
-use cpython_sys::PyCapsule_GetPointer;
-use cpython_sys::PyCapsule_IsValid;
-use cpython_sys::PyCapsule_New;
-use cpython_sys::PyErr_Clear;
-use cpython_sys::PyErr_NoMemory;
-use cpython_sys::PyErr_SetString;
-use cpython_sys::PyExc_TypeError;
-use cpython_sys::PyExc_ValueError;
-use cpython_sys::PyBytes_FromStringAndSize;
-use cpython_sys::Py_IncRef;
-use cpython_sys::Py_buffer;
-use cpython_sys::PyBuffer_Release;
-use cpython_sys::PyMethodDef;
-use cpython_sys::PyMethodDefFuncPointer;
-use cpython_sys::PyModuleDef;
-use cpython_sys::PyModuleDef_HEAD_INIT;
-use cpython_sys::PyModuleDef_Init;
-use cpython_sys::PyModuleDef_Slot;
-use cpython_sys::PyObject;
-use cpython_sys::PyObject_GetBuffer;
-use cpython_sys::PyTuple_GetItem;
-use cpython_sys::PyTuple_Size;
-use cpython_sys::PyUnicode_AsUTF8AndSize;
-use cpython_sys::PyUnicode_FromStringAndSize;
-use cpython_sys::Py_ssize_t;
+use cpython_binding::ffi::{
+    PyCapsule_GetPointer, PyCapsule_IsValid, PyCapsule_New, PyErr_Clear, PyMethodDef, PyObject,
+    PyTuple_GetItem, PyTuple_Size, PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize,
+    Py_ssize_t,
+};
+use cpython_binding::module::PER_INTERPRETER_GIL;
+use cpython_binding::{
+    Borrowed, Buffer, BytesWriter, Exception, Module, Outcome, Owned, Stop, into_return,
+    method_table_end, raise, single_argument, varargs,
+};
 
 use hmac::{Hmac, KeyInit, Mac, SimpleHmac};
 use md5::Md5;
@@ -41,8 +19,7 @@ use sha2::{Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256};
 use sha3::{Sha3_224, Sha3_256, Sha3_384, Sha3_512};
 use sm3::Sm3;
 
-const PYBUF_SIMPLE: c_int = 0;
-const CAPSULE_NAME: &std::ffi::CStr = c"_hmac_rs.HMACState";
+const CAPSULE_NAME: &CStr = c"_hmac_rs.HMACState";
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
 #[derive(Clone)]
@@ -127,79 +104,40 @@ impl HmacState {
     }
 }
 
-struct BorrowedBuffer {
-    view: Py_buffer,
-}
-
-impl BorrowedBuffer {
-    unsafe fn from_object(object: *mut PyObject) -> Option<Self> {
-        let mut view = MaybeUninit::<Py_buffer>::uninit();
-        if unsafe { PyObject_GetBuffer(object, view.as_mut_ptr(), PYBUF_SIMPLE) } != 0 {
-            return None;
-        }
-        Some(Self {
-            view: unsafe { view.assume_init() },
-        })
-    }
-
-    fn bytes(&self) -> &[u8] {
-        if self.view.len <= 0 {
-            return &[];
-        }
-        unsafe { slice::from_raw_parts(self.view.buf.cast::<u8>(), self.view.len as usize) }
-    }
-}
-
-impl Drop for BorrowedBuffer {
-    fn drop(&mut self) {
-        unsafe { PyBuffer_Release(&mut self.view) }
-    }
-}
-
-fn set_type_error(message: &'static std::ffi::CStr) -> *mut PyObject {
-    unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
-    ptr::null_mut()
-}
-
-fn set_value_error(message: &'static std::ffi::CStr) -> *mut PyObject {
-    unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) };
-    ptr::null_mut()
-}
-
-unsafe fn read_name(object: *mut PyObject) -> Option<String> {
+fn read_name(object: Borrowed<'_>) -> Outcome<String> {
     let mut size: Py_ssize_t = 0;
-    let name = unsafe { PyUnicode_AsUTF8AndSize(object, &mut size) };
+    let name = unsafe { PyUnicode_AsUTF8AndSize(object.as_ptr(), &mut size) };
     if name.is_null() {
-        return None;
+        return Err(Stop::Raised);
     }
     if size < 0 {
-        set_value_error(c"digest name has a negative encoded length");
-        return None;
+        return Err(raise(Exception::ValueError, c"digest name has a negative encoded length"));
     }
-    let bytes = unsafe { slice::from_raw_parts(name.cast::<u8>(), size as usize) };
-    let name = unsafe { str::from_utf8_unchecked(bytes) };
-    Some(name.to_owned())
+    let bytes = unsafe { core::slice::from_raw_parts(name.cast::<u8>(), size as usize) };
+    Ok(unsafe { core::str::from_utf8_unchecked(bytes) }.to_owned())
 }
 
-unsafe fn tuple_item(args: *mut PyObject, index: Py_ssize_t, count: Py_ssize_t) -> Option<*mut PyObject> {
-    if unsafe { PyTuple_Size(args) } != count {
-        set_type_error(c"invalid number of arguments");
-        return None;
+unsafe fn tuple_arguments<'a, const COUNT: usize>(args: *mut PyObject) -> Outcome<[Borrowed<'a>; COUNT]> {
+    if unsafe { PyTuple_Size(args) } != COUNT as Py_ssize_t {
+        return Err(raise(Exception::TypeError, c"invalid number of arguments"));
     }
-    let item = unsafe { PyTuple_GetItem(args, index) };
-    if item.is_null() {
-        None
-    } else {
-        Some(item)
+    let mut items = [None; COUNT];
+    for (index, item) in items.iter_mut().enumerate() {
+        let pointer = unsafe { PyTuple_GetItem(args, index as Py_ssize_t) };
+        if pointer.is_null() {
+            return Err(Stop::Raised);
+        }
+        *item = Some(unsafe { Borrowed::from_raw(pointer) });
     }
+    Ok(items.map(|item| item.unwrap()))
 }
 
-unsafe fn get_state(capsule: *mut PyObject) -> Option<*mut HmacState> {
-    let pointer = unsafe { PyCapsule_GetPointer(capsule, CAPSULE_NAME.as_ptr()) };
+fn get_state<'a>(capsule: Borrowed<'a>) -> Outcome<&'a mut HmacState> {
+    let pointer = unsafe { PyCapsule_GetPointer(capsule.as_ptr(), CAPSULE_NAME.as_ptr()) };
     if pointer.is_null() {
-        return None;
+        return Err(Stop::Raised);
     }
-    Some(pointer.cast::<HmacState>())
+    Ok(unsafe { &mut *pointer.cast::<HmacState>() })
 }
 
 unsafe extern "C" fn destroy_state(capsule: *mut PyObject) {
@@ -215,7 +153,7 @@ unsafe extern "C" fn destroy_state(capsule: *mut PyObject) {
     }
 }
 
-fn make_capsule(state: HmacState) -> *mut PyObject {
+fn make_capsule(state: HmacState) -> Outcome<Owned> {
     let pointer = Box::into_raw(Box::new(state));
     let capsule = unsafe {
         PyCapsule_New(
@@ -224,257 +162,104 @@ fn make_capsule(state: HmacState) -> *mut PyObject {
             Some(destroy_state),
         )
     };
-    if capsule.is_null() {
-        unsafe { drop(Box::from_raw(pointer)) };
-    }
-    capsule
+    unsafe { Owned::from_new_reference(capsule) }.inspect_err(|_| unsafe {
+        drop(Box::from_raw(pointer));
+    })
 }
 
-unsafe fn new_impl(args: *mut PyObject) -> *mut PyObject {
-    let Some(key_object) = (unsafe { tuple_item(args, 0, 2) }) else {
-        return ptr::null_mut();
-    };
-    let Some(name_object) = (unsafe { tuple_item(args, 1, 2) }) else {
-        return ptr::null_mut();
-    };
-    let Some(name) = (unsafe { read_name(name_object) }) else {
-        return ptr::null_mut();
-    };
-    let Some(key) = (unsafe { BorrowedBuffer::from_object(key_object) }) else {
-        return ptr::null_mut();
-    };
-    let Some(state) = HmacState::new(&name, key.bytes()) else {
-        return set_value_error(c"unsupported HMAC digest");
-    };
-    make_capsule(state)
+fn unsupported_digest() -> Stop {
+    raise(Exception::ValueError, c"unsupported HMAC digest")
 }
 
-unsafe fn update_impl(args: *mut PyObject) -> *mut PyObject {
-    let Some(state_object) = (unsafe { tuple_item(args, 0, 2) }) else {
-        return ptr::null_mut();
-    };
-    let Some(data_object) = (unsafe { tuple_item(args, 1, 2) }) else {
-        return ptr::null_mut();
-    };
-    let Some(data) = (unsafe { BorrowedBuffer::from_object(data_object) }) else {
-        return ptr::null_mut();
-    };
-    let Some(state) = (unsafe { get_state(state_object) }) else {
-        return ptr::null_mut();
-    };
-    unsafe { &mut *state }.update(data.bytes());
-    unsafe { Py_IncRef(state_object) };
-    state_object
+fn new_state(args: *mut PyObject) -> Outcome<Owned> {
+    let [key_object, name_object] = unsafe { tuple_arguments(args) }?;
+    let name = read_name(name_object)?;
+    let key = Buffer::acquire(key_object)?;
+    make_capsule(HmacState::new(&name, key.as_bytes()).ok_or_else(unsupported_digest)?)
 }
 
-unsafe fn copy_impl(state_object: *mut PyObject) -> *mut PyObject {
-    let Some(state) = (unsafe { get_state(state_object) }) else {
-        return ptr::null_mut();
-    };
-    make_capsule(unsafe { &*state }.clone())
+fn update_state(args: *mut PyObject) -> Outcome<Owned> {
+    let [state_object, data_object] = unsafe { tuple_arguments(args) }?;
+    let data = Buffer::acquire(data_object)?;
+    get_state(state_object)?.update(data.as_bytes());
+    Ok(state_object.to_owned())
 }
 
-fn bytes_from_slice(bytes: &[u8]) -> *mut PyObject {
-    if bytes.len() > Py_ssize_t::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    unsafe { PyBytes_FromStringAndSize(bytes.as_ptr().cast::<c_char>(), bytes.len() as Py_ssize_t) }
+fn copy_state(state_object: Borrowed<'_>) -> Outcome<Owned> {
+    make_capsule(get_state(state_object)?.clone())
 }
 
-unsafe fn digest_impl(state_object: *mut PyObject) -> *mut PyObject {
-    let Some(state) = (unsafe { get_state(state_object) }) else {
-        return ptr::null_mut();
-    };
-    let result = unsafe { &*state }.digest();
-    bytes_from_slice(&result)
+fn digest_state(state_object: Borrowed<'_>) -> Outcome<Owned> {
+    BytesWriter::copy_of(&get_state(state_object)?.digest())
 }
 
-unsafe fn hexdigest_impl(state_object: *mut PyObject) -> *mut PyObject {
-    let Some(state) = (unsafe { get_state(state_object) }) else {
-        return ptr::null_mut();
-    };
-    let result = unsafe { &*state }.digest();
+fn hexdigest_state(state_object: Borrowed<'_>) -> Outcome<Owned> {
+    let result = get_state(state_object)?.digest();
     let mut hex = Vec::with_capacity(result.len() * 2);
     for byte in result {
         hex.push(HEX[(byte >> 4) as usize]);
         hex.push(HEX[(byte & 0x0f) as usize]);
     }
-    if hex.len() > Py_ssize_t::MAX as usize {
-        unsafe { PyErr_NoMemory() };
-        return ptr::null_mut();
-    }
-    unsafe { PyUnicode_FromStringAndSize(hex.as_ptr().cast::<c_char>(), hex.len() as Py_ssize_t) }
+    let text = unsafe { PyUnicode_FromStringAndSize(hex.as_ptr().cast(), hex.len() as Py_ssize_t) };
+    unsafe { Owned::from_new_reference(text) }
 }
 
-unsafe fn compute_digest_impl(args: *mut PyObject) -> *mut PyObject {
-    let Some(key_object) = (unsafe { tuple_item(args, 0, 3) }) else {
-        return ptr::null_mut();
-    };
-    let Some(data_object) = (unsafe { tuple_item(args, 1, 3) }) else {
-        return ptr::null_mut();
-    };
-    let Some(name_object) = (unsafe { tuple_item(args, 2, 3) }) else {
-        return ptr::null_mut();
-    };
-    let Some(name) = (unsafe { read_name(name_object) }) else {
-        return ptr::null_mut();
-    };
-    let Some(key) = (unsafe { BorrowedBuffer::from_object(key_object) }) else {
-        return ptr::null_mut();
-    };
-    let Some(data) = (unsafe { BorrowedBuffer::from_object(data_object) }) else {
-        return ptr::null_mut();
-    };
-    let Some(mut state) = HmacState::new(&name, key.bytes()) else {
-        return set_value_error(c"unsupported HMAC digest");
-    };
-    state.update(data.bytes());
-    let result = state.digest();
-    bytes_from_slice(&result)
+fn compute_digest_once(args: *mut PyObject) -> Outcome<Owned> {
+    let [key_object, data_object, name_object] = unsafe { tuple_arguments(args) }?;
+    let name = read_name(name_object)?;
+    let key = Buffer::acquire(key_object)?;
+    let data = Buffer::acquire(data_object)?;
+    let mut state = HmacState::new(&name, key.as_bytes()).ok_or_else(unsupported_digest)?;
+    state.update(data.as_bytes());
+    BytesWriter::copy_of(&state.digest())
 }
 
-unsafe extern "C" fn new(
-    _module: *mut PyObject,
-    args: *mut PyObject,
-) -> *mut PyObject {
-    unsafe { new_impl(args) }
+unsafe extern "C" fn new(_module: *mut PyObject, args: *mut PyObject) -> *mut PyObject {
+    into_return(new_state(args))
 }
 
-unsafe extern "C" fn update(
-    _module: *mut PyObject,
-    args: *mut PyObject,
-) -> *mut PyObject {
-    unsafe { update_impl(args) }
+unsafe extern "C" fn update(_module: *mut PyObject, args: *mut PyObject) -> *mut PyObject {
+    into_return(update_state(args))
 }
 
-unsafe extern "C" fn copy(
-    _module: *mut PyObject,
-    state: *mut PyObject,
-) -> *mut PyObject {
-    unsafe { copy_impl(state) }
+unsafe extern "C" fn copy(_module: *mut PyObject, state: *mut PyObject) -> *mut PyObject {
+    into_return(copy_state(unsafe { Borrowed::from_raw(state) }))
 }
 
-unsafe extern "C" fn digest(
-    _module: *mut PyObject,
-    state: *mut PyObject,
-) -> *mut PyObject {
-    unsafe { digest_impl(state) }
+unsafe extern "C" fn digest(_module: *mut PyObject, state: *mut PyObject) -> *mut PyObject {
+    into_return(digest_state(unsafe { Borrowed::from_raw(state) }))
 }
 
-unsafe extern "C" fn hexdigest(
-    _module: *mut PyObject,
-    state: *mut PyObject,
-) -> *mut PyObject {
-    unsafe { hexdigest_impl(state) }
+unsafe extern "C" fn hexdigest(_module: *mut PyObject, state: *mut PyObject) -> *mut PyObject {
+    into_return(hexdigest_state(unsafe { Borrowed::from_raw(state) }))
 }
 
-unsafe extern "C" fn compute_digest(
-    _module: *mut PyObject,
-    args: *mut PyObject,
-) -> *mut PyObject {
-    unsafe { compute_digest_impl(args) }
+unsafe extern "C" fn compute_digest(_module: *mut PyObject, args: *mut PyObject) -> *mut PyObject {
+    into_return(compute_digest_once(args))
 }
 
-pub extern "C" fn _hmac_rs_clear(_obj: *mut PyObject) -> c_int {
-    0
-}
+static METHODS: [PyMethodDef; 7] = [
+    varargs(c"new", new, c"Create a keyed digest state."),
+    varargs(c"update", update, c"Update a keyed digest state with bytes-like input."),
+    single_argument(c"copy", copy, c"Copy a keyed digest state."),
+    single_argument(c"digest", digest, c"Finalize a copy of a keyed digest state."),
+    single_argument(
+        c"hexdigest",
+        hexdigest,
+        c"Finalize a copy of a keyed digest state as hexadecimal text.",
+    ),
+    varargs(c"compute_digest", compute_digest, c"Compute a one-shot keyed digest."),
+    method_table_end(),
+];
 
-pub extern "C" fn _hmac_rs_free(_obj: *mut c_void) {}
-
-unsafe extern "C" fn _hmac_rs_exec(_module: *mut PyObject) -> c_int {
-    let _ = _module;
-    0
-}
-
-struct HmacModuleSlots([PyModuleDef_Slot; 3]);
-
-unsafe impl Sync for HmacModuleSlots {}
-
-const PY_MOD_EXEC: c_int = 85;
-const PY_MOD_MULTIPLE_INTERPRETERS: c_int = 86;
-const PY_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2 as *mut c_void;
-
-static HMAC_MODULE_SLOTS: HmacModuleSlots = HmacModuleSlots([
-    PyModuleDef_Slot { slot: PY_MOD_EXEC, value: _hmac_rs_exec as *const () as *mut c_void },
-    PyModuleDef_Slot {
-        slot: PY_MOD_MULTIPLE_INTERPRETERS,
-        value: PY_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
-    PyModuleDef_Slot { slot: 0, value: ptr::null_mut() },
-]);
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static _HMAC_RS_MODULE_METHODS: [PyMethodDef; 7] = {
-    [
-        PyMethodDef {
-            ml_name: c"new".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: new },
-            ml_flags: METH_VARARGS,
-            ml_doc: c"Create a keyed digest state.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"update".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: update },
-            ml_flags: METH_VARARGS,
-            ml_doc: c"Update a keyed digest state with bytes-like input.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"copy".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: copy },
-            ml_flags: METH_O,
-            ml_doc: c"Copy a keyed digest state.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"digest".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: digest },
-            ml_flags: METH_O,
-            ml_doc: c"Finalize a copy of a keyed digest state.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"hexdigest".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: hexdigest },
-            ml_flags: METH_O,
-            ml_doc: c"Finalize a copy of a keyed digest state as hexadecimal text.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef {
-            ml_name: c"compute_digest".as_ptr() as *mut c_char,
-            ml_meth: PyMethodDefFuncPointer { PyCFunction: compute_digest },
-            ml_flags: METH_VARARGS,
-            ml_doc: c"Compute a one-shot keyed digest.".as_ptr() as *mut c_char,
-        },
-        PyMethodDef::zeroed(),
-    ]
-};
-
-pub static _HMAC_RS_MODULE: ModuleDef = {
-    ModuleDef {
-        ffi: UnsafeCell::new(PyModuleDef {
-            m_base: PyModuleDef_HEAD_INIT,
-            m_name: c"_hmac_rs".as_ptr() as *mut _,
-            m_doc: c"Rust HMAC state for supported fixed-output digest algorithms.".as_ptr() as *mut _,
-            m_size: 0,
-            m_methods: &_HMAC_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-            m_slots: HMAC_MODULE_SLOTS.0.as_ptr() as *mut _,
-            m_traverse: None,
-            m_clear: Some(_hmac_rs_clear),
-            m_free: Some(_hmac_rs_free),
-        }),
-    }
-};
+static MODULE: Module = Module::new(
+    c"_hmac_rs",
+    c"Rust HMAC state for supported fixed-output digest algorithms.",
+    &METHODS,
+)
+.with_slots(&PER_INTERPRETER_GIL);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__hmac_rs() -> *mut PyObject {
-    _HMAC_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }

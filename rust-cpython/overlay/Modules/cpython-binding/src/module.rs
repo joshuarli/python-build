@@ -3,7 +3,7 @@ use core::ffi::{CStr, c_int};
 use core::ptr;
 
 use crate::ffi::{
-    METH_FASTCALL, METH_NOARGS, METH_O, PyCFunction, PyCFunctionFast, PyMethodDef,
+    METH_FASTCALL, METH_NOARGS, METH_O, METH_VARARGS, PyCFunction, PyCFunctionFast, PyMethodDef,
     PyMethodDefFuncPointer, PyModuleDef, PyModuleDef_Base, PyModuleDef_Init, PyModuleDef_Slot,
     PyObject, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED, Py_mod_multiple_interpreters,
     STATIC_IMMORTAL_REFCNT,
@@ -35,6 +35,17 @@ pub const fn single_argument(
             PyCFunction: function,
         },
         METH_O,
+        doc,
+    )
+}
+
+pub const fn varargs(name: &'static CStr, function: PyCFunction, doc: &'static CStr) -> PyMethodDef {
+    method(
+        name,
+        PyMethodDefFuncPointer {
+            PyCFunction: function,
+        },
+        METH_VARARGS,
         doc,
     )
 }
@@ -76,12 +87,15 @@ pub const fn method_table_end() -> PyMethodDef {
     }
 }
 
+/// The slot that declares support for subinterpreters with their own GIL.
+pub const PER_INTERPRETER_GIL_SLOT: PyModuleDef_Slot = PyModuleDef_Slot {
+    slot: Py_mod_multiple_interpreters,
+    value: Py_MOD_PER_INTERPRETER_GIL_SUPPORTED,
+};
+
 /// Slots that declare support for subinterpreters with their own GIL.
 pub static PER_INTERPRETER_GIL: [PyModuleDef_Slot; 2] = [
-    PyModuleDef_Slot {
-        slot: Py_mod_multiple_interpreters,
-        value: Py_MOD_PER_INTERPRETER_GIL_SUPPORTED,
-    },
+    PER_INTERPRETER_GIL_SLOT,
     PyModuleDef_Slot {
         slot: 0,
         value: ptr::null_mut(),

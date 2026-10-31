@@ -6,7 +6,7 @@ rust-version.workspace = true
 
 [dependencies]
 byteorder = { version = "=1.5.0", default-features = false }
-cpython-sys = { path = "../cpython-sys" }
+cpython-binding = { path = "../cpython-binding" }
 
 [build-dependencies]
 cpython-build-helper = { path = "../cpython-build-helper" }

@@ -11,7 +11,7 @@ pub mod writer;
 mod panic;
 
 pub use buffer::Buffer;
-pub use module::{Module, fastcall, method_table_end, noargs, single_argument};
+pub use module::{Module, fastcall, method_table_end, noargs, single_argument, varargs};
 pub use outcome::{Exception, Outcome, Stop, into_return, raise};
-pub use reference::{Borrowed, Owned};
+pub use reference::{Borrowed, Owned, fastcall_arguments};
 pub use writer::BytesWriter;

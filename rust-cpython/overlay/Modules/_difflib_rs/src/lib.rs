@@ -1,20 +1,34 @@
 #![no_std]
 
-use core::cell::UnsafeCell;
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::{c_int, c_void};
 use core::ptr;
 
-mod ffi;
-use ffi::*;
+use cpython_binding::ffi::{
+    PyDict_GetItemWithError, PyDict_Type, PyErr_NoMemory, PyErr_Occurred, PyList_GetItem, PyList_Size, PyLong_AsLongLong,
+    PyLong_FromLongLong, PyLong_Type, PyMethodDef, PyObject, PyObject_RichCompareBool, PyTuple_GetItem, PyTuple_New,
+    PyTuple_SetItem, PyTuple_Size, PyTuple_Type, PyUnicode_Type, Py_DecRef, Py_ssize_t,
+};
+use cpython_binding::{Exception, Module, fastcall, method_table_end, raise};
+
 mod buffer;
 use buffer::MatchBuffer;
 
+#[cfg_attr(target_vendor = "apple", link(name = "System"))]
+unsafe extern "C" {
+    fn qsort(
+        base: *mut c_void,
+        count: usize,
+        size: usize,
+        compare: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
+    );
+}
+
 fn set_type_error(message: &'static core::ffi::CStr) {
-    unsafe { PyErr_SetString(PyExc_TypeError, message.as_ptr()) };
+    raise(Exception::TypeError, message);
 }
 
 fn set_value_error(message: &'static core::ffi::CStr) {
-    unsafe { PyErr_SetString(PyExc_ValueError, message.as_ptr()) };
+    raise(Exception::ValueError, message);
 }
 
 unsafe fn read_integer_list(arg: *mut PyObject) -> Option<MatchBuffer<i64>> {
@@ -370,58 +384,27 @@ unsafe extern "C" fn find_longest_match_index(
     unsafe { new_result(result) }
 }
 
-pub extern "C" fn _difflib_rs_clear(_object: *mut PyObject) -> c_int {
-    0
-}
-
-pub extern "C" fn _difflib_rs_free(_object: *mut c_void) {}
-
-pub struct ModuleDef {
-    ffi: UnsafeCell<PyModuleDef>,
-}
-
-impl ModuleDef {
-    fn init_multi_phase(&'static self) -> *mut PyObject {
-        unsafe { PyModuleDef_Init(self.ffi.get()) }
-    }
-}
-
-unsafe impl Sync for ModuleDef {}
-
-pub static _DIFFLIB_RS_MODULE_METHODS: [PyMethodDef; 3] = [
-    PyMethodDef {
-        ml_name: c"find_longest_match".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer {
-            PyCFunctionFast: find_longest_match,
-        },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Find a longest matching block in integer token sequences.".as_ptr()
-            as *mut c_char,
-    },
-    PyMethodDef {
-        ml_name: c"find_longest_match_index".as_ptr() as *mut c_char,
-        ml_meth: PyMethodDefFuncPointer { PyCFunctionFast: find_longest_match_index },
-        ml_flags: METH_FASTCALL,
-        ml_doc: c"Find a longest block of builtin values through ascending position lists.".as_ptr() as *mut c_char,
-    },
-    PyMethodDef::zeroed(),
+static METHODS: [PyMethodDef; 3] = [
+    fastcall(
+        c"find_longest_match",
+        find_longest_match,
+        c"Find a longest matching block in integer token sequences.",
+    ),
+    fastcall(
+        c"find_longest_match_index",
+        find_longest_match_index,
+        c"Find a longest block of builtin values through ascending position lists.",
+    ),
+    method_table_end(),
 ];
 
-pub static _DIFFLIB_RS_MODULE: ModuleDef = ModuleDef {
-    ffi: UnsafeCell::new(PyModuleDef {
-        m_base: PyModuleDef_HEAD_INIT,
-        m_name: c"_difflib_rs".as_ptr() as *mut _,
-        m_doc: c"Rust sequence matching helpers for difflib.".as_ptr() as *mut _,
-        m_size: 0,
-        m_methods: &_DIFFLIB_RS_MODULE_METHODS as *const PyMethodDef as *mut _,
-        m_slots: ptr::null_mut(),
-        m_traverse: None,
-        m_clear: Some(_difflib_rs_clear),
-        m_free: Some(_difflib_rs_free),
-    }),
-};
+static MODULE: Module = Module::new(
+    c"_difflib_rs",
+    c"Rust sequence matching helpers for difflib.",
+    &METHODS,
+);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn PyInit__difflib_rs() -> *mut PyObject {
-    _DIFFLIB_RS_MODULE.init_multi_phase()
+    MODULE.init()
 }
