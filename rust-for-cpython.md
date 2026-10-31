@@ -69,15 +69,17 @@ Slices on `m1-scaffold` (never merged into `main`; the owner decides):
   on `s6-toml-pilot`. The `catalog_toml_load` workload landed. JSON and plist
   do not follow. `_tomllib_rs` hardcodes key and nesting limits that
   `tomllib` takes from the recursion limit.
-- S7 parked, not accepted. Candidate `cf91a6e` on `s7-runtime` (urllib
+- S7 done, accepted by the owner at the 1 percent floor. `b65843a` (urllib
   quote and unquote in one Rust call) reads wall 0.72, 0.78 and 0.87 and CPU
   0.81, 0.81 and 0.88 on `catalog_request_path`, `catalog_search_form` and
-  `catalog_url_normalize`, improved in every run, with no guard regressed.
-  Peak RSS reads 0.998 to 1.005 with upper bounds up to 1.014, so the 6-run
-  gate decision is INCONCLUSIVE, not ACCEPT. The earlier REJECT came from the
-  old base build, and two same-commit builds agree within 0.3 percent. The
-  owner decides whether to accept at the 1 percent floor; the branch is a
-  base of `990f7fd` and needs a rebase onto `m1-scaffold` before merging.
+  `catalog_url_normalize`, improved in every run of a 6-run matched gate with
+  no guard regressed. Peak RSS reads 0.998 to 1.005 with upper bounds up to
+  1.014, so the gate decision is INCONCLUSIVE; the owner accepted that. On
+  the rebased tree the differential test passes (14), a subinterpreter call
+  returns `None`, and `test --all` shows only the Baseline known-red files
+  (run=50,158, failures=9). The gate numbers were measured before the
+  rebase onto the binding and deflate fixes; the rebased tree was not
+  re-gated.
 - Integrated gate. `main` against `m1-scaffold` at `990f7fd` (`bench --gate
   --all-workloads --runs 4`, matched clean builds, quiet) read REJECT on
   `rust_base64_small` wall 1.234, `zip_read_wheel` peak RSS 1.017 and
@@ -96,8 +98,10 @@ Needs a quieter host: more `bench --gate` runs for S5, S7, and the borderline
 wall rows `rust_base64_small` and `gzip_extract_1m`. The bench `peak_rss` metric is sampled and
 noisy below 100 ms.
 
-M1 is not complete: S7 is parked and the integrated gate has no ACCEPT. The
-owner decides on both.
+M1 check: S1-S7 landed or recorded (S6 a loss), overlay Rust lines 96,662 against
+100,510, and three catalog workloads improved on an optimized build. No slice
+gate reads ACCEPT because wall intervals straddle the 1 percent floor on this
+shared host; the owner accepted S7 on that basis.
 
 Resume: "Resume the Rust-for-CPython campaign in rust-for-cpython.md with
 the orchestrate skill." First command: `python3 rust-cpython/perf.py status`.
