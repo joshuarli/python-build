@@ -25,7 +25,13 @@ peak-RSS regressions against control: `python_startup` 1.046x,
 `django_wsgi_request` 1.015x. No CPU work has run. Replay this map under the
 S2 policy before quoting it.
 
-Slices: none accepted under this contract yet. S1 is open. Parked branches (41
+Slices: S1 is open. Its `_bz2_rs` part landed: the scoped allocator is
+gone, and `test_bz2`, `test_tarfile`, `test_fileinput`, and `test_codecs`
+pass on `perf-bz2-alloc-contract` (1,235 run, 19 skipped; the extra skip
+versus ROUTES.md is the debug-only `test_refleaks_in___init__`). The bz2
+memory row from `500b5b0` (load 0.694x) depended on the shortcut and is
+void until S2 re-measures it. The `_re_rs`, `_fnmatch_rs`, and
+`_fractions_rs` audit remains. Parked branches (41
 `lane/*` plus pre-product history, listed at `d17607f`) are evidence, not
 candidates. None merges without review under this contract.
 
@@ -142,10 +148,10 @@ intermittently: `test_audit` (parallel `.pyc` churn), `test_os`, and
 `test_urllib2net`, `test_urllibnet`, `test_winsound`, `test_xpickle`, and
 `test_zipfile64`.
 
-Loop timings (macOS arm64): focused suite 20-90 s; clean perf or coverage
-build 10-20 min; `test --all` about 9 min; verdict unit tests
-(`python3 -m unittest discover -s rust-cpython/tests -p 'test_perf.py'`)
-about 2 s.
+Loop timings (macOS arm64): focused suite 20-90 s; clean perf build 436 s
+at `--jobs 8` (2026-10-31), coverage build 10-20 min; `test --all` about
+9 min; verdict unit tests (`python3 -m unittest discover -s
+rust-cpython/tests -p 'test_perf.py'`) about 2 s.
 
 Findings that bind design (from the `d17607f` ledger):
 - Startup and Django RSS debt is dyld fixup-chain residency, roughly
@@ -183,8 +189,8 @@ keep-or-delete call comes before S4 migrates them.
 
 - **S1 - allocator contracts.** Owns the global-allocator code in
   `overlay/Modules/_bz2_rs`, `_re_rs`, `_fnmatch_rs`, and `_fractions_rs`.
-  Delete the scoped `_bz2_rs` allocator, whose `alloc_zeroed` returns
-  unzeroed memory for large requests inside codec calls. Audit the other
+  The scoped `_bz2_rs` allocator, whose `alloc_zeroed` returned unzeroed
+  memory for large requests inside codec calls, is deleted. Audit the other
   three against `GlobalAlloc`: `_re_rs` arena reuse and realloc,
   `_fractions_rs` `PyMem_Malloc` against the attached-thread-state rule, and
   `_fnmatch_rs`. Delete each allocator unless it is sound and a maintained
