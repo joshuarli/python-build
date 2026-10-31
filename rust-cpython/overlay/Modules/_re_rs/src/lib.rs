@@ -9,13 +9,11 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use cpython_binding::ffi::{
-    PyBool_FromLong, PyErr_Clear, PyErr_NoMemory, PyErr_Occurred, PyErr_SetString, PyLong_AsLong,
-    PyLong_FromLong, PyLong_FromSsize_t, PyMethodDef, PyObject, PyObject_Type, PyTuple_New,
-    PyTuple_SetItem, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength, Py_DecRef, Py_ssize_t,
-};
-use cpython_binding::ffi_extra::{
-    PyCFunction_GetFunction, PyCFunction_GetSelf, PyCFunction_Type, PyDict_GetItemString,
-    PyErr_CheckSignals, PyExc_RuntimeError, PyModule_GetDict, PyUnicode_ReadChar,
+    Py_DecRef, Py_ssize_t, PyBool_FromLong, PyCFunction_GetFunction, PyCFunction_GetSelf,
+    PyCFunction_Type, PyDict_GetItemString, PyErr_CheckSignals, PyErr_Clear, PyErr_NoMemory,
+    PyErr_Occurred, PyErr_SetString, PyExc_RuntimeError, PyLong_AsLong, PyLong_FromLong,
+    PyLong_FromSsize_t, PyMethodDef, PyModule_GetDict, PyObject, PyObject_Type, PyTuple_New,
+    PyTuple_SetItem, PyUnicode_AsUTF8AndSize, PyUnicode_GetLength, PyUnicode_ReadChar,
 };
 use cpython_binding::{Module, fastcall, method_table_end};
 use regex::bytes::{Regex, RegexBuilder};

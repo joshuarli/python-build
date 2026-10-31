@@ -6,15 +6,13 @@ use std::slice;
 use std::str;
 
 use cpython_binding::ffi::{
-    PyBool_FromLong, PyErr_Clear, PyErr_Occurred, PyErr_SetString, PyExc_TypeError, PyIter_Next,
-    PyMethodDef, PyObject, PyObject_CallOneArg, PyObject_GetIter, PyObject_IsTrue, PyObject_Size,
-    PyTuple_GetItem, PyTuple_Size, PyTuple_Type, PyUnicode_AsUTF8AndSize,
-    PyUnicode_FromStringAndSize, Py_DecRef, Py_ssize_t, _Py_NoneStruct,
-};
-use cpython_binding::ffi_ext::{
-    PyDict_Contains, PyDict_GetItemWithError, PyDict_New, PyDict_SetItem, PyObject_CallNoArgs,
-    PyObject_GetAttr, PyObject_GetAttrString, PyObject_Vectorcall, PyType_GetFlags,
-    PyUnicode_InternFromString, PyUnicode_Type, Py_TPFLAGS_UNICODE_SUBCLASS,
+    Py_DecRef, _Py_NoneStruct, Py_ssize_t, Py_TPFLAGS_UNICODE_SUBCLASS, PyBool_FromLong,
+    PyDict_Contains, PyDict_GetItemWithError, PyDict_New, PyDict_SetItem, PyErr_Clear,
+    PyErr_Occurred, PyErr_SetString, PyExc_TypeError, PyIter_Next, PyMethodDef, PyObject,
+    PyObject_CallNoArgs, PyObject_CallOneArg, PyObject_GetAttr, PyObject_GetAttrString,
+    PyObject_GetIter, PyObject_IsTrue, PyObject_Size, PyObject_Vectorcall, PyTuple_GetItem,
+    PyTuple_Size, PyTuple_Type, PyType_GetFlags, PyUnicode_AsUTF8AndSize,
+    PyUnicode_FromStringAndSize, PyUnicode_InternFromString, PyUnicode_Type,
 };
 use cpython_binding::{Borrowed, Buffer, Module, Outcome, Stop, fastcall, method_table_end};
 use quick_xml::events::Event;

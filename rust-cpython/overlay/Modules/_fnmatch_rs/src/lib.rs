@@ -13,10 +13,10 @@ use core::ptr;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use cpython_binding::ffi::{
-    PyBool_FromLong, PyBytes_AsStringAndSize, PyErr_Clear, PyErr_SetString, PyExc_TypeError,
-    PyMethodDef, PyObject, PyUnicode_GetLength, Py_DecRef, Py_ssize_t,
+    Py_DecRef, Py_ssize_t, PyBool_FromLong, PyBytes_AsStringAndSize, PyErr_Clear,
+    PyErr_SetString, PyExc_TypeError, PyMethodDef, PyObject, PyUnicode_GetLength, PyUnicode_New,
+    PyUnicode_ReadChar, PyUnicode_WriteChar,
 };
-use cpython_binding::ffi_extra::{PyUnicode_New, PyUnicode_ReadChar, PyUnicode_WriteChar};
 use cpython_binding::module::PER_INTERPRETER_GIL;
 use cpython_binding::{Module, fastcall, method_table_end};
 

@@ -5,7 +5,7 @@ use crate::ffi::{
     PyErr_SetString, PyExc_IndexError, PyExc_OverflowError, PyExc_TypeError, PyExc_ValueError,
     PyObject,
 };
-use crate::ffi_extra::{
+use crate::ffi::{
     PyExc_MemoryError, PyExc_OSError, PyExc_RuntimeError, PyExc_ZeroDivisionError,
 };
 use crate::reference::Owned;

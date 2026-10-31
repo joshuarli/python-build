@@ -2,10 +2,9 @@ use std::ptr;
 
 use cpython_binding::arguments::{exactly, long_long_argument, ssize_argument};
 use cpython_binding::ffi::{
-    PyBytes_Type, PyMethodDef, PyObject, PyTuple_GetItem, PyTuple_New, PyTuple_SetItem,
-    PyTuple_Size, Py_ssize_t,
+    Py_ssize_t, PyBytes_Type, PyDict_Contains, PyMethodDef, PyObject, PyTuple_GetItem,
+    PyTuple_New, PyTuple_SetItem, PyTuple_Size, PyUnicode_Concat,
 };
-use cpython_binding::ffi_extra::{PyDict_Contains, PyUnicode_Concat};
 use cpython_binding::values::boolean;
 use cpython_binding::{
     Borrowed, Buffer, BytesSink, BytesWriter, Exception, Module, Outcome, Owned, Stop, fastcall,

@@ -6,14 +6,12 @@ use std::ptr;
 use std::slice;
 
 use cpython_binding::ffi::{
-    PyBytes_AsString, PyBytes_FromStringAndSize, PyErr_Clear, PyErr_Occurred, PyErr_SetString,
-    PyExc_OverflowError, PyExc_TypeError, PyLong_AsUnsignedLongLong, PyMethodDef, PyObject,
-    PyTuple_New, PyTuple_SetItem, Py_DecRef, Py_IncRef, Py_ssize_t, _Py_NoneStruct,
-};
-use cpython_binding::ffi_ext::{
-    PyCapsule_GetPointer, PyCapsule_New, PyEval_RestoreThread, PyEval_SaveThread,
-    PyExc_MemoryError, PyExc_RuntimeError, PyLong_AsLong, PyLong_AsSsize_t, PyLong_FromLong,
-    _PyBytes_Resize,
+    Py_DecRef, Py_IncRef, _Py_NoneStruct, Py_ssize_t, PyBytes_AsString,
+    PyBytes_FromStringAndSize, _PyBytes_Resize, PyCapsule_GetPointer, PyCapsule_New,
+    PyErr_Clear, PyErr_Occurred, PyErr_SetString, PyEval_RestoreThread, PyEval_SaveThread,
+    PyExc_MemoryError, PyExc_OverflowError, PyExc_RuntimeError, PyExc_TypeError, PyLong_AsLong,
+    PyLong_AsSsize_t, PyLong_AsUnsignedLongLong, PyLong_FromLong, PyMethodDef, PyObject,
+    PyTuple_New, PyTuple_SetItem,
 };
 use cpython_binding::{Borrowed, Buffer, Module, fastcall, method_table_end};
 

@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use core::ffi::{c_char, c_int, c_long, c_uint, c_void};
+use core::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
 
 pub type Py_ssize_t = isize;
 
@@ -119,6 +119,13 @@ pub struct PyBytesWriter {
     _opaque: [u8; 0],
 }
 
+#[repr(C)]
+pub struct PyThreadState {
+    _opaque: [u8; 0],
+}
+
+pub type PyCapsule_Destructor = Option<unsafe extern "C" fn(*mut PyObject)>;
+
 pub const METH_VARARGS: c_int = 0x0001;
 pub const METH_O: c_int = 0x0008;
 pub const METH_NOARGS: c_int = 0x0004;
@@ -136,6 +143,7 @@ pub const Py_tp_repr: c_int = 66;
 pub const Py_TPFLAGS_DEFAULT: c_uint = 0;
 pub const Py_TPFLAGS_DISALLOW_INSTANTIATION: c_uint = 1 << 7;
 pub const Py_TPFLAGS_IMMUTABLETYPE: c_uint = 1 << 8;
+pub const Py_TPFLAGS_UNICODE_SUBCLASS: c_ulong = 1 << 28;
 
 pub const Py_mod_multiple_interpreters: c_int = 86;
 pub const Py_MOD_PER_INTERPRETER_GIL_SUPPORTED: *mut c_void = 2usize as *mut c_void;
@@ -147,9 +155,14 @@ pub const STATIC_IMMORTAL_REFCNT: Py_ssize_t = (3_isize << 30) | (5_isize << 48)
 unsafe extern "C" {
     pub static mut _Py_NoneStruct: PyObject;
     pub static mut PyExc_IndexError: *mut PyObject;
+    pub static mut PyExc_MemoryError: *mut PyObject;
+    pub static mut PyExc_OSError: *mut PyObject;
     pub static mut PyExc_OverflowError: *mut PyObject;
+    pub static mut PyExc_RuntimeError: *mut PyObject;
     pub static mut PyExc_TypeError: *mut PyObject;
     pub static mut PyExc_ValueError: *mut PyObject;
+    pub static mut PyExc_ZeroDivisionError: *mut PyObject;
+    pub static mut PyCFunction_Type: PyTypeObject;
     pub static mut PyBool_Type: PyTypeObject;
     pub static mut PyByteArray_Type: PyTypeObject;
     pub static mut PyBytes_Type: PyTypeObject;
@@ -199,10 +212,49 @@ unsafe extern "C" {
     pub fn PyCapsule_New(
         pointer: *mut c_void,
         name: *const c_char,
-        destructor: Option<unsafe extern "C" fn(*mut PyObject)>,
+        destructor: PyCapsule_Destructor,
     ) -> *mut PyObject;
-    pub fn PyLong_AsLong(object: *mut PyObject) -> c_long;
+    pub fn PyCFunction_GetFunction(object: *mut PyObject) -> Option<PyCFunction>;
+    pub fn PyCFunction_GetSelf(object: *mut PyObject) -> *mut PyObject;
+    pub fn PyDict_Contains(dict: *mut PyObject, key: *mut PyObject) -> c_int;
+    pub fn PyDict_GetItemString(dict: *mut PyObject, key: *const c_char) -> *mut PyObject;
     pub fn PyDict_GetItemWithError(dict: *mut PyObject, key: *mut PyObject) -> *mut PyObject;
+    pub fn PyDict_New() -> *mut PyObject;
+    pub fn PyDict_SetItem(dict: *mut PyObject, key: *mut PyObject, value: *mut PyObject)
+    -> c_int;
+    pub fn PyErr_CheckSignals() -> c_int;
+    pub fn PyErr_SetFromErrno(exception: *mut PyObject) -> *mut PyObject;
+    pub fn PyEval_RestoreThread(state: *mut PyThreadState);
+    pub fn PyEval_SaveThread() -> *mut PyThreadState;
+    pub fn PyLong_AsInt(object: *mut PyObject) -> c_int;
+    pub fn PyLong_AsLong(object: *mut PyObject) -> c_long;
+    pub fn PyLong_AsNativeBytes(
+        object: *mut PyObject,
+        buffer: *mut c_void,
+        size: Py_ssize_t,
+        flags: c_int,
+    ) -> Py_ssize_t;
+    pub fn PyLong_AsUnsignedLongMask(object: *mut PyObject) -> c_ulong;
+    pub fn PyLong_FromNativeBytes(buffer: *const c_void, size: usize, flags: c_int)
+    -> *mut PyObject;
+    pub fn PyLong_FromUnsignedLong(value: c_ulong) -> *mut PyObject;
+    pub fn PyModule_GetDict(module: *mut PyObject) -> *mut PyObject;
+    pub fn PyNumber_Index(object: *mut PyObject) -> *mut PyObject;
+    pub fn PyObject_CallNoArgs(callable: *mut PyObject) -> *mut PyObject;
+    pub fn PyObject_GetAttr(object: *mut PyObject, name: *mut PyObject) -> *mut PyObject;
+    pub fn PyObject_Vectorcall(
+        callable: *mut PyObject,
+        args: *const *mut PyObject,
+        nargsf: usize,
+        kwnames: *mut PyObject,
+    ) -> *mut PyObject;
+    pub fn PyType_GetFlags(class: *mut PyTypeObject) -> c_ulong;
+    pub fn PyUnicode_Concat(left: *mut PyObject, right: *mut PyObject) -> *mut PyObject;
+    pub fn PyUnicode_InternFromString(text: *const c_char) -> *mut PyObject;
+    pub fn PyUnicode_New(size: Py_ssize_t, maxchar: u32) -> *mut PyObject;
+    pub fn PyUnicode_ReadChar(object: *mut PyObject, index: Py_ssize_t) -> u32;
+    pub fn PyUnicode_WriteChar(object: *mut PyObject, index: Py_ssize_t, character: u32) -> c_int;
+    pub fn _PyBytes_Resize(object: *mut *mut PyObject, size: Py_ssize_t) -> c_int;
     pub fn PyErr_SetObject(exception: *mut PyObject, value: *mut PyObject);
     pub fn PyLong_FromLong(value: c_long) -> *mut PyObject;
     pub fn PyModule_AddObject(

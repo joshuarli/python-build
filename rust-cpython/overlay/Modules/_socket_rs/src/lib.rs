@@ -4,13 +4,10 @@ use std::ptr;
 use std::slice;
 
 use cpython_binding::ffi::{
-    PyBytes_FromStringAndSize, PyErr_Occurred, PyLong_FromSsize_t, PyMethodDef,
-    PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize, Py_NewRef, Py_ssize_t, PyErr_NoMemory,
-    PyObject, _Py_NoneStruct,
-};
-use cpython_binding::ffi_ext::{
-    PyErr_CheckSignals, PyErr_SetFromErrno, PyEval_RestoreThread, PyEval_SaveThread,
-    PyExc_OSError, PyLong_AsLong,
+    Py_NewRef, _Py_NoneStruct, Py_ssize_t, PyBytes_FromStringAndSize, PyErr_CheckSignals,
+    PyErr_NoMemory, PyErr_Occurred, PyErr_SetFromErrno, PyEval_RestoreThread, PyEval_SaveThread,
+    PyExc_OSError, PyLong_AsLong, PyLong_FromSsize_t, PyMethodDef, PyObject,
+    PyUnicode_AsUTF8AndSize, PyUnicode_FromStringAndSize,
 };
 use cpython_binding::module::PER_INTERPRETER_GIL;
 use cpython_binding::{

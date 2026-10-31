@@ -158,3 +158,8 @@ fn type_slots_and_flags_match_the_fork() {
         fork::Py_TPFLAGS_IMMUTABLETYPE as u64
     );
 }
+
+#[test]
+fn unicode_subclass_flag_matches_the_fork() {
+    assert_eq!(ours::Py_TPFLAGS_UNICODE_SUBCLASS, u64::from(fork::Py_TPFLAGS_UNICODE_SUBCLASS));
+}

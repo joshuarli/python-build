@@ -3,7 +3,7 @@ use core::ffi::{CStr, c_int, c_ulong};
 use crate::ffi::{
     PyErr_Occurred, PyLong_AsLong, PyLong_AsLongLong, PyLong_AsSsize_t, Py_DecRef, Py_ssize_t,
 };
-use crate::ffi_extra::{PyLong_AsUnsignedLongMask, PyNumber_Index};
+use crate::ffi::{PyLong_AsUnsignedLongMask, PyNumber_Index};
 use crate::outcome::{Exception, Outcome, Stop, raise};
 use crate::reference::Borrowed;
 

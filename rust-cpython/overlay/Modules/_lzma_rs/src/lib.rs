@@ -4,11 +4,9 @@ use std::ptr;
 use std::slice;
 
 use cpython_binding::ffi::{
-    PyBool_FromLong, PyBytes_AsString, PyBytes_FromStringAndSize, PyErr_Clear, PyErr_NoMemory,
-    PyErr_Occurred, PyMethodDef, PyObject, Py_DecRef, Py_ssize_t,
-};
-use cpython_binding::ffi_ext::{
-    PyCapsule_GetPointer, PyCapsule_New, PyLong_AsLong, _PyBytes_Resize,
+    Py_DecRef, Py_ssize_t, PyBool_FromLong, PyBytes_AsString, PyBytes_FromStringAndSize,
+    _PyBytes_Resize, PyCapsule_GetPointer, PyCapsule_New, PyErr_Clear, PyErr_NoMemory,
+    PyErr_Occurred, PyLong_AsLong, PyMethodDef, PyObject,
 };
 use cpython_binding::{Borrowed, Buffer, Module, fastcall, method_table_end};
 use lzma_rust2::{DICT_SIZE_MIN, XzOptions, XzReader, XzWriter};

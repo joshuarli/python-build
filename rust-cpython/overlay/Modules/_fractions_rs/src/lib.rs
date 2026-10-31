@@ -7,11 +7,9 @@ use alloc::{ffi::CString, format, vec};
 use core::ffi::{c_int, c_void};
 
 use cpython_binding::ffi::{
-    PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError, PyMethodDef, PyObject,
-    PyTuple_New, PyTuple_SetItem, Py_DecRef, Py_ssize_t,
-};
-use cpython_binding::ffi_extra::{
-    PyExc_ZeroDivisionError, PyLong_AsNativeBytes, PyLong_FromNativeBytes,
+    Py_DecRef, Py_ssize_t, PyErr_NoMemory, PyErr_SetString, PyExc_TypeError, PyExc_ValueError,
+    PyExc_ZeroDivisionError, PyLong_AsNativeBytes, PyLong_FromNativeBytes, PyMethodDef,
+    PyObject, PyTuple_New, PyTuple_SetItem,
 };
 use cpython_binding::{Module, fastcall, method_table_end};
 

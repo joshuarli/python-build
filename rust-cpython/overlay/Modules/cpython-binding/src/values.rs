@@ -1,7 +1,7 @@
 use core::ffi::c_ulong;
 
 use crate::ffi::{PyBool_FromLong, PyLong_FromSsize_t, PyTuple_New, PyTuple_SetItem, Py_ssize_t};
-use crate::ffi_extra::PyLong_FromUnsignedLong;
+use crate::ffi::PyLong_FromUnsignedLong;
 use crate::outcome::{Outcome, Stop};
 use crate::reference::Owned;
 
